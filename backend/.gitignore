@@ -1,0 +1,12 @@
+/target/
+.env
+*.log
+.DS_Store
+
+# sqlx offline cache — commit this if running CI without a DB
+# .sqlx/
+
+# IDE
+.idea/
+.vscode/
+*.swp

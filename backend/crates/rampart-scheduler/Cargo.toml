@@ -1,0 +1,21 @@
+[package]
+name         = "rampart-scheduler"
+version      = "0.1.0"
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+
+[dependencies]
+rampart-core     = { path = "../rampart-core" }
+rampart-db       = { path = "../rampart-db" }
+rampart-checker  = { path = "../rampart-checker" }
+rampart-notifier = { path = "../rampart-notifier" }
+
+tokio       = { workspace = true }
+futures     = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+tracing     = { workspace = true }
+time        = { workspace = true }
+uuid        = { workspace = true }
+async-trait = { workspace = true }

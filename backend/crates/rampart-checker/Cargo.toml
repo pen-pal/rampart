@@ -1,0 +1,19 @@
+[package]
+name         = "rampart-checker"
+version      = "0.1.0"
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+
+[dependencies]
+rampart-core = { path = "../rampart-core" }
+tokio       = { workspace = true }
+reqwest     = { workspace = true }
+async-trait = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+thiserror   = { workspace = true }
+time        = { workspace = true }
+tracing     = { workspace = true }
+url         = { workspace = true }
+once_cell   = { workspace = true }

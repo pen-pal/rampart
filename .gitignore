@@ -1,0 +1,30 @@
+# OS junk
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Editor / IDE
+.idea/
+.vscode/
+*.iml
+
+# Per-user local config (anything ending in .local.json or under a .local/ dir)
+**/*.local.json
+**/.local/
+
+# Sensitive: dotenv files live next to their app, but never track them
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# Backend (also covered by backend/.gitignore)
+backend/target/
+
+# Frontend (also covered by frontend/.gitignore)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/

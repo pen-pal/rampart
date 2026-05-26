@@ -1,0 +1,26 @@
+# Rampart · local development compose.
+#
+# Brings up Postgres only. The API runs on the host via `cargo run` during
+# development so reloads are fast. A production compose with the built API
+# image lives in `deploy/compose.prod.yaml` (not in this scaffold).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER:     rampart
+      POSTGRES_PASSWORD: rampart
+      POSTGRES_DB:       rampart
+    ports:
+      - "5432:5432"
+    volumes:
+      - rampart_pg:/var/lib/postgresql/data
+    healthcheck:
+      test:     ["CMD-SHELL", "pg_isready -U rampart -d rampart"]
+      interval: 5s
+      timeout:  3s
+      retries:  5
+
+volumes:
+  rampart_pg:

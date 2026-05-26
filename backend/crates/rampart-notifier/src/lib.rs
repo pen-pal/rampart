@@ -1,0 +1,44 @@
+//! Rampart · notification fan-out.
+//!
+//! When a probe's status flips, the scheduler emits an `Event` on a tokio
+//! mpsc channel. This crate's `NotifierService` consumes those events,
+//! looks up the channels attached to the affected monitor, renders the
+//! template (default or user-supplied), and delivers via each channel's
+//! adapter.
+//!
+//! No delivery guarantees: deliveries are best-effort and fire-and-forget
+//! within a tokio task. We log failures and move on. If the user wants
+//! "definitely-delivered" semantics, they can attach a generic webhook to
+//! a queueing system they control.
+
+pub mod channels;
+pub mod event;
+pub mod service;
+pub mod template;
+
+pub use event::{Event, EventKind};
+pub use service::{NotifierService, NotifierHandle};
+
+use async_trait::async_trait;
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum ChannelError {
+    #[error("config invalid: {0}")]
+    BadConfig(String),
+    #[error("network: {0}")]
+    Network(#[from] reqwest::Error),
+    #[error("upstream returned {0}: {1}")]
+    Upstream(u16, String),
+    #[error("other: {0}")]
+    Other(String),
+}
+
+/// What every channel adapter implements. The adapter owns its config
+/// (deserialized from the `notifications.config` JSONB column) and knows
+/// how to talk to its upstream. The `body` is the pre-rendered text from
+/// the shared template engine.
+#[async_trait]
+pub trait Channel: Send + Sync {
+    async fn send(&self, subject: &str, body: &str, event: &Event) -> Result<(), ChannelError>;
+}
