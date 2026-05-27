@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO status_page_subscribers\n            (id, status_page_id, channel, destination, confirmed, confirm_token)\n        VALUES ($1, $2, 'email', $3, TRUE, $4)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "60f9c5bb384e3f959bde74c0fa124b0cd57d57517ab264b45eab10f4ffe08ba3"
+}

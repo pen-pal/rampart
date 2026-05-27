@@ -193,11 +193,65 @@ export default function StatusPageView({ slug }) {
           ))}
         </div>
 
+        <div style={{ marginTop: 30 }}>
+          <SubscribeBox slug={slug}/>
+        </div>
+
         <p style={{ marginTop: 24, fontSize: 11, color: 'var(--text-3)', textAlign: 'center' }}>
           Last updated {new Date(data.generated_at).toLocaleString()}
         </p>
       </div>
     </div>
+  );
+}
+
+function SubscribeBox({ slug }) {
+  const [email, setEmail] = useState('');
+  const [state, setState] = useState('idle'); // idle | sending | ok | err
+  const [err,   setErr]   = useState(null);
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!email.includes('@')) { setErr('Enter a valid email.'); setState('err'); return; }
+    setState('sending'); setErr(null);
+    try {
+      await api.subscribers.subscribe(slug, email.trim());
+      setState('ok');
+    } catch (e2) {
+      setErr(e2.message || 'Subscribe failed.');
+      setState('err');
+    }
+  };
+  if (state === 'ok') {
+    return (
+      <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-2)' }}>
+        Subscribed. You'll get an email when an incident is posted.
+      </div>
+    );
+  }
+  return (
+    <form onSubmit={submit} style={{ display: 'flex', gap: 8, maxWidth: 420, margin: '0 auto' }}>
+      <input
+        type="email"
+        value={email}
+        onChange={e => setEmail(e.target.value)}
+        placeholder="you@example.com"
+        style={{
+          flex: 1, padding: '8px 12px', borderRadius: 8,
+          border: '1px solid var(--border)', background: 'var(--surface)',
+          color: 'var(--text)', fontSize: 13, fontFamily: 'inherit', outline: 'none',
+        }}
+      />
+      <button type="submit" disabled={state === 'sending'} style={{
+        padding: '8px 14px', borderRadius: 8, border: '1px solid var(--text)',
+        background: 'var(--text)', color: 'var(--surface)', fontSize: 13,
+        cursor: 'pointer', fontWeight: 500,
+      }}>
+        {state === 'sending' ? 'Subscribing…' : 'Subscribe to updates'}
+      </button>
+      {state === 'err' && err && (
+        <div style={{ width: '100%', fontSize: 11, color: '#b91c1c', marginTop: 6 }}>{err}</div>
+      )}
+    </form>
   );
 }
 

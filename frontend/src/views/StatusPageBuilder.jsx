@@ -298,9 +298,50 @@ function Editor({ page, monitors, onCancel, onSaved }) {
           <>
             <div style={{ height: 22 }}/>
             <IncidentsPanel pageId={page.id}/>
+            <div style={{ height: 22 }}/>
+            <SubscribersPanel pageId={page.id}/>
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+function SubscribersPanel({ pageId }) {
+  const list = useApi(() => api.subscribers.listForPage(pageId), [pageId], { pollMs: 30_000 });
+  const [busy, setBusy] = useState(null);
+  const reload = () => window.location.reload();
+  const remove = async (id) => {
+    if (!confirm('Remove this subscriber? They will no longer get incident emails.')) return;
+    setBusy(id);
+    try { await api.subscribers.remove(id); reload(); }
+    finally { setBusy(null); }
+  };
+  const subs = list.data || [];
+  return (
+    <div className="card" style={{ padding: 22 }}>
+      <h3 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 4px' }}>Subscribers</h3>
+      <p style={{ fontSize: 12, color: 'var(--text-3)', margin: '0 0 14px' }}>
+        Emails entered through the public page. Configure SMTP at <a href="#/settings/smtp" style={{ color: 'var(--accent)' }}>Settings → SMTP</a> for delivery to work.
+      </p>
+      {subs.length === 0 ? (
+        <div style={{ padding: 14, fontSize: 12.5, color: 'var(--text-3)', textAlign: 'center' }}>
+          No subscribers yet.
+        </div>
+      ) : subs.map(s => (
+        <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', alignItems: 'center', gap: 12, padding: '8px 0', borderTop: '1px solid var(--border)' }}>
+          <div>
+            <div style={{ fontSize: 12.5 }}>{s.destination}</div>
+            <div style={{ fontSize: 10.5, color: 'var(--text-3)' }}>
+              {s.channel} · {s.confirmed ? 'confirmed' : 'pending'}
+            </div>
+          </div>
+          <button className="btn btn-ghost btn-danger" onClick={() => remove(s.id)} disabled={busy === s.id} style={{ padding: '3px 8px', fontSize: 11 }}>
+            <Trash2 size={11}/>
+          </button>
+          <span/>
+        </div>
+      ))}
     </div>
   );
 }

@@ -123,6 +123,15 @@ export const api = {
     create: (name, scopes, exp) => request('/v1/api-keys', { method: 'POST', body: { name, scopes: scopes || [], expires_at: exp || null } }),
     revoke: (id)                => request(`/v1/api-keys/${id}`, { method: 'DELETE' }),
   },
+  subscribers: {
+    subscribe:   (slug, email) => request(`/v1/public/status-pages/${slug}/subscribe`, { method: 'POST', body: { email } }),
+    listForPage: (pageId)      => request(`/v1/status-pages/${pageId}/subscribers`),
+    remove:      (id)          => request(`/v1/subscribers/${id}`, { method: 'DELETE' }),
+  },
+  smtp: {
+    get: () => request('/v1/settings/smtp'),
+    put: (cfg) => request('/v1/settings/smtp', { method: 'PUT', body: cfg }),
+  },
   incidents: {
     listForPage:  (pageId)              => request(`/v1/status-pages/${pageId}/incidents`),
     create:       (pageId, input)       => request(`/v1/status-pages/${pageId}/incidents`, { method: 'POST', body: input }),

@@ -1,0 +1,59 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, status_page_id, channel, destination, confirmed,\n               confirm_token, subscribed_at\n        FROM status_page_subscribers\n        WHERE status_page_id = $1\n          AND channel = 'email'\n          AND lower(destination) = lower($2)\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "status_page_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "channel",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "destination",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "confirmed",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "confirm_token",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "subscribed_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "3cc36fe26f07442d9fb9b2d83492467dbad27822cdf81fabc2daca92937f5c87"
+}

@@ -19,6 +19,7 @@ pub mod notifications;
 pub mod proxies;
 pub mod push;
 pub mod status_pages;
+pub mod subscribers;
 pub mod tags;
 pub mod templates;
 pub mod totp;
@@ -36,6 +37,8 @@ pub fn v1_public() -> Router<AppState> {
         // Public status-page reads — embedded under /v1/public so the
         // boundary is explicit and obvious in the routing table.
         .nest("/public/status-pages", status_pages::public_router())
+        // Public subscribe + unsubscribe.
+        .nest("/public", subscribers::public_router())
 }
 
 pub fn v1_protected() -> Router<AppState> {
@@ -61,6 +64,8 @@ pub fn v1_protected() -> Router<AppState> {
         .nest("/status-pages", incidents::page_router())
         // /v1/incidents/:id update/delete/resolve/updates
         .nest("/incidents", incidents::incident_router())
+        // Subscribers admin + SMTP settings.
+        .merge(subscribers::admin_router())
         // /v1/api-keys — list/create/revoke
         .nest("/api-keys", api_keys::router())
         // /v1/proxies — list/create/delete/active

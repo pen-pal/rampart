@@ -68,7 +68,10 @@ async fn create(
     if input.title.trim().is_empty() {
         return Err(ApiError::BadRequest("title is required".into()));
     }
-    let i = rampart_db::incidents::create(s.pool(), parse_page(&page)?, Some(user.id), input).await?;
+    let page_id = parse_page(&page)?;
+    let i = rampart_db::incidents::create(s.pool(), page_id, Some(user.id), input).await?;
+    // Best-effort subscriber fan-out — failures are logged, not surfaced.
+    fan_out_incident(s.clone(), page_id, i.clone(), None);
     Ok((StatusCode::CREATED, Json(i)))
 }
 
@@ -124,12 +127,66 @@ async fn post_update(
     if body.message.trim().is_empty() {
         return Err(ApiError::BadRequest("message is required".into()));
     }
+    let incident_id = parse_incident(&id)?;
     rampart_db::incidents::post_update(
         s.pool(),
-        parse_incident(&id)?,
+        incident_id,
         Some(user.id),
-        body.message,
+        body.message.clone(),
     )
     .await?;
+    let inc = rampart_db::incidents::get(s.pool(), incident_id).await?;
+    fan_out_incident(s.clone(), inc.status_page_id, inc, Some(body.message));
     Ok(StatusCode::CREATED)
+}
+
+/// Spawn a background task that emails confirmed subscribers about a
+/// status-page incident (or running update). Failures are logged inside
+/// the task — we never block the request on SMTP.
+fn fan_out_incident(
+    state: AppState,
+    page: StatusPageId,
+    incident: Incident,
+    update_message: Option<String>,
+) {
+    tokio::spawn(async move {
+        let cfg = match crate::smtp::load(state.pool()).await {
+            Ok(Some(c)) => c,
+            Ok(None) => return, // no SMTP configured — silent no-op
+            Err(e) => {
+                tracing::warn!("smtp config load: {e}");
+                return;
+            }
+        };
+        let page_row = match rampart_db::status_pages::get(state.pool(), page).await {
+            Ok(p) => p,
+            Err(e) => { tracing::warn!("status page lookup: {e}"); return; }
+        };
+        let emails = match rampart_db::subscribers::confirmed_emails_for_page(state.pool(), page).await {
+            Ok(e) => e,
+            Err(e) => { tracing::warn!("subscriber lookup: {e}"); return; }
+        };
+        if emails.is_empty() { return; }
+
+        let subject = match &update_message {
+            None     => format!("[{}] {}", page_row.title, incident.title),
+            Some(_)  => format!("[{}] Update: {}", page_row.title, incident.title),
+        };
+        let body = match &update_message {
+            None => format!(
+                "{}\n\n{}\n\n— {}\n",
+                incident.title, incident.content, page_row.title,
+            ),
+            Some(msg) => format!(
+                "New update on {}\n\n{}\n\n— {}\n",
+                incident.title, msg, page_row.title,
+            ),
+        };
+
+        for addr in emails {
+            if let Err(e) = crate::smtp::send(&cfg, &addr, &subject, &body).await {
+                tracing::warn!(recipient = %addr, error = %e, "subscriber email failed");
+            }
+        }
+    });
 }

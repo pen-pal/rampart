@@ -7,6 +7,7 @@
 pub mod auth;
 pub mod error;
 pub mod routes;
+pub mod smtp;
 pub mod state;
 pub mod static_assets;
 pub mod totp;

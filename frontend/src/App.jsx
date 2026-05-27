@@ -10,6 +10,7 @@ import ApiKeys           from './views/ApiKeys.jsx';
 import Proxies           from './views/Proxies.jsx';
 import Security          from './views/Security.jsx';
 import Users             from './views/Users.jsx';
+import SmtpSettings      from './views/SmtpSettings.jsx';
 import StatusPageView    from './views/StatusPageView.jsx';
 import { api } from './lib/api.js';
 import { parseRoute } from './lib/router.js';
@@ -25,6 +26,7 @@ const VIEW_LABEL = {
   'proxies':       'Proxies',
   'security':      'Security',
   'users':         'Users',
+  'smtp-settings': 'SMTP',
   'public-status': 'Public view',
   'login':         'Login',
 };
@@ -87,6 +89,7 @@ export default function App() {
     case 'proxies':       view = <Proxies />; break;
     case 'security':      view = <Security />; break;
     case 'users':         view = <Users />; break;
+    case 'smtp-settings': view = <SmtpSettings />; break;
     case 'public-status': view = <StatusPageView slug={route.id} />; break;
     case 'dashboard':
     default:            view = <Dashboard user={authState.user} onLogout={async () => {
@@ -116,6 +119,7 @@ function ViewSwitcher({ current }) {
     { hash: '#/proxies',       view: 'proxies'       },
     { hash: '#/security',      view: 'security'      },
     { hash: '#/users',         view: 'users'         },
+    { hash: '#/settings/smtp', view: 'smtp-settings' },
     { hash: '#/status-page',   view: 'status-page'   },
     { hash: '#/new-monitor',   view: 'new-monitor'   },
   ];

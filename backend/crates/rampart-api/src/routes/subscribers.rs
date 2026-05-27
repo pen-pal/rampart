@@ -1,0 +1,140 @@
+//! Status-page subscribers and SMTP settings.
+//!
+//! Subscribe + unsubscribe are public (the whole point is anonymous
+//! interest in a page). List + delete sit on the admin side. SMTP
+//! settings are admin-only.
+
+use crate::error::ApiError;
+use crate::state::AppState;
+use axum::extract::{Path, State};
+use axum::http::StatusCode;
+use axum::response::{Html, IntoResponse};
+use axum::routing::{get, post};
+use axum::{Json, Router};
+use rampart_core::ids::{StatusPageId, StatusPageSubscriberId};
+use rampart_db::subscribers::Subscriber;
+use serde::Deserialize;
+use std::str::FromStr;
+use uuid::Uuid;
+
+pub fn public_router() -> Router<AppState> {
+    Router::new()
+        .route("/status-pages/:slug/subscribe", post(subscribe))
+        .route("/subscribe/unsubscribe/:token", get(unsubscribe))
+}
+
+pub fn admin_router() -> Router<AppState> {
+    Router::new()
+        .route("/status-pages/:id/subscribers", get(list))
+        .route("/subscribers/:id", axum::routing::delete(delete_one))
+        .route("/settings/smtp", get(smtp_get).put(smtp_put))
+}
+
+#[derive(Deserialize)]
+struct SubscribeInput { email: String }
+
+async fn subscribe(
+    State(s): State<AppState>,
+    Path(slug): Path<String>,
+    Json(input): Json<SubscribeInput>,
+) -> Result<StatusCode, ApiError> {
+    if !input.email.contains('@') {
+        return Err(ApiError::BadRequest("email looks invalid".into()));
+    }
+    let page = rampart_db::status_pages::get_by_slug(s.pool(), &slug).await?;
+    rampart_db::subscribers::subscribe_email(s.pool(), page.id, &input.email).await?;
+    // No confirmation email in v1 (single-opt-in). Future: send a
+    // confirm link instead and only flip `confirmed` on click.
+    Ok(StatusCode::ACCEPTED)
+}
+
+async fn unsubscribe(
+    State(s): State<AppState>,
+    Path(token): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    // Idempotent: missing token still returns the same friendly page.
+    let _ = rampart_db::subscribers::unsubscribe_by_token(s.pool(), &token).await;
+    // Tiny self-contained page — no SPA, no auth, just a confirmation.
+    Ok(Html(
+        r#"<!doctype html><html><head><meta charset="utf-8">
+        <title>Unsubscribed</title>
+        <style>body{font-family:system-ui;max-width:520px;margin:80px auto;padding:0 24px;color:#1c1917}h1{font-size:22px;margin:0 0 6px}p{color:#57534e}</style>
+        </head><body><h1>Unsubscribed.</h1>
+        <p>You won't receive further updates from this status page.</p></body></html>"#,
+    ))
+}
+
+fn parse_page(s: &str) -> Result<StatusPageId, ApiError> {
+    Uuid::from_str(s)
+        .map(StatusPageId::from_uuid)
+        .map_err(|_| ApiError::BadRequest("invalid status page id".into()))
+}
+fn parse_sub(s: &str) -> Result<StatusPageSubscriberId, ApiError> {
+    Uuid::from_str(s)
+        .map(StatusPageSubscriberId::from_uuid)
+        .map_err(|_| ApiError::BadRequest("invalid subscriber id".into()))
+}
+
+async fn list(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<Vec<Subscriber>>, ApiError> {
+    Ok(Json(
+        rampart_db::subscribers::list_for_page(s.pool(), parse_page(&id)?).await?,
+    ))
+}
+
+async fn delete_one(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    rampart_db::subscribers::delete(s.pool(), parse_sub(&id)?).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// ── SMTP settings ────────────────────────────────────────────────────────
+
+async fn smtp_get(State(s): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
+    let raw = rampart_db::settings::get(s.pool(), "smtp").await?;
+    // Redact password if present — the admin can re-enter when editing.
+    let value = raw.map(|mut v| {
+        if let Some(obj) = v.as_object_mut() {
+            if obj.contains_key("password") {
+                obj.insert("password".into(), serde_json::Value::String("(redacted)".into()));
+            }
+        }
+        v
+    });
+    Ok(Json(value.unwrap_or(serde_json::Value::Null)))
+}
+
+#[derive(Deserialize)]
+struct SmtpPut {
+    #[serde(flatten)]
+    cfg: serde_json::Value,
+}
+
+async fn smtp_put(
+    State(s): State<AppState>,
+    Json(input): Json<SmtpPut>,
+) -> Result<StatusCode, ApiError> {
+    // Validate by deserialising into the typed shape.
+    let parsed: crate::smtp::SmtpConfig = serde_json::from_value(input.cfg.clone())
+        .map_err(|e| ApiError::BadRequest(format!("smtp config: {e}")))?;
+    // If the caller sent the literal "(redacted)" placeholder, keep
+    // the old password instead of overwriting.
+    let mut new_value = input.cfg;
+    if parsed.password.as_deref() == Some("(redacted)") {
+        if let Some(existing) = rampart_db::settings::get(s.pool(), "smtp").await? {
+            if let (Some(new_obj), Some(old_obj)) =
+                (new_value.as_object_mut(), existing.as_object())
+            {
+                if let Some(old_pw) = old_obj.get("password") {
+                    new_obj.insert("password".into(), old_pw.clone());
+                }
+            }
+        }
+    }
+    rampart_db::settings::put(s.pool(), "smtp", &new_value).await?;
+    Ok(StatusCode::NO_CONTENT)
+}

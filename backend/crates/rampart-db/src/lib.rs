@@ -15,6 +15,8 @@ pub mod notifications;
 pub mod proxies;
 pub mod recovery_codes;
 pub mod sessions;
+pub mod settings;
+pub mod subscribers;
 pub mod status_pages;
 pub mod tags;
 pub mod templates;

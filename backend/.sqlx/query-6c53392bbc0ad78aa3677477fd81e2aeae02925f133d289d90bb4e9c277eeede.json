@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM status_page_subscribers WHERE confirm_token = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6c53392bbc0ad78aa3677477fd81e2aeae02925f133d289d90bb4e9c277eeede"
+}
