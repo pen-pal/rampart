@@ -31,3 +31,7 @@ tiberius         = { workspace = true }
 tokio-util       = { workspace = true }
 redis            = { workspace = true }
 mongodb          = { workspace = true }
+tonic            = { workspace = true }
+tonic-health     = { workspace = true }
+prost            = { workspace = true }
+rumqttc          = { workspace = true }

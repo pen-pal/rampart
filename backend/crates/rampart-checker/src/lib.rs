@@ -13,8 +13,10 @@
 
 pub mod dns;
 pub mod domain;
+pub mod grpc;
 pub mod http;
 pub mod mongodb;
+pub mod mqtt;
 pub mod mssql;
 pub mod mysql;
 pub mod ping;
@@ -53,6 +55,8 @@ pub struct Probes {
     mssql:    mssql::MssqlProbe,
     redis:    redis::RedisProbe,
     mongodb:  mongodb::MongodbProbe,
+    grpc:     grpc::GrpcProbe,
+    mqtt:     mqtt::MqttProbe,
 }
 
 impl Probes {
@@ -69,6 +73,8 @@ impl Probes {
             mssql:    mssql::MssqlProbe::new(),
             redis:    redis::RedisProbe::new(),
             mongodb:  mongodb::MongodbProbe::new(),
+            grpc:     grpc::GrpcProbe::new(),
+            mqtt:     mqtt::MqttProbe::new(),
         }
     }
 
@@ -102,6 +108,8 @@ impl Probes {
             MonitorKind::Mssql    => self.mssql.run(monitor).await,
             MonitorKind::Redis    => self.redis.run(monitor).await,
             MonitorKind::Mongodb  => self.mongodb.run(monitor).await,
+            MonitorKind::Grpc     => self.grpc.run(monitor).await,
+            MonitorKind::Mqtt     => self.mqtt.run(monitor).await,
             unsupported => unsupported_kind(monitor.id, unsupported),
         }
     }

@@ -133,7 +133,7 @@ const types = [
     example: "Confirm your nightly backup or cron job actually ran",
     placeholder: {} },
 
-  { id: 'grpc',       icon: Zap,           name: 'gRPC',          desc: 'grpc.health.v1',      stub: true,
+  { id: 'grpc',       icon: Zap,           name: 'gRPC',          desc: 'grpc.health.v1',
     example: 'Health-check a gRPC service via the standard protocol',
     placeholder: { hostname: 'grpc.example.com', port: '443' } },
 
@@ -149,8 +149,8 @@ const types = [
     example: 'Watch your group\'s Counter-Strike / Valheim server',
     placeholder: { hostname: 'csgo.example.com', port: '27015' } },
 
-  { id: 'mqtt',       icon: MessageSquare, name: 'MQTT',          desc: 'Subscribe + receive', stub: true,
-    example: 'Catch silent IoT sensors that stop publishing',
+  { id: 'mqtt',       icon: MessageSquare, name: 'MQTT',          desc: 'Broker CONNECT',
+    example: 'Detect when your MQTT broker stops accepting connections',
     placeholder: { hostname: 'mqtt.iot.local', port: '1883' } },
 
   { id: 'radius',     icon: Shield,        name: 'RADIUS',        desc: 'Auth check',          stub: true,
@@ -196,7 +196,7 @@ const fieldsFor = (kind) => {
       jsonPath: kind === 'json_query',
     };
   }
-  if (['tcp','grpc'].includes(kind))                          return { hostname: true, port: true };
+  if (['tcp','grpc','mqtt'].includes(kind))                   return { hostname: true, port: true };
   if (['postgres','mysql','mssql','redis','mongodb'].includes(kind)) return { hostname: true, port: true };
   if (kind === 'ping')   return { hostname: true };
   if (kind === 'dns')    return { hostname: true };
@@ -206,7 +206,7 @@ const fieldsFor = (kind) => {
 };
 
 const defaultPort = (kind) => ({
-  tcp: 443, grpc: 443,
+  tcp: 443, grpc: 443, mqtt: 1883,
   postgres: 5432, mysql: 3306, mssql: 1433, redis: 6379, mongodb: 27017,
 })[kind] || null;
 
@@ -382,7 +382,7 @@ export default function NewMonitorWizard() {
                 <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em', margin: '0 0 8px' }}>Step 1 · Pick a check type</p>
                 <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 8px', letterSpacing: '-.02em' }}>What do you want to monitor?</h1>
                 <p style={{ fontSize: 14, color: 'var(--text-2)', margin: 0 }}>
-                  20 types in the catalog. Fourteen probe runners ship today (HTTP / keyword / JSON, TCP, ping, DNS, push, TLS cert, domain expiry, plus Postgres / MySQL / MSSQL / Redis / MongoDB); the rest still create the record but report Down until their runner lands.
+                  20 types in the catalog. Sixteen probe runners ship today (HTTP / keyword / JSON, TCP, ping, DNS, push, TLS cert, domain expiry, Postgres / MySQL / MSSQL / Redis / MongoDB, gRPC, MQTT); Docker / Steam / RADIUS / Kafka still create the record but report Down until their runner lands.
                 </p>
               </div>
 

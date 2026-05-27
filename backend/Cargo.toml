@@ -122,6 +122,11 @@ redis            = { version = "0.27", default-features = false, features = ["to
 # depend on a hickory-proto that requires a jni version still being
 # rolled out to crates.io.
 mongodb          = "=3.2.0"
+# gRPC + MQTT probe deps
+tonic            = { version = "0.12", default-features = false, features = ["transport", "codegen", "prost"] }
+tonic-health     = { version = "0.12", default-features = false, features = ["transport"] }
+prost            = "0.13"
+rumqttc          = { version = "0.24", default-features = false, features = ["use-rustls"] }
 
 [profile.release]
 lto           = "thin"
