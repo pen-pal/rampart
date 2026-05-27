@@ -397,6 +397,9 @@ export default function MonitorDetail({ monitorId }) {
           />
         </div>
 
+        {/* ─── OVERVIEW TAB ──────────────────────────────────────── */}
+        {tab === 'overview' && <>
+
         {/* 90-day uptime strip */}
         <div className="card" style={{ padding: '20px 22px', marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -530,9 +533,163 @@ export default function MonitorDetail({ monitorId }) {
           </div>
         </div>
 
+        </>}{/* end overview tab */}
+
+        {/* ─── HEARTBEATS TAB ─────────────────────────────────────── */}
+        {tab === 'heartbeats' && (
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div style={{ padding: '16px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
+              <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Activity size={14} color="var(--text-2)"/> Heartbeats
+                <span style={{ fontSize: 11, color: 'var(--text-3)', fontWeight: 400, marginLeft: 6 }}>
+                  · {heartbeats.length} loaded
+                </span>
+              </h3>
+              <div className="tabs">
+                <button className={logFilter === 'all'  ? 'active' : ''} onClick={() => setLogFilter('all')}>All</button>
+                <button className={logFilter === 'fail' ? 'active' : ''} onClick={() => setLogFilter('fail')}>Failures</button>
+              </div>
+            </div>
+            <div style={{
+              display: 'grid', gridTemplateColumns: '110px 90px 100px 1fr 70px',
+              gap: 16, padding: '10px 22px', fontSize: 11, fontWeight: 600,
+              color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em',
+              background: 'var(--surface-2)', borderBottom: '1px solid var(--border)'
+            }}>
+              <span>Time</span><span>Status</span><span style={{ textAlign: 'right' }}>Latency</span><span>Message</span><span style={{ textAlign: 'right' }}>Code</span>
+            </div>
+            {(logFilter === 'all' ? heartbeats : heartbeats.filter(h => h.status !== 'up')).length === 0 ? (
+              <div className="empty">{heartbeatState.loading ? 'Loading…' : 'No heartbeats match this filter.'}</div>
+            ) : (logFilter === 'all' ? heartbeats : heartbeats.filter(h => h.status !== 'up')).map((h, i) => {
+              const date = h.ts instanceof Array ? offsetDateTimeArrayToDate(h.ts) : new Date(h.ts);
+              const t = date.toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'medium' });
+              return (
+                <div key={`${h.monitor_id}-${i}`} style={{
+                  display: 'grid', gridTemplateColumns: '110px 90px 100px 1fr 70px',
+                  gap: 16, padding: '12px 22px', fontSize: 12,
+                  borderTop: '1px solid var(--border)', alignItems: 'center',
+                }}>
+                  <span className="mono" style={{ color: 'var(--text-2)' }}>{t}</span>
+                  <span><span className={`pill pill-${h.status === 'maintenance' ? 'maint' : h.status}`}>{h.status}</span></span>
+                  <span className="mono tabular" style={{ textAlign: 'right', color: h.status === 'up' ? 'var(--text-2)' : 'var(--down)' }}>
+                    {h.latency_ms == null ? '—' : h.latency_ms >= 1000 ? `${(h.latency_ms / 1000).toFixed(1)}s` : `${h.latency_ms}ms`}
+                  </span>
+                  <span style={{ color: h.status === 'up' ? 'var(--text-3)' : 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {h.msg || (h.status === 'up' ? 'OK' : '')}
+                  </span>
+                  <span className="mono tabular" style={{ textAlign: 'right', color: 'var(--text-2)' }}>{h.status_code ?? '—'}</span>
+                </div>
+              );
+            })}
+            <div style={{ padding: '12px 22px', textAlign: 'center', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text-3)' }}>
+              Loaded the most recent {heartbeats.length} heartbeats — more land as the scheduler probes.
+            </div>
+          </div>
+        )}
+
+        {/* ─── CONFIG TAB ─────────────────────────────────────────── */}
+        {tab === 'config' && (
+          <ConfigPanel monitor={monitor}/>
+        )}
+
         <div style={{ height: 40 }}/>
       </main>
     </div>
+  );
+}
+
+// ── Config panel ──────────────────────────────────────────────────────────
+// Read-only display of the monitor's current configuration. Edit is wired
+// to a "not implemented" stub on the header for now — a real edit form
+// would land here.
+function ConfigPanel({ monitor }) {
+  const row = (label, value, mono = false) => (
+    <div style={{
+      display: 'grid', gridTemplateColumns: '180px 1fr',
+      gap: 16, padding: '12px 22px', alignItems: 'baseline',
+      borderTop: '1px solid var(--border)',
+    }}>
+      <span style={{ fontSize: 12, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em', fontWeight: 500 }}>
+        {label}
+      </span>
+      <span className={mono ? 'mono' : ''} style={{ fontSize: 13, color: value == null || value === '' ? 'var(--text-3)' : 'var(--text)', wordBreak: 'break-all' }}>
+        {value == null || value === '' ? '—' : value}
+      </span>
+    </div>
+  );
+
+  const acceptedStatuses = Array.isArray(monitor.accepted_statuses) && monitor.accepted_statuses.length > 0
+    ? monitor.accepted_statuses.join(', ')
+    : null;
+
+  return (
+    <>
+      <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
+        <div style={{ padding: '16px 22px' }}>
+          <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Target</h3>
+        </div>
+        {row('Kind',       monitor.kind, true)}
+        {row('Display name', monitor.name)}
+        {row('URL',        monitor.url, true)}
+        {row('Hostname',   monitor.hostname, true)}
+        {row('Port',       monitor.port, true)}
+      </div>
+
+      <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
+        <div style={{ padding: '16px 22px' }}>
+          <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Schedule</h3>
+        </div>
+        {row('Interval',         `${monitor.interval_seconds}s`, true)}
+        {row('Timeout',          `${monitor.timeout_seconds}s`,  true)}
+        {row('Max retries',      monitor.max_retries,             true)}
+        {row('Retry interval',   `${monitor.retry_interval_sec}s`, true)}
+        {row('Re-alert every',   monitor.resend_interval_sec > 0 ? `${monitor.resend_interval_sec}s` : 'once', true)}
+        {row('Upside-down mode', monitor.upside_down ? 'yes (failed checks count as up)' : 'no')}
+        {row('Active',           monitor.active ? 'yes' : 'paused')}
+        {row('Current status',   monitor.current_status, true)}
+      </div>
+
+      {(monitor.kind === 'http' || monitor.kind === 'keyword' || monitor.kind === 'json_query') && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
+          <div style={{ padding: '16px 22px' }}>
+            <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>HTTP</h3>
+          </div>
+          {row('Method',            monitor.http_method, true)}
+          {row('Accepted statuses', acceptedStatuses, true)}
+          {row('Follow redirects',  monitor.follow_redirect ? 'yes' : 'no')}
+          {row('Ignore TLS errors', monitor.ignore_tls ? 'yes (insecure)' : 'no')}
+          {row('Headers',           monitor.http_headers ? JSON.stringify(monitor.http_headers) : null, true)}
+          {row('Body',              monitor.http_body, true)}
+        </div>
+      )}
+
+      {monitor.config && Object.keys(monitor.config).length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
+          <div style={{ padding: '16px 22px' }}>
+            <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Kind-specific config</h3>
+          </div>
+          <pre className="mono" style={{
+            margin: 0, padding: '14px 22px', fontSize: 12,
+            background: 'var(--surface-2)', overflow: 'auto', borderTop: '1px solid var(--border)',
+          }}>
+{JSON.stringify(monitor.config, null, 2)}
+          </pre>
+        </div>
+      )}
+
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ padding: '16px 22px' }}>
+          <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Identity</h3>
+        </div>
+        {row('Monitor ID', monitor.id, true)}
+        {row('Created at', monitor.created_at instanceof Array
+          ? offsetDateTimeArrayToDate(monitor.created_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
+          : new Date(monitor.created_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }), true)}
+        {row('Updated at', monitor.updated_at instanceof Array
+          ? offsetDateTimeArrayToDate(monitor.updated_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
+          : new Date(monitor.updated_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }), true)}
+      </div>
+    </>
   );
 }
 
