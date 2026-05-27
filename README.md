@@ -232,6 +232,38 @@ For the 16 stubbed kinds you can still POST and the record will be created (so y
 
 ---
 
+## Testing
+
+Three test layers, each runnable independently. CI runs all of them on every push (see [`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
+
+| Layer | Command | What it covers |
+|---|---|---|
+| **Backend unit tests** (~57)         | `cd backend && cargo test --workspace --lib`       | Pure-logic modules: template renderer, channel config validation, JSONPath matcher, serde round-trips, validator rules |
+| **Backend integration** (~74)        | `cd backend && cargo test --workspace --tests`     | `sqlx::test` creates per-test isolated databases; covers every db query + every REST endpoint via the axum router |
+| **Frontend unit** (~32)              | `cd frontend && npm test`                          | `api.js` helpers, fetch-wrapper 401 redirect, hash router, ApiError shape |
+| **E2E** (~11 flows × 3 browsers)     | `cd frontend && npx playwright test`               | Full stack: Postgres + `rampart-api` debug binary + the React bundle. Drives Chromium / Firefox / WebKit. |
+| **All in one shot** (local)          | `cd backend && cargo test --workspace && cd ../frontend && npm test && npx playwright test --project=chromium` | Mirror of CI's gate |
+
+For e2e to work locally you need Postgres up (`cd backend && docker compose up -d postgres`) and the backend binary built (`cd backend && cargo build -p rampart-api`). Playwright's `webServer` then spins up the API on `:3001` against a fresh `rampart_test` database.
+
+**Linting + formatting** (CI gates these too):
+
+```bash
+cd backend
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+```
+
+**sqlx offline cache** — the `backend/.sqlx/` directory is committed so CI doesn't need a Postgres at compile time. After changing any `sqlx::query!`, regenerate it:
+
+```bash
+cd backend
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart cargo sqlx prepare --workspace
+git add .sqlx
+```
+
+---
+
 ## What to build next
 
 Roughly in priority order:

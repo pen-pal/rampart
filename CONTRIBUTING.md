@@ -89,26 +89,52 @@ More detail in `backend/HACKING.md`.
 
 ## Tests
 
+Backend (unit + integration, ~131 tests):
+
 ```bash
 cd backend
-cargo test --workspace          # requires DATABASE_URL pointing at a migrated PG
-cargo clippy --workspace -- -D warnings
+# Run Postgres for integration tests — sqlx::test makes its own
+# per-test isolated databases off this base URL.
+docker compose up -d postgres
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart sqlx migrate run --source migrations
+
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check
 ```
 
-CI builds use `SQLX_OFFLINE=true` against a cached `.sqlx/` directory. If you change a query, regenerate the cache:
+CI builds use `SQLX_OFFLINE=true` against the committed `.sqlx/` cache. If you change a `sqlx::query!`, regenerate it:
 
 ```bash
-cargo sqlx prepare --workspace
+cd backend
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart cargo sqlx prepare --workspace
 git add .sqlx
 ```
 
-Frontend:
+Frontend (~32 unit tests):
 
 ```bash
 cd frontend
-npm run build                   # vite build, surfaces JSX errors
+npm ci                 # one-time
+npm test               # vitest run
+npm run build          # vite build, surfaces JSX errors
 ```
+
+End-to-end (~11 flows × 3 browsers via Playwright):
+
+```bash
+cd backend && cargo build -p rampart-api      # one-time + when api changes
+cd frontend
+npm ci && npm run build                       # one-time + after UI changes
+npx playwright install                        # downloads Chromium/Firefox/WebKit
+npx playwright test                           # all 3 browsers
+npx playwright test --project=chromium        # just chromium (fastest)
+npx playwright test --ui                      # interactive debugger
+```
+
+E2E spins up a dedicated `rampart_test` database, runs migrations, and launches `rampart-api` on port 3001 — it won't fight your dev `:3000` process.
+
+The full CI gate runs all of the above on push + PR — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 ## Pull requests
 
