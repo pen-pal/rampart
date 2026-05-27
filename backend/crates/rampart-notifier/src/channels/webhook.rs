@@ -7,7 +7,9 @@
 
 use crate::{Channel, ChannelError, Event};
 use async_trait::async_trait;
+use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
+use sha2::Sha256;
 use std::collections::HashMap;
 
 #[derive(Debug, Deserialize)]
@@ -18,6 +20,12 @@ pub struct WebhookConfig {
     /// Optional custom headers, e.g. `Authorization: Bearer …`.
     #[serde(default)]
     pub headers: HashMap<String, String>,
+    /// Optional shared secret. When set, the request carries
+    /// `X-Rampart-Signature: sha256=<hex>` — HMAC-SHA256 over the
+    /// raw JSON body. Receivers can verify with the same secret to
+    /// confirm the payload originated from Rampart.
+    #[serde(default)]
+    pub secret: Option<String>,
 }
 
 fn default_method() -> String {
@@ -123,10 +131,31 @@ impl Channel for Webhook {
 
         let method = reqwest::Method::from_bytes(self.cfg.method.as_bytes())
             .map_err(|e| ChannelError::BadConfig(format!("invalid method: {e}")))?;
-        let mut req = self.client.request(method, &self.cfg.url).json(&payload);
+
+        // Serialize the body up-front so we can sign the exact bytes
+        // that go on the wire. Avoids the (subtle) hash-mismatch class
+        // of bugs where the receiver hashes one variant of JSON and we
+        // hashed another.
+        let body_bytes = serde_json::to_vec(&payload)
+            .map_err(|e| ChannelError::BadConfig(format!("payload serialize: {e}")))?;
+
+        let mut req = self.client
+            .request(method, &self.cfg.url)
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .body(body_bytes.clone());
+
         for (k, v) in &self.cfg.headers {
             req = req.header(k, v);
         }
+        if let Some(secret) = self.cfg.secret.as_deref() {
+            type HmacSha256 = Hmac<Sha256>;
+            let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
+                .map_err(|e| ChannelError::BadConfig(format!("hmac key: {e}")))?;
+            mac.update(&body_bytes);
+            let sig = hex::encode(mac.finalize().into_bytes());
+            req = req.header("X-Rampart-Signature", format!("sha256={sig}"));
+        }
+
         let resp = req.send().await?;
         if !resp.status().is_success() {
             let code = resp.status().as_u16();

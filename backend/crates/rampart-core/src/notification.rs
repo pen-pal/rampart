@@ -162,6 +162,11 @@ pub struct Notification {
     pub active: bool,
     pub last_fired_at: Option<OffsetDateTime>,
     pub created_at: OffsetDateTime,
+    /// Per-channel cooldown in seconds. Set > 0 to suppress sends
+    /// within this many seconds of `last_fired_at`. Useful for
+    /// flap-prone monitors paired with high-cost channels (SMS, paging).
+    #[serde(default)]
+    pub cooldown_seconds: i32,
 }
 
 /// Junction row: which channels does a given monitor fire to?

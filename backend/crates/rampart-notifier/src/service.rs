@@ -99,13 +99,39 @@ async fn dispatch_one(pool: &DbPool, event: Event) -> anyhow::Result<()> {
             },
         };
 
+        // Cooldown: skip the dispatch if we fired this channel within
+        // cooldown_seconds. Flap-prone monitors paired with SMS / paging
+        // channels get hammered without this; admins can set cooldown=0
+        // to keep the legacy behavior.
+        if row.cooldown_seconds > 0 {
+            if let Some(last) = row.last_fired_at {
+                let elapsed = (time::OffsetDateTime::now_utc() - last).whole_seconds();
+                if elapsed < row.cooldown_seconds as i64 {
+                    info!(
+                        channel = %row.name, kind = ?row.kind,
+                        cooldown = row.cooldown_seconds, elapsed,
+                        "notification suppressed by cooldown",
+                    );
+                    continue;
+                }
+            }
+        }
+
         let event = event.clone();
         let kind: ChannelKind = row.kind;
         let cfg = row.config;
         let name = row.name;
+        let id   = row.id;
+        let pool_clone = pool.clone();
         handles.push(tokio::spawn(async move {
             match channels::dispatch(kind, &cfg, &subject, &body, &event).await {
-                Ok(()) => info!(channel = %name, kind = ?kind, "notification sent"),
+                Ok(()) => {
+                    info!(channel = %name, kind = ?kind, "notification sent");
+                    // Bump last_fired_at so the next event respects the cooldown.
+                    if let Err(e) = rampart_db::notifications::mark_fired(&pool_clone, id).await {
+                        warn!(channel = %name, error = %e, "mark_fired failed");
+                    }
+                }
                 Err(e) => warn!(channel = %name, kind = ?kind, error = %e, "notification failed"),
             }
         }));

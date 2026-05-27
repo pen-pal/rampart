@@ -1,0 +1,203 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT n.id, n.kind AS \"kind: ChannelKind\", n.name, n.config, n.active,\n               n.template_id, n.created_at, n.cooldown_seconds, n.last_fired_at\n        FROM notifications n\n        JOIN monitor_notifications mn ON mn.notification_id = n.id\n        WHERE mn.monitor_id = $1 AND n.active\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "kind: ChannelKind",
+        "type_info": {
+          "Custom": {
+            "name": "channel_kind",
+            "kind": {
+              "Enum": [
+                "slack",
+                "discord",
+                "telegram",
+                "email",
+                "webhook",
+                "pagerduty",
+                "sms_twilio",
+                "teams",
+                "gotify",
+                "pushover",
+                "ntfy",
+                "mattermost",
+                "matrix",
+                "signal",
+                "rocket_chat",
+                "google_chat",
+                "zulip",
+                "line",
+                "lark",
+                "wecom",
+                "dingtalk",
+                "feishu",
+                "custom",
+                "apprise",
+                "bark",
+                "pushbullet",
+                "sendgrid",
+                "resend",
+                "brevo",
+                "opsgenie",
+                "pagertree",
+                "squadcast",
+                "goalert",
+                "alerta",
+                "alertnow",
+                "signl4",
+                "heii_oncall",
+                "serverchan",
+                "pushplus",
+                "pushdeer",
+                "aliyun_sms",
+                "mastodon",
+                "pumble",
+                "bitrix24",
+                "stackfield",
+                "splunk",
+                "grafana_oncall",
+                "home_assistant",
+                "clicksend",
+                "sms_46elks",
+                "callmebot",
+                "telnyx",
+                "notifery",
+                "whatsapp_waha",
+                "threema",
+                "bale",
+                "pushy",
+                "zoho_cliq",
+                "sms_manager",
+                "sms_eagle",
+                "octopush",
+                "whatsapp_whapi",
+                "whatsapp_360",
+                "whatsapp_evolution",
+                "flock",
+                "serwersms",
+                "smsplanet",
+                "smsc",
+                "cellsynt",
+                "sevenio",
+                "gtxmessaging",
+                "onesender",
+                "promosms",
+                "smspartner",
+                "sms_ir",
+                "freemobile",
+                "flashduty",
+                "teltonika",
+                "kook",
+                "nostr",
+                "onebot",
+                "onechat",
+                "max_messenger",
+                "halo_psa",
+                "jira_sm",
+                "spug_push",
+                "wpush",
+                "vk",
+                "yzj",
+                "google_sheets",
+                "gorush",
+                "fluxer",
+                "splash",
+                "messagebird",
+                "plivo",
+                "vonage",
+                "bandwidth",
+                "webex",
+                "pushcut",
+                "smsglobal",
+                "alertops",
+                "mailgun",
+                "mailjet",
+                "postmark",
+                "mandrill",
+                "sparkpost",
+                "spike_sh",
+                "zenduty",
+                "ringcentral",
+                "ilert",
+                "linear",
+                "clickup",
+                "trello",
+                "github_issue",
+                "gitlab_issue",
+                "asana",
+                "notion",
+                "sentry",
+                "rollbar",
+                "honeybadger",
+                "healthchecks_io",
+                "betterstack",
+                "statuspage_io",
+                "datadog",
+                "newrelic"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "config",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 4,
+        "name": "active",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "template_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "cooldown_seconds",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "last_fired_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "d93d9f38e6725647794a0e527da76ef89372320ca0c980ca9dcc2e465da90d47"
+}

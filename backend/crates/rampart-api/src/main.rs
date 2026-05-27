@@ -60,6 +60,16 @@ async fn main() -> anyhow::Result<()> {
     });
     info!("scheduler started");
 
+    // Background retention prune — hourly DELETEs against heartbeats +
+    // audit_log. Reads thresholds from settings.retention_days (90 / 365
+    // days by default). Best-effort; failures log but don't kill the
+    // task.
+    let prune_pool = pool.clone();
+    tokio::spawn(async move {
+        rampart_db::prune::run_loop(prune_pool, std::time::Duration::from_secs(3600)).await;
+    });
+    info!("retention prune loop started");
+
     static_assets::log_state();
     let state = AppState::new(pool, reload_handle);
     let app = build_router(state);
