@@ -11,6 +11,10 @@ use serde_json::json;
 use thiserror::Error;
 use tracing::error;
 
+// NotFound, Conflict, Unauthorized are constructed via the routes
+// modules but clippy occasionally misses cross-module use in incremental
+// builds. They're API surface, not dead code.
+#[allow(dead_code)]
 #[derive(Debug, Error)]
 pub enum ApiError {
     #[error("not found")]
@@ -35,20 +39,34 @@ pub enum ApiError {
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let (status, code, message) = match &self {
-            ApiError::NotFound        => (StatusCode::NOT_FOUND, "not_found", self.to_string()),
-            ApiError::BadRequest(_)   => (StatusCode::BAD_REQUEST, "bad_request", self.to_string()),
-            ApiError::Conflict(_)     => (StatusCode::CONFLICT, "conflict", self.to_string()),
-            ApiError::Unauthorized    => (StatusCode::UNAUTHORIZED, "unauthorized", self.to_string()),
-            ApiError::Validation(v)   => (StatusCode::UNPROCESSABLE_ENTITY, "validation", v.to_string()),
-            ApiError::Db(DbError::NotFound) => (StatusCode::NOT_FOUND, "not_found", "not found".into()),
+            ApiError::NotFound => (StatusCode::NOT_FOUND, "not_found", self.to_string()),
+            ApiError::BadRequest(_) => (StatusCode::BAD_REQUEST, "bad_request", self.to_string()),
+            ApiError::Conflict(_) => (StatusCode::CONFLICT, "conflict", self.to_string()),
+            ApiError::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthorized", self.to_string()),
+            ApiError::Validation(v) => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "validation",
+                v.to_string(),
+            ),
+            ApiError::Db(DbError::NotFound) => {
+                (StatusCode::NOT_FOUND, "not_found", "not found".into())
+            }
             ApiError::Db(DbError::Conflict(m)) => (StatusCode::CONFLICT, "conflict", m.clone()),
             ApiError::Db(e) => {
                 // Don't leak database details to clients. Log internally,
                 // surface a generic 500.
                 error!(error = %e, "db error");
-                (StatusCode::INTERNAL_SERVER_ERROR, "internal", "internal error".into())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "internal",
+                    "internal error".into(),
+                )
             }
         };
-        (status, Json(json!({ "error": { "code": code, "message": message } }))).into_response()
+        (
+            status,
+            Json(json!({ "error": { "code": code, "message": message } })),
+        )
+            .into_response()
     }
 }

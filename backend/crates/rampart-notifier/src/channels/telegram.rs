@@ -11,16 +11,18 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize)]
 pub struct TelegramConfig {
     pub bot_token: String,
-    pub chat_id:   String,
+    pub chat_id: String,
     /// "HTML" or "MarkdownV2" — defaults to HTML which is forgiving.
     #[serde(default = "default_parse_mode")]
     pub parse_mode: String,
 }
-fn default_parse_mode() -> String { "HTML".into() }
+fn default_parse_mode() -> String {
+    "HTML".into()
+}
 
 #[derive(Debug)]
 pub struct Telegram {
-    cfg:    TelegramConfig,
+    cfg: TelegramConfig,
     client: reqwest::Client,
 }
 
@@ -29,16 +31,21 @@ impl Telegram {
         let cfg: TelegramConfig = serde_json::from_value(raw.clone())
             .map_err(|e| ChannelError::BadConfig(e.to_string()))?;
         if cfg.bot_token.is_empty() || cfg.chat_id.is_empty() {
-            return Err(ChannelError::BadConfig("bot_token and chat_id are required".into()));
+            return Err(ChannelError::BadConfig(
+                "bot_token and chat_id are required".into(),
+            ));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
 #[derive(Serialize)]
 struct SendPayload<'a> {
-    chat_id:    &'a str,
-    text:       String,
+    chat_id: &'a str,
+    text: String,
     parse_mode: &'a str,
 }
 
@@ -47,11 +54,18 @@ impl Channel for Telegram {
     async fn send(&self, subject: &str, body: &str, _event: &Event) -> Result<(), ChannelError> {
         // Telegram caps a single message at 4096 chars; truncate to be safe.
         let combined = format!("<b>{}</b>\n\n{}", html_escape(subject), html_escape(body));
-        let text = if combined.len() > 4000 { combined[..4000].to_string() } else { combined };
+        let text = if combined.len() > 4000 {
+            combined[..4000].to_string()
+        } else {
+            combined
+        };
 
-        let url = format!("https://api.telegram.org/bot{}/sendMessage", self.cfg.bot_token);
+        let url = format!(
+            "https://api.telegram.org/bot{}/sendMessage",
+            self.cfg.bot_token
+        );
         let payload = SendPayload {
-            chat_id:    &self.cfg.chat_id,
+            chat_id: &self.cfg.chat_id,
             text,
             parse_mode: &self.cfg.parse_mode,
         };
@@ -67,7 +81,9 @@ impl Channel for Telegram {
 
 // Minimal HTML escaper for Telegram's HTML parse_mode.
 fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 #[cfg(test)]
@@ -97,6 +113,9 @@ mod tests {
 
     #[test]
     fn html_escape_handles_metacharacters() {
-        assert_eq!(html_escape("<b>&plain</b>"), "&lt;b&gt;&amp;plain&lt;/b&gt;");
+        assert_eq!(
+            html_escape("<b>&plain</b>"),
+            "&lt;b&gt;&amp;plain&lt;/b&gt;"
+        );
     }
 }

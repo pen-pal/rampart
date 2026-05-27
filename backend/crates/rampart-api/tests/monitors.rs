@@ -27,8 +27,14 @@ async fn list_is_empty_after_signup(pool: PgPool) {
 async fn create_then_list_includes_it(pool: PgPool) {
     let r = common::router(pool);
     let c = register_admin(&r).await;
-    let created: Value = json(&r, Method::POST, "/v1/monitors",
-        Some(new_http("api", "https://api.example.com")), Some(&c)).await;
+    let created: Value = json(
+        &r,
+        Method::POST,
+        "/v1/monitors",
+        Some(new_http("api", "https://api.example.com")),
+        Some(&c),
+    )
+    .await;
     assert_eq!(created["name"], "api");
     assert_eq!(created["kind"], "http");
     let ms: Vec<Value> = json(&r, Method::GET, "/v1/monitors", None, Some(&c)).await;
@@ -39,21 +45,62 @@ async fn create_then_list_includes_it(pool: PgPool) {
 async fn pause_resume_delete(pool: PgPool) {
     let r = common::router(pool);
     let c = register_admin(&r).await;
-    let created: Value = json(&r, Method::POST, "/v1/monitors",
-        Some(new_http("x", "https://x.example.com")), Some(&c)).await;
+    let created: Value = json(
+        &r,
+        Method::POST,
+        "/v1/monitors",
+        Some(new_http("x", "https://x.example.com")),
+        Some(&c),
+    )
+    .await;
     let id = created["id"].as_str().unwrap();
 
-    let (s, _, _) = request(&r, Method::POST, &format!("/v1/monitors/{id}/pause"), None, Some(&c)).await;
+    let (s, _, _) = request(
+        &r,
+        Method::POST,
+        &format!("/v1/monitors/{id}/pause"),
+        None,
+        Some(&c),
+    )
+    .await;
     assert_eq!(s, StatusCode::NO_CONTENT);
-    let m: Value = json(&r, Method::GET, &format!("/v1/monitors/{id}"), None, Some(&c)).await;
+    let m: Value = json(
+        &r,
+        Method::GET,
+        &format!("/v1/monitors/{id}"),
+        None,
+        Some(&c),
+    )
+    .await;
     assert_eq!(m["active"], false);
 
-    let (s, _, _) = request(&r, Method::POST, &format!("/v1/monitors/{id}/resume"), None, Some(&c)).await;
+    let (s, _, _) = request(
+        &r,
+        Method::POST,
+        &format!("/v1/monitors/{id}/resume"),
+        None,
+        Some(&c),
+    )
+    .await;
     assert_eq!(s, StatusCode::NO_CONTENT);
-    let m: Value = json(&r, Method::GET, &format!("/v1/monitors/{id}"), None, Some(&c)).await;
+    let m: Value = json(
+        &r,
+        Method::GET,
+        &format!("/v1/monitors/{id}"),
+        None,
+        Some(&c),
+    )
+    .await;
     assert_eq!(m["active"], true);
 
-    let (s, _, _) = request(&r, Method::DELETE, &format!("/v1/monitors/{id}"), None, Some(&c)).await;
+    let (s, _, _) = request(
+        &r,
+        Method::DELETE,
+        &format!("/v1/monitors/{id}"),
+        None,
+        Some(&c),
+    )
+    .await;
     assert_eq!(s, StatusCode::NO_CONTENT);
 }
 
@@ -70,7 +117,14 @@ async fn unknown_id_returns_404(pool: PgPool) {
     let r = common::router(pool);
     let c = register_admin(&r).await;
     let fake = uuid::Uuid::new_v4();
-    let (s, _, _) = request(&r, Method::GET, &format!("/v1/monitors/{fake}"), None, Some(&c)).await;
+    let (s, _, _) = request(
+        &r,
+        Method::GET,
+        &format!("/v1/monitors/{fake}"),
+        None,
+        Some(&c),
+    )
+    .await;
     assert_eq!(s, StatusCode::NOT_FOUND);
 }
 
@@ -83,7 +137,14 @@ async fn summary_and_history_endpoints_respond(pool: PgPool) {
     assert_eq!(s1, StatusCode::OK);
     assert_eq!(b1.as_ref(), b"[]");
 
-    let (s2, _, b2) = request(&r, Method::GET, "/v1/monitors/history?per=10", None, Some(&c)).await;
+    let (s2, _, b2) = request(
+        &r,
+        Method::GET,
+        "/v1/monitors/history?per=10",
+        None,
+        Some(&c),
+    )
+    .await;
     assert_eq!(s2, StatusCode::OK);
     assert_eq!(b2.as_ref(), b"[]");
 }

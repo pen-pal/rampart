@@ -14,14 +14,16 @@ pub enum EventKind {
 
 #[derive(Debug, Clone)]
 pub struct Event {
-    pub kind:        EventKind,
-    pub monitor:     Monitor,
-    pub heartbeat:   Heartbeat,
+    pub kind: EventKind,
+    pub monitor: Monitor,
+    pub heartbeat: Heartbeat,
     pub prev_status: Option<MonitorStatus>,
 }
 
 impl Event {
-    pub fn status_str(&self) -> &'static str { status_label(self.heartbeat.status) }
+    pub fn status_str(&self) -> &'static str {
+        status_label(self.heartbeat.status)
+    }
     pub fn prev_status_str(&self) -> &'static str {
         self.prev_status.map(status_label).unwrap_or("unknown")
     }
@@ -29,11 +31,11 @@ impl Event {
 
 fn status_label(s: MonitorStatus) -> &'static str {
     match s {
-        MonitorStatus::Up          => "up",
-        MonitorStatus::Down        => "down",
-        MonitorStatus::Warn        => "degraded",
-        MonitorStatus::Paused      => "paused",
-        MonitorStatus::Pending     => "pending",
+        MonitorStatus::Up => "up",
+        MonitorStatus::Down => "down",
+        MonitorStatus::Warn => "degraded",
+        MonitorStatus::Paused => "paused",
+        MonitorStatus::Pending => "pending",
         MonitorStatus::Maintenance => "maintenance",
     }
 }

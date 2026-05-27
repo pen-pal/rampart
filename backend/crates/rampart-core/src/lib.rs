@@ -21,13 +21,10 @@ pub mod testing;
 pub use error::{CoreError, Result};
 pub use heartbeat::Heartbeat;
 pub use ids::{
-    ApiKeyId, BadgeId, IncidentId, IncidentUpdateId, MaintenanceId,
-    MonitorId, NotificationId, NotificationTemplateId, ProxyId,
-    SessionId, StatusPageComponentId, StatusPageGroupId, StatusPageId,
-    StatusPageSubscriberId, TagId, UserId,
+    ApiKeyId, BadgeId, IncidentId, IncidentUpdateId, MaintenanceId, MonitorId, NotificationId,
+    NotificationTemplateId, ProxyId, SessionId, StatusPageComponentId, StatusPageGroupId,
+    StatusPageId, StatusPageSubscriberId, TagId, UserId,
 };
 pub use incident::{Incident, IncidentStyle, IncidentUpdate};
 pub use monitor::{Monitor, MonitorKind, MonitorStatus, NewMonitor};
-pub use notification::{
-    ChannelKind, MonitorNotification, Notification, NotificationTemplate,
-};
+pub use notification::{ChannelKind, MonitorNotification, Notification, NotificationTemplate};

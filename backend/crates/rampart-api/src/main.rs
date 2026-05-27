@@ -21,8 +21,8 @@ use tracing_subscriber::EnvFilter;
 async fn main() -> anyhow::Result<()> {
     init_tracing();
 
-    let database_url = std::env::var("DATABASE_URL")
-        .map_err(|_| anyhow::anyhow!("DATABASE_URL not set"))?;
+    let database_url =
+        std::env::var("DATABASE_URL").map_err(|_| anyhow::anyhow!("DATABASE_URL not set"))?;
     let pool_size: u32 = std::env::var("DATABASE_POOL_SIZE")
         .ok()
         .and_then(|s| s.parse().ok())
@@ -40,24 +40,29 @@ async fn main() -> anyhow::Result<()> {
     // Bring up the notifier service first so the scheduler can hand
     // events to it as soon as a monitor flips status.
     let (notifier_service, notifier_handle) = rampart_notifier::NotifierService::new(pool.clone());
-    tokio::spawn(async move { notifier_service.run().await; });
+    tokio::spawn(async move {
+        notifier_service.run().await;
+    });
     info!("notifier service started");
 
     // Bring up the scheduler. It owns its own probe tasks and writer
     // task; we just hand it the DB pool + a notifier handle so flips
     // emit events. The reload handle lets API routes poke it after
     // monitor mutations.
-    let scheduler = std::sync::Arc::new(
-        rampart_scheduler::Scheduler::with_notifier(pool.clone(), Some(notifier_handle.clone()))
-    );
+    let scheduler = std::sync::Arc::new(rampart_scheduler::Scheduler::with_notifier(
+        pool.clone(),
+        Some(notifier_handle.clone()),
+    ));
     let reload_handle = scheduler.reload_handle();
     let scheduler_for_run = scheduler.clone();
-    tokio::spawn(async move { scheduler_for_run.run().await; });
+    tokio::spawn(async move {
+        scheduler_for_run.run().await;
+    });
     info!("scheduler started");
 
     static_assets::log_state();
     let state = AppState::new(pool, reload_handle);
-    let app   = build_router(state);
+    let app = build_router(state);
 
     let listener = tokio::net::TcpListener::bind(bind).await?;
     axum::serve(listener, app)
@@ -88,7 +93,9 @@ async fn shutdown_signal() {
     let terminate = async {
         use tokio::signal::unix::{signal, SignalKind};
         match signal(SignalKind::terminate()) {
-            Ok(mut s) => { s.recv().await; }
+            Ok(mut s) => {
+                s.recv().await;
+            }
             Err(e) => warn!(error = %e, "failed to install SIGTERM handler"),
         }
     };

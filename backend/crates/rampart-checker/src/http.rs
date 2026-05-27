@@ -1,16 +1,16 @@
 //! HTTP / HTTPS probe.
 //!
 //! Handles three monitor kinds with one probe:
-//!   - Http        — status code matches `accepted_statuses`
-//!   - Keyword     — `accepted_statuses` AND body contains `config.keyword`
-//!   - JsonQuery   — `accepted_statuses` AND `config.json_path` returns
-//!                   a value equal to `config.expected_value` (simplest
-//!                   form — full JSONPath comes later)
+//! - Http        — status code matches `accepted_statuses`
+//! - Keyword     — `accepted_statuses` AND body contains `config.keyword`
+//! - JsonQuery   — `accepted_statuses` AND `config.json_path` returns a
+//!   value equal to `config.expected_value` (simplest form — full JSONPath
+//!   comes later)
 
 use crate::{ms_i32, Probe};
 use async_trait::async_trait;
-use rampart_core::{Heartbeat, Monitor, MonitorKind, MonitorStatus};
 use once_cell::sync::OnceCell;
+use rampart_core::{Heartbeat, Monitor, MonitorKind, MonitorStatus};
 use reqwest::{Client, ClientBuilder, Method};
 use std::str::FromStr;
 use std::time::{Duration, Instant};
@@ -22,13 +22,17 @@ pub struct HttpProbe {
 }
 
 impl HttpProbe {
-    pub fn new() -> Self { Self { client: OnceCell::new() } }
+    pub fn new() -> Self {
+        Self {
+            client: OnceCell::new(),
+        }
+    }
 
     fn client(&self) -> &Client {
         self.client.get_or_init(|| {
             ClientBuilder::new()
                 .user_agent("Rampart/0.1 (+https://github.com/rampart-io/rampart)")
-                .redirect(reqwest::redirect::Policy::none())   // honored per-monitor below
+                .redirect(reqwest::redirect::Policy::none()) // honored per-monitor below
                 .pool_idle_timeout(Duration::from_secs(60))
                 .tcp_keepalive(Duration::from_secs(30))
                 .build()
@@ -38,7 +42,9 @@ impl HttpProbe {
 }
 
 impl Default for HttpProbe {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[async_trait]
@@ -55,9 +61,7 @@ impl Probe for HttpProbe {
         let method = Method::from_str(&monitor.http_method).unwrap_or(Method::GET);
         let timeout = Duration::from_secs(monitor.timeout_seconds as u64);
 
-        let mut req = self.client()
-            .request(method, &url)
-            .timeout(timeout);
+        let mut req = self.client().request(method, &url).timeout(timeout);
 
         // Custom headers stored as a JSON object.
         if let Some(serde_json::Value::Object(headers)) = &monitor.http_headers {
@@ -80,7 +84,8 @@ impl Probe for HttpProbe {
                 let status_matches = monitor.accepted_statuses.contains(&status_code);
 
                 // For keyword/json_query monitors we need the body.
-                let needs_body = matches!(monitor.kind, MonitorKind::Keyword | MonitorKind::JsonQuery);
+                let needs_body =
+                    matches!(monitor.kind, MonitorKind::Keyword | MonitorKind::JsonQuery);
                 let body_text = if needs_body {
                     match resp.text().await {
                         Ok(b) => Some(b.chars().take(524_288).collect::<String>()),
@@ -95,7 +100,10 @@ impl Probe for HttpProbe {
 
                 let body_ok = match monitor.kind {
                     MonitorKind::Http => true,
-                    MonitorKind::Keyword => match (body_text.as_deref(), monitor.config.get("keyword").and_then(|v| v.as_str())) {
+                    MonitorKind::Keyword => match (
+                        body_text.as_deref(),
+                        monitor.config.get("keyword").and_then(|v| v.as_str()),
+                    ) {
                         (Some(b), Some(k)) => b.contains(k),
                         _ => false,
                     },
@@ -107,7 +115,7 @@ impl Probe for HttpProbe {
                             Some(b) => json_path_matches(b, &monitor.config),
                             None => false,
                         }
-                    },
+                    }
                     _ => true,
                 };
 
@@ -118,37 +126,45 @@ impl Probe for HttpProbe {
                 let ok = if monitor.upside_down { !raw_ok } else { raw_ok };
 
                 Heartbeat {
-                    monitor_id:  monitor.id,
+                    monitor_id: monitor.id,
                     ts,
-                    status:      if ok { MonitorStatus::Up } else { MonitorStatus::Down },
-                    latency_ms:  Some(ms_i32(elapsed)),
+                    status: if ok {
+                        MonitorStatus::Up
+                    } else {
+                        MonitorStatus::Down
+                    },
+                    latency_ms: Some(ms_i32(elapsed)),
                     status_code: Some(status_code),
-                    msg:         if ok { None } else { Some(format!(
-                        "status_match={status_matches} body_match={body_ok}"
-                    )) },
-                    retries:     0,
-                    important:   false,
+                    msg: if ok {
+                        None
+                    } else {
+                        Some(format!(
+                            "status_match={status_matches} body_match={body_ok}"
+                        ))
+                    },
+                    retries: 0,
+                    important: false,
                 }
             }
             Err(e) if e.is_timeout() => Heartbeat {
-                monitor_id:  monitor.id,
+                monitor_id: monitor.id,
                 ts,
-                status:      MonitorStatus::Down,
-                latency_ms:  Some(ms_i32(elapsed)),
+                status: MonitorStatus::Down,
+                latency_ms: Some(ms_i32(elapsed)),
                 status_code: None,
-                msg:         Some("request timed out".into()),
-                retries:     0,
-                important:   false,
+                msg: Some("request timed out".into()),
+                retries: 0,
+                important: false,
             },
             Err(e) => Heartbeat {
-                monitor_id:  monitor.id,
+                monitor_id: monitor.id,
                 ts,
-                status:      MonitorStatus::Down,
-                latency_ms:  Some(ms_i32(elapsed)),
+                status: MonitorStatus::Down,
+                latency_ms: Some(ms_i32(elapsed)),
                 status_code: None,
-                msg:         Some(e.to_string()),
-                retries:     0,
-                important:   false,
+                msg: Some(e.to_string()),
+                retries: 0,
+                important: false,
             },
         }
     }
@@ -156,14 +172,14 @@ impl Probe for HttpProbe {
 
 fn err(monitor: &Monitor, ts: OffsetDateTime, started: Instant, msg: &str) -> Heartbeat {
     Heartbeat {
-        monitor_id:  monitor.id,
+        monitor_id: monitor.id,
         ts,
-        status:      MonitorStatus::Down,
-        latency_ms:  Some(ms_i32(started.elapsed())),
+        status: MonitorStatus::Down,
+        latency_ms: Some(ms_i32(started.elapsed())),
         status_code: None,
-        msg:         Some(msg.into()),
-        retries:     0,
-        important:   false,
+        msg: Some(msg.into()),
+        retries: 0,
+        important: false,
     }
 }
 
@@ -176,14 +192,19 @@ fn json_path_matches(body: &str, config: &serde_json::Value) -> bool {
         Ok(v) => v,
         Err(_) => return false,
     };
-    let path = config.get("json_path").and_then(|v| v.as_str()).unwrap_or("");
-    let expected = config.get("expected_value").unwrap_or(&serde_json::Value::Null);
+    let path = config
+        .get("json_path")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let expected = config
+        .get("expected_value")
+        .unwrap_or(&serde_json::Value::Null);
 
     let mut node = &parsed;
     for segment in path.split('.').filter(|s| !s.is_empty()) {
         node = match node.get(segment) {
             Some(n) => n,
-            None    => return false,
+            None => return false,
         };
     }
     node == expected
@@ -197,14 +218,14 @@ mod tests {
     #[test]
     fn json_path_matches_top_level_value() {
         let body = r#"{"status":"ok"}"#;
-        let cfg  = json!({"json_path": "status", "expected_value": "ok"});
+        let cfg = json!({"json_path": "status", "expected_value": "ok"});
         assert!(json_path_matches(body, &cfg));
     }
 
     #[test]
     fn json_path_matches_nested_value() {
         let body = r#"{"data":{"user":{"id":42,"active":true}}}"#;
-        let cfg  = json!({"json_path": "data.user.id", "expected_value": 42});
+        let cfg = json!({"json_path": "data.user.id", "expected_value": 42});
         assert!(json_path_matches(body, &cfg));
 
         let cfg2 = json!({"json_path": "data.user.active", "expected_value": true});
@@ -214,20 +235,20 @@ mod tests {
     #[test]
     fn json_path_returns_false_on_wrong_value() {
         let body = r#"{"status":"degraded"}"#;
-        let cfg  = json!({"json_path": "status", "expected_value": "ok"});
+        let cfg = json!({"json_path": "status", "expected_value": "ok"});
         assert!(!json_path_matches(body, &cfg));
     }
 
     #[test]
     fn json_path_returns_false_on_missing_segment() {
         let body = r#"{"status":"ok"}"#;
-        let cfg  = json!({"json_path": "data.user.id", "expected_value": 42});
+        let cfg = json!({"json_path": "data.user.id", "expected_value": 42});
         assert!(!json_path_matches(body, &cfg));
     }
 
     #[test]
     fn json_path_returns_false_on_invalid_json() {
-        let cfg  = json!({"json_path": "x", "expected_value": "y"});
+        let cfg = json!({"json_path": "x", "expected_value": "y"});
         assert!(!json_path_matches("not json at all", &cfg));
     }
 
@@ -235,14 +256,14 @@ mod tests {
     fn json_path_ignores_leading_or_repeated_dots() {
         // "..data..user..id" should still walk data → user → id.
         let body = r#"{"data":{"user":{"id":1}}}"#;
-        let cfg  = json!({"json_path": "..data..user..id", "expected_value": 1});
+        let cfg = json!({"json_path": "..data..user..id", "expected_value": 1});
         assert!(json_path_matches(body, &cfg));
     }
 
     #[test]
     fn json_path_can_compare_null() {
         let body = r#"{"v":null}"#;
-        let cfg  = json!({"json_path": "v", "expected_value": null});
+        let cfg = json!({"json_path": "v", "expected_value": null});
         assert!(json_path_matches(body, &cfg));
     }
 }

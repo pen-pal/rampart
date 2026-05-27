@@ -16,7 +16,7 @@ pub struct SlackConfig {
 
 #[derive(Debug)]
 pub struct Slack {
-    cfg:    SlackConfig,
+    cfg: SlackConfig,
     client: reqwest::Client,
 }
 
@@ -29,7 +29,10 @@ impl Slack {
                 "webhook_url must start with https://hooks.slack.com/".into(),
             ));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
@@ -45,7 +48,7 @@ struct SlackPayload<'a> {
 struct SlackAttachment {
     color: &'static str,
     title: String,
-    text:  String,
+    text: String,
 }
 
 #[cfg(test)]
@@ -55,13 +58,15 @@ mod tests {
 
     #[test]
     fn rejects_non_slack_webhook_host() {
-        let err = Slack::from_config(&json!({"webhook_url": "https://example.com/hooks/x"})).unwrap_err();
+        let err =
+            Slack::from_config(&json!({"webhook_url": "https://example.com/hooks/x"})).unwrap_err();
         assert!(matches!(err, ChannelError::BadConfig(_)));
     }
 
     #[test]
     fn accepts_valid_slack_webhook() {
-        let ok = Slack::from_config(&json!({"webhook_url": "https://hooks.slack.com/services/T/B/x"}));
+        let ok =
+            Slack::from_config(&json!({"webhook_url": "https://hooks.slack.com/services/T/B/x"}));
         assert!(ok.is_ok());
     }
 
@@ -82,15 +87,20 @@ impl Channel for Slack {
             _ => "warning",
         };
         let payload = SlackPayload {
-            text:    subject.to_string(),
+            text: subject.to_string(),
             channel: &self.cfg.channel,
             attachments: vec![SlackAttachment {
                 color,
                 title: subject.to_string(),
-                text:  body.to_string(),
+                text: body.to_string(),
             }],
         };
-        let resp = self.client.post(&self.cfg.webhook_url).json(&payload).send().await?;
+        let resp = self
+            .client
+            .post(&self.cfg.webhook_url)
+            .json(&payload)
+            .send()
+            .await?;
         if !resp.status().is_success() {
             let code = resp.status().as_u16();
             let body = resp.text().await.unwrap_or_default();

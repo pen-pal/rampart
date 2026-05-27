@@ -13,8 +13,8 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone)]
 pub struct Session {
-    pub id:         Uuid,
-    pub user_id:    UserId,
+    pub id: Uuid,
+    pub user_id: UserId,
     pub created_at: OffsetDateTime,
     pub expires_at: OffsetDateTime,
 }
@@ -46,8 +46,8 @@ pub async fn create(
     .await?;
 
     Ok(Session {
-        id:         row.id,
-        user_id:    UserId::from_uuid(row.user_id),
+        id: row.id,
+        user_id: UserId::from_uuid(row.user_id),
         created_at: row.created_at,
         expires_at: row.expires_at,
     })
@@ -67,8 +67,8 @@ pub async fn get(pool: &DbPool, id: Uuid) -> DbResult<Session> {
     .ok_or(DbError::NotFound)?;
 
     Ok(Session {
-        id:         row.id,
-        user_id:    UserId::from_uuid(row.user_id),
+        id: row.id,
+        user_id: UserId::from_uuid(row.user_id),
         created_at: row.created_at,
         expires_at: row.expires_at,
     })

@@ -40,7 +40,7 @@ impl NotifierHandle {
 }
 
 pub struct NotifierService {
-    rx:   mpsc::Receiver<Event>,
+    rx: mpsc::Receiver<Event>,
     pool: DbPool,
 }
 
@@ -68,10 +68,12 @@ impl NotifierService {
 
 async fn dispatch_one(pool: &DbPool, event: Event) -> anyhow::Result<()> {
     let rows = rampart_db::notifications::for_monitor(pool, event.monitor.id).await?;
-    if rows.is_empty() { return Ok(()); }
+    if rows.is_empty() {
+        return Ok(());
+    }
 
     let default_subject = template::default_subject(&event);
-    let default_body    = template::default_body(&event);
+    let default_body = template::default_body(&event);
 
     // Fire all channels in parallel. Each channel may use its own template;
     // we fetch and render up-front (rather than passing template_id into the
@@ -82,7 +84,9 @@ async fn dispatch_one(pool: &DbPool, event: Event) -> anyhow::Result<()> {
             None => (default_subject.clone(), default_body.clone()),
             Some(tid) => match rampart_db::templates::get_render_strings(pool, tid).await {
                 Ok(t) => {
-                    let subj = t.subject.as_deref()
+                    let subj = t
+                        .subject
+                        .as_deref()
                         .map(|s| template::render(s, &event))
                         .unwrap_or_else(|| default_subject.clone());
                     (subj, template::render(&t.body, &event))
@@ -97,7 +101,7 @@ async fn dispatch_one(pool: &DbPool, event: Event) -> anyhow::Result<()> {
 
         let event = event.clone();
         let kind: ChannelKind = row.kind;
-        let cfg  = row.config;
+        let cfg = row.config;
         let name = row.name;
         handles.push(tokio::spawn(async move {
             match channels::dispatch(kind, &cfg, &subject, &body, &event).await {
@@ -111,4 +115,3 @@ async fn dispatch_one(pool: &DbPool, event: Event) -> anyhow::Result<()> {
     }
     Ok(())
 }
-

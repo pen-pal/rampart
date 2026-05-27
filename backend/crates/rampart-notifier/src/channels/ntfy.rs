@@ -13,7 +13,7 @@ use serde::Deserialize;
 pub struct NtfyConfig {
     #[serde(default = "default_server")]
     pub server: String,
-    pub topic:  String,
+    pub topic: String,
     /// Priority 1..5 (1=min, 3=default, 5=urgent).
     #[serde(default = "default_priority")]
     pub priority: u8,
@@ -24,12 +24,16 @@ pub struct NtfyConfig {
     #[serde(default)]
     pub tags: Vec<String>,
 }
-fn default_server() -> String { "https://ntfy.sh".into() }
-fn default_priority() -> u8 { 3 }
+fn default_server() -> String {
+    "https://ntfy.sh".into()
+}
+fn default_priority() -> u8 {
+    3
+}
 
 #[derive(Debug)]
 pub struct Ntfy {
-    cfg:    NtfyConfig,
+    cfg: NtfyConfig,
     client: reqwest::Client,
 }
 
@@ -40,7 +44,10 @@ impl Ntfy {
         if cfg.topic.is_empty() {
             return Err(ChannelError::BadConfig("topic is required".into()));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
@@ -48,17 +55,26 @@ impl Ntfy {
 impl Channel for Ntfy {
     async fn send(&self, subject: &str, body: &str, event: &Event) -> Result<(), ChannelError> {
         // ntfy uses header-based metadata. Body is the message text.
-        let url = format!("{}/{}", self.cfg.server.trim_end_matches('/'), self.cfg.topic);
+        let url = format!(
+            "{}/{}",
+            self.cfg.server.trim_end_matches('/'),
+            self.cfg.topic
+        );
         let mut tags = self.cfg.tags.clone();
         if tags.is_empty() {
-            tags.push(match event.heartbeat.status {
-                rampart_core::MonitorStatus::Up   => "white_check_mark",
-                rampart_core::MonitorStatus::Down => "rotating_light",
-                _                                 => "warning",
-            }.to_string());
+            tags.push(
+                match event.heartbeat.status {
+                    rampart_core::MonitorStatus::Up => "white_check_mark",
+                    rampart_core::MonitorStatus::Down => "rotating_light",
+                    _ => "warning",
+                }
+                .to_string(),
+            );
         }
 
-        let mut req = self.client.post(&url)
+        let mut req = self
+            .client
+            .post(&url)
             .header("Title", header_safe(subject))
             .header("Priority", self.cfg.priority.to_string())
             .header("Tags", tags.join(","))
@@ -95,7 +111,7 @@ mod tests {
     fn defaults_server_to_ntfy_sh_and_priority_3() {
         let raw = json!({"topic": "my-topic"});
         let cfg: NtfyConfig = serde_json::from_value(raw).unwrap();
-        assert_eq!(cfg.server,   "https://ntfy.sh");
+        assert_eq!(cfg.server, "https://ntfy.sh");
         assert_eq!(cfg.priority, 3);
     }
 

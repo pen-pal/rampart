@@ -4,10 +4,10 @@
 //! under `/v1` so we can version the API independently of the binary.
 //!
 //! Two slices of `/v1`:
-//!   - `v1_public()`     — `/v1/auth/*` (login, register, logout, me).
-//!                         No session required.
-//!   - `v1_protected()`  — everything else (monitors, summary, history).
-//!                         The auth middleware is applied in main.rs.
+//! - `v1_public()` — `/v1/auth/*` (login, register, logout, me).
+//!   No session required.
+//! - `v1_protected()` — everything else (monitors, summary, history).
+//!   The auth middleware is applied in main.rs.
 
 pub mod auth;
 pub mod health;
@@ -25,7 +25,10 @@ pub fn v1_public() -> Router<AppState> {
 pub fn v1_protected() -> Router<AppState> {
     Router::new()
         // /v1/monitors itself and /v1/monitors/:id/notifications attach/detach
-        .nest("/monitors",      monitors::router().merge(notifications::monitor_attach_router()))
+        .nest(
+            "/monitors",
+            monitors::router().merge(notifications::monitor_attach_router()),
+        )
         // /v1/notifications CRUD
         .nest("/notifications", notifications::router())
         // /v1/notification-templates CRUD

@@ -11,8 +11,8 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use rampart_core::{Heartbeat, Monitor, MonitorId, MonitorStatus};
 use rampart_core::monitor::NewMonitor;
+use rampart_core::{Heartbeat, Monitor, MonitorId, MonitorStatus};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use time::OffsetDateTime;
@@ -23,13 +23,13 @@ pub fn router() -> Router<AppState> {
     // Static segments must be declared before the `:id` route so axum
     // matches them before treating the segment as an id.
     Router::new()
-        .route("/",               get(list).post(create))
-        .route("/summary",        get(summary))
-        .route("/history",        get(history_all))
-        .route("/:id",            get(get_one).delete(delete_one))
+        .route("/", get(list).post(create))
+        .route("/summary", get(summary))
+        .route("/history", get(history_all))
+        .route("/:id", get(get_one).delete(delete_one))
         .route("/:id/heartbeats", get(heartbeats))
-        .route("/:id/pause",      post(pause))
-        .route("/:id/resume",     post(resume))
+        .route("/:id/pause", post(pause))
+        .route("/:id/resume", post(resume))
 }
 
 fn parse_monitor_id(s: &str) -> Result<MonitorId, ApiError> {
@@ -98,17 +98,19 @@ pub struct SummaryQuery {
     #[serde(default = "default_window")]
     pub window: i64,
 }
-fn default_window() -> i64 { 86_400 }
+fn default_window() -> i64 {
+    86_400
+}
 
 #[derive(Debug, Serialize)]
 pub struct MonitorSummaryDto {
-    pub monitor_id:     MonitorId,
-    pub total:          i64,
-    pub up:             i64,
-    pub uptime_pct:     Option<f64>,
+    pub monitor_id: MonitorId,
+    pub total: i64,
+    pub up: i64,
+    pub uptime_pct: Option<f64>,
     pub avg_latency_ms: Option<f64>,
-    pub last_status:    Option<MonitorStatus>,
-    pub last_ts:        Option<OffsetDateTime>,
+    pub last_status: Option<MonitorStatus>,
+    pub last_ts: Option<OffsetDateTime>,
 }
 
 async fn summary(
@@ -116,20 +118,23 @@ async fn summary(
     Query(q): Query<SummaryQuery>,
 ) -> Result<Json<Vec<MonitorSummaryDto>>, ApiError> {
     let rows = rampart_db::heartbeats::summary_window(state.pool(), q.window).await?;
-    Ok(Json(rows
-        .into_iter()
-        .map(|r| MonitorSummaryDto {
-            monitor_id:     r.monitor_id,
-            total:          r.total,
-            up:             r.up,
-            uptime_pct: if r.total > 0 {
-                Some(r.up as f64 / r.total as f64 * 100.0)
-            } else { None },
-            avg_latency_ms: r.avg_latency_ms,
-            last_status:    r.last_status,
-            last_ts:        r.last_ts,
-        })
-        .collect()))
+    Ok(Json(
+        rows.into_iter()
+            .map(|r| MonitorSummaryDto {
+                monitor_id: r.monitor_id,
+                total: r.total,
+                up: r.up,
+                uptime_pct: if r.total > 0 {
+                    Some(r.up as f64 / r.total as f64 * 100.0)
+                } else {
+                    None
+                },
+                avg_latency_ms: r.avg_latency_ms,
+                last_status: r.last_status,
+                last_ts: r.last_ts,
+            })
+            .collect(),
+    ))
 }
 
 #[derive(Debug, Deserialize)]
@@ -138,7 +143,9 @@ pub struct HistoryQuery {
     #[serde(default = "default_history_per")]
     pub per: i64,
 }
-fn default_history_per() -> i64 { 60 }
+fn default_history_per() -> i64 {
+    60
+}
 
 async fn history_all(
     State(state): State<AppState>,
@@ -155,7 +162,9 @@ pub struct HeartbeatsQuery {
     #[serde(default = "default_hb_limit")]
     pub limit: i64,
 }
-fn default_hb_limit() -> i64 { 100 }
+fn default_hb_limit() -> i64 {
+    100
+}
 
 async fn heartbeats(
     State(state): State<AppState>,

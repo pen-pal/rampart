@@ -10,17 +10,19 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 pub struct GotifyConfig {
-    pub server:   String,
-    pub token:    String,
+    pub server: String,
+    pub token: String,
     /// Gotify priority 0..10; 5 is the default visual threshold.
     #[serde(default = "default_priority")]
     pub priority: i32,
 }
-fn default_priority() -> i32 { 5 }
+fn default_priority() -> i32 {
+    5
+}
 
 #[derive(Debug)]
 pub struct Gotify {
-    cfg:    GotifyConfig,
+    cfg: GotifyConfig,
     client: reqwest::Client,
 }
 
@@ -29,16 +31,21 @@ impl Gotify {
         let cfg: GotifyConfig = serde_json::from_value(raw.clone())
             .map_err(|e| ChannelError::BadConfig(e.to_string()))?;
         if cfg.server.is_empty() || cfg.token.is_empty() {
-            return Err(ChannelError::BadConfig("server and token are required".into()));
+            return Err(ChannelError::BadConfig(
+                "server and token are required".into(),
+            ));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
 #[derive(Serialize)]
 struct GotifyPayload<'a> {
-    title:    &'a str,
-    message:  &'a str,
+    title: &'a str,
+    message: &'a str,
     priority: i32,
 }
 
@@ -64,10 +71,16 @@ mod tests {
 #[async_trait]
 impl Channel for Gotify {
     async fn send(&self, subject: &str, body: &str, _event: &Event) -> Result<(), ChannelError> {
-        let url = format!("{}/message?token={}",
+        let url = format!(
+            "{}/message?token={}",
             self.cfg.server.trim_end_matches('/'),
-            self.cfg.token);
-        let payload = GotifyPayload { title: subject, message: body, priority: self.cfg.priority };
+            self.cfg.token
+        );
+        let payload = GotifyPayload {
+            title: subject,
+            message: body,
+            priority: self.cfg.priority,
+        };
         let resp = self.client.post(&url).json(&payload).send().await?;
         if !resp.status().is_success() {
             let code = resp.status().as_u16();

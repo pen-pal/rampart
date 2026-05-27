@@ -35,24 +35,42 @@ async fn register_then_protected_route_with_cookie(pool: PgPool) {
 async fn second_register_returns_conflict(pool: PgPool) {
     let r = common::router(pool);
     register_admin(&r).await;
-    let (status, _, _) = request(&r, Method::POST, "/v1/auth/register",
-        Some(json!({ "email": "second@x.com", "password": "ten-character-pw" })), None).await;
+    let (status, _, _) = request(
+        &r,
+        Method::POST,
+        "/v1/auth/register",
+        Some(json!({ "email": "second@x.com", "password": "ten-character-pw" })),
+        None,
+    )
+    .await;
     assert_eq!(status, StatusCode::CONFLICT);
 }
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn register_rejects_short_password(pool: PgPool) {
     let r = common::router(pool);
-    let (status, _, _) = request(&r, Method::POST, "/v1/auth/register",
-        Some(json!({ "email": "x@x.com", "password": "short" })), None).await;
+    let (status, _, _) = request(
+        &r,
+        Method::POST,
+        "/v1/auth/register",
+        Some(json!({ "email": "x@x.com", "password": "short" })),
+        None,
+    )
+    .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn register_rejects_invalid_email(pool: PgPool) {
     let r = common::router(pool);
-    let (status, _, _) = request(&r, Method::POST, "/v1/auth/register",
-        Some(json!({ "email": "no-at-sign", "password": "ten-character-pw" })), None).await;
+    let (status, _, _) = request(
+        &r,
+        Method::POST,
+        "/v1/auth/register",
+        Some(json!({ "email": "no-at-sign", "password": "ten-character-pw" })),
+        None,
+    )
+    .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
 
@@ -60,9 +78,14 @@ async fn register_rejects_invalid_email(pool: PgPool) {
 async fn login_wrong_password_returns_unauthorized(pool: PgPool) {
     let r = common::router(pool);
     register_admin(&r).await;
-    let (status, _, _) = request(&r, Method::POST, "/v1/auth/login",
+    let (status, _, _) = request(
+        &r,
+        Method::POST,
+        "/v1/auth/login",
         Some(json!({ "email": "admin@example.com", "password": "totally-wrong-password" })),
-        None).await;
+        None,
+    )
+    .await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
 
@@ -70,9 +93,14 @@ async fn login_wrong_password_returns_unauthorized(pool: PgPool) {
 async fn login_right_password_sets_cookie(pool: PgPool) {
     let r = common::router(pool);
     register_admin(&r).await;
-    let (status, headers, _) = request(&r, Method::POST, "/v1/auth/login",
+    let (status, headers, _) = request(
+        &r,
+        Method::POST,
+        "/v1/auth/login",
         Some(json!({ "email": "admin@example.com", "password": "correct-horse-battery-staple" })),
-        None).await;
+        None,
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     let cookie = session_cookie(&headers);
     assert!(cookie.starts_with("rampart_session="), "got: {cookie:?}");

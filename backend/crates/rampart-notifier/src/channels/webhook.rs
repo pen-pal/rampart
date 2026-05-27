@@ -20,11 +20,13 @@ pub struct WebhookConfig {
     pub headers: HashMap<String, String>,
 }
 
-fn default_method() -> String { "POST".into() }
+fn default_method() -> String {
+    "POST".into()
+}
 
 #[derive(Debug)]
 pub struct Webhook {
-    cfg:    WebhookConfig,
+    cfg: WebhookConfig,
     client: reqwest::Client,
 }
 
@@ -33,28 +35,33 @@ impl Webhook {
         let cfg: WebhookConfig = serde_json::from_value(raw.clone())
             .map_err(|e| ChannelError::BadConfig(e.to_string()))?;
         if !cfg.url.starts_with("http://") && !cfg.url.starts_with("https://") {
-            return Err(ChannelError::BadConfig("url must start with http:// or https://".into()));
+            return Err(ChannelError::BadConfig(
+                "url must start with http:// or https://".into(),
+            ));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
 #[derive(Serialize)]
 struct WebhookPayload<'a> {
     subject: &'a str,
-    body:    &'a str,
+    body: &'a str,
     monitor: WebhookMonitor<'a>,
-    status:  &'a str,
+    status: &'a str,
     prev_status: &'a str,
-    latency_ms:  Option<i32>,
+    latency_ms: Option<i32>,
     status_code: Option<i32>,
-    msg:         Option<&'a str>,
-    ts:          String,
+    msg: Option<&'a str>,
+    ts: String,
 }
 
 #[derive(Serialize)]
 struct WebhookMonitor<'a> {
-    id:   String,
+    id: String,
     name: &'a str,
     kind: &'a rampart_core::MonitorKind,
 }
@@ -98,17 +105,20 @@ impl Channel for Webhook {
             subject,
             body,
             monitor: WebhookMonitor {
-                id:   event.monitor.id.0.to_string(),
+                id: event.monitor.id.0.to_string(),
                 name: &event.monitor.name,
                 kind: &event.monitor.kind,
             },
-            status:      event.status_str(),
+            status: event.status_str(),
             prev_status: event.prev_status_str(),
-            latency_ms:  event.heartbeat.latency_ms,
+            latency_ms: event.heartbeat.latency_ms,
             status_code: event.heartbeat.status_code,
-            msg:         event.heartbeat.msg.as_deref(),
-            ts:          event.heartbeat.ts.format(&time::format_description::well_known::Rfc3339)
-                          .unwrap_or_default(),
+            msg: event.heartbeat.msg.as_deref(),
+            ts: event
+                .heartbeat
+                .ts
+                .format(&time::format_description::well_known::Rfc3339)
+                .unwrap_or_default(),
         };
 
         let method = reqwest::Method::from_bytes(self.cfg.method.as_bytes())

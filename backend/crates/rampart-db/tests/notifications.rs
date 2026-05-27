@@ -13,28 +13,43 @@ fn http_monitor(name: &str) -> NewMonitor {
     NewMonitor {
         name: name.into(),
         kind: MonitorKind::Http,
-        url:  Some(format!("https://{name}.example.com")),
-        hostname: None, port: None, config: serde_json::Value::Null,
-        interval_seconds: 60, timeout_seconds: 10, max_retries: 0,
-        retry_interval_sec: 60, resend_interval_sec: 0, upside_down: false,
-        http_method: "GET".into(), http_body: None, http_headers: None,
-        accepted_statuses: vec![200], follow_redirect: true, ignore_tls: false,
+        url: Some(format!("https://{name}.example.com")),
+        hostname: None,
+        port: None,
+        config: serde_json::Value::Null,
+        interval_seconds: 60,
+        timeout_seconds: 10,
+        max_retries: 0,
+        retry_interval_sec: 60,
+        resend_interval_sec: 0,
+        upside_down: false,
+        http_method: "GET".into(),
+        http_body: None,
+        http_headers: None,
+        accepted_statuses: vec![200],
+        follow_redirect: true,
+        ignore_tls: false,
         proxy_id: None,
     }
 }
 
 fn webhook_channel(name: &str) -> NewNotification {
     NewNotification {
-        kind:        ChannelKind::Webhook,
-        name:        name.into(),
-        config:      serde_json::json!({"url": "https://example.com/hook"}),
-        active:      true,
+        kind: ChannelKind::Webhook,
+        name: name.into(),
+        config: serde_json::json!({"url": "https://example.com/hook"}),
+        active: true,
         template_id: None,
     }
 }
 
 fn empty_update() -> UpdateNotification {
-    UpdateNotification { name: None, config: None, active: None, template_id: None }
+    UpdateNotification {
+        name: None,
+        config: None,
+        active: None,
+        template_id: None,
+    }
 }
 
 #[sqlx::test(migrations = "../../migrations")]
@@ -58,7 +73,7 @@ async fn create_and_get(pool: PgPool) {
 async fn update_renames_and_disables(pool: PgPool) {
     let n = create(&pool, webhook_channel("orig")).await.unwrap();
     let mut p = empty_update();
-    p.name   = Some("renamed".into());
+    p.name = Some("renamed".into());
     p.active = Some(false);
     let patched = update(&pool, n.id, p).await.unwrap();
     assert_eq!(patched.name, "renamed");
@@ -68,10 +83,19 @@ async fn update_renames_and_disables(pool: PgPool) {
 #[sqlx::test(migrations = "../../migrations")]
 async fn update_can_set_and_clear_template(pool: PgPool) {
     use rampart_db::templates::{self, NewTemplate};
-    let t = templates::create(&pool, NewTemplate {
-        name: "T".into(), channel_kinds: vec![], event_kind: "monitor_down".into(),
-        subject_template: None, body_template: "body".into(), is_default: false,
-    }).await.unwrap();
+    let t = templates::create(
+        &pool,
+        NewTemplate {
+            name: "T".into(),
+            channel_kinds: vec![],
+            event_kind: "monitor_down".into(),
+            subject_template: None,
+            body_template: "body".into(),
+            is_default: false,
+        },
+    )
+    .await
+    .unwrap();
     let n = create(&pool, webhook_channel("templ")).await.unwrap();
 
     // Set
@@ -110,7 +134,11 @@ async fn attach_is_idempotent(pool: PgPool) {
     let c = create(&pool, webhook_channel("ch")).await.unwrap();
     attach(&pool, m.id, c.id).await.unwrap();
     attach(&pool, m.id, c.id).await.unwrap();
-    assert_eq!(for_monitor(&pool, m.id).await.unwrap().len(), 1, "second attach should be a noop");
+    assert_eq!(
+        for_monitor(&pool, m.id).await.unwrap().len(),
+        1,
+        "second attach should be a noop"
+    );
 }
 
 #[sqlx::test(migrations = "../../migrations")]
@@ -124,13 +152,17 @@ async fn disabled_channels_excluded_from_for_monitor(pool: PgPool) {
     p.active = Some(false);
     update(&pool, c.id, p).await.unwrap();
 
-    assert!(for_monitor(&pool, m.id).await.unwrap().is_empty(),
-            "disabled channels should not be returned to the dispatcher");
+    assert!(
+        for_monitor(&pool, m.id).await.unwrap().is_empty(),
+        "disabled channels should not be returned to the dispatcher"
+    );
 }
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn counts_per_monitor_excludes_disabled(pool: PgPool) {
-    let m  = monitors::create(&pool, http_monitor("counts")).await.unwrap();
+    let m = monitors::create(&pool, http_monitor("counts"))
+        .await
+        .unwrap();
     let c1 = create(&pool, webhook_channel("c1")).await.unwrap();
     let c2 = create(&pool, webhook_channel("c2")).await.unwrap();
     attach(&pool, m.id, c1.id).await.unwrap();
@@ -142,7 +174,10 @@ async fn counts_per_monitor_excludes_disabled(pool: PgPool) {
     update(&pool, c2.id, p).await.unwrap();
 
     let counts = counts_per_monitor(&pool).await.unwrap();
-    let row = counts.iter().find(|r| r.monitor_id == m.id).expect("monitor in counts");
+    let row = counts
+        .iter()
+        .find(|r| r.monitor_id == m.id)
+        .expect("monitor in counts");
     assert_eq!(row.count, 1, "disabled channels should not be counted");
 }
 

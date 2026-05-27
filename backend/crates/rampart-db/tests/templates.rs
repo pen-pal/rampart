@@ -1,23 +1,29 @@
 //! Integration tests for `rampart_db::templates`.
 
-use rampart_db::templates::{create, delete, get, get_render_strings, list, update, NewTemplate, UpdateTemplate};
+use rampart_db::templates::{
+    create, delete, get, get_render_strings, list, update, NewTemplate, UpdateTemplate,
+};
 use sqlx::PgPool;
 
 fn sample(name: &str) -> NewTemplate {
     NewTemplate {
-        name:             name.into(),
-        channel_kinds:    vec!["slack".into(), "discord".into()],
-        event_kind:       "monitor_down".into(),
+        name: name.into(),
+        channel_kinds: vec!["slack".into(), "discord".into()],
+        event_kind: "monitor_down".into(),
         subject_template: Some("[{{status}}] {{monitor.name}}".into()),
-        body_template:    "{{monitor.name}} went {{status}}".into(),
-        is_default:       false,
+        body_template: "{{monitor.name}} went {{status}}".into(),
+        is_default: false,
     }
 }
 
 fn empty_patch() -> UpdateTemplate {
     UpdateTemplate {
-        name: None, channel_kinds: None, event_kind: None,
-        subject_template: None, body_template: None, is_default: None,
+        name: None,
+        channel_kinds: None,
+        event_kind: None,
+        subject_template: None,
+        body_template: None,
+        is_default: None,
     }
 }
 
@@ -31,8 +37,14 @@ async fn create_round_trips_all_fields(pool: PgPool) {
     let t = create(&pool, sample("Concise")).await.unwrap();
     assert_eq!(t.name, "Concise");
     assert_eq!(t.event_kind, "monitor_down");
-    assert_eq!(t.channel_kinds, vec!["slack".to_string(), "discord".to_string()]);
-    assert_eq!(t.subject_template.as_deref(), Some("[{{status}}] {{monitor.name}}"));
+    assert_eq!(
+        t.channel_kinds,
+        vec!["slack".to_string(), "discord".to_string()]
+    );
+    assert_eq!(
+        t.subject_template.as_deref(),
+        Some("[{{status}}] {{monitor.name}}")
+    );
 
     let again = get(&pool, t.id).await.unwrap();
     assert_eq!(again.name, t.name);
@@ -43,7 +55,10 @@ async fn create_round_trips_all_fields(pool: PgPool) {
 async fn duplicate_name_conflicts(pool: PgPool) {
     create(&pool, sample("Dup")).await.unwrap();
     let err = create(&pool, sample("Dup")).await.unwrap_err();
-    assert!(matches!(err, rampart_db::DbError::Conflict(_)), "got: {err:?}");
+    assert!(
+        matches!(err, rampart_db::DbError::Conflict(_)),
+        "got: {err:?}"
+    );
 }
 
 #[sqlx::test(migrations = "../../migrations")]

@@ -11,11 +11,15 @@ use tokio::time::timeout;
 pub struct TcpProbe;
 
 impl TcpProbe {
-    pub fn new() -> Self { Self }
+    pub fn new() -> Self {
+        Self
+    }
 }
 
 impl Default for TcpProbe {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[async_trait]
@@ -28,39 +32,51 @@ impl Probe for TcpProbe {
         // TCP needs hostname + port. If either is missing, fail loudly.
         let (host, port) = match (&monitor.hostname, monitor.port) {
             (Some(h), Some(p)) => (h.clone(), p),
-            _ => return Heartbeat {
-                monitor_id: monitor.id, ts,
-                status: MonitorStatus::Down,
-                latency_ms: None, status_code: None,
-                msg: Some("tcp monitor requires hostname + port".into()),
-                retries: 0, important: false,
-            },
+            _ => {
+                return Heartbeat {
+                    monitor_id: monitor.id,
+                    ts,
+                    status: MonitorStatus::Down,
+                    latency_ms: None,
+                    status_code: None,
+                    msg: Some("tcp monitor requires hostname + port".into()),
+                    retries: 0,
+                    important: false,
+                }
+            }
         };
         let addr = format!("{host}:{port}");
 
         match timeout(to, TcpStream::connect(&addr)).await {
             Ok(Ok(_stream)) => Heartbeat {
-                monitor_id: monitor.id, ts,
-                status:     MonitorStatus::Up,
+                monitor_id: monitor.id,
+                ts,
+                status: MonitorStatus::Up,
                 latency_ms: Some(ms_i32(started.elapsed())),
-                status_code: None, msg: None,
-                retries: 0, important: false,
+                status_code: None,
+                msg: None,
+                retries: 0,
+                important: false,
             },
             Ok(Err(e)) => Heartbeat {
-                monitor_id: monitor.id, ts,
-                status:     MonitorStatus::Down,
+                monitor_id: monitor.id,
+                ts,
+                status: MonitorStatus::Down,
                 latency_ms: Some(ms_i32(started.elapsed())),
                 status_code: None,
                 msg: Some(e.to_string()),
-                retries: 0, important: false,
+                retries: 0,
+                important: false,
             },
             Err(_) => Heartbeat {
-                monitor_id: monitor.id, ts,
-                status:     MonitorStatus::Down,
+                monitor_id: monitor.id,
+                ts,
+                status: MonitorStatus::Down,
                 latency_ms: Some(ms_i32(started.elapsed())),
                 status_code: None,
                 msg: Some("tcp connect timed out".into()),
-                retries: 0, important: false,
+                retries: 0,
+                important: false,
             },
         }
     }

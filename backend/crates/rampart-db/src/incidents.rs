@@ -12,16 +12,20 @@ use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
 pub struct NewIncident {
-    pub title:   String,
+    pub title: String,
     pub content: String,
     #[serde(default = "default_style")]
-    pub style:   IncidentStyle,
+    pub style: IncidentStyle,
     #[serde(default = "default_pinned")]
-    pub pinned:  bool,
+    pub pinned: bool,
 }
 
-fn default_style()  -> IncidentStyle { IncidentStyle::Warning }
-fn default_pinned() -> bool { true }
+fn default_style() -> IncidentStyle {
+    IncidentStyle::Warning
+}
+fn default_pinned() -> bool {
+    true
+}
 
 pub async fn create(
     pool: &DbPool,
@@ -40,31 +44,32 @@ pub async fn create(
             style AS "style: IncidentStyle",
             pinned, active, resolved_at, created_at, created_by
         "#,
-        id.0, page.0, input.title, input.content,
-        input.style as IncidentStyle, input.pinned,
+        id.0,
+        page.0,
+        input.title,
+        input.content,
+        input.style as IncidentStyle,
+        input.pinned,
         author.map(|u| u.0),
     )
     .fetch_one(pool)
     .await?;
 
     Ok(Incident {
-        id:             IncidentId::from_uuid(row.id),
+        id: IncidentId::from_uuid(row.id),
         status_page_id: StatusPageId::from_uuid(row.status_page_id),
-        title:          row.title,
-        content:        row.content,
-        style:          row.style,
-        pinned:         row.pinned,
-        active:         row.active,
-        resolved_at:    row.resolved_at,
-        created_at:     row.created_at,
-        created_by:     row.created_by.map(UserId::from_uuid),
+        title: row.title,
+        content: row.content,
+        style: row.style,
+        pinned: row.pinned,
+        active: row.active,
+        resolved_at: row.resolved_at,
+        created_at: row.created_at,
+        created_by: row.created_by.map(UserId::from_uuid),
     })
 }
 
-pub async fn list_active(
-    pool: &DbPool,
-    page: StatusPageId,
-) -> DbResult<Vec<Incident>> {
+pub async fn list_active(pool: &DbPool, page: StatusPageId) -> DbResult<Vec<Incident>> {
     let rows = sqlx::query!(
         r#"
         SELECT
@@ -80,18 +85,21 @@ pub async fn list_active(
     .fetch_all(pool)
     .await?;
 
-    Ok(rows.into_iter().map(|r| Incident {
-        id:             IncidentId::from_uuid(r.id),
-        status_page_id: StatusPageId::from_uuid(r.status_page_id),
-        title:          r.title,
-        content:        r.content,
-        style:          r.style,
-        pinned:         r.pinned,
-        active:         r.active,
-        resolved_at:    r.resolved_at,
-        created_at:     r.created_at,
-        created_by:     r.created_by.map(UserId::from_uuid),
-    }).collect())
+    Ok(rows
+        .into_iter()
+        .map(|r| Incident {
+            id: IncidentId::from_uuid(r.id),
+            status_page_id: StatusPageId::from_uuid(r.status_page_id),
+            title: r.title,
+            content: r.content,
+            style: r.style,
+            pinned: r.pinned,
+            active: r.active,
+            resolved_at: r.resolved_at,
+            created_at: r.created_at,
+            created_by: r.created_by.map(UserId::from_uuid),
+        })
+        .collect())
 }
 
 pub async fn resolve(pool: &DbPool, id: IncidentId, now: OffsetDateTime) -> DbResult<()> {

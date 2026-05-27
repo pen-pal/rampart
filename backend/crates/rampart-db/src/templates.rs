@@ -12,43 +12,50 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Template {
-    pub id:               NotificationTemplateId,
-    pub name:             String,
-    pub channel_kinds:    Vec<String>,
-    pub event_kind:       String,
+    pub id: NotificationTemplateId,
+    pub name: String,
+    pub channel_kinds: Vec<String>,
+    pub event_kind: String,
     pub subject_template: Option<String>,
-    pub body_template:    String,
-    pub is_default:       bool,
-    pub created_at:       OffsetDateTime,
+    pub body_template: String,
+    pub is_default: bool,
+    pub created_at: OffsetDateTime,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct NewTemplate {
-    pub name:             String,
+    pub name: String,
     #[serde(default)]
-    pub channel_kinds:    Vec<String>,
+    pub channel_kinds: Vec<String>,
     #[serde(default = "default_event_kind")]
-    pub event_kind:       String,
+    pub event_kind: String,
     #[serde(default)]
     pub subject_template: Option<String>,
-    pub body_template:    String,
+    pub body_template: String,
     #[serde(default)]
-    pub is_default:       bool,
+    pub is_default: bool,
 }
-fn default_event_kind() -> String { "monitor_down".into() }
+fn default_event_kind() -> String {
+    "monitor_down".into()
+}
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateTemplate {
-    #[serde(default)] pub name:             Option<String>,
-    #[serde(default)] pub channel_kinds:    Option<Vec<String>>,
-    #[serde(default)] pub event_kind:       Option<String>,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub channel_kinds: Option<Vec<String>>,
+    #[serde(default)]
+    pub event_kind: Option<String>,
     /// Use `Option<Option<String>>` so callers can explicitly clear the
     /// subject by sending `null`. See `double_option` for why a custom
     /// deserializer is needed.
     #[serde(default, deserialize_with = "double_option")]
     pub subject_template: Option<Option<String>>,
-    #[serde(default)] pub body_template:    Option<String>,
-    #[serde(default)] pub is_default:       Option<bool>,
+    #[serde(default)]
+    pub body_template: Option<String>,
+    #[serde(default)]
+    pub is_default: Option<bool>,
 }
 
 fn double_option<'de, T, D>(d: D) -> Result<Option<Option<T>>, D::Error>
@@ -70,16 +77,19 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<Template>> {
     )
     .fetch_all(pool)
     .await?;
-    Ok(rows.into_iter().map(|r| Template {
-        id:               NotificationTemplateId::from_uuid(r.id),
-        name:             r.name,
-        channel_kinds:    r.channel_kinds,
-        event_kind:       r.event_kind,
-        subject_template: r.subject_template,
-        body_template:    r.body_template,
-        is_default:       r.is_default,
-        created_at:       r.created_at,
-    }).collect())
+    Ok(rows
+        .into_iter()
+        .map(|r| Template {
+            id: NotificationTemplateId::from_uuid(r.id),
+            name: r.name,
+            channel_kinds: r.channel_kinds,
+            event_kind: r.event_kind,
+            subject_template: r.subject_template,
+            body_template: r.body_template,
+            is_default: r.is_default,
+            created_at: r.created_at,
+        })
+        .collect())
 }
 
 pub async fn get(pool: &DbPool, id: NotificationTemplateId) -> DbResult<Template> {
@@ -96,14 +106,14 @@ pub async fn get(pool: &DbPool, id: NotificationTemplateId) -> DbResult<Template
     .await?
     .ok_or(DbError::NotFound)?;
     Ok(Template {
-        id:               NotificationTemplateId::from_uuid(r.id),
-        name:             r.name,
-        channel_kinds:    r.channel_kinds,
-        event_kind:       r.event_kind,
+        id: NotificationTemplateId::from_uuid(r.id),
+        name: r.name,
+        channel_kinds: r.channel_kinds,
+        event_kind: r.event_kind,
         subject_template: r.subject_template,
-        body_template:    r.body_template,
-        is_default:       r.is_default,
-        created_at:       r.created_at,
+        body_template: r.body_template,
+        is_default: r.is_default,
+        created_at: r.created_at,
     })
 }
 
@@ -128,22 +138,28 @@ pub async fn create(pool: &DbPool, input: NewTemplate) -> DbResult<Template> {
     .fetch_one(pool)
     .await
     .map_err(|e| match &e {
-        sqlx::Error::Database(d) if d.is_unique_violation() => DbError::Conflict("template name already exists".into()),
+        sqlx::Error::Database(d) if d.is_unique_violation() => {
+            DbError::Conflict("template name already exists".into())
+        }
         _ => DbError::Sqlx(e),
     })?;
     Ok(Template {
-        id:               NotificationTemplateId::from_uuid(r.id),
-        name:             r.name,
-        channel_kinds:    r.channel_kinds,
-        event_kind:       r.event_kind,
+        id: NotificationTemplateId::from_uuid(r.id),
+        name: r.name,
+        channel_kinds: r.channel_kinds,
+        event_kind: r.event_kind,
         subject_template: r.subject_template,
-        body_template:    r.body_template,
-        is_default:       r.is_default,
-        created_at:       r.created_at,
+        body_template: r.body_template,
+        is_default: r.is_default,
+        created_at: r.created_at,
     })
 }
 
-pub async fn update(pool: &DbPool, id: NotificationTemplateId, input: UpdateTemplate) -> DbResult<Template> {
+pub async fn update(
+    pool: &DbPool,
+    id: NotificationTemplateId,
+    input: UpdateTemplate,
+) -> DbResult<Template> {
     let cur = get(pool, id).await?;
     let r = sqlx::query!(
         r#"
@@ -166,23 +182,27 @@ pub async fn update(pool: &DbPool, id: NotificationTemplateId, input: UpdateTemp
         input.body_template.unwrap_or(cur.body_template),
         input.is_default.unwrap_or(cur.is_default),
     )
-    .fetch_one(pool).await?;
+    .fetch_one(pool)
+    .await?;
     Ok(Template {
-        id:               NotificationTemplateId::from_uuid(r.id),
-        name:             r.name,
-        channel_kinds:    r.channel_kinds,
-        event_kind:       r.event_kind,
+        id: NotificationTemplateId::from_uuid(r.id),
+        name: r.name,
+        channel_kinds: r.channel_kinds,
+        event_kind: r.event_kind,
         subject_template: r.subject_template,
-        body_template:    r.body_template,
-        is_default:       r.is_default,
-        created_at:       r.created_at,
+        body_template: r.body_template,
+        is_default: r.is_default,
+        created_at: r.created_at,
     })
 }
 
 pub async fn delete(pool: &DbPool, id: NotificationTemplateId) -> DbResult<()> {
     let r = sqlx::query!(r#"DELETE FROM notification_templates WHERE id = $1"#, id.0)
-        .execute(pool).await?;
-    if r.rows_affected() == 0 { return Err(DbError::NotFound); }
+        .execute(pool)
+        .await?;
+    if r.rows_affected() == 0 {
+        return Err(DbError::NotFound);
+    }
     Ok(())
 }
 
@@ -192,10 +212,13 @@ pub async fn delete(pool: &DbPool, id: NotificationTemplateId) -> DbResult<()> {
 #[derive(Debug, Clone)]
 pub struct RenderedTemplate {
     pub subject: Option<String>,
-    pub body:    String,
+    pub body: String,
 }
 
-pub async fn get_render_strings(pool: &DbPool, id: NotificationTemplateId) -> DbResult<RenderedTemplate> {
+pub async fn get_render_strings(
+    pool: &DbPool,
+    id: NotificationTemplateId,
+) -> DbResult<RenderedTemplate> {
     let r = sqlx::query!(
         r#"SELECT subject_template, body_template FROM notification_templates WHERE id = $1"#,
         id.0,
@@ -203,5 +226,8 @@ pub async fn get_render_strings(pool: &DbPool, id: NotificationTemplateId) -> Db
     .fetch_optional(pool)
     .await?
     .ok_or(DbError::NotFound)?;
-    Ok(RenderedTemplate { subject: r.subject_template, body: r.body_template })
+    Ok(RenderedTemplate {
+        subject: r.subject_template,
+        body: r.body_template,
+    })
 }

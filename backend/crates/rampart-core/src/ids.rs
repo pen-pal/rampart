@@ -17,24 +17,45 @@ use uuid::Uuid;
 
 macro_rules! id {
     ($name:ident) => {
-        #[derive(
-            Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, sqlx::Type,
-        )]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, sqlx::Type)]
         #[serde(transparent)]
         #[sqlx(transparent)]
         pub struct $name(pub Uuid);
 
         impl $name {
-            #[inline] pub fn new() -> Self { Self(Uuid::now_v7()) }
-            #[inline] pub const fn from_uuid(u: Uuid) -> Self { Self(u) }
-            #[inline] pub const fn as_uuid(&self) -> &Uuid { &self.0 }
+            #[inline]
+            pub fn new() -> Self {
+                Self(Uuid::now_v7())
+            }
+            #[inline]
+            pub const fn from_uuid(u: Uuid) -> Self {
+                Self(u)
+            }
+            #[inline]
+            pub const fn as_uuid(&self) -> &Uuid {
+                &self.0
+            }
         }
-        impl Default for $name { fn default() -> Self { Self::new() } }
+        impl Default for $name {
+            fn default() -> Self {
+                Self::new()
+            }
+        }
         impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { self.0.fmt(f) }
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                self.0.fmt(f)
+            }
         }
-        impl From<Uuid> for $name { fn from(u: Uuid) -> Self { Self(u) } }
-        impl From<$name> for Uuid { fn from(id: $name) -> Self { id.0 } }
+        impl From<Uuid> for $name {
+            fn from(u: Uuid) -> Self {
+                Self(u)
+            }
+        }
+        impl From<$name> for Uuid {
+            fn from(id: $name) -> Self {
+                id.0
+            }
+        }
     };
 }
 

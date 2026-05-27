@@ -20,26 +20,41 @@
 use crate::Event;
 
 pub fn render(template: &str, event: &Event) -> String {
-    let lat = event.heartbeat.latency_ms.map(|x| x.to_string()).unwrap_or_default();
-    let code = event.heartbeat.status_code.map(|x| x.to_string()).unwrap_or_default();
+    let lat = event
+        .heartbeat
+        .latency_ms
+        .map(|x| x.to_string())
+        .unwrap_or_default();
+    let code = event
+        .heartbeat
+        .status_code
+        .map(|x| x.to_string())
+        .unwrap_or_default();
     let kind = serde_json::to_string(&event.monitor.kind)
         .unwrap_or_default()
         .trim_matches('"')
         .to_string();
     let id = event.monitor.id.0.to_string();
-    let ts = event.heartbeat.ts.format(&time::format_description::well_known::Rfc3339).unwrap_or_default();
+    let ts = event
+        .heartbeat
+        .ts
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap_or_default();
     let pairs: &[(&str, &str)] = &[
-        ("{{monitor.name}}",  &event.monitor.name),
-        ("{{monitor.url}}",   event.monitor.url.as_deref().unwrap_or("")),
-        ("{{monitor.kind}}",  &kind),
-        ("{{monitor.id}}",    &id),
-        ("{{status}}",        event.status_str()),
-        ("{{prev_status}}",   event.prev_status_str()),
-        ("{{latency_ms}}",    &lat),
-        ("{{status_code}}",   &code),
-        ("{{msg}}",           event.heartbeat.msg.as_deref().unwrap_or("")),
-        ("{{retries}}",       &event.heartbeat.retries.to_string()),
-        ("{{ts}}",            &ts),
+        ("{{monitor.name}}", &event.monitor.name),
+        (
+            "{{monitor.url}}",
+            event.monitor.url.as_deref().unwrap_or(""),
+        ),
+        ("{{monitor.kind}}", &kind),
+        ("{{monitor.id}}", &id),
+        ("{{status}}", event.status_str()),
+        ("{{prev_status}}", event.prev_status_str()),
+        ("{{latency_ms}}", &lat),
+        ("{{status_code}}", &code),
+        ("{{msg}}", event.heartbeat.msg.as_deref().unwrap_or("")),
+        ("{{retries}}", &event.heartbeat.retries.to_string()),
+        ("{{ts}}", &ts),
     ];
     let mut out = template.to_string();
     for (k, v) in pairs {
@@ -79,19 +94,32 @@ mod tests {
         let mut m = sample_monitor();
         m.name = "API · production".into();
         let hb = sample_heartbeat_up(&m);
-        Event { kind: EventKind::StatusFlip, monitor: m, heartbeat: hb, prev_status: Some(MonitorStatus::Down) }
+        Event {
+            kind: EventKind::StatusFlip,
+            monitor: m,
+            heartbeat: hb,
+            prev_status: Some(MonitorStatus::Down),
+        }
     }
 
     fn event_up_to_down() -> Event {
         let m = sample_monitor();
         let hb = sample_heartbeat_down(&m);
-        Event { kind: EventKind::StatusFlip, monitor: m, heartbeat: hb, prev_status: Some(MonitorStatus::Up) }
+        Event {
+            kind: EventKind::StatusFlip,
+            monitor: m,
+            heartbeat: hb,
+            prev_status: Some(MonitorStatus::Up),
+        }
     }
 
     #[test]
     fn render_substitutes_known_placeholders() {
         let e = event_down_to_up(None);
-        let out = render("hi {{monitor.name}} status={{status}} was={{prev_status}}", &e);
+        let out = render(
+            "hi {{monitor.name}} status={{status}} was={{prev_status}}",
+            &e,
+        );
         assert_eq!(out, "hi API · production status=up was=down");
     }
 
@@ -113,9 +141,9 @@ mod tests {
     fn render_handles_optional_fields_gracefully() {
         let mut e = event_down_to_up(None);
         // latency + status_code default to Some in the fixture; clear them.
-        e.heartbeat.latency_ms  = None;
+        e.heartbeat.latency_ms = None;
         e.heartbeat.status_code = None;
-        e.heartbeat.msg         = None;
+        e.heartbeat.msg = None;
         let out = render("{{latency_ms}}|{{status_code}}|{{msg}}", &e);
         assert_eq!(out, "||");
     }
@@ -132,9 +160,11 @@ mod tests {
         let e = event_down_to_up(None);
         let out = render("{{ts}}", &e);
         // Loose check — full parsing of OffsetDateTime is overkill here.
-        assert!(out.contains('T'),  "ts should be RFC3339, got: {out}");
-        assert!(out.ends_with('Z') || out.contains('+') || out.contains('-'),
-                "ts should carry an offset, got: {out}");
+        assert!(out.contains('T'), "ts should be RFC3339, got: {out}");
+        assert!(
+            out.ends_with('Z') || out.contains('+') || out.contains('-'),
+            "ts should carry an offset, got: {out}"
+        );
     }
 
     #[test]
@@ -149,8 +179,14 @@ mod tests {
     fn default_body_includes_prev_and_msg() {
         let e = event_up_to_down();
         let b = default_body(&e);
-        assert!(b.contains("upstream timed out"), "body should include the down msg");
-        assert!(b.contains("(was up)"),           "body should show previous status");
-        assert!(b.contains("Code:     503"),       "body should include status code");
+        assert!(
+            b.contains("upstream timed out"),
+            "body should include the down msg"
+        );
+        assert!(b.contains("(was up)"), "body should show previous status");
+        assert!(
+            b.contains("Code:     503"),
+            "body should include status code"
+        );
     }
 }

@@ -22,23 +22,23 @@ pub enum IncidentStyle {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Incident {
-    pub id:              IncidentId,
-    pub status_page_id:  StatusPageId,
-    pub title:           String,
-    pub content:         String,
-    pub style:           IncidentStyle,
-    pub pinned:          bool,
-    pub active:          bool,
-    pub resolved_at:     Option<OffsetDateTime>,
-    pub created_at:      OffsetDateTime,
-    pub created_by:      Option<UserId>,
+    pub id: IncidentId,
+    pub status_page_id: StatusPageId,
+    pub title: String,
+    pub content: String,
+    pub style: IncidentStyle,
+    pub pinned: bool,
+    pub active: bool,
+    pub resolved_at: Option<OffsetDateTime>,
+    pub created_at: OffsetDateTime,
+    pub created_by: Option<UserId>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IncidentUpdate {
-    pub id:           IncidentUpdateId,
-    pub incident_id:  IncidentId,
-    pub message:      String,
-    pub posted_at:    OffsetDateTime,
-    pub posted_by:    Option<UserId>,
+    pub id: IncidentUpdateId,
+    pub incident_id: IncidentId,
+    pub message: String,
+    pub posted_at: OffsetDateTime,
+    pub posted_by: Option<UserId>,
 }

@@ -31,7 +31,10 @@ pub fn build_router(state: AppState) -> Router {
         .layer(TraceLayer::new_for_http())
         .layer(PropagateRequestIdLayer::x_request_id())
         .layer(CompressionLayer::new())
-        .layer(TimeoutLayer::new(Duration::from_secs(15)))
+        .layer(TimeoutLayer::with_status_code(
+            axum::http::StatusCode::REQUEST_TIMEOUT,
+            Duration::from_secs(15),
+        ))
         .layer(
             CorsLayer::new()
                 .allow_methods(Any)
@@ -39,8 +42,10 @@ pub fn build_router(state: AppState) -> Router {
                 .allow_origin(Any),
         );
 
-    let protected_v1 = routes::v1_protected()
-        .route_layer(axum::middleware::from_fn_with_state(state.clone(), auth::require_session));
+    let protected_v1 = routes::v1_protected().route_layer(axum::middleware::from_fn_with_state(
+        state.clone(),
+        auth::require_session,
+    ));
 
     Router::new()
         .merge(routes::health::router())

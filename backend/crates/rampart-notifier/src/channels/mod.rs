@@ -33,23 +33,25 @@ pub async fn dispatch(
     event: &Event,
 ) -> Result<(), ChannelError> {
     let channel: Box<dyn Channel> = match kind {
-        ChannelKind::Slack      => Box::new(slack::Slack::from_config(config)?),
-        ChannelKind::Discord    => Box::new(discord::Discord::from_config(config)?),
-        ChannelKind::Teams      => Box::new(teams::Teams::from_config(config)?),
-        ChannelKind::Telegram   => Box::new(telegram::Telegram::from_config(config)?),
-        ChannelKind::Email      => Box::new(email::Email::from_config(config)?),
-        ChannelKind::Ntfy       => Box::new(ntfy::Ntfy::from_config(config)?),
-        ChannelKind::Gotify     => Box::new(gotify::Gotify::from_config(config)?),
-        ChannelKind::Pagerduty  => Box::new(pagerduty::PagerDuty::from_config(config)?),
-        ChannelKind::Pushover   => Box::new(pushover::Pushover::from_config(config)?),
+        ChannelKind::Slack => Box::new(slack::Slack::from_config(config)?),
+        ChannelKind::Discord => Box::new(discord::Discord::from_config(config)?),
+        ChannelKind::Teams => Box::new(teams::Teams::from_config(config)?),
+        ChannelKind::Telegram => Box::new(telegram::Telegram::from_config(config)?),
+        ChannelKind::Email => Box::new(email::Email::from_config(config)?),
+        ChannelKind::Ntfy => Box::new(ntfy::Ntfy::from_config(config)?),
+        ChannelKind::Gotify => Box::new(gotify::Gotify::from_config(config)?),
+        ChannelKind::Pagerduty => Box::new(pagerduty::PagerDuty::from_config(config)?),
+        ChannelKind::Pushover => Box::new(pushover::Pushover::from_config(config)?),
         ChannelKind::Mattermost => Box::new(mattermost::Mattermost::from_config(config)?),
         ChannelKind::RocketChat => Box::new(rocketchat::RocketChat::from_config(config)?),
-        ChannelKind::SmsTwilio  => Box::new(twilio::Twilio::from_config(config)?),
-        ChannelKind::Apprise    => Box::new(apprise::Apprise::from_config(config)?),
-        ChannelKind::Webhook    => Box::new(webhook::Webhook::from_config(config)?),
-        _ => return Err(ChannelError::BadConfig(format!(
-            "channel kind {kind:?} not implemented yet"
-        ))),
+        ChannelKind::SmsTwilio => Box::new(twilio::Twilio::from_config(config)?),
+        ChannelKind::Apprise => Box::new(apprise::Apprise::from_config(config)?),
+        ChannelKind::Webhook => Box::new(webhook::Webhook::from_config(config)?),
+        _ => {
+            return Err(ChannelError::BadConfig(format!(
+                "channel kind {kind:?} not implemented yet"
+            )))
+        }
     };
     channel.send(subject, body, event).await
 }

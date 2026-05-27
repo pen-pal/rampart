@@ -24,6 +24,9 @@ pub enum CoreError {
 
 impl CoreError {
     pub fn not_found<I: std::fmt::Display>(entity: &'static str, id: I) -> Self {
-        Self::NotFound { entity, id: id.to_string() }
+        Self::NotFound {
+            entity,
+            id: id.to_string(),
+        }
     }
 }

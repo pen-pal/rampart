@@ -29,7 +29,7 @@ pub struct AppriseConfig {
     /// Base URL of the apprise-api server.
     pub apprise_url: String,
     /// One or more apprise:// URLs. Comma-separated; whitespace stripped.
-    pub urls:        String,
+    pub urls: String,
     /// Optional explicit notification type. Otherwise we map from status:
     /// up=success, down=failure, warn=warning, other=info.
     #[serde(default)]
@@ -38,7 +38,7 @@ pub struct AppriseConfig {
 
 #[derive(Debug)]
 pub struct Apprise {
-    cfg:    AppriseConfig,
+    cfg: AppriseConfig,
     client: reqwest::Client,
 }
 
@@ -47,25 +47,31 @@ impl Apprise {
         let cfg: AppriseConfig = serde_json::from_value(raw.clone())
             .map_err(|e| ChannelError::BadConfig(e.to_string()))?;
         if !cfg.apprise_url.starts_with("http://") && !cfg.apprise_url.starts_with("https://") {
-            return Err(ChannelError::BadConfig("apprise_url must start with http(s)://".into()));
+            return Err(ChannelError::BadConfig(
+                "apprise_url must start with http(s)://".into(),
+            ));
         }
         if cfg.urls.trim().is_empty() {
             return Err(ChannelError::BadConfig(
-                "at least one apprise:// URL is required (e.g. tgram://, discord://, pbul://)".into(),
+                "at least one apprise:// URL is required (e.g. tgram://, discord://, pbul://)"
+                    .into(),
             ));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
 #[derive(Serialize)]
 struct AppriseRequest<'a> {
     title: &'a str,
-    body:  &'a str,
-    urls:  String,
+    body: &'a str,
+    urls: String,
     #[serde(rename = "type")]
     notify_type: &'a str,
-    format:      &'a str,
+    format: &'a str,
 }
 
 #[cfg(test)]
@@ -82,7 +88,8 @@ mod tests {
 
     #[test]
     fn rejects_non_http_apprise_url() {
-        let err = Apprise::from_config(&json!({"apprise_url": "ftp://x", "urls": "y"})).unwrap_err();
+        let err =
+            Apprise::from_config(&json!({"apprise_url": "ftp://x", "urls": "y"})).unwrap_err();
         assert!(matches!(err, ChannelError::BadConfig(_)));
     }
 
@@ -91,23 +98,30 @@ mod tests {
         assert!(Apprise::from_config(&json!({
             "apprise_url": "http://apprise:8000",
             "urls":        "tgram://bot:tok/chat"
-        })).is_ok());
+        }))
+        .is_ok());
     }
 }
 
 #[async_trait]
 impl Channel for Apprise {
     async fn send(&self, subject: &str, body: &str, event: &Event) -> Result<(), ChannelError> {
-        let notify_type = self.cfg.notify_type.as_deref().unwrap_or(match event.heartbeat.status {
-            rampart_core::MonitorStatus::Up   => "success",
-            rampart_core::MonitorStatus::Down => "failure",
-            rampart_core::MonitorStatus::Warn => "warning",
-            _                                 => "info",
-        });
+        let notify_type = self
+            .cfg
+            .notify_type
+            .as_deref()
+            .unwrap_or(match event.heartbeat.status {
+                rampart_core::MonitorStatus::Up => "success",
+                rampart_core::MonitorStatus::Down => "failure",
+                rampart_core::MonitorStatus::Warn => "warning",
+                _ => "info",
+            });
 
         // Normalize: strip whitespace around the comma-separated URLs so a
         // user pasting one-per-line value (with spaces) still works.
-        let urls = self.cfg.urls
+        let urls = self
+            .cfg
+            .urls
             .split(',')
             .map(str::trim)
             .filter(|s| !s.is_empty())

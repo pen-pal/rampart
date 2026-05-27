@@ -17,7 +17,7 @@ use serde_json::json;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/healthz", get(liveness))
-        .route("/readyz",  get(readiness))
+        .route("/readyz", get(readiness))
         .route("/metrics", get(metrics))
 }
 

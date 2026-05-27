@@ -10,8 +10,8 @@
 
 use crate::error::ApiError;
 use crate::state::AppState;
-use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use argon2::password_hash::{rand_core::OsRng, SaltString};
+use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use axum::extract::{FromRequestParts, Request, State};
 use axum::http::request::Parts;
 use axum::middleware::Next;
@@ -22,8 +22,8 @@ use std::str::FromStr;
 use time::Duration;
 use uuid::Uuid;
 
-pub const SESSION_COOKIE:    &str = "rampart_session";
-pub const SESSION_TTL_SECS:  i64  = 60 * 60 * 24 * 14;  // 14 days
+pub const SESSION_COOKIE: &str = "rampart_session";
+pub const SESSION_TTL_SECS: i64 = 60 * 60 * 24 * 14; // 14 days
 
 /// Hash a plaintext password with Argon2id and per-password random salt.
 pub fn hash_password(plaintext: &str) -> Result<String, ApiError> {
@@ -76,7 +76,10 @@ pub struct AuthUser(pub User);
 impl FromRequestParts<AppState> for AuthUser {
     type Rejection = ApiError;
 
-    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
         let jar = CookieJar::from_headers(&parts.headers);
         let token = jar
             .get(SESSION_COOKIE)

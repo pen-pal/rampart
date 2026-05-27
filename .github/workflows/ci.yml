@@ -1,0 +1,185 @@
+# CI for Rampart.
+#
+# Pipelines:
+#   backend-lint      cargo fmt --check, cargo clippy -D warnings (no DB)
+#   backend-test      cargo test --workspace  with PG service + offline sqlx
+#   frontend-lint     npm ci, build (no separate linter yet)
+#   frontend-test     vitest run
+#   e2e               full-stack Playwright (chromium only — fastest gate)
+#
+# All jobs run on push to main and on PRs. e2e is the slowest (~2 min);
+# unit / integration jobs return in under 60s and gate before it.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  SQLX_OFFLINE:     true
+
+jobs:
+  # ─── BACKEND ────────────────────────────────────────────────────────────
+  backend-lint:
+    name: backend · clippy + fmt
+    runs-on: ubuntu-latest
+    defaults:
+      run: { working-directory: backend }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: rustfmt, clippy }
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: backend }
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  backend-test:
+    name: backend · cargo test --workspace
+    runs-on: ubuntu-latest
+    defaults:
+      run: { working-directory: backend }
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER:     rampart
+          POSTGRES_PASSWORD: rampart
+          POSTGRES_DB:       rampart
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U rampart -d rampart"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+
+    env:
+      # sqlx::test creates its own per-test isolated databases against
+      # the base URL we hand it; the DB at the URL is just the connection
+      # entry point.
+      DATABASE_URL: postgres://rampart:rampart@localhost:5432/rampart
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: backend }
+      - name: Install sqlx-cli
+        run: cargo install sqlx-cli --no-default-features --features rustls,postgres --locked
+      - name: Apply migrations to base DB
+        run: sqlx migrate run --source migrations
+      - name: cargo test --workspace
+        # NOTE: we don't set SQLX_OFFLINE here — sqlx::test uses a live
+        # base DB and creates per-test databases from it. Offline mode
+        # would block test DB creation.
+        env: { SQLX_OFFLINE: '' }
+        run: cargo test --workspace --all-targets --no-fail-fast
+
+  # ─── FRONTEND ───────────────────────────────────────────────────────────
+  frontend-test:
+    name: frontend · vitest + build
+    runs-on: ubuntu-latest
+    defaults:
+      run: { working-directory: frontend }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+  # ─── E2E ────────────────────────────────────────────────────────────────
+  e2e:
+    name: e2e · Playwright (chromium)
+    runs-on: ubuntu-latest
+    needs: [backend-test, frontend-test]
+    defaults:
+      run: { working-directory: frontend }
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER:     rampart
+          POSTGRES_PASSWORD: rampart
+          POSTGRES_DB:       rampart
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U rampart -d rampart"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+
+    env:
+      RAMPART_PG_CONTAINER: ""   # see container-vs-host note below
+      DATABASE_URL: postgres://rampart:rampart@localhost:5432/rampart_test
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: backend }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install sqlx-cli
+        run: cargo install sqlx-cli --no-default-features --features rustls,postgres --locked
+
+      - name: Build backend (release-ish, debug profile is faster to build)
+        working-directory: backend
+        run: cargo build -p rampart-api
+
+      - name: Install frontend deps + build bundle
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install Playwright browser (chromium only in CI)
+        run: npx playwright install --with-deps chromium
+
+      - name: Patch start-api.sh for CI (no docker exec; use psql against host)
+        run: |
+          # In CI we're not running PG in `docker exec` — it's a service
+          # container reachable on localhost:5432. Rewrite the wrapper to
+          # use psql directly.
+          cat > e2e/start-api.sh <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          export PGPASSWORD=rampart
+          DB="rampart_test"
+          REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+          BACKEND="${REPO_ROOT}/backend"
+          psql -h localhost -U rampart -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${DB}';" >/dev/null 2>&1 || true
+          psql -h localhost -U rampart -d postgres -c "DROP DATABASE IF EXISTS ${DB};" >/dev/null
+          psql -h localhost -U rampart -d postgres -c "CREATE DATABASE ${DB} OWNER rampart;" >/dev/null
+          DATABASE_URL="postgres://rampart:rampart@localhost:5432/${DB}" \
+            sqlx migrate run --source "${BACKEND}/migrations"
+          export DATABASE_URL="postgres://rampart:rampart@localhost:5432/${DB}"
+          export BIND_ADDR="${BIND_ADDR:-0.0.0.0:3001}"
+          export RUST_LOG="${RUST_LOG:-rampart=warn,tower_http=warn}"
+          export SQLX_OFFLINE="${SQLX_OFFLINE:-true}"
+          exec "${BACKEND}/target/debug/rampart-api"
+          SH
+          chmod +x e2e/start-api.sh
+
+      - name: Install psql client (for the wrapper script)
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Playwright (chromium)
+        run: npx playwright test --project=chromium
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7

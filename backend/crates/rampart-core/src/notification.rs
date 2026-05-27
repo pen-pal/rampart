@@ -51,22 +51,22 @@ pub enum ChannelKind {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Notification {
-    pub id:             NotificationId,
-    pub name:           String,
-    pub kind:           ChannelKind,
+    pub id: NotificationId,
+    pub name: String,
+    pub kind: ChannelKind,
     /// Channel-kind-specific config. Secrets are encrypted before insert.
-    pub config:         serde_json::Value,
-    pub is_default:     bool,
-    pub template_id:    Option<NotificationTemplateId>,
-    pub active:         bool,
-    pub last_fired_at:  Option<OffsetDateTime>,
-    pub created_at:     OffsetDateTime,
+    pub config: serde_json::Value,
+    pub is_default: bool,
+    pub template_id: Option<NotificationTemplateId>,
+    pub active: bool,
+    pub last_fired_at: Option<OffsetDateTime>,
+    pub created_at: OffsetDateTime,
 }
 
 /// Junction row: which channels does a given monitor fire to?
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MonitorNotification {
-    pub monitor_id:      MonitorId,
+    pub monitor_id: MonitorId,
     pub notification_id: NotificationId,
 }
 
@@ -76,14 +76,14 @@ pub struct MonitorNotification {
 /// variables depend on event_kind; the renderer documents them.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NotificationTemplate {
-    pub id:               NotificationTemplateId,
-    pub name:             String,
-    pub channel_kinds:    Vec<String>,
-    pub event_kind:       String,
+    pub id: NotificationTemplateId,
+    pub name: String,
+    pub channel_kinds: Vec<String>,
+    pub event_kind: String,
     pub subject_template: Option<String>,
-    pub body_template:    String,
-    pub is_default:       bool,
-    pub created_at:       OffsetDateTime,
+    pub body_template: String,
+    pub is_default: bool,
+    pub created_at: OffsetDateTime,
 }
 
 #[cfg(test)]
@@ -96,22 +96,22 @@ mod tests {
         // in Postgres + travel over the API. Any rename here is a
         // breaking change requiring a migration.
         let cases = [
-            (ChannelKind::Slack,      "slack"),
-            (ChannelKind::Discord,    "discord"),
-            (ChannelKind::Teams,      "teams"),
-            (ChannelKind::Telegram,   "telegram"),
-            (ChannelKind::Email,      "email"),
-            (ChannelKind::Webhook,    "webhook"),
-            (ChannelKind::Pagerduty,  "pagerduty"),
-            (ChannelKind::SmsTwilio,  "sms_twilio"),
+            (ChannelKind::Slack, "slack"),
+            (ChannelKind::Discord, "discord"),
+            (ChannelKind::Teams, "teams"),
+            (ChannelKind::Telegram, "telegram"),
+            (ChannelKind::Email, "email"),
+            (ChannelKind::Webhook, "webhook"),
+            (ChannelKind::Pagerduty, "pagerduty"),
+            (ChannelKind::SmsTwilio, "sms_twilio"),
             (ChannelKind::Mattermost, "mattermost"),
             (ChannelKind::RocketChat, "rocket_chat"),
             (ChannelKind::GoogleChat, "google_chat"),
-            (ChannelKind::Ntfy,       "ntfy"),
-            (ChannelKind::Gotify,     "gotify"),
-            (ChannelKind::Pushover,   "pushover"),
-            (ChannelKind::Apprise,    "apprise"),
-            (ChannelKind::Custom,     "custom"),
+            (ChannelKind::Ntfy, "ntfy"),
+            (ChannelKind::Gotify, "gotify"),
+            (ChannelKind::Pushover, "pushover"),
+            (ChannelKind::Apprise, "apprise"),
+            (ChannelKind::Custom, "custom"),
         ];
         for (k, expected) in cases {
             let v = serde_json::to_string(&k).unwrap();

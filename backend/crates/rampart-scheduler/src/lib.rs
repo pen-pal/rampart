@@ -44,25 +44,29 @@ const BATCH_FLUSH_INTERVAL: Duration = Duration::from_secs(1);
 const HEARTBEAT_CHANNEL_BUFFER: usize = 4096;
 
 pub struct Scheduler {
-    pool:     DbPool,
-    probes:   Arc<Probes>,
+    pool: DbPool,
+    probes: Arc<Probes>,
     /// Map from MonitorId → handle of its probe task.
-    tasks:    Arc<RwLock<HashMap<MonitorId, MonitorTask>>>,
+    tasks: Arc<RwLock<HashMap<MonitorId, MonitorTask>>>,
     /// Sender side of the heartbeat channel — cloned into each probe task.
-    hb_tx:    mpsc::Sender<Heartbeat>,
+    hb_tx: mpsc::Sender<Heartbeat>,
     /// Bumped to wake the reload loop after a monitor mutation.
-    reload:   Arc<Notify>,
+    reload: Arc<Notify>,
     /// Optional notifier handle — when present, status-flip events get
     /// pushed onto its queue for fan-out. None disables notifications.
     notifier: Option<NotifierHandle>,
 }
 
 struct MonitorTask {
-    handle:        JoinHandle<()>,
+    handle: JoinHandle<()>,
     /// Bumping this notify cancels the probe loop on the next tick.
-    cancel:        Arc<Notify>,
-    /// Last status we observed for this monitor — used for important-flag.
-    last_status:   Arc<RwLock<MonitorStatus>>,
+    cancel: Arc<Notify>,
+    /// Last status we observed for this monitor. The probe task owns
+    /// the *write* side via its own clone; we keep this here so the
+    /// scheduler can read it back without going through the DB if it
+    /// ever needs to (currently unused but cheap to retain).
+    #[allow(dead_code)]
+    last_status: Arc<RwLock<MonitorStatus>>,
 }
 
 impl Scheduler {
@@ -75,12 +79,14 @@ impl Scheduler {
     pub fn with_notifier(pool: DbPool, notifier: Option<NotifierHandle>) -> Self {
         let (hb_tx, hb_rx) = mpsc::channel::<Heartbeat>(HEARTBEAT_CHANNEL_BUFFER);
         let writer_pool = pool.clone();
-        tokio::spawn(async move { writer_loop(writer_pool, hb_rx).await; });
+        tokio::spawn(async move {
+            writer_loop(writer_pool, hb_rx).await;
+        });
 
         Self {
             pool,
             probes: Arc::new(Probes::new()),
-            tasks:  Arc::new(RwLock::new(HashMap::new())),
+            tasks: Arc::new(RwLock::new(HashMap::new())),
             hb_tx,
             reload: Arc::new(Notify::new()),
             notifier,
@@ -127,7 +133,8 @@ impl Scheduler {
         // First pass: cancel any task whose monitor is no longer active.
         let to_cancel: Vec<MonitorId> = {
             let tasks = self.tasks.read().await;
-            tasks.keys()
+            tasks
+                .keys()
                 .copied()
                 .filter(|id| !live_active.contains_key(id))
                 .collect()
@@ -137,9 +144,8 @@ impl Scheduler {
         }
 
         // Second pass: start tasks for monitors that aren't running yet.
-        let running: std::collections::HashSet<MonitorId> = {
-            self.tasks.read().await.keys().copied().collect()
-        };
+        let running: std::collections::HashSet<MonitorId> =
+            { self.tasks.read().await.keys().copied().collect() };
         for (id, monitor) in live_active {
             if !running.contains(&id) {
                 self.start_task(monitor).await;
@@ -165,7 +171,14 @@ impl Scheduler {
             info!(monitor = %monitor_id, name = %monitor_name, interval_s = monitor.interval_seconds, "probe task started");
 
             // Fire once immediately so the dashboard reflects state quickly.
-            run_once(&probes, &monitor, &last_status_in_task, &hb_tx, notifier.as_ref()).await;
+            run_once(
+                &probes,
+                &monitor,
+                &last_status_in_task,
+                &hb_tx,
+                notifier.as_ref(),
+            )
+            .await;
 
             loop {
                 tokio::select! {
@@ -180,18 +193,24 @@ impl Scheduler {
             }
         });
 
-        self.tasks.write().await.insert(monitor_id, MonitorTask {
-            handle, cancel, last_status,
-        });
+        self.tasks.write().await.insert(
+            monitor_id,
+            MonitorTask {
+                handle,
+                cancel,
+                last_status,
+            },
+        );
     }
 
     async fn stop_task(&self, id: MonitorId) {
         let task = self.tasks.write().await.remove(&id);
         if let Some(t) = task {
             t.cancel.notify_one();
-            // Don't await the handle — it'll wake on the next tick.
-            // Aborting would risk killing a flush mid-call.
-            let _ = t.handle;
+            // Drop the JoinHandle without awaiting — the task will wake on
+            // the next tick and notice it was cancelled. We deliberately
+            // don't .abort(): risks killing the writer mid-flush.
+            drop(t.handle);
         }
     }
 }
@@ -200,11 +219,11 @@ impl Scheduler {
 /// push the heartbeat onto the writer channel, optionally emit a
 /// notifier event, and update DB state.
 async fn run_once(
-    probes:      &Probes,
-    monitor:     &Monitor,
+    probes: &Probes,
+    monitor: &Monitor,
     last_status: &Arc<RwLock<MonitorStatus>>,
-    hb_tx:       &mpsc::Sender<Heartbeat>,
-    notifier:    Option<&NotifierHandle>,
+    hb_tx: &mpsc::Sender<Heartbeat>,
+    notifier: Option<&NotifierHandle>,
 ) {
     let mut hb = probes.run(monitor).await;
 
@@ -222,9 +241,9 @@ async fn run_once(
         if user_visible_flip {
             if let Some(n) = notifier {
                 n.notify(Event {
-                    kind:        EventKind::StatusFlip,
-                    monitor:     monitor.clone(),
-                    heartbeat:   hb.clone(),
+                    kind: EventKind::StatusFlip,
+                    monitor: monitor.clone(),
+                    heartbeat: hb.clone(),
                     prev_status: Some(prev),
                 });
             }
@@ -245,8 +264,10 @@ async fn writer_loop(pool: DbPool, mut rx: mpsc::Receiver<Heartbeat>) {
         // remaining buffer and exit.
         let first = match rx.recv().await {
             Some(h) => h,
-            None    => {
-                if !buffer.is_empty() { flush(&pool, &buffer).await; }
+            None => {
+                if !buffer.is_empty() {
+                    flush(&pool, &buffer).await;
+                }
                 info!("heartbeat writer shutting down");
                 return;
             }

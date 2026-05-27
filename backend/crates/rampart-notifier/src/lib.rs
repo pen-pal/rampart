@@ -1,3 +1,10 @@
+// Test-module-in-the-middle-of-the-file is deliberate: keeps each
+// adapter's tests next to its definition.
+#![allow(clippy::items_after_test_module)]
+// Many channel docs use 2-space indented continuation lines for the
+// URL syntax examples — let them be.
+#![allow(clippy::doc_overindented_list_items)]
+
 //! Rampart · notification fan-out.
 //!
 //! When a probe's status flips, the scheduler emits an `Event` on a tokio
@@ -17,7 +24,7 @@ pub mod service;
 pub mod template;
 
 pub use event::{Event, EventKind};
-pub use service::{NotifierService, NotifierHandle};
+pub use service::{NotifierHandle, NotifierService};
 
 use async_trait::async_trait;
 use thiserror::Error;

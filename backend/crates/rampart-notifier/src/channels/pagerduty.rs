@@ -17,15 +17,15 @@ pub struct PagerDutyConfig {
     pub routing_key: String,
     /// Override the severity. Default maps from status (down=error, warn=warning).
     #[serde(default)]
-    pub severity:    Option<String>,
+    pub severity: Option<String>,
     /// Optional component string surfaced in the incident.
     #[serde(default)]
-    pub component:   Option<String>,
+    pub component: Option<String>,
 }
 
 #[derive(Debug)]
 pub struct PagerDuty {
-    cfg:    PagerDutyConfig,
+    cfg: PagerDutyConfig,
     client: reqwest::Client,
 }
 
@@ -34,27 +34,32 @@ impl PagerDuty {
         let cfg: PagerDutyConfig = serde_json::from_value(raw.clone())
             .map_err(|e| ChannelError::BadConfig(e.to_string()))?;
         if cfg.routing_key.is_empty() {
-            return Err(ChannelError::BadConfig("routing_key (integration key) is required".into()));
+            return Err(ChannelError::BadConfig(
+                "routing_key (integration key) is required".into(),
+            ));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
 #[derive(Serialize)]
 struct PdPayload<'a> {
-    routing_key:  &'a str,
+    routing_key: &'a str,
     event_action: &'a str,
-    dedup_key:    String,
-    payload:      PdInnerPayload<'a>,
+    dedup_key: String,
+    payload: PdInnerPayload<'a>,
 }
 
 #[derive(Serialize)]
 struct PdInnerPayload<'a> {
-    summary:        &'a str,
-    source:         &'a str,
-    severity:       &'a str,
+    summary: &'a str,
+    source: &'a str,
+    severity: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
-    component:      Option<&'a str>,
+    component: Option<&'a str>,
     custom_details: serde_json::Value,
 }
 
@@ -90,21 +95,25 @@ impl Channel for PagerDuty {
     async fn send(&self, subject: &str, body: &str, event: &Event) -> Result<(), ChannelError> {
         let action = match event.heartbeat.status {
             rampart_core::MonitorStatus::Up => "resolve",
-            _                               => "trigger",
+            _ => "trigger",
         };
-        let severity = self.cfg.severity.as_deref().unwrap_or(match event.heartbeat.status {
-            rampart_core::MonitorStatus::Up   => "info",
-            rampart_core::MonitorStatus::Warn => "warning",
-            _                                 => "error",
-        });
+        let severity = self
+            .cfg
+            .severity
+            .as_deref()
+            .unwrap_or(match event.heartbeat.status {
+                rampart_core::MonitorStatus::Up => "info",
+                rampart_core::MonitorStatus::Warn => "warning",
+                _ => "error",
+            });
 
         let payload = PdPayload {
-            routing_key:  &self.cfg.routing_key,
+            routing_key: &self.cfg.routing_key,
             event_action: action,
-            dedup_key:    event.monitor.id.0.to_string(),
+            dedup_key: event.monitor.id.0.to_string(),
             payload: PdInnerPayload {
-                summary:   subject,
-                source:    "rampart",
+                summary: subject,
+                source: "rampart",
                 severity,
                 component: self.cfg.component.as_deref(),
                 custom_details: serde_json::json!({
@@ -121,10 +130,12 @@ impl Channel for PagerDuty {
             },
         };
 
-        let resp = self.client
+        let resp = self
+            .client
             .post("https://events.pagerduty.com/v2/enqueue")
             .json(&payload)
-            .send().await?;
+            .send()
+            .await?;
         if !resp.status().is_success() {
             let code = resp.status().as_u16();
             let body = resp.text().await.unwrap_or_default();

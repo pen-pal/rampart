@@ -9,7 +9,7 @@
 use crate::{Channel, ChannelError, Event};
 use async_trait::async_trait;
 use lettre::{
-    message::{Mailbox, MultiPart, SinglePart, header::ContentType},
+    message::{header::ContentType, Mailbox, MultiPart, SinglePart},
     transport::smtp::{authentication::Credentials, AsyncSmtpTransport, AsyncSmtpTransportBuilder},
     AsyncTransport, Message, Tokio1Executor,
 };
@@ -34,8 +34,12 @@ pub struct EmailConfig {
     #[serde(default)]
     pub reply_to: Option<String>,
 }
-fn default_port() -> u16 { 587 }
-fn default_encryption() -> String { "starttls".into() }
+fn default_port() -> u16 {
+    587
+}
+fn default_encryption() -> String {
+    "starttls".into()
+}
 
 #[derive(Debug)]
 pub struct Email {
@@ -47,7 +51,9 @@ impl Email {
         let cfg: EmailConfig = serde_json::from_value(raw.clone())
             .map_err(|e| ChannelError::BadConfig(e.to_string()))?;
         if cfg.smtp_host.is_empty() || cfg.from.is_empty() || cfg.to.is_empty() {
-            return Err(ChannelError::BadConfig("smtp_host, from, and to are required".into()));
+            return Err(ChannelError::BadConfig(
+                "smtp_host, from, and to are required".into(),
+            ));
         }
         Ok(Self { cfg })
     }
@@ -59,7 +65,11 @@ impl Email {
             "starttls" => AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&self.cfg.smtp_host)
                 .map_err(|e| ChannelError::BadConfig(format!("smtp starttls relay: {e}")))?,
             "plain" => AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&self.cfg.smtp_host),
-            other => return Err(ChannelError::BadConfig(format!("unknown encryption: {other}"))),
+            other => {
+                return Err(ChannelError::BadConfig(format!(
+                    "unknown encryption: {other}"
+                )))
+            }
         };
         let mut builder = builder.port(self.cfg.smtp_port);
         if let (Some(u), Some(p)) = (&self.cfg.smtp_user, &self.cfg.smtp_password) {
@@ -78,7 +88,9 @@ impl Channel for Email {
 
         for addr in self.cfg.to.split(',') {
             let addr = addr.trim();
-            if addr.is_empty() { continue; }
+            if addr.is_empty() {
+                continue;
+            }
             let mb = Mailbox::from_str(addr)
                 .map_err(|e| ChannelError::BadConfig(format!("to address {addr:?}: {e}")))?;
             builder = builder.to(mb);
@@ -100,20 +112,32 @@ impl Channel for Email {
         let email = builder
             .multipart(
                 MultiPart::alternative()
-                    .singlepart(SinglePart::builder().header(ContentType::TEXT_PLAIN).body(body.to_string()))
-                    .singlepart(SinglePart::builder().header(ContentType::TEXT_HTML).body(html_body)),
+                    .singlepart(
+                        SinglePart::builder()
+                            .header(ContentType::TEXT_PLAIN)
+                            .body(body.to_string()),
+                    )
+                    .singlepart(
+                        SinglePart::builder()
+                            .header(ContentType::TEXT_HTML)
+                            .body(html_body),
+                    ),
             )
             .map_err(|e| ChannelError::BadConfig(format!("message build: {e}")))?;
 
         let mailer = self.build_transport()?;
-        mailer.send(email).await
+        mailer
+            .send(email)
+            .await
             .map_err(|e| ChannelError::Other(format!("smtp send: {e}")))?;
         Ok(())
     }
 }
 
 fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 #[cfg(test)]
@@ -125,7 +149,9 @@ mod tests {
     fn requires_smtp_host_from_and_to() {
         assert!(Email::from_config(&json!({})).is_err());
         assert!(Email::from_config(&json!({"smtp_host": "smtp.example.com"})).is_err());
-        assert!(Email::from_config(&json!({"smtp_host": "smtp.example.com", "from": "a@b.c"})).is_err());
+        assert!(
+            Email::from_config(&json!({"smtp_host": "smtp.example.com", "from": "a@b.c"})).is_err()
+        );
     }
 
     #[test]
@@ -135,7 +161,8 @@ mod tests {
             "from":      "alerts@example.com",
             "to":        "ops@example.com",
             "encryption": "rot13",
-        })).unwrap();
+        }))
+        .unwrap();
         let err = cfg.build_transport().unwrap_err();
         assert!(matches!(err, ChannelError::BadConfig(_)));
     }
@@ -148,7 +175,7 @@ mod tests {
             "to":        "ops@example.com"
         });
         let cfg: EmailConfig = serde_json::from_value(raw).unwrap();
-        assert_eq!(cfg.smtp_port,  587);
+        assert_eq!(cfg.smtp_port, 587);
         assert_eq!(cfg.encryption, "starttls");
     }
 }

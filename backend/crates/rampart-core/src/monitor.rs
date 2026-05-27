@@ -63,42 +63,46 @@ pub enum MonitorStatus {
 }
 
 impl MonitorStatus {
-    pub fn is_up(self) -> bool { matches!(self, MonitorStatus::Up) }
-    pub fn is_down(self) -> bool { matches!(self, MonitorStatus::Down) }
+    pub fn is_up(self) -> bool {
+        matches!(self, MonitorStatus::Up)
+    }
+    pub fn is_down(self) -> bool {
+        matches!(self, MonitorStatus::Down)
+    }
 }
 
 /// A live monitor row.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Monitor {
-    pub id:                   MonitorId,
-    pub name:                 String,
-    pub kind:                 MonitorKind,
+    pub id: MonitorId,
+    pub name: String,
+    pub kind: MonitorKind,
     // Endpoint addressing. Which fields are required depends on `kind`;
     // validated at the route layer when accepting NewMonitor.
-    pub url:                  Option<String>,
-    pub hostname:             Option<String>,
-    pub port:                 Option<i32>,
-    pub config:               serde_json::Value,
+    pub url: Option<String>,
+    pub hostname: Option<String>,
+    pub port: Option<i32>,
+    pub config: serde_json::Value,
     // Scheduling
-    pub interval_seconds:     i32,
-    pub retry_interval_sec:   i32,
-    pub max_retries:          i32,
-    pub timeout_seconds:      i32,
-    pub resend_interval_sec:  i32,
-    pub upside_down:          bool,
+    pub interval_seconds: i32,
+    pub retry_interval_sec: i32,
+    pub max_retries: i32,
+    pub timeout_seconds: i32,
+    pub resend_interval_sec: i32,
+    pub upside_down: bool,
     // HTTP common opts
-    pub http_method:          String,
-    pub http_body:            Option<String>,
-    pub http_headers:         Option<serde_json::Value>,
-    pub accepted_statuses:    Vec<i32>,
-    pub follow_redirect:      bool,
-    pub ignore_tls:           bool,
-    pub proxy_id:             Option<ProxyId>,
+    pub http_method: String,
+    pub http_body: Option<String>,
+    pub http_headers: Option<serde_json::Value>,
+    pub accepted_statuses: Vec<i32>,
+    pub follow_redirect: bool,
+    pub ignore_tls: bool,
+    pub proxy_id: Option<ProxyId>,
     // State
-    pub active:               bool,
-    pub current_status:       MonitorStatus,
-    pub created_at:           OffsetDateTime,
-    pub updated_at:           OffsetDateTime,
+    pub active: bool,
+    pub current_status: MonitorStatus,
+    pub created_at: OffsetDateTime,
+    pub updated_at: OffsetDateTime,
 }
 
 /// Payload accepted when creating a monitor. Kind/url/hostname validation
@@ -164,13 +168,23 @@ pub struct NewMonitor {
     pub proxy_id: Option<ProxyId>,
 }
 
-fn default_interval()           -> i32 { 60 }
-fn default_timeout()            -> i32 { 16 }
-fn default_retry_interval()     -> i32 { 60 }
-fn default_method()             -> String { "GET".into() }
-fn default_follow_redirect()    -> bool { true }
-fn default_accepted_statuses()  -> Vec<i32> {
-    vec![200,201,202,203,204,205,206,207,208,226]
+fn default_interval() -> i32 {
+    60
+}
+fn default_timeout() -> i32 {
+    16
+}
+fn default_retry_interval() -> i32 {
+    60
+}
+fn default_method() -> String {
+    "GET".into()
+}
+fn default_follow_redirect() -> bool {
+    true
+}
+fn default_accepted_statuses() -> Vec<i32> {
+    vec![200, 201, 202, 203, 204, 205, 206, 207, 208, 226]
 }
 
 #[cfg(test)]
@@ -183,17 +197,17 @@ mod tests {
         // as a Postgres enum with the same snake_case spelling. They must
         // never drift.
         let cases = [
-            (MonitorKind::Http,       "http"),
-            (MonitorKind::JsonQuery,  "json_query"),
-            (MonitorKind::Tcp,        "tcp"),
-            (MonitorKind::Ping,       "ping"),
-            (MonitorKind::Dns,        "dns"),
-            (MonitorKind::Push,       "push"),
-            (MonitorKind::Grpc,       "grpc"),
-            (MonitorKind::Tls,        "tls"),
-            (MonitorKind::Postgres,   "postgres"),
-            (MonitorKind::Mongodb,    "mongodb"),
-            (MonitorKind::Domain,     "domain"),
+            (MonitorKind::Http, "http"),
+            (MonitorKind::JsonQuery, "json_query"),
+            (MonitorKind::Tcp, "tcp"),
+            (MonitorKind::Ping, "ping"),
+            (MonitorKind::Dns, "dns"),
+            (MonitorKind::Push, "push"),
+            (MonitorKind::Grpc, "grpc"),
+            (MonitorKind::Tls, "tls"),
+            (MonitorKind::Postgres, "postgres"),
+            (MonitorKind::Mongodb, "mongodb"),
+            (MonitorKind::Domain, "domain"),
         ];
         for (k, expected) in cases {
             let v = serde_json::to_string(&k).unwrap();
@@ -209,8 +223,14 @@ mod tests {
 
     #[test]
     fn monitor_status_lowercase_round_trip() {
-        for s in [MonitorStatus::Up, MonitorStatus::Down, MonitorStatus::Warn,
-                  MonitorStatus::Paused, MonitorStatus::Pending, MonitorStatus::Maintenance] {
+        for s in [
+            MonitorStatus::Up,
+            MonitorStatus::Down,
+            MonitorStatus::Warn,
+            MonitorStatus::Paused,
+            MonitorStatus::Pending,
+            MonitorStatus::Maintenance,
+        ] {
             let v: String = serde_json::to_string(&s).unwrap();
             let back: MonitorStatus = serde_json::from_str(&v).unwrap();
             assert_eq!(s, back);
@@ -232,8 +252,8 @@ mod tests {
         let raw = serde_json::json!({"name": "x", "kind": "http"});
         let nm: NewMonitor = serde_json::from_value(raw).unwrap();
         assert_eq!(nm.interval_seconds, 60);
-        assert_eq!(nm.timeout_seconds,  16);
-        assert_eq!(nm.http_method,      "GET");
+        assert_eq!(nm.timeout_seconds, 16);
+        assert_eq!(nm.http_method, "GET");
         assert!(nm.follow_redirect);
         assert!(!nm.ignore_tls);
         assert_eq!(nm.max_retries, 0);
@@ -245,7 +265,10 @@ mod tests {
         let raw = serde_json::json!({"name": "x", "kind": "http", "interval_seconds": 1});
         let nm: NewMonitor = serde_json::from_value(raw).unwrap();
         use validator::Validate;
-        assert!(nm.validate().is_err(), "interval_seconds < 10 should fail validation");
+        assert!(
+            nm.validate().is_err(),
+            "interval_seconds < 10 should fail validation"
+        );
     }
 
     #[test]

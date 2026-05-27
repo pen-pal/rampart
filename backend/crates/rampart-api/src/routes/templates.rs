@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/",    get(list).post(create))
+        .route("/", get(list).post(create))
         .route("/:id", get(get_one).patch(update).delete(remove))
 }
 
@@ -27,8 +27,13 @@ async fn list(State(s): State<AppState>) -> Result<Json<Vec<Template>>, ApiError
     Ok(Json(rampart_db::templates::list(s.pool()).await?))
 }
 
-async fn get_one(State(s): State<AppState>, Path(id): Path<String>) -> Result<Json<Template>, ApiError> {
-    Ok(Json(rampart_db::templates::get(s.pool(), parse(&id)?).await?))
+async fn get_one(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<Template>, ApiError> {
+    Ok(Json(
+        rampart_db::templates::get(s.pool(), parse(&id)?).await?,
+    ))
 }
 
 async fn create(
@@ -50,13 +55,12 @@ async fn update(
     Path(id): Path<String>,
     Json(input): Json<UpdateTemplate>,
 ) -> Result<Json<Template>, ApiError> {
-    Ok(Json(rampart_db::templates::update(s.pool(), parse(&id)?, input).await?))
+    Ok(Json(
+        rampart_db::templates::update(s.pool(), parse(&id)?, input).await?,
+    ))
 }
 
-async fn remove(
-    State(s): State<AppState>,
-    Path(id): Path<String>,
-) -> Result<StatusCode, ApiError> {
+async fn remove(State(s): State<AppState>, Path(id): Path<String>) -> Result<StatusCode, ApiError> {
     rampart_db::templates::delete(s.pool(), parse(&id)?).await?;
     Ok(StatusCode::NO_CONTENT)
 }

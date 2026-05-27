@@ -16,14 +16,14 @@ pub async fn insert_many(pool: &DbPool, hbs: &[Heartbeat]) -> DbResult<()> {
     // UNNEST-driven bulk insert. The `monitor_status` enum doesn't
     // derive `PgHasArrayType` for free, so we bind `statuses` as
     // text[] and cast in SQL via `::monitor_status[]`.
-    let mut monitor_ids: Vec<Uuid>           = Vec::with_capacity(hbs.len());
-    let mut tss:         Vec<OffsetDateTime> = Vec::with_capacity(hbs.len());
-    let mut statuses:    Vec<String>         = Vec::with_capacity(hbs.len());
-    let mut latencies:   Vec<Option<i32>>    = Vec::with_capacity(hbs.len());
-    let mut codes:       Vec<Option<i32>>    = Vec::with_capacity(hbs.len());
-    let mut msgs:        Vec<Option<String>> = Vec::with_capacity(hbs.len());
-    let mut retries:     Vec<i32>            = Vec::with_capacity(hbs.len());
-    let mut importants:  Vec<bool>           = Vec::with_capacity(hbs.len());
+    let mut monitor_ids: Vec<Uuid> = Vec::with_capacity(hbs.len());
+    let mut tss: Vec<OffsetDateTime> = Vec::with_capacity(hbs.len());
+    let mut statuses: Vec<String> = Vec::with_capacity(hbs.len());
+    let mut latencies: Vec<Option<i32>> = Vec::with_capacity(hbs.len());
+    let mut codes: Vec<Option<i32>> = Vec::with_capacity(hbs.len());
+    let mut msgs: Vec<Option<String>> = Vec::with_capacity(hbs.len());
+    let mut retries: Vec<i32> = Vec::with_capacity(hbs.len());
+    let mut importants: Vec<bool> = Vec::with_capacity(hbs.len());
 
     for h in hbs {
         monitor_ids.push(h.monitor_id.0);
@@ -55,9 +55,9 @@ pub async fn insert_many(pool: &DbPool, hbs: &[Heartbeat]) -> DbResult<()> {
         &monitor_ids[..],
         &tss[..],
         &statuses[..],
-        &latencies[..]  as &[Option<i32>],
-        &codes[..]      as &[Option<i32>],
-        &msgs[..]       as &[Option<String>],
+        &latencies[..] as &[Option<i32>],
+        &codes[..] as &[Option<i32>],
+        &msgs[..] as &[Option<String>],
         &retries[..],
         &importants[..],
     )
@@ -97,14 +97,14 @@ pub async fn recent_for_monitor(
     Ok(rows
         .into_iter()
         .map(|r| Heartbeat {
-            monitor_id:  MonitorId::from_uuid(r.monitor_id),
-            ts:          r.ts,
-            status:      r.status,
-            latency_ms:  r.latency_ms,
+            monitor_id: MonitorId::from_uuid(r.monitor_id),
+            ts: r.ts,
+            status: r.status,
+            latency_ms: r.latency_ms,
             status_code: r.status_code,
-            msg:         r.msg,
-            retries:     r.retries,
-            important:   r.important,
+            msg: r.msg,
+            retries: r.retries,
+            important: r.important,
         })
         .collect())
 }
@@ -163,11 +163,11 @@ pub async fn avg_latency_ms(
 
 fn status_str(s: MonitorStatus) -> &'static str {
     match s {
-        MonitorStatus::Up          => "up",
-        MonitorStatus::Down        => "down",
-        MonitorStatus::Warn        => "warn",
-        MonitorStatus::Paused      => "paused",
-        MonitorStatus::Pending     => "pending",
+        MonitorStatus::Up => "up",
+        MonitorStatus::Down => "down",
+        MonitorStatus::Warn => "warn",
+        MonitorStatus::Paused => "paused",
+        MonitorStatus::Pending => "pending",
         MonitorStatus::Maintenance => "maintenance",
     }
 }
@@ -176,12 +176,12 @@ fn status_str(s: MonitorStatus) -> &'static str {
 /// Monitors with no heartbeats in the window are absent from the result.
 #[derive(Debug, Clone)]
 pub struct MonitorSummary {
-    pub monitor_id:     MonitorId,
-    pub total:          i64,
-    pub up:             i64,
+    pub monitor_id: MonitorId,
+    pub total: i64,
+    pub up: i64,
     pub avg_latency_ms: Option<f64>,
-    pub last_status:    Option<MonitorStatus>,
-    pub last_ts:        Option<OffsetDateTime>,
+    pub last_status: Option<MonitorStatus>,
+    pub last_ts: Option<OffsetDateTime>,
 }
 
 /// 24h-window rollup of every monitor that has heartbeats in the window.
@@ -219,12 +219,12 @@ pub async fn summary_window(pool: &DbPool, window_seconds: i64) -> DbResult<Vec<
     Ok(rows
         .into_iter()
         .map(|r| MonitorSummary {
-            monitor_id:     MonitorId::from_uuid(r.monitor_id),
-            total:          r.total,
-            up:             r.up,
+            monitor_id: MonitorId::from_uuid(r.monitor_id),
+            total: r.total,
+            up: r.up,
             avg_latency_ms: r.avg_latency_ms,
-            last_status:    r.last_status,
-            last_ts:        r.last_ts,
+            last_status: r.last_status,
+            last_ts: r.last_ts,
         })
         .collect())
 }
@@ -260,14 +260,14 @@ pub async fn recent_per_monitor(pool: &DbPool, per_monitor: i64) -> DbResult<Vec
     Ok(rows
         .into_iter()
         .map(|r| Heartbeat {
-            monitor_id:  MonitorId::from_uuid(r.monitor_id),
-            ts:          r.ts,
-            status:      r.status,
-            latency_ms:  r.latency_ms,
+            monitor_id: MonitorId::from_uuid(r.monitor_id),
+            ts: r.ts,
+            status: r.status,
+            latency_ms: r.latency_ms,
             status_code: r.status_code,
-            msg:         r.msg,
-            retries:     r.retries,
-            important:   r.important,
+            msg: r.msg,
+            retries: r.retries,
+            important: r.important,
         })
         .collect())
 }

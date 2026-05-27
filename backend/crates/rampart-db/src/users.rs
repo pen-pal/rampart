@@ -8,29 +8,29 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct User {
-    pub id:            UserId,
-    pub email:         String,
-    pub name:          Option<String>,
-    pub is_admin:      bool,
-    pub created_at:    OffsetDateTime,
+    pub id: UserId,
+    pub email: String,
+    pub name: Option<String>,
+    pub is_admin: bool,
+    pub created_at: OffsetDateTime,
     pub last_login_at: Option<OffsetDateTime>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct UserWithHash {
-    pub id:            UserId,
-    pub email:         String,
-    pub name:          Option<String>,
+    pub id: UserId,
+    pub email: String,
+    pub name: Option<String>,
     pub password_hash: String,
-    pub is_admin:      bool,
+    pub is_admin: bool,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct NewUser {
-    pub email:         String,
-    pub name:          Option<String>,
+    pub email: String,
+    pub name: Option<String>,
     pub password_hash: String,
-    pub is_admin:      bool,
+    pub is_admin: bool,
 }
 
 pub async fn count(pool: &DbPool) -> DbResult<i64> {
@@ -57,16 +57,18 @@ pub async fn create(pool: &DbPool, input: NewUser) -> DbResult<User> {
     .fetch_one(pool)
     .await
     .map_err(|e| match &e {
-        sqlx::Error::Database(d) if d.is_unique_violation() => DbError::Conflict("email already registered".into()),
+        sqlx::Error::Database(d) if d.is_unique_violation() => {
+            DbError::Conflict("email already registered".into())
+        }
         _ => DbError::Sqlx(e),
     })?;
 
     Ok(User {
-        id:            UserId::from_uuid(row.id),
-        email:         row.email,
-        name:          row.name,
-        is_admin:      row.is_admin,
-        created_at:    row.created_at,
+        id: UserId::from_uuid(row.id),
+        email: row.email,
+        name: row.name,
+        is_admin: row.is_admin,
+        created_at: row.created_at,
         last_login_at: row.last_login_at,
     })
 }
@@ -85,11 +87,11 @@ pub async fn get_by_email(pool: &DbPool, email: &str) -> DbResult<UserWithHash> 
     .ok_or(DbError::NotFound)?;
 
     Ok(UserWithHash {
-        id:            UserId::from_uuid(row.id),
-        email:         row.email,
-        name:          row.name,
+        id: UserId::from_uuid(row.id),
+        email: row.email,
+        name: row.name,
         password_hash: row.password_hash,
-        is_admin:      row.is_admin,
+        is_admin: row.is_admin,
     })
 }
 
@@ -107,11 +109,11 @@ pub async fn get(pool: &DbPool, id: UserId) -> DbResult<User> {
     .ok_or(DbError::NotFound)?;
 
     Ok(User {
-        id:            UserId::from_uuid(row.id),
-        email:         row.email,
-        name:          row.name,
-        is_admin:      row.is_admin,
-        created_at:    row.created_at,
+        id: UserId::from_uuid(row.id),
+        email: row.email,
+        name: row.name,
+        is_admin: row.is_admin,
+        created_at: row.created_at,
         last_login_at: row.last_login_at,
     })
 }

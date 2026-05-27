@@ -4,17 +4,17 @@
 //! the `migrations` arg) and drops it afterwards, so tests don't share
 //! state and can run in parallel.
 
-use rampart_db::users::{create, count, get, get_by_email, mark_login, NewUser};
+use rampart_db::users::{count, create, get, get_by_email, mark_login, NewUser};
 use sqlx::PgPool;
 
 fn sample(email: &str) -> NewUser {
     NewUser {
-        email:         email.into(),
-        name:          Some("Sample".into()),
+        email: email.into(),
+        name: Some("Sample".into()),
         // Argon2 hash of literal "password" — not used for verification
         // here; users::create just stores whatever string we give it.
         password_hash: "$argon2id$v=19$m=19456,t=2,p=1$fake$hash".into(),
-        is_admin:      true,
+        is_admin: true,
     }
 }
 
@@ -29,7 +29,10 @@ async fn create_and_read_back(pool: PgPool) {
     let u = create(&pool, sample("alice@example.com")).await.unwrap();
     assert_eq!(u.email, "alice@example.com");
     assert!(u.is_admin);
-    assert!(u.last_login_at.is_none(), "freshly created user has no login yet");
+    assert!(
+        u.last_login_at.is_none(),
+        "freshly created user has no login yet"
+    );
 
     let again = get(&pool, u.id).await.unwrap();
     assert_eq!(again.id, u.id);
@@ -49,8 +52,12 @@ async fn email_is_unique(pool: PgPool) {
 #[sqlx::test(migrations = "../../migrations")]
 async fn email_lookup_is_case_insensitive(pool: PgPool) {
     // `email` is a CITEXT column.
-    create(&pool, sample("CaseSensitive@example.com")).await.unwrap();
-    let u = get_by_email(&pool, "casesensitive@EXAMPLE.com").await.unwrap();
+    create(&pool, sample("CaseSensitive@example.com"))
+        .await
+        .unwrap();
+    let u = get_by_email(&pool, "casesensitive@EXAMPLE.com")
+        .await
+        .unwrap();
     assert_eq!(u.email.to_lowercase(), "casesensitive@example.com");
 }
 
@@ -69,7 +76,10 @@ async fn mark_login_sets_timestamp(pool: PgPool) {
     assert!(u.last_login_at.is_none());
     mark_login(&pool, u.id).await.unwrap();
     let after = get(&pool, u.id).await.unwrap();
-    assert!(after.last_login_at.is_some(), "mark_login should populate last_login_at");
+    assert!(
+        after.last_login_at.is_some(),
+        "mark_login should populate last_login_at"
+    );
 }
 
 #[sqlx::test(migrations = "../../migrations")]

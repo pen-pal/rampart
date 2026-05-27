@@ -11,8 +11,8 @@
 //!                       - 401 when authenticated would be expected.
 
 use crate::auth::{
-    build_clear_cookie, build_session_cookie, hash_password, is_secure, verify_password,
-    AuthUser, SESSION_COOKIE, SESSION_TTL_SECS,
+    build_clear_cookie, build_session_cookie, hash_password, is_secure, verify_password, AuthUser,
+    SESSION_COOKIE, SESSION_TTL_SECS,
 };
 use crate::error::ApiError;
 use crate::state::AppState;
@@ -31,22 +31,22 @@ use uuid::Uuid;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/register", post(register))
-        .route("/login",    post(login))
-        .route("/logout",   post(logout))
-        .route("/me",       get(me))
+        .route("/login", post(login))
+        .route("/logout", post(logout))
+        .route("/me", get(me))
 }
 
 #[derive(Debug, Deserialize)]
 pub struct RegisterInput {
-    pub email:    String,
+    pub email: String,
     #[serde(default)]
-    pub name:     Option<String>,
+    pub name: Option<String>,
     pub password: String,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct LoginInput {
-    pub email:    String,
+    pub email: String,
     pub password: String,
 }
 
@@ -61,7 +61,9 @@ async fn register(
     Json(input): Json<RegisterInput>,
 ) -> Result<impl IntoResponse, ApiError> {
     if input.password.len() < 10 {
-        return Err(ApiError::BadRequest("password must be at least 10 characters".into()));
+        return Err(ApiError::BadRequest(
+            "password must be at least 10 characters".into(),
+        ));
     }
     if !input.email.contains('@') {
         return Err(ApiError::BadRequest("email looks invalid".into()));
@@ -71,28 +73,35 @@ async fn register(
     // additional users will happen through an admin-only flow later.
     let existing = rampart_db::users::count(state.pool()).await?;
     if existing > 0 {
-        return Err(ApiError::Conflict("registration is closed — a user already exists".into()));
+        return Err(ApiError::Conflict(
+            "registration is closed — a user already exists".into(),
+        ));
     }
 
     let hash = hash_password(&input.password)?;
     let user = rampart_db::users::create(
         state.pool(),
         NewUser {
-            email:         input.email,
-            name:          input.name,
+            email: input.email,
+            name: input.name,
             password_hash: hash,
-            is_admin:      true, // the first user becomes admin
+            is_admin: true, // the first user becomes admin
         },
     )
     .await?;
-    rampart_db::users::mark_login(state.pool(), user.id).await.ok();
+    rampart_db::users::mark_login(state.pool(), user.id)
+        .await
+        .ok();
 
     let session = rampart_db::sessions::create(
         state.pool(),
         user.id,
         SESSION_TTL_SECS,
         None,
-        headers.get("user-agent").and_then(|v| v.to_str().ok()).map(String::from),
+        headers
+            .get("user-agent")
+            .and_then(|v| v.to_str().ok())
+            .map(String::from),
     )
     .await?;
 
@@ -114,7 +123,10 @@ async fn login(
     // against a placeholder if there's no row.
     let lookup = rampart_db::users::get_by_email(state.pool(), &input.email).await;
     let (user_id, ok) = match lookup {
-        Ok(u) => (Some(u.id), verify_password(&input.password, &u.password_hash)),
+        Ok(u) => (
+            Some(u.id),
+            verify_password(&input.password, &u.password_hash),
+        ),
         Err(_) => {
             // Spend roughly the same CPU verifying against a known hash.
             let _ = verify_password(
@@ -129,7 +141,9 @@ async fn login(
         return Err(ApiError::Unauthorized);
     }
     let user_id = user_id.unwrap();
-    rampart_db::users::mark_login(state.pool(), user_id).await.ok();
+    rampart_db::users::mark_login(state.pool(), user_id)
+        .await
+        .ok();
     let user = rampart_db::users::get(state.pool(), user_id).await?;
 
     let session = rampart_db::sessions::create(
@@ -137,7 +151,10 @@ async fn login(
         user_id,
         SESSION_TTL_SECS,
         None,
-        headers.get("user-agent").and_then(|v| v.to_str().ok()).map(String::from),
+        headers
+            .get("user-agent")
+            .and_then(|v| v.to_str().ok())
+            .map(String::from),
     )
     .await?;
 
@@ -153,7 +170,10 @@ async fn logout(
     headers: HeaderMap,
     jar: CookieJar,
 ) -> impl IntoResponse {
-    if let Some(token) = jar.get(SESSION_COOKIE).and_then(|c| Uuid::from_str(c.value()).ok()) {
+    if let Some(token) = jar
+        .get(SESSION_COOKIE)
+        .and_then(|c| Uuid::from_str(c.value()).ok())
+    {
         let _ = rampart_db::sessions::delete(state.pool(), token).await;
     }
     let cookie = build_clear_cookie(is_secure(&headers));
@@ -163,10 +183,7 @@ async fn logout(
     )
 }
 
-async fn me(
-    State(state): State<AppState>,
-    jar: CookieJar,
-) -> Result<impl IntoResponse, ApiError> {
+async fn me(State(state): State<AppState>, jar: CookieJar) -> Result<impl IntoResponse, ApiError> {
     // Special case: no users yet. The frontend uses this to decide whether
     // to show the login screen or the first-run signup screen.
     let count = rampart_db::users::count(state.pool()).await?;
