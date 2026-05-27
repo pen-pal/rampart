@@ -10,6 +10,7 @@
 //!   The auth middleware is applied in main.rs.
 
 pub mod api_keys;
+pub mod audit;
 pub mod auth;
 pub mod health;
 pub mod incidents;
@@ -66,6 +67,12 @@ pub fn v1_protected() -> Router<AppState> {
         .nest("/incidents", incidents::incident_router())
         // Subscribers admin + SMTP settings.
         .merge(subscribers::admin_router())
+        // /v1/audit-log — admin only via the layer the users router uses.
+        .nest(
+            "/audit-log",
+            audit::router()
+                .route_layer(axum::middleware::from_fn(crate::auth::require_admin)),
+        )
         // /v1/api-keys — list/create/revoke
         .nest("/api-keys", api_keys::router())
         // /v1/proxies — list/create/delete/active

@@ -4,6 +4,7 @@
 //! import from here so they can drive the Router via `tower::ServiceExt`
 //! without binding a real TCP listener.
 
+pub mod audit;
 pub mod auth;
 pub mod error;
 pub mod routes;

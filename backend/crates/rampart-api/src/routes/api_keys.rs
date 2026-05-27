@@ -6,7 +6,7 @@
 use crate::error::ApiError;
 use crate::state::AppState;
 use axum::extract::{Extension, Path, State};
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::routing::get;
 use axum::{Json, Router};
 use rampart_core::api_key::{ApiKey, IssuedApiKey, NewApiKey};
@@ -36,6 +36,7 @@ async fn list(State(s): State<AppState>) -> Result<Json<Vec<ApiKey>>, ApiError> 
 async fn create(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    headers: HeaderMap,
     Json(input): Json<NewApiKey>,
 ) -> Result<(StatusCode, Json<IssuedApiKey>), ApiError> {
     input
@@ -46,14 +47,23 @@ async fn create(
             return Err(ApiError::BadRequest("expires_at must be in the future".into()));
         }
     }
+    let name = input.name.clone();
     let issued = rampart_db::api_keys::create(s.pool(), input, user.id).await?;
+    crate::audit::record(s.pool(), &user, &headers,
+        "api_key.create", "api_key", Some(issued.key.id.0),
+        Some(serde_json::json!({ "name": name }))).await;
     Ok((StatusCode::CREATED, Json(issued)))
 }
 
 async fn revoke(
     State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::api_keys::delete(s.pool(), parse(&id)?).await?;
+    let key_id = parse(&id)?;
+    rampart_db::api_keys::delete(s.pool(), key_id).await?;
+    crate::audit::record(s.pool(), &user, &headers,
+        "api_key.revoke", "api_key", Some(key_id.0), None).await;
     Ok(StatusCode::NO_CONTENT)
 }

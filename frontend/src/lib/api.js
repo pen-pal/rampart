@@ -123,6 +123,16 @@ export const api = {
     create: (name, scopes, exp) => request('/v1/api-keys', { method: 'POST', body: { name, scopes: scopes || [], expires_at: exp || null } }),
     revoke: (id)                => request(`/v1/api-keys/${id}`, { method: 'DELETE' }),
   },
+  audit: {
+    list: (limit, before, kind) => {
+      const qs = new URLSearchParams();
+      if (limit)  qs.set('limit',  String(limit));
+      if (before) qs.set('before', String(before));
+      if (kind)   qs.set('kind',   kind);
+      const s = qs.toString();
+      return request(`/v1/audit-log${s ? '?' + s : ''}`);
+    },
+  },
   subscribers: {
     subscribe:   (slug, email) => request(`/v1/public/status-pages/${slug}/subscribe`, { method: 'POST', body: { email } }),
     listForPage: (pageId)      => request(`/v1/status-pages/${pageId}/subscribers`),

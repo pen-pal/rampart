@@ -9,7 +9,7 @@ use crate::auth::{hash_password, verify_password};
 use crate::error::ApiError;
 use crate::state::AppState;
 use axum::extract::{Extension, Path, State};
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use rampart_core::ids::UserId;
@@ -54,6 +54,8 @@ async fn list(State(s): State<AppState>) -> Result<Json<Vec<User>>, ApiError> {
 
 async fn create(
     State(s): State<AppState>,
+    Extension(caller): Extension<User>,
+    headers: HeaderMap,
     Json(input): Json<CreateUserInput>,
 ) -> Result<(StatusCode, Json<User>), ApiError> {
     if input.password.len() < 10 {
@@ -66,13 +68,16 @@ async fn create(
     let u = rampart_db::users::create(
         s.pool(),
         NewUser {
-            email: input.email,
+            email: input.email.clone(),
             name: input.name,
             password_hash: hash,
             is_admin: input.is_admin,
         },
     )
     .await?;
+    crate::audit::record(s.pool(), &caller, &headers,
+        "user.create", "user", Some(u.id.0),
+        Some(serde_json::json!({ "email": input.email, "is_admin": input.is_admin }))).await;
     Ok((StatusCode::CREATED, Json(u)))
 }
 
@@ -83,6 +88,7 @@ async fn set_admin(
     State(s): State<AppState>,
     Path(id): Path<String>,
     Extension(caller): Extension<User>,
+    headers: HeaderMap,
     Json(body): Json<SetAdminInput>,
 ) -> Result<StatusCode, ApiError> {
     let target = parse(&id)?;
@@ -92,6 +98,9 @@ async fn set_admin(
         return Err(ApiError::BadRequest("you can't demote yourself".into()));
     }
     rampart_db::users::set_admin(s.pool(), target, body.is_admin).await?;
+    crate::audit::record(s.pool(), &caller, &headers,
+        if body.is_admin { "user.promote" } else { "user.demote" },
+        "user", Some(target.0), None).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -99,12 +108,15 @@ async fn remove(
     State(s): State<AppState>,
     Path(id): Path<String>,
     Extension(caller): Extension<User>,
+    headers: HeaderMap,
 ) -> Result<StatusCode, ApiError> {
     let target = parse(&id)?;
     if target == caller.id {
         return Err(ApiError::BadRequest("you can't delete yourself".into()));
     }
     rampart_db::users::delete(s.pool(), target).await?;
+    crate::audit::record(s.pool(), &caller, &headers,
+        "user.delete", "user", Some(target.0), None).await;
     Ok(StatusCode::NO_CONTENT)
 }
 

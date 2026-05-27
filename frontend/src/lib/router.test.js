@@ -35,6 +35,7 @@ describe('parseRoute', () => {
     expect(parseRoute('#/security'))      .toEqual({ view: 'security',      id: null });
     expect(parseRoute('#/users'))         .toEqual({ view: 'users',         id: null });
     expect(parseRoute('#/settings/smtp')) .toEqual({ view: 'smtp-settings', id: null });
+    expect(parseRoute('#/audit'))         .toEqual({ view: 'audit',         id: null });
   });
 
   it('treats unknown hashes as dashboard (graceful fallback)', () => {

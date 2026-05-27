@@ -7,6 +7,7 @@
 //! happens at the API layer.
 
 pub mod api_keys;
+pub mod audit;
 pub mod heartbeats;
 pub mod incidents;
 pub mod maintenance;

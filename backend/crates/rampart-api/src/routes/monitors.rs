@@ -6,11 +6,12 @@
 
 use crate::error::ApiError;
 use crate::state::AppState;
-use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
+use axum::extract::{Extension, Path, Query, State};
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use rampart_db::users::User;
 use rampart_core::monitor::{NewMonitor, UpdateMonitor};
 use rampart_core::{Heartbeat, Monitor, MonitorId, MonitorStatus};
 use serde::{Deserialize, Serialize};
@@ -45,11 +46,16 @@ async fn list(State(state): State<AppState>) -> Result<Json<Vec<Monitor>>, ApiEr
 
 async fn create(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Json(input): Json<NewMonitor>,
 ) -> Result<(StatusCode, Json<Monitor>), ApiError> {
     input.validate()?;
     let monitor = rampart_db::monitors::create(state.pool(), input).await?;
     state.poke_scheduler();
+    crate::audit::record(state.pool(), &user, &headers,
+        "monitor.create", "monitor", Some(monitor.id.0),
+        Some(serde_json::json!({ "name": monitor.name, "kind": monitor.kind }))).await;
     Ok((StatusCode::CREATED, Json(monitor)))
 }
 
@@ -64,16 +70,22 @@ async fn get_one(
 
 async fn delete_one(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let monitor_id = parse_monitor_id(&id)?;
     rampart_db::monitors::delete(state.pool(), monitor_id).await?;
     state.poke_scheduler();
+    crate::audit::record(state.pool(), &user, &headers,
+        "monitor.delete", "monitor", Some(monitor_id.0), None).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
 async fn update(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path(id): Path<String>,
     Json(input): Json<UpdateMonitor>,
 ) -> Result<Json<Monitor>, ApiError> {
@@ -83,26 +95,36 @@ async fn update(
     // Interval / url / proxy_id changes need the running probe task to
     // pick up the new config — poke triggers a reload diff.
     state.poke_scheduler();
+    crate::audit::record(state.pool(), &user, &headers,
+        "monitor.update", "monitor", Some(monitor_id.0), None).await;
     Ok(Json(monitor))
 }
 
 async fn pause(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     let monitor_id = parse_monitor_id(&id)?;
     rampart_db::monitors::set_active(state.pool(), monitor_id, false).await?;
     state.poke_scheduler();
+    crate::audit::record(state.pool(), &user, &headers,
+        "monitor.pause", "monitor", Some(monitor_id.0), None).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
 async fn resume(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     let monitor_id = parse_monitor_id(&id)?;
     rampart_db::monitors::set_active(state.pool(), monitor_id, true).await?;
     state.poke_scheduler();
+    crate::audit::record(state.pool(), &user, &headers,
+        "monitor.resume", "monitor", Some(monitor_id.0), None).await;
     Ok(StatusCode::NO_CONTENT)
 }
 

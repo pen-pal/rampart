@@ -7,8 +7,9 @@
 
 use crate::error::ApiError;
 use crate::state::AppState;
-use axum::extract::{Path, State};
-use axum::http::StatusCode;
+use axum::extract::{Extension, Path, State};
+use axum::http::{HeaderMap, StatusCode};
+use rampart_db::users::User;
 use axum::routing::get;
 use axum::{Json, Router};
 use rampart_core::ids::StatusPageId;
@@ -50,12 +51,18 @@ async fn get_one(
 
 async fn create(
     State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Json(input): Json<NewStatusPage>,
 ) -> Result<(StatusCode, Json<StatusPage>), ApiError> {
     input
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    let slug = input.slug.clone();
     let p = rampart_db::status_pages::create(s.pool(), input).await?;
+    crate::audit::record(s.pool(), &user, &headers,
+        "status_page.create", "status_page", Some(p.id.0),
+        Some(serde_json::json!({ "slug": slug }))).await;
     Ok((StatusCode::CREATED, Json(p)))
 }
 
@@ -71,9 +78,14 @@ async fn update(
 
 async fn remove(
     State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::status_pages::delete(s.pool(), parse(&id)?).await?;
+    let page_id = parse(&id)?;
+    rampart_db::status_pages::delete(s.pool(), page_id).await?;
+    crate::audit::record(s.pool(), &user, &headers,
+        "status_page.delete", "status_page", Some(page_id.0), None).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
