@@ -1,0 +1,19 @@
+# Repo-wide ignores so the build context stays tight.
+**/target
+**/node_modules
+**/dist
+**/.next
+**/coverage
+**/.git
+**/.github
+**/playwright-report
+**/test-results
+
+# Local-only
+.env
+.env.*
+!.env.example
+**/.DS_Store
+.agents/
+.claude/
+docs/screenshots/

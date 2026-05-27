@@ -1,0 +1,48 @@
+# Rampart · production-style compose.
+#
+# Brings up Postgres + the Rampart image as a single host stack. For
+# local development with hot reload, use backend/compose.yaml (Postgres
+# only) and run `cargo run -p rampart-api` on the host.
+#
+# Usage:
+#   docker compose pull         # if using a pre-built image
+#   docker compose up -d build  # build locally from this tree
+#   docker compose logs -f rampart
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER:     ${POSTGRES_USER:-rampart}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rampart}
+      POSTGRES_DB:       ${POSTGRES_DB:-rampart}
+    volumes:
+      - rampart_pg:/var/lib/postgresql/data
+    healthcheck:
+      test:     ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rampart} -d ${POSTGRES_DB:-rampart}"]
+      interval: 5s
+      timeout:  3s
+      retries:  5
+
+  rampart:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ghcr.io/rampart-io/rampart:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-rampart}:${POSTGRES_PASSWORD:-rampart}@postgres:5432/${POSTGRES_DB:-rampart}
+      BIND_ADDR:    0.0.0.0:3000
+      RUST_LOG:     rampart=info,tower_http=warn,info
+    ports:
+      - "${RAMPART_PORT:-3000}:3000"
+    # ICMP / ping monitor needs raw sockets on Linux.
+    cap_add:
+      - NET_RAW
+
+volumes:
+  rampart_pg:
