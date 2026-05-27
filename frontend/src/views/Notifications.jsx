@@ -138,6 +138,14 @@ const SUPPORTED = [
   { id: 'alertnow',    name: 'AlertNow',        icon: Siren,         hint: 'AlertNow webhook integration URL' },
   { id: 'signl4',      name: 'SIGNL4',          icon: Siren,         hint: 'SIGNL4 mobile alerting — team secret from the connect URL' },
   { id: 'heii_oncall', name: 'Heii On-Call',    icon: Siren,         hint: 'Heii On-Call trigger URL; optional close URL on recovery' },
+  { id: 'serverchan',  name: 'ServerChan',      icon: Smartphone,    hint: 'WeChat push via sct.ftqq.com — SendKey' },
+  { id: 'pushplus',    name: 'PushPlus',        icon: Smartphone,    hint: 'WeChat push via pushplus.plus — token + optional topic' },
+  { id: 'pushdeer',    name: 'PushDeer',        icon: Smartphone,    hint: 'PushDeer.com or self-hosted; pushkey' },
+  { id: 'aliyun_sms',  name: 'Aliyun SMS',      icon: Phone,         hint: 'Alibaba Cloud SMS — signed SendSms with template' },
+  { id: 'mastodon',    name: 'Mastodon',        icon: MessageSquare, hint: 'Post a toot via /api/v1/statuses; configurable visibility' },
+  { id: 'pumble',      name: 'Pumble',          icon: MessageSquare, hint: 'Pumble incoming webhook (Slack-compatible payload)' },
+  { id: 'bitrix24',    name: 'Bitrix24',        icon: MessageSquare, hint: 'Bitrix24 inbound webhook + USER_ID for im.notify.system.add' },
+  { id: 'stackfield',  name: 'Stackfield',      icon: MessageSquare, hint: 'Stackfield room incoming webhook' },
   // push
   { id: 'ntfy',       name: 'ntfy.sh',         icon: Smartphone,    hint: 'Push to phone via ntfy.sh (free) or self-hosted ntfy server' },
   { id: 'gotify',     name: 'Gotify',          icon: Server,        hint: 'Self-hosted push server (https://gotify.net)' },
@@ -790,6 +798,137 @@ function ConfigForm({ kind, config, setConfig }) {
             onChange={e => set('close_url', e.target.value)} placeholder="https://api.heiioncall.com/.../close"/>
         </div>
       </>
+    );
+  }
+  if (kind === 'serverchan') {
+    return (
+      <div className="field">
+        <label className="field-label">SendKey</label>
+        <input className="input mono" type="password" value={config.send_key || ''}
+          onChange={e => set('send_key', e.target.value)} placeholder="SCT..."/>
+      </div>
+    );
+  }
+  if (kind === 'pushplus') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">Token</label>
+          <input className="input mono" type="password" value={config.token || ''}
+            onChange={e => set('token', e.target.value)}/>
+        </div>
+        <div className="field">
+          <label className="field-label">Topic <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional, for group send</span></label>
+          <input className="input mono" value={config.topic || ''}
+            onChange={e => set('topic', e.target.value)}/>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'pushdeer') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">Push key</label>
+          <input className="input mono" type="password" value={config.push_key || ''}
+            onChange={e => set('push_key', e.target.value)}/>
+        </div>
+        <div className="field">
+          <label className="field-label">Server <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+          <input className="input mono" value={config.server || ''}
+            onChange={e => set('server', e.target.value)} placeholder="https://api2.pushdeer.com"/>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'aliyun_sms') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">Access Key ID</label>
+          <input className="input mono" value={config.access_key_id || ''}
+            onChange={e => set('access_key_id', e.target.value)} placeholder="LTAI..."/>
+        </div>
+        <div className="field">
+          <label className="field-label">Access Key Secret</label>
+          <input className="input mono" type="password" value={config.access_key_secret || ''}
+            onChange={e => set('access_key_secret', e.target.value)}/>
+        </div>
+        <div className="field">
+          <label className="field-label">Sign name</label>
+          <input className="input" value={config.sign_name || ''}
+            onChange={e => set('sign_name', e.target.value)}/>
+        </div>
+        <div className="field">
+          <label className="field-label">Template code</label>
+          <input className="input mono" value={config.template_code || ''}
+            onChange={e => set('template_code', e.target.value)} placeholder="SMS_..."/>
+        </div>
+        <div className="field">
+          <label className="field-label">Phone numbers <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+          <input className="input mono" value={config.phone_numbers || ''}
+            onChange={e => set('phone_numbers', e.target.value)}/>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'mastodon') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">Server</label>
+          <input className="input mono" value={config.server || ''}
+            onChange={e => set('server', e.target.value)} placeholder="https://mastodon.social"/>
+        </div>
+        <div className="field">
+          <label className="field-label">Access token</label>
+          <input className="input mono" type="password" value={config.access_token || ''}
+            onChange={e => set('access_token', e.target.value)}/>
+        </div>
+        <div className="field">
+          <label className="field-label">Visibility</label>
+          <select className="select" value={config.visibility || 'private'} onChange={e => set('visibility', e.target.value)}>
+            <option value="public">public</option>
+            <option value="unlisted">unlisted</option>
+            <option value="private">private (followers-only)</option>
+            <option value="direct">direct</option>
+          </select>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'pumble') {
+    return (
+      <div className="field">
+        <label className="field-label">Webhook URL</label>
+        <input className="input mono" value={config.webhook_url || ''}
+          onChange={e => set('webhook_url', e.target.value)} placeholder="https://pumble.com/api/incoming-webhooks/..."/>
+      </div>
+    );
+  }
+  if (kind === 'bitrix24') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">Webhook URL</label>
+          <input className="input mono" value={config.webhook_url || ''}
+            onChange={e => set('webhook_url', e.target.value)} placeholder="https://yourorg.bitrix24.com/rest/<user>/<token>"/>
+        </div>
+        <div className="field">
+          <label className="field-label">USER_ID</label>
+          <input className="input mono" value={config.user_id || ''}
+            onChange={e => set('user_id', e.target.value)} placeholder="1"/>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'stackfield') {
+    return (
+      <div className="field">
+        <label className="field-label">Webhook URL</label>
+        <input className="input mono" value={config.webhook_url || ''}
+          onChange={e => set('webhook_url', e.target.value)} placeholder="https://www.stackfield.com/api/incoming-webhook/..."/>
+      </div>
     );
   }
   if (kind === 'sms_twilio') {

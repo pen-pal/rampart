@@ -135,6 +135,7 @@ md-5             = "0.10"
 liquid           = "0.26"
 hmac             = "0.12"
 base64           = "0.22"
+sha1             = "0.10"
 
 [profile.release]
 lto           = "thin"

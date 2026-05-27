@@ -6,8 +6,10 @@
 
 pub mod alerta;
 pub mod alertnow;
+pub mod aliyun_sms;
 pub mod apprise;
 pub mod bark;
+pub mod bitrix24;
 pub mod brevo;
 pub mod dingtalk;
 pub mod discord;
@@ -19,21 +21,27 @@ pub mod gotify;
 pub mod heii_oncall;
 pub mod lark;
 pub mod line;
+pub mod mastodon;
 pub mod matrix;
 pub mod mattermost;
 pub mod ntfy;
 pub mod opsgenie;
 pub mod pagerduty;
 pub mod pagertree;
+pub mod pumble;
 pub mod pushbullet;
+pub mod pushdeer;
 pub mod pushover;
+pub mod pushplus;
 pub mod resend;
 pub mod rocketchat;
 pub mod sendgrid;
+pub mod serverchan;
 pub mod signal;
 pub mod signl4;
 pub mod slack;
 pub mod squadcast;
+pub mod stackfield;
 pub mod teams;
 pub mod telegram;
 pub mod twilio;
@@ -91,6 +99,14 @@ pub async fn dispatch(
         ChannelKind::Alertnow    => Box::new(alertnow::AlertNow::from_config(config)?),
         ChannelKind::Signl4      => Box::new(signl4::Signl4::from_config(config)?),
         ChannelKind::HeiiOncall  => Box::new(heii_oncall::HeiiOncall::from_config(config)?),
+        ChannelKind::Serverchan  => Box::new(serverchan::Serverchan::from_config(config)?),
+        ChannelKind::Pushplus    => Box::new(pushplus::Pushplus::from_config(config)?),
+        ChannelKind::Pushdeer    => Box::new(pushdeer::Pushdeer::from_config(config)?),
+        ChannelKind::AliyunSms   => Box::new(aliyun_sms::AliyunSms::from_config(config)?),
+        ChannelKind::Mastodon    => Box::new(mastodon::Mastodon::from_config(config)?),
+        ChannelKind::Pumble      => Box::new(pumble::Pumble::from_config(config)?),
+        ChannelKind::Bitrix24    => Box::new(bitrix24::Bitrix24::from_config(config)?),
+        ChannelKind::Stackfield  => Box::new(stackfield::Stackfield::from_config(config)?),
         _ => {
             return Err(ChannelError::BadConfig(format!(
                 "channel kind {kind:?} not implemented yet"

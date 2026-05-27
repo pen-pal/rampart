@@ -60,6 +60,14 @@ pub enum ChannelKind {
     Alertnow,
     Signl4,
     HeiiOncall,
+    Serverchan,
+    Pushplus,
+    Pushdeer,
+    AliyunSms,
+    Mastodon,
+    Pumble,
+    Bitrix24,
+    Stackfield,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
