@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT subject_template, body_template FROM notification_templates WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "subject_template",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "body_template",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true,
+      false
+    ]
+  },
+  "hash": "d772e49b5ca4e201586ec5fb866ba1959c4ef95b9c51516fde8ef9e1e2ff212f"
+}

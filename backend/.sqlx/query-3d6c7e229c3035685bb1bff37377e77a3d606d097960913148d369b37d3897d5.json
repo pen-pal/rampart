@@ -1,0 +1,108 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO incidents\n            (id, status_page_id, title, content, style, pinned, created_by)\n        VALUES ($1, $2, $3, $4, $5, $6, $7)\n        RETURNING\n            id, status_page_id, title, content,\n            style AS \"style: IncidentStyle\",\n            pinned, active, resolved_at, created_at, created_by\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "status_page_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "content",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "style: IncidentStyle",
+        "type_info": {
+          "Custom": {
+            "name": "incident_style",
+            "kind": {
+              "Enum": [
+                "info",
+                "warning",
+                "danger",
+                "primary",
+                "success"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "pinned",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "active",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "resolved_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_by",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        {
+          "Custom": {
+            "name": "incident_style",
+            "kind": {
+              "Enum": [
+                "info",
+                "warning",
+                "danger",
+                "primary",
+                "success"
+              ]
+            }
+          }
+        },
+        "Bool",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "3d6c7e229c3035685bb1bff37377e77a3d606d097960913148d369b37d3897d5"
+}

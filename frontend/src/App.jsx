@@ -6,24 +6,7 @@ import NewMonitorWizard  from './views/NewMonitorWizard.jsx';
 import Login             from './views/Login.jsx';
 import Notifications     from './views/Notifications.jsx';
 import { api } from './lib/api.js';
-
-// ─── routing ──────────────────────────────────────────────────────────────
-// Hash-based, dependency-free. Patterns:
-//   #/                          → Dashboard
-//   #/login                     → Login (or first-run signup)
-//   #/new-monitor               → NewMonitorWizard
-//   #/monitor/<id>              → MonitorDetail(id)
-//   #/status-page               → StatusPageBuilder (mock-only for now)
-function parseRoute(hash) {
-  const h = hash || '#/';
-  if (h.startsWith('#/login'))      return { view: 'login',         id: null };
-  if (h.startsWith('#/monitor/'))   return { view: 'monitor',       id: h.slice('#/monitor/'.length) };
-  if (h === '#/monitor')            return { view: 'monitor',       id: null };
-  if (h === '#/new-monitor')        return { view: 'new-monitor',   id: null };
-  if (h === '#/status-page')        return { view: 'status-page',   id: null };
-  if (h === '#/notifications')      return { view: 'notifications', id: null };
-  return { view: 'dashboard', id: null };
-}
+import { parseRoute } from './lib/router.js';
 
 const VIEW_LABEL = {
   'dashboard':     'Dashboard',

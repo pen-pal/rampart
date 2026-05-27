@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT mn.monitor_id, COUNT(*)::int8 AS \"count!\"\n        FROM monitor_notifications mn\n        JOIN notifications n ON n.id = mn.notification_id\n        WHERE n.active\n        GROUP BY mn.monitor_id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "monitor_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "c6a1387c7399871a527d3e9e8fe8857073ddb95f6fee0df44d356e4b2f08350b"
+}

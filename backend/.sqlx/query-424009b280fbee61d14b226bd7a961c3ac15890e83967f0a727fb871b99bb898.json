@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT AVG(latency_ms)::float8 AS avg\n        FROM heartbeats\n        WHERE monitor_id = $1 AND ts >= $2 AND status = 'up' AND latency_ms IS NOT NULL\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "avg",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "424009b280fbee61d14b226bd7a961c3ac15890e83967f0a727fb871b99bb898"
+}

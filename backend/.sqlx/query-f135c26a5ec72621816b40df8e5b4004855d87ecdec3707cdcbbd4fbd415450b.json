@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE incidents\n           SET active      = FALSE,\n               resolved_at = COALESCE(resolved_at, $2)\n         WHERE id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f135c26a5ec72621816b40df8e5b4004855d87ecdec3707cdcbbd4fbd415450b"
+}

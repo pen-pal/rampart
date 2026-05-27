@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM monitor_notifications WHERE monitor_id = $1 AND notification_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "839e050055778cc669acb4b62ff4d8a4774c5e134dcbd8d3198d57e98716c454"
+}

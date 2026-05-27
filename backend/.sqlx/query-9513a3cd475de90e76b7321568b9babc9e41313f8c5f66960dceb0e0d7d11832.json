@@ -1,0 +1,202 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            id, name,\n            kind   AS \"kind: MonitorKind\",\n            url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            active,\n            current_status AS \"current_status: MonitorStatus\",\n            created_at, updated_at\n        FROM monitors\n        WHERE id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "kind: MonitorKind",
+        "type_info": {
+          "Custom": {
+            "name": "monitor_kind",
+            "kind": {
+              "Enum": [
+                "http",
+                "keyword",
+                "json_query",
+                "tcp",
+                "ping",
+                "dns",
+                "push",
+                "grpc",
+                "tls",
+                "docker",
+                "steam",
+                "mqtt",
+                "radius",
+                "kafka",
+                "postgres",
+                "mysql",
+                "mssql",
+                "redis",
+                "mongodb",
+                "domain"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "hostname",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "port",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "config",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 7,
+        "name": "interval_seconds",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "retry_interval_sec",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 9,
+        "name": "max_retries",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "timeout_seconds",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 11,
+        "name": "resend_interval_sec",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 12,
+        "name": "upside_down",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 13,
+        "name": "http_method",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "http_body",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "http_headers",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 16,
+        "name": "accepted_statuses",
+        "type_info": "Int4Array"
+      },
+      {
+        "ordinal": 17,
+        "name": "follow_redirect",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 18,
+        "name": "ignore_tls",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 19,
+        "name": "proxy_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 20,
+        "name": "active",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 21,
+        "name": "current_status: MonitorStatus",
+        "type_info": {
+          "Custom": {
+            "name": "monitor_status",
+            "kind": {
+              "Enum": [
+                "up",
+                "down",
+                "warn",
+                "paused",
+                "pending",
+                "maintenance"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 22,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 23,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "9513a3cd475de90e76b7321568b9babc9e41313f8c5f66960dceb0e0d7d11832"
+}

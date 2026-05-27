@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE monitors SET current_status = $1, updated_at = NOW() WHERE id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "monitor_status",
+            "kind": {
+              "Enum": [
+                "up",
+                "down",
+                "warn",
+                "paused",
+                "pending",
+                "maintenance"
+              ]
+            }
+          }
+        },
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "35fcbe178f4b6a9cf8ef1f8128caad6badbfd6fe9736f901652e2da205475d44"
+}

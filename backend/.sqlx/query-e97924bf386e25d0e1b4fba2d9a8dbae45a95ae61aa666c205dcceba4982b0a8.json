@@ -1,0 +1,78 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            monitor_id,\n            ts,\n            status AS \"status: MonitorStatus\",\n            latency_ms,\n            status_code,\n            msg,\n            retries,\n            important\n        FROM (\n            SELECT\n                monitor_id, ts, status, latency_ms, status_code, msg, retries, important,\n                ROW_NUMBER() OVER (PARTITION BY monitor_id ORDER BY ts DESC) AS rn\n            FROM heartbeats\n        ) t\n        WHERE rn <= $1\n        ORDER BY monitor_id, ts ASC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "monitor_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "ts",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 2,
+        "name": "status: MonitorStatus",
+        "type_info": {
+          "Custom": {
+            "name": "monitor_status",
+            "kind": {
+              "Enum": [
+                "up",
+                "down",
+                "warn",
+                "paused",
+                "pending",
+                "maintenance"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "latency_ms",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "status_code",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "msg",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "retries",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "important",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "e97924bf386e25d0e1b4fba2d9a8dbae45a95ae61aa666c205dcceba4982b0a8"
+}
