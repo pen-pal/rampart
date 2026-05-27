@@ -133,6 +133,8 @@ md-5             = "0.10"
 # Liquid templates — same dialect as Kuma's notification templates,
 # so users porting from there get familiar `{{ … | filter }}` syntax.
 liquid           = "0.26"
+hmac             = "0.12"
+base64           = "0.22"
 
 [profile.release]
 lto           = "thin"

@@ -5,9 +5,14 @@
 //! adapter from a JSON config blob.
 
 pub mod apprise;
+pub mod dingtalk;
 pub mod discord;
 pub mod email;
+pub mod feishu;
+pub mod google_chat;
 pub mod gotify;
+pub mod line;
+pub mod matrix;
 pub mod mattermost;
 pub mod ntfy;
 pub mod pagerduty;
@@ -18,6 +23,7 @@ pub mod teams;
 pub mod telegram;
 pub mod twilio;
 pub mod webhook;
+pub mod wecom;
 
 use crate::{Channel, ChannelError, Event};
 use rampart_core::ChannelKind;
@@ -47,6 +53,12 @@ pub async fn dispatch(
         ChannelKind::SmsTwilio => Box::new(twilio::Twilio::from_config(config)?),
         ChannelKind::Apprise => Box::new(apprise::Apprise::from_config(config)?),
         ChannelKind::Webhook => Box::new(webhook::Webhook::from_config(config)?),
+        ChannelKind::Matrix      => Box::new(matrix::Matrix::from_config(config)?),
+        ChannelKind::GoogleChat  => Box::new(google_chat::GoogleChat::from_config(config)?),
+        ChannelKind::Wecom       => Box::new(wecom::Wecom::from_config(config)?),
+        ChannelKind::Dingtalk    => Box::new(dingtalk::DingTalk::from_config(config)?),
+        ChannelKind::Feishu      => Box::new(feishu::Feishu::from_config(config)?),
+        ChannelKind::Line        => Box::new(line::Line::from_config(config)?),
         _ => {
             return Err(ChannelError::BadConfig(format!(
                 "channel kind {kind:?} not implemented yet"

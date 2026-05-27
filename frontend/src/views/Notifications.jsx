@@ -104,15 +104,21 @@ const css = `
   }
 `;
 
-// Channels wired into the notifier. 14 first-party + 1 generic.
+// Channels wired into the notifier. 20 first-party + 1 generic.
 const SUPPORTED = [
   // chat
-  { id: 'slack',      name: 'Slack',           icon: MessageSquare, hint: 'Incoming-webhook URL from https://api.slack.com/messaging/webhooks' },
-  { id: 'discord',    name: 'Discord',         icon: Hash,          hint: 'Webhook URL from Discord channel → Edit → Integrations → Webhooks' },
-  { id: 'teams',      name: 'MS Teams',        icon: MessageSquare, hint: 'Incoming-webhook from Teams channel → Connectors → Incoming Webhook' },
-  { id: 'mattermost', name: 'Mattermost',      icon: MessageSquare, hint: 'Self-hosted Mattermost incoming webhook' },
-  { id: 'rocket_chat',name: 'Rocket.Chat',     icon: Rocket,        hint: 'Self-hosted Rocket.Chat incoming webhook' },
-  { id: 'telegram',   name: 'Telegram',        icon: Megaphone,     hint: 'Bot token from @BotFather, and a chat_id from /getUpdates' },
+  { id: 'slack',       name: 'Slack',           icon: MessageSquare, hint: 'Incoming-webhook URL from https://api.slack.com/messaging/webhooks' },
+  { id: 'discord',     name: 'Discord',         icon: Hash,          hint: 'Webhook URL from Discord channel → Edit → Integrations → Webhooks' },
+  { id: 'teams',       name: 'MS Teams',        icon: MessageSquare, hint: 'Incoming-webhook from Teams channel → Connectors → Incoming Webhook' },
+  { id: 'mattermost',  name: 'Mattermost',      icon: MessageSquare, hint: 'Self-hosted Mattermost incoming webhook' },
+  { id: 'rocket_chat', name: 'Rocket.Chat',     icon: Rocket,        hint: 'Self-hosted Rocket.Chat incoming webhook' },
+  { id: 'telegram',    name: 'Telegram',        icon: Megaphone,     hint: 'Bot token from @BotFather, and a chat_id from /getUpdates' },
+  { id: 'matrix',      name: 'Matrix',          icon: Hash,          hint: 'Homeserver + access token + room id. Open standard.' },
+  { id: 'google_chat', name: 'Google Chat',     icon: MessageSquare, hint: 'Incoming-webhook URL from Google Workspace space integrations' },
+  { id: 'wecom',       name: 'WeCom 企业微信', icon: MessageSquare, hint: 'Bot key from a group bot URL — qyapi.weixin.qq.com' },
+  { id: 'dingtalk',    name: 'DingTalk 钉钉', icon: MessageSquare, hint: 'Custom robot access token; optional HMAC secret for signing' },
+  { id: 'feishu',      name: 'Feishu 飞书',   icon: MessageSquare, hint: 'Custom bot webhook URL from open.feishu.cn' },
+  { id: 'line',        name: 'LINE Messenger',  icon: MessageSquare, hint: 'Channel access token + recipient ID (Messaging API)' },
   // push
   { id: 'ntfy',       name: 'ntfy.sh',         icon: Smartphone,    hint: 'Push to phone via ntfy.sh (free) or self-hosted ntfy server' },
   { id: 'gotify',     name: 'Gotify',          icon: Server,        hint: 'Self-hosted push server (https://gotify.net)' },
@@ -404,6 +410,94 @@ function ConfigForm({ kind, config, setConfig }) {
             Full URL syntax for 80+ services:{' '}
             <a href="https://github.com/caronc/apprise/wiki" target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>apprise wiki ↗</a>
           </div>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'matrix') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">Homeserver</label>
+          <input className="input mono" value={config.homeserver || ''}
+            onChange={e => set('homeserver', e.target.value)} placeholder="https://matrix.org"/>
+        </div>
+        <div className="field">
+          <label className="field-label">Access token</label>
+          <input className="input mono" type="password" value={config.access_token || ''}
+            onChange={e => set('access_token', e.target.value)} placeholder="syt_..."/>
+        </div>
+        <div className="field">
+          <label className="field-label">Room ID</label>
+          <input className="input mono" value={config.room_id || ''}
+            onChange={e => set('room_id', e.target.value)} placeholder="!roomid:matrix.org"/>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'google_chat') {
+    return (
+      <div className="field">
+        <label className="field-label">Incoming webhook URL</label>
+        <input className="input mono" value={config.webhook_url || ''}
+          onChange={e => set('webhook_url', e.target.value)} placeholder="https://chat.googleapis.com/v1/spaces/.../messages?key=..."/>
+      </div>
+    );
+  }
+  if (kind === 'wecom') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">Bot key</label>
+          <input className="input mono" type="password" value={config.bot_key || ''}
+            onChange={e => set('bot_key', e.target.value)} placeholder="key from the bot URL"/>
+        </div>
+        <div className="field">
+          <label className="field-label">Mention mobiles <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated, optional</span></label>
+          <input className="input mono" value={(config.mentioned_mobile_list || []).join(',')}
+            onChange={e => set('mentioned_mobile_list', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+            placeholder="13800001111,13900002222"/>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'dingtalk') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">Access token</label>
+          <input className="input mono" type="password" value={config.access_token || ''}
+            onChange={e => set('access_token', e.target.value)} placeholder="token from bot URL"/>
+        </div>
+        <div className="field">
+          <label className="field-label">Secret <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional, only if signing is on</span></label>
+          <input className="input mono" type="password" value={config.secret || ''}
+            onChange={e => set('secret', e.target.value)}/>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'feishu') {
+    return (
+      <div className="field">
+        <label className="field-label">Webhook URL</label>
+        <input className="input mono" value={config.webhook_url || ''}
+          onChange={e => set('webhook_url', e.target.value)} placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/..."/>
+      </div>
+    );
+  }
+  if (kind === 'line') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">Channel access token</label>
+          <input className="input mono" type="password" value={config.channel_access_token || ''}
+            onChange={e => set('channel_access_token', e.target.value)} placeholder="LINE Developers Console → Messaging API → Channel access token"/>
+        </div>
+        <div className="field">
+          <label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· user / group / room id</span></label>
+          <input className="input mono" value={config.to || ''}
+            onChange={e => set('to', e.target.value)} placeholder="Uxxxxxxxxxxxxxxxxxx"/>
         </div>
       </>
     );

@@ -2715,6 +2715,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "base64 0.22.1",
+ "hmac",
  "lettre",
  "liquid",
  "once_cell",
@@ -2723,6 +2725,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sha2",
  "thiserror 1.0.69",
  "time",
  "tokio",
