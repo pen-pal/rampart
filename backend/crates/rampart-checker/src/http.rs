@@ -188,3 +188,61 @@ fn json_path_matches(body: &str, config: &serde_json::Value) -> bool {
     }
     node == expected
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn json_path_matches_top_level_value() {
+        let body = r#"{"status":"ok"}"#;
+        let cfg  = json!({"json_path": "status", "expected_value": "ok"});
+        assert!(json_path_matches(body, &cfg));
+    }
+
+    #[test]
+    fn json_path_matches_nested_value() {
+        let body = r#"{"data":{"user":{"id":42,"active":true}}}"#;
+        let cfg  = json!({"json_path": "data.user.id", "expected_value": 42});
+        assert!(json_path_matches(body, &cfg));
+
+        let cfg2 = json!({"json_path": "data.user.active", "expected_value": true});
+        assert!(json_path_matches(body, &cfg2));
+    }
+
+    #[test]
+    fn json_path_returns_false_on_wrong_value() {
+        let body = r#"{"status":"degraded"}"#;
+        let cfg  = json!({"json_path": "status", "expected_value": "ok"});
+        assert!(!json_path_matches(body, &cfg));
+    }
+
+    #[test]
+    fn json_path_returns_false_on_missing_segment() {
+        let body = r#"{"status":"ok"}"#;
+        let cfg  = json!({"json_path": "data.user.id", "expected_value": 42});
+        assert!(!json_path_matches(body, &cfg));
+    }
+
+    #[test]
+    fn json_path_returns_false_on_invalid_json() {
+        let cfg  = json!({"json_path": "x", "expected_value": "y"});
+        assert!(!json_path_matches("not json at all", &cfg));
+    }
+
+    #[test]
+    fn json_path_ignores_leading_or_repeated_dots() {
+        // "..data..user..id" should still walk data → user → id.
+        let body = r#"{"data":{"user":{"id":1}}}"#;
+        let cfg  = json!({"json_path": "..data..user..id", "expected_value": 1});
+        assert!(json_path_matches(body, &cfg));
+    }
+
+    #[test]
+    fn json_path_can_compare_null() {
+        let body = r#"{"v":null}"#;
+        let cfg  = json!({"json_path": "v", "expected_value": null});
+        assert!(json_path_matches(body, &cfg));
+    }
+}

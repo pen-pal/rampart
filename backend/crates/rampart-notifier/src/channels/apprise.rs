@@ -36,6 +36,7 @@ pub struct AppriseConfig {
     pub notify_type: Option<String>,
 }
 
+#[derive(Debug)]
 pub struct Apprise {
     cfg:    AppriseConfig,
     client: reqwest::Client,
@@ -65,6 +66,33 @@ struct AppriseRequest<'a> {
     #[serde(rename = "type")]
     notify_type: &'a str,
     format:      &'a str,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn requires_apprise_url_and_urls() {
+        assert!(Apprise::from_config(&json!({})).is_err());
+        assert!(Apprise::from_config(&json!({"apprise_url": "http://x:8000"})).is_err());
+        assert!(Apprise::from_config(&json!({"urls": "tgram://x"})).is_err());
+    }
+
+    #[test]
+    fn rejects_non_http_apprise_url() {
+        let err = Apprise::from_config(&json!({"apprise_url": "ftp://x", "urls": "y"})).unwrap_err();
+        assert!(matches!(err, ChannelError::BadConfig(_)));
+    }
+
+    #[test]
+    fn accepts_minimal_config() {
+        assert!(Apprise::from_config(&json!({
+            "apprise_url": "http://apprise:8000",
+            "urls":        "tgram://bot:tok/chat"
+        })).is_ok());
+    }
 }
 
 #[async_trait]

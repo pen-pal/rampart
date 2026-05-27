@@ -20,3 +20,6 @@ thiserror   = { workspace = true }
 anyhow      = { workspace = true }
 time        = { workspace = true }
 uuid        = { workspace = true }
+
+[dev-dependencies]
+rampart-core = { path = "../rampart-core", features = ["testing"] }

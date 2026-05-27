@@ -172,3 +172,87 @@ fn default_follow_redirect()    -> bool { true }
 fn default_accepted_statuses()  -> Vec<i32> {
     vec![200,201,202,203,204,205,206,207,208,226]
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn monitor_kind_serializes_snake_case() {
+        // Hot path: the API serializes these to JSON; the DB stores them
+        // as a Postgres enum with the same snake_case spelling. They must
+        // never drift.
+        let cases = [
+            (MonitorKind::Http,       "http"),
+            (MonitorKind::JsonQuery,  "json_query"),
+            (MonitorKind::Tcp,        "tcp"),
+            (MonitorKind::Ping,       "ping"),
+            (MonitorKind::Dns,        "dns"),
+            (MonitorKind::Push,       "push"),
+            (MonitorKind::Grpc,       "grpc"),
+            (MonitorKind::Tls,        "tls"),
+            (MonitorKind::Postgres,   "postgres"),
+            (MonitorKind::Mongodb,    "mongodb"),
+            (MonitorKind::Domain,     "domain"),
+        ];
+        for (k, expected) in cases {
+            let v = serde_json::to_string(&k).unwrap();
+            assert_eq!(v, format!("\"{expected}\""), "{k:?}");
+        }
+    }
+
+    #[test]
+    fn monitor_kind_deserializes_snake_case() {
+        let k: MonitorKind = serde_json::from_str("\"json_query\"").unwrap();
+        assert_eq!(k, MonitorKind::JsonQuery);
+    }
+
+    #[test]
+    fn monitor_status_lowercase_round_trip() {
+        for s in [MonitorStatus::Up, MonitorStatus::Down, MonitorStatus::Warn,
+                  MonitorStatus::Paused, MonitorStatus::Pending, MonitorStatus::Maintenance] {
+            let v: String = serde_json::to_string(&s).unwrap();
+            let back: MonitorStatus = serde_json::from_str(&v).unwrap();
+            assert_eq!(s, back);
+        }
+    }
+
+    #[test]
+    fn monitor_status_helpers() {
+        assert!(MonitorStatus::Up.is_up());
+        assert!(!MonitorStatus::Up.is_down());
+        assert!(MonitorStatus::Down.is_down());
+        assert!(!MonitorStatus::Down.is_up());
+        assert!(!MonitorStatus::Warn.is_up());
+        assert!(!MonitorStatus::Warn.is_down());
+    }
+
+    #[test]
+    fn new_monitor_applies_serde_defaults() {
+        let raw = serde_json::json!({"name": "x", "kind": "http"});
+        let nm: NewMonitor = serde_json::from_value(raw).unwrap();
+        assert_eq!(nm.interval_seconds, 60);
+        assert_eq!(nm.timeout_seconds,  16);
+        assert_eq!(nm.http_method,      "GET");
+        assert!(nm.follow_redirect);
+        assert!(!nm.ignore_tls);
+        assert_eq!(nm.max_retries, 0);
+        assert!(!nm.upside_down);
+    }
+
+    #[test]
+    fn new_monitor_rejects_too_low_interval() {
+        let raw = serde_json::json!({"name": "x", "kind": "http", "interval_seconds": 1});
+        let nm: NewMonitor = serde_json::from_value(raw).unwrap();
+        use validator::Validate;
+        assert!(nm.validate().is_err(), "interval_seconds < 10 should fail validation");
+    }
+
+    #[test]
+    fn new_monitor_rejects_empty_name() {
+        let raw = serde_json::json!({"name": "", "kind": "http"});
+        let nm: NewMonitor = serde_json::from_value(raw).unwrap();
+        use validator::Validate;
+        assert!(nm.validate().is_err());
+    }
+}

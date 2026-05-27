@@ -23,6 +23,7 @@ pub struct PushoverConfig {
     pub device:    Option<String>,
 }
 
+#[derive(Debug)]
 pub struct Pushover {
     cfg:    PushoverConfig,
     client: reqwest::Client,
@@ -41,6 +42,32 @@ impl Pushover {
             }
         }
         Ok(Self { cfg, client: reqwest::Client::new() })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn requires_both_tokens() {
+        assert!(Pushover::from_config(&json!({"api_token": "x"})).is_err());
+        assert!(Pushover::from_config(&json!({"user_key":  "x"})).is_err());
+    }
+
+    #[test]
+    fn rejects_priority_out_of_range() {
+        let err = Pushover::from_config(&json!({"api_token": "x", "user_key": "y", "priority": 7})).unwrap_err();
+        assert!(matches!(err, ChannelError::BadConfig(_)));
+    }
+
+    #[test]
+    fn accepts_valid_priority_range() {
+        for p in -2..=2 {
+            assert!(Pushover::from_config(&json!({"api_token": "x", "user_key": "y", "priority": p})).is_ok(),
+                "priority {p} should be valid");
+        }
     }
 }
 

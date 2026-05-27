@@ -17,6 +17,7 @@ pub struct MattermostConfig {
     pub username:    Option<String>,
 }
 
+#[derive(Debug)]
 pub struct Mattermost {
     cfg:    MattermostConfig,
     client: reqwest::Client,

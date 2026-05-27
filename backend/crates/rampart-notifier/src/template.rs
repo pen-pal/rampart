@@ -67,3 +67,90 @@ Monitor:  {{monitor.id}}
 "#;
     render(template, event)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::event::{Event, EventKind};
+    use rampart_core::testing::{sample_heartbeat_down, sample_heartbeat_up, sample_monitor};
+    use rampart_core::MonitorStatus;
+
+    fn event_down_to_up(_msg: Option<&str>) -> Event {
+        let mut m = sample_monitor();
+        m.name = "API · production".into();
+        let hb = sample_heartbeat_up(&m);
+        Event { kind: EventKind::StatusFlip, monitor: m, heartbeat: hb, prev_status: Some(MonitorStatus::Down) }
+    }
+
+    fn event_up_to_down() -> Event {
+        let m = sample_monitor();
+        let hb = sample_heartbeat_down(&m);
+        Event { kind: EventKind::StatusFlip, monitor: m, heartbeat: hb, prev_status: Some(MonitorStatus::Up) }
+    }
+
+    #[test]
+    fn render_substitutes_known_placeholders() {
+        let e = event_down_to_up(None);
+        let out = render("hi {{monitor.name}} status={{status}} was={{prev_status}}", &e);
+        assert_eq!(out, "hi API · production status=up was=down");
+    }
+
+    #[test]
+    fn render_leaves_unknown_placeholders_alone() {
+        let e = event_down_to_up(None);
+        let out = render("nope: {{not_real}}", &e);
+        assert_eq!(out, "nope: {{not_real}}");
+    }
+
+    #[test]
+    fn render_substitutes_kind_as_snake_case_string() {
+        let e = event_down_to_up(None);
+        let out = render("{{monitor.kind}}", &e);
+        assert_eq!(out, "http");
+    }
+
+    #[test]
+    fn render_handles_optional_fields_gracefully() {
+        let mut e = event_down_to_up(None);
+        // latency + status_code default to Some in the fixture; clear them.
+        e.heartbeat.latency_ms  = None;
+        e.heartbeat.status_code = None;
+        e.heartbeat.msg         = None;
+        let out = render("{{latency_ms}}|{{status_code}}|{{msg}}", &e);
+        assert_eq!(out, "||");
+    }
+
+    #[test]
+    fn render_replaces_multiple_occurrences_of_same_placeholder() {
+        let e = event_down_to_up(None);
+        let out = render("{{status}} {{status}} {{status}}", &e);
+        assert_eq!(out, "up up up");
+    }
+
+    #[test]
+    fn render_ts_is_rfc3339() {
+        let e = event_down_to_up(None);
+        let out = render("{{ts}}", &e);
+        // Loose check — full parsing of OffsetDateTime is overkill here.
+        assert!(out.contains('T'),  "ts should be RFC3339, got: {out}");
+        assert!(out.ends_with('Z') || out.contains('+') || out.contains('-'),
+                "ts should carry an offset, got: {out}");
+    }
+
+    #[test]
+    fn default_subject_includes_status_and_name() {
+        let e = event_up_to_down();
+        let s = default_subject(&e);
+        assert!(s.contains("down"));
+        assert!(s.contains(&e.monitor.name));
+    }
+
+    #[test]
+    fn default_body_includes_prev_and_msg() {
+        let e = event_up_to_down();
+        let b = default_body(&e);
+        assert!(b.contains("upstream timed out"), "body should include the down msg");
+        assert!(b.contains("(was up)"),           "body should show previous status");
+        assert!(b.contains("Code:     503"),       "body should include status code");
+    }
+}

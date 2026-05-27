@@ -85,3 +85,39 @@ pub struct NotificationTemplate {
     pub is_default:       bool,
     pub created_at:       OffsetDateTime,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn channel_kind_snake_case_serialization() {
+        // Same expectations as MonitorKind — these strings are persisted
+        // in Postgres + travel over the API. Any rename here is a
+        // breaking change requiring a migration.
+        let cases = [
+            (ChannelKind::Slack,      "slack"),
+            (ChannelKind::Discord,    "discord"),
+            (ChannelKind::Teams,      "teams"),
+            (ChannelKind::Telegram,   "telegram"),
+            (ChannelKind::Email,      "email"),
+            (ChannelKind::Webhook,    "webhook"),
+            (ChannelKind::Pagerduty,  "pagerduty"),
+            (ChannelKind::SmsTwilio,  "sms_twilio"),
+            (ChannelKind::Mattermost, "mattermost"),
+            (ChannelKind::RocketChat, "rocket_chat"),
+            (ChannelKind::GoogleChat, "google_chat"),
+            (ChannelKind::Ntfy,       "ntfy"),
+            (ChannelKind::Gotify,     "gotify"),
+            (ChannelKind::Pushover,   "pushover"),
+            (ChannelKind::Apprise,    "apprise"),
+            (ChannelKind::Custom,     "custom"),
+        ];
+        for (k, expected) in cases {
+            let v = serde_json::to_string(&k).unwrap();
+            assert_eq!(v, format!("\"{expected}\""), "{k:?}");
+            let back: ChannelKind = serde_json::from_str(&v).unwrap();
+            assert_eq!(back, k);
+        }
+    }
+}

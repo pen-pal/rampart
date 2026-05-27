@@ -18,6 +18,7 @@ pub struct TelegramConfig {
 }
 fn default_parse_mode() -> String { "HTML".into() }
 
+#[derive(Debug)]
 pub struct Telegram {
     cfg:    TelegramConfig,
     client: reqwest::Client,
@@ -67,4 +68,35 @@ impl Channel for Telegram {
 // Minimal HTML escaper for Telegram's HTML parse_mode.
 fn html_escape(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn requires_bot_token_and_chat_id() {
+        assert!(Telegram::from_config(&json!({})).is_err());
+        assert!(Telegram::from_config(&json!({"bot_token": "x"})).is_err());
+        assert!(Telegram::from_config(&json!({"chat_id": "x"})).is_err());
+    }
+
+    #[test]
+    fn accepts_minimal_valid_config() {
+        let ok = Telegram::from_config(&json!({"bot_token": "abc", "chat_id": "-100123"}));
+        assert!(ok.is_ok());
+    }
+
+    #[test]
+    fn defaults_parse_mode_to_html() {
+        let raw = json!({"bot_token": "abc", "chat_id": "1"});
+        let cfg: TelegramConfig = serde_json::from_value(raw).unwrap();
+        assert_eq!(cfg.parse_mode, "HTML");
+    }
+
+    #[test]
+    fn html_escape_handles_metacharacters() {
+        assert_eq!(html_escape("<b>&plain</b>"), "&lt;b&gt;&amp;plain&lt;/b&gt;");
+    }
 }

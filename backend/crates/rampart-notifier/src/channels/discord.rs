@@ -11,6 +11,7 @@ pub struct DiscordConfig {
     pub username:    Option<String>,
 }
 
+#[derive(Debug)]
 pub struct Discord {
     cfg:    DiscordConfig,
     client: reqwest::Client,
@@ -43,6 +44,24 @@ struct DiscordEmbed {
     title:       String,
     description: String,
     color:       u32,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn rejects_non_discord_webhook_host() {
+        let err = Discord::from_config(&json!({"webhook_url": "https://example.com/hook"})).unwrap_err();
+        assert!(matches!(err, ChannelError::BadConfig(_)));
+    }
+
+    #[test]
+    fn accepts_both_discord_and_discordapp_hosts() {
+        assert!(Discord::from_config(&json!({"webhook_url": "https://discord.com/api/webhooks/1/x"})).is_ok());
+        assert!(Discord::from_config(&json!({"webhook_url": "https://discordapp.com/api/webhooks/1/x"})).is_ok());
+    }
 }
 
 #[async_trait]

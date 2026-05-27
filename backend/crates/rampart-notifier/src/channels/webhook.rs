@@ -22,6 +22,7 @@ pub struct WebhookConfig {
 
 fn default_method() -> String { "POST".into() }
 
+#[derive(Debug)]
 pub struct Webhook {
     cfg:    WebhookConfig,
     client: reqwest::Client,
@@ -56,6 +57,38 @@ struct WebhookMonitor<'a> {
     id:   String,
     name: &'a str,
     kind: &'a rampart_core::MonitorKind,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn rejects_non_http_url() {
+        let err = Webhook::from_config(&json!({"url": "ftp://example.com"})).unwrap_err();
+        assert!(matches!(err, ChannelError::BadConfig(_)));
+    }
+
+    #[test]
+    fn accepts_http_and_https() {
+        assert!(Webhook::from_config(&json!({"url": "http://example.com/x"})).is_ok());
+        assert!(Webhook::from_config(&json!({"url": "https://example.com/x"})).is_ok());
+    }
+
+    #[test]
+    fn defaults_method_to_post() {
+        let raw = json!({"url": "https://example.com/x"});
+        let cfg: WebhookConfig = serde_json::from_value(raw).unwrap();
+        assert_eq!(cfg.method, "POST");
+    }
+
+    #[test]
+    fn keeps_custom_headers() {
+        let raw = json!({"url": "https://example.com/x", "headers": {"X-Token": "abc"}});
+        let cfg: WebhookConfig = serde_json::from_value(raw).unwrap();
+        assert_eq!(cfg.headers.get("X-Token").map(String::as_str), Some("abc"));
+    }
 }
 
 #[async_trait]

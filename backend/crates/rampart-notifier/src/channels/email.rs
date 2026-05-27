@@ -37,6 +37,7 @@ pub struct EmailConfig {
 fn default_port() -> u16 { 587 }
 fn default_encryption() -> String { "starttls".into() }
 
+#[derive(Debug)]
 pub struct Email {
     cfg: EmailConfig,
 }
@@ -113,4 +114,41 @@ impl Channel for Email {
 
 fn html_escape(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn requires_smtp_host_from_and_to() {
+        assert!(Email::from_config(&json!({})).is_err());
+        assert!(Email::from_config(&json!({"smtp_host": "smtp.example.com"})).is_err());
+        assert!(Email::from_config(&json!({"smtp_host": "smtp.example.com", "from": "a@b.c"})).is_err());
+    }
+
+    #[test]
+    fn rejects_unknown_encryption() {
+        let cfg = Email::from_config(&json!({
+            "smtp_host": "smtp.example.com",
+            "from":      "alerts@example.com",
+            "to":        "ops@example.com",
+            "encryption": "rot13",
+        })).unwrap();
+        let err = cfg.build_transport().unwrap_err();
+        assert!(matches!(err, ChannelError::BadConfig(_)));
+    }
+
+    #[test]
+    fn defaults_to_starttls_on_587() {
+        let raw = json!({
+            "smtp_host": "smtp.example.com",
+            "from":      "alerts@example.com",
+            "to":        "ops@example.com"
+        });
+        let cfg: EmailConfig = serde_json::from_value(raw).unwrap();
+        assert_eq!(cfg.smtp_port,  587);
+        assert_eq!(cfg.encryption, "starttls");
+    }
 }

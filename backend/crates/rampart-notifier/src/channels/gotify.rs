@@ -18,6 +18,7 @@ pub struct GotifyConfig {
 }
 fn default_priority() -> i32 { 5 }
 
+#[derive(Debug)]
 pub struct Gotify {
     cfg:    GotifyConfig,
     client: reqwest::Client,
@@ -39,6 +40,25 @@ struct GotifyPayload<'a> {
     title:    &'a str,
     message:  &'a str,
     priority: i32,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn requires_server_and_token() {
+        assert!(Gotify::from_config(&json!({"server": "https://gotify.example.com"})).is_err());
+        assert!(Gotify::from_config(&json!({"token":  "x"})).is_err());
+    }
+
+    #[test]
+    fn defaults_priority_to_5() {
+        let raw = json!({"server": "https://gotify.example.com", "token": "x"});
+        let cfg: GotifyConfig = serde_json::from_value(raw).unwrap();
+        assert_eq!(cfg.priority, 5);
+    }
 }
 
 #[async_trait]

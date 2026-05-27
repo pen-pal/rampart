@@ -20,6 +20,7 @@ pub struct RocketChatConfig {
     pub emoji:       Option<String>,
 }
 
+#[derive(Debug)]
 pub struct RocketChat {
     cfg:    RocketChatConfig,
     client: reqwest::Client,

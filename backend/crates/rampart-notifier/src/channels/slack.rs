@@ -14,6 +14,7 @@ pub struct SlackConfig {
     pub channel: Option<String>,
 }
 
+#[derive(Debug)]
 pub struct Slack {
     cfg:    SlackConfig,
     client: reqwest::Client,
@@ -45,6 +46,30 @@ struct SlackAttachment {
     color: &'static str,
     title: String,
     text:  String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn rejects_non_slack_webhook_host() {
+        let err = Slack::from_config(&json!({"webhook_url": "https://example.com/hooks/x"})).unwrap_err();
+        assert!(matches!(err, ChannelError::BadConfig(_)));
+    }
+
+    #[test]
+    fn accepts_valid_slack_webhook() {
+        let ok = Slack::from_config(&json!({"webhook_url": "https://hooks.slack.com/services/T/B/x"}));
+        assert!(ok.is_ok());
+    }
+
+    #[test]
+    fn rejects_missing_webhook_url() {
+        let err = Slack::from_config(&json!({})).unwrap_err();
+        assert!(matches!(err, ChannelError::BadConfig(_)));
+    }
 }
 
 #[async_trait]

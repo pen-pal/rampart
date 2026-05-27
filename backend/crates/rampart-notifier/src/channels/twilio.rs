@@ -19,6 +19,7 @@ pub struct TwilioConfig {
     pub to:          String,
 }
 
+#[derive(Debug)]
 pub struct Twilio {
     cfg:    TwilioConfig,
     client: reqwest::Client,
@@ -38,6 +39,47 @@ impl Twilio {
             return Err(ChannelError::BadConfig("at least one to number is required".into()));
         }
         Ok(Self { cfg, client: reqwest::Client::new() })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn base() -> serde_json::Value {
+        json!({
+            "account_sid": "AC1", "auth_token": "tok",
+            "from": "+15551112222", "to": "+15553334444"
+        })
+    }
+
+    #[test]
+    fn requires_all_credentials() {
+        for k in ["account_sid", "auth_token"] {
+            let mut v = base();
+            v.as_object_mut().unwrap().remove(k);
+            assert!(Twilio::from_config(&v).is_err(), "missing {k} should fail");
+        }
+    }
+
+    #[test]
+    fn rejects_from_without_e164() {
+        let mut v = base();
+        v["from"] = json!("5551112222");
+        assert!(Twilio::from_config(&v).is_err());
+    }
+
+    #[test]
+    fn rejects_empty_to() {
+        let mut v = base();
+        v["to"] = json!("");
+        assert!(Twilio::from_config(&v).is_err());
+    }
+
+    #[test]
+    fn accepts_valid_config() {
+        assert!(Twilio::from_config(&base()).is_ok());
     }
 }
 

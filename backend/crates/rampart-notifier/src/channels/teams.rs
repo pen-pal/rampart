@@ -14,6 +14,7 @@ pub struct TeamsConfig {
     pub webhook_url: String,
 }
 
+#[derive(Debug)]
 pub struct Teams {
     cfg:    TeamsConfig,
     client: reqwest::Client,

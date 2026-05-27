@@ -27,6 +27,7 @@ pub struct NtfyConfig {
 fn default_server() -> String { "https://ntfy.sh".into() }
 fn default_priority() -> u8 { 3 }
 
+#[derive(Debug)]
 pub struct Ntfy {
     cfg:    NtfyConfig,
     client: reqwest::Client,
@@ -78,4 +79,28 @@ impl Channel for Ntfy {
 // ntfy headers reject CR/LF; strip them defensively.
 fn header_safe(s: &str) -> String {
     s.chars().filter(|c| *c != '\r' && *c != '\n').collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn requires_topic() {
+        assert!(Ntfy::from_config(&json!({})).is_err());
+    }
+
+    #[test]
+    fn defaults_server_to_ntfy_sh_and_priority_3() {
+        let raw = json!({"topic": "my-topic"});
+        let cfg: NtfyConfig = serde_json::from_value(raw).unwrap();
+        assert_eq!(cfg.server,   "https://ntfy.sh");
+        assert_eq!(cfg.priority, 3);
+    }
+
+    #[test]
+    fn header_safe_strips_cr_lf() {
+        assert_eq!(header_safe("line1\nline2\rend"), "line1line2end");
+    }
 }

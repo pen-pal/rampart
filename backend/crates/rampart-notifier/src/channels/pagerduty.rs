@@ -23,6 +23,7 @@ pub struct PagerDutyConfig {
     pub component:   Option<String>,
 }
 
+#[derive(Debug)]
 pub struct PagerDuty {
     cfg:    PagerDutyConfig,
     client: reqwest::Client,
@@ -55,6 +56,33 @@ struct PdInnerPayload<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     component:      Option<&'a str>,
     custom_details: serde_json::Value,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn requires_routing_key() {
+        assert!(PagerDuty::from_config(&json!({})).is_err());
+    }
+
+    #[test]
+    fn accepts_minimal_config() {
+        let ok = PagerDuty::from_config(&json!({"routing_key": "abc123"}));
+        assert!(ok.is_ok());
+    }
+
+    #[test]
+    fn accepts_optional_severity_and_component() {
+        let ok = PagerDuty::from_config(&json!({
+            "routing_key": "abc",
+            "severity":    "warning",
+            "component":   "payments-api"
+        }));
+        assert!(ok.is_ok());
+    }
 }
 
 #[async_trait]

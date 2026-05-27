@@ -15,6 +15,9 @@ pub mod incident;
 pub mod monitor;
 pub mod notification;
 
+#[cfg(any(test, feature = "testing"))]
+pub mod testing;
+
 pub use error::{CoreError, Result};
 pub use heartbeat::Heartbeat;
 pub use ids::{
