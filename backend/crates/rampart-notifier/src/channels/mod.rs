@@ -8,6 +8,7 @@ pub mod alerta;
 pub mod alertnow;
 pub mod aliyun_sms;
 pub mod apprise;
+pub mod bale;
 pub mod bark;
 pub mod bitrix24;
 pub mod brevo;
@@ -30,6 +31,7 @@ pub mod matrix;
 pub mod mattermost;
 pub mod notifery;
 pub mod ntfy;
+pub mod octopush;
 pub mod opsgenie;
 pub mod pagerduty;
 pub mod pagertree;
@@ -38,6 +40,7 @@ pub mod pushbullet;
 pub mod pushdeer;
 pub mod pushover;
 pub mod pushplus;
+pub mod pushy;
 pub mod resend;
 pub mod rocketchat;
 pub mod sendgrid;
@@ -46,15 +49,20 @@ pub mod signal;
 pub mod signl4;
 pub mod slack;
 pub mod sms46elks;
+pub mod sms_eagle;
+pub mod sms_manager;
 pub mod splunk;
 pub mod squadcast;
 pub mod stackfield;
 pub mod teams;
 pub mod telegram;
 pub mod telnyx;
+pub mod threema;
 pub mod twilio;
 pub mod webhook;
 pub mod wecom;
+pub mod whatsapp_waha;
+pub mod zoho_cliq;
 pub mod zulip;
 
 use crate::{Channel, ChannelError, Event};
@@ -123,6 +131,14 @@ pub async fn dispatch(
         ChannelKind::Callmebot     => Box::new(callmebot::Callmebot::from_config(config)?),
         ChannelKind::Telnyx        => Box::new(telnyx::Telnyx::from_config(config)?),
         ChannelKind::Notifery      => Box::new(notifery::Notifery::from_config(config)?),
+        ChannelKind::WhatsappWaha => Box::new(whatsapp_waha::WhatsappWaha::from_config(config)?),
+        ChannelKind::Threema      => Box::new(threema::Threema::from_config(config)?),
+        ChannelKind::Bale         => Box::new(bale::Bale::from_config(config)?),
+        ChannelKind::Pushy        => Box::new(pushy::Pushy::from_config(config)?),
+        ChannelKind::ZohoCliq     => Box::new(zoho_cliq::ZohoCliq::from_config(config)?),
+        ChannelKind::SmsManager   => Box::new(sms_manager::SmsManager::from_config(config)?),
+        ChannelKind::SmsEagle     => Box::new(sms_eagle::SmsEagle::from_config(config)?),
+        ChannelKind::Octopush     => Box::new(octopush::Octopush::from_config(config)?),
         _ => {
             return Err(ChannelError::BadConfig(format!(
                 "channel kind {kind:?} not implemented yet"

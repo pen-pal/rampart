@@ -76,6 +76,14 @@ pub enum ChannelKind {
     Callmebot,
     Telnyx,
     Notifery,
+    WhatsappWaha,
+    Threema,
+    Bale,
+    Pushy,
+    ZohoCliq,
+    SmsManager,
+    SmsEagle,
+    Octopush,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

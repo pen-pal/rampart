@@ -154,6 +154,14 @@ const SUPPORTED = [
   { id: 'callmebot',     name: 'CallMeBot',      icon: Phone,         hint: 'Free WhatsApp / Signal / Telegram push via callmebot.com' },
   { id: 'telnyx',        name: 'Telnyx SMS',     icon: Phone,         hint: 'Telnyx v2/messages — API key + from number' },
   { id: 'notifery',      name: 'Notifery',       icon: Smartphone,    hint: 'Notifery event API — token + group' },
+  { id: 'whatsapp_waha', name: 'WhatsApp (WAHA)',icon: MessageSquare, hint: 'WhatsApp via the self-hosted WAHA gateway' },
+  { id: 'threema',       name: 'Threema',        icon: MessageSquare, hint: 'Threema Gateway — simple text mode' },
+  { id: 'bale',          name: 'Bale',           icon: MessageSquare, hint: 'Bale Messenger bot — token + chat_id' },
+  { id: 'pushy',         name: 'Pushy',          icon: Smartphone,    hint: 'Pushy.me push notifications — api_key + device tokens' },
+  { id: 'zoho_cliq',     name: 'Zoho Cliq',      icon: MessageSquare, hint: 'Zoho Cliq incoming webhook' },
+  { id: 'sms_manager',   name: 'SmsManager.cz',  icon: Phone,         hint: 'SmsManager.cz (CZ-focused SMS) — apikey + numbers' },
+  { id: 'sms_eagle',     name: 'SMSEagle',       icon: Phone,         hint: 'Self-hosted GSM gateway — base URL + access token' },
+  { id: 'octopush',      name: 'Octopush',       icon: Phone,         hint: 'Octopush SMS — api-login + api-key' },
   // push
   { id: 'ntfy',       name: 'ntfy.sh',         icon: Smartphone,    hint: 'Push to phone via ntfy.sh (free) or self-hosted ntfy server' },
   { id: 'gotify',     name: 'Gotify',          icon: Server,        hint: 'Self-hosted push server (https://gotify.net)' },
@@ -1065,6 +1073,168 @@ function ConfigForm({ kind, config, setConfig }) {
           <label className="field-label">Group</label>
           <input className="input" value={config.group || ''}
             onChange={e => set('group', e.target.value)} placeholder="rampart"/>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'whatsapp_waha') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">Base URL</label>
+          <input className="input mono" value={config.base_url || ''}
+            onChange={e => set('base_url', e.target.value)} placeholder="http://waha.local:3000"/>
+        </div>
+        <div className="field">
+          <label className="field-label">Session</label>
+          <input className="input mono" value={config.session || ''}
+            onChange={e => set('session', e.target.value)} placeholder="default"/>
+        </div>
+        <div className="field">
+          <label className="field-label">Chat ID</label>
+          <input className="input mono" value={config.chat_id || ''}
+            onChange={e => set('chat_id', e.target.value)} placeholder="15551234567@c.us"/>
+        </div>
+        <div className="field">
+          <label className="field-label">API key <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+          <input className="input mono" type="password" value={config.api_key || ''}
+            onChange={e => set('api_key', e.target.value)}/>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'threema') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">Gateway ID</label>
+          <input className="input mono" value={config.gateway_id || ''}
+            onChange={e => set('gateway_id', e.target.value)} placeholder="*MYGW01"/>
+        </div>
+        <div className="field">
+          <label className="field-label">Secret</label>
+          <input className="input mono" type="password" value={config.secret || ''}
+            onChange={e => set('secret', e.target.value)}/>
+        </div>
+        <div className="field">
+          <label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· Threema ID, email, or phone</span></label>
+          <input className="input mono" value={config.to || ''}
+            onChange={e => set('to', e.target.value)}/>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'bale') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">Bot token</label>
+          <input className="input mono" type="password" value={config.bot_token || ''}
+            onChange={e => set('bot_token', e.target.value)}/>
+        </div>
+        <div className="field">
+          <label className="field-label">Chat ID</label>
+          <input className="input mono" value={config.chat_id || ''}
+            onChange={e => set('chat_id', e.target.value)}/>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'pushy') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">API key</label>
+          <input className="input mono" type="password" value={config.api_key || ''}
+            onChange={e => set('api_key', e.target.value)}/>
+        </div>
+        <div className="field">
+          <label className="field-label">Device tokens <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+          <input className="input mono" value={(config.to || []).join(',')}
+            onChange={e => set('to', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}/>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'zoho_cliq') {
+    return (
+      <div className="field">
+        <label className="field-label">Webhook URL</label>
+        <input className="input mono" value={config.webhook_url || ''}
+          onChange={e => set('webhook_url', e.target.value)} placeholder="https://cliq.zoho.com/api/v2/channelsbyname/...incoming?zapikey=..."/>
+      </div>
+    );
+  }
+  if (kind === 'sms_manager') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">API key</label>
+          <input className="input mono" type="password" value={config.api_key || ''}
+            onChange={e => set('api_key', e.target.value)}/>
+        </div>
+        <div className="field">
+          <label className="field-label">Numbers <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+          <input className="input mono" value={config.numbers || ''}
+            onChange={e => set('numbers', e.target.value)}/>
+        </div>
+        <div className="field">
+          <label className="field-label">Quality</label>
+          <select className="select" value={config.quality || 'economy'} onChange={e => set('quality', e.target.value)}>
+            <option>lowcost</option><option>economy</option><option>high</option>
+          </select>
+        </div>
+        <div className="field">
+          <label className="field-label">Sender ID <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+          <input className="input mono" value={config.sender_id || ''}
+            onChange={e => set('sender_id', e.target.value)}/>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'sms_eagle') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">Base URL</label>
+          <input className="input mono" value={config.base_url || ''}
+            onChange={e => set('base_url', e.target.value)} placeholder="http://smseagle.local"/>
+        </div>
+        <div className="field">
+          <label className="field-label">Access token</label>
+          <input className="input mono" type="password" value={config.access_token || ''}
+            onChange={e => set('access_token', e.target.value)}/>
+        </div>
+        <div className="field">
+          <label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated E.164</span></label>
+          <input className="input mono" value={config.to || ''}
+            onChange={e => set('to', e.target.value)}/>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'octopush') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">API login</label>
+          <input className="input" value={config.api_login || ''}
+            onChange={e => set('api_login', e.target.value)}/>
+        </div>
+        <div className="field">
+          <label className="field-label">API key</label>
+          <input className="input mono" type="password" value={config.api_key || ''}
+            onChange={e => set('api_key', e.target.value)}/>
+        </div>
+        <div className="field">
+          <label className="field-label">Sender</label>
+          <input className="input mono" value={config.sender || ''}
+            onChange={e => set('sender', e.target.value)} placeholder="Rampart"/>
+        </div>
+        <div className="field">
+          <label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+          <input className="input mono" value={config.to || ''}
+            onChange={e => set('to', e.target.value)}/>
         </div>
       </>
     );
