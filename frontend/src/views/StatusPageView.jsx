@@ -158,6 +158,17 @@ export default function StatusPageView({ slug }) {
           {statusIcon(status)} {summary[0]}
         </div>
 
+        {(data.incidents || []).length > 0 && (
+          <>
+            <h2 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-2)', textTransform: 'uppercase', letterSpacing: '.04em', margin: '0 0 12px' }}>
+              Active incidents
+            </h2>
+            <div style={{ marginBottom: 28 }}>
+              {data.incidents.map((inc, i) => <Incident key={i} incident={inc}/>)}
+            </div>
+          </>
+        )}
+
         <h2 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-2)', textTransform: 'uppercase', letterSpacing: '.04em', margin: '0 0 12px' }}>
           Components
         </h2>
@@ -186,6 +197,43 @@ export default function StatusPageView({ slug }) {
           Last updated {new Date(data.generated_at).toLocaleString()}
         </p>
       </div>
+    </div>
+  );
+}
+
+const STYLE_TO_BG = {
+  info:    ['#dbeafe', '#1e40af'],
+  warning: ['#fef3c7', '#92400e'],
+  danger:  ['#fee2e2', '#b91c1c'],
+  primary: ['#e0e7ff', '#4338ca'],
+  success: ['#d1fae5', '#047857'],
+};
+
+function Incident({ incident }) {
+  const [bg, fg] = STYLE_TO_BG[incident.style] || STYLE_TO_BG.warning;
+  return (
+    <div style={{
+      padding: '14px 18px', marginBottom: 10,
+      borderRadius: 10, background: bg, color: fg,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
+        <strong style={{ fontSize: 14 }}>{incident.title}</strong>
+        <span style={{ fontSize: 11, opacity: .75 }}>
+          {new Date(incident.created_at).toLocaleString()}
+        </span>
+      </div>
+      <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{incident.content}</div>
+      {(incident.updates || []).map((u, i) => (
+        <div key={i} style={{
+          marginTop: 8, paddingLeft: 10, borderLeft: `2px solid ${fg}`,
+          fontSize: 12.5, opacity: .9,
+        }}>
+          <div style={{ fontSize: 11, opacity: .8 }}>
+            {new Date(u.posted_at).toLocaleString()}
+          </div>
+          <div style={{ whiteSpace: 'pre-wrap' }}>{u.message}</div>
+        </div>
+      ))}
     </div>
   );
 }

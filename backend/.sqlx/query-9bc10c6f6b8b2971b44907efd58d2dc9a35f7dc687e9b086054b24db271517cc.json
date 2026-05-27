@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE incidents SET\n            title   = COALESCE($2, title),\n            content = COALESCE($3, content),\n            style   = COALESCE($4, style),\n            pinned  = COALESCE($5, pinned)\n        WHERE id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        {
+          "Custom": {
+            "name": "incident_style",
+            "kind": {
+              "Enum": [
+                "info",
+                "warning",
+                "danger",
+                "primary",
+                "success"
+              ]
+            }
+          }
+        },
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9bc10c6f6b8b2971b44907efd58d2dc9a35f7dc687e9b086054b24db271517cc"
+}

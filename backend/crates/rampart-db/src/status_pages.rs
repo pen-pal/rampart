@@ -6,7 +6,8 @@
 
 use crate::{heartbeats, DbError, DbPool, DbResult};
 use rampart_core::status_page::{
-    NewStatusPage, PublicStatusMonitor, PublicStatusPage, StatusPage, UpdateStatusPage,
+    NewStatusPage, PublicIncident, PublicIncidentUpdate, PublicStatusMonitor, PublicStatusPage,
+    StatusPage, UpdateStatusPage,
 };
 use rampart_core::{MonitorId, StatusPageId};
 use time::OffsetDateTime;
@@ -258,6 +259,29 @@ pub async fn public_view(pool: &DbPool, slug: &str) -> DbResult<PublicStatusPage
         });
     }
 
+    // Pull active incidents + their running updates. Two queries per
+    // page (incidents, then updates) — fine for status pages which
+    // typically have at most a handful active at once.
+    let active = crate::incidents::list_active(pool, page.id).await?;
+    let mut incidents = Vec::with_capacity(active.len());
+    for inc in active {
+        let updates = crate::incidents::list_updates(pool, inc.id).await?;
+        incidents.push(PublicIncident {
+            title:      inc.title,
+            content:    inc.content,
+            style:      inc.style,
+            pinned:     inc.pinned,
+            created_at: inc.created_at,
+            updates:    updates
+                .into_iter()
+                .map(|u| PublicIncidentUpdate {
+                    message:   u.message,
+                    posted_at: u.posted_at,
+                })
+                .collect(),
+        });
+    }
+
     Ok(PublicStatusPage {
         slug:         page.slug,
         title:        page.title,
@@ -265,6 +289,7 @@ pub async fn public_view(pool: &DbPool, slug: &str) -> DbResult<PublicStatusPage
         theme:        page.theme,
         generated_at: OffsetDateTime::now_utc(),
         monitors,
+        incidents,
     })
 }
 

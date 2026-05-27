@@ -1,0 +1,89 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, status_page_id, title, content,\n               style AS \"style: IncidentStyle\",\n               pinned, active, resolved_at, created_at, created_by\n        FROM incidents WHERE id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "status_page_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "content",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "style: IncidentStyle",
+        "type_info": {
+          "Custom": {
+            "name": "incident_style",
+            "kind": {
+              "Enum": [
+                "info",
+                "warning",
+                "danger",
+                "primary",
+                "success"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "pinned",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "active",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "resolved_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_by",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "f0feca2e6ed8405150f36cae8b557e9bdbe4039e36860f5a531da6a3339867ae"
+}

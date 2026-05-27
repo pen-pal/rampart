@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   ChevronLeft, Plus, Trash2, ExternalLink, Save, AlertCircle, Loader2, X, Globe,
 } from 'lucide-react';
-import { api, useApi } from '../lib/api.js';
+import { api, useApi, offsetDateTimeArrayToDate } from '../lib/api.js';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -293,7 +293,145 @@ function Editor({ page, monitors, onCancel, onSaved }) {
             {saving ? <><Loader2 size={13}/> Saving…</> : <><Save size={13}/> Save</>}
           </button>
         </div>
+
+        {!isNew && (
+          <>
+            <div style={{ height: 22 }}/>
+            <IncidentsPanel pageId={page.id}/>
+          </>
+        )}
       </div>
+    </div>
+  );
+}
+
+function IncidentsPanel({ pageId }) {
+  const list = useApi(() => api.incidents.listForPage(pageId), [pageId], { pollMs: 20_000 });
+  const [showNew, setShowNew] = useState(false);
+  const [busy,    setBusy]    = useState(null);
+  const [err,     setErr]     = useState(null);
+
+  const reload = () => window.location.reload();
+  const remove = async (id) => {
+    if (!confirm('Delete this incident? Updates posted to it will be removed too.')) return;
+    setBusy(id);
+    try { await api.incidents.remove(id); reload(); }
+    catch (e) { setErr(e.message); }
+    finally { setBusy(null); }
+  };
+  const resolve = async (id) => {
+    setBusy(id);
+    try { await api.incidents.resolve(id); reload(); }
+    catch (e) { setErr(e.message); }
+    finally { setBusy(null); }
+  };
+
+  const incidents = list.data || [];
+
+  return (
+    <div className="card" style={{ padding: 22 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>Incidents</h3>
+        <button className="btn btn-accent" onClick={() => setShowNew(true)} style={{ padding: '5px 10px', fontSize: 12 }}>
+          <Plus size={12}/> Post
+        </button>
+      </div>
+      {err && <div style={{ background: 'var(--down-soft)', color: '#b91c1c', padding: '8px 12px', borderRadius: 6, fontSize: 12, marginBottom: 10 }}>{err}</div>}
+
+      {showNew && <NewIncidentForm pageId={pageId} onCancel={() => setShowNew(false)} onCreated={reload}/>}
+
+      {incidents.length === 0 ? (
+        <div style={{ padding: 16, fontSize: 12.5, color: 'var(--text-3)', textAlign: 'center' }}>
+          No incidents yet — the page banner stays clean.
+        </div>
+      ) : incidents.map(i => (
+        <IncidentRow key={i.id} incident={i} busy={busy === i.id} onResolve={() => resolve(i.id)} onDelete={() => remove(i.id)} onPostUpdate={reload}/>
+      ))}
+    </div>
+  );
+}
+
+function NewIncidentForm({ pageId, onCancel, onCreated }) {
+  const [title,   setTitle]   = useState('');
+  const [content, setContent] = useState('');
+  const [style,   setStyle]   = useState('warning');
+  const [pinned,  setPinned]  = useState(true);
+  const [busy,    setBusy]    = useState(false);
+  const [err,     setErr]     = useState(null);
+
+  const submit = async () => {
+    setErr(null);
+    if (!title.trim() || !content.trim()) { setErr('Title and content are required.'); return; }
+    setBusy(true);
+    try {
+      await api.incidents.create(pageId, { title: title.trim(), content: content.trim(), style, pinned });
+      onCreated();
+    } catch (e) { setErr(e.message || 'Failed to post incident.'); setBusy(false); }
+  };
+
+  return (
+    <div style={{ padding: 12, marginBottom: 12, border: '1px solid var(--border)', borderRadius: 8 }}>
+      {err && <div style={{ background: 'var(--down-soft)', color: '#b91c1c', padding: '6px 10px', borderRadius: 6, fontSize: 12, marginBottom: 8 }}>{err}</div>}
+      <input className="input" placeholder="Title" value={title} onChange={e => setTitle(e.target.value)} style={{ marginBottom: 8 }}/>
+      <textarea className="textarea" rows={2} placeholder="What's going on?" value={content} onChange={e => setContent(e.target.value)} style={{ marginBottom: 8 }}/>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 10 }}>
+        <select className="input" value={style} onChange={e => setStyle(e.target.value)} style={{ width: 140 }}>
+          <option value="info">info</option>
+          <option value="warning">warning</option>
+          <option value="danger">danger</option>
+          <option value="primary">primary</option>
+          <option value="success">success</option>
+        </select>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+          <input type="checkbox" checked={pinned} onChange={e => setPinned(e.target.checked)}/> Pin to top
+        </label>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+        <button className="btn btn-ghost" onClick={onCancel} disabled={busy}>Cancel</button>
+        <button className="btn btn-accent" onClick={submit} disabled={busy}>{busy ? 'Posting…' : 'Post incident'}</button>
+      </div>
+    </div>
+  );
+}
+
+function IncidentRow({ incident, busy, onResolve, onDelete, onPostUpdate }) {
+  const updates = useApi(() => api.incidents.listUpdates(incident.id), [incident.id]);
+  const [msg,  setMsg]  = useState('');
+  const [posting, setPosting] = useState(false);
+  const post = async () => {
+    if (!msg.trim()) return;
+    setPosting(true);
+    try { await api.incidents.postUpdate(incident.id, msg.trim()); setMsg(''); onPostUpdate(); }
+    finally { setPosting(false); }
+  };
+
+  return (
+    <div style={{ padding: 12, marginBottom: 10, border: '1px solid var(--border)', borderRadius: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        <span style={{ fontSize: 13.5, fontWeight: 600 }}>{incident.title}</span>
+        <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)' }}>{incident.style}</span>
+        {!incident.active && <span style={{ fontSize: 10.5, color: 'var(--accent-2)', background: 'var(--accent-soft)', padding: '1px 6px', borderRadius: 999 }}>resolved</span>}
+        {incident.pinned && incident.active && <span style={{ fontSize: 10.5, color: 'var(--text-3)' }}>pinned</span>}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+          {incident.active && <button className="btn btn-ghost" onClick={onResolve} disabled={busy} style={{ padding: '3px 8px', fontSize: 11 }}>Resolve</button>}
+          <button className="btn btn-ghost btn-danger" onClick={onDelete} disabled={busy} style={{ padding: '3px 8px', fontSize: 11 }}><Trash2 size={11}/></button>
+        </div>
+      </div>
+      <div style={{ fontSize: 12.5, color: 'var(--text-2)', marginBottom: 8, whiteSpace: 'pre-wrap' }}>{incident.content}</div>
+
+      {(updates.data || []).map(u => (
+        <div key={u.id} style={{ fontSize: 12, color: 'var(--text-2)', paddingLeft: 12, borderLeft: '2px solid var(--border)', marginBottom: 6 }}>
+          <span style={{ color: 'var(--text-3)', fontSize: 11 }}>{new Date(Array.isArray(u.posted_at) ? offsetDateTimeArrayToDate(u.posted_at) : u.posted_at).toLocaleString()}</span>
+          <div style={{ whiteSpace: 'pre-wrap' }}>{u.message}</div>
+        </div>
+      ))}
+
+      {incident.active && (
+        <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+          <input className="input" placeholder="Post a running update…" value={msg} onChange={e => setMsg(e.target.value)} style={{ fontSize: 12 }}/>
+          <button className="btn btn-accent" onClick={post} disabled={posting || !msg.trim()} style={{ padding: '5px 10px', fontSize: 12 }}>Post</button>
+        </div>
+      )}
     </div>
   );
 }

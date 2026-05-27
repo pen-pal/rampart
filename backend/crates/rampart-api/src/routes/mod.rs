@@ -12,6 +12,7 @@
 pub mod api_keys;
 pub mod auth;
 pub mod health;
+pub mod incidents;
 pub mod maintenance;
 pub mod monitors;
 pub mod notifications;
@@ -56,6 +57,10 @@ pub fn v1_protected() -> Router<AppState> {
         .nest("/maintenance-windows", maintenance::router())
         // /v1/status-pages admin CRUD (public read sits in v1_public)
         .nest("/status-pages", status_pages::admin_router())
+        // /v1/status-pages/:id/incidents list+create
+        .nest("/status-pages", incidents::page_router())
+        // /v1/incidents/:id update/delete/resolve/updates
+        .nest("/incidents", incidents::incident_router())
         // /v1/api-keys — list/create/revoke
         .nest("/api-keys", api_keys::router())
         // /v1/proxies — list/create/delete/active

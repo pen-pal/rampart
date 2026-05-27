@@ -9,6 +9,7 @@
 //!   render the page without leaking probe configuration.
 
 use crate::ids::{MonitorId, StatusPageId};
+use crate::incident::IncidentStyle;
 use crate::monitor::MonitorStatus;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
@@ -78,6 +79,25 @@ pub struct PublicStatusPage {
     pub theme:       String,
     pub generated_at: OffsetDateTime,
     pub monitors:    Vec<PublicStatusMonitor>,
+    /// Active incidents (active = TRUE), most-recent first, each
+    /// carrying its running updates oldest-first.
+    pub incidents:   Vec<PublicIncident>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PublicIncident {
+    pub title:      String,
+    pub content:    String,
+    pub style:      IncidentStyle,
+    pub pinned:     bool,
+    pub created_at: OffsetDateTime,
+    pub updates:    Vec<PublicIncidentUpdate>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PublicIncidentUpdate {
+    pub message:   String,
+    pub posted_at: OffsetDateTime,
 }
 
 #[derive(Debug, Clone, Serialize)]

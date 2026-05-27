@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, incident_id, message, posted_at, posted_by\n        FROM incident_updates\n        WHERE incident_id = $1\n        ORDER BY posted_at ASC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "incident_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "message",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "posted_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "posted_by",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "67432ef656774e7e962bf867aea291f4e715971203e9be1e214252ab806a3a59"
+}

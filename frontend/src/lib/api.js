@@ -123,6 +123,15 @@ export const api = {
     create: (name, scopes, exp) => request('/v1/api-keys', { method: 'POST', body: { name, scopes: scopes || [], expires_at: exp || null } }),
     revoke: (id)                => request(`/v1/api-keys/${id}`, { method: 'DELETE' }),
   },
+  incidents: {
+    listForPage:  (pageId)              => request(`/v1/status-pages/${pageId}/incidents`),
+    create:       (pageId, input)       => request(`/v1/status-pages/${pageId}/incidents`, { method: 'POST', body: input }),
+    update:       (id, patch)           => request(`/v1/incidents/${id}`, { method: 'PATCH', body: patch }),
+    remove:       (id)                  => request(`/v1/incidents/${id}`, { method: 'DELETE' }),
+    resolve:      (id)                  => request(`/v1/incidents/${id}/resolve`, { method: 'POST' }),
+    listUpdates:  (id)                  => request(`/v1/incidents/${id}/updates`),
+    postUpdate:   (id, message)         => request(`/v1/incidents/${id}/updates`, { method: 'POST', body: { message } }),
+  },
   tags: {
     list:   ()                  => request('/v1/tags'),
     create: (name, color)       => request('/v1/tags', { method: 'POST', body: { name, color } }),
