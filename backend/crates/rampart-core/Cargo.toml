@@ -19,3 +19,5 @@ time       = { workspace = true }
 sqlx       = { workspace = true }
 validator  = { workspace = true }
 url        = { workspace = true }
+once_cell  = { workspace = true }
+regex      = { workspace = true }

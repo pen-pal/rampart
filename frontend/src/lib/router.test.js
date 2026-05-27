@@ -28,6 +28,8 @@ describe('parseRoute', () => {
     expect(parseRoute('#/status-page'))   .toEqual({ view: 'status-page',   id: null });
     expect(parseRoute('#/notifications')) .toEqual({ view: 'notifications', id: null });
     expect(parseRoute('#/maintenance'))   .toEqual({ view: 'maintenance',   id: null });
+    expect(parseRoute('#/s/acme'))        .toEqual({ view: 'public-status', id: 'acme' });
+    expect(parseRoute('#/s/acme-corp'))   .toEqual({ view: 'public-status', id: 'acme-corp' });
   });
 
   it('treats unknown hashes as dashboard (graceful fallback)', () => {

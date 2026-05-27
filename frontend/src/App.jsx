@@ -6,6 +6,7 @@ import NewMonitorWizard  from './views/NewMonitorWizard.jsx';
 import Login             from './views/Login.jsx';
 import Notifications     from './views/Notifications.jsx';
 import Maintenance       from './views/Maintenance.jsx';
+import StatusPageView    from './views/StatusPageView.jsx';
 import { api } from './lib/api.js';
 import { parseRoute } from './lib/router.js';
 
@@ -13,9 +14,10 @@ const VIEW_LABEL = {
   'dashboard':     'Dashboard',
   'monitor':       'Monitor',
   'new-monitor':   'New monitor',
-  'status-page':   'Status page',
+  'status-page':   'Status pages',
   'notifications': 'Notifications',
   'maintenance':   'Maintenance',
+  'public-status': 'Public view',
   'login':         'Login',
 };
 
@@ -52,7 +54,13 @@ export default function App() {
 
   // Gate: if not logged in (and not needing setup) and the user isn't already on
   // the login route, redirect there. We let /#/login render freely either way.
-  if (!authState.loading && !authState.user && route.view !== 'login') {
+  // Public status pages bypass the gate entirely — that's the whole point.
+  if (
+    !authState.loading
+    && !authState.user
+    && route.view !== 'login'
+    && route.view !== 'public-status'
+  ) {
     if (!window.location.hash.startsWith('#/login')) {
       window.location.hash = '#/login';
     }
@@ -67,6 +75,7 @@ export default function App() {
     case 'status-page':   view = <StatusPageBuilder />; break;
     case 'notifications': view = <Notifications />; break;
     case 'maintenance':   view = <Maintenance />; break;
+    case 'public-status': view = <StatusPageView slug={route.id} />; break;
     case 'dashboard':
     default:            view = <Dashboard user={authState.user} onLogout={async () => {
       try { await api.auth.logout(); } catch {}
@@ -78,7 +87,7 @@ export default function App() {
   return (
     <>
       {view}
-      {route.view !== 'login' && <ViewSwitcher current={route.view} />}
+      {route.view !== 'login' && route.view !== 'public-status' && <ViewSwitcher current={route.view} />}
     </>
   );
 }

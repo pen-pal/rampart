@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO status_page_monitors (page_id, monitor_id, position)\n            VALUES ($1, $2, $3)\n            ON CONFLICT DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b56b6143324037748ce580a81b257649eb835cc830c890a9e30fe9e754ae9c56"
+}

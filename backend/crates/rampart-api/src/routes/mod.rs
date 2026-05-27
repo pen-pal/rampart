@@ -15,13 +15,18 @@ pub mod maintenance;
 pub mod monitors;
 pub mod notifications;
 pub mod push;
+pub mod status_pages;
 pub mod templates;
 
 use crate::state::AppState;
 use axum::Router;
 
 pub fn v1_public() -> Router<AppState> {
-    Router::new().nest("/auth", auth::router())
+    Router::new()
+        .nest("/auth", auth::router())
+        // Public status-page reads — embedded under /v1/public so the
+        // boundary is explicit and obvious in the routing table.
+        .nest("/public/status-pages", status_pages::public_router())
 }
 
 pub fn v1_protected() -> Router<AppState> {
@@ -37,4 +42,6 @@ pub fn v1_protected() -> Router<AppState> {
         .nest("/notification-templates", templates::router())
         // /v1/maintenance-windows CRUD + attach/detach
         .nest("/maintenance-windows", maintenance::router())
+        // /v1/status-pages admin CRUD (public read sits in v1_public)
+        .nest("/status-pages", status_pages::admin_router())
 }

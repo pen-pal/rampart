@@ -100,6 +100,14 @@ export const api = {
     update:  (id, patch)     => request(`/v1/notification-templates/${id}`, { method: 'PATCH', body: patch }),
     remove:  (id)            => request(`/v1/notification-templates/${id}`, { method: 'DELETE' }),
   },
+  statusPages: {
+    list:       ()                  => request('/v1/status-pages'),
+    get:        (id)                => request(`/v1/status-pages/${id}`),
+    create:     (input)             => request('/v1/status-pages', { method: 'POST', body: input }),
+    update:     (id, patch)         => request(`/v1/status-pages/${id}`, { method: 'PATCH', body: patch }),
+    remove:     (id)                => request(`/v1/status-pages/${id}`, { method: 'DELETE' }),
+    publicView: (slug)              => request(`/v1/public/status-pages/${slug}`),
+  },
   maintenance: {
     list:        ()                  => request('/v1/maintenance-windows'),
     get:         (id)                => request(`/v1/maintenance-windows/${id}`),

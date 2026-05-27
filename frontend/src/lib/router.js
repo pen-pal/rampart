@@ -8,12 +8,14 @@
 //   #/status-page               → StatusPageBuilder
 //   #/new-monitor               → NewMonitorWizard
 //   #/maintenance               → Maintenance windows
+//   #/s/<slug>                  → Public status page (no auth gate)
 //   #/monitor                   → MonitorDetail with id=null
 //   #/monitor/<id>              → MonitorDetail(id)
 
 export function parseRoute(hash) {
   const h = hash || '#/';
   if (h.startsWith('#/login'))      return { view: 'login',         id: null };
+  if (h.startsWith('#/s/'))         return { view: 'public-status', id: h.slice('#/s/'.length) };
   if (h.startsWith('#/monitor/'))   return { view: 'monitor',       id: h.slice('#/monitor/'.length) };
   if (h === '#/monitor')            return { view: 'monitor',       id: null };
   if (h === '#/new-monitor')        return { view: 'new-monitor',   id: null };

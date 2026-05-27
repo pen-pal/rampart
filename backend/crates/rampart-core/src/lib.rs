@@ -15,6 +15,7 @@ pub mod incident;
 pub mod maintenance;
 pub mod monitor;
 pub mod notification;
+pub mod status_page;
 
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
@@ -30,3 +31,4 @@ pub use incident::{Incident, IncidentStyle, IncidentUpdate};
 pub use maintenance::{MaintenanceWindow, NewMaintenanceWindow};
 pub use monitor::{Monitor, MonitorKind, MonitorStatus, NewMonitor};
 pub use notification::{ChannelKind, MonitorNotification, Notification, NotificationTemplate};
+pub use status_page::{NewStatusPage, PublicStatusMonitor, PublicStatusPage, StatusPage, UpdateStatusPage};
