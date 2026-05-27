@@ -105,6 +105,13 @@ export const api = {
     update:  (id, patch)     => request(`/v1/notification-templates/${id}`, { method: 'PATCH', body: patch }),
     remove:  (id)            => request(`/v1/notification-templates/${id}`, { method: 'DELETE' }),
   },
+  users: {
+    list:           ()                                    => request('/v1/users'),
+    create:         (email, name, password, isAdmin)      => request('/v1/users', { method: 'POST', body: { email, name, password, is_admin: !!isAdmin } }),
+    setAdmin:       (id, isAdmin)                         => request(`/v1/users/${id}/admin`, { method: 'POST', body: { is_admin: !!isAdmin } }),
+    remove:         (id)                                  => request(`/v1/users/${id}`, { method: 'DELETE' }),
+    changePassword: (current, next)                       => request('/v1/users/me/password', { method: 'POST', body: { current_password: current, new_password: next } }),
+  },
   proxies: {
     list:      ()                  => request('/v1/proxies'),
     create:    (input)             => request('/v1/proxies', { method: 'POST', body: input }),

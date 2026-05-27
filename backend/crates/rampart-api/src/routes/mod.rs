@@ -21,6 +21,7 @@ pub mod status_pages;
 pub mod tags;
 pub mod templates;
 pub mod totp;
+pub mod users;
 
 use crate::state::AppState;
 use axum::Router;
@@ -62,4 +63,14 @@ pub fn v1_protected() -> Router<AppState> {
         // /v1/auth/2fa/* admin endpoints — verify is public; the rest
         // need an existing session so they sit here.
         .nest("/auth/2fa", totp::router())
+        // /v1/users/me/password — self-service; admin gate would
+        // bizarrely block users from changing their own password.
+        .nest("/users", users::self_router())
+        // /v1/users admin CRUD — gated by require_admin on top of the
+        // outer require_session middleware.
+        .nest(
+            "/users",
+            users::admin_router()
+                .route_layer(axum::middleware::from_fn(crate::auth::require_admin)),
+        )
 }

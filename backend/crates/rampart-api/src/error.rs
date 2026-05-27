@@ -29,6 +29,9 @@ pub enum ApiError {
     #[error("unauthorized")]
     Unauthorized,
 
+    #[error("forbidden")]
+    Forbidden,
+
     #[error(transparent)]
     Db(#[from] DbError),
 
@@ -43,6 +46,7 @@ impl IntoResponse for ApiError {
             ApiError::BadRequest(_) => (StatusCode::BAD_REQUEST, "bad_request", self.to_string()),
             ApiError::Conflict(_) => (StatusCode::CONFLICT, "conflict", self.to_string()),
             ApiError::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthorized", self.to_string()),
+            ApiError::Forbidden => (StatusCode::FORBIDDEN, "forbidden", self.to_string()),
             ApiError::Validation(v) => (
                 StatusCode::UNPROCESSABLE_ENTITY,
                 "validation",

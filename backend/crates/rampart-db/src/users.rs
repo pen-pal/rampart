@@ -178,3 +178,61 @@ pub async fn mark_login(pool: &DbPool, id: UserId) -> DbResult<()> {
     .await?;
     Ok(())
 }
+
+pub async fn list(pool: &DbPool) -> DbResult<Vec<User>> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT id, email::text AS "email!", name, is_admin,
+               created_at, last_login_at, totp_enabled
+        FROM users
+        ORDER BY created_at ASC
+        "#,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|r| User {
+            id: UserId::from_uuid(r.id),
+            email: r.email,
+            name: r.name,
+            is_admin: r.is_admin,
+            created_at: r.created_at,
+            last_login_at: r.last_login_at,
+            totp_enabled: r.totp_enabled,
+        })
+        .collect())
+}
+
+pub async fn set_admin(pool: &DbPool, id: UserId, is_admin: bool) -> DbResult<()> {
+    let result = sqlx::query!(
+        "UPDATE users SET is_admin = $1 WHERE id = $2",
+        is_admin,
+        id.0,
+    )
+    .execute(pool)
+    .await?;
+    if result.rows_affected() == 0 { return Err(DbError::NotFound); }
+    Ok(())
+}
+
+pub async fn delete(pool: &DbPool, id: UserId) -> DbResult<()> {
+    let result = sqlx::query!("DELETE FROM users WHERE id = $1", id.0)
+        .execute(pool)
+        .await?;
+    if result.rows_affected() == 0 { return Err(DbError::NotFound); }
+    Ok(())
+}
+
+pub async fn set_password(pool: &DbPool, id: UserId, hash: &str) -> DbResult<()> {
+    let result = sqlx::query!(
+        "UPDATE users SET password_hash = $1 WHERE id = $2",
+        hash,
+        id.0,
+    )
+    .execute(pool)
+    .await?;
+    if result.rows_affected() == 0 { return Err(DbError::NotFound); }
+    Ok(())
+}

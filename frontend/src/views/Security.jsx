@@ -69,9 +69,54 @@ export default function Security() {
         {!me ? (
           <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-3)' }}><Loader2 size={16}/></div>
         ) : (
-          <Totp user={me}/>
+          <>
+            <Totp user={me}/>
+            <div style={{ height: 18 }}/>
+            <PasswordChange/>
+          </>
         )}
       </div>
+    </div>
+  );
+}
+
+function PasswordChange() {
+  const [current, setCurrent] = useState('');
+  const [next,    setNext]    = useState('');
+  const [busy,    setBusy]    = useState(false);
+  const [err,     setErr]     = useState(null);
+  const [ok,      setOk]      = useState(false);
+
+  const submit = async () => {
+    setErr(null); setOk(false);
+    if (next.length < 10) { setErr('New password must be at least 10 characters.'); return; }
+    setBusy(true);
+    try {
+      await api.users.changePassword(current, next);
+      setCurrent(''); setNext(''); setOk(true);
+    } catch (e) {
+      setErr(e.status === 401 ? 'Current password is wrong.' : (e.message || 'Failed to change.'));
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="card" style={{ padding: 22 }}>
+      <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 12px' }}>Change password</h2>
+      {err && <div className="banner-err">{err}</div>}
+      {ok  && <div className="banner-ok">Password updated.</div>}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+        <div>
+          <label style={{ fontSize: 12, color: 'var(--text-2)', display: 'block', marginBottom: 4 }}>Current</label>
+          <input className="input" type="password" value={current} onChange={e => setCurrent(e.target.value)}/>
+        </div>
+        <div>
+          <label style={{ fontSize: 12, color: 'var(--text-2)', display: 'block', marginBottom: 4 }}>New</label>
+          <input className="input" type="password" value={next} onChange={e => setNext(e.target.value)} placeholder="At least 10 characters"/>
+        </div>
+      </div>
+      <button className="btn btn-accent" onClick={submit} disabled={busy || !current || !next}>
+        {busy ? <><Loader2 size={13}/> Updating…</> : 'Update password'}
+      </button>
     </div>
   );
 }

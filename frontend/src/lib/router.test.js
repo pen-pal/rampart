@@ -33,6 +33,7 @@ describe('parseRoute', () => {
     expect(parseRoute('#/api-keys'))      .toEqual({ view: 'api-keys',      id: null });
     expect(parseRoute('#/proxies'))       .toEqual({ view: 'proxies',       id: null });
     expect(parseRoute('#/security'))      .toEqual({ view: 'security',      id: null });
+    expect(parseRoute('#/users'))         .toEqual({ view: 'users',         id: null });
   });
 
   it('treats unknown hashes as dashboard (graceful fallback)', () => {

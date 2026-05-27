@@ -164,6 +164,23 @@ fn bearer_token(headers: &axum::http::HeaderMap) -> Option<String> {
     Some(token.to_string())
 }
 
+/// Like `require_session` but additionally rejects non-admins with 403.
+/// Apply on top of `require_session` (it relies on the User in extensions).
+pub async fn require_admin(
+    req: Request,
+    next: Next,
+) -> Result<Response, ApiError> {
+    let user = req
+        .extensions()
+        .get::<rampart_db::users::User>()
+        .ok_or(ApiError::Unauthorized)?
+        .clone();
+    if !user.is_admin {
+        return Err(ApiError::Forbidden);
+    }
+    Ok(next.run(req).await)
+}
+
 /// Should Set-Cookie include `Secure`? True if the request was forwarded
 /// over HTTPS (proxy sets `X-Forwarded-Proto: https`) — otherwise local
 /// dev on plain http breaks.
