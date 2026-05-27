@@ -158,6 +158,53 @@ enum CertVerdict {
     ParseError(String),
 }
 
+/// Lightweight cert snapshot for the side-band cert info populated on
+/// HTTP monitors. (days_left, subject); `days_left` may be negative.
+#[derive(Debug, Clone)]
+pub struct CertSnapshot {
+    pub days_left: i32,
+    pub subject:   String,
+}
+
+/// Connect + inspect, no monitor context. Used by the scheduler to refresh
+/// `monitors.cert_days_left` for HTTPS HTTP monitors.
+pub async fn fetch_cert(host: &str, port: u16, to: Duration) -> Result<CertSnapshot, String> {
+    let server_name = ServerName::try_from(host.to_string())
+        .map_err(|e| format!("sni: {e}"))?;
+
+    let mut roots = RootCertStore::empty();
+    roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+    let cfg = Arc::new(
+        ClientConfig::builder()
+            .with_root_certificates(roots)
+            .with_no_client_auth(),
+    );
+
+    let stream = timeout(to, TcpStream::connect((host, port)))
+        .await
+        .map_err(|_| "tcp connect timed out".to_string())?
+        .map_err(|e| format!("tcp: {e}"))?;
+    let tls = timeout(to, TlsConnector::from(cfg).connect(server_name, stream))
+        .await
+        .map_err(|_| "handshake timed out".to_string())?
+        .map_err(|e| format!("handshake: {e}"))?;
+
+    let (_, conn) = tls.get_ref();
+    let certs = conn.peer_certificates().ok_or("no certificate presented")?;
+    let leaf = certs.first().ok_or("empty cert chain")?;
+    let parsed = X509Certificate::from_der(leaf.as_ref())
+        .map(|(_, c)| c)
+        .map_err(|e| format!("cert parse: {e}"))?;
+
+    let not_after = parsed.validity().not_after.timestamp();
+    let now = OffsetDateTime::now_utc().unix_timestamp();
+    let days_left = ((not_after - now) / 86_400) as i32;
+    Ok(CertSnapshot {
+        days_left,
+        subject: parsed.subject().to_string(),
+    })
+}
+
 fn inspect(der: &CertificateDer<'_>, warn_days: i64) -> CertVerdict {
     let parsed = match X509Certificate::from_der(der.as_ref()) {
         Ok((_, c)) => c,

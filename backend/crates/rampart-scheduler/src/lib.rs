@@ -292,6 +292,48 @@ async fn run_once(
     if hb_tx.send(hb).await.is_err() {
         warn!(monitor = %monitor.id, "heartbeat channel closed; dropping");
     }
+
+    // Refresh TLS cert snapshot for HTTPS HTTP-family monitors. Rate-limited
+    // to once per hour per monitor — re-running on every tick would dwarf
+    // the probe itself for short intervals.
+    if matches!(monitor.kind, MonitorKind::Http | MonitorKind::Keyword | MonitorKind::JsonQuery) {
+        if let Some(url) = monitor.url.as_deref() {
+            if url.starts_with("https://") {
+                let stale = monitor.cert_checked_at
+                    .map(|t| (time::OffsetDateTime::now_utc() - t).whole_seconds() >= 3600)
+                    .unwrap_or(true);
+                if stale {
+                    let pool = pool.clone();
+                    let id = monitor.id;
+                    let url_owned = url.to_string();
+                    let to = Duration::from_secs(monitor.timeout_seconds.max(10) as u64);
+                    tokio::spawn(async move {
+                        if let Some((host, port)) = parse_https(&url_owned) {
+                            if let Ok(snap) =
+                                rampart_checker::tls::fetch_cert(&host, port, to).await
+                            {
+                                let _ = rampart_db::monitors::set_cert_info(
+                                    &pool, id, snap.days_left, &snap.subject,
+                                )
+                                .await;
+                            }
+                        }
+                    });
+                }
+            }
+        }
+    }
+}
+
+fn parse_https(url: &str) -> Option<(String, u16)> {
+    let rest = url.strip_prefix("https://")?;
+    let host_part = rest.split('/').next()?;
+    // strip optional userinfo + handle [v6] later — fine for current scope
+    let (host, port) = match host_part.rsplit_once(':') {
+        Some((h, p)) => (h.to_string(), p.parse().ok()?),
+        None         => (host_part.to_string(), 443u16),
+    };
+    Some((host, port))
 }
 
 /// Drains the heartbeat channel, batches by size or time, flushes.

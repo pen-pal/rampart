@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE monitors\n           SET cert_days_left = $1,\n               cert_subject   = $2,\n               cert_checked_at = NOW()\n         WHERE id = $3\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "264171a389a970ae3c82d00f52f1f18336fe83541e7d673e6223cabbf93b6118"
+}

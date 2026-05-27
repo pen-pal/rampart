@@ -39,6 +39,9 @@ struct MonitorRow {
     current_status: MonitorStatus,
     created_at: OffsetDateTime,
     updated_at: OffsetDateTime,
+    cert_days_left:  Option<i32>,
+    cert_subject:    Option<String>,
+    cert_checked_at: Option<OffsetDateTime>,
 }
 
 impl From<MonitorRow> for Monitor {
@@ -71,6 +74,9 @@ impl From<MonitorRow> for Monitor {
             created_at: r.created_at,
             updated_at: r.updated_at,
             tags: Vec::new(),
+            cert_days_left:  r.cert_days_left,
+            cert_subject:    r.cert_subject,
+            cert_checked_at: r.cert_checked_at,
         }
     }
 }
@@ -117,7 +123,8 @@ pub async fn create(pool: &DbPool, input: NewMonitor) -> DbResult<Monitor> {
             push_token, last_push_at,
             active,
             current_status AS "current_status: MonitorStatus",
-            created_at, updated_at
+            created_at, updated_at,
+            cert_days_left, cert_subject, cert_checked_at
         "#,
         id.0,
         input.name,
@@ -187,6 +194,31 @@ pub async fn fetch_last_push_at(
     Ok(row.and_then(|r| r.last_push_at))
 }
 
+/// Stash the latest TLS cert snapshot for an https HTTP monitor.
+/// `days_left` may be negative for already-expired certs.
+pub async fn set_cert_info(
+    pool: &DbPool,
+    id: MonitorId,
+    days_left: i32,
+    subject: &str,
+) -> DbResult<()> {
+    sqlx::query!(
+        r#"
+        UPDATE monitors
+           SET cert_days_left = $1,
+               cert_subject   = $2,
+               cert_checked_at = NOW()
+         WHERE id = $3
+        "#,
+        days_left,
+        subject,
+        id.0,
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 /// Bump last_push_at to NOW() on a successful push receipt.
 pub async fn bump_push_at(pool: &DbPool, id: MonitorId) -> DbResult<()> {
     sqlx::query!(
@@ -213,7 +245,8 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<Monitor>> {
             push_token, last_push_at,
             active,
             current_status AS "current_status: MonitorStatus",
-            created_at, updated_at
+            created_at, updated_at,
+            cert_days_left, cert_subject, cert_checked_at
         FROM monitors
         ORDER BY created_at DESC
         "#,
@@ -247,7 +280,8 @@ pub async fn get(pool: &DbPool, id: MonitorId) -> DbResult<Monitor> {
             push_token, last_push_at,
             active,
             current_status AS "current_status: MonitorStatus",
-            created_at, updated_at
+            created_at, updated_at,
+            cert_days_left, cert_subject, cert_checked_at
         FROM monitors
         WHERE id = $1
         "#,

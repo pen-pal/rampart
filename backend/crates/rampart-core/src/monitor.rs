@@ -116,6 +116,14 @@ pub struct Monitor {
     /// (e.g. test fixtures that don't care about tags).
     #[serde(default)]
     pub tags: Vec<TagBrief>,
+    /// TLS cert snapshot — populated for HTTPS HTTP monitors. Null
+    /// when never inspected or when the URL is plain http.
+    #[serde(default)]
+    pub cert_days_left:  Option<i32>,
+    #[serde(default)]
+    pub cert_subject:    Option<String>,
+    #[serde(default)]
+    pub cert_checked_at: Option<OffsetDateTime>,
 }
 
 /// Payload accepted when creating a monitor. Kind/url/hostname validation

@@ -419,6 +419,12 @@ export default function MonitorDetail({ monitorId }) {
           <PushUrlCard token={monitor.push_token} lastPushAt={monitor.last_push_at} interval={monitor.interval_seconds}/>
         )}
 
+        {(monitor.kind === 'http' || monitor.kind === 'keyword' || monitor.kind === 'json_query')
+          && (monitor.url || '').startsWith('https://')
+          && monitor.cert_checked_at && (
+          <CertCard monitor={monitor}/>
+        )}
+
         {/* 90-day uptime strip */}
         <div className="card" style={{ padding: '20px 22px', marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -974,6 +980,41 @@ function MonitorChannels({ monitorId }) {
 //    endpoint into their cron / CI / backup script. Server-side, the
 //    token is what authenticates the heartbeat (so treat it like a
 //    secret — anyone with the URL can mark this monitor up).
+function CertCard({ monitor }) {
+  const days = monitor.cert_days_left;
+  const checked = monitor.cert_checked_at;
+  const checkedDate = Array.isArray(checked) ? offsetDateTimeArrayToDate(checked) : new Date(checked);
+  const tone = days == null ? 'unknown'
+    : days < 0  ? 'expired'
+    : days < 14 ? 'warn'
+    : 'ok';
+  const palette = {
+    ok:      { bg: 'var(--up-soft)',   fg: '#047857', label: `${days} days left` },
+    warn:    { bg: 'var(--warn-soft)', fg: '#92400e', label: `expires in ${days} days` },
+    expired: { bg: 'var(--down-soft)', fg: '#b91c1c', label: `expired ${Math.abs(days)} days ago` },
+    unknown: { bg: 'var(--surface-2)', fg: 'var(--text-2)', label: 'unknown' },
+  }[tone];
+  return (
+    <div className="card" style={{ padding: '18px 22px', marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <Lock size={14} color="var(--text-3)"/>
+        <h3 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>TLS certificate</h3>
+        <span style={{
+          marginLeft: 'auto',
+          background: palette.bg, color: palette.fg,
+          fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 999,
+        }}>{palette.label}</span>
+      </div>
+      <div className="mono" style={{ fontSize: 12, color: 'var(--text-2)', wordBreak: 'break-all' }}>
+        {monitor.cert_subject || '—'}
+      </div>
+      <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-3)' }}>
+        Inspected {formatRelative(checkedDate)} · refreshed hourly while the monitor is active.
+      </div>
+    </div>
+  );
+}
+
 function PushUrlCard({ token, lastPushAt, interval }) {
   const [copied, setCopied] = useState(false);
   const url = `${window.location.origin}/push/${token}?status=up&msg=ok`;

@@ -168,6 +168,9 @@ async fn send_test(
         created_at: now,
         updated_at: now,
         tags: Vec::new(),
+        cert_days_left:  None,
+        cert_subject:    None,
+        cert_checked_at: None,
     };
     let test_hb = rampart_core::Heartbeat {
         monitor_id: test_monitor.id,

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            id, name,\n            kind   AS \"kind: MonitorKind\",\n            url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, last_push_at,\n            active,\n            current_status AS \"current_status: MonitorStatus\",\n            created_at, updated_at\n        FROM monitors\n        WHERE id = $1\n        ",
+  "query": "\n        SELECT\n            id, name,\n            kind   AS \"kind: MonitorKind\",\n            url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, last_push_at,\n            active,\n            current_status AS \"current_status: MonitorStatus\",\n            created_at, updated_at,\n            cert_days_left, cert_subject, cert_checked_at\n        FROM monitors\n        ORDER BY created_at DESC\n        ",
   "describe": {
     "columns": [
       {
@@ -174,12 +174,25 @@
         "ordinal": 25,
         "name": "updated_at",
         "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 26,
+        "name": "cert_days_left",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 27,
+        "name": "cert_subject",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 28,
+        "name": "cert_checked_at",
+        "type_info": "Timestamptz"
       }
     ],
     "parameters": {
-      "Left": [
-        "Uuid"
-      ]
+      "Left": []
     },
     "nullable": [
       false,
@@ -207,8 +220,11 @@
       false,
       false,
       false,
-      false
+      false,
+      true,
+      true,
+      true
     ]
   },
-  "hash": "090ccc6881c7226ca34a2ba337f869836c823231a44f387ba0ff93eca947f195"
+  "hash": "79f2e020bd27965eaad23ba3523226b0f4869d20ffe2f44501ea741dfc30447c"
 }
