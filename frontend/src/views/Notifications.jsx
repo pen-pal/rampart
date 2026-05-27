@@ -210,6 +210,14 @@ const SUPPORTED = [
   { id: 'spike_sh',      name: 'Spike.sh',       icon: Siren,         hint: 'Spike.sh integration URL — auto-resolves on recovery' },
   { id: 'zenduty',       name: 'Zenduty',        icon: Siren,         hint: 'Zenduty integration URL — auto-resolves on recovery' },
   { id: 'ringcentral',   name: 'RingCentral',    icon: MessageSquare, hint: 'RingCentral incoming-webhook URL' },
+  { id: 'ilert',         name: 'iLert',          icon: Siren,         hint: 'iLert event API — integration key + auto-resolve' },
+  { id: 'linear',        name: 'Linear',         icon: FileText,      hint: 'Linear issue via GraphQL — api_key + team_id' },
+  { id: 'clickup',       name: 'ClickUp',        icon: FileText,      hint: 'ClickUp task — api_token + list_id' },
+  { id: 'trello',        name: 'Trello',         icon: FileText,      hint: 'Trello card — key + token + list_id' },
+  { id: 'github_issue',  name: 'GitHub Issue',   icon: FileText,      hint: 'Create a GitHub issue — PAT + owner/repo + optional labels' },
+  { id: 'gitlab_issue',  name: 'GitLab Issue',   icon: FileText,      hint: 'Create a GitLab issue — PRIVATE-TOKEN + project_id' },
+  { id: 'asana',         name: 'Asana',          icon: FileText,      hint: 'Asana task — PAT + workspace + project' },
+  { id: 'notion',        name: 'Notion',         icon: FileText,      hint: 'Notion page — integration token + database_id' },
   // push
   { id: 'ntfy',       name: 'ntfy.sh',         icon: Smartphone,    hint: 'Push to phone via ntfy.sh (free) or self-hosted ntfy server' },
   { id: 'gotify',     name: 'Gotify',          icon: Server,        hint: 'Self-hosted push server (https://gotify.net)' },
@@ -1961,6 +1969,112 @@ function ConfigForm({ kind, config, setConfig }) {
       <div className="field"><label className="field-label">Webhook URL</label>
         <input className="input mono" value={config.webhook_url || ''}
           onChange={e => set('webhook_url', e.target.value)} placeholder="https://hooks.ringcentral.com/webhook/..."/></div>
+    );
+  }
+  if (kind === 'ilert') {
+    return (
+      <div className="field"><label className="field-label">Integration key</label>
+        <input className="input mono" type="password" value={config.integration_key || ''}
+          onChange={e => set('integration_key', e.target.value)}/></div>
+    );
+  }
+  if (kind === 'linear') {
+    return (
+      <>
+        <div className="field"><label className="field-label">API key</label>
+          <input className="input mono" type="password" value={config.api_key || ''}
+            onChange={e => set('api_key', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Team ID</label>
+          <input className="input mono" value={config.team_id || ''}
+            onChange={e => set('team_id', e.target.value)}/></div>
+      </>
+    );
+  }
+  if (kind === 'clickup') {
+    return (
+      <>
+        <div className="field"><label className="field-label">API token</label>
+          <input className="input mono" type="password" value={config.api_token || ''}
+            onChange={e => set('api_token', e.target.value)}/></div>
+        <div className="field"><label className="field-label">List ID</label>
+          <input className="input mono" value={config.list_id || ''}
+            onChange={e => set('list_id', e.target.value)}/></div>
+      </>
+    );
+  }
+  if (kind === 'trello') {
+    return (
+      <>
+        <div className="field"><label className="field-label">Key</label>
+          <input className="input mono" value={config.key || ''}
+            onChange={e => set('key', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Token</label>
+          <input className="input mono" type="password" value={config.token || ''}
+            onChange={e => set('token', e.target.value)}/></div>
+        <div className="field"><label className="field-label">List ID</label>
+          <input className="input mono" value={config.list_id || ''}
+            onChange={e => set('list_id', e.target.value)}/></div>
+      </>
+    );
+  }
+  if (kind === 'github_issue') {
+    return (
+      <>
+        <div className="field"><label className="field-label">Personal access token</label>
+          <input className="input mono" type="password" value={config.token || ''}
+            onChange={e => set('token', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Owner</label>
+          <input className="input mono" value={config.owner || ''}
+            onChange={e => set('owner', e.target.value)} placeholder="myorg"/></div>
+        <div className="field"><label className="field-label">Repo</label>
+          <input className="input mono" value={config.repo || ''}
+            onChange={e => set('repo', e.target.value)} placeholder="incidents"/></div>
+        <div className="field"><label className="field-label">Labels <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated, optional</span></label>
+          <input className="input mono" value={(config.labels || []).join(',')}
+            onChange={e => set('labels', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}/></div>
+      </>
+    );
+  }
+  if (kind === 'gitlab_issue') {
+    return (
+      <>
+        <div className="field"><label className="field-label">Base URL <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional, defaults to gitlab.com</span></label>
+          <input className="input mono" value={config.base_url || ''}
+            onChange={e => set('base_url', e.target.value)} placeholder="https://gitlab.example.com"/></div>
+        <div className="field"><label className="field-label">Personal access token</label>
+          <input className="input mono" type="password" value={config.token || ''}
+            onChange={e => set('token', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Project ID</label>
+          <input className="input mono" value={config.project_id || ''}
+            onChange={e => set('project_id', e.target.value)}/></div>
+      </>
+    );
+  }
+  if (kind === 'asana') {
+    return (
+      <>
+        <div className="field"><label className="field-label">Access token</label>
+          <input className="input mono" type="password" value={config.access_token || ''}
+            onChange={e => set('access_token', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Workspace</label>
+          <input className="input mono" value={config.workspace || ''}
+            onChange={e => set('workspace', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Project</label>
+          <input className="input mono" value={config.project || ''}
+            onChange={e => set('project', e.target.value)}/></div>
+      </>
+    );
+  }
+  if (kind === 'notion') {
+    return (
+      <>
+        <div className="field"><label className="field-label">Integration token</label>
+          <input className="input mono" type="password" value={config.api_token || ''}
+            onChange={e => set('api_token', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Database ID</label>
+          <input className="input mono" value={config.database_id || ''}
+            onChange={e => set('database_id', e.target.value)}/></div>
+      </>
     );
   }
   if (kind === 'sms_twilio') {

@@ -132,6 +132,14 @@ pub enum ChannelKind {
     SpikeSh,
     Zenduty,
     Ringcentral,
+    Ilert,
+    Linear,
+    Clickup,
+    Trello,
+    GithubIssue,
+    GitlabIssue,
+    Asana,
+    Notion,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

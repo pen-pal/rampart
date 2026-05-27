@@ -9,6 +9,7 @@ pub mod alertnow;
 pub mod alertops;
 pub mod aliyun_sms;
 pub mod apprise;
+pub mod asana;
 pub mod bale;
 pub mod bandwidth;
 pub mod bark;
@@ -17,6 +18,7 @@ pub mod brevo;
 pub mod callmebot;
 pub mod cellsynt;
 pub mod clicksend;
+pub mod clickup;
 pub mod dingtalk;
 pub mod discord;
 pub mod email;
@@ -25,6 +27,8 @@ pub mod flashduty;
 pub mod flock;
 pub mod fluxer;
 pub mod freemobile;
+pub mod github_issue;
+pub mod gitlab_issue;
 pub mod goalert;
 pub mod google_chat;
 pub mod google_sheets;
@@ -35,10 +39,12 @@ pub mod gtxmessaging;
 pub mod halo_psa;
 pub mod heii_oncall;
 pub mod home_assistant;
+pub mod ilert;
 pub mod jira_sm;
 pub mod kook;
 pub mod lark;
 pub mod line;
+pub mod linear;
 pub mod mailgun;
 pub mod mailjet;
 pub mod mandrill;
@@ -49,6 +55,7 @@ pub mod max_messenger;
 pub mod messagebird;
 pub mod nostr;
 pub mod notifery;
+pub mod notion;
 pub mod ntfy;
 pub mod octopush;
 pub mod onebot;
@@ -97,6 +104,7 @@ pub mod telegram;
 pub mod telnyx;
 pub mod teltonika;
 pub mod threema;
+pub mod trello;
 pub mod twilio;
 pub mod vk;
 pub mod vonage;
@@ -235,6 +243,14 @@ pub async fn dispatch(
         ChannelKind::SpikeSh      => Box::new(spike_sh::SpikeSh::from_config(config)?),
         ChannelKind::Zenduty      => Box::new(zenduty::Zenduty::from_config(config)?),
         ChannelKind::Ringcentral  => Box::new(ringcentral::Ringcentral::from_config(config)?),
+        ChannelKind::Ilert        => Box::new(ilert::Ilert::from_config(config)?),
+        ChannelKind::Linear       => Box::new(linear::Linear::from_config(config)?),
+        ChannelKind::Clickup      => Box::new(clickup::Clickup::from_config(config)?),
+        ChannelKind::Trello       => Box::new(trello::Trello::from_config(config)?),
+        ChannelKind::GithubIssue  => Box::new(github_issue::GithubIssue::from_config(config)?),
+        ChannelKind::GitlabIssue  => Box::new(gitlab_issue::GitlabIssue::from_config(config)?),
+        ChannelKind::Asana        => Box::new(asana::Asana::from_config(config)?),
+        ChannelKind::Notion       => Box::new(notion::Notion::from_config(config)?),
         _ => {
             return Err(ChannelError::BadConfig(format!(
                 "channel kind {kind:?} not implemented yet"
