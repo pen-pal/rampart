@@ -35,3 +35,4 @@ tonic            = { workspace = true }
 tonic-health     = { workspace = true }
 prost            = { workspace = true }
 rumqttc          = { workspace = true }
+bollard          = { workspace = true }

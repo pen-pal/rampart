@@ -141,11 +141,11 @@ const types = [
     example: 'Get alerted 30 days before your cert expires',
     placeholder: { url: 'https://example.com' } },
 
-  { id: 'docker',     icon: Box,           name: 'Docker',        desc: 'Container running',   stub: true,
+  { id: 'docker',     icon: Box,           name: 'Docker',        desc: 'Container running',
     example: 'Detect when your Plex/Jellyfin container crashes',
     placeholder: { container: 'plex-server' } },
 
-  { id: 'steam',      icon: Gamepad2,      name: 'Steam',         desc: 'Game server query',   stub: true,
+  { id: 'steam',      icon: Gamepad2,      name: 'Steam',         desc: 'A2S_INFO query',
     example: 'Watch your group\'s Counter-Strike / Valheim server',
     placeholder: { hostname: 'csgo.example.com', port: '27015' } },
 
@@ -157,7 +157,7 @@ const types = [
     example: "Make sure your office VPN's RADIUS auth still works",
     placeholder: { hostname: 'radius.internal', port: '1812' } },
 
-  { id: 'kafka',      icon: Zap,           name: 'Kafka',         desc: 'Producer connect',    stub: true,
+  { id: 'kafka',      icon: Zap,           name: 'Kafka',         desc: 'ApiVersions handshake',
     example: 'Verify brokers are reachable before your producer starts dropping',
     placeholder: { hostname: 'kafka.internal', port: '9092' } },
 
@@ -196,7 +196,7 @@ const fieldsFor = (kind) => {
       jsonPath: kind === 'json_query',
     };
   }
-  if (['tcp','grpc','mqtt'].includes(kind))                   return { hostname: true, port: true };
+  if (['tcp','grpc','mqtt','steam','kafka'].includes(kind))   return { hostname: true, port: true };
   if (['postgres','mysql','mssql','redis','mongodb'].includes(kind)) return { hostname: true, port: true };
   if (kind === 'ping')   return { hostname: true };
   if (kind === 'dns')    return { hostname: true };
@@ -206,7 +206,7 @@ const fieldsFor = (kind) => {
 };
 
 const defaultPort = (kind) => ({
-  tcp: 443, grpc: 443, mqtt: 1883,
+  tcp: 443, grpc: 443, mqtt: 1883, steam: 27015, kafka: 9092,
   postgres: 5432, mysql: 3306, mssql: 1433, redis: 6379, mongodb: 27017,
 })[kind] || null;
 
@@ -382,7 +382,7 @@ export default function NewMonitorWizard() {
                 <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em', margin: '0 0 8px' }}>Step 1 · Pick a check type</p>
                 <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 8px', letterSpacing: '-.02em' }}>What do you want to monitor?</h1>
                 <p style={{ fontSize: 14, color: 'var(--text-2)', margin: 0 }}>
-                  20 types in the catalog. Sixteen probe runners ship today (HTTP / keyword / JSON, TCP, ping, DNS, push, TLS cert, domain expiry, Postgres / MySQL / MSSQL / Redis / MongoDB, gRPC, MQTT); Docker / Steam / RADIUS / Kafka still create the record but report Down until their runner lands.
+                  20 types in the catalog. Nineteen probe runners ship today — only RADIUS still creates the record but reports Down until its runner lands.
                 </p>
               </div>
 

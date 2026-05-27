@@ -12,9 +12,11 @@
 //! alerting — those live elsewhere.
 
 pub mod dns;
+pub mod docker;
 pub mod domain;
 pub mod grpc;
 pub mod http;
+pub mod kafka;
 pub mod mongodb;
 pub mod mqtt;
 pub mod mssql;
@@ -22,6 +24,7 @@ pub mod mysql;
 pub mod ping;
 pub mod postgres;
 pub mod redis;
+pub mod steam;
 pub mod tcp;
 pub mod tls;
 
@@ -57,6 +60,9 @@ pub struct Probes {
     mongodb:  mongodb::MongodbProbe,
     grpc:     grpc::GrpcProbe,
     mqtt:     mqtt::MqttProbe,
+    docker:   docker::DockerProbe,
+    steam:    steam::SteamProbe,
+    kafka:    kafka::KafkaProbe,
 }
 
 impl Probes {
@@ -75,6 +81,9 @@ impl Probes {
             mongodb:  mongodb::MongodbProbe::new(),
             grpc:     grpc::GrpcProbe::new(),
             mqtt:     mqtt::MqttProbe::new(),
+            docker:   docker::DockerProbe::new(),
+            steam:    steam::SteamProbe::new(),
+            kafka:    kafka::KafkaProbe::new(),
         }
     }
 
@@ -110,6 +119,9 @@ impl Probes {
             MonitorKind::Mongodb  => self.mongodb.run(monitor).await,
             MonitorKind::Grpc     => self.grpc.run(monitor).await,
             MonitorKind::Mqtt     => self.mqtt.run(monitor).await,
+            MonitorKind::Docker   => self.docker.run(monitor).await,
+            MonitorKind::Steam    => self.steam.run(monitor).await,
+            MonitorKind::Kafka    => self.kafka.run(monitor).await,
             unsupported => unsupported_kind(monitor.id, unsupported),
         }
     }
