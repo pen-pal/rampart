@@ -23,6 +23,7 @@ pub mod mssql;
 pub mod mysql;
 pub mod ping;
 pub mod postgres;
+pub mod radius;
 pub mod redis;
 pub mod steam;
 pub mod tcp;
@@ -63,6 +64,7 @@ pub struct Probes {
     docker:   docker::DockerProbe,
     steam:    steam::SteamProbe,
     kafka:    kafka::KafkaProbe,
+    radius:   radius::RadiusProbe,
 }
 
 impl Probes {
@@ -84,6 +86,7 @@ impl Probes {
             docker:   docker::DockerProbe::new(),
             steam:    steam::SteamProbe::new(),
             kafka:    kafka::KafkaProbe::new(),
+            radius:   radius::RadiusProbe::new(),
         }
     }
 
@@ -122,6 +125,7 @@ impl Probes {
             MonitorKind::Docker   => self.docker.run(monitor).await,
             MonitorKind::Steam    => self.steam.run(monitor).await,
             MonitorKind::Kafka    => self.kafka.run(monitor).await,
+            MonitorKind::Radius   => self.radius.run(monitor).await,
             unsupported => unsupported_kind(monitor.id, unsupported),
         }
     }

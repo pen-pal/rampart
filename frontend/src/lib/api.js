@@ -64,6 +64,7 @@ export const api = {
     list:    ()           => request('/v1/monitors'),
     get:     (id)         => request(`/v1/monitors/${id}`),
     create:  (input)      => request('/v1/monitors', { method: 'POST', body: input }),
+    update:  (id, patch)  => request(`/v1/monitors/${id}`, { method: 'PATCH', body: patch }),
     remove:  (id)         => request(`/v1/monitors/${id}`, { method: 'DELETE' }),
     pause:   (id)         => request(`/v1/monitors/${id}/pause`,  { method: 'POST' }),
     resume:  (id)         => request(`/v1/monitors/${id}/resume`, { method: 'POST' }),

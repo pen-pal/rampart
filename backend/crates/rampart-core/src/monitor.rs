@@ -181,6 +181,49 @@ pub struct NewMonitor {
     pub proxy_id: Option<ProxyId>,
 }
 
+/// Partial update payload for PATCH /v1/monitors/:id. Every field is
+/// optional — fields the caller doesn't send stay untouched. `kind` is
+/// deliberately absent: changing kind would invalidate the existing
+/// heartbeat history, so we treat it as immutable.
+#[derive(Debug, Clone, Deserialize, Validate)]
+pub struct UpdateMonitor {
+    #[validate(length(min = 1, max = 120))]
+    pub name: Option<String>,
+
+    #[serde(default)]
+    pub url: Option<String>,
+    #[serde(default)]
+    pub hostname: Option<String>,
+    #[serde(default)]
+    pub port: Option<i32>,
+
+    #[serde(default)]
+    pub config: Option<serde_json::Value>,
+
+    #[validate(range(min = 10, max = 86400))]
+    pub interval_seconds: Option<i32>,
+
+    #[validate(range(min = 1, max = 600))]
+    pub timeout_seconds: Option<i32>,
+
+    pub max_retries:         Option<i32>,
+    pub retry_interval_sec:  Option<i32>,
+    pub resend_interval_sec: Option<i32>,
+    pub upside_down:         Option<bool>,
+
+    pub http_method:       Option<String>,
+    #[serde(default)]
+    pub http_body:         Option<String>,
+    #[serde(default)]
+    pub http_headers:      Option<serde_json::Value>,
+    pub accepted_statuses: Option<Vec<i32>>,
+    pub follow_redirect:   Option<bool>,
+    pub ignore_tls:        Option<bool>,
+
+    #[serde(default)]
+    pub proxy_id: Option<ProxyId>,
+}
+
 fn default_interval() -> i32 {
     60
 }

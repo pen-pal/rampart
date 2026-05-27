@@ -221,6 +221,7 @@ export default function MonitorDetail({ monitorId }) {
   const [tab, setTab] = useState('overview');
   const [logFilter, setLogFilter] = useState('all');
   const [acting, setActing] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   const monitorState   = useApi(() => monitorId ? api.monitors.get(monitorId)         : Promise.resolve(null), [monitorId], { pollMs: 15_000 });
   const heartbeatState = useApi(() => monitorId ? api.monitors.heartbeats(monitorId, 500) : Promise.resolve([]),   [monitorId], { pollMs: 10_000 });
@@ -353,7 +354,7 @@ export default function MonitorDetail({ monitorId }) {
             <button className="btn" onClick={doPauseResume} disabled={acting}>
               {monitor.active ? <><Pause size={13}/> Pause</> : <><Play size={13}/> Resume</>}
             </button>
-            <button className="btn" disabled title="Editing isn't wired yet"><Edit3 size={13}/> Edit</button>
+            <button className="btn" onClick={() => setEditing(true)} disabled={acting}><Edit3 size={13}/> Edit</button>
             <button className="btn btn-danger" onClick={doDelete} disabled={acting}><Trash2 size={13}/> Delete</button>
           </div>
         </div>
@@ -612,14 +613,184 @@ export default function MonitorDetail({ monitorId }) {
 
         <div style={{ height: 40 }}/>
       </main>
+
+      {editing && (
+        <EditModal monitor={monitor} onCancel={() => setEditing(false)}/>
+      )}
     </div>
   );
 }
 
+// ── Edit modal ────────────────────────────────────────────────────────────
+function EditModal({ monitor, onCancel }) {
+  const [name,        setName]        = useState(monitor.name || '');
+  const [intervalSec, setIntervalSec] = useState(String(monitor.interval_seconds));
+  const [timeoutSec,  setTimeoutSec]  = useState(String(monitor.timeout_seconds));
+  const [retries,     setRetries]     = useState(String(monitor.max_retries));
+  const [resend,      setResend]      = useState(String(monitor.resend_interval_sec));
+  const [url,         setUrl]         = useState(monitor.url || '');
+  const [hostname,    setHostname]    = useState(monitor.hostname || '');
+  const [port,        setPort]        = useState(monitor.port == null ? '' : String(monitor.port));
+  const [method,      setMethod]      = useState(monitor.http_method || 'GET');
+  const [statuses,    setStatuses]    = useState((monitor.accepted_statuses || []).join(', '));
+  const [body,        setBody]        = useState(monitor.http_body || '');
+  const [headers,     setHeaders]     = useState(monitor.http_headers ? JSON.stringify(monitor.http_headers, null, 2) : '');
+  const [follow,      setFollow]      = useState(!!monitor.follow_redirect);
+  const [ignoreTls,   setIgnoreTls]   = useState(!!monitor.ignore_tls);
+  const [upside,      setUpside]      = useState(!!monitor.upside_down);
+  const [busy,        setBusy]        = useState(false);
+  const [err,         setErr]         = useState(null);
+
+  const isHttpFamily = ['http', 'keyword', 'json_query'].includes(monitor.kind);
+  const hasHostname  = monitor.hostname != null;
+  const hasPort      = monitor.port != null;
+
+  const save = async () => {
+    setErr(null);
+    if (!name.trim()) { setErr('Name is required.'); return; }
+    let headersJson = null;
+    if (headers.trim()) {
+      try { headersJson = JSON.parse(headers); }
+      catch { setErr('Headers must be valid JSON.'); return; }
+    }
+    const acceptedStatuses = statuses
+      .split(',').map(s => parseInt(s.trim(), 10)).filter(Number.isFinite);
+
+    const patch = {
+      name:               name.trim(),
+      interval_seconds:   parseInt(intervalSec, 10) || undefined,
+      timeout_seconds:    parseInt(timeoutSec,  10) || undefined,
+      max_retries:        parseInt(retries,     10) || 0,
+      resend_interval_sec: parseInt(resend,     10) || 0,
+      upside_down:        upside,
+    };
+    if (monitor.url != null)         patch.url            = url || null;
+    if (hasHostname)                 patch.hostname       = hostname || null;
+    if (hasPort && port)             patch.port           = parseInt(port, 10);
+    if (isHttpFamily) {
+      patch.http_method       = method;
+      patch.follow_redirect   = follow;
+      patch.ignore_tls        = ignoreTls;
+      patch.accepted_statuses = acceptedStatuses;
+      patch.http_body         = body || null;
+      patch.http_headers      = headersJson;
+    }
+    Object.keys(patch).forEach(k => patch[k] === undefined && delete patch[k]);
+
+    setBusy(true);
+    try {
+      await api.monitors.update(monitor.id, patch);
+      window.location.reload();
+    } catch (e) {
+      setErr(e.message || 'Failed to save.');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
+      padding: 20,
+    }}>
+      <div style={{
+        background: 'var(--surface)', borderRadius: 12, maxWidth: 640, width: '100%',
+        maxHeight: '90vh', overflow: 'auto', padding: 24,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Edit · {monitor.name}</h3>
+          <button className="btn btn-ghost" onClick={onCancel} disabled={busy}><X size={14}/></button>
+        </div>
+        {err && (
+          <div style={{ background: 'var(--down-soft)', color: '#b91c1c', border: '1px solid #fecaca', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 14 }}>
+            {err}
+          </div>
+        )}
+
+        <Field label="Name">
+          <input className="input" value={name} onChange={e => setName(e.target.value)}/>
+        </Field>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10 }}>
+          <Field label="Interval (s)"><input className="input" value={intervalSec} onChange={e => setIntervalSec(e.target.value)}/></Field>
+          <Field label="Timeout (s)"><input className="input" value={timeoutSec} onChange={e => setTimeoutSec(e.target.value)}/></Field>
+          <Field label="Retries"><input className="input" value={retries} onChange={e => setRetries(e.target.value)}/></Field>
+          <Field label="Re-alert (s)"><input className="input" value={resend} onChange={e => setResend(e.target.value)}/></Field>
+        </div>
+
+        {monitor.url != null && (
+          <Field label="URL"><input className="input mono" value={url} onChange={e => setUrl(e.target.value)}/></Field>
+        )}
+        {(hasHostname || hasPort) && (
+          <div style={{ display: 'grid', gridTemplateColumns: hasPort ? '1fr 110px' : '1fr', gap: 10 }}>
+            {hasHostname && <Field label="Hostname"><input className="input mono" value={hostname} onChange={e => setHostname(e.target.value)}/></Field>}
+            {hasPort     && <Field label="Port"><input className="input mono" value={port} onChange={e => setPort(e.target.value)}/></Field>}
+          </div>
+        )}
+
+        {isHttpFamily && (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10 }}>
+              <Field label="Method">
+                <select className="input" value={method} onChange={e => setMethod(e.target.value)}>
+                  {['GET','HEAD','POST','PUT','PATCH','DELETE','OPTIONS'].map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </Field>
+              <Field label="Accepted statuses">
+                <input className="input mono" value={statuses} onChange={e => setStatuses(e.target.value)} placeholder="200, 201, 204"/>
+              </Field>
+            </div>
+            <Field label="Headers (JSON)">
+              <textarea className="input mono" rows={3} value={headers} onChange={e => setHeaders(e.target.value)} placeholder='{"Accept":"application/json"}'/>
+            </Field>
+            <Field label="Body">
+              <textarea className="input mono" rows={2} value={body} onChange={e => setBody(e.target.value)}/>
+            </Field>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+              <Toggle label="Follow redirects" on={follow}     setOn={setFollow}/>
+              <Toggle label="Ignore TLS errors" on={ignoreTls} setOn={setIgnoreTls}/>
+              <Toggle label="Upside down"       on={upside}    setOn={setUpside}/>
+            </div>
+          </>
+        )}
+
+        {!isHttpFamily && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
+            <Toggle label="Upside down" on={upside} setOn={setUpside}/>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+          <button className="btn btn-ghost" onClick={onCancel} disabled={busy}>Cancel</button>
+          <button className="btn btn-accent" onClick={save} disabled={busy}>
+            {busy ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 5 }}>
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+function Toggle({ label, on, setOn }) {
+  return (
+    <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer' }}>
+      <input type="checkbox" checked={on} onChange={e => setOn(e.target.checked)}/>
+      <span style={{ fontSize: 12.5 }}>{label}</span>
+    </label>
+  );
+}
+
 // ── Config panel ──────────────────────────────────────────────────────────
-// Read-only display of the monitor's current configuration. Edit is wired
-// to a "not implemented" stub on the header for now — a real edit form
-// would land here.
 function ConfigPanel({ monitor }) {
   const row = (label, value, mono = false) => (
     <div style={{

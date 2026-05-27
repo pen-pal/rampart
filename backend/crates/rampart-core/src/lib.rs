@@ -32,7 +32,7 @@ pub use ids::{
 };
 pub use incident::{Incident, IncidentStyle, IncidentUpdate};
 pub use maintenance::{MaintenanceWindow, NewMaintenanceWindow};
-pub use monitor::{Monitor, MonitorKind, MonitorStatus, NewMonitor};
+pub use monitor::{Monitor, MonitorKind, MonitorStatus, NewMonitor, UpdateMonitor};
 pub use notification::{ChannelKind, MonitorNotification, Notification, NotificationTemplate};
 pub use status_page::{NewStatusPage, PublicStatusMonitor, PublicStatusPage, StatusPage, UpdateStatusPage};
 pub use tag::{NewTag, Tag, TagBrief};

@@ -11,7 +11,7 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use rampart_core::monitor::NewMonitor;
+use rampart_core::monitor::{NewMonitor, UpdateMonitor};
 use rampart_core::{Heartbeat, Monitor, MonitorId, MonitorStatus};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -26,7 +26,7 @@ pub fn router() -> Router<AppState> {
         .route("/", get(list).post(create))
         .route("/summary", get(summary))
         .route("/history", get(history_all))
-        .route("/:id", get(get_one).delete(delete_one))
+        .route("/:id", get(get_one).patch(update).delete(delete_one))
         .route("/:id/heartbeats", get(heartbeats))
         .route("/:id/pause", post(pause))
         .route("/:id/resume", post(resume))
@@ -70,6 +70,20 @@ async fn delete_one(
     rampart_db::monitors::delete(state.pool(), monitor_id).await?;
     state.poke_scheduler();
     Ok(StatusCode::NO_CONTENT)
+}
+
+async fn update(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(input): Json<UpdateMonitor>,
+) -> Result<Json<Monitor>, ApiError> {
+    let monitor_id = parse_monitor_id(&id)?;
+    input.validate()?;
+    let monitor = rampart_db::monitors::update(state.pool(), monitor_id, input).await?;
+    // Interval / url / proxy_id changes need the running probe task to
+    // pick up the new config — poke triggers a reload diff.
+    state.poke_scheduler();
+    Ok(Json(monitor))
 }
 
 async fn pause(

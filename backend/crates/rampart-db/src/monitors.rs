@@ -6,7 +6,7 @@
 
 use crate::{DbError, DbPool, DbResult};
 use rampart_core::ids::ProxyId;
-use rampart_core::monitor::NewMonitor;
+use rampart_core::monitor::{NewMonitor, UpdateMonitor};
 use rampart_core::{Monitor, MonitorId, MonitorKind, MonitorStatus};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -260,6 +260,66 @@ pub async fn get(pool: &DbPool, id: MonitorId) -> DbResult<Monitor> {
     let mut m: Monitor = row.into();
     m.tags = crate::tags::list_for_monitor(pool, m.id).await?;
     Ok(m)
+}
+
+/// Apply a partial update. Every column uses COALESCE so the absence
+/// of a field on `UpdateMonitor` leaves the row untouched. `kind` is
+/// intentionally not editable. Returns the freshly-hydrated monitor.
+pub async fn update(pool: &DbPool, id: MonitorId, patch: UpdateMonitor) -> DbResult<Monitor> {
+    let proxy_uuid: Option<Uuid> = patch.proxy_id.map(|p| p.0);
+    let accepted: Option<&[i32]> = patch.accepted_statuses.as_deref();
+
+    let result = sqlx::query!(
+        r#"
+        UPDATE monitors SET
+            name                = COALESCE($2, name),
+            url                 = COALESCE($3, url),
+            hostname            = COALESCE($4, hostname),
+            port                = COALESCE($5, port),
+            config              = COALESCE($6, config),
+            interval_seconds    = COALESCE($7, interval_seconds),
+            timeout_seconds     = COALESCE($8, timeout_seconds),
+            max_retries         = COALESCE($9, max_retries),
+            retry_interval_sec  = COALESCE($10, retry_interval_sec),
+            resend_interval_sec = COALESCE($11, resend_interval_sec),
+            upside_down         = COALESCE($12, upside_down),
+            http_method         = COALESCE($13, http_method),
+            http_body           = COALESCE($14, http_body),
+            http_headers        = COALESCE($15, http_headers),
+            accepted_statuses   = COALESCE($16, accepted_statuses),
+            follow_redirect     = COALESCE($17, follow_redirect),
+            ignore_tls          = COALESCE($18, ignore_tls),
+            proxy_id            = COALESCE($19, proxy_id),
+            updated_at          = NOW()
+        WHERE id = $1
+        "#,
+        id.0,
+        patch.name,
+        patch.url,
+        patch.hostname,
+        patch.port,
+        patch.config,
+        patch.interval_seconds,
+        patch.timeout_seconds,
+        patch.max_retries,
+        patch.retry_interval_sec,
+        patch.resend_interval_sec,
+        patch.upside_down,
+        patch.http_method,
+        patch.http_body,
+        patch.http_headers,
+        accepted,
+        patch.follow_redirect,
+        patch.ignore_tls,
+        proxy_uuid,
+    )
+    .execute(pool)
+    .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(DbError::NotFound);
+    }
+    get(pool, id).await
 }
 
 pub async fn delete(pool: &DbPool, id: MonitorId) -> DbResult<()> {

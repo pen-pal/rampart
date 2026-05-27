@@ -129,6 +129,7 @@ prost            = "0.13"
 rumqttc          = { version = "0.24", default-features = false, features = ["use-rustls"] }
 # Docker over the local socket or remote HTTP API.
 bollard          = { version = "0.17", default-features = false, features = ["ssl"] }
+md-5             = "0.10"
 
 [profile.release]
 lto           = "thin"

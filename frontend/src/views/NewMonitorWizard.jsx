@@ -153,7 +153,7 @@ const types = [
     example: 'Detect when your MQTT broker stops accepting connections',
     placeholder: { hostname: 'mqtt.iot.local', port: '1883' } },
 
-  { id: 'radius',     icon: Shield,        name: 'RADIUS',        desc: 'Auth check',          stub: true,
+  { id: 'radius',     icon: Shield,        name: 'RADIUS',        desc: 'Access-Request',
     example: "Make sure your office VPN's RADIUS auth still works",
     placeholder: { hostname: 'radius.internal', port: '1812' } },
 
@@ -196,7 +196,7 @@ const fieldsFor = (kind) => {
       jsonPath: kind === 'json_query',
     };
   }
-  if (['tcp','grpc','mqtt','steam','kafka'].includes(kind))   return { hostname: true, port: true };
+  if (['tcp','grpc','mqtt','steam','kafka','radius'].includes(kind)) return { hostname: true, port: true };
   if (['postgres','mysql','mssql','redis','mongodb'].includes(kind)) return { hostname: true, port: true };
   if (kind === 'ping')   return { hostname: true };
   if (kind === 'dns')    return { hostname: true };
@@ -206,7 +206,7 @@ const fieldsFor = (kind) => {
 };
 
 const defaultPort = (kind) => ({
-  tcp: 443, grpc: 443, mqtt: 1883, steam: 27015, kafka: 9092,
+  tcp: 443, grpc: 443, mqtt: 1883, steam: 27015, kafka: 9092, radius: 1812,
   postgres: 5432, mysql: 3306, mssql: 1433, redis: 6379, mongodb: 27017,
 })[kind] || null;
 
@@ -382,7 +382,7 @@ export default function NewMonitorWizard() {
                 <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em', margin: '0 0 8px' }}>Step 1 · Pick a check type</p>
                 <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 8px', letterSpacing: '-.02em' }}>What do you want to monitor?</h1>
                 <p style={{ fontSize: 14, color: 'var(--text-2)', margin: 0 }}>
-                  20 types in the catalog. Nineteen probe runners ship today — only RADIUS still creates the record but reports Down until its runner lands.
+                  20 types in the catalog. All twenty probe runners ship today — RADIUS, Docker, Steam, Kafka, gRPC, MQTT, the SQL family, plus the network primitives. Pick a kind to get started.
                 </p>
               </div>
 
