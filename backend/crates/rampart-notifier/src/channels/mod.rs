@@ -13,11 +13,13 @@ pub mod bark;
 pub mod bitrix24;
 pub mod brevo;
 pub mod callmebot;
+pub mod cellsynt;
 pub mod clicksend;
 pub mod dingtalk;
 pub mod discord;
 pub mod email;
 pub mod feishu;
+pub mod flock;
 pub mod goalert;
 pub mod google_chat;
 pub mod gotify;
@@ -45,12 +47,15 @@ pub mod resend;
 pub mod rocketchat;
 pub mod sendgrid;
 pub mod serverchan;
+pub mod serwersms;
 pub mod signal;
 pub mod signl4;
 pub mod slack;
 pub mod sms46elks;
 pub mod sms_eagle;
 pub mod sms_manager;
+pub mod smsc;
+pub mod smsplanet;
 pub mod splunk;
 pub mod squadcast;
 pub mod stackfield;
@@ -61,7 +66,10 @@ pub mod threema;
 pub mod twilio;
 pub mod webhook;
 pub mod wecom;
+pub mod whatsapp_360;
+pub mod whatsapp_evolution;
 pub mod whatsapp_waha;
+pub mod whatsapp_whapi;
 pub mod zoho_cliq;
 pub mod zulip;
 
@@ -139,6 +147,14 @@ pub async fn dispatch(
         ChannelKind::SmsManager   => Box::new(sms_manager::SmsManager::from_config(config)?),
         ChannelKind::SmsEagle     => Box::new(sms_eagle::SmsEagle::from_config(config)?),
         ChannelKind::Octopush     => Box::new(octopush::Octopush::from_config(config)?),
+        ChannelKind::WhatsappWhapi     => Box::new(whatsapp_whapi::WhatsappWhapi::from_config(config)?),
+        ChannelKind::Whatsapp360       => Box::new(whatsapp_360::Whatsapp360::from_config(config)?),
+        ChannelKind::WhatsappEvolution => Box::new(whatsapp_evolution::WhatsappEvolution::from_config(config)?),
+        ChannelKind::Flock             => Box::new(flock::Flock::from_config(config)?),
+        ChannelKind::Serwersms         => Box::new(serwersms::Serwersms::from_config(config)?),
+        ChannelKind::Smsplanet         => Box::new(smsplanet::Smsplanet::from_config(config)?),
+        ChannelKind::Smsc              => Box::new(smsc::Smsc::from_config(config)?),
+        ChannelKind::Cellsynt          => Box::new(cellsynt::Cellsynt::from_config(config)?),
         _ => {
             return Err(ChannelError::BadConfig(format!(
                 "channel kind {kind:?} not implemented yet"

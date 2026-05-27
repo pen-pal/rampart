@@ -84,6 +84,14 @@ pub enum ChannelKind {
     SmsManager,
     SmsEagle,
     Octopush,
+    WhatsappWhapi,
+    Whatsapp360,
+    WhatsappEvolution,
+    Flock,
+    Serwersms,
+    Smsplanet,
+    Smsc,
+    Cellsynt,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
