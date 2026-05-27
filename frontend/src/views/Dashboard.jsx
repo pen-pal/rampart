@@ -271,8 +271,35 @@ export default function Dashboard({ user, onLogout } = {}) {
 
   const [openGroup, setOpenGroup] = useState(true);
   const [query, setQuery] = useState('');
+  const [tagFilter, setTagFilter] = useState(new Set()); // tag IDs to require
 
-  const filtered = monitors.filter(m => m.name.toLowerCase().includes(query.toLowerCase()));
+  // All tags currently in use across the visible monitors. We don't fetch
+  // /v1/tags separately — the hydrated tags on each monitor are enough
+  // to render the filter bar.
+  const tagsInUse = useMemo(() => {
+    const seen = new Map();
+    for (const m of monitors) for (const t of (m.tags || [])) seen.set(t.id, t);
+    return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [monitors]);
+
+  const toggleTagFilter = (id) => {
+    setTagFilter(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const matchesTagFilter = (m) => {
+    if (tagFilter.size === 0) return true;
+    const ids = new Set((m.tags || []).map(t => t.id));
+    for (const need of tagFilter) if (!ids.has(need)) return false;
+    return true;
+  };
+
+  const filtered = monitors
+    .filter(m => m.name.toLowerCase().includes(query.toLowerCase()))
+    .filter(matchesTagFilter);
 
   const counts = monitors.reduce((acc, m) => {
     const k = m.current_status === 'maintenance' ? 'maint' : m.current_status;
@@ -560,13 +587,33 @@ export default function Dashboard({ user, onLogout } = {}) {
 
           {/* all monitors table with inline uptime history */}
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-            <div style={{ padding: '16px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
+            <div style={{ padding: '16px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', gap: 10, flexWrap: 'wrap' }}>
               <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>All monitors</h3>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: 12 }}>
-                  <Tag size={11}/> Group by tag
-                </button>
-              </div>
+              {tagsInUse.length > 0 && (
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <Tag size={11} color="var(--text-3)"/>
+                  {tagsInUse.map(t => {
+                    const on = tagFilter.has(t.id);
+                    return (
+                      <button key={t.id} onClick={() => toggleTagFilter(t.id)} style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 5,
+                        padding: '3px 9px', borderRadius: 999,
+                        fontSize: 11, fontWeight: 500, cursor: 'pointer',
+                        background: on ? t.color : 'var(--surface-2)',
+                        color:      on ? '#fff'   : 'var(--text-2)',
+                        border: `1px solid ${on ? t.color : 'var(--border)'}`,
+                      }}>
+                        {t.name}
+                      </button>
+                    );
+                  })}
+                  {tagFilter.size > 0 && (
+                    <button className="btn btn-ghost" onClick={() => setTagFilter(new Set())} style={{ padding: '2px 7px', fontSize: 11 }}>
+                      Clear
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             <div style={{
@@ -596,7 +643,11 @@ export default function Dashboard({ user, onLogout } = {}) {
                   </>
                 )}
               </div>
-            ) : monitors.map(m => {
+            ) : filtered.length === 0 ? (
+              <div className="empty" style={{ padding: '40px 18px' }}>
+                No monitors match the current filter.
+              </div>
+            ) : filtered.map(m => {
               const hist = heartbeatsToCells(historyById.get(m.id), m.current_status === 'paused');
               const summary = summaryById.get(m.id);
               const p50 = summary?.avg_latency_ms;
@@ -611,8 +662,16 @@ export default function Dashboard({ user, onLogout } = {}) {
                   cursor: 'pointer',
                 }}>
                   <span className={`dot ${cls}`}/>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 13, fontWeight: 500 }}>{m.name}</span>
+                    {(m.tags || []).map(t => (
+                      <span key={t.id} title={`tag: ${t.name}`} style={{
+                        display: 'inline-flex', alignItems: 'center',
+                        fontSize: 10, fontWeight: 500,
+                        padding: '1px 6px', borderRadius: 999,
+                        background: t.color, color: '#fff',
+                      }}>{t.name}</span>
+                    ))}
                     {m.current_status === 'down'        && <span className="pill pill-down">Outage</span>}
                     {m.current_status === 'warn'        && <span className="pill pill-warn">Degraded</span>}
                     {m.current_status === 'maintenance' && <span className="pill pill-maint">Maintenance</span>}

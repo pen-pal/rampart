@@ -38,6 +38,7 @@ pub fn sample_monitor() -> Monitor {
         current_status: MonitorStatus::Up,
         created_at: now,
         updated_at: now,
+        tags: Vec::new(),
     }
 }
 

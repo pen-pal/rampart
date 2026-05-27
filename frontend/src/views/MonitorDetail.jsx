@@ -667,6 +667,8 @@ function ConfigPanel({ monitor }) {
         {row('Current status',   monitor.current_status, true)}
       </div>
 
+      <TagsCard monitor={monitor}/>
+
       {(monitor.kind === 'http' || monitor.kind === 'keyword' || monitor.kind === 'json_query') && (
         <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
           <div style={{ padding: '16px 22px' }}>
@@ -836,6 +838,90 @@ function PushUrlCard({ token, lastPushAt, interval }) {
       </div>
       <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-3)' }}>
         Last push: {lastPushDate ? formatRelative(lastPushDate) : 'never'}
+      </div>
+    </div>
+  );
+}
+
+// Inline tag editor. Lists currently-attached tags as chips with × to
+// detach; offers a dropdown of all known tags to attach; opens a tiny
+// inline form for creating a new tag on the fly. Reloads the page on
+// any mutation — the dashboard polls the monitor list so the chips
+// over there refresh on the next tick anyway.
+function TagsCard({ monitor }) {
+  const allTags = useApi(() => api.tags.list(), []);
+  const [busy,     setBusy]     = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newName,  setNewName]  = useState('');
+  const [newColor, setNewColor] = useState('#14b8a6');
+
+  const attached = monitor.tags || [];
+  const attachedIds = new Set(attached.map(t => t.id));
+  const candidates = (allTags.data || []).filter(t => !attachedIds.has(t.id));
+
+  const detach = async (tagId) => {
+    setBusy(true);
+    try { await api.tags.detach(monitor.id, tagId); window.location.reload(); }
+    finally { setBusy(false); }
+  };
+  const attach = async (tagId) => {
+    setBusy(true);
+    try { await api.tags.attach(monitor.id, tagId); window.location.reload(); }
+    finally { setBusy(false); }
+  };
+  const createAndAttach = async () => {
+    if (!newName.trim()) return;
+    setBusy(true);
+    try {
+      const t = await api.tags.create(newName.trim(), newColor);
+      await api.tags.attach(monitor.id, t.id);
+      window.location.reload();
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
+      <div style={{ padding: '16px 22px' }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Tags</h3>
+      </div>
+      <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+        {attached.length === 0 && <span style={{ fontSize: 12, color: 'var(--text-3)' }}>No tags attached.</span>}
+        {attached.map(t => (
+          <span key={t.id} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            background: t.color, color: '#fff',
+            fontSize: 11, fontWeight: 500,
+            padding: '3px 4px 3px 9px', borderRadius: 999,
+          }}>
+            {t.name}
+            <button disabled={busy} onClick={() => detach(t.id)} title="Detach" style={{
+              background: 'rgba(255,255,255,.2)', border: 'none', color: '#fff',
+              borderRadius: '50%', width: 16, height: 16, cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <X size={9}/>
+            </button>
+          </span>
+        ))}
+        {candidates.length > 0 && (
+          <select disabled={busy} className="select" style={{ fontSize: 12, padding: '4px 8px', width: 'auto' }}
+            value="" onChange={e => e.target.value && attach(e.target.value)}>
+            <option value="">+ Attach existing…</option>
+            {candidates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+        )}
+        {!creating ? (
+          <button className="btn btn-ghost" disabled={busy} onClick={() => setCreating(true)} style={{ padding: '3px 8px', fontSize: 11 }}>
+            <Plus size={11}/> New tag
+          </button>
+        ) : (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <input autoFocus className="input" placeholder="tag name" value={newName} onChange={e => setNewName(e.target.value)} style={{ width: 130, padding: '4px 8px', fontSize: 12 }}/>
+            <input type="color" value={newColor} onChange={e => setNewColor(e.target.value)} title="Color"/>
+            <button className="btn btn-accent" disabled={busy || !newName.trim()} onClick={createAndAttach} style={{ padding: '4px 8px', fontSize: 11 }}>Create</button>
+            <button className="btn btn-ghost" disabled={busy} onClick={() => { setCreating(false); setNewName(''); }} style={{ padding: '4px 6px' }}><X size={11}/></button>
+          </span>
+        )}
       </div>
     </div>
   );

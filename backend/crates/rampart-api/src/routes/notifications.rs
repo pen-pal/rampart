@@ -167,6 +167,7 @@ async fn send_test(
         current_status: rampart_core::MonitorStatus::Up,
         created_at: now,
         updated_at: now,
+        tags: Vec::new(),
     };
     let test_hb = rampart_core::Heartbeat {
         monitor_id: test_monitor.id,

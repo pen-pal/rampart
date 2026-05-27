@@ -13,6 +13,7 @@ pub mod monitors;
 pub mod notifications;
 pub mod sessions;
 pub mod status_pages;
+pub mod tags;
 pub mod templates;
 pub mod users;
 

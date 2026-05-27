@@ -100,6 +100,14 @@ export const api = {
     update:  (id, patch)     => request(`/v1/notification-templates/${id}`, { method: 'PATCH', body: patch }),
     remove:  (id)            => request(`/v1/notification-templates/${id}`, { method: 'DELETE' }),
   },
+  tags: {
+    list:   ()                  => request('/v1/tags'),
+    create: (name, color)       => request('/v1/tags', { method: 'POST', body: { name, color } }),
+    remove: (id)                => request(`/v1/tags/${id}`, { method: 'DELETE' }),
+    forMonitor: (mid)           => request(`/v1/monitors/${mid}/tags`),
+    attach: (mid, tagId)        => request(`/v1/monitors/${mid}/tags/${tagId}`, { method: 'POST' }),
+    detach: (mid, tagId)        => request(`/v1/monitors/${mid}/tags/${tagId}`, { method: 'DELETE' }),
+  },
   statusPages: {
     list:       ()                  => request('/v1/status-pages'),
     get:        (id)                => request(`/v1/status-pages/${id}`),

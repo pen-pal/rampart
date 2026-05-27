@@ -70,6 +70,7 @@ impl From<MonitorRow> for Monitor {
             current_status: r.current_status,
             created_at: r.created_at,
             updated_at: r.updated_at,
+            tags: Vec::new(),
         }
     }
 }
@@ -220,7 +221,15 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<Monitor>> {
     .fetch_all(pool)
     .await?;
 
-    Ok(rows.into_iter().map(Monitor::from).collect())
+    let mut monitors: Vec<Monitor> = rows.into_iter().map(Monitor::from).collect();
+    let ids: Vec<MonitorId> = monitors.iter().map(|m| m.id).collect();
+    let tag_map = crate::tags::hydrate_for_monitors(pool, &ids).await?;
+    for m in monitors.iter_mut() {
+        if let Some(t) = tag_map.get(&m.id) {
+            m.tags = t.clone();
+        }
+    }
+    Ok(monitors)
 }
 
 pub async fn get(pool: &DbPool, id: MonitorId) -> DbResult<Monitor> {
@@ -248,7 +257,9 @@ pub async fn get(pool: &DbPool, id: MonitorId) -> DbResult<Monitor> {
     .await?
     .ok_or(DbError::NotFound)?;
 
-    Ok(row.into())
+    let mut m: Monitor = row.into();
+    m.tags = crate::tags::list_for_monitor(pool, m.id).await?;
+    Ok(m)
 }
 
 pub async fn delete(pool: &DbPool, id: MonitorId) -> DbResult<()> {

@@ -6,6 +6,7 @@
 //! WHOIS-based expiry checks.
 
 use crate::ids::{MonitorId, ProxyId};
+use crate::tag::TagBrief;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use validator::Validate;
@@ -110,6 +111,11 @@ pub struct Monitor {
     pub current_status: MonitorStatus,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
+    /// Tags attached to this monitor. Hydrated by the DB layer on
+    /// list/get reads; left empty for serde-default deserialisation
+    /// (e.g. test fixtures that don't care about tags).
+    #[serde(default)]
+    pub tags: Vec<TagBrief>,
 }
 
 /// Payload accepted when creating a monitor. Kind/url/hostname validation

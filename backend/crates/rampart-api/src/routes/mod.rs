@@ -16,6 +16,7 @@ pub mod monitors;
 pub mod notifications;
 pub mod push;
 pub mod status_pages;
+pub mod tags;
 pub mod templates;
 
 use crate::state::AppState;
@@ -31,11 +32,15 @@ pub fn v1_public() -> Router<AppState> {
 
 pub fn v1_protected() -> Router<AppState> {
     Router::new()
-        // /v1/monitors itself and /v1/monitors/:id/notifications attach/detach
+        // /v1/monitors itself + /v1/monitors/:id/notifications and /tags subroutes
         .nest(
             "/monitors",
-            monitors::router().merge(notifications::monitor_attach_router()),
+            monitors::router()
+                .merge(notifications::monitor_attach_router())
+                .merge(tags::monitor_tag_router()),
         )
+        // /v1/tags CRUD
+        .nest("/tags", tags::router())
         // /v1/notifications CRUD
         .nest("/notifications", notifications::router())
         // /v1/notification-templates CRUD
