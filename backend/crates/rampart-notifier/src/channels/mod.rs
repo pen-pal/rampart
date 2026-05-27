@@ -11,6 +11,8 @@ pub mod apprise;
 pub mod bark;
 pub mod bitrix24;
 pub mod brevo;
+pub mod callmebot;
+pub mod clicksend;
 pub mod dingtalk;
 pub mod discord;
 pub mod email;
@@ -18,12 +20,15 @@ pub mod feishu;
 pub mod goalert;
 pub mod google_chat;
 pub mod gotify;
+pub mod grafana_oncall;
 pub mod heii_oncall;
+pub mod home_assistant;
 pub mod lark;
 pub mod line;
 pub mod mastodon;
 pub mod matrix;
 pub mod mattermost;
+pub mod notifery;
 pub mod ntfy;
 pub mod opsgenie;
 pub mod pagerduty;
@@ -40,10 +45,13 @@ pub mod serverchan;
 pub mod signal;
 pub mod signl4;
 pub mod slack;
+pub mod sms46elks;
+pub mod splunk;
 pub mod squadcast;
 pub mod stackfield;
 pub mod teams;
 pub mod telegram;
+pub mod telnyx;
 pub mod twilio;
 pub mod webhook;
 pub mod wecom;
@@ -107,6 +115,14 @@ pub async fn dispatch(
         ChannelKind::Pumble      => Box::new(pumble::Pumble::from_config(config)?),
         ChannelKind::Bitrix24    => Box::new(bitrix24::Bitrix24::from_config(config)?),
         ChannelKind::Stackfield  => Box::new(stackfield::Stackfield::from_config(config)?),
+        ChannelKind::Splunk        => Box::new(splunk::Splunk::from_config(config)?),
+        ChannelKind::GrafanaOncall => Box::new(grafana_oncall::GrafanaOncall::from_config(config)?),
+        ChannelKind::HomeAssistant => Box::new(home_assistant::HomeAssistant::from_config(config)?),
+        ChannelKind::Clicksend     => Box::new(clicksend::Clicksend::from_config(config)?),
+        ChannelKind::Sms46elks     => Box::new(sms46elks::Sms46elks::from_config(config)?),
+        ChannelKind::Callmebot     => Box::new(callmebot::Callmebot::from_config(config)?),
+        ChannelKind::Telnyx        => Box::new(telnyx::Telnyx::from_config(config)?),
+        ChannelKind::Notifery      => Box::new(notifery::Notifery::from_config(config)?),
         _ => {
             return Err(ChannelError::BadConfig(format!(
                 "channel kind {kind:?} not implemented yet"

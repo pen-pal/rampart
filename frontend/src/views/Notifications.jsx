@@ -146,6 +146,14 @@ const SUPPORTED = [
   { id: 'pumble',      name: 'Pumble',          icon: MessageSquare, hint: 'Pumble incoming webhook (Slack-compatible payload)' },
   { id: 'bitrix24',    name: 'Bitrix24',        icon: MessageSquare, hint: 'Bitrix24 inbound webhook + USER_ID for im.notify.system.add' },
   { id: 'stackfield',  name: 'Stackfield',      icon: MessageSquare, hint: 'Stackfield room incoming webhook' },
+  { id: 'splunk',        name: 'Splunk On-Call', icon: Siren,         hint: 'Splunk On-Call (VictorOps) REST integration URL' },
+  { id: 'grafana_oncall',name: 'Grafana OnCall', icon: Siren,         hint: 'Grafana OnCall integration webhook' },
+  { id: 'home_assistant',name: 'Home Assistant', icon: Server,        hint: 'Home Assistant /api/services/notify/<service> with long-lived token' },
+  { id: 'clicksend',     name: 'ClickSend SMS',  icon: Phone,         hint: 'ClickSend REST SMS — username + API key' },
+  { id: 'sms_46elks',    name: '46elks SMS',     icon: Phone,         hint: '46elks SMS — API username + password' },
+  { id: 'callmebot',     name: 'CallMeBot',      icon: Phone,         hint: 'Free WhatsApp / Signal / Telegram push via callmebot.com' },
+  { id: 'telnyx',        name: 'Telnyx SMS',     icon: Phone,         hint: 'Telnyx v2/messages — API key + from number' },
+  { id: 'notifery',      name: 'Notifery',       icon: Smartphone,    hint: 'Notifery event API — token + group' },
   // push
   { id: 'ntfy',       name: 'ntfy.sh',         icon: Smartphone,    hint: 'Push to phone via ntfy.sh (free) or self-hosted ntfy server' },
   { id: 'gotify',     name: 'Gotify',          icon: Server,        hint: 'Self-hosted push server (https://gotify.net)' },
@@ -929,6 +937,136 @@ function ConfigForm({ kind, config, setConfig }) {
         <input className="input mono" value={config.webhook_url || ''}
           onChange={e => set('webhook_url', e.target.value)} placeholder="https://www.stackfield.com/api/incoming-webhook/..."/>
       </div>
+    );
+  }
+  if (kind === 'splunk' || kind === 'grafana_oncall') {
+    const label = kind === 'splunk' ? 'Integration URL' : 'Webhook URL';
+    const k = kind === 'splunk' ? 'integration_url' : 'webhook_url';
+    return (
+      <div className="field">
+        <label className="field-label">{label}</label>
+        <input className="input mono" value={config[k] || ''}
+          onChange={e => set(k, e.target.value)} placeholder="https://..."/>
+      </div>
+    );
+  }
+  if (kind === 'home_assistant') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">Base URL</label>
+          <input className="input mono" value={config.base_url || ''}
+            onChange={e => set('base_url', e.target.value)} placeholder="http://homeassistant.local:8123"/>
+        </div>
+        <div className="field">
+          <label className="field-label">Long-lived access token</label>
+          <input className="input mono" type="password" value={config.long_lived_token || ''}
+            onChange={e => set('long_lived_token', e.target.value)}/>
+        </div>
+        <div className="field">
+          <label className="field-label">Notify service</label>
+          <input className="input mono" value={config.notify_service || ''}
+            onChange={e => set('notify_service', e.target.value)} placeholder="mobile_app_phone / persistent_notification"/>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'clicksend') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">Username</label>
+          <input className="input" value={config.username || ''}
+            onChange={e => set('username', e.target.value)}/>
+        </div>
+        <div className="field">
+          <label className="field-label">API key</label>
+          <input className="input mono" type="password" value={config.api_key || ''}
+            onChange={e => set('api_key', e.target.value)}/>
+        </div>
+        <div className="field">
+          <label className="field-label">From</label>
+          <input className="input mono" value={config.from || ''}
+            onChange={e => set('from', e.target.value)} placeholder="Rampart"/>
+        </div>
+        <div className="field">
+          <label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated E.164</span></label>
+          <input className="input mono" value={config.to || ''}
+            onChange={e => set('to', e.target.value)} placeholder="+15551234567"/>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'sms_46elks') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">API username</label>
+          <input className="input mono" value={config.api_username || ''}
+            onChange={e => set('api_username', e.target.value)}/>
+        </div>
+        <div className="field">
+          <label className="field-label">API password</label>
+          <input className="input mono" type="password" value={config.api_password || ''}
+            onChange={e => set('api_password', e.target.value)}/>
+        </div>
+        <div className="field">
+          <label className="field-label">From</label>
+          <input className="input mono" value={config.from || ''}
+            onChange={e => set('from', e.target.value)} placeholder="Rampart"/>
+        </div>
+        <div className="field">
+          <label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated E.164</span></label>
+          <input className="input mono" value={config.to || ''}
+            onChange={e => set('to', e.target.value)}/>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'callmebot') {
+    return (
+      <div className="field">
+        <label className="field-label">Endpoint URL</label>
+        <input className="input mono" value={config.endpoint_url || ''}
+          onChange={e => set('endpoint_url', e.target.value)} placeholder="https://api.callmebot.com/whatsapp.php?phone=...&apikey=..."/>
+      </div>
+    );
+  }
+  if (kind === 'telnyx') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">API key</label>
+          <input className="input mono" type="password" value={config.api_key || ''}
+            onChange={e => set('api_key', e.target.value)}/>
+        </div>
+        <div className="field">
+          <label className="field-label">From</label>
+          <input className="input mono" value={config.from || ''}
+            onChange={e => set('from', e.target.value)} placeholder="+15551234567"/>
+        </div>
+        <div className="field">
+          <label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+          <input className="input mono" value={config.to || ''}
+            onChange={e => set('to', e.target.value)}/>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'notifery') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">API token</label>
+          <input className="input mono" type="password" value={config.api_token || ''}
+            onChange={e => set('api_token', e.target.value)}/>
+        </div>
+        <div className="field">
+          <label className="field-label">Group</label>
+          <input className="input" value={config.group || ''}
+            onChange={e => set('group', e.target.value)} placeholder="rampart"/>
+        </div>
+      </>
     );
   }
   if (kind === 'sms_twilio') {

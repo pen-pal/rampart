@@ -68,6 +68,14 @@ pub enum ChannelKind {
     Pumble,
     Bitrix24,
     Stackfield,
+    Splunk,
+    GrafanaOncall,
+    HomeAssistant,
+    Clicksend,
+    Sms46elks,
+    Callmebot,
+    Telnyx,
+    Notifery,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
