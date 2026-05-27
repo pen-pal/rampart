@@ -140,6 +140,14 @@ pub enum ChannelKind {
     GitlabIssue,
     Asana,
     Notion,
+    Sentry,
+    Rollbar,
+    Honeybadger,
+    HealthchecksIo,
+    Betterstack,
+    StatuspageIo,
+    Datadog,
+    Newrelic,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -218,6 +218,14 @@ const SUPPORTED = [
   { id: 'gitlab_issue',  name: 'GitLab Issue',   icon: FileText,      hint: 'Create a GitLab issue — PRIVATE-TOKEN + project_id' },
   { id: 'asana',         name: 'Asana',          icon: FileText,      hint: 'Asana task — PAT + workspace + project' },
   { id: 'notion',        name: 'Notion',         icon: FileText,      hint: 'Notion page — integration token + database_id' },
+  { id: 'sentry',          name: 'Sentry',          icon: Siren,    hint: 'Sentry event via project DSN' },
+  { id: 'rollbar',         name: 'Rollbar',         icon: Siren,    hint: 'Rollbar /api/1/item/ — server access token' },
+  { id: 'honeybadger',     name: 'Honeybadger',     icon: Siren,    hint: 'Honeybadger /v1/notices — X-API-Key' },
+  { id: 'healthchecks_io', name: 'Healthchecks.io', icon: Smartphone, hint: 'Chained ping — /<uuid> on Up, /<uuid>/fail on Down' },
+  { id: 'betterstack',     name: 'BetterStack',     icon: Siren,    hint: 'BetterStack (was Better Uptime) integration URL' },
+  { id: 'statuspage_io',   name: 'Statuspage.io',   icon: Siren,    hint: 'Atlassian Statuspage incidents — API key + page_id' },
+  { id: 'datadog',         name: 'Datadog Events',  icon: Siren,    hint: 'Datadog /api/v1/events — DD-API-KEY' },
+  { id: 'newrelic',        name: 'New Relic Events',icon: Siren,    hint: 'New Relic events insert — Api-Key + account_id' },
   // push
   { id: 'ntfy',       name: 'ntfy.sh',         icon: Smartphone,    hint: 'Push to phone via ntfy.sh (free) or self-hosted ntfy server' },
   { id: 'gotify',     name: 'Gotify',          icon: Server,        hint: 'Self-hosted push server (https://gotify.net)' },
@@ -2074,6 +2082,94 @@ function ConfigForm({ kind, config, setConfig }) {
         <div className="field"><label className="field-label">Database ID</label>
           <input className="input mono" value={config.database_id || ''}
             onChange={e => set('database_id', e.target.value)}/></div>
+      </>
+    );
+  }
+  if (kind === 'sentry') {
+    return (
+      <div className="field"><label className="field-label">DSN</label>
+        <input className="input mono" type="password" value={config.dsn || ''}
+          onChange={e => set('dsn', e.target.value)} placeholder="https://<public>@<host>/<project>"/></div>
+    );
+  }
+  if (kind === 'rollbar') {
+    return (
+      <>
+        <div className="field"><label className="field-label">Access token</label>
+          <input className="input mono" type="password" value={config.access_token || ''}
+            onChange={e => set('access_token', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Environment</label>
+          <input className="input mono" value={config.environment || ''}
+            onChange={e => set('environment', e.target.value)} placeholder="production"/></div>
+      </>
+    );
+  }
+  if (kind === 'honeybadger') {
+    return (
+      <>
+        <div className="field"><label className="field-label">API key</label>
+          <input className="input mono" type="password" value={config.api_key || ''}
+            onChange={e => set('api_key', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Environment</label>
+          <input className="input mono" value={config.environment || ''}
+            onChange={e => set('environment', e.target.value)} placeholder="production"/></div>
+      </>
+    );
+  }
+  if (kind === 'healthchecks_io') {
+    return (
+      <div className="field"><label className="field-label">Ping URL</label>
+        <input className="input mono" value={config.ping_url || ''}
+          onChange={e => set('ping_url', e.target.value)} placeholder="https://hc-ping.com/&lt;uuid&gt;"/></div>
+    );
+  }
+  if (kind === 'betterstack') {
+    return (
+      <div className="field"><label className="field-label">Integration URL</label>
+        <input className="input mono" value={config.integration_url || ''}
+          onChange={e => set('integration_url', e.target.value)}/></div>
+    );
+  }
+  if (kind === 'statuspage_io') {
+    return (
+      <>
+        <div className="field"><label className="field-label">API key</label>
+          <input className="input mono" type="password" value={config.api_key || ''}
+            onChange={e => set('api_key', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Page ID</label>
+          <input className="input mono" value={config.page_id || ''}
+            onChange={e => set('page_id', e.target.value)}/></div>
+      </>
+    );
+  }
+  if (kind === 'datadog') {
+    return (
+      <>
+        <div className="field"><label className="field-label">API key</label>
+          <input className="input mono" type="password" value={config.api_key || ''}
+            onChange={e => set('api_key', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Site</label>
+          <select className="select" value={config.site || 'us1'} onChange={e => set('site', e.target.value)}>
+            <option>us1</option><option>us3</option><option>us5</option><option>eu</option><option>us1-fed</option>
+          </select>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'newrelic') {
+    return (
+      <>
+        <div className="field"><label className="field-label">Insert key</label>
+          <input className="input mono" type="password" value={config.insert_key || ''}
+            onChange={e => set('insert_key', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Account ID</label>
+          <input className="input mono" value={config.account_id || ''}
+            onChange={e => set('account_id', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Region</label>
+          <select className="select" value={config.region || 'us'} onChange={e => set('region', e.target.value)}>
+            <option>us</option><option>eu</option>
+          </select>
+        </div>
       </>
     );
   }

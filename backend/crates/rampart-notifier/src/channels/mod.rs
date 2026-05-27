@@ -13,12 +13,14 @@ pub mod asana;
 pub mod bale;
 pub mod bandwidth;
 pub mod bark;
+pub mod betterstack;
 pub mod bitrix24;
 pub mod brevo;
 pub mod callmebot;
 pub mod cellsynt;
 pub mod clicksend;
 pub mod clickup;
+pub mod datadog;
 pub mod dingtalk;
 pub mod discord;
 pub mod email;
@@ -37,8 +39,10 @@ pub mod gotify;
 pub mod grafana_oncall;
 pub mod gtxmessaging;
 pub mod halo_psa;
+pub mod healthchecks_io;
 pub mod heii_oncall;
 pub mod home_assistant;
+pub mod honeybadger;
 pub mod ilert;
 pub mod jira_sm;
 pub mod kook;
@@ -53,6 +57,7 @@ pub mod matrix;
 pub mod mattermost;
 pub mod max_messenger;
 pub mod messagebird;
+pub mod newrelic;
 pub mod nostr;
 pub mod notifery;
 pub mod notion;
@@ -77,7 +82,9 @@ pub mod pushy;
 pub mod resend;
 pub mod ringcentral;
 pub mod rocketchat;
+pub mod rollbar;
 pub mod sendgrid;
+pub mod sentry;
 pub mod serverchan;
 pub mod serwersms;
 pub mod sevenio;
@@ -99,6 +106,7 @@ pub mod splunk;
 pub mod spug_push;
 pub mod squadcast;
 pub mod stackfield;
+pub mod statuspage_io;
 pub mod teams;
 pub mod telegram;
 pub mod telnyx;
@@ -251,6 +259,14 @@ pub async fn dispatch(
         ChannelKind::GitlabIssue  => Box::new(gitlab_issue::GitlabIssue::from_config(config)?),
         ChannelKind::Asana        => Box::new(asana::Asana::from_config(config)?),
         ChannelKind::Notion       => Box::new(notion::Notion::from_config(config)?),
+        ChannelKind::Sentry         => Box::new(sentry::Sentry::from_config(config)?),
+        ChannelKind::Rollbar        => Box::new(rollbar::Rollbar::from_config(config)?),
+        ChannelKind::Honeybadger    => Box::new(honeybadger::Honeybadger::from_config(config)?),
+        ChannelKind::HealthchecksIo => Box::new(healthchecks_io::HealthchecksIo::from_config(config)?),
+        ChannelKind::Betterstack    => Box::new(betterstack::Betterstack::from_config(config)?),
+        ChannelKind::StatuspageIo   => Box::new(statuspage_io::StatuspageIo::from_config(config)?),
+        ChannelKind::Datadog        => Box::new(datadog::Datadog::from_config(config)?),
+        ChannelKind::Newrelic       => Box::new(newrelic::Newrelic::from_config(config)?),
         _ => {
             return Err(ChannelError::BadConfig(format!(
                 "channel kind {kind:?} not implemented yet"
