@@ -39,6 +39,9 @@ pub mod jira_sm;
 pub mod kook;
 pub mod lark;
 pub mod line;
+pub mod mailgun;
+pub mod mailjet;
+pub mod mandrill;
 pub mod mastodon;
 pub mod matrix;
 pub mod mattermost;
@@ -55,6 +58,7 @@ pub mod opsgenie;
 pub mod pagerduty;
 pub mod pagertree;
 pub mod plivo;
+pub mod postmark;
 pub mod promosms;
 pub mod pumble;
 pub mod pushbullet;
@@ -64,6 +68,7 @@ pub mod pushover;
 pub mod pushplus;
 pub mod pushy;
 pub mod resend;
+pub mod ringcentral;
 pub mod rocketchat;
 pub mod sendgrid;
 pub mod serverchan;
@@ -80,6 +85,8 @@ pub mod smsc;
 pub mod smsglobal;
 pub mod smsplanet;
 pub mod smspartner;
+pub mod sparkpost;
+pub mod spike_sh;
 pub mod splash;
 pub mod splunk;
 pub mod spug_push;
@@ -102,6 +109,7 @@ pub mod whatsapp_waha;
 pub mod whatsapp_whapi;
 pub mod wpush;
 pub mod yzj;
+pub mod zenduty;
 pub mod zoho_cliq;
 pub mod zulip;
 
@@ -219,6 +227,14 @@ pub async fn dispatch(
         ChannelKind::Pushcut      => Box::new(pushcut::Pushcut::from_config(config)?),
         ChannelKind::Smsglobal    => Box::new(smsglobal::Smsglobal::from_config(config)?),
         ChannelKind::Alertops     => Box::new(alertops::Alertops::from_config(config)?),
+        ChannelKind::Mailgun      => Box::new(mailgun::Mailgun::from_config(config)?),
+        ChannelKind::Mailjet      => Box::new(mailjet::Mailjet::from_config(config)?),
+        ChannelKind::Postmark     => Box::new(postmark::Postmark::from_config(config)?),
+        ChannelKind::Mandrill     => Box::new(mandrill::Mandrill::from_config(config)?),
+        ChannelKind::Sparkpost    => Box::new(sparkpost::Sparkpost::from_config(config)?),
+        ChannelKind::SpikeSh      => Box::new(spike_sh::SpikeSh::from_config(config)?),
+        ChannelKind::Zenduty      => Box::new(zenduty::Zenduty::from_config(config)?),
+        ChannelKind::Ringcentral  => Box::new(ringcentral::Ringcentral::from_config(config)?),
         _ => {
             return Err(ChannelError::BadConfig(format!(
                 "channel kind {kind:?} not implemented yet"

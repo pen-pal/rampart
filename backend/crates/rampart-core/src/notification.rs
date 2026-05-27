@@ -124,6 +124,14 @@ pub enum ChannelKind {
     Pushcut,
     Smsglobal,
     Alertops,
+    Mailgun,
+    Mailjet,
+    Postmark,
+    Mandrill,
+    Sparkpost,
+    SpikeSh,
+    Zenduty,
+    Ringcentral,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

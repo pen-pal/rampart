@@ -202,6 +202,14 @@ const SUPPORTED = [
   { id: 'pushcut',       name: 'Pushcut',        icon: Smartphone,    hint: 'Pushcut iOS automation — API key + notification name' },
   { id: 'smsglobal',     name: 'SMSGlobal',      icon: Phone,         hint: 'SMSGlobal /v2/sms — api_key + api_secret' },
   { id: 'alertops',      name: 'AlertOps',       icon: Siren,         hint: 'AlertOps integration URL — auto-resolves on recovery' },
+  { id: 'mailgun',       name: 'Mailgun',        icon: Mail,          hint: 'Mailgun /messages — domain + private API key' },
+  { id: 'mailjet',       name: 'Mailjet',        icon: Mail,          hint: 'Mailjet /v3.1/send — API key + secret' },
+  { id: 'postmark',      name: 'Postmark',       icon: Mail,          hint: 'Postmark /email — server token' },
+  { id: 'mandrill',      name: 'Mandrill',       icon: Mail,          hint: 'Mailchimp Transactional /messages/send.json' },
+  { id: 'sparkpost',     name: 'SparkPost',      icon: Mail,          hint: 'SparkPost /api/v1/transmissions — API key' },
+  { id: 'spike_sh',      name: 'Spike.sh',       icon: Siren,         hint: 'Spike.sh integration URL — auto-resolves on recovery' },
+  { id: 'zenduty',       name: 'Zenduty',        icon: Siren,         hint: 'Zenduty integration URL — auto-resolves on recovery' },
+  { id: 'ringcentral',   name: 'RingCentral',    icon: MessageSquare, hint: 'RingCentral incoming-webhook URL' },
   // push
   { id: 'ntfy',       name: 'ntfy.sh',         icon: Smartphone,    hint: 'Push to phone via ntfy.sh (free) or self-hosted ntfy server' },
   { id: 'gotify',     name: 'Gotify',          icon: Server,        hint: 'Self-hosted push server (https://gotify.net)' },
@@ -1849,6 +1857,110 @@ function ConfigForm({ kind, config, setConfig }) {
       <div className="field"><label className="field-label">Integration URL</label>
         <input className="input mono" value={config.integration_url || ''}
           onChange={e => set('integration_url', e.target.value)}/></div>
+    );
+  }
+  if (kind === 'mailgun') {
+    return (
+      <>
+        <div className="field"><label className="field-label">API key</label>
+          <input className="input mono" type="password" value={config.api_key || ''}
+            onChange={e => set('api_key', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Domain</label>
+          <input className="input mono" value={config.domain || ''}
+            onChange={e => set('domain', e.target.value)} placeholder="mg.example.com"/></div>
+        <div className="field"><label className="field-label">Base URL <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· EU: https://api.eu.mailgun.net</span></label>
+          <input className="input mono" value={config.base_url || ''}
+            onChange={e => set('base_url', e.target.value)} placeholder="https://api.mailgun.net"/></div>
+        <div className="field"><label className="field-label">From</label>
+          <input className="input" value={config.from || ''}
+            onChange={e => set('from', e.target.value)}/></div>
+        <div className="field"><label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+          <input className="input" value={config.to || ''}
+            onChange={e => set('to', e.target.value)}/></div>
+      </>
+    );
+  }
+  if (kind === 'mailjet') {
+    return (
+      <>
+        <div className="field"><label className="field-label">API key</label>
+          <input className="input mono" value={config.api_key || ''}
+            onChange={e => set('api_key', e.target.value)}/></div>
+        <div className="field"><label className="field-label">API secret</label>
+          <input className="input mono" type="password" value={config.api_secret || ''}
+            onChange={e => set('api_secret', e.target.value)}/></div>
+        <div className="field"><label className="field-label">From email</label>
+          <input className="input" value={config.from_email || ''}
+            onChange={e => set('from_email', e.target.value)}/></div>
+        <div className="field"><label className="field-label">To email</label>
+          <input className="input" value={config.to_email || ''}
+            onChange={e => set('to_email', e.target.value)}/></div>
+      </>
+    );
+  }
+  if (kind === 'postmark') {
+    return (
+      <>
+        <div className="field"><label className="field-label">Server token</label>
+          <input className="input mono" type="password" value={config.server_token || ''}
+            onChange={e => set('server_token', e.target.value)}/></div>
+        <div className="field"><label className="field-label">From</label>
+          <input className="input" value={config.from || ''}
+            onChange={e => set('from', e.target.value)}/></div>
+        <div className="field"><label className="field-label">To</label>
+          <input className="input" value={config.to || ''}
+            onChange={e => set('to', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Message stream <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+          <input className="input mono" value={config.message_stream || ''}
+            onChange={e => set('message_stream', e.target.value)}/></div>
+      </>
+    );
+  }
+  if (kind === 'mandrill') {
+    return (
+      <>
+        <div className="field"><label className="field-label">API key</label>
+          <input className="input mono" type="password" value={config.api_key || ''}
+            onChange={e => set('api_key', e.target.value)}/></div>
+        <div className="field"><label className="field-label">From email</label>
+          <input className="input" value={config.from_email || ''}
+            onChange={e => set('from_email', e.target.value)}/></div>
+        <div className="field"><label className="field-label">To email</label>
+          <input className="input" value={config.to_email || ''}
+            onChange={e => set('to_email', e.target.value)}/></div>
+      </>
+    );
+  }
+  if (kind === 'sparkpost') {
+    return (
+      <>
+        <div className="field"><label className="field-label">API key</label>
+          <input className="input mono" type="password" value={config.api_key || ''}
+            onChange={e => set('api_key', e.target.value)}/></div>
+        <div className="field"><label className="field-label">From</label>
+          <input className="input" value={config.from || ''}
+            onChange={e => set('from', e.target.value)}/></div>
+        <div className="field"><label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+          <input className="input" value={config.to || ''}
+            onChange={e => set('to', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Base URL <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· EU: https://api.eu.sparkpost.com</span></label>
+          <input className="input mono" value={config.base_url || ''}
+            onChange={e => set('base_url', e.target.value)} placeholder="https://api.sparkpost.com"/></div>
+      </>
+    );
+  }
+  if (kind === 'spike_sh' || kind === 'zenduty') {
+    return (
+      <div className="field"><label className="field-label">Integration URL</label>
+        <input className="input mono" value={config.integration_url || ''}
+          onChange={e => set('integration_url', e.target.value)}/></div>
+    );
+  }
+  if (kind === 'ringcentral') {
+    return (
+      <div className="field"><label className="field-label">Webhook URL</label>
+        <input className="input mono" value={config.webhook_url || ''}
+          onChange={e => set('webhook_url', e.target.value)} placeholder="https://hooks.ringcentral.com/webhook/..."/></div>
     );
   }
   if (kind === 'sms_twilio') {
