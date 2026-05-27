@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM maintenance_window_monitors WHERE window_id = $1 AND monitor_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "312d08288c2859b4f43562b4c1f6858fc9f04039076bc87ca4b581987a266669"
+}

@@ -400,6 +400,20 @@ export default function MonitorDetail({ monitorId }) {
         {/* ─── OVERVIEW TAB ──────────────────────────────────────── */}
         {tab === 'overview' && <>
 
+        {heartbeats[0]?.status === 'maintenance' && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '12px 16px', marginBottom: 20,
+            background: 'var(--warn-soft)', border: '1px solid #fcd34d',
+            borderRadius: 10, fontSize: 13, color: '#92400e',
+          }}>
+            <Calendar size={14}/>
+            <strong>Monitor is currently in maintenance.</strong>
+            Checks and alerts are suppressed.
+            <a href="#/maintenance" style={{ marginLeft: 'auto', color: '#92400e', fontSize: 12 }}>Manage windows →</a>
+          </div>
+        )}
+
         {monitor.kind === 'push' && monitor.push_token && (
           <PushUrlCard token={monitor.push_token} lastPushAt={monitor.last_push_at} interval={monitor.interval_seconds}/>
         )}

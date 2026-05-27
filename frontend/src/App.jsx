@@ -5,6 +5,7 @@ import StatusPageBuilder from './views/StatusPageBuilder.jsx';
 import NewMonitorWizard  from './views/NewMonitorWizard.jsx';
 import Login             from './views/Login.jsx';
 import Notifications     from './views/Notifications.jsx';
+import Maintenance       from './views/Maintenance.jsx';
 import { api } from './lib/api.js';
 import { parseRoute } from './lib/router.js';
 
@@ -14,6 +15,7 @@ const VIEW_LABEL = {
   'new-monitor':   'New monitor',
   'status-page':   'Status page',
   'notifications': 'Notifications',
+  'maintenance':   'Maintenance',
   'login':         'Login',
 };
 
@@ -64,6 +66,7 @@ export default function App() {
     case 'new-monitor':   view = <NewMonitorWizard />; break;
     case 'status-page':   view = <StatusPageBuilder />; break;
     case 'notifications': view = <Notifications />; break;
+    case 'maintenance':   view = <Maintenance />; break;
     case 'dashboard':
     default:            view = <Dashboard user={authState.user} onLogout={async () => {
       try { await api.auth.logout(); } catch {}
@@ -87,6 +90,7 @@ function ViewSwitcher({ current }) {
     { hash: '#/',              view: 'dashboard'     },
     { hash: '#/monitor',       view: 'monitor'       },
     { hash: '#/notifications', view: 'notifications' },
+    { hash: '#/maintenance',   view: 'maintenance'   },
     { hash: '#/status-page',   view: 'status-page'   },
     { hash: '#/new-monitor',   view: 'new-monitor'   },
   ];

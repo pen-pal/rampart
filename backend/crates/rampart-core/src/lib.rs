@@ -12,6 +12,7 @@ pub mod error;
 pub mod heartbeat;
 pub mod ids;
 pub mod incident;
+pub mod maintenance;
 pub mod monitor;
 pub mod notification;
 
@@ -26,5 +27,6 @@ pub use ids::{
     StatusPageId, StatusPageSubscriberId, TagId, UserId,
 };
 pub use incident::{Incident, IncidentStyle, IncidentUpdate};
+pub use maintenance::{MaintenanceWindow, NewMaintenanceWindow};
 pub use monitor::{Monitor, MonitorKind, MonitorStatus, NewMonitor};
 pub use notification::{ChannelKind, MonitorNotification, Notification, NotificationTemplate};

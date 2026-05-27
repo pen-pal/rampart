@@ -8,6 +8,7 @@
 
 pub mod heartbeats;
 pub mod incidents;
+pub mod maintenance;
 pub mod monitors;
 pub mod notifications;
 pub mod sessions;

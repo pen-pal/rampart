@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT window_id, monitor_id\n        FROM maintenance_window_monitors\n        WHERE window_id = ANY($1)\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "window_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "monitor_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "42b49eecf733dedb2e8ec055dbf0eaa57523ebb32db2f9d895fcd5cbb6560cd9"
+}

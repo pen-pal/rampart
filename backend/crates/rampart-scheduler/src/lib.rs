@@ -228,11 +228,24 @@ async fn run_once(
     notifier: Option<&NotifierHandle>,
     pool: &DbPool,
 ) {
-    // Push monitors are inverted — the external job calls us, not the
-    // other way around. The scheduler's job here is just to check if a
-    // push has landed inside the expected interval. Probe crate doesn't
-    // touch the DB (layer rule), so we synthesize the heartbeat here.
-    let mut hb = if monitor.kind == MonitorKind::Push {
+    // Maintenance suppression. If the monitor is inside an active
+    // window we skip the probe entirely and emit a synthetic
+    // Maintenance heartbeat — keeps the timeline contiguous for the
+    // dashboard but doesn't fire notifications. We swallow DB errors
+    // here so a transient blip doesn't take down the probe loop;
+    // worst case we run an unneeded probe.
+    let in_maintenance = rampart_db::maintenance::is_in_active_window(pool, monitor.id)
+        .await
+        .unwrap_or(false);
+
+    let mut hb = if in_maintenance {
+        maintenance_heartbeat(monitor)
+    } else if monitor.kind == MonitorKind::Push {
+        // Push monitors are inverted — the external job calls us, not
+        // the other way around. The scheduler's job here is just to
+        // check if a push has landed inside the expected interval.
+        // Probe crate doesn't touch the DB (layer rule), so we
+        // synthesize the heartbeat here.
         push_heartbeat(monitor, pool).await
     } else {
         probes.run(monitor).await
@@ -241,14 +254,17 @@ async fn run_once(
     // Mark this heartbeat as important if it flipped the status. Don't
     // fire an event on the very first observation (prev == Pending) for
     // a monitor that's already up — that's just initialisation, not a
-    // user-visible flip.
+    // user-visible flip. Also suppress events for any flip *into* or
+    // *out of* Maintenance: those are admin-driven, not real outages.
     let prev = *last_status.read().await;
     let flipped = prev != hb.status;
     if flipped {
         hb.important = true;
         *last_status.write().await = hb.status;
 
-        let user_visible_flip = !(prev == MonitorStatus::Pending && hb.status == MonitorStatus::Up);
+        let user_visible_flip = !(prev == MonitorStatus::Pending && hb.status == MonitorStatus::Up)
+            && hb.status != MonitorStatus::Maintenance
+            && prev      != MonitorStatus::Maintenance;
         if user_visible_flip {
             if let Some(n) = notifier {
                 n.notify(Event {
@@ -316,6 +332,23 @@ async fn flush(pool: &DbPool, batch: &[Heartbeat]) {
         // Don't crash the writer on a DB blip — log loudly, keep going.
         // The probe loop will produce more heartbeats on the next tick.
         error!(error = %e, batch = batch.len(), "heartbeat flush failed");
+    }
+}
+
+/// Synthesize a Maintenance heartbeat — keeps the timeline contiguous
+/// while a monitor sits inside an active maintenance window so the
+/// dashboard's uptime strip doesn't develop gaps.
+fn maintenance_heartbeat(monitor: &Monitor) -> Heartbeat {
+    use time::OffsetDateTime;
+    Heartbeat {
+        monitor_id:  monitor.id,
+        ts:          OffsetDateTime::now_utc(),
+        status:      MonitorStatus::Maintenance,
+        latency_ms:  None,
+        status_code: None,
+        msg:         Some("in maintenance".into()),
+        retries:     0,
+        important:   false,
     }
 }
 

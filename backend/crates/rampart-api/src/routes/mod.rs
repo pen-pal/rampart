@@ -11,6 +11,7 @@
 
 pub mod auth;
 pub mod health;
+pub mod maintenance;
 pub mod monitors;
 pub mod notifications;
 pub mod push;
@@ -34,4 +35,6 @@ pub fn v1_protected() -> Router<AppState> {
         .nest("/notifications", notifications::router())
         // /v1/notification-templates CRUD
         .nest("/notification-templates", templates::router())
+        // /v1/maintenance-windows CRUD + attach/detach
+        .nest("/maintenance-windows", maintenance::router())
 }

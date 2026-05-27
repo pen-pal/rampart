@@ -7,6 +7,7 @@
 //   #/notifications             → Notifications
 //   #/status-page               → StatusPageBuilder
 //   #/new-monitor               → NewMonitorWizard
+//   #/maintenance               → Maintenance windows
 //   #/monitor                   → MonitorDetail with id=null
 //   #/monitor/<id>              → MonitorDetail(id)
 
@@ -18,5 +19,6 @@ export function parseRoute(hash) {
   if (h === '#/new-monitor')        return { view: 'new-monitor',   id: null };
   if (h === '#/status-page')        return { view: 'status-page',   id: null };
   if (h === '#/notifications')      return { view: 'notifications', id: null };
+  if (h === '#/maintenance')        return { view: 'maintenance',   id: null };
   return { view: 'dashboard', id: null };
 }
