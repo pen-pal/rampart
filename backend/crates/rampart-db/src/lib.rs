@@ -13,6 +13,7 @@ pub mod maintenance;
 pub mod monitors;
 pub mod notifications;
 pub mod proxies;
+pub mod recovery_codes;
 pub mod sessions;
 pub mod status_pages;
 pub mod tags;

@@ -14,6 +14,8 @@ pub struct User {
     pub is_admin: bool,
     pub created_at: OffsetDateTime,
     pub last_login_at: Option<OffsetDateTime>,
+    #[serde(default)]
+    pub totp_enabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -23,6 +25,11 @@ pub struct UserWithHash {
     pub name: Option<String>,
     pub password_hash: String,
     pub is_admin: bool,
+    /// Plain TEXT secret (base32). Only loaded for login verification —
+    /// never serialised back through the public User type.
+    #[serde(skip_serializing)]
+    pub totp_secret: Option<String>,
+    pub totp_enabled: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -46,7 +53,8 @@ pub async fn create(pool: &DbPool, input: NewUser) -> DbResult<User> {
         r#"
         INSERT INTO users (id, email, name, password_hash, is_admin)
         VALUES ($1, $2, $3, $4, $5)
-        RETURNING id, email::text AS "email!", name, is_admin, created_at, last_login_at
+        RETURNING id, email::text AS "email!", name, is_admin,
+                  created_at, last_login_at, totp_enabled
         "#,
         id,
         input.email,
@@ -70,13 +78,15 @@ pub async fn create(pool: &DbPool, input: NewUser) -> DbResult<User> {
         is_admin: row.is_admin,
         created_at: row.created_at,
         last_login_at: row.last_login_at,
+        totp_enabled: row.totp_enabled,
     })
 }
 
 pub async fn get_by_email(pool: &DbPool, email: &str) -> DbResult<UserWithHash> {
     let row = sqlx::query!(
         r#"
-        SELECT id, email::text AS "email!", name, password_hash, is_admin
+        SELECT id, email::text AS "email!", name, password_hash, is_admin,
+               totp_secret, totp_enabled
         FROM users
         WHERE email = $1::citext
         "#,
@@ -92,13 +102,16 @@ pub async fn get_by_email(pool: &DbPool, email: &str) -> DbResult<UserWithHash> 
         name: row.name,
         password_hash: row.password_hash,
         is_admin: row.is_admin,
+        totp_secret: row.totp_secret,
+        totp_enabled: row.totp_enabled,
     })
 }
 
 pub async fn get(pool: &DbPool, id: UserId) -> DbResult<User> {
     let row = sqlx::query!(
         r#"
-        SELECT id, email::text AS "email!", name, is_admin, created_at, last_login_at
+        SELECT id, email::text AS "email!", name, is_admin,
+               created_at, last_login_at, totp_enabled
         FROM users
         WHERE id = $1
         "#,
@@ -115,7 +128,45 @@ pub async fn get(pool: &DbPool, id: UserId) -> DbResult<User> {
         is_admin: row.is_admin,
         created_at: row.created_at,
         last_login_at: row.last_login_at,
+        totp_enabled: row.totp_enabled,
     })
+}
+
+/// Stash a freshly-generated TOTP secret on the user, leaving
+/// `totp_enabled` FALSE — the user must confirm with a valid code
+/// before we flip the flag.
+pub async fn set_totp_secret(pool: &DbPool, id: UserId, secret: &str) -> DbResult<()> {
+    sqlx::query!(
+        "UPDATE users SET totp_secret = $1, totp_enabled = FALSE WHERE id = $2",
+        secret,
+        id.0,
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn enable_totp(pool: &DbPool, id: UserId) -> DbResult<()> {
+    sqlx::query!(
+        "UPDATE users SET totp_enabled = TRUE WHERE id = $1",
+        id.0,
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Wipe the secret + enabled flag. Recovery codes for this user are
+/// cleared by the caller (`recovery::delete_for_user`) so a future
+/// enrollment starts clean.
+pub async fn disable_totp(pool: &DbPool, id: UserId) -> DbResult<()> {
+    sqlx::query!(
+        "UPDATE users SET totp_secret = NULL, totp_enabled = FALSE WHERE id = $1",
+        id.0,
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
 }
 
 pub async fn mark_login(pool: &DbPool, id: UserId) -> DbResult<()> {

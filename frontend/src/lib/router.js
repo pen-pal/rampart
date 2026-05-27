@@ -24,5 +24,6 @@ export function parseRoute(hash) {
   if (h === '#/maintenance')        return { view: 'maintenance',   id: null };
   if (h === '#/api-keys')           return { view: 'api-keys',      id: null };
   if (h === '#/proxies')            return { view: 'proxies',       id: null };
+  if (h === '#/security')           return { view: 'security',      id: null };
   return { view: 'dashboard', id: null };
 }

@@ -1,8 +1,12 @@
 //! Shared application state.
 
+use rampart_core::UserId;
 use rampart_db::DbPool;
+use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::Notify;
+use time::OffsetDateTime;
+use tokio::sync::{Mutex, Notify};
+use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct AppState(Arc<Inner>);
@@ -12,6 +16,17 @@ struct Inner {
     /// Notify handle that triggers the scheduler to reconcile after
     /// monitor mutations (create / delete / pause / resume).
     scheduler_reload: Arc<Notify>,
+    /// In-flight TOTP login challenges. Keyed by an opaque token we
+    /// hand back to the browser; we look up the user_id when the user
+    /// submits their 6-digit code. Lives in memory because the dataset
+    /// is tiny (one entry per logged-in user, briefly) and persisting
+    /// it adds nothing.
+    totp_challenges: Mutex<HashMap<Uuid, TotpChallenge>>,
+}
+
+pub struct TotpChallenge {
+    pub user_id:    UserId,
+    pub expires_at: OffsetDateTime,
 }
 
 impl AppState {
@@ -19,6 +34,7 @@ impl AppState {
         Self(Arc::new(Inner {
             pool,
             scheduler_reload,
+            totp_challenges: Mutex::new(HashMap::new()),
         }))
     }
     pub fn pool(&self) -> &DbPool {
@@ -28,5 +44,35 @@ impl AppState {
     /// without waiting for the slow 30-second fallback tick.
     pub fn poke_scheduler(&self) {
         self.0.scheduler_reload.notify_one();
+    }
+
+    /// Stash a pending TOTP challenge for `user`. Returns the opaque
+    /// token to hand back to the browser. Challenges expire after 5
+    /// minutes — long enough to handle the user fumbling for their
+    /// phone, short enough to bound replay risk if the token leaks.
+    pub async fn issue_totp_challenge(&self, user_id: UserId) -> Uuid {
+        let token = Uuid::new_v4();
+        let mut g = self.0.totp_challenges.lock().await;
+        // Opportunistic cleanup — cheap O(n) sweep on the path that
+        // adds new entries, so the map can't grow unbounded.
+        let now = OffsetDateTime::now_utc();
+        g.retain(|_, c| c.expires_at > now);
+        g.insert(
+            token,
+            TotpChallenge {
+                user_id,
+                expires_at: now + time::Duration::minutes(5),
+            },
+        );
+        token
+    }
+
+    pub async fn consume_totp_challenge(&self, token: Uuid) -> Option<UserId> {
+        let mut g = self.0.totp_challenges.lock().await;
+        let c = g.remove(&token)?;
+        if c.expires_at < OffsetDateTime::now_utc() {
+            return None;
+        }
+        Some(c.user_id)
     }
 }

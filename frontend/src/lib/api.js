@@ -80,6 +80,10 @@ export const api = {
     register: (email, name, password)     => request('/v1/auth/register', { method: 'POST', body: { email, name, password } }),
     login:    (email, password)           => request('/v1/auth/login',    { method: 'POST', body: { email, password } }),
     logout:   ()                          => request('/v1/auth/logout',   { method: 'POST' }),
+    totpSetup:   ()                       => request('/v1/auth/2fa/setup',   { method: 'POST' }),
+    totpEnable:  (code)                   => request('/v1/auth/2fa/enable',  { method: 'POST', body: { code } }),
+    totpDisable: (password, code)         => request('/v1/auth/2fa/disable', { method: 'POST', body: { password, code } }),
+    totpVerify:  (challengeToken, code)   => request('/v1/auth/2fa/verify',  { method: 'POST', body: { challenge_token: challengeToken, code } }),
   },
   notifications: {
     list:        ()                                  => request('/v1/notifications'),

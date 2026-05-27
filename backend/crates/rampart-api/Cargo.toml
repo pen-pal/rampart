@@ -39,6 +39,8 @@ time               = { workspace = true }
 validator          = { workspace = true }
 rust-embed         = { workspace = true }
 mime_guess         = "2"
+totp-rs            = { workspace = true }
+base32             = { workspace = true }
 
 [dev-dependencies]
 tower = { workspace = true }

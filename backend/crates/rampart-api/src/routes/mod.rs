@@ -20,6 +20,7 @@ pub mod push;
 pub mod status_pages;
 pub mod tags;
 pub mod templates;
+pub mod totp;
 
 use crate::state::AppState;
 use axum::Router;
@@ -27,6 +28,9 @@ use axum::Router;
 pub fn v1_public() -> Router<AppState> {
     Router::new()
         .nest("/auth", auth::router())
+        // The TOTP verify step happens AFTER password (which was public)
+        // but BEFORE a session exists — has to live under v1_public.
+        .nest("/auth/2fa", totp::public_router())
         // Public status-page reads — embedded under /v1/public so the
         // boundary is explicit and obvious in the routing table.
         .nest("/public/status-pages", status_pages::public_router())
@@ -55,4 +59,7 @@ pub fn v1_protected() -> Router<AppState> {
         .nest("/api-keys", api_keys::router())
         // /v1/proxies — list/create/delete/active
         .nest("/proxies", proxies::router())
+        // /v1/auth/2fa/* admin endpoints — verify is public; the rest
+        // need an existing session so they sit here.
+        .nest("/auth/2fa", totp::router())
 }

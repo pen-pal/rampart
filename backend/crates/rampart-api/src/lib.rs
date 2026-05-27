@@ -9,6 +9,7 @@ pub mod error;
 pub mod routes;
 pub mod state;
 pub mod static_assets;
+pub mod totp;
 
 use axum::Router;
 use rampart_db::DbPool;

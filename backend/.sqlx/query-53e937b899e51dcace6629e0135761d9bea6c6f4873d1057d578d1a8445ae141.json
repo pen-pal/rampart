@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, email::text AS \"email!\", name, password_hash, is_admin\n        FROM users\n        WHERE email = $1::citext\n        ",
+  "query": "\n        SELECT id, email::text AS \"email!\", name, password_hash, is_admin,\n               totp_secret, totp_enabled\n        FROM users\n        WHERE email = $1::citext\n        ",
   "describe": {
     "columns": [
       {
@@ -27,6 +27,16 @@
         "ordinal": 4,
         "name": "is_admin",
         "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "totp_secret",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "totp_enabled",
+        "type_info": "Bool"
       }
     ],
     "parameters": {
@@ -44,8 +54,10 @@
       null,
       true,
       false,
+      false,
+      true,
       false
     ]
   },
-  "hash": "88734747d447f1d29e6da76a4622cc59a6d4daa78af4132480a7a21f0ee969a5"
+  "hash": "53e937b899e51dcace6629e0135761d9bea6c6f4873d1057d578d1a8445ae141"
 }

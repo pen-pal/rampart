@@ -117,14 +117,15 @@ async fn login(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(input): Json<LoginInput>,
-) -> Result<impl IntoResponse, ApiError> {
+) -> Result<axum::response::Response, ApiError> {
     // Always do the password verify even if the user isn't found, to keep
     // timing roughly constant against email-enumeration probes. We hash
     // against a placeholder if there's no row.
     let lookup = rampart_db::users::get_by_email(state.pool(), &input.email).await;
-    let (user_id, ok) = match lookup {
+    let (user_id, totp_enabled, ok) = match lookup {
         Ok(u) => (
             Some(u.id),
+            u.totp_enabled,
             verify_password(&input.password, &u.password_hash),
         ),
         Err(_) => {
@@ -133,7 +134,7 @@ async fn login(
                 &input.password,
                 "$argon2id$v=19$m=19456,t=2,p=1$Y2FrZWlzYWxpZQ$dummyhashtomimiccostforabsentuser",
             );
-            (None, false)
+            (None, false, false)
         }
     };
 
@@ -141,6 +142,21 @@ async fn login(
         return Err(ApiError::Unauthorized);
     }
     let user_id = user_id.unwrap();
+
+    // 2FA gate: defer the session until the user proves they hold the
+    // shared secret (or burns a recovery code).
+    if totp_enabled {
+        let challenge = state.issue_totp_challenge(user_id).await;
+        return Ok((
+            StatusCode::ACCEPTED,
+            Json(json!({
+                "totp_required":   true,
+                "challenge_token": challenge.to_string(),
+            })),
+        )
+            .into_response());
+    }
+
     rampart_db::users::mark_login(state.pool(), user_id)
         .await
         .ok();
@@ -162,7 +178,8 @@ async fn login(
     Ok((
         AppendHeaders([(axum::http::header::SET_COOKIE, cookie.to_string())]),
         Json(AuthResponse { user }),
-    ))
+    )
+        .into_response())
 }
 
 async fn logout(

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO users (id, email, name, password_hash, is_admin)\n        VALUES ($1, $2, $3, $4, $5)\n        RETURNING id, email::text AS \"email!\", name, is_admin, created_at, last_login_at\n        ",
+  "query": "\n        INSERT INTO users (id, email, name, password_hash, is_admin)\n        VALUES ($1, $2, $3, $4, $5)\n        RETURNING id, email::text AS \"email!\", name, is_admin,\n                  created_at, last_login_at, totp_enabled\n        ",
   "describe": {
     "columns": [
       {
@@ -32,6 +32,11 @@
         "ordinal": 5,
         "name": "last_login_at",
         "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "totp_enabled",
+        "type_info": "Bool"
       }
     ],
     "parameters": {
@@ -54,8 +59,9 @@
       true,
       false,
       false,
-      true
+      true,
+      false
     ]
   },
-  "hash": "8e18aa5da81f6bbff230328d1e21cd329edfc742355407af7864cde95074abec"
+  "hash": "d75002ea4419d2f0fe4e3e3dcb5a76a221f58d7ecae2480f8a2980ad17926565"
 }

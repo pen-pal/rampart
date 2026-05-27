@@ -82,6 +82,10 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [busy,     setBusy]     = useState(false);
   const [err,      setErr]      = useState(null);
+  // Two-step login: when the backend answers POST /login with
+  // { totp_required, challenge_token }, we swap the form for a code prompt.
+  const [challengeToken, setChallengeToken] = useState(null);
+  const [totpCode,       setTotpCode]       = useState('');
 
   // Determine mode from /v1/auth/me. While loading, show a tiny spinner.
   const needsSetup = meState.data?.needs_setup === true;
@@ -110,10 +114,18 @@ export default function Login() {
           return;
         }
         await api.auth.register(email.trim(), name.trim() || null, password);
+        window.location.hash = '#/';
       } else {
-        await api.auth.login(email.trim(), password);
+        const r = await api.auth.login(email.trim(), password);
+        if (r && r.totp_required) {
+          // Stop here, prompt for code. Password stays in state so the
+          // form can reset on Back without re-entry.
+          setChallengeToken(r.challenge_token);
+          setBusy(false);
+          return;
+        }
+        window.location.hash = '#/';
       }
-      window.location.hash = '#/';
     } catch (e2) {
       setErr(
         e2.status === 401 ? 'Wrong email or password.'
@@ -122,6 +134,36 @@ export default function Login() {
       );
       setBusy(false);
     }
+  };
+
+  const submitTotp = async (e) => {
+    e?.preventDefault?.();
+    setErr(null);
+    if (!totpCode.trim()) { setErr('Enter the 6-digit code or a recovery code.'); return; }
+    setBusy(true);
+    try {
+      await api.auth.totpVerify(challengeToken, totpCode.trim());
+      window.location.hash = '#/';
+    } catch (e2) {
+      // 401 on bad code: parse the new challenge token if the server
+      // returned one so the user can retry without re-entering password.
+      if (e2.status === 401 && e2.message) {
+        try {
+          const parsed = JSON.parse(e2.message);
+          if (parsed?.challenge_token) setChallengeToken(parsed.challenge_token);
+        } catch { /* fall through */ }
+        setErr('Invalid code. Try again or use a recovery code.');
+      } else {
+        setErr(e2.message || 'Something went wrong.');
+      }
+      setBusy(false);
+    }
+  };
+
+  const cancelTotp = () => {
+    setChallengeToken(null);
+    setTotpCode('');
+    setErr(null);
   };
 
   return (
@@ -135,13 +177,39 @@ export default function Login() {
           <div>
             <div style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-.01em' }}>Rampart</div>
             <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>
-              {meState.loading ? 'Loading…' : needsSetup ? 'Create your admin account' : 'Sign in'}
+              {meState.loading ? 'Loading…'
+                : challengeToken ? 'Two-factor verification'
+                : needsSetup ? 'Create your admin account'
+                : 'Sign in'}
             </div>
           </div>
         </div>
 
         {err && <div className="banner-err">{err}</div>}
 
+        {challengeToken ? (
+          <form onSubmit={submitTotp}>
+            <div className="field">
+              <label className="field-label" htmlFor="auth-totp">Code</label>
+              <input id="auth-totp" className="input" type="text" inputMode="numeric"
+                autoComplete="one-time-code" autoFocus maxLength={11}
+                value={totpCode} onChange={e => setTotpCode(e.target.value)}
+                placeholder="6-digit code or recovery code"/>
+              <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 6 }}>
+                Open your authenticator app and enter the current 6-digit code, or use one of the recovery codes saved during setup.
+              </div>
+            </div>
+            <button className="btn-primary" type="submit" disabled={busy}>
+              {busy ? <><Loader2 size={14} className="spin"/> Verifying…</> : <><LogIn size={14}/> Verify</>}
+            </button>
+            <button type="button" onClick={cancelTotp} style={{
+              marginTop: 10, background: 'transparent', border: 'none',
+              color: 'var(--text-3)', fontSize: 12, cursor: 'pointer',
+            }}>
+              ← Back to email + password
+            </button>
+          </form>
+        ) : (
         <form onSubmit={submit}>
           <div className="field">
             <label className="field-label" htmlFor="auth-email">Email</label>
@@ -175,6 +243,7 @@ export default function Login() {
               : <><LogIn size={14}/> Sign in</>}
           </button>
         </form>
+        )}
 
         <div className="hint">
           {needsSetup
