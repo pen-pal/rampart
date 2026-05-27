@@ -19,11 +19,14 @@ pub mod dingtalk;
 pub mod discord;
 pub mod email;
 pub mod feishu;
+pub mod flashduty;
 pub mod flock;
+pub mod freemobile;
 pub mod goalert;
 pub mod google_chat;
 pub mod gotify;
 pub mod grafana_oncall;
+pub mod gtxmessaging;
 pub mod heii_oncall;
 pub mod home_assistant;
 pub mod lark;
@@ -34,9 +37,11 @@ pub mod mattermost;
 pub mod notifery;
 pub mod ntfy;
 pub mod octopush;
+pub mod onesender;
 pub mod opsgenie;
 pub mod pagerduty;
 pub mod pagertree;
+pub mod promosms;
 pub mod pumble;
 pub mod pushbullet;
 pub mod pushdeer;
@@ -48,14 +53,17 @@ pub mod rocketchat;
 pub mod sendgrid;
 pub mod serverchan;
 pub mod serwersms;
+pub mod sevenio;
 pub mod signal;
 pub mod signl4;
 pub mod slack;
 pub mod sms46elks;
 pub mod sms_eagle;
+pub mod sms_ir;
 pub mod sms_manager;
 pub mod smsc;
 pub mod smsplanet;
+pub mod smspartner;
 pub mod splunk;
 pub mod squadcast;
 pub mod stackfield;
@@ -155,6 +163,14 @@ pub async fn dispatch(
         ChannelKind::Smsplanet         => Box::new(smsplanet::Smsplanet::from_config(config)?),
         ChannelKind::Smsc              => Box::new(smsc::Smsc::from_config(config)?),
         ChannelKind::Cellsynt          => Box::new(cellsynt::Cellsynt::from_config(config)?),
+        ChannelKind::Sevenio       => Box::new(sevenio::Sevenio::from_config(config)?),
+        ChannelKind::Gtxmessaging  => Box::new(gtxmessaging::Gtxmessaging::from_config(config)?),
+        ChannelKind::Onesender     => Box::new(onesender::Onesender::from_config(config)?),
+        ChannelKind::Promosms      => Box::new(promosms::Promosms::from_config(config)?),
+        ChannelKind::Smspartner    => Box::new(smspartner::Smspartner::from_config(config)?),
+        ChannelKind::SmsIr         => Box::new(sms_ir::SmsIr::from_config(config)?),
+        ChannelKind::Freemobile    => Box::new(freemobile::Freemobile::from_config(config)?),
+        ChannelKind::Flashduty     => Box::new(flashduty::Flashduty::from_config(config)?),
         _ => {
             return Err(ChannelError::BadConfig(format!(
                 "channel kind {kind:?} not implemented yet"

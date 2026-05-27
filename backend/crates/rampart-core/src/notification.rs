@@ -92,6 +92,14 @@ pub enum ChannelKind {
     Smsplanet,
     Smsc,
     Cellsynt,
+    Sevenio,
+    Gtxmessaging,
+    Onesender,
+    Promosms,
+    Smspartner,
+    SmsIr,
+    Freemobile,
+    Flashduty,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
