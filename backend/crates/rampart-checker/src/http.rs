@@ -10,6 +10,7 @@
 use crate::{ms_i32, Probe};
 use async_trait::async_trait;
 use once_cell::sync::OnceCell;
+use rampart_core::proxy::Proxy;
 use rampart_core::{Heartbeat, Monitor, MonitorKind, MonitorStatus};
 use reqwest::{Client, ClientBuilder, Method};
 use std::str::FromStr;
@@ -39,6 +40,37 @@ impl HttpProbe {
                 .expect("reqwest client should build with default features")
         })
     }
+
+    /// Variant of `run` that routes through a proxy. We don't pool these
+    /// (one client per request) — proxies are typically used for a small
+    /// number of monitors, and the pool savings don't justify maintaining
+    /// a keyed cache + invalidation when the proxy row changes.
+    pub async fn run_with_proxy(&self, monitor: &Monitor, proxy: &Proxy) -> Heartbeat {
+        let started = Instant::now();
+        let ts = OffsetDateTime::now_utc();
+
+        let client = match build_proxy_client(proxy) {
+            Ok(c) => c,
+            Err(msg) => return err(monitor, ts, started, &msg),
+        };
+        self.execute(monitor, &client, started, ts).await
+    }
+}
+
+fn build_proxy_client(proxy: &Proxy) -> Result<Client, String> {
+    let url = format!("{}://{}:{}", proxy.protocol, proxy.host, proxy.port);
+    let mut p = reqwest::Proxy::all(&url).map_err(|e| format!("proxy url: {e}"))?;
+    if let (Some(u), Some(pw)) = (proxy.username.as_deref(), proxy.password.as_deref()) {
+        p = p.basic_auth(u, pw);
+    } else if let Some(u) = proxy.username.as_deref() {
+        p = p.basic_auth(u, "");
+    }
+    ClientBuilder::new()
+        .user_agent("Rampart/0.1 (+https://github.com/rampart-io/rampart)")
+        .redirect(reqwest::redirect::Policy::none())
+        .proxy(p)
+        .build()
+        .map_err(|e| format!("proxy client: {e}"))
 }
 
 impl Default for HttpProbe {
@@ -52,7 +84,18 @@ impl Probe for HttpProbe {
     async fn run(&self, monitor: &Monitor) -> Heartbeat {
         let started = Instant::now();
         let ts = OffsetDateTime::now_utc();
+        self.execute(monitor, self.client(), started, ts).await
+    }
+}
 
+impl HttpProbe {
+    async fn execute(
+        &self,
+        monitor: &Monitor,
+        client:  &Client,
+        started: Instant,
+        ts:      OffsetDateTime,
+    ) -> Heartbeat {
         let url = match &monitor.url {
             Some(u) => u.clone(),
             None => return err(monitor, ts, started, "monitor missing url"),
@@ -61,7 +104,7 @@ impl Probe for HttpProbe {
         let method = Method::from_str(&monitor.http_method).unwrap_or(Method::GET);
         let timeout = Duration::from_secs(monitor.timeout_seconds as u64);
 
-        let mut req = self.client().request(method, &url).timeout(timeout);
+        let mut req = client.request(method, &url).timeout(timeout);
 
         // Custom headers stored as a JSON object.
         if let Some(serde_json::Value::Object(headers)) = &monitor.http_headers {

@@ -230,6 +230,12 @@ export default function NewMonitorWizard() {
   const [retries,     setRetries]     = useState(0);
   const [upsideDown,  setUpsideDown]  = useState(false);
   const [followRedir, setFollowRedir] = useState(true);
+  const [proxyId,     setProxyId]     = useState('');
+
+  // Available proxies for the picker. Polled rarely — these don't change
+  // mid-flow. Falls back to [] on error so the form still renders.
+  const proxiesState = useApi(() => api.proxies.list(), []);
+  const proxies = proxiesState.data || [];
 
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState(null);
@@ -286,6 +292,11 @@ export default function NewMonitorWizard() {
     if (fields.url      && url)      payload.url      = url;
     if (fields.hostname && hostname) payload.hostname = hostname;
     if (fields.port     && port)     payload.port     = parseInt(port, 10);
+    // Proxy only meaningful for HTTP-family kinds. Backend will ignore
+    // it on other kinds anyway, but we don't send it.
+    if (['http', 'keyword', 'json_query'].includes(type) && proxyId) {
+      payload.proxy_id = proxyId;
+    }
     // Drop undefined keys so the server defaults kick in.
     Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
     return payload;
@@ -606,6 +617,20 @@ export default function NewMonitorWizard() {
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>Follow redirects</div>
                           <div className="field-hint" style={{ marginTop: 2 }}>Follow up to 5 HTTP 3xx redirects before deciding.</div>
+                        </div>
+                      </div>
+                    )}
+                    {['http', 'keyword', 'json_query'].includes(type) && proxies.length > 0 && (
+                      <div style={{ padding: '12px 14px', border: '1px solid var(--border)', borderRadius: 8 }}>
+                        <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500, marginBottom: 6 }}>Proxy</div>
+                        <select className="input" value={proxyId} onChange={e => setProxyId(e.target.value)}>
+                          <option value="">No proxy — direct connection</option>
+                          {proxies.filter(p => p.active).map(p => (
+                            <option key={p.id} value={p.id}>{p.protocol}://{p.host}:{p.port}</option>
+                          ))}
+                        </select>
+                        <div className="field-hint" style={{ marginTop: 4 }}>
+                          Route this probe through one of your configured proxies. Manage them in <a href="#/proxies" style={{ color: 'var(--accent)' }}>Proxies</a>.
                         </div>
                       </div>
                     )}

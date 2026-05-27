@@ -247,6 +247,18 @@ async fn run_once(
         // Probe crate doesn't touch the DB (layer rule), so we
         // synthesize the heartbeat here.
         push_heartbeat(monitor, pool).await
+    } else if let Some(pid) = monitor.proxy_id {
+        // HTTP-family kinds + a configured proxy route through the
+        // dedicated HttpProbe::run_with_proxy path. Other kinds with a
+        // dangling proxy_id (e.g. a TCP probe) silently ignore it.
+        match rampart_db::proxies::get(pool, pid).await {
+            Ok(proxy) if proxy.active
+                && matches!(monitor.kind,
+                    MonitorKind::Http | MonitorKind::Keyword | MonitorKind::JsonQuery) => {
+                probes.http_with_proxy(monitor, &proxy).await
+            }
+            _ => probes.run(monitor).await,
+        }
     } else {
         probes.run(monitor).await
     };

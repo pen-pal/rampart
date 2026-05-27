@@ -12,6 +12,7 @@ pub mod incidents;
 pub mod maintenance;
 pub mod monitors;
 pub mod notifications;
+pub mod proxies;
 pub mod sessions;
 pub mod status_pages;
 pub mod tags;

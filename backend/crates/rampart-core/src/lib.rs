@@ -16,6 +16,7 @@ pub mod incident;
 pub mod maintenance;
 pub mod monitor;
 pub mod notification;
+pub mod proxy;
 pub mod status_page;
 pub mod tag;
 
@@ -36,3 +37,4 @@ pub use notification::{ChannelKind, MonitorNotification, Notification, Notificat
 pub use status_page::{NewStatusPage, PublicStatusMonitor, PublicStatusPage, StatusPage, UpdateStatusPage};
 pub use tag::{NewTag, Tag, TagBrief};
 pub use api_key::{ApiKey, IssuedApiKey, NewApiKey};
+pub use proxy::{NewProxy, Proxy, ProxyProtocol};

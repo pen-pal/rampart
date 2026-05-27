@@ -23,5 +23,6 @@ export function parseRoute(hash) {
   if (h === '#/notifications')      return { view: 'notifications', id: null };
   if (h === '#/maintenance')        return { view: 'maintenance',   id: null };
   if (h === '#/api-keys')           return { view: 'api-keys',      id: null };
+  if (h === '#/proxies')            return { view: 'proxies',       id: null };
   return { view: 'dashboard', id: null };
 }

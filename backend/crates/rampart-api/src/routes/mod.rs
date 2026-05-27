@@ -15,6 +15,7 @@ pub mod health;
 pub mod maintenance;
 pub mod monitors;
 pub mod notifications;
+pub mod proxies;
 pub mod push;
 pub mod status_pages;
 pub mod tags;
@@ -52,4 +53,6 @@ pub fn v1_protected() -> Router<AppState> {
         .nest("/status-pages", status_pages::admin_router())
         // /v1/api-keys — list/create/revoke
         .nest("/api-keys", api_keys::router())
+        // /v1/proxies — list/create/delete/active
+        .nest("/proxies", proxies::router())
 }

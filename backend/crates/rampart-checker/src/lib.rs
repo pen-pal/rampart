@@ -72,6 +72,17 @@ impl Probes {
         }
     }
 
+    /// HTTP-family probe routed through a proxy. The scheduler calls
+    /// this directly when monitor.proxy_id is set; non-HTTP kinds
+    /// don't reach this path.
+    pub async fn http_with_proxy(
+        &self,
+        monitor: &Monitor,
+        proxy:   &rampart_core::proxy::Proxy,
+    ) -> Heartbeat {
+        self.http.run_with_proxy(monitor, proxy).await
+    }
+
     /// Dispatch to the right probe based on monitor kind. Returns a
     /// Heartbeat with status=Down + descriptive msg for kinds not yet
     /// wired up, so the scheduler doesn't need to know which probes

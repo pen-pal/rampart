@@ -100,6 +100,12 @@ export const api = {
     update:  (id, patch)     => request(`/v1/notification-templates/${id}`, { method: 'PATCH', body: patch }),
     remove:  (id)            => request(`/v1/notification-templates/${id}`, { method: 'DELETE' }),
   },
+  proxies: {
+    list:      ()                  => request('/v1/proxies'),
+    create:    (input)             => request('/v1/proxies', { method: 'POST', body: input }),
+    remove:    (id)                => request(`/v1/proxies/${id}`, { method: 'DELETE' }),
+    setActive: (id, active)        => request(`/v1/proxies/${id}/active`, { method: 'POST', body: { active } }),
+  },
   apiKeys: {
     list:   ()                  => request('/v1/api-keys'),
     create: (name, scopes, exp) => request('/v1/api-keys', { method: 'POST', body: { name, scopes: scopes || [], expires_at: exp || null } }),
