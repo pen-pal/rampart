@@ -144,24 +144,26 @@ export default function Login() {
 
         <form onSubmit={submit}>
           <div className="field">
-            <label className="field-label">Email</label>
-            <input className="input" type="email" autoComplete="email"
+            <label className="field-label" htmlFor="auth-email">Email</label>
+            <input id="auth-email" className="input" type="email" autoComplete="email"
               value={email} onChange={e => setEmail(e.target.value)}
               placeholder="you@example.com" autoFocus/>
           </div>
 
           {needsSetup && (
             <div className="field">
-              <label className="field-label">Name <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
-              <input className="input" type="text" autoComplete="name"
+              <label className="field-label" htmlFor="auth-name">
+                Name <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span>
+              </label>
+              <input id="auth-name" className="input" type="text" autoComplete="name"
                 value={name} onChange={e => setName(e.target.value)}
                 placeholder="Your name"/>
             </div>
           )}
 
           <div className="field">
-            <label className="field-label">Password</label>
-            <input className="input" type="password"
+            <label className="field-label" htmlFor="auth-password">Password</label>
+            <input id="auth-password" className="input" type="password"
               autoComplete={needsSetup ? 'new-password' : 'current-password'}
               value={password} onChange={e => setPassword(e.target.value)}
               placeholder={needsSetup ? 'At least 10 characters' : ''}/>
