@@ -178,6 +178,14 @@ const SUPPORTED = [
   { id: 'sms_ir',        name: 'SMS.ir',         icon: Phone,         hint: 'Iranian SMS.ir — X-API-KEY + line number' },
   { id: 'freemobile',    name: 'Free Mobile (FR)', icon: Phone,       hint: 'Free Mobile self-SMS — user + pass' },
   { id: 'flashduty',     name: 'FlashDuty',      icon: Siren,         hint: 'FlashDuty integration URL — auto-resolves on recovery' },
+  { id: 'teltonika',     name: 'Teltonika SMS',  icon: Phone,         hint: 'Teltonika RUT router SMS gateway' },
+  { id: 'kook',          name: 'Kook',           icon: MessageSquare, hint: 'Kook (former Kaiheila) bot — group or DM' },
+  { id: 'nostr',         name: 'Nostr',          icon: MessageSquare, hint: 'Nostr DM via a user-supplied HTTP relay bridge' },
+  { id: 'onebot',        name: 'OneBot',         icon: MessageSquare, hint: 'OneBot v11 HTTP — QQ group or private' },
+  { id: 'onechat',       name: 'OneChat (TH)',   icon: MessageSquare, hint: 'OneChat push message — bot token + chat_id' },
+  { id: 'max_messenger', name: 'MAX Messenger',  icon: MessageSquare, hint: 'MAX (RU) bot — access_token + chat_id' },
+  { id: 'halo_psa',      name: 'Halo PSA',       icon: Siren,         hint: 'Halo PSA — opens a ticket via OAuth client credentials' },
+  { id: 'jira_sm',       name: 'Jira Service Mgmt', icon: Siren,      hint: 'Jira Service Management — creates an incident via REST' },
   // push
   { id: 'ntfy',       name: 'ntfy.sh',         icon: Smartphone,    hint: 'Push to phone via ntfy.sh (free) or self-hosted ntfy server' },
   { id: 'gotify',     name: 'Gotify',          icon: Server,        hint: 'Self-hosted push server (https://gotify.net)' },
@@ -1489,6 +1497,142 @@ function ConfigForm({ kind, config, setConfig }) {
             <option>Info</option><option>Warning</option><option>Critical</option>
           </select>
         </div>
+      </>
+    );
+  }
+  if (kind === 'teltonika') {
+    return (
+      <>
+        <div className="field"><label className="field-label">Base URL</label>
+          <input className="input mono" value={config.base_url || ''}
+            onChange={e => set('base_url', e.target.value)} placeholder="http://192.168.1.1"/></div>
+        <div className="field"><label className="field-label">Username</label>
+          <input className="input" value={config.username || ''}
+            onChange={e => set('username', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Password</label>
+          <input className="input mono" type="password" value={config.password || ''}
+            onChange={e => set('password', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Number</label>
+          <input className="input mono" value={config.number || ''}
+            onChange={e => set('number', e.target.value)}/></div>
+      </>
+    );
+  }
+  if (kind === 'kook') {
+    return (
+      <>
+        <div className="field"><label className="field-label">Bot token</label>
+          <input className="input mono" type="password" value={config.bot_token || ''}
+            onChange={e => set('bot_token', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Target type</label>
+          <select className="select" value={config.target_type || 'GROUP'} onChange={e => set('target_type', e.target.value)}>
+            <option>GROUP</option><option>PERSON</option>
+          </select>
+        </div>
+        <div className="field"><label className="field-label">Target ID</label>
+          <input className="input mono" value={config.target_id || ''}
+            onChange={e => set('target_id', e.target.value)}/></div>
+      </>
+    );
+  }
+  if (kind === 'nostr') {
+    return (
+      <>
+        <div className="field"><label className="field-label">Bridge URL</label>
+          <input className="input mono" value={config.bridge_url || ''}
+            onChange={e => set('bridge_url', e.target.value)} placeholder="http://nostr-bridge.local/dm"/></div>
+        <div className="field"><label className="field-label">Recipient <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· npub or hex pubkey</span></label>
+          <input className="input mono" value={config.recipient || ''}
+            onChange={e => set('recipient', e.target.value)}/></div>
+        <div className="field"><label className="field-label">API key <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+          <input className="input mono" type="password" value={config.api_key || ''}
+            onChange={e => set('api_key', e.target.value)}/></div>
+      </>
+    );
+  }
+  if (kind === 'onebot') {
+    return (
+      <>
+        <div className="field"><label className="field-label">HTTP URL</label>
+          <input className="input mono" value={config.http_url || ''}
+            onChange={e => set('http_url', e.target.value)} placeholder="http://onebot.local:5700"/></div>
+        <div className="field"><label className="field-label">Kind</label>
+          <select className="select" value={config.kind || 'group'} onChange={e => set('kind', e.target.value)}>
+            <option>group</option><option>private</option>
+          </select>
+        </div>
+        <div className="field"><label className="field-label">Target ID</label>
+          <input className="input mono" type="number" value={config.target_id || ''}
+            onChange={e => set('target_id', parseInt(e.target.value, 10) || 0)}/></div>
+        <div className="field"><label className="field-label">Access token <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+          <input className="input mono" type="password" value={config.access_token || ''}
+            onChange={e => set('access_token', e.target.value)}/></div>
+      </>
+    );
+  }
+  if (kind === 'onechat') {
+    return (
+      <>
+        <div className="field"><label className="field-label">Bot token</label>
+          <input className="input mono" type="password" value={config.bot_token || ''}
+            onChange={e => set('bot_token', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Chat ID</label>
+          <input className="input mono" value={config.chat_id || ''}
+            onChange={e => set('chat_id', e.target.value)}/></div>
+      </>
+    );
+  }
+  if (kind === 'max_messenger') {
+    return (
+      <>
+        <div className="field"><label className="field-label">Access token</label>
+          <input className="input mono" type="password" value={config.access_token || ''}
+            onChange={e => set('access_token', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Chat ID</label>
+          <input className="input mono" value={config.chat_id || ''}
+            onChange={e => set('chat_id', e.target.value)}/></div>
+      </>
+    );
+  }
+  if (kind === 'halo_psa') {
+    return (
+      <>
+        <div className="field"><label className="field-label">Base URL</label>
+          <input className="input mono" value={config.base_url || ''}
+            onChange={e => set('base_url', e.target.value)} placeholder="https://yourorg.halopsa.com"/></div>
+        <div className="field"><label className="field-label">Client ID</label>
+          <input className="input mono" value={config.client_id || ''}
+            onChange={e => set('client_id', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Client secret</label>
+          <input className="input mono" type="password" value={config.client_secret || ''}
+            onChange={e => set('client_secret', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Team</label>
+          <input className="input" value={config.team || ''}
+            onChange={e => set('team', e.target.value)} placeholder="Service Desk"/></div>
+        <div className="field"><label className="field-label">Ticket type ID</label>
+          <input className="input mono" type="number" value={config.ticket_type_id || ''}
+            onChange={e => set('ticket_type_id', parseInt(e.target.value, 10) || 0)}/></div>
+      </>
+    );
+  }
+  if (kind === 'jira_sm') {
+    return (
+      <>
+        <div className="field"><label className="field-label">Site URL</label>
+          <input className="input mono" value={config.site_url || ''}
+            onChange={e => set('site_url', e.target.value)} placeholder="https://yourorg.atlassian.net"/></div>
+        <div className="field"><label className="field-label">Email</label>
+          <input className="input" value={config.email || ''}
+            onChange={e => set('email', e.target.value)}/></div>
+        <div className="field"><label className="field-label">API token</label>
+          <input className="input mono" type="password" value={config.api_token || ''}
+            onChange={e => set('api_token', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Project key</label>
+          <input className="input mono" value={config.project_key || ''}
+            onChange={e => set('project_key', e.target.value)} placeholder="INC"/></div>
+        <div className="field"><label className="field-label">Issue type</label>
+          <input className="input mono" value={config.issue_type || ''}
+            onChange={e => set('issue_type', e.target.value)} placeholder="Incident"/></div>
       </>
     );
   }

@@ -27,16 +27,23 @@ pub mod google_chat;
 pub mod gotify;
 pub mod grafana_oncall;
 pub mod gtxmessaging;
+pub mod halo_psa;
 pub mod heii_oncall;
 pub mod home_assistant;
+pub mod jira_sm;
+pub mod kook;
 pub mod lark;
 pub mod line;
 pub mod mastodon;
 pub mod matrix;
 pub mod mattermost;
+pub mod max_messenger;
+pub mod nostr;
 pub mod notifery;
 pub mod ntfy;
 pub mod octopush;
+pub mod onebot;
+pub mod onechat;
 pub mod onesender;
 pub mod opsgenie;
 pub mod pagerduty;
@@ -70,6 +77,7 @@ pub mod stackfield;
 pub mod teams;
 pub mod telegram;
 pub mod telnyx;
+pub mod teltonika;
 pub mod threema;
 pub mod twilio;
 pub mod webhook;
@@ -171,6 +179,14 @@ pub async fn dispatch(
         ChannelKind::SmsIr         => Box::new(sms_ir::SmsIr::from_config(config)?),
         ChannelKind::Freemobile    => Box::new(freemobile::Freemobile::from_config(config)?),
         ChannelKind::Flashduty     => Box::new(flashduty::Flashduty::from_config(config)?),
+        ChannelKind::Teltonika    => Box::new(teltonika::Teltonika::from_config(config)?),
+        ChannelKind::Kook         => Box::new(kook::Kook::from_config(config)?),
+        ChannelKind::Nostr        => Box::new(nostr::Nostr::from_config(config)?),
+        ChannelKind::Onebot       => Box::new(onebot::Onebot::from_config(config)?),
+        ChannelKind::Onechat      => Box::new(onechat::Onechat::from_config(config)?),
+        ChannelKind::MaxMessenger => Box::new(max_messenger::MaxMessenger::from_config(config)?),
+        ChannelKind::HaloPsa      => Box::new(halo_psa::HaloPsa::from_config(config)?),
+        ChannelKind::JiraSm       => Box::new(jira_sm::JiraSm::from_config(config)?),
         _ => {
             return Err(ChannelError::BadConfig(format!(
                 "channel kind {kind:?} not implemented yet"

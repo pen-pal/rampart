@@ -100,6 +100,14 @@ pub enum ChannelKind {
     SmsIr,
     Freemobile,
     Flashduty,
+    Teltonika,
+    Kook,
+    Nostr,
+    Onebot,
+    Onechat,
+    MaxMessenger,
+    HaloPsa,
+    JiraSm,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
