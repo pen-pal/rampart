@@ -21,6 +21,7 @@ thiserror   = { workspace = true }
 time        = { workspace = true }
 tracing     = { workspace = true }
 uuid        = { workspace = true }
+rand        = { workspace = true }
 
 [dev-dependencies]
 rampart-core = { path = "../rampart-core", features = ["testing"] }

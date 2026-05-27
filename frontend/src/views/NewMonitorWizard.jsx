@@ -121,15 +121,15 @@ const types = [
     example: 'Verify a port is open (DB, Redis, MQTT broker)',
     placeholder: { hostname: 'db.internal', port: '5432' } },
 
-  { id: 'ping',       icon: Radio,         name: 'Ping',          desc: 'ICMP echo',           stub: true,
+  { id: 'ping',       icon: Radio,         name: 'Ping',          desc: 'ICMP echo',
     example: 'Detect when your home router or VPN endpoint drops',
     placeholder: { hostname: '192.168.1.1' } },
 
-  { id: 'dns',        icon: Hash,          name: 'DNS',           desc: 'Resolve, expect record', stub: true,
+  { id: 'dns',        icon: Hash,          name: 'DNS',           desc: 'Resolve, expect record',
     example: 'Catch DNS hijack on your own domain',
     placeholder: { hostname: 'example.com' } },
 
-  { id: 'push',       icon: Zap,           name: 'Push',          desc: 'Inbound heartbeat',   stub: true,
+  { id: 'push',       icon: Zap,           name: 'Push',          desc: 'Inbound heartbeat',
     example: "Confirm your nightly backup or cron job actually ran",
     placeholder: {} },
 
@@ -137,7 +137,7 @@ const types = [
     example: 'Health-check a gRPC service via the standard protocol',
     placeholder: { hostname: 'grpc.example.com', port: '443' } },
 
-  { id: 'tls',        icon: Lock,          name: 'TLS cert',      desc: 'Expiry + chain',      stub: true,
+  { id: 'tls',        icon: Lock,          name: 'TLS cert',      desc: 'Expiry + chain',
     example: 'Get alerted 30 days before your cert expires',
     placeholder: { url: 'https://example.com' } },
 
@@ -181,7 +181,7 @@ const types = [
     example: 'Detect MongoDB primary outages and replica-set failover',
     placeholder: { hostname: 'mongo.internal', port: '27017' } },
 
-  { id: 'domain',     icon: Globe,         name: 'Domain expiry', desc: 'WHOIS lookup',        stub: true,
+  { id: 'domain',     icon: Globe,         name: 'Domain expiry', desc: 'WHOIS lookup',
     example: 'Reminder 60 days before your domain registration lapses',
     placeholder: { url: 'example.com' } },
 ];
@@ -371,7 +371,7 @@ export default function NewMonitorWizard() {
                 <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em', margin: '0 0 8px' }}>Step 1 · Pick a check type</p>
                 <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 8px', letterSpacing: '-.02em' }}>What do you want to monitor?</h1>
                 <p style={{ fontSize: 14, color: 'var(--text-2)', margin: 0 }}>
-                  20 types in the catalog. HTTP / keyword / JSON / TCP probes run today; everything else creates the record but the probe runner is stubbed.
+                  20 types in the catalog. Nine probe runners ship today (HTTP, keyword, JSON query, TCP, ping, DNS, push, TLS cert, domain expiry); the rest still create the record but report Down until their runner lands.
                 </p>
               </div>
 

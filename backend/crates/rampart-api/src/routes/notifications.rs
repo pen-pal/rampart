@@ -161,6 +161,8 @@ async fn send_test(
         follow_redirect: true,
         ignore_tls: false,
         proxy_id: None,
+        push_token: None,
+        last_push_at: None,
         active: true,
         current_status: rampart_core::MonitorStatus::Up,
         created_at: now,

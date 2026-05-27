@@ -32,6 +32,8 @@ pub fn sample_monitor() -> Monitor {
         follow_redirect: true,
         ignore_tls: false,
         proxy_id: None,
+        push_token: None,
+        last_push_at: None,
         active: true,
         current_status: MonitorStatus::Up,
         created_at: now,

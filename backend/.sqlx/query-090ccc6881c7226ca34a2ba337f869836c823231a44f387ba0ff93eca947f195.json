@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            id, name,\n            kind   AS \"kind: MonitorKind\",\n            url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            active,\n            current_status AS \"current_status: MonitorStatus\",\n            created_at, updated_at\n        FROM monitors\n        ORDER BY created_at DESC\n        ",
+  "query": "\n        SELECT\n            id, name,\n            kind   AS \"kind: MonitorKind\",\n            url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, last_push_at,\n            active,\n            current_status AS \"current_status: MonitorStatus\",\n            created_at, updated_at\n        FROM monitors\n        WHERE id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -133,11 +133,21 @@
       },
       {
         "ordinal": 20,
+        "name": "push_token",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 21,
+        "name": "last_push_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 22,
         "name": "active",
         "type_info": "Bool"
       },
       {
-        "ordinal": 21,
+        "ordinal": 23,
         "name": "current_status: MonitorStatus",
         "type_info": {
           "Custom": {
@@ -156,18 +166,20 @@
         }
       },
       {
-        "ordinal": 22,
+        "ordinal": 24,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 23,
+        "ordinal": 25,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid"
+      ]
     },
     "nullable": [
       false,
@@ -190,11 +202,13 @@
       false,
       false,
       true,
+      true,
+      true,
       false,
       false,
       false,
       false
     ]
   },
-  "hash": "2f8759a37da218562fa44a92e49bbd240d7efdd17fc71f92db76ae95f37da14a"
+  "hash": "090ccc6881c7226ca34a2ba337f869836c823231a44f387ba0ff93eca947f195"
 }

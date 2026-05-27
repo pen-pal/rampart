@@ -98,6 +98,13 @@ pub struct Monitor {
     pub follow_redirect: bool,
     pub ignore_tls: bool,
     pub proxy_id: Option<ProxyId>,
+    // Push monitor: token in the public /push/:token URL; last_push_at
+    // bumps every time we receive a heartbeat through that URL. NULL for
+    // monitors of other kinds.
+    #[serde(default)]
+    pub push_token:   Option<String>,
+    #[serde(default)]
+    pub last_push_at: Option<OffsetDateTime>,
     // State
     pub active: bool,
     pub current_status: MonitorStatus,

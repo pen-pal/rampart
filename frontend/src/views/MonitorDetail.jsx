@@ -5,7 +5,7 @@ import {
 import {
   ChevronLeft, Pause, Play, Edit3, Trash2, Bell, Plus, X, Send,
   Globe, Server, Lock, AlertCircle, Activity, Hash, Radio, Database,
-  MoreHorizontal, Calendar, ChevronDown,
+  MoreHorizontal, Calendar, ChevronDown, Copy, Check, Zap,
 } from 'lucide-react';
 import {
   api, useApi, formatRelative, offsetDateTimeArrayToDate, statusToClass,
@@ -400,6 +400,10 @@ export default function MonitorDetail({ monitorId }) {
         {/* ─── OVERVIEW TAB ──────────────────────────────────────── */}
         {tab === 'overview' && <>
 
+        {monitor.kind === 'push' && monitor.push_token && (
+          <PushUrlCard token={monitor.push_token} lastPushAt={monitor.last_push_at} interval={monitor.interval_seconds}/>
+        )}
+
         {/* 90-day uptime strip */}
         <div className="card" style={{ padding: '20px 22px', marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -775,6 +779,50 @@ function MonitorChannels({ monitorId }) {
           <Plus size={11}/> Attach channel
         </button>
       )}
+    </div>
+  );
+}
+
+// ── Push-URL card. Shown on push monitors so the user can copy the
+//    endpoint into their cron / CI / backup script. Server-side, the
+//    token is what authenticates the heartbeat (so treat it like a
+//    secret — anyone with the URL can mark this monitor up).
+function PushUrlCard({ token, lastPushAt, interval }) {
+  const [copied, setCopied] = useState(false);
+  const url = `${window.location.origin}/push/${token}?status=up&msg=ok`;
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch { /* clipboard refused — silently no-op */ }
+  };
+
+  const lastPushDate = lastPushAt ? offsetDateTimeArrayToDate(lastPushAt) : null;
+  return (
+    <div className="card" style={{ padding: '18px 22px', marginBottom: 20, borderLeft: '3px solid var(--accent)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <Zap size={14} color="var(--accent)"/>
+        <h3 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>Push endpoint</h3>
+      </div>
+      <p style={{ fontSize: 12, color: 'var(--text-2)', margin: '0 0 12px', lineHeight: 1.5 }}>
+        Have your cron / CI / backup job call this URL on each successful run.
+        If we don't hear from it within {interval}s (plus grace), the monitor flips to Down.
+      </p>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+        <code className="mono" style={{
+          flex: 1, padding: '8px 10px', fontSize: 12, background: 'var(--surface-2)',
+          border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)',
+          overflow: 'auto', whiteSpace: 'nowrap',
+        }}>{url}</code>
+        <button className="btn btn-ghost" onClick={copy} style={{ padding: '0 12px', fontSize: 12 }}>
+          {copied ? <><Check size={12}/> Copied</> : <><Copy size={12}/> Copy</>}
+        </button>
+      </div>
+      <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-3)' }}>
+        Last push: {lastPushDate ? formatRelative(lastPushDate) : 'never'}
+      </div>
     </div>
   );
 }

@@ -13,6 +13,7 @@ pub mod auth;
 pub mod health;
 pub mod monitors;
 pub mod notifications;
+pub mod push;
 pub mod templates;
 
 use crate::state::AppState;

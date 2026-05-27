@@ -11,8 +11,12 @@
 //! This crate runs probes. It does no scheduling, no persistence, no
 //! alerting — those live elsewhere.
 
+pub mod dns;
+pub mod domain;
 pub mod http;
+pub mod ping;
 pub mod tcp;
+pub mod tls;
 
 use async_trait::async_trait;
 use rampart_core::{Heartbeat, Monitor, MonitorId, MonitorKind, MonitorStatus};
@@ -33,15 +37,23 @@ pub trait Probe: Send + Sync {
 
 /// Bundle of all configured probes. Shares HTTP clients across calls.
 pub struct Probes {
-    http: http::HttpProbe,
-    tcp: tcp::TcpProbe,
+    http:   http::HttpProbe,
+    tcp:    tcp::TcpProbe,
+    dns:    dns::DnsProbe,
+    ping:   ping::PingProbe,
+    tls:    tls::TlsProbe,
+    domain: domain::DomainProbe,
 }
 
 impl Probes {
     pub fn new() -> Self {
         Self {
-            http: http::HttpProbe::new(),
-            tcp: tcp::TcpProbe::new(),
+            http:   http::HttpProbe::new(),
+            tcp:    tcp::TcpProbe::new(),
+            dns:    dns::DnsProbe::new(),
+            ping:   ping::PingProbe::new(),
+            tls:    tls::TlsProbe::new(),
+            domain: domain::DomainProbe::new(),
         }
     }
 
@@ -54,7 +66,11 @@ impl Probes {
             MonitorKind::Http | MonitorKind::Keyword | MonitorKind::JsonQuery => {
                 self.http.run(monitor).await
             }
-            MonitorKind::Tcp => self.tcp.run(monitor).await,
+            MonitorKind::Tcp  => self.tcp.run(monitor).await,
+            MonitorKind::Dns  => self.dns.run(monitor).await,
+            MonitorKind::Ping => self.ping.run(monitor).await,
+            MonitorKind::Tls    => self.tls.run(monitor).await,
+            MonitorKind::Domain => self.domain.run(monitor).await,
             unsupported => unsupported_kind(monitor.id, unsupported),
         }
     }

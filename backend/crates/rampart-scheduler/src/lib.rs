@@ -25,7 +25,7 @@
 //!   accordingly. Called from the API after monitor create/delete/edit.
 
 use rampart_checker::Probes;
-use rampart_core::{Heartbeat, Monitor, MonitorId, MonitorStatus};
+use rampart_core::{Heartbeat, Monitor, MonitorId, MonitorKind, MonitorStatus};
 use rampart_db::DbPool;
 use rampart_notifier::{Event, EventKind, NotifierHandle};
 use std::collections::HashMap;
@@ -163,6 +163,7 @@ impl Scheduler {
         let hb_tx = self.hb_tx.clone();
         let last_status_in_task = last_status.clone();
         let notifier = self.notifier.clone();
+        let pool_in_task = self.pool.clone();
         let interval = Duration::from_secs(monitor.interval_seconds as u64);
         let monitor_id = monitor.id;
         let monitor_name = monitor.name.clone();
@@ -177,6 +178,7 @@ impl Scheduler {
                 &last_status_in_task,
                 &hb_tx,
                 notifier.as_ref(),
+                &pool_in_task,
             )
             .await;
 
@@ -187,7 +189,7 @@ impl Scheduler {
                         return;
                     }
                     _ = tokio::time::sleep(interval) => {
-                        run_once(&probes, &monitor, &last_status_in_task, &hb_tx, notifier.as_ref()).await;
+                        run_once(&probes, &monitor, &last_status_in_task, &hb_tx, notifier.as_ref(), &pool_in_task).await;
                     }
                 }
             }
@@ -224,8 +226,17 @@ async fn run_once(
     last_status: &Arc<RwLock<MonitorStatus>>,
     hb_tx: &mpsc::Sender<Heartbeat>,
     notifier: Option<&NotifierHandle>,
+    pool: &DbPool,
 ) {
-    let mut hb = probes.run(monitor).await;
+    // Push monitors are inverted — the external job calls us, not the
+    // other way around. The scheduler's job here is just to check if a
+    // push has landed inside the expected interval. Probe crate doesn't
+    // touch the DB (layer rule), so we synthesize the heartbeat here.
+    let mut hb = if monitor.kind == MonitorKind::Push {
+        push_heartbeat(monitor, pool).await
+    } else {
+        probes.run(monitor).await
+    };
 
     // Mark this heartbeat as important if it flipped the status. Don't
     // fire an event on the very first observation (prev == Pending) for
@@ -305,5 +316,51 @@ async fn flush(pool: &DbPool, batch: &[Heartbeat]) {
         // Don't crash the writer on a DB blip — log loudly, keep going.
         // The probe loop will produce more heartbeats on the next tick.
         error!(error = %e, batch = batch.len(), "heartbeat flush failed");
+    }
+}
+
+/// Synthesize a heartbeat for a Push monitor by reading its last_push_at
+/// from the database. Up if a push landed within the last `interval`
+/// seconds (with a small grace), Down otherwise. The grace covers the
+/// case where the external job is on its own cron and lands a moment
+/// after our tick — without it, perfectly-on-time pushes would flap.
+async fn push_heartbeat(monitor: &Monitor, pool: &DbPool) -> Heartbeat {
+    use time::OffsetDateTime;
+
+    let now = OffsetDateTime::now_utc();
+    let last = rampart_db::monitors::fetch_last_push_at(pool, monitor.id)
+        .await
+        .ok()
+        .flatten();
+
+    let (status, msg) = match last {
+        None => (
+            MonitorStatus::Down,
+            Some("no push received yet".into()),
+        ),
+        Some(ts) => {
+            let elapsed = (now - ts).whole_seconds();
+            // 10s grace, scaled by interval if very small intervals are set.
+            let grace = (monitor.interval_seconds / 10).max(10) as i64;
+            if elapsed <= (monitor.interval_seconds as i64) + grace {
+                (MonitorStatus::Up, Some(format!("push {}s ago", elapsed)))
+            } else {
+                (
+                    MonitorStatus::Down,
+                    Some(format!("no push for {}s", elapsed)),
+                )
+            }
+        }
+    };
+
+    Heartbeat {
+        monitor_id:  monitor.id,
+        ts:          now,
+        status,
+        latency_ms:  None,
+        status_code: None,
+        msg,
+        retries:     0,
+        important:   false,
     }
 }
