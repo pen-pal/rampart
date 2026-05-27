@@ -108,6 +108,14 @@ pub enum ChannelKind {
     MaxMessenger,
     HaloPsa,
     JiraSm,
+    SpugPush,
+    Wpush,
+    Vk,
+    Yzj,
+    GoogleSheets,
+    Gorush,
+    Fluxer,
+    Splash,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -21,9 +21,12 @@ pub mod email;
 pub mod feishu;
 pub mod flashduty;
 pub mod flock;
+pub mod fluxer;
 pub mod freemobile;
 pub mod goalert;
 pub mod google_chat;
+pub mod google_sheets;
+pub mod gorush;
 pub mod gotify;
 pub mod grafana_oncall;
 pub mod gtxmessaging;
@@ -71,7 +74,9 @@ pub mod sms_manager;
 pub mod smsc;
 pub mod smsplanet;
 pub mod smspartner;
+pub mod splash;
 pub mod splunk;
+pub mod spug_push;
 pub mod squadcast;
 pub mod stackfield;
 pub mod teams;
@@ -80,12 +85,15 @@ pub mod telnyx;
 pub mod teltonika;
 pub mod threema;
 pub mod twilio;
+pub mod vk;
 pub mod webhook;
 pub mod wecom;
 pub mod whatsapp_360;
 pub mod whatsapp_evolution;
 pub mod whatsapp_waha;
 pub mod whatsapp_whapi;
+pub mod wpush;
+pub mod yzj;
 pub mod zoho_cliq;
 pub mod zulip;
 
@@ -187,6 +195,14 @@ pub async fn dispatch(
         ChannelKind::MaxMessenger => Box::new(max_messenger::MaxMessenger::from_config(config)?),
         ChannelKind::HaloPsa      => Box::new(halo_psa::HaloPsa::from_config(config)?),
         ChannelKind::JiraSm       => Box::new(jira_sm::JiraSm::from_config(config)?),
+        ChannelKind::SpugPush     => Box::new(spug_push::SpugPush::from_config(config)?),
+        ChannelKind::Wpush        => Box::new(wpush::Wpush::from_config(config)?),
+        ChannelKind::Vk           => Box::new(vk::Vk::from_config(config)?),
+        ChannelKind::Yzj          => Box::new(yzj::Yzj::from_config(config)?),
+        ChannelKind::GoogleSheets => Box::new(google_sheets::GoogleSheets::from_config(config)?),
+        ChannelKind::Gorush       => Box::new(gorush::Gorush::from_config(config)?),
+        ChannelKind::Fluxer       => Box::new(fluxer::Fluxer::from_config(config)?),
+        ChannelKind::Splash       => Box::new(splash::Splash::from_config(config)?),
         _ => {
             return Err(ChannelError::BadConfig(format!(
                 "channel kind {kind:?} not implemented yet"

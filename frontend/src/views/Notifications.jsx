@@ -186,6 +186,14 @@ const SUPPORTED = [
   { id: 'max_messenger', name: 'MAX Messenger',  icon: MessageSquare, hint: 'MAX (RU) bot — access_token + chat_id' },
   { id: 'halo_psa',      name: 'Halo PSA',       icon: Siren,         hint: 'Halo PSA — opens a ticket via OAuth client credentials' },
   { id: 'jira_sm',       name: 'Jira Service Mgmt', icon: Siren,      hint: 'Jira Service Management — creates an incident via REST' },
+  { id: 'spug_push',     name: 'SpugPush',       icon: Smartphone,    hint: 'push.spug.cc — template_code from the Spug dashboard' },
+  { id: 'wpush',         name: 'WPush.cn',       icon: Smartphone,    hint: 'WPush.cn — api_key + comma-separated channels' },
+  { id: 'vk',            name: 'VK',             icon: MessageSquare, hint: 'VK messages.send — access_token + peer_id' },
+  { id: 'yzj',           name: 'YZJ (云之家)',   icon: MessageSquare, hint: 'YZJ (Cloudhome) custom robot webhook' },
+  { id: 'google_sheets', name: 'Google Sheets',  icon: FileText,      hint: 'Append a row via a deployed Apps Script web-app URL' },
+  { id: 'gorush',        name: 'Gorush',         icon: Smartphone,    hint: 'Self-hosted Gorush relay for FCM / APNs' },
+  { id: 'fluxer',        name: 'Fluxer',         icon: MessageSquare, hint: 'Fluxer webhook URL — title + body payload' },
+  { id: 'splash',        name: 'Splash',         icon: Siren,         hint: 'Splash incident webhook — auto-resolves on recovery' },
   // push
   { id: 'ntfy',       name: 'ntfy.sh',         icon: Smartphone,    hint: 'Push to phone via ntfy.sh (free) or self-hosted ntfy server' },
   { id: 'gotify',     name: 'Gotify',          icon: Server,        hint: 'Self-hosted push server (https://gotify.net)' },
@@ -1634,6 +1642,81 @@ function ConfigForm({ kind, config, setConfig }) {
           <input className="input mono" value={config.issue_type || ''}
             onChange={e => set('issue_type', e.target.value)} placeholder="Incident"/></div>
       </>
+    );
+  }
+  if (kind === 'spug_push') {
+    return (
+      <div className="field"><label className="field-label">Template code</label>
+        <input className="input mono" value={config.template_code || ''}
+          onChange={e => set('template_code', e.target.value)}/></div>
+    );
+  }
+  if (kind === 'wpush') {
+    return (
+      <>
+        <div className="field"><label className="field-label">API key</label>
+          <input className="input mono" type="password" value={config.api_key || ''}
+            onChange={e => set('api_key', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Channel <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+          <input className="input mono" value={config.channel || ''}
+            onChange={e => set('channel', e.target.value)} placeholder="wechat,email"/></div>
+      </>
+    );
+  }
+  if (kind === 'vk') {
+    return (
+      <>
+        <div className="field"><label className="field-label">Access token</label>
+          <input className="input mono" type="password" value={config.access_token || ''}
+            onChange={e => set('access_token', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Peer ID</label>
+          <input className="input mono" type="number" value={config.peer_id || ''}
+            onChange={e => set('peer_id', parseInt(e.target.value, 10) || 0)}/></div>
+        <div className="field"><label className="field-label">API version <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+          <input className="input mono" value={config.api_version || ''}
+            onChange={e => set('api_version', e.target.value)} placeholder="5.199"/></div>
+      </>
+    );
+  }
+  if (kind === 'yzj') {
+    return (
+      <div className="field"><label className="field-label">Webhook URL</label>
+        <input className="input mono" value={config.webhook_url || ''}
+          onChange={e => set('webhook_url', e.target.value)}/></div>
+    );
+  }
+  if (kind === 'google_sheets') {
+    return (
+      <div className="field"><label className="field-label">Apps Script web-app URL</label>
+        <input className="input mono" value={config.webhook_url || ''}
+          onChange={e => set('webhook_url', e.target.value)} placeholder="https://script.google.com/macros/s/.../exec"/></div>
+    );
+  }
+  if (kind === 'gorush') {
+    return (
+      <>
+        <div className="field"><label className="field-label">Server</label>
+          <input className="input mono" value={config.server || ''}
+            onChange={e => set('server', e.target.value)} placeholder="http://gorush.local:8088"/></div>
+        <div className="field"><label className="field-label">Platform</label>
+          <select className="select" value={config.platform || 'ios'} onChange={e => set('platform', e.target.value)}>
+            <option>ios</option><option>android</option>
+          </select>
+        </div>
+        <div className="field"><label className="field-label">Tokens <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+          <input className="input mono" value={(config.tokens || []).join(',')}
+            onChange={e => set('tokens', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}/></div>
+        <div className="field"><label className="field-label">Topic <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+          <input className="input mono" value={config.topic || ''}
+            onChange={e => set('topic', e.target.value)}/></div>
+      </>
+    );
+  }
+  if (kind === 'fluxer' || kind === 'splash') {
+    return (
+      <div className="field"><label className="field-label">Webhook URL</label>
+        <input className="input mono" value={config.webhook_url || ''}
+          onChange={e => set('webhook_url', e.target.value)}/></div>
     );
   }
   if (kind === 'sms_twilio') {
