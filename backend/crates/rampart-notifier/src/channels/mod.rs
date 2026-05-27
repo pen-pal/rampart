@@ -5,6 +5,8 @@
 //! adapter from a JSON config blob.
 
 pub mod apprise;
+pub mod bark;
+pub mod brevo;
 pub mod dingtalk;
 pub mod discord;
 pub mod email;
@@ -15,10 +17,16 @@ pub mod line;
 pub mod matrix;
 pub mod mattermost;
 pub mod ntfy;
+pub mod opsgenie;
 pub mod pagerduty;
+pub mod pagertree;
+pub mod pushbullet;
 pub mod pushover;
+pub mod resend;
 pub mod rocketchat;
+pub mod sendgrid;
 pub mod slack;
+pub mod squadcast;
 pub mod teams;
 pub mod telegram;
 pub mod twilio;
@@ -59,6 +67,14 @@ pub async fn dispatch(
         ChannelKind::Dingtalk    => Box::new(dingtalk::DingTalk::from_config(config)?),
         ChannelKind::Feishu      => Box::new(feishu::Feishu::from_config(config)?),
         ChannelKind::Line        => Box::new(line::Line::from_config(config)?),
+        ChannelKind::Bark        => Box::new(bark::Bark::from_config(config)?),
+        ChannelKind::Pushbullet  => Box::new(pushbullet::Pushbullet::from_config(config)?),
+        ChannelKind::Sendgrid    => Box::new(sendgrid::Sendgrid::from_config(config)?),
+        ChannelKind::Resend      => Box::new(resend::Resend::from_config(config)?),
+        ChannelKind::Brevo       => Box::new(brevo::Brevo::from_config(config)?),
+        ChannelKind::Opsgenie    => Box::new(opsgenie::Opsgenie::from_config(config)?),
+        ChannelKind::Pagertree   => Box::new(pagertree::Pagertree::from_config(config)?),
+        ChannelKind::Squadcast   => Box::new(squadcast::Squadcast::from_config(config)?),
         _ => {
             return Err(ChannelError::BadConfig(format!(
                 "channel kind {kind:?} not implemented yet"

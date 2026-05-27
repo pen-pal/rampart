@@ -120,6 +120,17 @@ const SUPPORTED = [
   { id: 'feishu',      name: 'Feishu 飞书',   icon: MessageSquare, hint: 'Custom bot webhook URL from open.feishu.cn' },
   { id: 'line',        name: 'LINE Messenger',  icon: MessageSquare, hint: 'Channel access token + recipient ID (Messaging API)' },
   // push
+  { id: 'bark',        name: 'Bark (iOS)',      icon: Smartphone,    hint: 'Push to iOS via day.app or a self-hosted Bark server' },
+  { id: 'pushbullet',  name: 'Pushbullet',      icon: Smartphone,    hint: 'Push notifications via pushbullet.com — access token' },
+  // email APIs
+  { id: 'sendgrid',    name: 'SendGrid',        icon: Mail,          hint: 'Twilio SendGrid transactional email API' },
+  { id: 'resend',      name: 'Resend',          icon: Mail,          hint: 'Resend transactional email API' },
+  { id: 'brevo',       name: 'Brevo',           icon: Mail,          hint: 'Brevo (formerly Sendinblue) transactional email' },
+  // incident management
+  { id: 'opsgenie',    name: 'Opsgenie',        icon: Siren,         hint: 'Atlassian Opsgenie — alerts auto-resolve on recovery' },
+  { id: 'pagertree',   name: 'PagerTree',       icon: Siren,         hint: 'PagerTree integration URL — auto-resolves on recovery' },
+  { id: 'squadcast',   name: 'Squadcast',       icon: Siren,         hint: 'Squadcast webhook integration — auto-resolves on recovery' },
+  // push
   { id: 'ntfy',       name: 'ntfy.sh',         icon: Smartphone,    hint: 'Push to phone via ntfy.sh (free) or self-hosted ntfy server' },
   { id: 'gotify',     name: 'Gotify',          icon: Server,        hint: 'Self-hosted push server (https://gotify.net)' },
   { id: 'pushover',   name: 'Pushover',        icon: Smartphone,    hint: 'Pushover.net push service (paid app, free API)' },
@@ -500,6 +511,144 @@ function ConfigForm({ kind, config, setConfig }) {
             onChange={e => set('to', e.target.value)} placeholder="Uxxxxxxxxxxxxxxxxxx"/>
         </div>
       </>
+    );
+  }
+  if (kind === 'bark') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">Device key</label>
+          <input className="input mono" type="password" value={config.device_key || ''}
+            onChange={e => set('device_key', e.target.value)} placeholder="from the Bark app"/>
+        </div>
+        <div className="field">
+          <label className="field-label">Server <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+          <input className="input mono" value={config.server || ''}
+            onChange={e => set('server', e.target.value)} placeholder="https://api.day.app"/>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'pushbullet') {
+    return (
+      <div className="field">
+        <label className="field-label">Access token</label>
+        <input className="input mono" type="password" value={config.access_token || ''}
+          onChange={e => set('access_token', e.target.value)} placeholder="o.xxxxx..."/>
+      </div>
+    );
+  }
+  if (kind === 'sendgrid') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">API key</label>
+          <input className="input mono" type="password" value={config.api_key || ''}
+            onChange={e => set('api_key', e.target.value)} placeholder="SG.xxxxx"/>
+        </div>
+        <div className="field">
+          <label className="field-label">From email</label>
+          <input className="input" value={config.from_email || ''}
+            onChange={e => set('from_email', e.target.value)} placeholder="alerts@example.com"/>
+        </div>
+        <div className="field">
+          <label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+          <input className="input" value={config.to || ''}
+            onChange={e => set('to', e.target.value)} placeholder="ops@example.com, sre@example.com"/>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'resend') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">API key</label>
+          <input className="input mono" type="password" value={config.api_key || ''}
+            onChange={e => set('api_key', e.target.value)} placeholder="re_xxxxx"/>
+        </div>
+        <div className="field">
+          <label className="field-label">From</label>
+          <input className="input" value={config.from || ''}
+            onChange={e => set('from', e.target.value)} placeholder='"Rampart" <alerts@example.com>'/>
+        </div>
+        <div className="field">
+          <label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+          <input className="input" value={config.to || ''}
+            onChange={e => set('to', e.target.value)} placeholder="ops@example.com"/>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'brevo') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">API key</label>
+          <input className="input mono" type="password" value={config.api_key || ''}
+            onChange={e => set('api_key', e.target.value)} placeholder="xkeysib-..."/>
+        </div>
+        <div className="field">
+          <label className="field-label">From email</label>
+          <input className="input" value={config.from_email || ''}
+            onChange={e => set('from_email', e.target.value)} placeholder="alerts@example.com"/>
+        </div>
+        <div className="field">
+          <label className="field-label">To email</label>
+          <input className="input" value={config.to_email || ''}
+            onChange={e => set('to_email', e.target.value)} placeholder="ops@example.com"/>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'opsgenie') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">API key</label>
+          <input className="input mono" type="password" value={config.api_key || ''}
+            onChange={e => set('api_key', e.target.value)} placeholder="GenieKey"/>
+        </div>
+        <div className="field">
+          <label className="field-label">Region</label>
+          <select className="select" value={config.region || 'us'} onChange={e => set('region', e.target.value)}>
+            <option value="us">US (api.opsgenie.com)</option>
+            <option value="eu">EU (api.eu.opsgenie.com)</option>
+          </select>
+        </div>
+        <div className="field">
+          <label className="field-label">Priority</label>
+          <select className="select" value={config.priority || 'P3'} onChange={e => set('priority', e.target.value)}>
+            <option>P1</option><option>P2</option><option>P3</option><option>P4</option><option>P5</option>
+          </select>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'pagertree') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">Integration URL</label>
+          <input className="input mono" value={config.integration_url || ''}
+            onChange={e => set('integration_url', e.target.value)} placeholder="https://api.pagertree.com/integration/..."/>
+        </div>
+        <div className="field">
+          <label className="field-label">Severity</label>
+          <select className="select" value={config.severity || 'SEV-3'} onChange={e => set('severity', e.target.value)}>
+            <option>SEV-1</option><option>SEV-2</option><option>SEV-3</option><option>SEV-4</option><option>SEV-5</option>
+          </select>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'squadcast') {
+    return (
+      <div className="field">
+        <label className="field-label">Webhook URL</label>
+        <input className="input mono" value={config.webhook_url || ''}
+          onChange={e => set('webhook_url', e.target.value)} placeholder="https://api.squadcast.com/v2/incidents/..."/>
+      </div>
     );
   }
   if (kind === 'sms_twilio') {

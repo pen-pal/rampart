@@ -47,6 +47,14 @@ pub enum ChannelKind {
     Apprise,
     /// Catch-all for custom webhook payloads.
     Custom,
+    Bark,
+    Pushbullet,
+    Sendgrid,
+    Resend,
+    Brevo,
+    Opsgenie,
+    Pagertree,
+    Squadcast,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
