@@ -161,23 +161,23 @@ const types = [
     example: 'Verify brokers are reachable before your producer starts dropping',
     placeholder: { hostname: 'kafka.internal', port: '9092' } },
 
-  { id: 'postgres',   icon: Database,      name: 'Postgres',      desc: 'SELECT 1',            stub: true,
+  { id: 'postgres',   icon: Database,      name: 'Postgres',      desc: 'SELECT 1',
     example: 'Catch when your primary DB stops accepting connections',
     placeholder: { hostname: 'db.internal', port: '5432' } },
 
-  { id: 'mysql',      icon: Database,      name: 'MySQL',         desc: 'SELECT 1',            stub: true,
+  { id: 'mysql',      icon: Database,      name: 'MySQL',         desc: 'SELECT 1',
     example: 'Same as Postgres but for MySQL / MariaDB',
     placeholder: { hostname: 'db.internal', port: '3306' } },
 
-  { id: 'mssql',      icon: Database,      name: 'MSSQL',         desc: 'SELECT 1',            stub: true,
+  { id: 'mssql',      icon: Database,      name: 'MSSQL',         desc: 'SELECT 1',
     example: 'SQL Server availability check',
     placeholder: { hostname: 'db.internal', port: '1433' } },
 
-  { id: 'redis',      icon: Database,      name: 'Redis',         desc: 'PING',                stub: true,
+  { id: 'redis',      icon: Database,      name: 'Redis',         desc: 'PING',
     example: "More reliable than a raw TCP probe because it tests AUTH too",
     placeholder: { hostname: 'redis.internal', port: '6379' } },
 
-  { id: 'mongodb',    icon: Database,      name: 'MongoDB',       desc: 'ismaster',            stub: true,
+  { id: 'mongodb',    icon: Database,      name: 'MongoDB',       desc: 'ping',
     example: 'Detect MongoDB primary outages and replica-set failover',
     placeholder: { hostname: 'mongo.internal', port: '27017' } },
 
@@ -371,7 +371,7 @@ export default function NewMonitorWizard() {
                 <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em', margin: '0 0 8px' }}>Step 1 · Pick a check type</p>
                 <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 8px', letterSpacing: '-.02em' }}>What do you want to monitor?</h1>
                 <p style={{ fontSize: 14, color: 'var(--text-2)', margin: 0 }}>
-                  20 types in the catalog. Nine probe runners ship today (HTTP, keyword, JSON query, TCP, ping, DNS, push, TLS cert, domain expiry); the rest still create the record but report Down until their runner lands.
+                  20 types in the catalog. Fourteen probe runners ship today (HTTP / keyword / JSON, TCP, ping, DNS, push, TLS cert, domain expiry, plus Postgres / MySQL / MSSQL / Redis / MongoDB); the rest still create the record but report Down until their runner lands.
                 </p>
               </div>
 

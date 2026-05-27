@@ -26,3 +26,8 @@ rustls           = { workspace = true }
 webpki-roots     = { workspace = true }
 x509-parser      = { workspace = true }
 rand             = { workspace = true }
+sqlx             = { workspace = true }
+tiberius         = { workspace = true }
+tokio-util       = { workspace = true }
+redis            = { workspace = true }
+mongodb          = { workspace = true }

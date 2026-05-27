@@ -14,7 +14,12 @@
 pub mod dns;
 pub mod domain;
 pub mod http;
+pub mod mongodb;
+pub mod mssql;
+pub mod mysql;
 pub mod ping;
+pub mod postgres;
+pub mod redis;
 pub mod tcp;
 pub mod tls;
 
@@ -37,23 +42,33 @@ pub trait Probe: Send + Sync {
 
 /// Bundle of all configured probes. Shares HTTP clients across calls.
 pub struct Probes {
-    http:   http::HttpProbe,
-    tcp:    tcp::TcpProbe,
-    dns:    dns::DnsProbe,
-    ping:   ping::PingProbe,
-    tls:    tls::TlsProbe,
-    domain: domain::DomainProbe,
+    http:     http::HttpProbe,
+    tcp:      tcp::TcpProbe,
+    dns:      dns::DnsProbe,
+    ping:     ping::PingProbe,
+    tls:      tls::TlsProbe,
+    domain:   domain::DomainProbe,
+    postgres: postgres::PostgresProbe,
+    mysql:    mysql::MySqlProbe,
+    mssql:    mssql::MssqlProbe,
+    redis:    redis::RedisProbe,
+    mongodb:  mongodb::MongodbProbe,
 }
 
 impl Probes {
     pub fn new() -> Self {
         Self {
-            http:   http::HttpProbe::new(),
-            tcp:    tcp::TcpProbe::new(),
-            dns:    dns::DnsProbe::new(),
-            ping:   ping::PingProbe::new(),
-            tls:    tls::TlsProbe::new(),
-            domain: domain::DomainProbe::new(),
+            http:     http::HttpProbe::new(),
+            tcp:      tcp::TcpProbe::new(),
+            dns:      dns::DnsProbe::new(),
+            ping:     ping::PingProbe::new(),
+            tls:      tls::TlsProbe::new(),
+            domain:   domain::DomainProbe::new(),
+            postgres: postgres::PostgresProbe::new(),
+            mysql:    mysql::MySqlProbe::new(),
+            mssql:    mssql::MssqlProbe::new(),
+            redis:    redis::RedisProbe::new(),
+            mongodb:  mongodb::MongodbProbe::new(),
         }
     }
 
@@ -69,8 +84,13 @@ impl Probes {
             MonitorKind::Tcp  => self.tcp.run(monitor).await,
             MonitorKind::Dns  => self.dns.run(monitor).await,
             MonitorKind::Ping => self.ping.run(monitor).await,
-            MonitorKind::Tls    => self.tls.run(monitor).await,
-            MonitorKind::Domain => self.domain.run(monitor).await,
+            MonitorKind::Tls      => self.tls.run(monitor).await,
+            MonitorKind::Domain   => self.domain.run(monitor).await,
+            MonitorKind::Postgres => self.postgres.run(monitor).await,
+            MonitorKind::Mysql    => self.mysql.run(monitor).await,
+            MonitorKind::Mssql    => self.mssql.run(monitor).await,
+            MonitorKind::Redis    => self.redis.run(monitor).await,
+            MonitorKind::Mongodb  => self.mongodb.run(monitor).await,
             unsupported => unsupported_kind(monitor.id, unsupported),
         }
     }

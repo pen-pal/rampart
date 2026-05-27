@@ -42,10 +42,15 @@ tower-http = { version = "0.6", features = ["cors", "trace", "compression-gzip",
 hyper      = { version = "1.4", features = ["full"] }
 
 # database
+# `mysql` is here (not in rampart-db) so the `mysql` probe can use the
+# same sqlx instance. Cargo unifies features so this also lands in
+# rampart-db's tree, which is a small compile-time cost we eat to keep
+# from juggling two sqlx instances.
 sqlx = { version = "0.8", features = [
   "runtime-tokio",
   "tls-rustls",
   "postgres",
+  "mysql",
   "uuid",
   "time",
   "json",
@@ -101,6 +106,16 @@ rustls           = { version = "0.23", default-features = false, features = ["ri
 rustls-pemfile   = "2"
 webpki-roots     = "0.26"
 x509-parser      = "0.16"
+# MSSQL driver — pure-rust, async, needs tokio-util's compat shim because
+# tiberius is written against `futures-io` not `tokio::io`.
+tiberius         = { version = "0.12", default-features = false, features = ["tds73", "chrono", "rustls"] }
+tokio-util       = { version = "0.7", features = ["compat"] }
+# Redis + MongoDB drivers for the remaining DB probes.
+redis            = { version = "0.27", default-features = false, features = ["tokio-rustls-comp", "tls-rustls-webpki-roots"] }
+# mongodb pinned to ~3.2; later patches in the 3.x line transitively
+# depend on a hickory-proto that requires a jni version still being
+# rolled out to crates.io.
+mongodb          = "=3.2.0"
 
 [profile.release]
 lto           = "thin"
