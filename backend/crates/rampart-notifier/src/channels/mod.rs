@@ -6,9 +6,11 @@
 
 pub mod alerta;
 pub mod alertnow;
+pub mod alertops;
 pub mod aliyun_sms;
 pub mod apprise;
 pub mod bale;
+pub mod bandwidth;
 pub mod bark;
 pub mod bitrix24;
 pub mod brevo;
@@ -41,6 +43,7 @@ pub mod mastodon;
 pub mod matrix;
 pub mod mattermost;
 pub mod max_messenger;
+pub mod messagebird;
 pub mod nostr;
 pub mod notifery;
 pub mod ntfy;
@@ -51,9 +54,11 @@ pub mod onesender;
 pub mod opsgenie;
 pub mod pagerduty;
 pub mod pagertree;
+pub mod plivo;
 pub mod promosms;
 pub mod pumble;
 pub mod pushbullet;
+pub mod pushcut;
 pub mod pushdeer;
 pub mod pushover;
 pub mod pushplus;
@@ -72,6 +77,7 @@ pub mod sms_eagle;
 pub mod sms_ir;
 pub mod sms_manager;
 pub mod smsc;
+pub mod smsglobal;
 pub mod smsplanet;
 pub mod smspartner;
 pub mod splash;
@@ -86,6 +92,8 @@ pub mod teltonika;
 pub mod threema;
 pub mod twilio;
 pub mod vk;
+pub mod vonage;
+pub mod webex;
 pub mod webhook;
 pub mod wecom;
 pub mod whatsapp_360;
@@ -203,6 +211,14 @@ pub async fn dispatch(
         ChannelKind::Gorush       => Box::new(gorush::Gorush::from_config(config)?),
         ChannelKind::Fluxer       => Box::new(fluxer::Fluxer::from_config(config)?),
         ChannelKind::Splash       => Box::new(splash::Splash::from_config(config)?),
+        ChannelKind::Messagebird  => Box::new(messagebird::Messagebird::from_config(config)?),
+        ChannelKind::Plivo        => Box::new(plivo::Plivo::from_config(config)?),
+        ChannelKind::Vonage       => Box::new(vonage::Vonage::from_config(config)?),
+        ChannelKind::Bandwidth    => Box::new(bandwidth::Bandwidth::from_config(config)?),
+        ChannelKind::Webex        => Box::new(webex::Webex::from_config(config)?),
+        ChannelKind::Pushcut      => Box::new(pushcut::Pushcut::from_config(config)?),
+        ChannelKind::Smsglobal    => Box::new(smsglobal::Smsglobal::from_config(config)?),
+        ChannelKind::Alertops     => Box::new(alertops::Alertops::from_config(config)?),
         _ => {
             return Err(ChannelError::BadConfig(format!(
                 "channel kind {kind:?} not implemented yet"

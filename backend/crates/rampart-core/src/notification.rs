@@ -116,6 +116,14 @@ pub enum ChannelKind {
     Gorush,
     Fluxer,
     Splash,
+    Messagebird,
+    Plivo,
+    Vonage,
+    Bandwidth,
+    Webex,
+    Pushcut,
+    Smsglobal,
+    Alertops,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

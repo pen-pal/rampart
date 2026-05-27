@@ -194,6 +194,14 @@ const SUPPORTED = [
   { id: 'gorush',        name: 'Gorush',         icon: Smartphone,    hint: 'Self-hosted Gorush relay for FCM / APNs' },
   { id: 'fluxer',        name: 'Fluxer',         icon: MessageSquare, hint: 'Fluxer webhook URL — title + body payload' },
   { id: 'splash',        name: 'Splash',         icon: Siren,         hint: 'Splash incident webhook — auto-resolves on recovery' },
+  { id: 'messagebird',   name: 'MessageBird',    icon: Phone,         hint: 'MessageBird /messages — AccessKey auth' },
+  { id: 'plivo',         name: 'Plivo SMS',      icon: Phone,         hint: 'Plivo /Message/ — auth_id + auth_token' },
+  { id: 'vonage',        name: 'Vonage (Nexmo)', icon: Phone,         hint: 'Vonage Nexmo /sms/json — api_key + api_secret' },
+  { id: 'bandwidth',     name: 'Bandwidth',      icon: Phone,         hint: 'Bandwidth /messages — basic auth + application_id' },
+  { id: 'webex',         name: 'Cisco Webex',    icon: MessageSquare, hint: 'Webex Teams /messages — bot token + room_id' },
+  { id: 'pushcut',       name: 'Pushcut',        icon: Smartphone,    hint: 'Pushcut iOS automation — API key + notification name' },
+  { id: 'smsglobal',     name: 'SMSGlobal',      icon: Phone,         hint: 'SMSGlobal /v2/sms — api_key + api_secret' },
+  { id: 'alertops',      name: 'AlertOps',       icon: Siren,         hint: 'AlertOps integration URL — auto-resolves on recovery' },
   // push
   { id: 'ntfy',       name: 'ntfy.sh',         icon: Smartphone,    hint: 'Push to phone via ntfy.sh (free) or self-hosted ntfy server' },
   { id: 'gotify',     name: 'Gotify',          icon: Server,        hint: 'Self-hosted push server (https://gotify.net)' },
@@ -1717,6 +1725,130 @@ function ConfigForm({ kind, config, setConfig }) {
       <div className="field"><label className="field-label">Webhook URL</label>
         <input className="input mono" value={config.webhook_url || ''}
           onChange={e => set('webhook_url', e.target.value)}/></div>
+    );
+  }
+  if (kind === 'messagebird') {
+    return (
+      <>
+        <div className="field"><label className="field-label">Access key</label>
+          <input className="input mono" type="password" value={config.access_key || ''}
+            onChange={e => set('access_key', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Originator</label>
+          <input className="input mono" value={config.originator || ''}
+            onChange={e => set('originator', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Recipients <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+          <input className="input mono" value={config.recipients || ''}
+            onChange={e => set('recipients', e.target.value)}/></div>
+      </>
+    );
+  }
+  if (kind === 'plivo') {
+    return (
+      <>
+        <div className="field"><label className="field-label">Auth ID</label>
+          <input className="input mono" value={config.auth_id || ''}
+            onChange={e => set('auth_id', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Auth token</label>
+          <input className="input mono" type="password" value={config.auth_token || ''}
+            onChange={e => set('auth_token', e.target.value)}/></div>
+        <div className="field"><label className="field-label">From</label>
+          <input className="input mono" value={config.from || ''}
+            onChange={e => set('from', e.target.value)} placeholder="+15551234567"/></div>
+        <div className="field"><label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· angle-bracket separated, e.g. {'+15551111<+15552222>'}</span></label>
+          <input className="input mono" value={config.to || ''}
+            onChange={e => set('to', e.target.value)}/></div>
+      </>
+    );
+  }
+  if (kind === 'vonage') {
+    return (
+      <>
+        <div className="field"><label className="field-label">API key</label>
+          <input className="input mono" value={config.api_key || ''}
+            onChange={e => set('api_key', e.target.value)}/></div>
+        <div className="field"><label className="field-label">API secret</label>
+          <input className="input mono" type="password" value={config.api_secret || ''}
+            onChange={e => set('api_secret', e.target.value)}/></div>
+        <div className="field"><label className="field-label">From</label>
+          <input className="input mono" value={config.from || ''}
+            onChange={e => set('from', e.target.value)}/></div>
+        <div className="field"><label className="field-label">To</label>
+          <input className="input mono" value={config.to || ''}
+            onChange={e => set('to', e.target.value)} placeholder="15551234567"/></div>
+      </>
+    );
+  }
+  if (kind === 'bandwidth') {
+    return (
+      <>
+        <div className="field"><label className="field-label">Account ID</label>
+          <input className="input mono" value={config.account_id || ''}
+            onChange={e => set('account_id', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Username</label>
+          <input className="input" value={config.username || ''}
+            onChange={e => set('username', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Password</label>
+          <input className="input mono" type="password" value={config.password || ''}
+            onChange={e => set('password', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Application ID</label>
+          <input className="input mono" value={config.application_id || ''}
+            onChange={e => set('application_id', e.target.value)}/></div>
+        <div className="field"><label className="field-label">From</label>
+          <input className="input mono" value={config.from || ''}
+            onChange={e => set('from', e.target.value)} placeholder="+15551234567"/></div>
+        <div className="field"><label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+          <input className="input mono" value={config.to || ''}
+            onChange={e => set('to', e.target.value)}/></div>
+      </>
+    );
+  }
+  if (kind === 'webex') {
+    return (
+      <>
+        <div className="field"><label className="field-label">Bot token</label>
+          <input className="input mono" type="password" value={config.bot_token || ''}
+            onChange={e => set('bot_token', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Room ID</label>
+          <input className="input mono" value={config.room_id || ''}
+            onChange={e => set('room_id', e.target.value)}/></div>
+      </>
+    );
+  }
+  if (kind === 'pushcut') {
+    return (
+      <>
+        <div className="field"><label className="field-label">API key</label>
+          <input className="input mono" type="password" value={config.api_key || ''}
+            onChange={e => set('api_key', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Notification name</label>
+          <input className="input mono" value={config.notification_name || ''}
+            onChange={e => set('notification_name', e.target.value)}/></div>
+      </>
+    );
+  }
+  if (kind === 'smsglobal') {
+    return (
+      <>
+        <div className="field"><label className="field-label">API key</label>
+          <input className="input mono" value={config.api_key || ''}
+            onChange={e => set('api_key', e.target.value)}/></div>
+        <div className="field"><label className="field-label">API secret</label>
+          <input className="input mono" type="password" value={config.api_secret || ''}
+            onChange={e => set('api_secret', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Origin</label>
+          <input className="input mono" value={config.origin || ''}
+            onChange={e => set('origin', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Destination <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+          <input className="input mono" value={config.destination || ''}
+            onChange={e => set('destination', e.target.value)}/></div>
+      </>
+    );
+  }
+  if (kind === 'alertops') {
+    return (
+      <div className="field"><label className="field-label">Integration URL</label>
+        <input className="input mono" value={config.integration_url || ''}
+          onChange={e => set('integration_url', e.target.value)}/></div>
     );
   }
   if (kind === 'sms_twilio') {
