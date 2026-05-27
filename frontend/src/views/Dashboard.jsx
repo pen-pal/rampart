@@ -4,10 +4,10 @@ import {
   ResponsiveContainer, Tooltip,
 } from 'recharts';
 import {
-  Search, Plus, Bell, Sun, ChevronDown, ChevronRight, Activity,
+  Search, Plus, Bell, ChevronDown, ChevronRight, Activity,
   AlertCircle, Pause, MoreHorizontal, Calendar,
   Tag, ArrowUpRight, Wrench, Zap, Globe, Server,
-  Database, Radio, Lock, Hash, Filter,
+  Database, Radio, Lock, Hash,
 } from 'lucide-react';
 import {
   api, useApi, formatRelative, offsetDateTimeArrayToDate, statusToClass,
@@ -240,7 +240,17 @@ const SERIES_COLORS = ['#14b8a6', '#6366f1', '#10b981', '#ef4444'];
 // ─── main component ───────────────────────────────────────────────────────
 export default function Dashboard({ user, onLogout } = {}) {
   const monitorsState = useApi(() => api.monitors.list(),         [], { pollMs: 10_000 });
-  const summaryState  = useApi(() => api.monitors.summary(86400), [], { pollMs: 15_000 });
+  const [windowSec, setWindowSec] = useState(86400); // 1h | 24h | 7d | 30d
+  // small helper so the summary-card label stays in sync with the picker.
+  // eslint-disable-next-line no-inner-declarations
+  function windowLabel(s) {
+    return s === 3600 ? 'last 1h'
+         : s === 86400 ? 'last 24h'
+         : s === 604800 ? 'last 7d'
+         : s === 2592000 ? 'last 30d'
+         : `last ${s}s`;
+  }
+  const summaryState  = useApi(() => api.monitors.summary(windowSec), [windowSec], { pollMs: 15_000 });
   const historyState  = useApi(() => api.monitors.history(60),    [], { pollMs: 10_000 });
   const countsState   = useApi(() => api.notifications.counts(),  [], { pollMs: 30_000 });
   const channelCount  = useMemo(() => {
@@ -364,8 +374,9 @@ export default function Dashboard({ user, onLogout } = {}) {
         </div>
 
         <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
-          <button className="btn btn-ghost" title="Notifications"><Bell size={14}/></button>
-          <button className="btn btn-ghost" title="Toggle theme"><Sun size={14}/></button>
+          <a className="btn btn-ghost" title="Notification channels" href="#/notifications" style={{ textDecoration: 'none' }}>
+            <Bell size={14}/>
+          </a>
           <button className="btn" onClick={goToStatusPage}><Wrench size={13}/> Status page</button>
           <button className="btn btn-accent" onClick={goToNewMonitor}><Plus size={13} strokeWidth={2.4}/> Add monitor</button>
           {user && (
@@ -399,7 +410,7 @@ export default function Dashboard({ user, onLogout } = {}) {
           <div className="card" style={{ padding: 14, marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em' }}>
-                Status · last 24h
+                Status · {windowLabel(windowSec)}
               </span>
               <span className="mono tabular" style={{ fontSize: 11, color: 'var(--text-3)' }}>{monitors.length} total</span>
             </div>
@@ -467,9 +478,17 @@ export default function Dashboard({ user, onLogout } = {}) {
                 {monitors.length > 0 && !anyDown && !anyWarn && <>{monitors.length} monitor{monitors.length > 1 ? 's' : ''} healthy — auto-refreshing every 10s</>}
               </p>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn"><Filter size={13}/> Filter</button>
-              <button className="btn"><Calendar size={13}/> Last 24h <ChevronDown size={11}/></button>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <Calendar size={13} color="var(--text-3)"/>
+              <select className="btn" value={windowSec}
+                onChange={e => setWindowSec(parseInt(e.target.value, 10))}
+                style={{ paddingRight: 26, cursor: 'pointer', appearance: 'auto' }}
+                title="Rollup window for uptime + latency above">
+                <option value={3600}>Last 1h</option>
+                <option value={86400}>Last 24h</option>
+                <option value={604800}>Last 7d</option>
+                <option value={2592000}>Last 30d</option>
+              </select>
             </div>
           </div>
 
