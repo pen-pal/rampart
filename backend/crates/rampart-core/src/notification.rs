@@ -55,6 +55,11 @@ pub enum ChannelKind {
     Opsgenie,
     Pagertree,
     Squadcast,
+    Goalert,
+    Alerta,
+    Alertnow,
+    Signl4,
+    HeiiOncall,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

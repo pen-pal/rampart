@@ -130,6 +130,14 @@ const SUPPORTED = [
   { id: 'opsgenie',    name: 'Opsgenie',        icon: Siren,         hint: 'Atlassian Opsgenie — alerts auto-resolve on recovery' },
   { id: 'pagertree',   name: 'PagerTree',       icon: Siren,         hint: 'PagerTree integration URL — auto-resolves on recovery' },
   { id: 'squadcast',   name: 'Squadcast',       icon: Siren,         hint: 'Squadcast webhook integration — auto-resolves on recovery' },
+  { id: 'signal',      name: 'Signal',          icon: MessageSquare, hint: 'Self-hosted signal-cli REST API — sender number + recipients' },
+  { id: 'zulip',       name: 'Zulip',           icon: MessageSquare, hint: 'Bot email + API key; stream + topic or private email list' },
+  { id: 'lark',        name: 'Lark',            icon: MessageSquare, hint: 'Lark / Feishu international custom-bot webhook URL' },
+  { id: 'goalert',     name: 'GoAlert',         icon: Siren,         hint: 'GoAlert integration URL — close action on recovery' },
+  { id: 'alerta',      name: 'Alerta',          icon: Siren,         hint: 'Alerta REST API — severity mapped from monitor status' },
+  { id: 'alertnow',    name: 'AlertNow',        icon: Siren,         hint: 'AlertNow webhook integration URL' },
+  { id: 'signl4',      name: 'SIGNL4',          icon: Siren,         hint: 'SIGNL4 mobile alerting — team secret from the connect URL' },
+  { id: 'heii_oncall', name: 'Heii On-Call',    icon: Siren,         hint: 'Heii On-Call trigger URL; optional close URL on recovery' },
   // push
   { id: 'ntfy',       name: 'ntfy.sh',         icon: Smartphone,    hint: 'Push to phone via ntfy.sh (free) or self-hosted ntfy server' },
   { id: 'gotify',     name: 'Gotify',          icon: Server,        hint: 'Self-hosted push server (https://gotify.net)' },
@@ -649,6 +657,139 @@ function ConfigForm({ kind, config, setConfig }) {
         <input className="input mono" value={config.webhook_url || ''}
           onChange={e => set('webhook_url', e.target.value)} placeholder="https://api.squadcast.com/v2/incidents/..."/>
       </div>
+    );
+  }
+  if (kind === 'signal') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">signal-cli REST API URL</label>
+          <input className="input mono" value={config.api_url || ''}
+            onChange={e => set('api_url', e.target.value)} placeholder="http://signal-cli:8080"/>
+        </div>
+        <div className="field">
+          <label className="field-label">From number</label>
+          <input className="input mono" value={config.number || ''}
+            onChange={e => set('number', e.target.value)} placeholder="+15551234567"/>
+        </div>
+        <div className="field">
+          <label className="field-label">Recipients <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated phone numbers or group ids</span></label>
+          <input className="input mono" value={(config.recipients || []).join(',')}
+            onChange={e => set('recipients', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+            placeholder="+15559876543, +44..."/>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'zulip') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">Server</label>
+          <input className="input mono" value={config.server || ''}
+            onChange={e => set('server', e.target.value)} placeholder="https://yourzulip.example.com"/>
+        </div>
+        <div className="field">
+          <label className="field-label">Bot email</label>
+          <input className="input mono" value={config.bot_email || ''}
+            onChange={e => set('bot_email', e.target.value)} placeholder="bot@yourzulip.example.com"/>
+        </div>
+        <div className="field">
+          <label className="field-label">Bot API key</label>
+          <input className="input mono" type="password" value={config.bot_key || ''}
+            onChange={e => set('bot_key', e.target.value)}/>
+        </div>
+        <div className="field">
+          <label className="field-label">Type</label>
+          <select className="select" value={config.kind || 'stream'} onChange={e => set('kind', e.target.value)}>
+            <option value="stream">stream</option>
+            <option value="private">private</option>
+          </select>
+        </div>
+        <div className="field">
+          <label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· stream name or email(s)</span></label>
+          <input className="input mono" value={config.to || ''}
+            onChange={e => set('to', e.target.value)} placeholder="alerts / alice@example.com"/>
+        </div>
+        <div className="field">
+          <label className="field-label">Topic <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· streams only</span></label>
+          <input className="input mono" value={config.topic || ''}
+            onChange={e => set('topic', e.target.value)} placeholder="rampart"/>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'lark') {
+    return (
+      <div className="field">
+        <label className="field-label">Webhook URL</label>
+        <input className="input mono" value={config.webhook_url || ''}
+          onChange={e => set('webhook_url', e.target.value)} placeholder="https://open.larksuite.com/open-apis/bot/v2/hook/..."/>
+      </div>
+    );
+  }
+  if (kind === 'goalert') {
+    return (
+      <div className="field">
+        <label className="field-label">Integration URL</label>
+        <input className="input mono" value={config.integration_url || ''}
+          onChange={e => set('integration_url', e.target.value)} placeholder="https://goalert.example.com/api/v2/generic/incoming?token=..."/>
+      </div>
+    );
+  }
+  if (kind === 'alerta') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">API URL</label>
+          <input className="input mono" value={config.api_url || ''}
+            onChange={e => set('api_url', e.target.value)} placeholder="https://alerta.example.com/api"/>
+        </div>
+        <div className="field">
+          <label className="field-label">API key</label>
+          <input className="input mono" type="password" value={config.api_key || ''}
+            onChange={e => set('api_key', e.target.value)}/>
+        </div>
+        <div className="field">
+          <label className="field-label">Environment</label>
+          <input className="input" value={config.environment || ''}
+            onChange={e => set('environment', e.target.value)} placeholder="Production"/>
+        </div>
+      </>
+    );
+  }
+  if (kind === 'alertnow') {
+    return (
+      <div className="field">
+        <label className="field-label">Webhook URL</label>
+        <input className="input mono" value={config.webhook_url || ''}
+          onChange={e => set('webhook_url', e.target.value)} placeholder="https://api.alertnow.io/..."/>
+      </div>
+    );
+  }
+  if (kind === 'signl4') {
+    return (
+      <div className="field">
+        <label className="field-label">Team secret</label>
+        <input className="input mono" type="password" value={config.team_secret || ''}
+          onChange={e => set('team_secret', e.target.value)} placeholder="UUID from the SIGNL4 connect URL"/>
+      </div>
+    );
+  }
+  if (kind === 'heii_oncall') {
+    return (
+      <>
+        <div className="field">
+          <label className="field-label">Trigger URL</label>
+          <input className="input mono" value={config.trigger_url || ''}
+            onChange={e => set('trigger_url', e.target.value)} placeholder="https://api.heiioncall.com/..."/>
+        </div>
+        <div className="field">
+          <label className="field-label">Close URL <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+          <input className="input mono" value={config.close_url || ''}
+            onChange={e => set('close_url', e.target.value)} placeholder="https://api.heiioncall.com/.../close"/>
+        </div>
+      </>
     );
   }
   if (kind === 'sms_twilio') {

@@ -4,6 +4,8 @@
 //! `dispatch` helper inspects the kind tag and instantiates the right
 //! adapter from a JSON config blob.
 
+pub mod alerta;
+pub mod alertnow;
 pub mod apprise;
 pub mod bark;
 pub mod brevo;
@@ -11,8 +13,11 @@ pub mod dingtalk;
 pub mod discord;
 pub mod email;
 pub mod feishu;
+pub mod goalert;
 pub mod google_chat;
 pub mod gotify;
+pub mod heii_oncall;
+pub mod lark;
 pub mod line;
 pub mod matrix;
 pub mod mattermost;
@@ -25,6 +30,8 @@ pub mod pushover;
 pub mod resend;
 pub mod rocketchat;
 pub mod sendgrid;
+pub mod signal;
+pub mod signl4;
 pub mod slack;
 pub mod squadcast;
 pub mod teams;
@@ -32,6 +39,7 @@ pub mod telegram;
 pub mod twilio;
 pub mod webhook;
 pub mod wecom;
+pub mod zulip;
 
 use crate::{Channel, ChannelError, Event};
 use rampart_core::ChannelKind;
@@ -75,6 +83,14 @@ pub async fn dispatch(
         ChannelKind::Opsgenie    => Box::new(opsgenie::Opsgenie::from_config(config)?),
         ChannelKind::Pagertree   => Box::new(pagertree::Pagertree::from_config(config)?),
         ChannelKind::Squadcast   => Box::new(squadcast::Squadcast::from_config(config)?),
+        ChannelKind::Signal      => Box::new(signal::Signal::from_config(config)?),
+        ChannelKind::Zulip       => Box::new(zulip::Zulip::from_config(config)?),
+        ChannelKind::Lark        => Box::new(lark::Lark::from_config(config)?),
+        ChannelKind::Goalert     => Box::new(goalert::GoAlert::from_config(config)?),
+        ChannelKind::Alerta      => Box::new(alerta::Alerta::from_config(config)?),
+        ChannelKind::Alertnow    => Box::new(alertnow::AlertNow::from_config(config)?),
+        ChannelKind::Signl4      => Box::new(signl4::Signl4::from_config(config)?),
+        ChannelKind::HeiiOncall  => Box::new(heii_oncall::HeiiOncall::from_config(config)?),
         _ => {
             return Err(ChannelError::BadConfig(format!(
                 "channel kind {kind:?} not implemented yet"
