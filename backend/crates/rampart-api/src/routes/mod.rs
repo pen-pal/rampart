@@ -9,6 +9,7 @@
 //! - `v1_protected()` — everything else (monitors, summary, history).
 //!   The auth middleware is applied in main.rs.
 
+pub mod api_keys;
 pub mod auth;
 pub mod health;
 pub mod maintenance;
@@ -49,4 +50,6 @@ pub fn v1_protected() -> Router<AppState> {
         .nest("/maintenance-windows", maintenance::router())
         // /v1/status-pages admin CRUD (public read sits in v1_public)
         .nest("/status-pages", status_pages::admin_router())
+        // /v1/api-keys — list/create/revoke
+        .nest("/api-keys", api_keys::router())
 }

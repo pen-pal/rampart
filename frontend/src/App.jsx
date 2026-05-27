@@ -6,6 +6,7 @@ import NewMonitorWizard  from './views/NewMonitorWizard.jsx';
 import Login             from './views/Login.jsx';
 import Notifications     from './views/Notifications.jsx';
 import Maintenance       from './views/Maintenance.jsx';
+import ApiKeys           from './views/ApiKeys.jsx';
 import StatusPageView    from './views/StatusPageView.jsx';
 import { api } from './lib/api.js';
 import { parseRoute } from './lib/router.js';
@@ -17,6 +18,7 @@ const VIEW_LABEL = {
   'status-page':   'Status pages',
   'notifications': 'Notifications',
   'maintenance':   'Maintenance',
+  'api-keys':      'API keys',
   'public-status': 'Public view',
   'login':         'Login',
 };
@@ -75,6 +77,7 @@ export default function App() {
     case 'status-page':   view = <StatusPageBuilder />; break;
     case 'notifications': view = <Notifications />; break;
     case 'maintenance':   view = <Maintenance />; break;
+    case 'api-keys':      view = <ApiKeys />; break;
     case 'public-status': view = <StatusPageView slug={route.id} />; break;
     case 'dashboard':
     default:            view = <Dashboard user={authState.user} onLogout={async () => {
@@ -100,6 +103,7 @@ function ViewSwitcher({ current }) {
     { hash: '#/monitor',       view: 'monitor'       },
     { hash: '#/notifications', view: 'notifications' },
     { hash: '#/maintenance',   view: 'maintenance'   },
+    { hash: '#/api-keys',      view: 'api-keys'      },
     { hash: '#/status-page',   view: 'status-page'   },
     { hash: '#/new-monitor',   view: 'new-monitor'   },
   ];

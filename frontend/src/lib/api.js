@@ -100,6 +100,11 @@ export const api = {
     update:  (id, patch)     => request(`/v1/notification-templates/${id}`, { method: 'PATCH', body: patch }),
     remove:  (id)            => request(`/v1/notification-templates/${id}`, { method: 'DELETE' }),
   },
+  apiKeys: {
+    list:   ()                  => request('/v1/api-keys'),
+    create: (name, scopes, exp) => request('/v1/api-keys', { method: 'POST', body: { name, scopes: scopes || [], expires_at: exp || null } }),
+    revoke: (id)                => request(`/v1/api-keys/${id}`, { method: 'DELETE' }),
+  },
   tags: {
     list:   ()                  => request('/v1/tags'),
     create: (name, color)       => request('/v1/tags', { method: 'POST', body: { name, color } }),

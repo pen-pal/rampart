@@ -1,0 +1,59 @@
+//! `/v1/api-keys` — list / create / revoke.
+//!
+//! Create returns the raw token exactly once. The list endpoint only
+//! exposes the prefix; the secret half never leaves the server again.
+
+use crate::error::ApiError;
+use crate::state::AppState;
+use axum::extract::{Extension, Path, State};
+use axum::http::StatusCode;
+use axum::routing::get;
+use axum::{Json, Router};
+use rampart_core::api_key::{ApiKey, IssuedApiKey, NewApiKey};
+use rampart_core::ids::ApiKeyId;
+use rampart_db::users::User;
+use std::str::FromStr;
+use time::OffsetDateTime;
+use uuid::Uuid;
+use validator::Validate;
+
+pub fn router() -> Router<AppState> {
+    Router::new()
+        .route("/", get(list).post(create))
+        .route("/:id", axum::routing::delete(revoke))
+}
+
+fn parse(s: &str) -> Result<ApiKeyId, ApiError> {
+    Uuid::from_str(s)
+        .map(ApiKeyId::from_uuid)
+        .map_err(|_| ApiError::BadRequest("invalid api key id".into()))
+}
+
+async fn list(State(s): State<AppState>) -> Result<Json<Vec<ApiKey>>, ApiError> {
+    Ok(Json(rampart_db::api_keys::list(s.pool()).await?))
+}
+
+async fn create(
+    State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    Json(input): Json<NewApiKey>,
+) -> Result<(StatusCode, Json<IssuedApiKey>), ApiError> {
+    input
+        .validate()
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    if let Some(exp) = input.expires_at {
+        if exp <= OffsetDateTime::now_utc() {
+            return Err(ApiError::BadRequest("expires_at must be in the future".into()));
+        }
+    }
+    let issued = rampart_db::api_keys::create(s.pool(), input, user.id).await?;
+    Ok((StatusCode::CREATED, Json(issued)))
+}
+
+async fn revoke(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    rampart_db::api_keys::delete(s.pool(), parse(&id)?).await?;
+    Ok(StatusCode::NO_CONTENT)
+}

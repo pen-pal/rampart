@@ -100,11 +100,37 @@ impl FromRequestParts<AppState> for AuthUser {
 /// Middleware version of the extractor — for protecting whole subtrees
 /// without each handler having to declare `AuthUser` in its signature.
 /// On success, attaches the `User` to the request extensions.
+///
+/// Accepts either:
+/// - `rampart_session` HttpOnly cookie (browser flow), OR
+/// - `Authorization: Bearer rmp_…` API key (script/automation flow).
+///
+/// API keys hit a different lookup but resolve to the same `User`, so
+/// downstream handlers don't need to care which path was used.
 pub async fn require_session(
     State(state): State<AppState>,
     mut req: Request,
     next: Next,
 ) -> Result<Response, ApiError> {
+    // Try bearer first — cheap header read, no DB hit if absent.
+    if let Some(token) = bearer_token(req.headers()) {
+        let (key, user_id) = rampart_db::api_keys::lookup(state.pool(), &token)
+            .await
+            .map_err(|_| ApiError::Unauthorized)?;
+        // Fire-and-forget — don't block the request on the bump.
+        let pool = state.pool().clone();
+        let key_id = key.id;
+        tokio::spawn(async move {
+            let _ = rampart_db::api_keys::touch_last_used(&pool, key_id).await;
+        });
+
+        let user = rampart_db::users::get(state.pool(), user_id)
+            .await
+            .map_err(|_| ApiError::Unauthorized)?;
+        req.extensions_mut().insert(user);
+        return Ok(next.run(req).await);
+    }
+
     let jar = CookieJar::from_headers(req.headers());
     let token = jar
         .get(SESSION_COOKIE)
@@ -120,6 +146,22 @@ pub async fn require_session(
 
     req.extensions_mut().insert(user);
     Ok(next.run(req).await)
+}
+
+/// Extract a bearer token from the Authorization header. Trims whitespace
+/// and accepts `Bearer` case-insensitively (some clients lowercase it).
+fn bearer_token(headers: &axum::http::HeaderMap) -> Option<String> {
+    let v = headers.get(axum::http::header::AUTHORIZATION)?.to_str().ok()?;
+    let mut parts = v.splitn(2, ' ');
+    let scheme = parts.next()?;
+    if !scheme.eq_ignore_ascii_case("bearer") {
+        return None;
+    }
+    let token = parts.next()?.trim();
+    if token.is_empty() {
+        return None;
+    }
+    Some(token.to_string())
 }
 
 /// Should Set-Cookie include `Secure`? True if the request was forwarded
