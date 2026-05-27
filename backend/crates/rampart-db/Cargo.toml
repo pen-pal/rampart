@@ -5,6 +5,12 @@ edition      = { workspace = true }
 rust-version = { workspace = true }
 license      = { workspace = true }
 
+[features]
+# Re-export rampart-core::testing so integration tests in this crate's
+# tests/ folder can build fixtures without depending on rampart-core
+# directly with its `testing` feature toggled.
+testing = ["rampart-core/testing"]
+
 [dependencies]
 rampart-core = { path = "../rampart-core" }
 sqlx        = { workspace = true }
@@ -15,3 +21,7 @@ thiserror   = { workspace = true }
 time        = { workspace = true }
 tracing     = { workspace = true }
 uuid        = { workspace = true }
+
+[dev-dependencies]
+rampart-core = { path = "../rampart-core", features = ["testing"] }
+tokio        = { workspace = true, features = ["macros", "rt-multi-thread"] }

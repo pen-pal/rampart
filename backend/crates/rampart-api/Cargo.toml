@@ -5,6 +5,10 @@ edition      = { workspace = true }
 rust-version = { workspace = true }
 license      = { workspace = true }
 
+[lib]
+name = "rampart_api"
+path = "src/lib.rs"
+
 [[bin]]
 name = "rampart-api"
 path = "src/main.rs"
@@ -35,3 +39,8 @@ time               = { workspace = true }
 validator          = { workspace = true }
 rust-embed         = { workspace = true }
 mime_guess         = "2"
+
+[dev-dependencies]
+tower = { workspace = true }
+http-body-util = "0.1"
+serde_json     = { workspace = true }

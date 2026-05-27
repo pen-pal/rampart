@@ -37,7 +37,22 @@ pub struct UpdateNotification {
     #[serde(default)] pub active:      Option<bool>,
     /// Outer Option = "field present in payload". Inner Option = "explicit null
     /// → clear the assignment". Set None to leave unchanged.
-    #[serde(default)] pub template_id: Option<Option<NotificationTemplateId>>,
+    ///
+    /// `#[serde(default, deserialize_with = "double_option")]` is the
+    /// idiom to distinguish absent (None) from explicit `null` (Some(None)).
+    #[serde(default, deserialize_with = "double_option")]
+    pub template_id: Option<Option<NotificationTemplateId>>,
+}
+
+/// Wraps the deserialized value in an outer `Some` so the caller can
+/// distinguish "field absent" (`#[serde(default)]` gives `None`) from
+/// "field present, value is null" (gives `Some(None)`).
+fn double_option<'de, T, D>(d: D) -> Result<Option<Option<T>>, D::Error>
+where
+    T: serde::Deserialize<'de>,
+    D: serde::Deserializer<'de>,
+{
+    serde::Deserialize::deserialize(d).map(Some)
 }
 
 pub async fn list(pool: &DbPool) -> DbResult<Vec<Notification>> {

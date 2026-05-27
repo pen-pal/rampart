@@ -43,10 +43,20 @@ pub struct UpdateTemplate {
     #[serde(default)] pub channel_kinds:    Option<Vec<String>>,
     #[serde(default)] pub event_kind:       Option<String>,
     /// Use `Option<Option<String>>` so callers can explicitly clear the
-    /// subject by sending `null`.
-    #[serde(default)] pub subject_template: Option<Option<String>>,
+    /// subject by sending `null`. See `double_option` for why a custom
+    /// deserializer is needed.
+    #[serde(default, deserialize_with = "double_option")]
+    pub subject_template: Option<Option<String>>,
     #[serde(default)] pub body_template:    Option<String>,
     #[serde(default)] pub is_default:       Option<bool>,
+}
+
+fn double_option<'de, T, D>(d: D) -> Result<Option<Option<T>>, D::Error>
+where
+    T: serde::Deserialize<'de>,
+    D: serde::Deserializer<'de>,
+{
+    serde::Deserialize::deserialize(d).map(Some)
 }
 
 pub async fn list(pool: &DbPool) -> DbResult<Vec<Template>> {

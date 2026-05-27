@@ -14,6 +14,11 @@ pub mod sessions;
 pub mod templates;
 pub mod users;
 
+// Re-export the test fixture helpers from rampart-core so integration
+// tests in this crate's tests/ dir can pull them via `rampart_db::testing`.
+#[cfg(any(test, feature = "testing"))]
+pub use rampart_core::testing;
+
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::time::Duration;
 use thiserror::Error;
