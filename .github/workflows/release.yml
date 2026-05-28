@@ -1,0 +1,89 @@
+# Build standalone binaries on a version tag and attach them to a GitHub
+# Release. The container image is published separately by docker.yml on
+# the same tag — this workflow is for people who run the bare binary.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build (e.g. v0.4.0). Used for the manual path."
+        required: true
+
+permissions:
+  contents: write   # create the release + upload assets
+
+jobs:
+  build:
+    name: build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Frontend bundle is embedded into the binary by rust-embed. Build
+      # it first so the release artifact is fully self-contained.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-linker (aarch64 linux)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          mkdir -p ~/.cargo
+          printf '[target.aarch64-unknown-linux-gnu]\nlinker = "aarch64-linux-gnu-gcc"\n' >> ~/.cargo/config.toml
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+          key: ${{ matrix.target }}
+
+      - name: Build release binary
+        working-directory: backend
+        env:
+          SQLX_OFFLINE: "true"
+        run: cargo build --release -p rampart-api --target ${{ matrix.target }}
+
+      - name: Package
+        shell: bash
+        run: |
+          BIN=backend/target/${{ matrix.target }}/release/rampart-api
+          OUT=rampart-${{ matrix.target }}
+          mkdir -p dist
+          cp "$BIN" "dist/${OUT}"
+          (cd dist && shasum -a 256 "${OUT}" > "${OUT}.sha256")
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/rampart-${{ matrix.target }}
+            dist/rampart-${{ matrix.target }}.sha256
+          generate_release_notes: true
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}

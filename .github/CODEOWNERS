@@ -1,0 +1,24 @@
+# Code ownership for review routing.
+# Each line: a path pattern followed by the owners auto-requested for review.
+# Later matches take precedence. Docs: https://docs.github.com/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything not matched below.
+*                       @pen-pal
+
+# Backend (Rust workspace)
+/backend/               @pen-pal
+
+# Database migrations — extra scrutiny; schema changes are forever.
+/backend/migrations/    @pen-pal
+
+# Frontend (React)
+/frontend/              @pen-pal
+
+# CI, security, and community-health config.
+/.github/               @pen-pal
+
+# Release-sensitive surface.
+/Dockerfile             @pen-pal
+/compose.yaml           @pen-pal
+/LICENSE                @pen-pal
+/SECURITY.md            @pen-pal

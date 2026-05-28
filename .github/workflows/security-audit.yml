@@ -1,0 +1,51 @@
+# Rust dependency security + license/ban scanning.
+# CodeQL can't see Rust, so this is the Rust-side equivalent:
+#   - cargo audit  → RUSTSEC advisory database (known CVEs)
+#   - cargo deny   → advisories + license policy + duplicate/banned crates
+name: security-audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**/Cargo.toml"
+      - "backend/Cargo.lock"
+      - "deny.toml"
+      - ".github/workflows/security-audit.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "backend/**/Cargo.toml"
+      - "backend/Cargo.lock"
+      - "deny.toml"
+  schedule:
+    - cron: "0 5 * * 3"   # weekly, Wednesday 05:00 UTC — catches newly disclosed CVEs
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cargo-audit:
+    name: cargo audit (RUSTSEC)
+    runs-on: ubuntu-latest
+    defaults:
+      run: { working-directory: backend }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: backend
+
+  cargo-deny:
+    name: cargo deny (advisories + licenses + bans)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          manifest-path: backend/Cargo.toml
+          command: check
+          arguments: --all-features

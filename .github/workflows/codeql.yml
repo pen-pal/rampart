@@ -1,0 +1,40 @@
+# CodeQL static analysis.
+#
+# Note: CodeQL does not support Rust. The Rust workspace is scanned by
+# the separate `security-audit` workflow (cargo-deny + cargo-audit).
+# This job covers the JavaScript/TypeScript frontend only.
+name: codeql
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "30 4 * * 2"   # weekly, Tuesday 04:30 UTC
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: analyze (javascript-typescript)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          # Only scan the app source, not built bundles or deps.
+          source-root: frontend
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript-typescript"

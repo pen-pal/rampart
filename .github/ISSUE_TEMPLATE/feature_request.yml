@@ -1,0 +1,54 @@
+name: Feature request
+description: Suggest an enhancement or new capability.
+title: "[feat]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: Rampart has a deliberately **bounded scope**. Please read the "Scope" section of [CONTRIBUTING.md](https://github.com/pen-pal/Rampart/blob/main/CONTRIBUTING.md) — enterprise-observability features (multi-region probing, SLO budgets, on-call rotations, multi-tenancy, APM/RUM/logs) are out of scope and will be closed as `wontfix`.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Pre-flight checks
+      options:
+        - label: I searched existing issues/discussions and this is not a duplicate.
+          required: true
+        - label: I read the Scope section and believe this fits a solo operator / small-team use case.
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the pain first. "I want X" is weaker than "I keep hitting Y".
+      placeholder: |
+        When a parent service is down, I get paged once per dependent monitor — 30 pages for one root cause.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How might it work? UI sketch, config shape, API surface — whatever you have.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you tried, or other designs you rejected and why.
+
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Are you willing to contribute this?
+      options:
+        - "Yes — I can open a PR"
+        - "Maybe, with guidance"
+        - "No, just proposing"
+    validations:
+      required: true

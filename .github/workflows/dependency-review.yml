@@ -1,0 +1,24 @@
+# Blocks PRs that introduce dependencies with known vulnerabilities or
+# disallowed licenses. Runs only on PRs (needs the base..head diff).
+name: dependency-review
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure
+          # AGPL-3.0 project — copyleft is fine inbound, but flag the
+          # obviously-incompatible proprietary-ish licenses.
+          deny-licenses: "GPL-2.0-only, LGPL-2.0-only"

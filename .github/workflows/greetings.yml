@@ -1,0 +1,26 @@
+# Welcome first-time contributors so a real person isn't needed to say hi.
+name: greetings
+
+on:
+  pull_request_target:
+    types: [opened]
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  greeting:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/first-interaction@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          issue-message: >
+            Thanks for opening your first issue in Rampart! A maintainer will triage it.
+            If this is a usage question rather than a bug, Discussions is a faster path.
+          pr-message: >
+            Thanks for your first PR to Rampart! Please make sure CI is green and the
+            checklist in the PR template is filled in. A maintainer will review soon.

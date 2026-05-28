@@ -1,0 +1,86 @@
+name: Bug report
+description: Something in Rampart is broken or behaving unexpectedly.
+title: "[bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. Please search [existing issues](https://github.com/pen-pal/Rampart/issues?q=is%3Aissue) first — duplicates get closed.
+
+        If this is a **security vulnerability**, do **not** open a public issue. Follow [SECURITY.md](https://github.com/pen-pal/Rampart/blob/main/SECURITY.md) instead.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Pre-flight checks
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: This is a reproducible bug, not a support question (use Discussions for those).
+          required: true
+        - label: I am on a supported deployment (single binary or the official Docker image).
+          required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug and what you expected instead.
+      placeholder: |
+        When I create a TCP monitor against port 5432, the dashboard shows it as "down" even though `nc -z` succeeds from the same host.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Exact steps. A minimal monitor config or curl command is ideal.
+      placeholder: |
+        1. Create monitor: kind=tcp, hostname=db.internal, port=5432
+        2. Wait one interval
+        3. Observe status flips to down
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Output from the server with `RUST_LOG=rampart=debug`. Redact secrets.
+      render: shell
+
+  - type: input
+    id: version
+    attributes:
+      label: Rampart version
+      description: Output of the binary version, or the image tag you pulled.
+      placeholder: "v0.4.0 / ghcr.io/pen-pal/rampart:sha-abc1234"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: How are you running it?
+      options:
+        - Docker image (ghcr.io)
+        - Docker Compose (compose.yaml)
+        - Bare single binary
+        - Built from source
+        - Other (describe below)
+    validations:
+      required: true
+
+  - type: input
+    id: postgres
+    attributes:
+      label: Postgres version
+      placeholder: "16.2"
+
+  - type: input
+    id: os
+    attributes:
+      label: Host OS / architecture
+      placeholder: "Debian 12, linux/amd64"

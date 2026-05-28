@@ -1,0 +1,35 @@
+# Mark and eventually close issues/PRs that go quiet. Conservative
+# timings — this is a small project, not a firehose.
+name: stale
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"   # weekly, Monday 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v9
+        with:
+          days-before-stale: 60
+          days-before-close: 14
+          stale-issue-label: "stale"
+          stale-pr-label: "stale"
+          exempt-issue-labels: "pinned,security,roadmap,help-wanted,good-first-issue"
+          exempt-pr-labels: "pinned,security,work-in-progress"
+          exempt-all-milestones: true
+          stale-issue-message: >
+            This issue has had no activity for 60 days. It will be closed in 14 days
+            unless there's a new comment. If it's still relevant, a short update keeps it open.
+          stale-pr-message: >
+            This PR has had no activity for 60 days. It will be closed in 14 days unless updated.
+            Rebase, push, or comment to keep it open.
+          close-issue-message: "Closing as stale. Comment to reopen if this is still happening."
+          close-pr-message: "Closing as stale. Reopen when you're ready to continue."
+          operations-per-run: 100

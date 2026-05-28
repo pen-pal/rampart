@@ -1,0 +1,31 @@
+# Flags PRs that have merge conflicts with the base branch so authors
+# know to rebase. Re-runs whenever main moves or a PR updates.
+name: conflict-labeler
+
+on:
+  push:
+    branches: [main]
+  pull_request_target:
+    types: [synchronize, reopened, opened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+# Only one run at a time — the action diffs every open PR, so concurrent
+# runs would race on label state.
+concurrency:
+  group: conflict-labeler
+  cancel-in-progress: true
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: prince-chrismc/label-merge-conflicts-action@v3
+        with:
+          conflict_label_name: "has-conflicts"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          detect_merge_changes: false
+          conflict_comment: |
+            This PR has conflicts with `main`. Please rebase or merge `main` and resolve them so it can be reviewed.
