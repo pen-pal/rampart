@@ -20,10 +20,6 @@ ignore = [
     # MySQL server mounts a timing attack during auth — Rampart connects
     # OUT to operator-controlled DBs, so not a realistic threat.
     "RUSTSEC-2023-0071",
-    # idna 0.5 (via validator 0.18): punycode labels decoding to ASCII are
-    # wrongly accepted. We use validator for monitor-name/email checks;
-    # fix needs validator >=0.19 (idna 1.x), an API-breaking bump.
-    "RUSTSEC-2024-0421",
     # hickory-proto 0.24 (via hickory-resolver, DNS probe): O(n^2) name
     # compression → CPU-amplified DoS from a hostile DNS response. Fix in
     # hickory 0.26; resolver bump pending. Self-hosted, operator picks the
