@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, endpoint, p256dh, auth\n           FROM webpush_subscriptions\n           WHERE notification_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "endpoint",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "p256dh",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "auth",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "6fd05d245588e2d802d62fc18ea92f4579412e727695eb556ec7f84f29750a04"
+}

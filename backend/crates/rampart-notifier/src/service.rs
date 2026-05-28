@@ -145,7 +145,7 @@ async fn dispatch_one(pool: &DbPool, event: Event) -> anyhow::Result<()> {
         let id   = row.id;
         let pool_clone = pool.clone();
         handles.push(tokio::spawn(async move {
-            match channels::dispatch(kind, &cfg, &subject, &body, &event).await {
+            match channels::dispatch(kind, &cfg, &subject, &body, &event, &pool_clone, id).await {
                 Ok(()) => {
                     info!(channel = %name, kind = ?kind, "notification sent");
                     // Bump last_fired_at so the next event respects the cooldown.

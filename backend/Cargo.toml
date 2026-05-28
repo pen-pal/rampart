@@ -138,6 +138,11 @@ base64           = "0.22"
 sha1             = "0.10"
 urlencoding      = "2"
 jsonwebtoken     = "9"
+# Web Push (RFC 8291) — pure-Rust crypto stack, no openssl/C linkage.
+# p256 covers both ECDH (payload key agreement) and ECDSA (VAPID ES256 JWT).
+p256             = { version = "0.13", features = ["ecdh", "ecdsa", "pem"] }
+hkdf             = "0.12"
+aes-gcm          = "0.10"
 
 [profile.release]
 lto           = "thin"

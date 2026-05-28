@@ -143,7 +143,8 @@
                 "newrelic",
                 "aws_sns",
                 "azure_servicebus",
-                "gcp_pubsub"
+                "gcp_pubsub",
+                "webpush"
               ]
             }
           }
@@ -320,7 +321,8 @@
                 "newrelic",
                 "aws_sns",
                 "azure_servicebus",
-                "gcp_pubsub"
+                "gcp_pubsub",
+                "webpush"
               ]
             }
           }

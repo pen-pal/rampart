@@ -151,6 +151,7 @@ pub enum ChannelKind {
     AwsSns,
     AzureServicebus,
     GcpPubsub,
+    Webpush,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

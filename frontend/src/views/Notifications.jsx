@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   Bell, Plus, Trash2, Send, ChevronLeft, MessageSquare, Hash, Mail,
   Webhook as WebhookIcon, AlertCircle, Loader2, Smartphone, Server, Megaphone,
-  Siren, Phone, Rocket, Layers, FileText, Edit3, Save, X,
+  Siren, Phone, Rocket, Layers, FileText, Edit3, Save, X, BellRing,
 } from 'lucide-react';
 import { api, useApi } from '../lib/api.js';
 
@@ -229,6 +229,7 @@ const SUPPORTED = [
   { id: 'aws_sns',         name: 'AWS SNS',         icon: Siren,    hint: 'AWS SNS Publish — SigV4 signed; topic ARN or SMS phone number' },
   { id: 'azure_servicebus',name: 'Azure Service Bus',icon: Siren,    hint: 'Azure SB queue/topic — SAS token, send-only policy supported' },
   { id: 'gcp_pubsub',      name: 'GCP Pub/Sub',     icon: Siren,    hint: 'Google Cloud Pub/Sub — service-account JSON; auto-rotates OAuth2 token' },
+  { id: 'webpush',         name: 'Web Push',        icon: Bell,     hint: 'Browser push notifications (RFC 8291). Subscribe each device after creating the channel.' },
   // push
   { id: 'ntfy',       name: 'ntfy.sh',         icon: Smartphone,    hint: 'Push to phone via ntfy.sh (free) or self-hosted ntfy server' },
   { id: 'gotify',     name: 'Gotify',          icon: Server,        hint: 'Self-hosted push server (https://gotify.net)' },
@@ -2211,6 +2212,21 @@ function ConfigForm({ kind, config, setConfig }) {
       </>
     );
   }
+  if (kind === 'webpush') {
+    return (
+      <>
+        <div className="field"><label className="field-label">Contact URI <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+          <input className="input mono" value={config.subject || ''}
+            onChange={e => set('subject', e.target.value)} placeholder="mailto:ops@example.com"/>
+          <div className="field-hint">
+            Sent as the VAPID <code>sub</code> claim — push services may use it to contact
+            you about delivery problems. After saving this channel, click
+            <strong> Enable push</strong> on its row to subscribe this browser.
+          </div>
+        </div>
+      </>
+    );
+  }
   if (kind === 'gcp_pubsub') {
     return (
       <>
@@ -2465,6 +2481,7 @@ export default function Notifications() {
                     {meta ? meta.name : c.kind} · {c.active ? 'enabled' : 'disabled'}
                   </div>
                 </div>
+                {c.kind === 'webpush' && <EnablePushButton notificationId={c.id}/>}
                 <button className="btn" onClick={() => sendTest(c.id)} title="Send a test message">
                   <Send size={12}/> Test
                 </button>
@@ -2664,4 +2681,66 @@ function TemplateForm({ initial, onCancel, onSaved }) {
       </form>
     </div>
   );
+}
+
+// Per-device Web Push opt-in. Registers the service worker, fetches the
+// shared VAPID key, subscribes via the Push API, and posts the resulting
+// subscription to the backend keyed to this webpush channel.
+function EnablePushButton({ notificationId }) {
+  const [state, setState] = useState('idle'); // idle | working | done | unsupported | error
+  const [msg, setMsg] = useState(null);
+
+  const supported = typeof window !== 'undefined'
+    && 'serviceWorker' in navigator
+    && 'PushManager' in window;
+
+  const enable = async () => {
+    setMsg(null);
+    if (!supported) { setState('unsupported'); return; }
+    setState('working');
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') { setState('error'); setMsg('Permission denied'); return; }
+
+      const reg = await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.ready;
+
+      const { public_key } = await api.webpush.vapidKey();
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(public_key),
+      });
+
+      // PushSubscription.toJSON() gives endpoint + keys{p256dh,auth}.
+      const json = sub.toJSON();
+      await api.webpush.subscribe(notificationId, { endpoint: json.endpoint, keys: json.keys });
+      setState('done');
+    } catch (e) {
+      setState('error');
+      setMsg(e.message || 'Subscribe failed');
+    }
+  };
+
+  if (state === 'done') {
+    return <span className="btn" style={{ cursor: 'default', color: 'var(--up)' }}><BellRing size={12}/> Subscribed</span>;
+  }
+  return (
+    <button className="btn" onClick={enable} disabled={state === 'working'} title="Subscribe this browser to push alerts">
+      {state === 'working'
+        ? <><Loader2 size={12} className="spin"/> …</>
+        : <><BellRing size={12}/> Enable push</>}
+      {state === 'unsupported' && <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--down)' }}>not supported</span>}
+      {state === 'error' && msg && <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--down)' }}>{msg}</span>}
+    </button>
+  );
+}
+
+// VAPID public key (base64url) → Uint8Array for applicationServerKey.
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
 }

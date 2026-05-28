@@ -192,7 +192,7 @@ async fn send_test(
     let subject = rampart_notifier::template::default_subject(&event);
     let body = rampart_notifier::template::default_body(&event);
 
-    rampart_notifier::channels::dispatch(n.kind, &n.config, &subject, &body, &event)
+    rampart_notifier::channels::dispatch(n.kind, &n.config, &subject, &body, &event, state.pool(), n.id)
         .await
         .map_err(|e| ApiError::BadRequest(format!("channel dispatch failed: {e}")))?;
     Ok(StatusCode::NO_CONTENT)

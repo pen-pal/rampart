@@ -174,6 +174,11 @@ export const api = {
     remove:     (id)                => request(`/v1/status-pages/${id}`, { method: 'DELETE' }),
     publicView: (slug)              => request(`/v1/public/status-pages/${slug}`),
   },
+  webpush: {
+    vapidKey:    ()                          => request('/v1/webpush/vapid-key'),
+    subscribe:   (notificationId, sub)        => request('/v1/webpush/subscriptions', { method: 'POST', body: { notification_id: notificationId, endpoint: sub.endpoint, keys: sub.keys } }),
+    unsubscribe: (endpoint)                   => request('/v1/webpush/subscriptions', { method: 'DELETE', body: { endpoint } }),
+  },
   monitorGroups: {
     list:   ()             => request('/v1/monitor-groups'),
     create: (name, sortOrder = 0) => request('/v1/monitor-groups', { method: 'POST', body: { name, sort_order: Number(sortOrder) || 0 } }),

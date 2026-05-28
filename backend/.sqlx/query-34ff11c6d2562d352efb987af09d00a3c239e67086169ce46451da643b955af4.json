@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM webpush_subscriptions WHERE endpoint = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "34ff11c6d2562d352efb987af09d00a3c239e67086169ce46451da643b955af4"
+}

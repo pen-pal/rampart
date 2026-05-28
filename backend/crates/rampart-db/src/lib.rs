@@ -24,6 +24,7 @@ pub mod status_pages;
 pub mod tags;
 pub mod templates;
 pub mod users;
+pub mod webpush;
 
 // Re-export the test fixture helpers from rampart-core so integration
 // tests in this crate's tests/ dir can pull them via `rampart_db::testing`.

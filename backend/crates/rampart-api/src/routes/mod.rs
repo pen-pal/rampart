@@ -23,6 +23,7 @@ pub mod push;
 pub mod status_pages;
 pub mod stream;
 pub mod subscribers;
+pub mod webpush;
 pub mod tags;
 pub mod templates;
 pub mod totp;
@@ -84,6 +85,8 @@ pub fn v1_protected() -> Router<AppState> {
         .nest("/proxies", proxies::router())
         // /v1/stream/heartbeats — Server-Sent Events fan-out.
         .nest("/stream", stream::router())
+        // /v1/webpush — VAPID key + browser subscription management.
+        .nest("/webpush", webpush::router())
         // /v1/auth/2fa/* admin endpoints — verify is public; the rest
         // need an existing session so they sit here.
         .nest("/auth/2fa", totp::router())
