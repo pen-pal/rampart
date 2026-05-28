@@ -1,6 +1,6 @@
 # Rampart
 
-Self-hosted uptime monitoring. Rust workspace + React frontend in a single binary. Postgres-backed. Aims for one-for-one feature parity with Uptime Kuma (and then some) — 20 probe kinds, 126 notification channels, public status pages with subscribers + incidents, maintenance windows, 2FA, API keys, audit log, multi-user, monitor edit, TLS cert tracking, push monitors, tag filtering, Liquid templates, status-page subscriber email fan-out.
+Self-hosted uptime monitoring. Rust workspace + React frontend in a single binary. Postgres-backed. 21 probe kinds, 130 notification channels (incl. Web Push + AWS SNS / Azure Service Bus / GCP Pub/Sub), public status pages with subscribers + incidents, maintenance windows with recurrence, monitor groups + dependency-aware alert suppression, 2FA, API keys, audit log, multi-user, dark mode, live SSE updates, bulk operations, heartbeat CSV export, TLS cert tracking, push monitors, tag filtering, Liquid templates.
 
 ```
 rampart/
@@ -10,7 +10,7 @@ rampart/
 │       ├── rampart-db         — sqlx repository layer
 │       ├── rampart-checker    — probe runners (20 kinds)
 │       ├── rampart-scheduler  — per-monitor tokio tasks + batched writer
-│       ├── rampart-notifier   — channel fan-out (126 adapters)
+│       ├── rampart-notifier   — channel fan-out (130 adapters)
 │       └── rampart-api        — axum HTTP server (embeds React via rust-embed)
 ├── frontend/        Vite + React SPA
 ├── docs/            Architecture + setup + notifications reference
@@ -27,20 +27,24 @@ What works today, against Uptime Kuma parity:
 
 | Area                | Status                                              |
 | ---                 | ---                                                 |
-| **Probes**          | 20 / 20 implemented — HTTP / keyword / JSON, TCP, ping (ICMP), DNS, push, TLS cert, domain expiry, Postgres / MySQL / MSSQL / Redis / MongoDB, gRPC (health.v1), MQTT, Docker, Steam (A2S), Kafka (ApiVersions), RADIUS |
-| **Notifications**   | 124 native channels + Apprise gateway + Generic Webhook. Slack, Discord, Telegram, Teams, Email/SMTP, Pushover, Gotify, ntfy, PagerDuty, Mattermost, Rocket.Chat, Twilio SMS, Matrix, GoogleChat, WeCom, DingTalk, Feishu, Line, Bark, Pushbullet, SendGrid, Resend, Brevo, Mailgun, Mailjet, Postmark, Mandrill, SparkPost, Opsgenie, PagerTree, Squadcast, Signal, Zulip, Lark, GoAlert, Alerta, AlertNow, SIGNL4, Heii On-Call, ServerChan, PushPlus, PushDeer, Aliyun SMS, Mastodon, Pumble, Bitrix24, Stackfield, Splunk On-Call, Grafana OnCall, Home Assistant, ClickSend, 46elks, CallMeBot, Telnyx, Notifery, WAHA, Threema, Bale, Pushy, ZohoCliq, SmsManager, SMSEagle, Octopush, Whapi, 360messenger, Evolution, Flock, SerwerSMS, SMSPlanet, SMSC.ru, Cellsynt, seven.io, GtxMessaging, Onesender, PromoSMS, SMSPartner, SMS.ir, FreeMobile, FlashDuty, Teltonika, Kook, Nostr, OneBot, OneChat, MAX, Halo PSA, Jira SM, SpugPush, WPush, VK, YZJ, Google Sheets, Gorush, Fluxer, Splash, MessageBird, Plivo, Vonage, Bandwidth, Webex, Pushcut, SMSGlobal, AlertOps, Spike.sh, Zenduty, RingCentral, iLert, Linear, ClickUp, Trello, GitHub Issue, GitLab Issue, Asana, Notion, Sentry, Rollbar, Honeybadger, Healthchecks.io, BetterStack, Statuspage.io, Datadog Events, New Relic Events |
-| **Status pages**    | Public read-only views at `/#/s/:slug`. Worst-status-wins rollup, 90-day uptime per component, incidents banner with running updates, email subscribers (single-opt-in + unsubscribe token), Atlassian-style dark/light theme |
-| **Maintenance**     | Time-windowed suppression of probes + notifications; admin can pause/resume; banner on monitor detail |
+| **Probes**          | 21 / 21 implemented — HTTP / keyword / JSON, TCP, ping (ICMP), DNS, push, TLS cert, domain expiry, Postgres / MySQL / MSSQL / Redis / MongoDB, gRPC (health.v1), MQTT, Docker, Steam (A2S), Kafka (ApiVersions), RADIUS, headless-browser keyword (via an external renderer) |
+| **Notifications**   | 128 native channels + Apprise gateway + Generic Webhook (130 total). Slack, Discord, Telegram, Teams, Email/SMTP, Pushover, Gotify, ntfy, PagerDuty, Mattermost, Rocket.Chat, Twilio SMS, Matrix, GoogleChat, WeCom, DingTalk, Feishu, Line, Bark, Pushbullet, SendGrid, Resend, Brevo, Mailgun, Mailjet, Postmark, Mandrill, SparkPost, Opsgenie, PagerTree, Squadcast, Signal, Zulip, Lark, GoAlert, Alerta, AlertNow, SIGNL4, Heii On-Call, ServerChan, PushPlus, PushDeer, Aliyun SMS, Mastodon, Pumble, Bitrix24, Stackfield, Splunk On-Call, Grafana OnCall, Home Assistant, ClickSend, 46elks, CallMeBot, Telnyx, Notifery, WAHA, Threema, Bale, Pushy, ZohoCliq, SmsManager, SMSEagle, Octopush, Whapi, 360messenger, Evolution, Flock, SerwerSMS, SMSPlanet, SMSC.ru, Cellsynt, seven.io, GtxMessaging, Onesender, PromoSMS, SMSPartner, SMS.ir, FreeMobile, FlashDuty, Teltonika, Kook, Nostr, OneBot, OneChat, MAX, Halo PSA, Jira SM, SpugPush, WPush, VK, YZJ, Google Sheets, Gorush, Fluxer, Splash, MessageBird, Plivo, Vonage, Bandwidth, Webex, Pushcut, SMSGlobal, AlertOps, Spike.sh, Zenduty, RingCentral, iLert, Linear, ClickUp, Trello, GitHub Issue, GitLab Issue, Asana, Notion, Sentry, Rollbar, Honeybadger, Healthchecks.io, BetterStack, Statuspage.io, Datadog Events, New Relic Events, AWS SNS, Azure Service Bus, GCP Pub/Sub, Web Push (browser, RFC 8291). Per-channel cooldown + HMAC-signed Generic Webhook. |
+| **Status pages**    | Public read-only views at `/#/s/:slug`. Worst-status-wins rollup, 90-day uptime per component, incidents banner with running updates, email subscribers (single-opt-in + unsubscribe token), dark/light theme |
+| **Groups + deps**   | Cosmetic monitor groups on the dashboard; monitor dependencies with upstream alert suppression (a down parent silences dependents so one root cause doesn't paging-storm), cycle-guarded |
+| **Maintenance**     | Time-windowed suppression of probes + notifications, with one-shot / daily / weekly recurrence; admin can pause/resume; banner on monitor detail |
 | **Tags**            | Coloured chips, dashboard filter (AND semantics), inline editor on monitor detail |
+| **Bulk + clone**    | Multi-select dashboard actions (pause / resume / delete / move-to-group); one-click monitor clone; per-monitor heartbeat CSV export |
+| **Live UI**         | Dark / light / system theme; Server-Sent Events live heartbeat stream with a connection indicator; responsive down to phones |
 | **Auth**            | Session cookie + 2FA (TOTP + 10 single-use recovery codes), API keys (`Authorization: Bearer rmp_…`), multi-user (admin can create/promote/demote/delete), self-service password change |
-| **Audit log**       | Append-only record of mutating actions, admin-only viewer with cursor pagination + resource_kind filter |
+| **Audit log**       | Append-only record of mutating actions, admin-only viewer with cursor pagination + resource_kind, action-prefix, and actor filters |
+| **Retention**       | Hourly prune loop for heartbeats + audit log; windows configurable in the admin UI |
 | **Templates**       | Liquid (Kuma-compatible) for notification subject + body — filters, conditionals, loops |
 | **Proxies**         | HTTP/SOCKS proxy registry; HTTP-family monitors route through assigned proxy |
 | **Cert tracking**   | Auto-inspect leaf cert on HTTPS monitors every hour; days-left badge on detail page |
 | **Edit monitor**    | Full PATCH endpoint + modal exposing common fields (schedule, target, HTTP options) |
 | **Bundle**          | Single binary; frontend embedded via `rust-embed`. ~10 MB stripped release binary |
 
-What's not built yet: notification cooldowns/dedup, heartbeat retention/partition pruning, webhook HMAC signing, SSE live heartbeat stream, browser/Puppeteer screenshot probe, monitor groups with dependency suppression. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the rationale behind every decision.
+Deliberately out of scope (see [CONTRIBUTING.md](CONTRIBUTING.md#scope-read-this-first)): multi-region distributed probing, SLO budgets, on-call rotations/escalation, workspace multi-tenancy, APM/RUM/log management. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the rationale behind every decision.
 
 ---
 

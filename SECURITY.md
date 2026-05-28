@@ -17,8 +17,7 @@ Two private channels, in order of preference:
    This keeps the report private until a fix ships and gives us a place to
    collaborate on the patch.
 
-2. **Email fallback:** `security@CHANGE-ME.example`
-   <!-- Replace with a real, monitored address before publishing the repo. -->
+2. **Email fallback:** `unameme@proton.me`
    Encrypt if you can; otherwise plain email is acceptable for the initial
    contact and we'll move to a private advisory.
 

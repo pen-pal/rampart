@@ -1,10 +1,16 @@
 # Notification channels
 
-124 first-party adapters + Apprise gateway + Generic Webhook = 126
+128 first-party adapters + Apprise gateway + Generic Webhook = 130
 ways to fan out. Every channel takes a JSON config blob, persisted as
 `notifications.config`. Secret-shaped fields (tokens, passwords, API
 keys) are stored as plain text in the database — protect Postgres
 accordingly.
+
+Two cross-cutting options on every channel: a per-channel **cooldown**
+(seconds; suppresses repeat fires within the window — useful for
+flap-prone monitors paired with SMS/paging), and, for the Generic
+Webhook, an optional **HMAC secret** that signs the body with
+`X-Rampart-Signature: sha256=<hex>` over the raw bytes.
 
 When subject + body are rendered, every channel runs the message
 through the **Liquid template** layer first. Custom templates live at
@@ -21,6 +27,7 @@ the bottom for variables + examples.
 - [Error trackers + observability](#error-trackers--observability)
 - [Issue trackers / task management](#issue-trackers--task-management)
 - [Self-hosted / generic](#self-hosted--generic)
+- [Cloud message buses](#cloud-message-buses)
 - [Liquid templates](#templates)
 
 ---
@@ -87,6 +94,7 @@ the bottom for variables + examples.
 | Notifery      | `api_token`, `group`                                           |
 | CallMeBot     | `endpoint_url`                                                 |
 | Apprise       | `server_url` (sidecar), `urls[]`                               |
+| Web Push      | optional `subject` (VAPID contact, e.g. `mailto:…`). Browsers subscribe per-device via the **Enable push** button on the channel row; the shared VAPID keypair is auto-generated. RFC 8291 `aes128gcm`. |
 
 ## Email
 
@@ -186,9 +194,22 @@ the bottom for variables + examples.
 
 | Channel        | Required config                                               |
 | ---            | ---                                                           |
-| Generic Webhook| `url`, optional `method`, `headers`, `body_template`         |
+| Generic Webhook| `url`, optional `method`, `headers`, `body_template`, optional `secret` (HMAC-SHA256 → `X-Rampart-Signature`) |
 | Apprise gateway| `server_url`, `urls[]` (Apprise notation)                    |
 | Fluxer         | `webhook_url`                                                 |
+
+---
+
+## Cloud message buses
+
+Publish alerts onto a cloud pub/sub or queue for downstream consumers.
+Auth is signed per request — no long-lived bearer tokens on the wire.
+
+| Channel            | Required config                                               |
+| ---                | ---                                                           |
+| AWS SNS            | `region`, `access_key_id`, `secret_access_key`, exactly one of `topic_arn` / `phone_number`, optional `session_token` (STS). SigV4-signed. |
+| Azure Service Bus  | `namespace`, `entity` (queue/topic), `sas_key_name`, `sas_key`, optional `ttl_seconds` (default 300). SAS-token auth. |
+| GCP Pub/Sub        | `project_id`, `topic`, `client_email`, `private_key` (PEM from the service-account JSON). Mints + caches an OAuth2 token from a signed JWT. |
 
 ---
 

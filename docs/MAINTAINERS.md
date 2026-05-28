@@ -54,8 +54,8 @@ later (e.g. a container registry other than GHCR).
 
 ## 5. Before the first public release
 
-- Replace the placeholder contact in [`SECURITY.md`](../SECURITY.md)
-  (`security@CHANGE-ME.example`) with a real, monitored address.
+- Security contact in [`SECURITY.md`](../SECURITY.md) is `unameme@proton.me`
+  (private advisories are the primary channel).
 - Fill or remove the commented platforms in
   [`.github/FUNDING.yml`](../.github/FUNDING.yml).
 - Tag `v0.x.y` to trigger the `release` (binaries) and `docker` (image)
