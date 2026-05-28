@@ -26,16 +26,27 @@ dependency cuts a new major version.
 
 ## Planned upgrade pass
 
-Remaining, in order of risk:
+Both remaining dependency advisories were investigated and are currently
+**blocked upstream** — attempted and reverted, do not re-try without the
+upstream change landing first:
 
-1. `hickory-resolver` 0.24 → ≥0.25 (clears 2026-0119). Drops the
-   `tokio-runtime` feature and reshapes the resolver API → rewrite `dns.rs`,
-   verify the `mongodb = "=3.2.0"` pin still resolves, re-test the DNS probe.
-2. `rumqttc` 0.24 → a `rustls` 0.23 release (clears the four webpki
-   advisories; re-test the MQTT probe's TLS path). The workspace already
-   pins `rustls = 0.23` for the other probes — only rumqttc drags in 0.22.
+1. **`hickory-proto` 2026-0119** — fixed in hickory-proto ≥0.26.1, which
+   needs `hickory-resolver` 0.26. But the vulnerable `hickory-proto 0.24.4`
+   is *also* pulled independently by `mongodb 3.2.0` (its own bundled
+   `hickory-resolver 0.24`). `mongodb` is pinned at `=3.2.0` because later
+   3.x patches need a `jni` version not yet on crates.io. So bumping our
+   resolver alone leaves mongodb's vulnerable proto in the tree — the
+   advisory only clears once mongodb can be unpinned. **Blocked on the
+   mongodb/jni upstream fix.**
 
-Each bump needs the corresponding probe re-tested against a live target, then
-the matching entry removed from the `ignore` list in `deny.toml`.
+2. **`rustls-webpki` 2026-0049/0098/0099/0104** — `rumqttc` 0.25.1 (latest)
+   *still* depends on `rustls-webpki 0.102.8` (does not clear the advisory)
+   and additionally drags in `aws-lc-rs` + `cmake` (a C crypto provider,
+   against the pure-Rust / lean-image stance). **Blocked until rumqttc
+   moves off webpki 0.102.**
+
+When either upstream lands, do the bump, re-test the probe against a live
+target, and remove the matching entries from the `ignore` list in
+`deny.toml`.
 
 `rsa` (RUSTSEC-2023-0071) stays until upstream ships a constant-time fix.

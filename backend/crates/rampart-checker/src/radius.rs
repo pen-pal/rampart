@@ -186,7 +186,7 @@ fn encrypt_password(password: &str, secret: &str, authenticator: &[u8; 16]) -> V
     let mut plain = password.as_bytes().to_vec();
     let pad = 16 - (plain.len() % 16);
     if plain.is_empty() || pad != 16 {
-        plain.extend(std::iter::repeat(0u8).take(pad));
+        plain.extend(std::iter::repeat_n(0u8, pad));
     }
 
     let mut prev: [u8; 16] = *authenticator;
