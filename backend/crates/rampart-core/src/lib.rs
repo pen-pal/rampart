@@ -15,6 +15,7 @@ pub mod ids;
 pub mod incident;
 pub mod maintenance;
 pub mod monitor;
+pub mod monitor_group;
 pub mod notification;
 pub mod proxy;
 pub mod status_page;
@@ -26,13 +27,14 @@ pub mod testing;
 pub use error::{CoreError, Result};
 pub use heartbeat::Heartbeat;
 pub use ids::{
-    ApiKeyId, BadgeId, IncidentId, IncidentUpdateId, MaintenanceId, MonitorId, NotificationId,
-    NotificationTemplateId, ProxyId, SessionId, StatusPageComponentId, StatusPageGroupId,
-    StatusPageId, StatusPageSubscriberId, TagId, UserId,
+    ApiKeyId, BadgeId, IncidentId, IncidentUpdateId, MaintenanceId, MonitorGroupId, MonitorId,
+    NotificationId, NotificationTemplateId, ProxyId, SessionId, StatusPageComponentId,
+    StatusPageGroupId, StatusPageId, StatusPageSubscriberId, TagId, UserId,
 };
 pub use incident::{Incident, IncidentStyle, IncidentUpdate};
 pub use maintenance::{MaintenanceWindow, NewMaintenanceWindow};
 pub use monitor::{Monitor, MonitorKind, MonitorStatus, NewMonitor, UpdateMonitor};
+pub use monitor_group::{MonitorGroup, NewMonitorGroup, UpdateMonitorGroup};
 pub use notification::{ChannelKind, MonitorNotification, Notification, NotificationTemplate};
 pub use status_page::{
     NewStatusPage, PublicIncident, PublicIncidentUpdate, PublicStatusMonitor, PublicStatusPage,

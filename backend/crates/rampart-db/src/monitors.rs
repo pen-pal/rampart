@@ -5,7 +5,7 @@
 //! the SQL layer.
 
 use crate::{DbError, DbPool, DbResult};
-use rampart_core::ids::ProxyId;
+use rampart_core::ids::{MonitorGroupId, ProxyId};
 use rampart_core::monitor::{NewMonitor, UpdateMonitor};
 use rampart_core::{Monitor, MonitorId, MonitorKind, MonitorStatus};
 use time::OffsetDateTime;
@@ -42,6 +42,7 @@ struct MonitorRow {
     cert_days_left:  Option<i32>,
     cert_subject:    Option<String>,
     cert_checked_at: Option<OffsetDateTime>,
+    group_id:        Option<Uuid>,
 }
 
 impl From<MonitorRow> for Monitor {
@@ -77,6 +78,7 @@ impl From<MonitorRow> for Monitor {
             cert_days_left:  r.cert_days_left,
             cert_subject:    r.cert_subject,
             cert_checked_at: r.cert_checked_at,
+            group_id:        r.group_id.map(MonitorGroupId::from_uuid),
         }
     }
 }
@@ -103,14 +105,14 @@ pub async fn create(pool: &DbPool, input: NewMonitor) -> DbResult<Monitor> {
             timeout_seconds, resend_interval_sec, upside_down,
             http_method, http_body, http_headers,
             accepted_statuses, follow_redirect, ignore_tls, proxy_id,
-            push_token
+            push_token, group_id
         ) VALUES (
             $1, $2, $3, $4, $5, $6, $7,
             $8, $9, $10,
             $11, $12, $13,
             $14, $15, $16,
             $17, $18, $19, $20,
-            $21
+            $21, $22
         )
         RETURNING
             id, name,
@@ -124,7 +126,8 @@ pub async fn create(pool: &DbPool, input: NewMonitor) -> DbResult<Monitor> {
             active,
             current_status AS "current_status: MonitorStatus",
             created_at, updated_at,
-            cert_days_left, cert_subject, cert_checked_at
+            cert_days_left, cert_subject, cert_checked_at,
+            group_id
         "#,
         id.0,
         input.name,
@@ -147,6 +150,7 @@ pub async fn create(pool: &DbPool, input: NewMonitor) -> DbResult<Monitor> {
         input.ignore_tls,
         proxy_uuid,
         push_token,
+        input.group_id.map(|g| g.0),
     )
     .fetch_one(pool)
     .await?;
@@ -246,7 +250,8 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<Monitor>> {
             active,
             current_status AS "current_status: MonitorStatus",
             created_at, updated_at,
-            cert_days_left, cert_subject, cert_checked_at
+            cert_days_left, cert_subject, cert_checked_at,
+            group_id
         FROM monitors
         ORDER BY created_at DESC
         "#,
@@ -281,7 +286,8 @@ pub async fn get(pool: &DbPool, id: MonitorId) -> DbResult<Monitor> {
             active,
             current_status AS "current_status: MonitorStatus",
             created_at, updated_at,
-            cert_days_left, cert_subject, cert_checked_at
+            cert_days_left, cert_subject, cert_checked_at,
+            group_id
         FROM monitors
         WHERE id = $1
         "#,
@@ -353,6 +359,20 @@ pub async fn update(pool: &DbPool, id: MonitorId, patch: UpdateMonitor) -> DbRes
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }
+
+    // group_id needs Option<Option<…>> semantics — only mutate when the
+    // caller explicitly sent the field. A second UPDATE keeps the COALESCE
+    // pattern above clean.
+    if let Some(g) = patch.group_id {
+        sqlx::query!(
+            r#"UPDATE monitors SET group_id = $1 WHERE id = $2"#,
+            g.map(|x| x.0),
+            id.0,
+        )
+        .execute(pool)
+        .await?;
+    }
+
     get(pool, id).await
 }
 

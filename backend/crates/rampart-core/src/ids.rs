@@ -68,6 +68,7 @@ id!(TagId);
 id!(NotificationId);
 id!(NotificationTemplateId);
 id!(MaintenanceId);
+id!(MonitorGroupId);
 id!(StatusPageId);
 id!(StatusPageGroupId);
 id!(StatusPageComponentId);

@@ -15,11 +15,13 @@ pub mod auth;
 pub mod health;
 pub mod incidents;
 pub mod maintenance;
+pub mod monitor_groups;
 pub mod monitors;
 pub mod notifications;
 pub mod proxies;
 pub mod push;
 pub mod status_pages;
+pub mod stream;
 pub mod subscribers;
 pub mod tags;
 pub mod templates;
@@ -49,8 +51,11 @@ pub fn v1_protected() -> Router<AppState> {
             "/monitors",
             monitors::router()
                 .merge(notifications::monitor_attach_router())
-                .merge(tags::monitor_tag_router()),
+                .merge(tags::monitor_tag_router())
+                .merge(monitor_groups::dep_router()),
         )
+        // /v1/monitor-groups CRUD
+        .nest("/monitor-groups", monitor_groups::router())
         // /v1/tags CRUD
         .nest("/tags", tags::router())
         // /v1/notifications CRUD
@@ -77,6 +82,8 @@ pub fn v1_protected() -> Router<AppState> {
         .nest("/api-keys", api_keys::router())
         // /v1/proxies — list/create/delete/active
         .nest("/proxies", proxies::router())
+        // /v1/stream/heartbeats — Server-Sent Events fan-out.
+        .nest("/stream", stream::router())
         // /v1/auth/2fa/* admin endpoints — verify is public; the rest
         // need an existing session so they sit here.
         .nest("/auth/2fa", totp::router())

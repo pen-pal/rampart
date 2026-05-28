@@ -67,6 +67,27 @@ impl NotifierService {
 }
 
 async fn dispatch_one(pool: &DbPool, event: Event) -> anyhow::Result<()> {
+    // Dependency suppression. If this monitor depends on any other
+    // monitor whose current_status is Down/Pending, the failure here is
+    // almost certainly downstream of *that* root cause. Suppress the
+    // alert (heartbeat still recorded so the dashboard shows the state)
+    // to keep one root incident from paging every dependent service.
+    match rampart_db::monitor_groups::any_parent_down(pool, event.monitor.id).await {
+        Ok(true) => {
+            info!(
+                monitor = %event.monitor.id,
+                "notification suppressed: upstream dependency is down",
+            );
+            return Ok(());
+        }
+        Ok(false) => {}
+        Err(e) => {
+            // Fail open on dep-graph errors — better a duplicate page
+            // than silence during a real outage. Log so it gets noticed.
+            warn!(error = %e, "dependency check failed; firing anyway");
+        }
+    }
+
     let rows = rampart_db::notifications::for_monitor(pool, event.monitor.id).await?;
     if rows.is_empty() {
         return Ok(());

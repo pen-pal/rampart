@@ -5,7 +5,7 @@
 //! features. Twenty probe kinds covered, including a `domain` variant for
 //! WHOIS-based expiry checks.
 
-use crate::ids::{MonitorId, ProxyId};
+use crate::ids::{MonitorGroupId, MonitorId, ProxyId};
 use crate::tag::TagBrief;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
@@ -46,6 +46,11 @@ pub enum MonitorKind {
     Mongodb,
     // registry
     Domain,
+    /// Headless-browser-rendered check. We don't ship a Chromium binary
+    /// in the rampart image — operators point this kind at an external
+    /// headless service (e.g. browserless/chrome) via config.renderer_url,
+    /// then probe asserts on a keyword in the *rendered* HTML.
+    Browser,
 }
 
 /// Current rolled-up status of a monitor (or of one heartbeat).
@@ -124,6 +129,9 @@ pub struct Monitor {
     pub cert_subject:    Option<String>,
     #[serde(default)]
     pub cert_checked_at: Option<OffsetDateTime>,
+    /// Optional cosmetic group. NULL → default bucket.
+    #[serde(default)]
+    pub group_id: Option<MonitorGroupId>,
 }
 
 /// Payload accepted when creating a monitor. Kind/url/hostname validation
@@ -187,6 +195,9 @@ pub struct NewMonitor {
 
     #[serde(default)]
     pub proxy_id: Option<ProxyId>,
+
+    #[serde(default)]
+    pub group_id: Option<MonitorGroupId>,
 }
 
 /// Partial update payload for PATCH /v1/monitors/:id. Every field is
@@ -230,6 +241,23 @@ pub struct UpdateMonitor {
 
     #[serde(default)]
     pub proxy_id: Option<ProxyId>,
+
+    /// Send `null` to detach from any group; omit to leave unchanged.
+    /// Distinguishing "unset" from "explicit null" needs Option<Option<…>>;
+    /// callers that want to clear can also set the field to all-zeros UUID
+    /// then PATCH again — but the double-option pattern is the cleanest.
+    #[serde(default, deserialize_with = "deserialize_optional_group_id")]
+    pub group_id: Option<Option<MonitorGroupId>>,
+}
+
+fn deserialize_optional_group_id<'de, D>(
+    de: D,
+) -> Result<Option<Option<MonitorGroupId>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let v: Option<MonitorGroupId> = Option::deserialize(de)?;
+    Ok(Some(v))
 }
 
 fn default_interval() -> i32 {

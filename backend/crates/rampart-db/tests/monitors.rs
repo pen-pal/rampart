@@ -26,6 +26,7 @@ fn http_monitor(name: &str, url: &str) -> NewMonitor {
         follow_redirect: true,
         ignore_tls: false,
         proxy_id: None,
+        group_id: None,
     }
 }
 
