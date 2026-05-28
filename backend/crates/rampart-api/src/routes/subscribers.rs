@@ -28,6 +28,7 @@ pub fn admin_router() -> Router<AppState> {
         .route("/status-pages/:id/subscribers", get(list))
         .route("/subscribers/:id", axum::routing::delete(delete_one))
         .route("/settings/smtp", get(smtp_get).put(smtp_put))
+        .route("/settings/retention", get(retention_get).put(retention_put))
 }
 
 #[derive(Deserialize)]
@@ -136,5 +137,38 @@ async fn smtp_put(
         }
     }
     rampart_db::settings::put(s.pool(), "smtp", &new_value).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// ── Retention settings ────────────────────────────────────────────────────
+
+async fn retention_get(State(s): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
+    // Default mirrors `RetentionConfig::default()` in rampart-db::prune.
+    let raw = rampart_db::settings::get(s.pool(), "retention_days").await?;
+    Ok(Json(
+        raw.unwrap_or_else(|| serde_json::json!({ "heartbeats": 90, "audit_log": 365 })),
+    ))
+}
+
+#[derive(Deserialize)]
+struct RetentionPut {
+    heartbeats: i32,
+    audit_log: i32,
+}
+
+async fn retention_put(
+    State(s): State<AppState>,
+    Json(input): Json<RetentionPut>,
+) -> Result<StatusCode, ApiError> {
+    if input.heartbeats < 1 || input.audit_log < 1 {
+        return Err(ApiError::BadRequest(
+            "retention windows must be >= 1 day".into(),
+        ));
+    }
+    let value = serde_json::json!({
+        "heartbeats": input.heartbeats,
+        "audit_log":  input.audit_log,
+    });
+    rampart_db::settings::put(s.pool(), "retention_days", &value).await?;
     Ok(StatusCode::NO_CONTENT)
 }

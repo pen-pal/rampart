@@ -31,7 +31,7 @@ use rampart_notifier::{Event, EventKind, NotifierHandle};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{mpsc, Notify, RwLock};
+use tokio::sync::{broadcast, mpsc, Notify, RwLock};
 use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
 
@@ -42,6 +42,9 @@ const BATCH_FLUSH_INTERVAL: Duration = Duration::from_secs(1);
 
 /// Channel buffer between probe tasks and the writer.
 const HEARTBEAT_CHANNEL_BUFFER: usize = 4096;
+/// Broadcast ring depth for live SSE subscribers. Lagging consumers get
+/// `RecvError::Lagged` past this; the SSE endpoint logs + keeps going.
+const HEARTBEAT_BROADCAST_DEPTH: usize = 256;
 
 pub struct Scheduler {
     pool: DbPool,
@@ -50,6 +53,9 @@ pub struct Scheduler {
     tasks: Arc<RwLock<HashMap<MonitorId, MonitorTask>>>,
     /// Sender side of the heartbeat channel — cloned into each probe task.
     hb_tx: mpsc::Sender<Heartbeat>,
+    /// Live-stream fanout. Subscribers see heartbeats *after* they're
+    /// persisted, so the API never streams data the DB doesn't yet have.
+    hb_broadcast: broadcast::Sender<Heartbeat>,
     /// Bumped to wake the reload loop after a monitor mutation.
     reload: Arc<Notify>,
     /// Optional notifier handle — when present, status-flip events get
@@ -78,9 +84,11 @@ impl Scheduler {
 
     pub fn with_notifier(pool: DbPool, notifier: Option<NotifierHandle>) -> Self {
         let (hb_tx, hb_rx) = mpsc::channel::<Heartbeat>(HEARTBEAT_CHANNEL_BUFFER);
+        let (hb_broadcast, _) = broadcast::channel::<Heartbeat>(HEARTBEAT_BROADCAST_DEPTH);
         let writer_pool = pool.clone();
+        let writer_broadcast = hb_broadcast.clone();
         tokio::spawn(async move {
-            writer_loop(writer_pool, hb_rx).await;
+            writer_loop(writer_pool, hb_rx, writer_broadcast).await;
         });
 
         Self {
@@ -88,6 +96,7 @@ impl Scheduler {
             probes: Arc::new(Probes::new()),
             tasks: Arc::new(RwLock::new(HashMap::new())),
             hb_tx,
+            hb_broadcast,
             reload: Arc::new(Notify::new()),
             notifier,
         }
@@ -97,6 +106,13 @@ impl Scheduler {
     /// changing monitors via the API.
     pub fn reload_handle(&self) -> Arc<Notify> {
         self.reload.clone()
+    }
+
+    /// Subscribe to the live heartbeat stream. Each receiver gets every
+    /// heartbeat post-persist, with a bounded backlog — slow consumers
+    /// receive `RecvError::Lagged` rather than blocking the writer.
+    pub fn subscribe_heartbeats(&self) -> broadcast::Receiver<Heartbeat> {
+        self.hb_broadcast.subscribe()
     }
 
     /// Run forever. Reconciles the running task set against the DB on
@@ -164,14 +180,15 @@ impl Scheduler {
         let last_status_in_task = last_status.clone();
         let notifier = self.notifier.clone();
         let pool_in_task = self.pool.clone();
-        let interval = Duration::from_secs(monitor.interval_seconds as u64);
         let monitor_id = monitor.id;
         let monitor_name = monitor.name.clone();
+        let initial_interval = monitor.interval_seconds;
 
         let handle = tokio::spawn(async move {
-            info!(monitor = %monitor_id, name = %monitor_name, interval_s = monitor.interval_seconds, "probe task started");
+            info!(monitor = %monitor_id, name = %monitor_name, interval_s = initial_interval, "probe task started");
 
-            // Fire once immediately so the dashboard reflects state quickly.
+            // Use the freshly-passed monitor for the immediate first
+            // fire so the dashboard reflects state quickly.
             run_once(
                 &probes,
                 &monitor,
@@ -182,6 +199,7 @@ impl Scheduler {
             )
             .await;
 
+            let mut interval = Duration::from_secs(initial_interval as u64);
             loop {
                 tokio::select! {
                     _ = cancel_in_task.notified() => {
@@ -189,7 +207,37 @@ impl Scheduler {
                         return;
                     }
                     _ = tokio::time::sleep(interval) => {
-                        run_once(&probes, &monitor, &last_status_in_task, &hb_tx, notifier.as_ref(), &pool_in_task).await;
+                        // Re-fetch every tick so PATCH-edited fields
+                        // (config blob, url, timeout, interval) take
+                        // effect on the very next probe rather than only
+                        // after a delete + recreate. Single PK lookup;
+                        // cheap even at thousands of monitors.
+                        match rampart_db::monitors::get(&pool_in_task, monitor_id).await {
+                            Ok(fresh) => {
+                                if !fresh.active {
+                                    // Reconcile will tear us down — exit
+                                    // early so we don't fire one extra
+                                    // probe after pause.
+                                    info!(monitor = %monitor_id, "monitor inactive — probe task exiting");
+                                    return;
+                                }
+                                run_once(&probes, &fresh, &last_status_in_task,
+                                         &hb_tx, notifier.as_ref(), &pool_in_task).await;
+                                interval = Duration::from_secs(fresh.interval_seconds as u64);
+                            }
+                            Err(rampart_db::DbError::NotFound) => {
+                                info!(monitor = %monitor_id, "monitor deleted — probe task exiting");
+                                return;
+                            }
+                            Err(e) => {
+                                // Transient DB blip — log and keep the
+                                // old config + interval rather than
+                                // killing the loop.
+                                warn!(monitor = %monitor_id, error = %e, "monitor refresh failed; reusing prior snapshot");
+                                run_once(&probes, &monitor, &last_status_in_task,
+                                         &hb_tx, notifier.as_ref(), &pool_in_task).await;
+                            }
+                        }
                     }
                 }
             }
@@ -337,7 +385,14 @@ fn parse_https(url: &str) -> Option<(String, u16)> {
 }
 
 /// Drains the heartbeat channel, batches by size or time, flushes.
-async fn writer_loop(pool: DbPool, mut rx: mpsc::Receiver<Heartbeat>) {
+/// Successfully-persisted heartbeats are also fanned out to live
+/// subscribers via `broadcast` — never before the flush so the API can
+/// safely assume any streamed row is queryable.
+async fn writer_loop(
+    pool: DbPool,
+    mut rx: mpsc::Receiver<Heartbeat>,
+    bcast: broadcast::Sender<Heartbeat>,
+) {
     let mut buffer: Vec<Heartbeat> = Vec::with_capacity(BATCH_SIZE);
 
     loop {
@@ -368,7 +423,14 @@ async fn writer_loop(pool: DbPool, mut rx: mpsc::Receiver<Heartbeat>) {
             }
         }
 
-        flush(&pool, &buffer).await;
+        if flush(&pool, &buffer).await {
+            // send() returns Err when there are zero subscribers — that
+            // is normal (nobody watching) so ignore. Lagged consumers see
+            // RecvError::Lagged on their own receiver instead.
+            for hb in &buffer {
+                let _ = bcast.send(hb.clone());
+            }
+        }
         buffer.clear();
 
         // Also bounce the monitor's current_status if any heartbeat in
@@ -381,12 +443,16 @@ async fn writer_loop(pool: DbPool, mut rx: mpsc::Receiver<Heartbeat>) {
     }
 }
 
-async fn flush(pool: &DbPool, batch: &[Heartbeat]) {
+/// Returns `true` if the batch persisted — callers gate the live-stream
+/// fan-out on this so subscribers never receive rows that aren't on disk.
+async fn flush(pool: &DbPool, batch: &[Heartbeat]) -> bool {
     if let Err(e) = rampart_db::heartbeats::insert_many(pool, batch).await {
         // Don't crash the writer on a DB blip — log loudly, keep going.
         // The probe loop will produce more heartbeats on the next tick.
         error!(error = %e, batch = batch.len(), "heartbeat flush failed");
+        return false;
     }
+    true
 }
 
 /// Synthesize a Maintenance heartbeat — keeps the timeline contiguous

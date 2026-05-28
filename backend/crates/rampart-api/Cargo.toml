@@ -42,6 +42,8 @@ mime_guess         = "2"
 totp-rs            = { workspace = true }
 base32             = { workspace = true }
 lettre             = { workspace = true }
+futures            = { workspace = true }
+tokio-stream       = { version = "0.1", features = ["sync"] }
 
 [dev-dependencies]
 tower = { workspace = true }

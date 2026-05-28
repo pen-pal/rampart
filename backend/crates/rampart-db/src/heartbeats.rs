@@ -109,6 +109,51 @@ pub async fn recent_for_monitor(
         .collect())
 }
 
+/// All heartbeats for a monitor in `[since, until)` ordered oldest →
+/// newest. Used by the CSV export endpoint — limit is enforced at the
+/// API layer (we don't want a sprawling SELECT here).
+pub async fn range_for_monitor(
+    pool: &DbPool,
+    monitor: MonitorId,
+    since:   time::OffsetDateTime,
+    until:   time::OffsetDateTime,
+    limit:   i64,
+) -> DbResult<Vec<Heartbeat>> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT
+            monitor_id,
+            ts,
+            status AS "status: MonitorStatus",
+            latency_ms,
+            status_code,
+            msg,
+            retries,
+            important
+        FROM heartbeats
+        WHERE monitor_id = $1
+          AND ts >= $2
+          AND ts <  $3
+        ORDER BY ts ASC
+        LIMIT $4
+        "#,
+        monitor.0, since, until, limit,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows.into_iter().map(|r| Heartbeat {
+        monitor_id: MonitorId::from_uuid(r.monitor_id),
+        ts: r.ts,
+        status: r.status,
+        latency_ms: r.latency_ms,
+        status_code: r.status_code,
+        msg: r.msg,
+        retries: r.retries,
+        important: r.important,
+    }).collect())
+}
+
 /// Uptime % over the trailing `window_seconds`. Returns None if no
 /// heartbeats recorded in the window (caller decides how to render).
 pub async fn uptime_pct(

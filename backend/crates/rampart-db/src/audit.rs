@@ -58,13 +58,24 @@ pub async fn insert(pool: &DbPool, entry: NewEntry<'_>) -> DbResult<()> {
     Ok(())
 }
 
+pub struct AuditFilter<'a> {
+    pub before_id: Option<i64>,
+    pub kind:      Option<&'a str>,
+    /// Prefix match on `action` (e.g. "monitor." matches every monitor
+    /// action). Empty/None = no filter.
+    pub action_prefix: Option<&'a str>,
+    pub actor: Option<Uuid>,
+}
+
 pub async fn list(
     pool: &DbPool,
     limit: i64,
-    before_id: Option<i64>,
-    kind: Option<&str>,
+    filter: AuditFilter<'_>,
 ) -> DbResult<Vec<AuditEntry>> {
     let limit = limit.clamp(1, 500);
+    // Build the LIKE pattern host-side so the SQL stays a plain
+    // parameter bind (no string concat into the query text).
+    let action_like = filter.action_prefix.map(|p| format!("{p}%"));
     let rows = sqlx::query!(
         r#"
         SELECT id, actor_user_id, actor_api_key_id, action, resource_kind,
@@ -72,11 +83,15 @@ pub async fn list(
         FROM audit_log
         WHERE ($1::bigint IS NULL OR id < $1)
           AND ($2::text   IS NULL OR resource_kind = $2)
+          AND ($3::text   IS NULL OR action LIKE $3)
+          AND ($4::uuid   IS NULL OR actor_user_id = $4)
         ORDER BY id DESC
-        LIMIT $3
+        LIMIT $5
         "#,
-        before_id,
-        kind,
+        filter.before_id,
+        filter.kind,
+        action_like,
+        filter.actor,
         limit,
     )
     .fetch_all(pool)

@@ -37,6 +37,11 @@ pub enum ApiError {
 
     #[error(transparent)]
     Validation(#[from] validator::ValidationErrors),
+
+    /// Catch-all for unexpected failures. The actual cause is logged
+    /// internally; the client sees an opaque 500.
+    #[error(transparent)]
+    Internal(#[from] anyhow::Error),
 }
 
 impl IntoResponse for ApiError {
@@ -60,6 +65,14 @@ impl IntoResponse for ApiError {
                 // Don't leak database details to clients. Log internally,
                 // surface a generic 500.
                 error!(error = %e, "db error");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "internal",
+                    "internal error".into(),
+                )
+            }
+            ApiError::Internal(e) => {
+                error!(error = %e, "internal error");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "internal",

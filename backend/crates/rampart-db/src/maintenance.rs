@@ -3,7 +3,7 @@
 //! Single-tenant, no workspace scoping — auth happens at the API layer.
 
 use crate::{DbError, DbPool, DbResult};
-use rampart_core::maintenance::{MaintenanceWindow, NewMaintenanceWindow};
+use rampart_core::maintenance::{MaintenanceWindow, NewMaintenanceWindow, Recurrence};
 use rampart_core::{MaintenanceId, MonitorId};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -16,10 +16,18 @@ struct WindowRow {
     end_at:      OffsetDateTime,
     active:      bool,
     created_at:  OffsetDateTime,
+    recurrence:  serde_json::Value,
 }
 
 impl From<WindowRow> for MaintenanceWindow {
     fn from(r: WindowRow) -> Self {
+        // A malformed recurrence blob shouldn't break the whole list —
+        // fall back to None and log via tracing. Callers can still see
+        // start_at/end_at and resolve the row manually.
+        let recurrence = serde_json::from_value(r.recurrence).unwrap_or_else(|e| {
+            tracing::warn!(window = %r.id, error = %e, "bad recurrence json — treating as none");
+            Recurrence::None
+        });
         MaintenanceWindow {
             id:          MaintenanceId::from_uuid(r.id),
             name:        r.name,
@@ -29,6 +37,7 @@ impl From<WindowRow> for MaintenanceWindow {
             active:      r.active,
             created_at:  r.created_at,
             monitor_ids: Vec::new(),
+            recurrence,
         }
     }
 }
@@ -39,7 +48,7 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<MaintenanceWindow>> {
     let rows = sqlx::query_as!(
         WindowRow,
         r#"
-        SELECT id, name, description, start_at, end_at, active, created_at
+        SELECT id, name, description, start_at, end_at, active, created_at, recurrence
         FROM maintenance_windows
         ORDER BY start_at DESC
         "#,
@@ -76,7 +85,7 @@ pub async fn get(pool: &DbPool, id: MaintenanceId) -> DbResult<MaintenanceWindow
     let row = sqlx::query_as!(
         WindowRow,
         r#"
-        SELECT id, name, description, start_at, end_at, active, created_at
+        SELECT id, name, description, start_at, end_at, active, created_at, recurrence
         FROM maintenance_windows
         WHERE id = $1
         "#,
@@ -105,16 +114,21 @@ pub async fn create(pool: &DbPool, input: NewMaintenanceWindow) -> DbResult<Main
     let id = MaintenanceId::new();
     let mut tx = pool.begin().await?;
 
+    let recurrence_json = serde_json::to_value(&input.recurrence).map_err(|e| {
+        DbError::Conflict(format!("serialize recurrence: {e}"))
+    })?;
     sqlx::query!(
         r#"
-        INSERT INTO maintenance_windows (id, name, description, start_at, end_at, active)
-        VALUES ($1, $2, $3, $4, $5, TRUE)
+        INSERT INTO maintenance_windows
+            (id, name, description, start_at, end_at, active, recurrence)
+        VALUES ($1, $2, $3, $4, $5, TRUE, $6)
         "#,
         id.0,
         input.name,
         input.description,
         input.start_at,
         input.end_at,
+        recurrence_json,
     )
     .execute(&mut *tx)
     .await?;
@@ -182,23 +196,30 @@ pub async fn detach(pool: &DbPool, window: MaintenanceId, monitor: MonitorId) ->
 }
 
 /// Returns true iff `monitor` is currently covered by any active window
-/// that contains NOW(). The scheduler calls this on every tick — it's a
-/// single indexed read, so cheap enough to do inline.
+/// that contains NOW(). Recurrence eval runs in Rust against the
+/// monitor's attached windows — the row count is small (windows are
+/// user-created, typically tens, not thousands) so a scan + serde decode
+/// per tick is cheaper than maintaining a JSONB-aware partial index.
 pub async fn is_in_active_window(pool: &DbPool, monitor: MonitorId) -> DbResult<bool> {
-    let row = sqlx::query!(
+    let rows = sqlx::query!(
         r#"
-        SELECT 1 AS hit
+        SELECT w.start_at, w.end_at, w.recurrence
         FROM maintenance_windows w
         JOIN maintenance_window_monitors m ON m.window_id = w.id
         WHERE m.monitor_id = $1
           AND w.active
-          AND w.start_at <= NOW()
-          AND w.end_at   >  NOW()
-        LIMIT 1
         "#,
         monitor.0,
     )
-    .fetch_optional(pool)
+    .fetch_all(pool)
     .await?;
-    Ok(row.is_some())
+
+    let now = OffsetDateTime::now_utc();
+    for r in rows {
+        let rec: Recurrence = serde_json::from_value(r.recurrence).unwrap_or(Recurrence::None);
+        if rec.contains(r.start_at, r.end_at, now) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }

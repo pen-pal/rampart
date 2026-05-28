@@ -1,11 +1,13 @@
 //! Shared application state.
 
+use rampart_core::heartbeat::Heartbeat;
 use rampart_core::UserId;
 use rampart_db::DbPool;
+use rampart_scheduler::Scheduler;
 use std::collections::HashMap;
 use std::sync::Arc;
 use time::OffsetDateTime;
-use tokio::sync::{Mutex, Notify};
+use tokio::sync::{broadcast, Mutex, Notify};
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -16,6 +18,9 @@ struct Inner {
     /// Notify handle that triggers the scheduler to reconcile after
     /// monitor mutations (create / delete / pause / resume).
     scheduler_reload: Arc<Notify>,
+    /// Optional — only present when the API was constructed with a live
+    /// scheduler. Test harnesses can construct AppState without one.
+    scheduler: Option<Arc<Scheduler>>,
     /// In-flight TOTP login challenges. Keyed by an opaque token we
     /// hand back to the browser; we look up the user_id when the user
     /// submits their 6-digit code. Lives in memory because the dataset
@@ -34,9 +39,24 @@ impl AppState {
         Self(Arc::new(Inner {
             pool,
             scheduler_reload,
+            scheduler: None,
             totp_challenges: Mutex::new(HashMap::new()),
         }))
     }
+
+    pub fn with_scheduler(
+        pool: DbPool,
+        scheduler_reload: Arc<Notify>,
+        scheduler: Arc<Scheduler>,
+    ) -> Self {
+        Self(Arc::new(Inner {
+            pool,
+            scheduler_reload,
+            scheduler: Some(scheduler),
+            totp_challenges: Mutex::new(HashMap::new()),
+        }))
+    }
+
     pub fn pool(&self) -> &DbPool {
         &self.0.pool
     }
@@ -44,6 +64,13 @@ impl AppState {
     /// without waiting for the slow 30-second fallback tick.
     pub fn poke_scheduler(&self) {
         self.0.scheduler_reload.notify_one();
+    }
+
+    /// Subscribe to the live heartbeat stream when the scheduler is
+    /// wired in. Returns `None` in test harnesses that constructed the
+    /// state without one.
+    pub fn subscribe_heartbeats(&self) -> Option<broadcast::Receiver<Heartbeat>> {
+        self.0.scheduler.as_ref().map(|s| s.subscribe_heartbeats())
     }
 
     /// Stash a pending TOTP challenge for `user`. Returns the opaque

@@ -29,8 +29,10 @@ pub fn router() -> Router<AppState> {
         .route("/history", get(history_all))
         .route("/:id", get(get_one).patch(update).delete(delete_one))
         .route("/:id/heartbeats", get(heartbeats))
+        .route("/:id/heartbeats.csv", get(heartbeats_csv))
         .route("/:id/pause", post(pause))
         .route("/:id/resume", post(resume))
+        .route("/:id/clone", post(clone_one))
 }
 
 fn parse_monitor_id(s: &str) -> Result<MonitorId, ApiError> {
@@ -128,6 +130,50 @@ async fn resume(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// Duplicate a monitor with the same config under a "<name> (copy)"
+/// name. Heartbeat history is intentionally NOT copied — a clone is a
+/// fresh probe surface, not a fork of past state. Tags, dependencies,
+/// and notification channel attachments are also left empty so the
+/// operator can re-wire deliberately. Push tokens are regenerated for
+/// push monitors (the token has to be unique per row).
+async fn clone_one(
+    State(state): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<(StatusCode, Json<Monitor>), ApiError> {
+    let monitor_id = parse_monitor_id(&id)?;
+    let src = rampart_db::monitors::get(state.pool(), monitor_id).await?;
+    let copy = rampart_core::monitor::NewMonitor {
+        name:                format!("{} (copy)", src.name),
+        kind:                src.kind,
+        url:                 src.url.clone(),
+        hostname:            src.hostname.clone(),
+        port:                src.port,
+        config:              src.config.clone(),
+        interval_seconds:    src.interval_seconds,
+        retry_interval_sec:  src.retry_interval_sec,
+        max_retries:         src.max_retries,
+        timeout_seconds:     src.timeout_seconds,
+        resend_interval_sec: src.resend_interval_sec,
+        upside_down:         src.upside_down,
+        http_method:         src.http_method.clone(),
+        http_body:           src.http_body.clone(),
+        http_headers:        src.http_headers.clone(),
+        accepted_statuses:   src.accepted_statuses.clone(),
+        follow_redirect:     src.follow_redirect,
+        ignore_tls:          src.ignore_tls,
+        proxy_id:            src.proxy_id,
+        group_id:            src.group_id,
+    };
+    let cloned = rampart_db::monitors::create(state.pool(), copy).await?;
+    state.poke_scheduler();
+    crate::audit::record(state.pool(), &user, &headers,
+        "monitor.clone", "monitor", Some(cloned.id.0),
+        Some(serde_json::json!({ "source": monitor_id.0, "name": cloned.name }))).await;
+    Ok((StatusCode::CREATED, Json(cloned)))
+}
+
 #[derive(Debug, Deserialize)]
 pub struct SummaryQuery {
     /// Rollup window in seconds. Default 24h.
@@ -211,4 +257,85 @@ async fn heartbeats(
     let limit = q.limit.clamp(1, 2000);
     let hbs = rampart_db::heartbeats::recent_for_monitor(state.pool(), monitor_id, limit).await?;
     Ok(Json(hbs))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CsvQuery {
+    /// Window start (RFC3339). Defaults to 30 days ago.
+    #[serde(default, with = "time::serde::rfc3339::option")]
+    pub since: Option<OffsetDateTime>,
+    /// Window end (RFC3339, exclusive). Defaults to "now".
+    #[serde(default, with = "time::serde::rfc3339::option")]
+    pub until: Option<OffsetDateTime>,
+}
+
+/// CSV export of a monitor's heartbeats in `[since, until)`. Hard-capped
+/// at 50_000 rows so a runaway export can't blow up memory; operators
+/// wanting more should narrow the window.
+async fn heartbeats_csv(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Query(q): Query<CsvQuery>,
+) -> Result<impl IntoResponse, ApiError> {
+    let monitor_id = parse_monitor_id(&id)?;
+    let until = q.until.unwrap_or_else(OffsetDateTime::now_utc);
+    let since = q.since.unwrap_or_else(|| until - time::Duration::days(30));
+    if since >= until {
+        return Err(ApiError::BadRequest("since must be before until".into()));
+    }
+    let hbs = rampart_db::heartbeats::range_for_monitor(
+        state.pool(), monitor_id, since, until, 50_000,
+    ).await?;
+
+    // RFC3339 timestamps; CSV-escape only `msg` (everything else is
+    // numeric / enum / boolean and can't contain commas or quotes).
+    let mut body = String::with_capacity(64 + hbs.len() * 80);
+    body.push_str("ts,status,latency_ms,status_code,retries,important,msg\n");
+    let fmt = time::format_description::well_known::Rfc3339;
+    for h in &hbs {
+        let ts = h.ts.format(&fmt).unwrap_or_default();
+        let status = match h.status {
+            MonitorStatus::Up          => "up",
+            MonitorStatus::Down        => "down",
+            MonitorStatus::Warn        => "warn",
+            MonitorStatus::Paused      => "paused",
+            MonitorStatus::Pending     => "pending",
+            MonitorStatus::Maintenance => "maintenance",
+        };
+        body.push_str(&format!(
+            "{},{},{},{},{},{},{}\n",
+            ts,
+            status,
+            h.latency_ms.map(|v| v.to_string()).unwrap_or_default(),
+            h.status_code.map(|v| v.to_string()).unwrap_or_default(),
+            h.retries,
+            h.important,
+            csv_escape(h.msg.as_deref().unwrap_or("")),
+        ));
+    }
+    let filename = format!("heartbeats-{}.csv", monitor_id.0);
+    Ok((
+        [
+            ("content-type", "text/csv; charset=utf-8".to_string()),
+            (
+                "content-disposition",
+                format!("attachment; filename=\"{filename}\""),
+            ),
+        ],
+        body,
+    ))
+}
+
+/// Minimal CSV escape: double the embedded quotes and wrap in quotes if
+/// the field contains a comma, quote, or newline.
+fn csv_escape(s: &str) -> String {
+    if s.is_empty() {
+        return String::new();
+    }
+    let needs = s.contains(',') || s.contains('"') || s.contains('\n') || s.contains('\r');
+    if !needs {
+        return s.to_string();
+    }
+    let escaped = s.replace('"', "\"\"");
+    format!("\"{escaped}\"")
 }

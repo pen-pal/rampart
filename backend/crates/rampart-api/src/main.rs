@@ -71,7 +71,7 @@ async fn main() -> anyhow::Result<()> {
     info!("retention prune loop started");
 
     static_assets::log_state();
-    let state = AppState::new(pool, reload_handle);
+    let state = AppState::with_scheduler(pool, reload_handle, scheduler.clone());
     let app = build_router(state);
 
     let listener = tokio::net::TcpListener::bind(bind).await?;
