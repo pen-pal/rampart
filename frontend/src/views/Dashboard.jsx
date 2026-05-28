@@ -301,6 +301,28 @@ export default function Dashboard({ user, onLogout } = {}) {
   // Default-open so existing users see all monitors without a click.
   const [openGroups, setOpenGroups] = useState(() => ({ ungrouped: true }));
   const toggleGroup = (key) => setOpenGroups(s => ({ ...s, [key]: !(s[key] ?? true) }));
+
+  // Bulk-selection state for the activity table.
+  const [selected, setSelected] = useState(() => new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const toggleSelect = (id) => setSelected(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const runBulk = async (action, confirmMsg) => {
+    if (selected.size === 0 || bulkBusy) return;
+    if (confirmMsg && !confirm(confirmMsg)) return;
+    setBulkBusy(true);
+    try {
+      await api.monitors.bulk(Array.from(selected), action);
+      setSelected(new Set());
+      window.location.reload();
+    } catch (e) {
+      alert(`Bulk action failed: ${e.message}`);
+      setBulkBusy(false);
+    }
+  };
   const [query, setQuery] = useState('');
   const [tagFilter, setTagFilter] = useState(new Set()); // tag IDs to require
 
@@ -680,6 +702,34 @@ export default function Dashboard({ user, onLogout } = {}) {
               )}
             </div>
 
+            {selected.size > 0 && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+                padding: '10px 22px', background: 'var(--accent-soft)',
+                borderBottom: '1px solid var(--border)', fontSize: 12.5,
+              }}>
+                <strong>{selected.size} selected</strong>
+                <button className="btn" disabled={bulkBusy} onClick={() => runBulk({ action: 'pause' })}><Pause size={12}/> Pause</button>
+                <button className="btn" disabled={bulkBusy} onClick={() => runBulk({ action: 'resume' })}><Activity size={12}/> Resume</button>
+                <select className="select" style={{ width: 'auto', padding: '4px 8px', fontSize: 12 }} disabled={bulkBusy}
+                  value="__placeholder__"
+                  onChange={e => {
+                    const v = e.target.value;
+                    if (v === '__placeholder__') return;
+                    runBulk({ action: 'set_group', group_id: v === '__ungroup__' ? null : v });
+                  }}>
+                  <option value="__placeholder__">Move to group…</option>
+                  {(groupsState.data || []).map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                  <option value="__ungroup__">Ungrouped</option>
+                </select>
+                <button className="btn btn-danger" disabled={bulkBusy}
+                  onClick={() => runBulk({ action: 'delete' }, `Delete ${selected.size} monitor(s) and all their heartbeats? This cannot be undone.`)}>
+                  <AlertCircle size={12}/> Delete
+                </button>
+                <button className="btn btn-ghost" disabled={bulkBusy} onClick={() => setSelected(new Set())} style={{ marginLeft: 'auto' }}>Clear</button>
+              </div>
+            )}
+
             <div className="activity-row" style={{
               display: 'grid',
               gridTemplateColumns: '24px 1.4fr 70px 70px 1.5fr 60px',
@@ -724,8 +774,15 @@ export default function Dashboard({ user, onLogout } = {}) {
                   gap: 16, padding: '14px 22px',
                   borderBottom: '1px solid var(--border)', alignItems: 'center',
                   cursor: 'pointer',
+                  background: selected.has(m.id) ? 'var(--accent-soft)' : 'transparent',
                 }}>
-                  <span className={`dot ${cls}`}/>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <input type="checkbox" checked={selected.has(m.id)}
+                      onClick={e => e.stopPropagation()}
+                      onChange={() => toggleSelect(m.id)}
+                      title="Select for bulk action"/>
+                    <span className={`dot ${cls}`}/>
+                  </span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 13, fontWeight: 500 }}>{m.name}</span>
                     {(m.tags || []).map(t => (

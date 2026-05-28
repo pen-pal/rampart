@@ -400,6 +400,25 @@ pub async fn set_active(pool: &DbPool, id: MonitorId, active: bool) -> DbResult<
     Ok(())
 }
 
+/// Assign (or clear, with None) a monitor's group. Used by bulk ops.
+pub async fn set_group(
+    pool: &DbPool,
+    id: MonitorId,
+    group: Option<MonitorGroupId>,
+) -> DbResult<()> {
+    let result = sqlx::query!(
+        "UPDATE monitors SET group_id = $1 WHERE id = $2",
+        group.map(|g| g.0),
+        id.0,
+    )
+    .execute(pool)
+    .await?;
+    if result.rows_affected() == 0 {
+        return Err(DbError::NotFound);
+    }
+    Ok(())
+}
+
 /// Atomically transition `current_status`. Called from the scheduler
 /// after a heartbeat lands; idempotent (same status → noop).
 pub async fn set_status(pool: &DbPool, id: MonitorId, status: MonitorStatus) -> DbResult<()> {

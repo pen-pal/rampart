@@ -25,6 +25,7 @@ pub fn router() -> Router<AppState> {
     // matches them before treating the segment as an id.
     Router::new()
         .route("/", get(list).post(create))
+        .route("/bulk", post(bulk))
         .route("/summary", get(summary))
         .route("/history", get(history_all))
         .route("/:id", get(get_one).patch(update).delete(delete_one))
@@ -128,6 +129,108 @@ async fn resume(
     crate::audit::record(state.pool(), &user, &headers,
         "monitor.resume", "monitor", Some(monitor_id.0), None).await;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "action")]
+enum BulkAction {
+    Pause,
+    Resume,
+    Delete,
+    SetGroup { group_id: Option<String> },
+    AddTag { tag_id: String },
+    RemoveTag { tag_id: String },
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BulkRequest {
+    monitor_ids: Vec<String>,
+    #[serde(flatten)]
+    action: BulkAction,
+}
+
+#[derive(Serialize)]
+struct BulkResult {
+    ok: usize,
+    failed: usize,
+}
+
+/// Apply one action to many monitors in a single call. Best-effort: a
+/// failure on one id doesn't abort the rest; the response reports counts.
+/// The scheduler is poked once at the end rather than per-monitor.
+async fn bulk(
+    State(state): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
+    Json(req): Json<BulkRequest>,
+) -> Result<Json<BulkResult>, ApiError> {
+    if req.monitor_ids.is_empty() {
+        return Err(ApiError::BadRequest("monitor_ids is empty".into()));
+    }
+    if req.monitor_ids.len() > 500 {
+        return Err(ApiError::BadRequest("too many monitors (max 500)".into()));
+    }
+
+    use rampart_core::ids::{MonitorGroupId, TagId};
+    // Resolve action-level params once before the loop.
+    let group: Option<Option<MonitorGroupId>> = match &req.action {
+        BulkAction::SetGroup { group_id } => Some(match group_id.as_deref() {
+            Some(g) if !g.is_empty() => Some(
+                Uuid::from_str(g)
+                    .map(MonitorGroupId::from_uuid)
+                    .map_err(|_| ApiError::BadRequest("invalid group_id".into()))?,
+            ),
+            _ => None,
+        }),
+        _ => None,
+    };
+    let tag: Option<TagId> = match &req.action {
+        BulkAction::AddTag { tag_id } | BulkAction::RemoveTag { tag_id } => Some(
+            Uuid::from_str(tag_id)
+                .map(TagId::from_uuid)
+                .map_err(|_| ApiError::BadRequest("invalid tag_id".into()))?,
+        ),
+        _ => None,
+    };
+
+    let pool = state.pool();
+    let mut ok = 0usize;
+    let mut failed = 0usize;
+    for raw in &req.monitor_ids {
+        let mid = match parse_monitor_id(raw) {
+            Ok(m) => m,
+            Err(_) => { failed += 1; continue; }
+        };
+        let res = match &req.action {
+            BulkAction::Pause  => rampart_db::monitors::set_active(pool, mid, false).await,
+            BulkAction::Resume => rampart_db::monitors::set_active(pool, mid, true).await,
+            BulkAction::Delete => rampart_db::monitors::delete(pool, mid).await,
+            BulkAction::SetGroup { .. } => {
+                rampart_db::monitors::set_group(pool, mid, group.flatten()).await
+            }
+            BulkAction::AddTag { .. } => rampart_db::tags::attach(pool, mid, tag.unwrap()).await,
+            BulkAction::RemoveTag { .. } => rampart_db::tags::detach(pool, mid, tag.unwrap()).await,
+        };
+        match res {
+            Ok(()) => ok += 1,
+            Err(_) => failed += 1,
+        }
+    }
+
+    state.poke_scheduler();
+    let action_name = match &req.action {
+        BulkAction::Pause => "pause",
+        BulkAction::Resume => "resume",
+        BulkAction::Delete => "delete",
+        BulkAction::SetGroup { .. } => "set_group",
+        BulkAction::AddTag { .. } => "add_tag",
+        BulkAction::RemoveTag { .. } => "remove_tag",
+    };
+    crate::audit::record(pool, &user, &headers,
+        "monitor.bulk", "monitor", None,
+        Some(serde_json::json!({ "action": action_name, "ok": ok, "failed": failed }))).await;
+
+    Ok(Json(BulkResult { ok, failed }))
 }
 
 /// Duplicate a monitor with the same config under a "<name> (copy)"

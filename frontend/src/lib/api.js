@@ -69,6 +69,7 @@ export const api = {
     pause:   (id)         => request(`/v1/monitors/${id}/pause`,  { method: 'POST' }),
     resume:  (id)         => request(`/v1/monitors/${id}/resume`, { method: 'POST' }),
     clone:   (id)         => request(`/v1/monitors/${id}/clone`,  { method: 'POST' }),
+    bulk:    (monitorIds, action) => request('/v1/monitors/bulk', { method: 'POST', body: { monitor_ids: monitorIds, ...action } }),
     summary: (windowSec)  => request(`/v1/monitors/summary?window=${windowSec ?? 86400}`),
     history: (per)        => request(`/v1/monitors/history?per=${per ?? 60}`),
     heartbeats: (id, limit) => request(`/v1/monitors/${id}/heartbeats?limit=${limit ?? 100}`),
