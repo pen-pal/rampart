@@ -22,10 +22,7 @@ use uuid::Uuid;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/vapid-key", get(vapid_key))
-        .route(
-            "/subscriptions",
-            post(subscribe).delete(unsubscribe),
-        )
+        .route("/subscriptions", post(subscribe).delete(unsubscribe))
 }
 
 #[derive(Serialize)]
@@ -35,7 +32,9 @@ struct VapidKeyResp {
 
 async fn vapid_key(State(s): State<AppState>) -> Result<Json<VapidKeyResp>, ApiError> {
     let keys = rampart_db::webpush::get_or_create_vapid(s.pool(), generate_vapid_keys).await?;
-    Ok(Json(VapidKeyResp { public_key: keys.public }))
+    Ok(Json(VapidKeyResp {
+        public_key: keys.public,
+    }))
 }
 
 #[derive(Deserialize)]
@@ -47,7 +46,7 @@ struct SubscribeInput {
 #[derive(Deserialize)]
 struct SubscribeKeys {
     p256dh: String,
-    auth:   String,
+    auth: String,
 }
 
 fn parse_notif(s: &str) -> Result<NotificationId, ApiError> {

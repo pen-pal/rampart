@@ -28,8 +28,7 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 pub fn page_router() -> Router<AppState> {
-    Router::new()
-        .route("/:page_id/incidents", get(list_for_page).post(create))
+    Router::new().route("/:page_id/incidents", get(list_for_page).post(create))
 }
 
 pub fn incident_router() -> Router<AppState> {
@@ -97,12 +96,8 @@ async fn resolve(
     State(s): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::incidents::resolve(
-        s.pool(),
-        parse_incident(&id)?,
-        OffsetDateTime::now_utc(),
-    )
-    .await?;
+    rampart_db::incidents::resolve(s.pool(), parse_incident(&id)?, OffsetDateTime::now_utc())
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -116,7 +111,9 @@ async fn list_updates(
 }
 
 #[derive(Deserialize)]
-struct UpdateBody { message: String }
+struct UpdateBody {
+    message: String,
+}
 
 async fn post_update(
     State(s): State<AppState>,
@@ -128,13 +125,8 @@ async fn post_update(
         return Err(ApiError::BadRequest("message is required".into()));
     }
     let incident_id = parse_incident(&id)?;
-    rampart_db::incidents::post_update(
-        s.pool(),
-        incident_id,
-        Some(user.id),
-        body.message.clone(),
-    )
-    .await?;
+    rampart_db::incidents::post_update(s.pool(), incident_id, Some(user.id), body.message.clone())
+        .await?;
     let inc = rampart_db::incidents::get(s.pool(), incident_id).await?;
     fan_out_incident(s.clone(), inc.status_page_id, inc, Some(body.message));
     Ok(StatusCode::CREATED)
@@ -160,17 +152,26 @@ fn fan_out_incident(
         };
         let page_row = match rampart_db::status_pages::get(state.pool(), page).await {
             Ok(p) => p,
-            Err(e) => { tracing::warn!("status page lookup: {e}"); return; }
+            Err(e) => {
+                tracing::warn!("status page lookup: {e}");
+                return;
+            }
         };
-        let emails = match rampart_db::subscribers::confirmed_emails_for_page(state.pool(), page).await {
-            Ok(e) => e,
-            Err(e) => { tracing::warn!("subscriber lookup: {e}"); return; }
-        };
-        if emails.is_empty() { return; }
+        let emails =
+            match rampart_db::subscribers::confirmed_emails_for_page(state.pool(), page).await {
+                Ok(e) => e,
+                Err(e) => {
+                    tracing::warn!("subscriber lookup: {e}");
+                    return;
+                }
+            };
+        if emails.is_empty() {
+            return;
+        }
 
         let subject = match &update_message {
-            None     => format!("[{}] {}", page_row.title, incident.title),
-            Some(_)  => format!("[{}] Update: {}", page_row.title, incident.title),
+            None => format!("[{}] {}", page_row.title, incident.title),
+            Some(_) => format!("[{}] Update: {}", page_row.title, incident.title),
         };
         let body = match &update_message {
             None => format!(

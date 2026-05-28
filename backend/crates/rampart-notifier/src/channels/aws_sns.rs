@@ -23,10 +23,10 @@ use time::OffsetDateTime;
 #[derive(Debug, Deserialize)]
 pub struct AwsSnsConfig {
     /// SNS topic ARN (preferred) OR phone number for SMS.
-    pub topic_arn:   Option<String>,
+    pub topic_arn: Option<String>,
     pub phone_number: Option<String>,
-    pub region:      String,
-    pub access_key_id:     String,
+    pub region: String,
+    pub access_key_id: String,
     pub secret_access_key: String,
     /// Optional STS session token. Set when the caller is using
     /// temporary credentials (assume-role).
@@ -43,9 +43,7 @@ impl AwsSns {
     pub fn from_config(raw: &serde_json::Value) -> Result<Self, ChannelError> {
         let cfg: AwsSnsConfig = serde_json::from_value(raw.clone())
             .map_err(|e| ChannelError::BadConfig(e.to_string()))?;
-        if cfg.region.is_empty()
-            || cfg.access_key_id.is_empty()
-            || cfg.secret_access_key.is_empty()
+        if cfg.region.is_empty() || cfg.access_key_id.is_empty() || cfg.secret_access_key.is_empty()
         {
             return Err(ChannelError::BadConfig(
                 "region + access_key_id + secret_access_key required".into(),
@@ -56,23 +54,30 @@ impl AwsSns {
                 "exactly one of topic_arn or phone_number required".into(),
             ));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
 #[async_trait]
 impl Channel for AwsSns {
     async fn send(&self, subject: &str, body: &str, _event: &Event) -> Result<(), ChannelError> {
-        let host    = format!("sns.{}.amazonaws.com", self.cfg.region);
+        let host = format!("sns.{}.amazonaws.com", self.cfg.region);
         let service = "sns";
         let now: OffsetDateTime = OffsetDateTime::now_utc();
         let amz_date = now
-            .format(&iso8601::Iso8601::<{
-                iso8601::Config::DEFAULT
-                    .set_year_is_six_digits(false)
-                    .set_use_separators(false)
-                    .encode()
-            }>)
+            .format(
+                &iso8601::Iso8601::<
+                    {
+                        iso8601::Config::DEFAULT
+                            .set_year_is_six_digits(false)
+                            .set_use_separators(false)
+                            .encode()
+                    },
+                >,
+            )
             .map_err(|e| ChannelError::BadConfig(format!("date format: {e}")))?;
         // "YYYYMMDDTHHMMSSZ" — already correct shape; trim millis if present.
         let amz_date = trim_millis(&amz_date);
@@ -109,21 +114,20 @@ impl Channel for AwsSns {
             canonical_headers.push_str(&format!("x-amz-security-token:{tok}\n"));
             signed_headers.push_str(";x-amz-security-token");
         }
-        let canonical = format!(
-            "POST\n/\n\n{canonical_headers}\n{signed_headers}\n{body_hash}",
-        );
+        let canonical = format!("POST\n/\n\n{canonical_headers}\n{signed_headers}\n{body_hash}",);
         let canonical_hash = hex::encode(Sha256::digest(canonical.as_bytes()));
 
         // String to sign.
         let scope = format!("{date_stamp}/{}/{service}/aws4_request", self.cfg.region);
-        let string_to_sign = format!(
-            "AWS4-HMAC-SHA256\n{amz_date}\n{scope}\n{canonical_hash}",
-        );
+        let string_to_sign = format!("AWS4-HMAC-SHA256\n{amz_date}\n{scope}\n{canonical_hash}",);
 
         // Derive signing key.
-        let k_date    = hmac256(format!("AWS4{}", self.cfg.secret_access_key).as_bytes(), date_stamp.as_bytes())?;
-        let k_region  = hmac256(&k_date,    self.cfg.region.as_bytes())?;
-        let k_service = hmac256(&k_region,  service.as_bytes())?;
+        let k_date = hmac256(
+            format!("AWS4{}", self.cfg.secret_access_key).as_bytes(),
+            date_stamp.as_bytes(),
+        )?;
+        let k_region = hmac256(&k_date, self.cfg.region.as_bytes())?;
+        let k_service = hmac256(&k_region, service.as_bytes())?;
         let k_signing = hmac256(&k_service, b"aws4_request")?;
         let signature = hex::encode(hmac256(&k_signing, string_to_sign.as_bytes())?);
 

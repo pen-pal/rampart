@@ -8,28 +8,36 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 pub struct SignalConfig {
-    pub api_url:    String,
-    pub number:     String,
+    pub api_url: String,
+    pub number: String,
     pub recipients: Vec<String>,
 }
 
-pub struct Signal { cfg: SignalConfig, client: reqwest::Client }
+pub struct Signal {
+    cfg: SignalConfig,
+    client: reqwest::Client,
+}
 
 impl Signal {
     pub fn from_config(raw: &serde_json::Value) -> Result<Self, ChannelError> {
         let cfg: SignalConfig = serde_json::from_value(raw.clone())
             .map_err(|e| ChannelError::BadConfig(e.to_string()))?;
         if cfg.recipients.is_empty() || cfg.number.trim().is_empty() {
-            return Err(ChannelError::BadConfig("number + recipients required".into()));
+            return Err(ChannelError::BadConfig(
+                "number + recipients required".into(),
+            ));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
 #[derive(Serialize)]
 struct Payload<'a> {
-    message:    String,
-    number:     &'a str,
+    message: String,
+    number: &'a str,
     recipients: &'a Vec<String>,
 }
 
@@ -44,7 +52,10 @@ impl Channel for Signal {
         };
         let resp = self.client.post(&url).json(&payload).send().await?;
         if !resp.status().is_success() {
-            return Err(ChannelError::Upstream(resp.status().as_u16(), resp.text().await.unwrap_or_default()));
+            return Err(ChannelError::Upstream(
+                resp.status().as_u16(),
+                resp.text().await.unwrap_or_default(),
+            ));
         }
         Ok(())
     }

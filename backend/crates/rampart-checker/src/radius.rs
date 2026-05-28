@@ -28,21 +28,25 @@ use time::OffsetDateTime;
 use tokio::net::UdpSocket;
 use tokio::time::timeout;
 
-const CODE_ACCESS_REQUEST:   u8 = 1;
-const CODE_ACCESS_ACCEPT:    u8 = 2;
-const CODE_ACCESS_REJECT:    u8 = 3;
+const CODE_ACCESS_REQUEST: u8 = 1;
+const CODE_ACCESS_ACCEPT: u8 = 2;
+const CODE_ACCESS_REJECT: u8 = 3;
 const CODE_ACCESS_CHALLENGE: u8 = 11;
 
-const ATTR_USER_NAME:     u8 = 1;
+const ATTR_USER_NAME: u8 = 1;
 const ATTR_USER_PASSWORD: u8 = 2;
 
 pub struct RadiusProbe;
 
 impl RadiusProbe {
-    pub fn new() -> Self { Self }
+    pub fn new() -> Self {
+        Self
+    }
 }
 impl Default for RadiusProbe {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[async_trait]
@@ -59,23 +63,30 @@ impl Probe for RadiusProbe {
 
         let secret = monitor.config.get("secret").and_then(|v| v.as_str());
         let Some(secret) = secret else {
-            return down(monitor, ts, started, "radius monitor requires config.secret");
+            return down(
+                monitor,
+                ts,
+                started,
+                "radius monitor requires config.secret",
+            );
         };
-        let username = monitor.config.get("username").and_then(|v| v.as_str()).unwrap_or("probe");
-        let password = monitor.config.get("password").and_then(|v| v.as_str()).unwrap_or("probe");
+        let username = monitor
+            .config
+            .get("username")
+            .and_then(|v| v.as_str())
+            .unwrap_or("probe");
+        let password = monitor
+            .config
+            .get("password")
+            .and_then(|v| v.as_str())
+            .unwrap_or("probe");
 
         // 16-byte random Request-Authenticator.
         let mut authenticator = [0u8; 16];
         rand::thread_rng().fill_bytes(&mut authenticator);
         let identifier: u8 = rand::random();
 
-        let packet = build_access_request(
-            identifier,
-            &authenticator,
-            username,
-            password,
-            secret,
-        );
+        let packet = build_access_request(identifier, &authenticator, username, password, secret);
 
         let socket = match UdpSocket::bind("0.0.0.0:0").await {
             Ok(s) => s,
@@ -103,8 +114,8 @@ impl Probe for RadiusProbe {
         }
 
         let msg = match buf[0] {
-            CODE_ACCESS_ACCEPT    => "Access-Accept",
-            CODE_ACCESS_REJECT    => "Access-Reject",
+            CODE_ACCESS_ACCEPT => "Access-Accept",
+            CODE_ACCESS_REJECT => "Access-Reject",
             CODE_ACCESS_CHALLENGE => "Access-Challenge",
             other => {
                 return down(monitor, ts, started, &format!("unexpected code {other}"));
@@ -146,9 +157,9 @@ fn build_access_request(
     password: &str,
     secret: &str,
 ) -> Vec<u8> {
-    let user_attr   = build_attr(ATTR_USER_NAME, username.as_bytes());
+    let user_attr = build_attr(ATTR_USER_NAME, username.as_bytes());
     let pwd_encoded = encrypt_password(password, secret, authenticator);
-    let pwd_attr    = build_attr(ATTR_USER_PASSWORD, &pwd_encoded);
+    let pwd_attr = build_attr(ATTR_USER_PASSWORD, &pwd_encoded);
 
     let length = 20 + user_attr.len() + pwd_attr.len();
     let mut pkt = Vec::with_capacity(length);

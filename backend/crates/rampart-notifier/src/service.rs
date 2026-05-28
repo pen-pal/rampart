@@ -142,7 +142,7 @@ async fn dispatch_one(pool: &DbPool, event: Event) -> anyhow::Result<()> {
         let kind: ChannelKind = row.kind;
         let cfg = row.config;
         let name = row.name;
-        let id   = row.id;
+        let id = row.id;
         let pool_clone = pool.clone();
         handles.push(tokio::spawn(async move {
             match channels::dispatch(kind, &cfg, &subject, &body, &event, &pool_clone, id).await {

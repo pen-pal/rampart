@@ -50,16 +50,15 @@ async fn create(
     Ok((StatusCode::CREATED, Json(p)))
 }
 
-async fn remove(
-    State(s): State<AppState>,
-    Path(id): Path<String>,
-) -> Result<StatusCode, ApiError> {
+async fn remove(State(s): State<AppState>, Path(id): Path<String>) -> Result<StatusCode, ApiError> {
     rampart_db::proxies::delete(s.pool(), parse(&id)?).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
 #[derive(serde::Deserialize)]
-struct SetActiveBody { active: bool }
+struct SetActiveBody {
+    active: bool,
+}
 
 async fn set_active(
     State(s): State<AppState>,

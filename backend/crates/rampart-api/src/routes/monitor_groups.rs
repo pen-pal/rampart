@@ -80,7 +80,7 @@ async fn delete_one(
 
 #[derive(Serialize)]
 struct DepList {
-    parents:  Vec<MonitorId>,
+    parents: Vec<MonitorId>,
     children: Vec<MonitorId>,
 }
 

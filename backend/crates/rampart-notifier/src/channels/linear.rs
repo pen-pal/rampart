@@ -6,11 +6,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 pub struct LinearConfig {
-    pub api_key:  String,
-    pub team_id:  String,
+    pub api_key: String,
+    pub team_id: String,
 }
 
-pub struct Linear { cfg: LinearConfig, client: reqwest::Client }
+pub struct Linear {
+    cfg: LinearConfig,
+    client: reqwest::Client,
+}
 
 impl Linear {
     pub fn from_config(raw: &serde_json::Value) -> Result<Self, ChannelError> {
@@ -19,13 +22,16 @@ impl Linear {
         if cfg.api_key.is_empty() || cfg.team_id.is_empty() {
             return Err(ChannelError::BadConfig("api_key + team_id required".into()));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
 #[derive(Serialize)]
 struct GqlReq {
-    query:     String,
+    query: String,
     variables: serde_json::Value,
 }
 
@@ -46,11 +52,18 @@ impl Channel for Linear {
                 "teamId": self.cfg.team_id,
             }),
         };
-        let resp = self.client.post("https://api.linear.app/graphql")
+        let resp = self
+            .client
+            .post("https://api.linear.app/graphql")
             .header("Authorization", &self.cfg.api_key)
-            .json(&req).send().await?;
+            .json(&req)
+            .send()
+            .await?;
         if !resp.status().is_success() {
-            return Err(ChannelError::Upstream(resp.status().as_u16(), resp.text().await.unwrap_or_default()));
+            return Err(ChannelError::Upstream(
+                resp.status().as_u16(),
+                resp.text().await.unwrap_or_default(),
+            ));
         }
         Ok(())
     }

@@ -9,7 +9,10 @@ pub struct SpugConfig {
     pub template_code: String,
 }
 
-pub struct SpugPush { cfg: SpugConfig, client: reqwest::Client }
+pub struct SpugPush {
+    cfg: SpugConfig,
+    client: reqwest::Client,
+}
 
 impl SpugPush {
     pub fn from_config(raw: &serde_json::Value) -> Result<Self, ChannelError> {
@@ -18,7 +21,10 @@ impl SpugPush {
         if cfg.template_code.is_empty() {
             return Err(ChannelError::BadConfig("template_code required".into()));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
@@ -26,11 +32,17 @@ impl SpugPush {
 impl Channel for SpugPush {
     async fn send(&self, subject: &str, body: &str, _event: &Event) -> Result<(), ChannelError> {
         let url = format!("https://push.spug.cc/send/{}", self.cfg.template_code);
-        let resp = self.client.post(&url)
+        let resp = self
+            .client
+            .post(&url)
             .form(&[("title", subject), ("content", body)])
-            .send().await?;
+            .send()
+            .await?;
         if !resp.status().is_success() {
-            return Err(ChannelError::Upstream(resp.status().as_u16(), resp.text().await.unwrap_or_default()));
+            return Err(ChannelError::Upstream(
+                resp.status().as_u16(),
+                resp.text().await.unwrap_or_default(),
+            ));
         }
         Ok(())
     }

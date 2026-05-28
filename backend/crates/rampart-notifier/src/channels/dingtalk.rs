@@ -35,7 +35,10 @@ impl DingTalk {
         if cfg.access_token.trim().is_empty() {
             return Err(ChannelError::BadConfig("access_token required".into()));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 
     fn build_url(&self) -> String {
@@ -43,7 +46,9 @@ impl DingTalk {
             "https://oapi.dingtalk.com/robot/send?access_token={}",
             self.cfg.access_token,
         );
-        let Some(secret) = self.cfg.secret.as_deref() else { return base };
+        let Some(secret) = self.cfg.secret.as_deref() else {
+            return base;
+        };
         let ts = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map(|d| d.as_millis() as u64)
@@ -65,7 +70,9 @@ struct Payload<'a> {
     at: AtSpec<'a>,
 }
 #[derive(Serialize)]
-struct TextBody { content: String }
+struct TextBody {
+    content: String,
+}
 #[derive(Serialize)]
 struct AtSpec<'a> {
     #[serde(rename = "atMobiles", skip_serializing_if = "Vec::is_empty")]
@@ -80,10 +87,12 @@ impl Channel for DingTalk {
         let url = self.build_url();
         let payload = Payload {
             msgtype: "text",
-            text: TextBody { content: format!("{subject}\n{body}") },
+            text: TextBody {
+                content: format!("{subject}\n{body}"),
+            },
             at: AtSpec {
                 at_mobiles: &self.cfg.at_mobiles,
-                is_at_all:  self.cfg.at_all,
+                is_at_all: self.cfg.at_all,
             },
         };
         let resp = self.client.post(&url).json(&payload).send().await?;
@@ -104,7 +113,9 @@ impl Channel for DingTalk {
 fn urlencoding(s: &str) -> String {
     s.bytes()
         .map(|b| match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => (b as char).to_string(),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (b as char).to_string()
+            }
             _ => format!("%{b:02X}"),
         })
         .collect()

@@ -56,12 +56,8 @@ impl Probe for DnsProbe {
             .and_then(|c| c.get("record_type"))
             .and_then(|v| v.as_str())
             .unwrap_or("A");
-        let resolver_addr = cfg
-            .and_then(|c| c.get("resolver"))
-            .and_then(|v| v.as_str());
-        let expected = cfg
-            .and_then(|c| c.get("expected"))
-            .and_then(|v| v.as_str());
+        let resolver_addr = cfg.and_then(|c| c.get("resolver")).and_then(|v| v.as_str());
+        let expected = cfg.and_then(|c| c.get("expected")).and_then(|v| v.as_str());
 
         let rt = match parse_record_type(record_type) {
             Some(r) => r,
@@ -102,49 +98,52 @@ impl Probe for DnsProbe {
                     monitor,
                     ts,
                     started,
-                    &format!("expected '{needle}' not found in {} answer(s)", rendered.len()),
+                    &format!(
+                        "expected '{needle}' not found in {} answer(s)",
+                        rendered.len()
+                    ),
                 );
             }
         }
 
         Heartbeat {
-            monitor_id:  monitor.id,
+            monitor_id: monitor.id,
             ts,
-            status:      MonitorStatus::Up,
-            latency_ms:  Some(ms_i32(started.elapsed())),
+            status: MonitorStatus::Up,
+            latency_ms: Some(ms_i32(started.elapsed())),
             status_code: None,
-            msg:         Some(rendered.join(", ")),
-            retries:     0,
-            important:   false,
+            msg: Some(rendered.join(", ")),
+            retries: 0,
+            important: false,
         }
     }
 }
 
 fn down(monitor: &Monitor, ts: OffsetDateTime, started: Instant, msg: &str) -> Heartbeat {
     Heartbeat {
-        monitor_id:  monitor.id,
+        monitor_id: monitor.id,
         ts,
-        status:      MonitorStatus::Down,
-        latency_ms:  Some(ms_i32(started.elapsed())),
+        status: MonitorStatus::Down,
+        latency_ms: Some(ms_i32(started.elapsed())),
         status_code: None,
-        msg:         Some(msg.into()),
-        retries:     0,
-        important:   false,
+        msg: Some(msg.into()),
+        retries: 0,
+        important: false,
     }
 }
 
 fn parse_record_type(s: &str) -> Option<RecordType> {
     match s.to_ascii_uppercase().as_str() {
-        "A"     => Some(RecordType::A),
-        "AAAA"  => Some(RecordType::AAAA),
+        "A" => Some(RecordType::A),
+        "AAAA" => Some(RecordType::AAAA),
         "CNAME" => Some(RecordType::CNAME),
-        "MX"    => Some(RecordType::MX),
-        "TXT"   => Some(RecordType::TXT),
-        "NS"    => Some(RecordType::NS),
-        "SRV"   => Some(RecordType::SRV),
-        "CAA"   => Some(RecordType::CAA),
-        "SOA"   => Some(RecordType::SOA),
-        _       => None,
+        "MX" => Some(RecordType::MX),
+        "TXT" => Some(RecordType::TXT),
+        "NS" => Some(RecordType::NS),
+        "SRV" => Some(RecordType::SRV),
+        "CAA" => Some(RecordType::CAA),
+        "SOA" => Some(RecordType::SOA),
+        _ => None,
     }
 }
 
@@ -155,10 +154,7 @@ fn parse_record_type(s: &str) -> Option<RecordType> {
 fn build_resolver(addr: Option<&str>) -> Result<TokioAsyncResolver, String> {
     let opts = ResolverOpts::default();
     match addr {
-        None => Ok(TokioAsyncResolver::tokio(
-            ResolverConfig::default(),
-            opts,
-        )),
+        None => Ok(TokioAsyncResolver::tokio(ResolverConfig::default(), opts)),
         Some(s) => {
             let ip = IpAddr::from_str(s).map_err(|e| format!("invalid resolver IP: {e}"))?;
             let group = NameServerConfigGroup::from_ips_clear(&[ip], 53, true);

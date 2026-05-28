@@ -14,31 +14,30 @@ use uuid::Uuid;
 
 const TOKEN_PREFIX: &str = "rmp_";
 const TOKEN_BODY_LEN: usize = 32;
-const ALPHA: &[u8] =
-    b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+const ALPHA: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
 struct KeyRow {
-    id:           Uuid,
-    name:         String,
-    key_prefix:   String,
-    scopes:       Vec<String>,
-    created_by:   Option<Uuid>,
-    created_at:   OffsetDateTime,
+    id: Uuid,
+    name: String,
+    key_prefix: String,
+    scopes: Vec<String>,
+    created_by: Option<Uuid>,
+    created_at: OffsetDateTime,
     last_used_at: Option<OffsetDateTime>,
-    expires_at:   Option<OffsetDateTime>,
+    expires_at: Option<OffsetDateTime>,
 }
 
 impl From<KeyRow> for ApiKey {
     fn from(r: KeyRow) -> Self {
         ApiKey {
-            id:           ApiKeyId::from_uuid(r.id),
-            name:         r.name,
-            key_prefix:   r.key_prefix,
-            scopes:       r.scopes,
-            created_by:   r.created_by.map(UserId::from_uuid),
-            created_at:   r.created_at,
+            id: ApiKeyId::from_uuid(r.id),
+            name: r.name,
+            key_prefix: r.key_prefix,
+            scopes: r.scopes,
+            created_by: r.created_by.map(UserId::from_uuid),
+            created_at: r.created_at,
             last_used_at: r.last_used_at,
-            expires_at:   r.expires_at,
+            expires_at: r.expires_at,
         }
     }
 }
@@ -58,11 +57,7 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<ApiKey>> {
     Ok(rows.into_iter().map(Into::into).collect())
 }
 
-pub async fn create(
-    pool: &DbPool,
-    input: NewApiKey,
-    created_by: UserId,
-) -> DbResult<IssuedApiKey> {
+pub async fn create(pool: &DbPool, input: NewApiKey, created_by: UserId) -> DbResult<IssuedApiKey> {
     let token = generate_token();
     let hash = sha256_hex(&token);
     let prefix = token[..(TOKEN_PREFIX.len() + 8)].to_string();
@@ -88,7 +83,7 @@ pub async fn create(
     .await?;
 
     Ok(IssuedApiKey {
-        key:   row.into(),
+        key: row.into(),
         token,
     })
 }

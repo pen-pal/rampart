@@ -14,27 +14,38 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Deserialize)]
 pub struct AliyunSmsConfig {
-    pub access_key_id:     String,
+    pub access_key_id: String,
     pub access_key_secret: String,
-    pub sign_name:         String,
-    pub template_code:     String,
-    pub phone_numbers:     String,
+    pub sign_name: String,
+    pub template_code: String,
+    pub phone_numbers: String,
     /// Free-form params injected into the template; sent as JSON.
     #[serde(default)]
-    pub template_param:    serde_json::Value,
+    pub template_param: serde_json::Value,
 }
 
-pub struct AliyunSms { cfg: AliyunSmsConfig, client: reqwest::Client }
+pub struct AliyunSms {
+    cfg: AliyunSmsConfig,
+    client: reqwest::Client,
+}
 
 impl AliyunSms {
     pub fn from_config(raw: &serde_json::Value) -> Result<Self, ChannelError> {
         let cfg: AliyunSmsConfig = serde_json::from_value(raw.clone())
             .map_err(|e| ChannelError::BadConfig(e.to_string()))?;
-        if cfg.access_key_id.is_empty() || cfg.access_key_secret.is_empty()
-            || cfg.template_code.is_empty() || cfg.phone_numbers.is_empty() {
-            return Err(ChannelError::BadConfig("aliyun sms missing required fields".into()));
+        if cfg.access_key_id.is_empty()
+            || cfg.access_key_secret.is_empty()
+            || cfg.template_code.is_empty()
+            || cfg.phone_numbers.is_empty()
+        {
+            return Err(ChannelError::BadConfig(
+                "aliyun sms missing required fields".into(),
+            ));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
@@ -42,7 +53,10 @@ impl AliyunSms {
 impl Channel for AliyunSms {
     async fn send(&self, _subject: &str, _body: &str, _event: &Event) -> Result<(), ChannelError> {
         let nonce = format!("{}", rand::random::<u32>());
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
         // Aliyun expects ISO 8601 UTC.
         let ts = format_iso8601(now);
 
@@ -54,23 +68,24 @@ impl Channel for AliyunSms {
         };
 
         let mut params: Vec<(&str, String)> = vec![
-            ("AccessKeyId",      self.cfg.access_key_id.clone()),
-            ("Action",           "SendSms".into()),
-            ("Format",           "JSON".into()),
-            ("PhoneNumbers",     self.cfg.phone_numbers.clone()),
-            ("RegionId",         "cn-hangzhou".into()),
-            ("SignName",         self.cfg.sign_name.clone()),
-            ("SignatureMethod",  "HMAC-SHA1".into()),
-            ("SignatureNonce",   nonce),
+            ("AccessKeyId", self.cfg.access_key_id.clone()),
+            ("Action", "SendSms".into()),
+            ("Format", "JSON".into()),
+            ("PhoneNumbers", self.cfg.phone_numbers.clone()),
+            ("RegionId", "cn-hangzhou".into()),
+            ("SignName", self.cfg.sign_name.clone()),
+            ("SignatureMethod", "HMAC-SHA1".into()),
+            ("SignatureNonce", nonce),
             ("SignatureVersion", "1.0".into()),
-            ("TemplateCode",     self.cfg.template_code.clone()),
-            ("TemplateParam",    tpl),
-            ("Timestamp",        ts),
-            ("Version",          "2017-05-25".into()),
+            ("TemplateCode", self.cfg.template_code.clone()),
+            ("TemplateParam", tpl),
+            ("Timestamp", ts),
+            ("Version", "2017-05-25".into()),
         ];
         params.sort_by(|a, b| a.0.cmp(b.0));
 
-        let canonical: String = params.iter()
+        let canonical: String = params
+            .iter()
             .map(|(k, v)| format!("{}={}", urlencode_aliyun(k), urlencode_aliyun(v)))
             .collect::<Vec<_>>()
             .join("&");
@@ -104,14 +119,23 @@ fn urlencode_aliyun(s: &str) -> String {
     // Aliyun-specific URL encoding: like RFC 3986 but with '+' replaced
     // by '%20' and '*' kept literal? Actually Aliyun says: encode then
     // replace '+' with '%20', '*' with '%2A', '%7E' with '~'.
-    let raw: String = s.bytes().map(|b| match b {
-        b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => (b as char).to_string(),
-        _ => format!("%{b:02X}"),
-    }).collect();
-    raw.replace('+', "%20").replace('*', "%2A").replace("%7E", "~")
+    let raw: String = s
+        .bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (b as char).to_string()
+            }
+            _ => format!("%{b:02X}"),
+        })
+        .collect();
+    raw.replace('+', "%20")
+        .replace('*', "%2A")
+        .replace("%7E", "~")
 }
 
 fn format_iso8601(secs: u64) -> String {
-    let t = time::OffsetDateTime::from_unix_timestamp(secs as i64).unwrap_or(time::OffsetDateTime::UNIX_EPOCH);
-    t.format(&time::format_description::well_known::Iso8601::DEFAULT).unwrap_or_default()
+    let t = time::OffsetDateTime::from_unix_timestamp(secs as i64)
+        .unwrap_or(time::OffsetDateTime::UNIX_EPOCH);
+    t.format(&time::format_description::well_known::Iso8601::DEFAULT)
+        .unwrap_or_default()
 }

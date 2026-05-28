@@ -26,7 +26,10 @@ impl Wecom {
         if cfg.bot_key.trim().is_empty() {
             return Err(ChannelError::BadConfig("bot_key required".into()));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 

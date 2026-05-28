@@ -90,14 +90,14 @@ impl Probe for PingProbe {
         let send = pinger.ping(PingSequence(0), &payload);
         match timeout(to, send).await {
             Ok(Ok((IcmpPacket::V4(_), dur))) | Ok(Ok((IcmpPacket::V6(_), dur))) => Heartbeat {
-                monitor_id:  monitor.id,
+                monitor_id: monitor.id,
                 ts,
-                status:      MonitorStatus::Up,
-                latency_ms:  Some(ms_i32(dur)),
+                status: MonitorStatus::Up,
+                latency_ms: Some(ms_i32(dur)),
                 status_code: None,
-                msg:         Some(format!("{}ms", dur.as_millis())),
-                retries:     0,
-                important:   false,
+                msg: Some(format!("{}ms", dur.as_millis())),
+                retries: 0,
+                important: false,
             },
             Ok(Err(e)) => down(monitor, ts, started, &format!("ping failed: {e}")),
             Err(_) => down(monitor, ts, started, "ping timed out"),
@@ -107,14 +107,14 @@ impl Probe for PingProbe {
 
 fn down(monitor: &Monitor, ts: OffsetDateTime, started: Instant, msg: &str) -> Heartbeat {
     Heartbeat {
-        monitor_id:  monitor.id,
+        monitor_id: monitor.id,
         ts,
-        status:      MonitorStatus::Down,
-        latency_ms:  Some(ms_i32(started.elapsed())),
+        status: MonitorStatus::Down,
+        latency_ms: Some(ms_i32(started.elapsed())),
         status_code: None,
-        msg:         Some(msg.into()),
-        retries:     0,
-        important:   false,
+        msg: Some(msg.into()),
+        retries: 0,
+        important: false,
     }
 }
 

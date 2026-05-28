@@ -13,27 +13,27 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AuditEntry {
-    pub id:            i64,
+    pub id: i64,
     pub actor_user_id: Option<UserId>,
     pub actor_api_key_id: Option<ApiKeyId>,
-    pub action:        String,
+    pub action: String,
     pub resource_kind: String,
-    pub resource_id:   Option<Uuid>,
-    pub payload:       Option<serde_json::Value>,
-    pub ip_addr:       Option<String>,
-    pub user_agent:    Option<String>,
-    pub ts:            OffsetDateTime,
+    pub resource_id: Option<Uuid>,
+    pub payload: Option<serde_json::Value>,
+    pub ip_addr: Option<String>,
+    pub user_agent: Option<String>,
+    pub ts: OffsetDateTime,
 }
 
 pub struct NewEntry<'a> {
-    pub actor_user_id:    Option<UserId>,
+    pub actor_user_id: Option<UserId>,
     pub actor_api_key_id: Option<ApiKeyId>,
-    pub action:           &'a str,
-    pub resource_kind:    &'a str,
-    pub resource_id:      Option<Uuid>,
-    pub payload:          Option<serde_json::Value>,
-    pub ip_addr:          Option<IpNetwork>,
-    pub user_agent:       Option<&'a str>,
+    pub action: &'a str,
+    pub resource_kind: &'a str,
+    pub resource_id: Option<Uuid>,
+    pub payload: Option<serde_json::Value>,
+    pub ip_addr: Option<IpNetwork>,
+    pub user_agent: Option<&'a str>,
 }
 
 pub async fn insert(pool: &DbPool, entry: NewEntry<'_>) -> DbResult<()> {
@@ -60,18 +60,14 @@ pub async fn insert(pool: &DbPool, entry: NewEntry<'_>) -> DbResult<()> {
 
 pub struct AuditFilter<'a> {
     pub before_id: Option<i64>,
-    pub kind:      Option<&'a str>,
+    pub kind: Option<&'a str>,
     /// Prefix match on `action` (e.g. "monitor." matches every monitor
     /// action). Empty/None = no filter.
     pub action_prefix: Option<&'a str>,
     pub actor: Option<Uuid>,
 }
 
-pub async fn list(
-    pool: &DbPool,
-    limit: i64,
-    filter: AuditFilter<'_>,
-) -> DbResult<Vec<AuditEntry>> {
+pub async fn list(pool: &DbPool, limit: i64, filter: AuditFilter<'_>) -> DbResult<Vec<AuditEntry>> {
     let limit = limit.clamp(1, 500);
     // Build the LIKE pattern host-side so the SQL stays a plain
     // parameter bind (no string concat into the query text).
@@ -101,15 +97,15 @@ pub async fn list(
         .into_iter()
         .map(|r| AuditEntry {
             id: r.id,
-            actor_user_id:    r.actor_user_id.map(UserId::from_uuid),
+            actor_user_id: r.actor_user_id.map(UserId::from_uuid),
             actor_api_key_id: r.actor_api_key_id.map(ApiKeyId::from_uuid),
-            action:           r.action,
-            resource_kind:    r.resource_kind,
-            resource_id:      r.resource_id,
-            payload:          r.payload,
-            ip_addr:          r.ip_addr.map(|n| n.network().to_string()),
-            user_agent:       r.user_agent,
-            ts:               r.ts,
+            action: r.action,
+            resource_kind: r.resource_kind,
+            resource_id: r.resource_id,
+            payload: r.payload,
+            ip_addr: r.ip_addr.map(|n| n.network().to_string()),
+            user_agent: r.user_agent,
+            ts: r.ts,
         })
         .collect())
 }

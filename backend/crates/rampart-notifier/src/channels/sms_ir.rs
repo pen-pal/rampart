@@ -6,13 +6,16 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 pub struct SmsIrConfig {
-    pub api_key:   String,
+    pub api_key: String,
     pub line_number: String,
     /// comma-separated mobile numbers (IR format)
-    pub mobiles:   String,
+    pub mobiles: String,
 }
 
-pub struct SmsIr { cfg: SmsIrConfig, client: reqwest::Client }
+pub struct SmsIr {
+    cfg: SmsIrConfig,
+    client: reqwest::Client,
+}
 
 impl SmsIr {
     pub fn from_config(raw: &serde_json::Value) -> Result<Self, ChannelError> {
@@ -21,7 +24,10 @@ impl SmsIr {
         if cfg.api_key.is_empty() || cfg.mobiles.is_empty() || cfg.line_number.is_empty() {
             return Err(ChannelError::BadConfig("missing required fields".into()));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
@@ -31,7 +37,7 @@ struct Payload<'a> {
     line_number: &'a str,
     #[serde(rename = "messageText")]
     message_text: String,
-    mobiles:      Vec<&'a str>,
+    mobiles: Vec<&'a str>,
 }
 
 #[async_trait]
@@ -40,14 +46,27 @@ impl Channel for SmsIr {
         let payload = Payload {
             line_number: &self.cfg.line_number,
             message_text: format!("{subject}\n{body}"),
-            mobiles: self.cfg.mobiles.split(',').map(str::trim).filter(|s| !s.is_empty()).collect(),
+            mobiles: self
+                .cfg
+                .mobiles
+                .split(',')
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .collect(),
         };
-        let resp = self.client.post("https://api.sms.ir/v1/send/bulk")
+        let resp = self
+            .client
+            .post("https://api.sms.ir/v1/send/bulk")
             .header("X-API-KEY", &self.cfg.api_key)
             .header("ACCEPT", "application/json")
-            .json(&payload).send().await?;
+            .json(&payload)
+            .send()
+            .await?;
         if !resp.status().is_success() {
-            return Err(ChannelError::Upstream(resp.status().as_u16(), resp.text().await.unwrap_or_default()));
+            return Err(ChannelError::Upstream(
+                resp.status().as_u16(),
+                resp.text().await.unwrap_or_default(),
+            ));
         }
         Ok(())
     }

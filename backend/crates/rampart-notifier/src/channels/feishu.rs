@@ -26,7 +26,10 @@ impl Feishu {
                 "webhook_url must start with https://open.feishu.cn/".into(),
             ));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
@@ -36,14 +39,24 @@ struct Payload<'a> {
     content: Content<'a>,
 }
 #[derive(Serialize)]
-struct Content<'a> { text: &'a str }
+struct Content<'a> {
+    text: &'a str,
+}
 
 #[async_trait]
 impl Channel for Feishu {
     async fn send(&self, subject: &str, body: &str, _event: &Event) -> Result<(), ChannelError> {
         let text = format!("{subject}\n{body}");
-        let payload = Payload { msg_type: "text", content: Content { text: &text } };
-        let resp = self.client.post(&self.cfg.webhook_url).json(&payload).send().await?;
+        let payload = Payload {
+            msg_type: "text",
+            content: Content { text: &text },
+        };
+        let resp = self
+            .client
+            .post(&self.cfg.webhook_url)
+            .json(&payload)
+            .send()
+            .await?;
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
         if !status.is_success() {

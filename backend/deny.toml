@@ -1,0 +1,80 @@
+# cargo-deny configuration. https://embarkstudios.github.io/cargo-deny/
+# Lives next to the workspace Cargo.toml so cargo-deny finds it by default.
+# Run locally: cargo install cargo-deny && (cd backend && cargo deny check)
+
+[advisories]
+# Fail on any crate with an active RUSTSEC advisory. `unmaintained` is
+# noisy for transitive deps, so scope it to crates we directly depend on.
+version = 2
+yanked = "deny"
+unmaintained = "workspace"
+
+# Accepted-with-justification advisories. Each is a TRANSITIVE dependency
+# whose fix requires a major upgrade of an intermediate crate (and, for
+# rsa, has no upstream fix at all). These are tracked for a dedicated
+# dependency-upgrade pass — see docs/SECURITY-DEBT.md. Review on every
+# `cargo update`.
+ignore = [
+    # rsa (via sqlx-mysql): Marvin timing sidechannel. No upstream fix
+    # exists for the pure-Rust rsa crate. Reachable only if a malicious
+    # MySQL server mounts a timing attack during auth — Rampart connects
+    # OUT to operator-controlled DBs, so not a realistic threat.
+    "RUSTSEC-2023-0071",
+    # idna 0.5 (via validator 0.18): punycode labels decoding to ASCII are
+    # wrongly accepted. We use validator for monitor-name/email checks;
+    # fix needs validator >=0.19 (idna 1.x), an API-breaking bump.
+    "RUSTSEC-2024-0421",
+    # hickory-proto 0.24 (via hickory-resolver, DNS probe): O(n^2) name
+    # compression → CPU-amplified DoS from a hostile DNS response. Fix in
+    # hickory 0.26; resolver bump pending. Self-hosted, operator picks the
+    # resolver target.
+    "RUSTSEC-2026-0119",
+    # rustls-webpki 0.102 (via rumqttc -> rustls 0.22): cert name-constraint
+    # + CRL-parse panics. Fix needs rustls 0.23 (webpki 0.103), gated on a
+    # rumqttc upgrade. MQTT probe verifies an operator-specified broker's
+    # cert; CRL path is not exercised by default config.
+    "RUSTSEC-2026-0049",
+    "RUSTSEC-2026-0098",
+    "RUSTSEC-2026-0099",
+    "RUSTSEC-2026-0104",
+]
+
+[licenses]
+version = 2
+# Rampart is AGPL-3.0. Inbound deps must be under permissive or weak-copyleft
+# licenses we can legally combine with AGPL. Strong-copyleft GPL deps would
+# be fine for us specifically, but we keep the allow-list conservative so a
+# surprising transitive dep gets a human look.
+allow = [
+    # Rampart's own workspace crates are AGPL-3.0.
+    "AGPL-3.0-or-later",
+    "AGPL-3.0",
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "0BSD",
+    "ISC",
+    "Unicode-3.0",
+    "Zlib",
+    "MPL-2.0",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
+]
+confidence-threshold = 0.9
+
+[bans]
+# Warn on duplicate versions of the same crate (bloats the binary), but
+# don't hard-fail — transitive version skew is common and often unavoidable.
+multiple-versions = "warn"
+# The only wildcard deps in this tree are the intra-workspace rampart-*
+# path crates (version "*", normal for an unpublished app). allow-wildcard-
+# paths doesn't apply to crates that look publishable, so we warn rather
+# than fail — there are no registry "*" deps to catch.
+wildcards = "warn"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

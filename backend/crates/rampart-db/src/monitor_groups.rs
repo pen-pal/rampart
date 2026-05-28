@@ -5,13 +5,12 @@
 //!
 //! Dependencies: many-to-many between `monitors(id)` and itself via
 //! `monitor_dependencies`. Helpers expose:
-//!   * `parents_of(child)`         — ids the child waits on
-//!   * `children_of(parent)`       — reverse direction (for UI)
-//!   * `any_parent_down(child)`    — true if any parent's
-//!                                   `current_status` is Down or Pending.
-//!                                   Used by the notifier to suppress
-//!                                   alerts whose root cause is upstream.
-//!   * `would_form_cycle(child, parent)` — guard for attach.
+//! * `parents_of(child)` — ids the child waits on
+//! * `children_of(parent)` — reverse direction (for UI)
+//! * `any_parent_down(child)` — true if any parent's `current_status` is
+//!   Down or Pending. Used by the notifier to suppress alerts whose root
+//!   cause is upstream.
+//! * `would_form_cycle(child, parent)` — guard for attach.
 
 use crate::{DbError, DbPool, DbResult};
 use rampart_core::ids::{MonitorGroupId, MonitorId};
@@ -21,8 +20,8 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 struct GroupRow {
-    id:         Uuid,
-    name:       String,
+    id: Uuid,
+    name: String,
     sort_order: i32,
     created_at: OffsetDateTime,
 }
@@ -30,8 +29,8 @@ struct GroupRow {
 impl From<GroupRow> for MonitorGroup {
     fn from(r: GroupRow) -> Self {
         MonitorGroup {
-            id:         MonitorGroupId::from_uuid(r.id),
-            name:       r.name,
+            id: MonitorGroupId::from_uuid(r.id),
+            name: r.name,
             sort_order: r.sort_order,
             created_at: r.created_at,
         }
@@ -120,7 +119,10 @@ pub async fn parents_of(pool: &DbPool, child: MonitorId) -> DbResult<Vec<Monitor
     )
     .fetch_all(pool)
     .await?;
-    Ok(rows.into_iter().map(|r| MonitorId::from_uuid(r.depends_on_id)).collect())
+    Ok(rows
+        .into_iter()
+        .map(|r| MonitorId::from_uuid(r.depends_on_id))
+        .collect())
 }
 
 pub async fn children_of(pool: &DbPool, parent: MonitorId) -> DbResult<Vec<MonitorId>> {
@@ -130,7 +132,10 @@ pub async fn children_of(pool: &DbPool, parent: MonitorId) -> DbResult<Vec<Monit
     )
     .fetch_all(pool)
     .await?;
-    Ok(rows.into_iter().map(|r| MonitorId::from_uuid(r.monitor_id)).collect())
+    Ok(rows
+        .into_iter()
+        .map(|r| MonitorId::from_uuid(r.monitor_id))
+        .collect())
 }
 
 /// True iff any direct parent of `child` is currently Down or Pending.
@@ -158,20 +163,12 @@ pub async fn any_parent_down(pool: &DbPool, child: MonitorId) -> DbResult<bool> 
 /// Adds the edge `child -> parent`. Returns an error if it would form a
 /// cycle (the dep graph must remain a DAG so notification suppression
 /// can't deadlock).
-pub async fn attach_dependency(
-    pool: &DbPool,
-    child: MonitorId,
-    parent: MonitorId,
-) -> DbResult<()> {
+pub async fn attach_dependency(pool: &DbPool, child: MonitorId, parent: MonitorId) -> DbResult<()> {
     if child == parent {
-        return Err(DbError::Conflict(
-            "monitor cannot depend on itself".into(),
-        ));
+        return Err(DbError::Conflict("monitor cannot depend on itself".into()));
     }
     if would_form_cycle(pool, child, parent).await? {
-        return Err(DbError::Conflict(
-            "dependency would form a cycle".into(),
-        ));
+        return Err(DbError::Conflict("dependency would form a cycle".into()));
     }
     sqlx::query!(
         r#"INSERT INTO monitor_dependencies (monitor_id, depends_on_id)
@@ -184,11 +181,7 @@ pub async fn attach_dependency(
     Ok(())
 }
 
-pub async fn detach_dependency(
-    pool: &DbPool,
-    child: MonitorId,
-    parent: MonitorId,
-) -> DbResult<()> {
+pub async fn detach_dependency(pool: &DbPool, child: MonitorId, parent: MonitorId) -> DbResult<()> {
     sqlx::query!(
         r#"DELETE FROM monitor_dependencies WHERE monitor_id = $1 AND depends_on_id = $2"#,
         child.0,

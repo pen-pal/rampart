@@ -30,8 +30,8 @@ const SESSION_TTL_SECS: i64 = 60 * 60 * 24 * 14;
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/setup",   post(setup))
-        .route("/enable",  post(enable))
+        .route("/setup", post(setup))
+        .route("/enable", post(enable))
         .route("/disable", post(disable))
 }
 
@@ -43,14 +43,11 @@ pub fn public_router() -> Router<AppState> {
 
 #[derive(Serialize)]
 struct SetupResp {
-    secret:       String,
-    otpauth_uri:  String,
+    secret: String,
+    otpauth_uri: String,
 }
 
-async fn setup(
-    State(state): State<AppState>,
-    user: AuthUser,
-) -> Result<Json<SetupResp>, ApiError> {
+async fn setup(State(state): State<AppState>, user: AuthUser) -> Result<Json<SetupResp>, ApiError> {
     let secret = totp::generate_secret();
     let uri = totp::provisioning_uri(&secret, &user.0.email)
         .map_err(|e| ApiError::BadRequest(format!("totp setup: {e}")))?;
@@ -62,11 +59,13 @@ async fn setup(
 }
 
 #[derive(Deserialize)]
-struct EnableInput { code: String }
+struct EnableInput {
+    code: String,
+}
 
 #[derive(Serialize)]
 struct EnableResp {
-    enabled:        bool,
+    enabled: bool,
     recovery_codes: Vec<String>,
 }
 
@@ -98,7 +97,7 @@ async fn enable(
 #[derive(Deserialize)]
 struct DisableInput {
     password: String,
-    code:     String,
+    code: String,
 }
 
 async fn disable(
@@ -132,7 +131,7 @@ async fn disable(
 #[derive(Deserialize)]
 struct VerifyInput {
     challenge_token: String,
-    code:            String,
+    code: String,
 }
 
 #[derive(Serialize)]
@@ -145,8 +144,7 @@ async fn verify(
     headers: HeaderMap,
     Json(input): Json<VerifyInput>,
 ) -> Result<axum::response::Response, ApiError> {
-    let token = Uuid::from_str(&input.challenge_token)
-        .map_err(|_| ApiError::Unauthorized)?;
+    let token = Uuid::from_str(&input.challenge_token).map_err(|_| ApiError::Unauthorized)?;
     let user_id = state
         .consume_totp_challenge(token)
         .await
@@ -177,7 +175,9 @@ async fn verify(
             .into_response());
     }
 
-    rampart_db::users::mark_login(state.pool(), user_id).await.ok();
+    rampart_db::users::mark_login(state.pool(), user_id)
+        .await
+        .ok();
     let user = rampart_db::users::get(state.pool(), user_id).await?;
 
     let session = rampart_db::sessions::create(
@@ -185,7 +185,10 @@ async fn verify(
         user_id,
         SESSION_TTL_SECS,
         None,
-        headers.get("user-agent").and_then(|v| v.to_str().ok()).map(String::from),
+        headers
+            .get("user-agent")
+            .and_then(|v| v.to_str().ok())
+            .map(String::from),
     )
     .await?;
     let cookie = build_session_cookie(session.id, is_secure(&headers));

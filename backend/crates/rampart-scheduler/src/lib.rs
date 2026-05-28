@@ -300,9 +300,13 @@ async fn run_once(
         // dedicated HttpProbe::run_with_proxy path. Other kinds with a
         // dangling proxy_id (e.g. a TCP probe) silently ignore it.
         match rampart_db::proxies::get(pool, pid).await {
-            Ok(proxy) if proxy.active
-                && matches!(monitor.kind,
-                    MonitorKind::Http | MonitorKind::Keyword | MonitorKind::JsonQuery) => {
+            Ok(proxy)
+                if proxy.active
+                    && matches!(
+                        monitor.kind,
+                        MonitorKind::Http | MonitorKind::Keyword | MonitorKind::JsonQuery
+                    ) =>
+            {
                 probes.http_with_proxy(monitor, &proxy).await
             }
             _ => probes.run(monitor).await,
@@ -324,7 +328,7 @@ async fn run_once(
 
         let user_visible_flip = !(prev == MonitorStatus::Pending && hb.status == MonitorStatus::Up)
             && hb.status != MonitorStatus::Maintenance
-            && prev      != MonitorStatus::Maintenance;
+            && prev != MonitorStatus::Maintenance;
         if user_visible_flip {
             if let Some(n) = notifier {
                 n.notify(Event {
@@ -344,10 +348,14 @@ async fn run_once(
     // Refresh TLS cert snapshot for HTTPS HTTP-family monitors. Rate-limited
     // to once per hour per monitor — re-running on every tick would dwarf
     // the probe itself for short intervals.
-    if matches!(monitor.kind, MonitorKind::Http | MonitorKind::Keyword | MonitorKind::JsonQuery) {
+    if matches!(
+        monitor.kind,
+        MonitorKind::Http | MonitorKind::Keyword | MonitorKind::JsonQuery
+    ) {
         if let Some(url) = monitor.url.as_deref() {
             if url.starts_with("https://") {
-                let stale = monitor.cert_checked_at
+                let stale = monitor
+                    .cert_checked_at
                     .map(|t| (time::OffsetDateTime::now_utc() - t).whole_seconds() >= 3600)
                     .unwrap_or(true);
                 if stale {
@@ -361,7 +369,10 @@ async fn run_once(
                                 rampart_checker::tls::fetch_cert(&host, port, to).await
                             {
                                 let _ = rampart_db::monitors::set_cert_info(
-                                    &pool, id, snap.days_left, &snap.subject,
+                                    &pool,
+                                    id,
+                                    snap.days_left,
+                                    &snap.subject,
                                 )
                                 .await;
                             }
@@ -379,7 +390,7 @@ fn parse_https(url: &str) -> Option<(String, u16)> {
     // strip optional userinfo + handle [v6] later — fine for current scope
     let (host, port) = match host_part.rsplit_once(':') {
         Some((h, p)) => (h.to_string(), p.parse().ok()?),
-        None         => (host_part.to_string(), 443u16),
+        None => (host_part.to_string(), 443u16),
     };
     Some((host, port))
 }
@@ -461,14 +472,14 @@ async fn flush(pool: &DbPool, batch: &[Heartbeat]) -> bool {
 fn maintenance_heartbeat(monitor: &Monitor) -> Heartbeat {
     use time::OffsetDateTime;
     Heartbeat {
-        monitor_id:  monitor.id,
-        ts:          OffsetDateTime::now_utc(),
-        status:      MonitorStatus::Maintenance,
-        latency_ms:  None,
+        monitor_id: monitor.id,
+        ts: OffsetDateTime::now_utc(),
+        status: MonitorStatus::Maintenance,
+        latency_ms: None,
         status_code: None,
-        msg:         Some("in maintenance".into()),
-        retries:     0,
-        important:   false,
+        msg: Some("in maintenance".into()),
+        retries: 0,
+        important: false,
     }
 }
 
@@ -487,10 +498,7 @@ async fn push_heartbeat(monitor: &Monitor, pool: &DbPool) -> Heartbeat {
         .flatten();
 
     let (status, msg) = match last {
-        None => (
-            MonitorStatus::Down,
-            Some("no push received yet".into()),
-        ),
+        None => (MonitorStatus::Down, Some("no push received yet".into())),
         Some(ts) => {
             let elapsed = (now - ts).whole_seconds();
             // 10s grace, scaled by interval if very small intervals are set.
@@ -507,13 +515,13 @@ async fn push_heartbeat(monitor: &Monitor, pool: &DbPool) -> Heartbeat {
     };
 
     Heartbeat {
-        monitor_id:  monitor.id,
-        ts:          now,
+        monitor_id: monitor.id,
+        ts: now,
         status,
-        latency_ms:  None,
+        latency_ms: None,
         status_code: None,
         msg,
-        retries:     0,
-        important:   false,
+        retries: 0,
+        important: false,
     }
 }

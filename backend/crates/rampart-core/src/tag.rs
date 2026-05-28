@@ -9,9 +9,9 @@ use validator::Validate;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Tag {
-    pub id:         TagId,
-    pub name:       String,
-    pub color:      String,
+    pub id: TagId,
+    pub name: String,
+    pub color: String,
     pub created_at: OffsetDateTime,
 }
 
@@ -19,8 +19,8 @@ pub struct Tag {
 /// a monitor row. Skips created_at to keep the payload tight.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TagBrief {
-    pub id:    TagId,
-    pub name:  String,
+    pub id: TagId,
+    pub name: String,
     pub color: String,
 }
 
@@ -34,4 +34,6 @@ pub struct NewTag {
     pub color: String,
 }
 
-fn default_color() -> String { "#14b8a6".into() }
+fn default_color() -> String {
+    "#14b8a6".into()
+}

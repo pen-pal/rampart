@@ -12,9 +12,9 @@ use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
 pub struct MatrixConfig {
-    pub homeserver:   String,
+    pub homeserver: String,
     pub access_token: String,
-    pub room_id:      String,
+    pub room_id: String,
 }
 
 pub struct Matrix {
@@ -27,16 +27,21 @@ impl Matrix {
         let cfg: MatrixConfig = serde_json::from_value(raw.clone())
             .map_err(|e| ChannelError::BadConfig(e.to_string()))?;
         if !cfg.homeserver.starts_with("http") {
-            return Err(ChannelError::BadConfig("homeserver must be http(s)://".into()));
+            return Err(ChannelError::BadConfig(
+                "homeserver must be http(s)://".into(),
+            ));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
 #[derive(Serialize)]
 struct MsgBody<'a> {
     msgtype: &'static str,
-    body:    &'a str,
+    body: &'a str,
 }
 
 #[async_trait]
@@ -51,8 +56,12 @@ impl Channel for Matrix {
             txn,
         );
         let full = format!("{subject}\n\n{body}");
-        let payload = MsgBody { msgtype: "m.text", body: &full };
-        let resp = self.client
+        let payload = MsgBody {
+            msgtype: "m.text",
+            body: &full,
+        };
+        let resp = self
+            .client
             .put(&url)
             .bearer_auth(&self.cfg.access_token)
             .json(&payload)
@@ -73,7 +82,9 @@ impl Channel for Matrix {
 fn urlencode(s: &str) -> String {
     s.bytes()
         .map(|b| match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => (b as char).to_string(),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (b as char).to_string()
+            }
             _ => format!("%{b:02X}"),
         })
         .collect()

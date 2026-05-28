@@ -8,10 +8,10 @@
 
 use crate::channels::webpush_crypto::{encrypt, generate_vapid_keys, vapid_authorization};
 use crate::{ChannelError, Event};
-use rampart_core::ids::NotificationId;
-use rampart_db::DbPool;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
+use rampart_core::ids::NotificationId;
+use rampart_db::DbPool;
 use serde::Deserialize;
 use tracing::{info, warn};
 
@@ -70,21 +70,37 @@ pub async fn send_all(
     for sub in subs {
         let p256dh = match URL_SAFE_NO_PAD.decode(sub.p256dh.trim_end_matches('=')) {
             Ok(b) => b,
-            Err(e) => { warn!(endpoint = %sub.endpoint, error = %e, "bad p256dh"); continue; }
+            Err(e) => {
+                warn!(endpoint = %sub.endpoint, error = %e, "bad p256dh");
+                continue;
+            }
         };
         let auth = match URL_SAFE_NO_PAD.decode(sub.auth.trim_end_matches('=')) {
             Ok(b) => b,
-            Err(e) => { warn!(endpoint = %sub.endpoint, error = %e, "bad auth"); continue; }
+            Err(e) => {
+                warn!(endpoint = %sub.endpoint, error = %e, "bad auth");
+                continue;
+            }
         };
 
         let enc = match encrypt(&payload_bytes, &p256dh, &auth) {
             Ok(e) => e,
-            Err(e) => { warn!(endpoint = %sub.endpoint, error = %e, "encrypt failed"); last_err = Some(e.to_string()); continue; }
+            Err(e) => {
+                warn!(endpoint = %sub.endpoint, error = %e, "encrypt failed");
+                last_err = Some(e.to_string());
+                continue;
+            }
         };
-        let auth_header = match vapid_authorization(&sub.endpoint, &vapid_subject, &vapid.private, &vapid.public) {
-            Ok(h) => h,
-            Err(e) => { warn!(endpoint = %sub.endpoint, error = %e, "vapid header failed"); last_err = Some(e.to_string()); continue; }
-        };
+        let auth_header =
+            match vapid_authorization(&sub.endpoint, &vapid_subject, &vapid.private, &vapid.public)
+            {
+                Ok(h) => h,
+                Err(e) => {
+                    warn!(endpoint = %sub.endpoint, error = %e, "vapid header failed");
+                    last_err = Some(e.to_string());
+                    continue;
+                }
+            };
 
         let resp = client
             .post(&sub.endpoint)
@@ -98,7 +114,9 @@ pub async fn send_all(
             .await;
 
         match resp {
-            Ok(r) if r.status().is_success() => { delivered += 1; }
+            Ok(r) if r.status().is_success() => {
+                delivered += 1;
+            }
             Ok(r) if r.status().as_u16() == 404 || r.status().as_u16() == 410 => {
                 // Subscription expired/gone — prune it so we stop trying.
                 info!(endpoint = %sub.endpoint, "pruning expired webpush subscription");
@@ -110,13 +128,19 @@ pub async fn send_all(
                 warn!(endpoint = %sub.endpoint, code, "webpush push rejected");
                 last_err = Some(format!("{code}: {txt}"));
             }
-            Err(e) => { warn!(endpoint = %sub.endpoint, error = %e, "webpush send failed"); last_err = Some(e.to_string()); }
+            Err(e) => {
+                warn!(endpoint = %sub.endpoint, error = %e, "webpush send failed");
+                last_err = Some(e.to_string());
+            }
         }
     }
 
     if delivered == 0 {
         if let Some(e) = last_err {
-            return Err(ChannelError::Upstream(0, format!("all webpush deliveries failed: {e}")));
+            return Err(ChannelError::Upstream(
+                0,
+                format!("all webpush deliveries failed: {e}"),
+            ));
         }
     }
     info!(delivered, "webpush fan-out complete");

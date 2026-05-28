@@ -11,8 +11,8 @@ use validator::Validate;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MonitorGroup {
-    pub id:         MonitorGroupId,
-    pub name:       String,
+    pub id: MonitorGroupId,
+    pub name: String,
     pub sort_order: i32,
     pub created_at: OffsetDateTime,
 }
@@ -20,7 +20,7 @@ pub struct MonitorGroup {
 #[derive(Debug, Clone, Deserialize, Validate)]
 pub struct NewMonitorGroup {
     #[validate(length(min = 1, max = 80))]
-    pub name:       String,
+    pub name: String,
     #[serde(default)]
     pub sort_order: i32,
 }
@@ -28,6 +28,6 @@ pub struct NewMonitorGroup {
 #[derive(Debug, Clone, Deserialize, Validate)]
 pub struct UpdateMonitorGroup {
     #[validate(length(min = 1, max = 80))]
-    pub name:       Option<String>,
+    pub name: Option<String>,
     pub sort_order: Option<i32>,
 }

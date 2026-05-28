@@ -19,20 +19,22 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[derive(Debug, Deserialize)]
 pub struct AzureSbConfig {
     /// e.g. "my-namespace" (omit ".servicebus.windows.net")
-    pub namespace:    String,
+    pub namespace: String,
     /// Queue or topic name.
-    pub entity:       String,
+    pub entity: String,
     /// Name of the SAS policy (e.g. "RootManageSharedAccessKey" or
     /// a send-only policy).
     pub sas_key_name: String,
     /// Primary or secondary key value associated with the policy.
-    pub sas_key:      String,
+    pub sas_key: String,
     /// Token TTL in seconds. Defaults to 5 minutes — long enough for
     /// retries, short enough to bound replay damage if the token leaks.
     #[serde(default = "default_ttl")]
-    pub ttl_seconds:  u64,
+    pub ttl_seconds: u64,
 }
-fn default_ttl() -> u64 { 300 }
+fn default_ttl() -> u64 {
+    300
+}
 
 pub struct AzureServicebus {
     cfg: AzureSbConfig,
@@ -52,7 +54,10 @@ impl AzureServicebus {
                 "namespace, entity, sas_key_name + sas_key required".into(),
             ));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 
     fn sign(&self, target_uri: &str) -> Result<String, ChannelError> {
@@ -77,11 +82,11 @@ impl AzureServicebus {
 
 #[derive(Serialize)]
 struct Payload<'a> {
-    subject:    &'a str,
-    body:       &'a str,
-    monitor:    &'a str,
+    subject: &'a str,
+    body: &'a str,
+    monitor: &'a str,
     monitor_id: String,
-    status:     &'a str,
+    status: &'a str,
 }
 
 #[async_trait]
@@ -91,14 +96,14 @@ impl Channel for AzureServicebus {
             "https://{}.servicebus.windows.net/{}",
             self.cfg.namespace, self.cfg.entity
         );
-        let url  = format!("{target}/messages");
+        let url = format!("{target}/messages");
         let auth = self.sign(&target)?;
         let payload = Payload {
             subject,
             body,
-            monitor:    &event.monitor.name,
+            monitor: &event.monitor.name,
             monitor_id: event.monitor.id.0.to_string(),
-            status:     event.status_str(),
+            status: event.status_str(),
         };
         let resp = self
             .client

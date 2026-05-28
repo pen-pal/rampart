@@ -168,8 +168,8 @@ async fn send_test(
         created_at: now,
         updated_at: now,
         tags: Vec::new(),
-        cert_days_left:  None,
-        cert_subject:    None,
+        cert_days_left: None,
+        cert_subject: None,
         cert_checked_at: None,
         group_id: None,
     };
@@ -192,8 +192,16 @@ async fn send_test(
     let subject = rampart_notifier::template::default_subject(&event);
     let body = rampart_notifier::template::default_body(&event);
 
-    rampart_notifier::channels::dispatch(n.kind, &n.config, &subject, &body, &event, state.pool(), n.id)
-        .await
-        .map_err(|e| ApiError::BadRequest(format!("channel dispatch failed: {e}")))?;
+    rampart_notifier::channels::dispatch(
+        n.kind,
+        &n.config,
+        &subject,
+        &body,
+        &event,
+        state.pool(),
+        n.id,
+    )
+    .await
+    .map_err(|e| ApiError::BadRequest(format!("channel dispatch failed: {e}")))?;
     Ok(StatusCode::NO_CONTENT)
 }

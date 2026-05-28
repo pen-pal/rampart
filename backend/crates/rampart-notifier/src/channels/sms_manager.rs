@@ -6,18 +6,23 @@ use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 pub struct SmsManagerConfig {
-    pub api_key:   String,
+    pub api_key: String,
     /// comma-separated CZ numbers
-    pub numbers:   String,
+    pub numbers: String,
     /// e.g. "lowcost", "economy", "high".
     #[serde(default = "default_quality")]
-    pub quality:   String,
+    pub quality: String,
     #[serde(default)]
     pub sender_id: Option<String>,
 }
-fn default_quality() -> String { "economy".into() }
+fn default_quality() -> String {
+    "economy".into()
+}
 
-pub struct SmsManager { cfg: SmsManagerConfig, client: reqwest::Client }
+pub struct SmsManager {
+    cfg: SmsManagerConfig,
+    client: reqwest::Client,
+}
 
 impl SmsManager {
     pub fn from_config(raw: &serde_json::Value) -> Result<Self, ChannelError> {
@@ -26,7 +31,10 @@ impl SmsManager {
         if cfg.api_key.is_empty() || cfg.numbers.is_empty() {
             return Err(ChannelError::BadConfig("api_key + numbers required".into()));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
@@ -35,16 +43,25 @@ impl Channel for SmsManager {
     async fn send(&self, subject: &str, body: &str, _event: &Event) -> Result<(), ChannelError> {
         let text = format!("{subject}\n{body}");
         let mut params = vec![
-            ("apikey",  self.cfg.api_key.clone()),
-            ("number",  self.cfg.numbers.clone()),
+            ("apikey", self.cfg.api_key.clone()),
+            ("number", self.cfg.numbers.clone()),
             ("message", text),
             ("gateway", self.cfg.quality.clone()),
         ];
-        if let Some(s) = &self.cfg.sender_id { params.push(("senderid", s.clone())); }
-        let resp = self.client.get("https://http-api.smsmanager.cz/Send")
-            .query(&params).send().await?;
+        if let Some(s) = &self.cfg.sender_id {
+            params.push(("senderid", s.clone()));
+        }
+        let resp = self
+            .client
+            .get("https://http-api.smsmanager.cz/Send")
+            .query(&params)
+            .send()
+            .await?;
         if !resp.status().is_success() {
-            return Err(ChannelError::Upstream(resp.status().as_u16(), resp.text().await.unwrap_or_default()));
+            return Err(ChannelError::Upstream(
+                resp.status().as_u16(),
+                resp.text().await.unwrap_or_default(),
+            ));
         }
         Ok(())
     }

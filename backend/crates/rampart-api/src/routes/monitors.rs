@@ -11,9 +11,9 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use rampart_db::users::User;
 use rampart_core::monitor::{NewMonitor, UpdateMonitor};
 use rampart_core::{Heartbeat, Monitor, MonitorId, MonitorStatus};
+use rampart_db::users::User;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use time::OffsetDateTime;
@@ -56,9 +56,16 @@ async fn create(
     input.validate()?;
     let monitor = rampart_db::monitors::create(state.pool(), input).await?;
     state.poke_scheduler();
-    crate::audit::record(state.pool(), &user, &headers,
-        "monitor.create", "monitor", Some(monitor.id.0),
-        Some(serde_json::json!({ "name": monitor.name, "kind": monitor.kind }))).await;
+    crate::audit::record(
+        state.pool(),
+        &user,
+        &headers,
+        "monitor.create",
+        "monitor",
+        Some(monitor.id.0),
+        Some(serde_json::json!({ "name": monitor.name, "kind": monitor.kind })),
+    )
+    .await;
     Ok((StatusCode::CREATED, Json(monitor)))
 }
 
@@ -80,8 +87,16 @@ async fn delete_one(
     let monitor_id = parse_monitor_id(&id)?;
     rampart_db::monitors::delete(state.pool(), monitor_id).await?;
     state.poke_scheduler();
-    crate::audit::record(state.pool(), &user, &headers,
-        "monitor.delete", "monitor", Some(monitor_id.0), None).await;
+    crate::audit::record(
+        state.pool(),
+        &user,
+        &headers,
+        "monitor.delete",
+        "monitor",
+        Some(monitor_id.0),
+        None,
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -98,8 +113,16 @@ async fn update(
     // Interval / url / proxy_id changes need the running probe task to
     // pick up the new config — poke triggers a reload diff.
     state.poke_scheduler();
-    crate::audit::record(state.pool(), &user, &headers,
-        "monitor.update", "monitor", Some(monitor_id.0), None).await;
+    crate::audit::record(
+        state.pool(),
+        &user,
+        &headers,
+        "monitor.update",
+        "monitor",
+        Some(monitor_id.0),
+        None,
+    )
+    .await;
     Ok(Json(monitor))
 }
 
@@ -112,8 +135,16 @@ async fn pause(
     let monitor_id = parse_monitor_id(&id)?;
     rampart_db::monitors::set_active(state.pool(), monitor_id, false).await?;
     state.poke_scheduler();
-    crate::audit::record(state.pool(), &user, &headers,
-        "monitor.pause", "monitor", Some(monitor_id.0), None).await;
+    crate::audit::record(
+        state.pool(),
+        &user,
+        &headers,
+        "monitor.pause",
+        "monitor",
+        Some(monitor_id.0),
+        None,
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -126,8 +157,16 @@ async fn resume(
     let monitor_id = parse_monitor_id(&id)?;
     rampart_db::monitors::set_active(state.pool(), monitor_id, true).await?;
     state.poke_scheduler();
-    crate::audit::record(state.pool(), &user, &headers,
-        "monitor.resume", "monitor", Some(monitor_id.0), None).await;
+    crate::audit::record(
+        state.pool(),
+        &user,
+        &headers,
+        "monitor.resume",
+        "monitor",
+        Some(monitor_id.0),
+        None,
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -199,10 +238,13 @@ async fn bulk(
     for raw in &req.monitor_ids {
         let mid = match parse_monitor_id(raw) {
             Ok(m) => m,
-            Err(_) => { failed += 1; continue; }
+            Err(_) => {
+                failed += 1;
+                continue;
+            }
         };
         let res = match &req.action {
-            BulkAction::Pause  => rampart_db::monitors::set_active(pool, mid, false).await,
+            BulkAction::Pause => rampart_db::monitors::set_active(pool, mid, false).await,
             BulkAction::Resume => rampart_db::monitors::set_active(pool, mid, true).await,
             BulkAction::Delete => rampart_db::monitors::delete(pool, mid).await,
             BulkAction::SetGroup { .. } => {
@@ -226,9 +268,16 @@ async fn bulk(
         BulkAction::AddTag { .. } => "add_tag",
         BulkAction::RemoveTag { .. } => "remove_tag",
     };
-    crate::audit::record(pool, &user, &headers,
-        "monitor.bulk", "monitor", None,
-        Some(serde_json::json!({ "action": action_name, "ok": ok, "failed": failed }))).await;
+    crate::audit::record(
+        pool,
+        &user,
+        &headers,
+        "monitor.bulk",
+        "monitor",
+        None,
+        Some(serde_json::json!({ "action": action_name, "ok": ok, "failed": failed })),
+    )
+    .await;
 
     Ok(Json(BulkResult { ok, failed }))
 }
@@ -248,32 +297,39 @@ async fn clone_one(
     let monitor_id = parse_monitor_id(&id)?;
     let src = rampart_db::monitors::get(state.pool(), monitor_id).await?;
     let copy = rampart_core::monitor::NewMonitor {
-        name:                format!("{} (copy)", src.name),
-        kind:                src.kind,
-        url:                 src.url.clone(),
-        hostname:            src.hostname.clone(),
-        port:                src.port,
-        config:              src.config.clone(),
-        interval_seconds:    src.interval_seconds,
-        retry_interval_sec:  src.retry_interval_sec,
-        max_retries:         src.max_retries,
-        timeout_seconds:     src.timeout_seconds,
+        name: format!("{} (copy)", src.name),
+        kind: src.kind,
+        url: src.url.clone(),
+        hostname: src.hostname.clone(),
+        port: src.port,
+        config: src.config.clone(),
+        interval_seconds: src.interval_seconds,
+        retry_interval_sec: src.retry_interval_sec,
+        max_retries: src.max_retries,
+        timeout_seconds: src.timeout_seconds,
         resend_interval_sec: src.resend_interval_sec,
-        upside_down:         src.upside_down,
-        http_method:         src.http_method.clone(),
-        http_body:           src.http_body.clone(),
-        http_headers:        src.http_headers.clone(),
-        accepted_statuses:   src.accepted_statuses.clone(),
-        follow_redirect:     src.follow_redirect,
-        ignore_tls:          src.ignore_tls,
-        proxy_id:            src.proxy_id,
-        group_id:            src.group_id,
+        upside_down: src.upside_down,
+        http_method: src.http_method.clone(),
+        http_body: src.http_body.clone(),
+        http_headers: src.http_headers.clone(),
+        accepted_statuses: src.accepted_statuses.clone(),
+        follow_redirect: src.follow_redirect,
+        ignore_tls: src.ignore_tls,
+        proxy_id: src.proxy_id,
+        group_id: src.group_id,
     };
     let cloned = rampart_db::monitors::create(state.pool(), copy).await?;
     state.poke_scheduler();
-    crate::audit::record(state.pool(), &user, &headers,
-        "monitor.clone", "monitor", Some(cloned.id.0),
-        Some(serde_json::json!({ "source": monitor_id.0, "name": cloned.name }))).await;
+    crate::audit::record(
+        state.pool(),
+        &user,
+        &headers,
+        "monitor.clone",
+        "monitor",
+        Some(cloned.id.0),
+        Some(serde_json::json!({ "source": monitor_id.0, "name": cloned.name })),
+    )
+    .await;
     Ok((StatusCode::CREATED, Json(cloned)))
 }
 
@@ -386,9 +442,9 @@ async fn heartbeats_csv(
     if since >= until {
         return Err(ApiError::BadRequest("since must be before until".into()));
     }
-    let hbs = rampart_db::heartbeats::range_for_monitor(
-        state.pool(), monitor_id, since, until, 50_000,
-    ).await?;
+    let hbs =
+        rampart_db::heartbeats::range_for_monitor(state.pool(), monitor_id, since, until, 50_000)
+            .await?;
 
     // RFC3339 timestamps; CSV-escape only `msg` (everything else is
     // numeric / enum / boolean and can't contain commas or quotes).
@@ -398,11 +454,11 @@ async fn heartbeats_csv(
     for h in &hbs {
         let ts = h.ts.format(&fmt).unwrap_or_default();
         let status = match h.status {
-            MonitorStatus::Up          => "up",
-            MonitorStatus::Down        => "down",
-            MonitorStatus::Warn        => "warn",
-            MonitorStatus::Paused      => "paused",
-            MonitorStatus::Pending     => "pending",
+            MonitorStatus::Up => "up",
+            MonitorStatus::Down => "down",
+            MonitorStatus::Warn => "warn",
+            MonitorStatus::Paused => "paused",
+            MonitorStatus::Pending => "pending",
             MonitorStatus::Maintenance => "maintenance",
         };
         body.push_str(&format!(

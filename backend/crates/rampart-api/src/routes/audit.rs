@@ -17,24 +17,26 @@ pub fn router() -> Router<AppState> {
 #[derive(Deserialize)]
 struct ListQuery {
     #[serde(default = "default_limit")]
-    limit:  i64,
+    limit: i64,
     before: Option<i64>,
-    kind:   Option<String>,
+    kind: Option<String>,
     /// Prefix match on action, e.g. "monitor." or "monitor.delete".
     action: Option<String>,
     /// Filter to a single actor user id.
-    actor:  Option<String>,
+    actor: Option<String>,
 }
-fn default_limit() -> i64 { 100 }
+fn default_limit() -> i64 {
+    100
+}
 
 async fn list(
     State(s): State<AppState>,
     Query(q): Query<ListQuery>,
 ) -> Result<Json<Vec<AuditEntry>>, ApiError> {
     let actor = match q.actor.as_deref() {
-        Some(a) if !a.is_empty() => Some(
-            Uuid::from_str(a).map_err(|_| ApiError::BadRequest("invalid actor id".into()))?,
-        ),
+        Some(a) if !a.is_empty() => {
+            Some(Uuid::from_str(a).map_err(|_| ApiError::BadRequest("invalid actor id".into()))?)
+        }
         _ => None,
     };
     let action_prefix = q.action.as_deref().filter(|s| !s.is_empty());
@@ -45,5 +47,7 @@ async fn list(
         action_prefix,
         actor,
     };
-    Ok(Json(rampart_db::audit::list(s.pool(), q.limit, filter).await?))
+    Ok(Json(
+        rampart_db::audit::list(s.pool(), q.limit, filter).await?,
+    ))
 }

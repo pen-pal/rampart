@@ -28,14 +28,17 @@ impl Line {
                 "channel_access_token and to are required".into(),
             ));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
 #[derive(Serialize)]
 struct Payload<'a> {
-    to:        &'a str,
-    messages:  Vec<Msg>,
+    to: &'a str,
+    messages: Vec<Msg>,
 }
 #[derive(Serialize)]
 struct Msg {
@@ -54,7 +57,8 @@ impl Channel for Line {
             to: &self.cfg.to,
             messages: vec![Msg { kind: "text", text }],
         };
-        let resp = self.client
+        let resp = self
+            .client
             .post("https://api.line.me/v2/bot/message/push")
             .bearer_auth(&self.cfg.channel_access_token)
             .json(&payload)

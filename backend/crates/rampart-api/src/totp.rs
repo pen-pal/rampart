@@ -31,7 +31,9 @@ pub fn provisioning_uri(secret_b32: &str, account: &str) -> Result<String, Strin
 /// or either neighbour to absorb clock skew.
 pub fn verify(secret_b32: &str, code: &str) -> bool {
     let code = code.trim();
-    let Ok(totp) = build_totp(secret_b32, "_") else { return false };
+    let Ok(totp) = build_totp(secret_b32, "_") else {
+        return false;
+    };
     matches!(totp.check_current(code), Ok(true))
 }
 
@@ -41,7 +43,7 @@ fn build_totp(secret_b32: &str, account: &str) -> Result<TOTP, String> {
     TOTP::new(
         Algorithm::SHA1,
         6,
-        1,           // window: 1 step either side of current
+        1, // window: 1 step either side of current
         30,
         raw,
         Some(ISSUER.to_string()),

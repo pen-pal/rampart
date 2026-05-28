@@ -20,10 +20,14 @@ use tokio::time::timeout;
 pub struct KafkaProbe;
 
 impl KafkaProbe {
-    pub fn new() -> Self { Self }
+    pub fn new() -> Self {
+        Self
+    }
 }
 impl Default for KafkaProbe {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[async_trait]
@@ -80,12 +84,18 @@ async fn exchange(mut stream: TcpStream) -> Result<(), String> {
     frame.extend_from_slice(&(body.len() as i32).to_be_bytes());
     frame.extend_from_slice(&body);
 
-    stream.write_all(&frame).await.map_err(|e| format!("write: {e}"))?;
+    stream
+        .write_all(&frame)
+        .await
+        .map_err(|e| format!("write: {e}"))?;
     stream.flush().await.map_err(|e| format!("flush: {e}"))?;
 
     // Response: 4-byte size, 4-byte correlation, 2-byte error code, ...
     let mut size_buf = [0u8; 4];
-    stream.read_exact(&mut size_buf).await.map_err(|e| format!("read size: {e}"))?;
+    stream
+        .read_exact(&mut size_buf)
+        .await
+        .map_err(|e| format!("read size: {e}"))?;
     let size = i32::from_be_bytes(size_buf);
     if !(6..=65536).contains(&size) {
         return Err(format!("implausible response size {size}"));
@@ -93,7 +103,10 @@ async fn exchange(mut stream: TcpStream) -> Result<(), String> {
 
     // Read header (correlation + error code).
     let mut hdr = [0u8; 6];
-    stream.read_exact(&mut hdr).await.map_err(|e| format!("read hdr: {e}"))?;
+    stream
+        .read_exact(&mut hdr)
+        .await
+        .map_err(|e| format!("read hdr: {e}"))?;
     let err = i16::from_be_bytes([hdr[4], hdr[5]]);
     if err != 0 {
         return Err(format!("broker error code {err}"));
@@ -108,9 +121,13 @@ async fn exchange(mut stream: TcpStream) -> Result<(), String> {
         let mut left = remaining;
         while left > 0 {
             let take = left.min(sink_len);
-            let n = stream.read(&mut sink[..take]).await
+            let n = stream
+                .read(&mut sink[..take])
+                .await
                 .map_err(|e| format!("drain: {e}"))?;
-            if n == 0 { break; }
+            if n == 0 {
+                break;
+            }
             left = left.saturating_sub(n);
         }
     }

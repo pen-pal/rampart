@@ -11,7 +11,10 @@ pub struct LarkConfig {
     pub webhook_url: String,
 }
 
-pub struct Lark { cfg: LarkConfig, client: reqwest::Client }
+pub struct Lark {
+    cfg: LarkConfig,
+    client: reqwest::Client,
+}
 
 impl Lark {
     pub fn from_config(raw: &serde_json::Value) -> Result<Self, ChannelError> {
@@ -22,7 +25,10 @@ impl Lark {
                 "webhook_url must point at lark / feishu".into(),
             ));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
@@ -32,15 +38,23 @@ struct Payload<'a> {
     content: Content<'a>,
 }
 #[derive(Serialize)]
-struct Content<'a> { text: &'a str }
+struct Content<'a> {
+    text: &'a str,
+}
 
 #[async_trait]
 impl Channel for Lark {
     async fn send(&self, subject: &str, body: &str, _event: &Event) -> Result<(), ChannelError> {
         let text = format!("{subject}\n{body}");
-        let resp = self.client.post(&self.cfg.webhook_url)
-            .json(&Payload { msg_type: "text", content: Content { text: &text } })
-            .send().await?;
+        let resp = self
+            .client
+            .post(&self.cfg.webhook_url)
+            .json(&Payload {
+                msg_type: "text",
+                content: Content { text: &text },
+            })
+            .send()
+            .await?;
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
         if !status.is_success() {

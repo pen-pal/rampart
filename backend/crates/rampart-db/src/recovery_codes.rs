@@ -9,12 +9,9 @@ use uuid::Uuid;
 /// plaintext codes — only chance the caller has to show them.
 pub async fn issue_batch(pool: &DbPool, user: UserId, count: usize) -> DbResult<Vec<String>> {
     let mut tx = pool.begin().await?;
-    sqlx::query!(
-        "DELETE FROM totp_recovery_codes WHERE user_id = $1",
-        user.0,
-    )
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query!("DELETE FROM totp_recovery_codes WHERE user_id = $1", user.0,)
+        .execute(&mut *tx)
+        .await?;
 
     let mut plain = Vec::with_capacity(count);
     for _ in 0..count {
@@ -56,12 +53,9 @@ pub async fn consume(pool: &DbPool, user: UserId, code: &str) -> DbResult<bool> 
 }
 
 pub async fn delete_for_user(pool: &DbPool, user: UserId) -> DbResult<()> {
-    sqlx::query!(
-        "DELETE FROM totp_recovery_codes WHERE user_id = $1",
-        user.0,
-    )
-    .execute(pool)
-    .await?;
+    sqlx::query!("DELETE FROM totp_recovery_codes WHERE user_id = $1", user.0,)
+        .execute(pool)
+        .await?;
     Ok(())
 }
 
@@ -94,4 +88,3 @@ fn sha256_hex(s: &str) -> String {
     h.update(s.as_bytes());
     hex::encode(h.finalize())
 }
-

@@ -17,13 +17,13 @@ use validator::Validate;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StatusPage {
-    pub id:          StatusPageId,
-    pub slug:        String,
-    pub title:       String,
+    pub id: StatusPageId,
+    pub slug: String,
+    pub title: String,
     pub description: Option<String>,
-    pub theme:       String,
-    pub created_at:  OffsetDateTime,
-    pub updated_at:  OffsetDateTime,
+    pub theme: String,
+    pub created_at: OffsetDateTime,
+    pub updated_at: OffsetDateTime,
     /// Monitors shown on this page, in display order. Populated by
     /// detail / list reads; create returns the freshly attached set.
     #[serde(default)]
@@ -67,52 +67,53 @@ pub struct UpdateStatusPage {
     pub monitor_ids: Option<Vec<MonitorId>>,
 }
 
-fn default_theme() -> String { "light".into() }
+fn default_theme() -> String {
+    "light".into()
+}
 
 /// Public, read-only projection. Fields here are deliberately tight —
 /// no probe targets, no notification channel info.
 #[derive(Debug, Clone, Serialize)]
 pub struct PublicStatusPage {
-    pub slug:        String,
-    pub title:       String,
+    pub slug: String,
+    pub title: String,
     pub description: Option<String>,
-    pub theme:       String,
+    pub theme: String,
     pub generated_at: OffsetDateTime,
-    pub monitors:    Vec<PublicStatusMonitor>,
+    pub monitors: Vec<PublicStatusMonitor>,
     /// Active incidents (active = TRUE), most-recent first, each
     /// carrying its running updates oldest-first.
-    pub incidents:   Vec<PublicIncident>,
+    pub incidents: Vec<PublicIncident>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PublicIncident {
-    pub title:      String,
-    pub content:    String,
-    pub style:      IncidentStyle,
-    pub pinned:     bool,
+    pub title: String,
+    pub content: String,
+    pub style: IncidentStyle,
+    pub pinned: bool,
     pub created_at: OffsetDateTime,
-    pub updates:    Vec<PublicIncidentUpdate>,
+    pub updates: Vec<PublicIncidentUpdate>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PublicIncidentUpdate {
-    pub message:   String,
+    pub message: String,
     pub posted_at: OffsetDateTime,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PublicStatusMonitor {
-    pub name:           String,
+    pub name: String,
     pub current_status: MonitorStatus,
     /// Uptime percentage over the last 90 days, [0.0, 100.0]. Null if
     /// no heartbeats have been recorded yet.
-    pub uptime_90d:     Option<f32>,
+    pub uptime_90d: Option<f32>,
 }
 
 // Compile the slug regex once. We mirror the Postgres CHECK constraint
 // exactly so a slug accepted here always lands in the DB and vice versa.
 use once_cell::sync::Lazy;
 use regex::Regex;
-static SLUG_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^[a-z0-9-]{2,40}$").expect("status-page slug regex compiles")
-});
+static SLUG_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^[a-z0-9-]{2,40}$").expect("status-page slug regex compiles"));

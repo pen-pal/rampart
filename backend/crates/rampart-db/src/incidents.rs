@@ -5,8 +5,9 @@
 //! post updates, mark resolved.
 
 use crate::{DbError, DbPool, DbResult};
-use rampart_core::{Incident, IncidentId, IncidentStyle, IncidentUpdate, IncidentUpdateId,
-    StatusPageId, UserId};
+use rampart_core::{
+    Incident, IncidentId, IncidentStyle, IncidentUpdate, IncidentUpdateId, StatusPageId, UserId,
+};
 use serde::Deserialize;
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -168,10 +169,10 @@ pub async fn delete(pool: &DbPool, id: IncidentId) -> DbResult<()> {
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateIncident {
-    pub title:   Option<String>,
+    pub title: Option<String>,
     pub content: Option<String>,
-    pub style:   Option<IncidentStyle>,
-    pub pinned:  Option<bool>,
+    pub style: Option<IncidentStyle>,
+    pub pinned: Option<bool>,
 }
 
 pub async fn update(pool: &DbPool, id: IncidentId, patch: UpdateIncident) -> DbResult<Incident> {

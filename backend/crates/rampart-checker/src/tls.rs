@@ -110,27 +110,29 @@ impl Probe for TlsProbe {
 
         match inspect(leaf, warn_days) {
             CertVerdict::Ok(days_left, subject) => Heartbeat {
-                monitor_id:  monitor.id,
+                monitor_id: monitor.id,
                 ts,
-                status:      MonitorStatus::Up,
-                latency_ms:  Some(ms_i32(started.elapsed())),
+                status: MonitorStatus::Up,
+                latency_ms: Some(ms_i32(started.elapsed())),
                 status_code: None,
-                msg:         Some(format!("{subject} — {days_left}d left")),
-                retries:     0,
-                important:   false,
+                msg: Some(format!("{subject} — {days_left}d left")),
+                retries: 0,
+                important: false,
             },
             CertVerdict::Warn(days_left, subject) => Heartbeat {
-                monitor_id:  monitor.id,
+                monitor_id: monitor.id,
                 ts,
-                status:      MonitorStatus::Warn,
-                latency_ms:  Some(ms_i32(started.elapsed())),
+                status: MonitorStatus::Warn,
+                latency_ms: Some(ms_i32(started.elapsed())),
                 status_code: None,
-                msg:         Some(format!("{subject} — expires in {days_left}d")),
-                retries:     0,
-                important:   false,
+                msg: Some(format!("{subject} — expires in {days_left}d")),
+                retries: 0,
+                important: false,
             },
             CertVerdict::Expired(days_ago) => down(
-                monitor, ts, started,
+                monitor,
+                ts,
+                started,
                 &format!("certificate expired {days_ago}d ago"),
             ),
             CertVerdict::ParseError(e) => down(monitor, ts, started, &format!("cert parse: {e}")),
@@ -140,14 +142,14 @@ impl Probe for TlsProbe {
 
 fn down(monitor: &Monitor, ts: OffsetDateTime, started: Instant, msg: &str) -> Heartbeat {
     Heartbeat {
-        monitor_id:  monitor.id,
+        monitor_id: monitor.id,
         ts,
-        status:      MonitorStatus::Down,
-        latency_ms:  Some(ms_i32(started.elapsed())),
+        status: MonitorStatus::Down,
+        latency_ms: Some(ms_i32(started.elapsed())),
         status_code: None,
-        msg:         Some(msg.into()),
-        retries:     0,
-        important:   false,
+        msg: Some(msg.into()),
+        retries: 0,
+        important: false,
     }
 }
 
@@ -163,14 +165,13 @@ enum CertVerdict {
 #[derive(Debug, Clone)]
 pub struct CertSnapshot {
     pub days_left: i32,
-    pub subject:   String,
+    pub subject: String,
 }
 
 /// Connect + inspect, no monitor context. Used by the scheduler to refresh
 /// `monitors.cert_days_left` for HTTPS HTTP monitors.
 pub async fn fetch_cert(host: &str, port: u16, to: Duration) -> Result<CertSnapshot, String> {
-    let server_name = ServerName::try_from(host.to_string())
-        .map_err(|e| format!("sni: {e}"))?;
+    let server_name = ServerName::try_from(host.to_string()).map_err(|e| format!("sni: {e}"))?;
 
     let mut roots = RootCertStore::empty();
     roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());

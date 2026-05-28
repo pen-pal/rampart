@@ -59,7 +59,12 @@ impl Probe for DomainProbe {
         let to = Duration::from_secs(monitor.timeout_seconds.max(15) as u64);
 
         let Some(domain) = monitor.hostname.as_deref() else {
-            return down(monitor, ts, started, "domain monitor requires a hostname (domain)");
+            return down(
+                monitor,
+                ts,
+                started,
+                "domain monitor requires a hostname (domain)",
+            );
         };
         let warn_days = monitor
             .config
@@ -80,7 +85,9 @@ impl Probe for DomainProbe {
             Some(s) => s,
             None => {
                 return down(
-                    monitor, ts, started,
+                    monitor,
+                    ts,
+                    started,
                     &format!("no WHOIS server returned by IANA for .{tld}"),
                 );
             }
@@ -111,31 +118,29 @@ impl Probe for DomainProbe {
             // Connect succeeded, but no field we recognise.
             // Surface as Warn rather than Down — the domain probably exists.
             return Heartbeat {
-                monitor_id:  monitor.id,
+                monitor_id: monitor.id,
                 ts,
-                status:      MonitorStatus::Warn,
-                latency_ms:  Some(ms_i32(started.elapsed())),
+                status: MonitorStatus::Warn,
+                latency_ms: Some(ms_i32(started.elapsed())),
                 status_code: None,
-                msg:         Some(format!(
+                msg: Some(format!(
                     "domain {domain}: WHOIS responded but no expiry field recognised"
                 )),
-                retries:     0,
-                important:   false,
+                retries: 0,
+                important: false,
             };
         };
 
         let Some(expiry) = parse_expiry(&raw) else {
             return Heartbeat {
-                monitor_id:  monitor.id,
+                monitor_id: monitor.id,
                 ts,
-                status:      MonitorStatus::Warn,
-                latency_ms:  Some(ms_i32(started.elapsed())),
+                status: MonitorStatus::Warn,
+                latency_ms: Some(ms_i32(started.elapsed())),
                 status_code: None,
-                msg:         Some(format!(
-                    "domain {domain}: could not parse expiry '{raw}'"
-                )),
-                retries:     0,
-                important:   false,
+                msg: Some(format!("domain {domain}: could not parse expiry '{raw}'")),
+                retries: 0,
+                important: false,
             };
         };
 
@@ -143,30 +148,32 @@ impl Probe for DomainProbe {
         let delta_days = (expiry - now).whole_days();
         if delta_days < 0 {
             down(
-                monitor, ts, started,
+                monitor,
+                ts,
+                started,
                 &format!("domain expired {} days ago", -delta_days),
             )
         } else if delta_days <= warn_days {
             Heartbeat {
-                monitor_id:  monitor.id,
+                monitor_id: monitor.id,
                 ts,
-                status:      MonitorStatus::Warn,
-                latency_ms:  Some(ms_i32(started.elapsed())),
+                status: MonitorStatus::Warn,
+                latency_ms: Some(ms_i32(started.elapsed())),
                 status_code: None,
-                msg:         Some(format!("expires in {delta_days}d")),
-                retries:     0,
-                important:   false,
+                msg: Some(format!("expires in {delta_days}d")),
+                retries: 0,
+                important: false,
             }
         } else {
             Heartbeat {
-                monitor_id:  monitor.id,
+                monitor_id: monitor.id,
                 ts,
-                status:      MonitorStatus::Up,
-                latency_ms:  Some(ms_i32(started.elapsed())),
+                status: MonitorStatus::Up,
+                latency_ms: Some(ms_i32(started.elapsed())),
                 status_code: None,
-                msg:         Some(format!("{delta_days}d left")),
-                retries:     0,
-                important:   false,
+                msg: Some(format!("{delta_days}d left")),
+                retries: 0,
+                important: false,
             }
         }
     }
@@ -174,14 +181,14 @@ impl Probe for DomainProbe {
 
 fn down(monitor: &Monitor, ts: OffsetDateTime, started: Instant, msg: &str) -> Heartbeat {
     Heartbeat {
-        monitor_id:  monitor.id,
+        monitor_id: monitor.id,
         ts,
-        status:      MonitorStatus::Down,
-        latency_ms:  Some(ms_i32(started.elapsed())),
+        status: MonitorStatus::Down,
+        latency_ms: Some(ms_i32(started.elapsed())),
         status_code: None,
-        msg:         Some(msg.into()),
-        retries:     0,
-        important:   false,
+        msg: Some(msg.into()),
+        retries: 0,
+        important: false,
     }
 }
 
@@ -226,9 +233,7 @@ fn scan_field(text: &str, keys: &[&str]) -> Option<String> {
     for line in text.lines() {
         let trimmed = line.trim_start();
         for key in keys {
-            if trimmed.len() >= key.len()
-                && trimmed[..key.len()].eq_ignore_ascii_case(key)
-            {
+            if trimmed.len() >= key.len() && trimmed[..key.len()].eq_ignore_ascii_case(key) {
                 let rest = trimmed[key.len()..].trim();
                 if !rest.is_empty() {
                     return Some(rest.to_string());
@@ -259,7 +264,10 @@ fn parse_expiry(raw: &str) -> Option<OffsetDateTime> {
         return Some(d.midnight().assume_utc());
     }
 
-    if let Ok(d) = Date::parse(token, format_description!("[day]-[month repr:short]-[year]")) {
+    if let Ok(d) = Date::parse(
+        token,
+        format_description!("[day]-[month repr:short]-[year]"),
+    ) {
         return Some(d.midnight().assume_utc());
     }
 

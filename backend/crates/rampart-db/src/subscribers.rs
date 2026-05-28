@@ -12,12 +12,12 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Subscriber {
-    pub id:             StatusPageSubscriberId,
+    pub id: StatusPageSubscriberId,
     pub status_page_id: StatusPageId,
-    pub channel:        String,
-    pub destination:    String,
-    pub confirmed:      bool,
-    pub subscribed_at:  OffsetDateTime,
+    pub channel: String,
+    pub destination: String,
+    pub confirmed: bool,
+    pub subscribed_at: OffsetDateTime,
 }
 
 /// Add an email subscriber. Generates a random unsubscribe token. If
@@ -51,12 +51,12 @@ pub async fn subscribe_email(
         let token = row.confirm_token.clone().unwrap_or_else(generate_token);
         return Ok((
             Subscriber {
-                id:             StatusPageSubscriberId::from_uuid(row.id),
+                id: StatusPageSubscriberId::from_uuid(row.id),
                 status_page_id: StatusPageId::from_uuid(row.status_page_id),
-                channel:        row.channel,
-                destination:    row.destination,
-                confirmed:      row.confirmed,
-                subscribed_at:  row.subscribed_at,
+                channel: row.channel,
+                destination: row.destination,
+                confirmed: row.confirmed,
+                subscribed_at: row.subscribed_at,
             },
             token,
         ));
@@ -80,10 +80,10 @@ pub async fn subscribe_email(
     let sub = Subscriber {
         id,
         status_page_id: page,
-        channel:        "email".into(),
-        destination:    email.into(),
-        confirmed:      true,
-        subscribed_at:  OffsetDateTime::now_utc(),
+        channel: "email".into(),
+        destination: email.into(),
+        confirmed: true,
+        subscribed_at: OffsetDateTime::now_utc(),
     };
     Ok((sub, token))
 }
@@ -104,12 +104,12 @@ pub async fn list_for_page(pool: &DbPool, page: StatusPageId) -> DbResult<Vec<Su
     Ok(rows
         .into_iter()
         .map(|r| Subscriber {
-            id:             StatusPageSubscriberId::from_uuid(r.id),
+            id: StatusPageSubscriberId::from_uuid(r.id),
             status_page_id: StatusPageId::from_uuid(r.status_page_id),
-            channel:        r.channel,
-            destination:    r.destination,
-            confirmed:      r.confirmed,
-            subscribed_at:  r.subscribed_at,
+            channel: r.channel,
+            destination: r.destination,
+            confirmed: r.confirmed,
+            subscribed_at: r.subscribed_at,
         })
         .collect())
 }
@@ -130,12 +130,9 @@ pub async fn confirmed_emails_for_page(pool: &DbPool, page: StatusPageId) -> DbR
 }
 
 pub async fn delete(pool: &DbPool, id: StatusPageSubscriberId) -> DbResult<()> {
-    let result = sqlx::query!(
-        "DELETE FROM status_page_subscribers WHERE id = $1",
-        id.0,
-    )
-    .execute(pool)
-    .await?;
+    let result = sqlx::query!("DELETE FROM status_page_subscribers WHERE id = $1", id.0,)
+        .execute(pool)
+        .await?;
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }

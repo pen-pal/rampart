@@ -8,12 +8,9 @@
 use crate::{DbPool, DbResult};
 
 pub async fn get(pool: &DbPool, key: &str) -> DbResult<Option<serde_json::Value>> {
-    let row = sqlx::query!(
-        r#"SELECT value FROM settings WHERE key = $1"#,
-        key,
-    )
-    .fetch_optional(pool)
-    .await?;
+    let row = sqlx::query!(r#"SELECT value FROM settings WHERE key = $1"#, key,)
+        .fetch_optional(pool)
+        .await?;
     Ok(row.map(|r| r.value))
 }
 

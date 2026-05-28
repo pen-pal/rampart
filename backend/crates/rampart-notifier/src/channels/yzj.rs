@@ -9,7 +9,10 @@ pub struct YzjConfig {
     pub webhook_url: String,
 }
 
-pub struct Yzj { cfg: YzjConfig, client: reqwest::Client }
+pub struct Yzj {
+    cfg: YzjConfig,
+    client: reqwest::Client,
+}
 
 impl Yzj {
     pub fn from_config(raw: &serde_json::Value) -> Result<Self, ChannelError> {
@@ -18,7 +21,10 @@ impl Yzj {
         if !cfg.webhook_url.starts_with("http") {
             return Err(ChannelError::BadConfig("webhook_url required".into()));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
@@ -30,11 +36,19 @@ struct Payload {
 #[async_trait]
 impl Channel for Yzj {
     async fn send(&self, subject: &str, body: &str, _event: &Event) -> Result<(), ChannelError> {
-        let resp = self.client.post(&self.cfg.webhook_url)
-            .json(&Payload { content: format!("{subject}\n{body}") })
-            .send().await?;
+        let resp = self
+            .client
+            .post(&self.cfg.webhook_url)
+            .json(&Payload {
+                content: format!("{subject}\n{body}"),
+            })
+            .send()
+            .await?;
         if !resp.status().is_success() {
-            return Err(ChannelError::Upstream(resp.status().as_u16(), resp.text().await.unwrap_or_default()));
+            return Err(ChannelError::Upstream(
+                resp.status().as_u16(),
+                resp.text().await.unwrap_or_default(),
+            ));
         }
         Ok(())
     }

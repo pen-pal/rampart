@@ -8,10 +8,13 @@ use serde::{Deserialize, Serialize};
 pub struct PushyConfig {
     pub api_key: String,
     /// Pushy device token(s).
-    pub to:      Vec<String>,
+    pub to: Vec<String>,
 }
 
-pub struct Pushy { cfg: PushyConfig, client: reqwest::Client }
+pub struct Pushy {
+    cfg: PushyConfig,
+    client: reqwest::Client,
+}
 
 impl Pushy {
     pub fn from_config(raw: &serde_json::Value) -> Result<Self, ChannelError> {
@@ -20,20 +23,28 @@ impl Pushy {
         if cfg.to.is_empty() {
             return Err(ChannelError::BadConfig("to required".into()));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
 #[derive(Serialize)]
 struct Payload<'a> {
-    to:           &'a Vec<String>,
+    to: &'a Vec<String>,
     notification: Notif<'a>,
-    data:         Data<'a>,
+    data: Data<'a>,
 }
 #[derive(Serialize)]
-struct Notif<'a> { title: &'a str, body: &'a str }
+struct Notif<'a> {
+    title: &'a str,
+    body: &'a str,
+}
 #[derive(Serialize)]
-struct Data<'a>  { message: &'a str }
+struct Data<'a> {
+    message: &'a str,
+}
 
 #[async_trait]
 impl Channel for Pushy {
@@ -41,12 +52,18 @@ impl Channel for Pushy {
         let url = format!("https://api.pushy.me/push?api_key={}", self.cfg.api_key);
         let payload = Payload {
             to: &self.cfg.to,
-            notification: Notif { title: subject, body },
+            notification: Notif {
+                title: subject,
+                body,
+            },
             data: Data { message: body },
         };
         let resp = self.client.post(&url).json(&payload).send().await?;
         if !resp.status().is_success() {
-            return Err(ChannelError::Upstream(resp.status().as_u16(), resp.text().await.unwrap_or_default()));
+            return Err(ChannelError::Upstream(
+                resp.status().as_u16(),
+                resp.text().await.unwrap_or_default(),
+            ));
         }
         Ok(())
     }

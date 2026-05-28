@@ -139,7 +139,8 @@ impl Channel for Webhook {
         let body_bytes = serde_json::to_vec(&payload)
             .map_err(|e| ChannelError::BadConfig(format!("payload serialize: {e}")))?;
 
-        let mut req = self.client
+        let mut req = self
+            .client
             .request(method, &self.cfg.url)
             .header(reqwest::header::CONTENT_TYPE, "application/json")
             .body(body_bytes.clone());

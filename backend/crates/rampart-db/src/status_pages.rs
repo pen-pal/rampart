@@ -14,26 +14,26 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 struct PageRow {
-    id:          Uuid,
-    slug:        String,
-    title:       String,
+    id: Uuid,
+    slug: String,
+    title: String,
     description: Option<String>,
-    theme:       String,
-    created_at:  OffsetDateTime,
+    theme: String,
+    created_at: OffsetDateTime,
 }
 
 impl From<PageRow> for StatusPage {
     fn from(r: PageRow) -> Self {
         StatusPage {
-            id:          StatusPageId::from_uuid(r.id),
-            slug:        r.slug,
-            title:       r.title,
+            id: StatusPageId::from_uuid(r.id),
+            slug: r.slug,
+            title: r.title,
             description: r.description,
-            theme:       r.theme,
+            theme: r.theme,
             // The existing schema has no `updated_at`. The API response
             // re-uses `created_at` until a future migration adds one.
-            created_at:  r.created_at,
-            updated_at:  r.created_at,
+            created_at: r.created_at,
+            updated_at: r.created_at,
             monitor_ids: Vec::new(),
         }
     }
@@ -203,12 +203,9 @@ pub async fn update(
     }
 
     if let Some(new_ids) = patch.monitor_ids.as_ref() {
-        sqlx::query!(
-            "DELETE FROM status_page_monitors WHERE page_id = $1",
-            id.0,
-        )
-        .execute(&mut *tx)
-        .await?;
+        sqlx::query!("DELETE FROM status_page_monitors WHERE page_id = $1", id.0,)
+            .execute(&mut *tx)
+            .await?;
         for (i, mid) in new_ids.iter().enumerate() {
             sqlx::query!(
                 r#"
@@ -253,9 +250,9 @@ pub async fn public_view(pool: &DbPool, slug: &str) -> DbResult<PublicStatusPage
             .await?
             .map(|v| v as f32);
         monitors.push(PublicStatusMonitor {
-            name:           m.name,
+            name: m.name,
             current_status: m.current_status,
-            uptime_90d:     uptime,
+            uptime_90d: uptime,
         });
     }
 
@@ -267,15 +264,15 @@ pub async fn public_view(pool: &DbPool, slug: &str) -> DbResult<PublicStatusPage
     for inc in active {
         let updates = crate::incidents::list_updates(pool, inc.id).await?;
         incidents.push(PublicIncident {
-            title:      inc.title,
-            content:    inc.content,
-            style:      inc.style,
-            pinned:     inc.pinned,
+            title: inc.title,
+            content: inc.content,
+            style: inc.style,
+            pinned: inc.pinned,
             created_at: inc.created_at,
-            updates:    updates
+            updates: updates
                 .into_iter()
                 .map(|u| PublicIncidentUpdate {
-                    message:   u.message,
+                    message: u.message,
                     posted_at: u.posted_at,
                 })
                 .collect(),
@@ -283,10 +280,10 @@ pub async fn public_view(pool: &DbPool, slug: &str) -> DbResult<PublicStatusPage
     }
 
     Ok(PublicStatusPage {
-        slug:         page.slug,
-        title:        page.title,
-        description:  page.description,
-        theme:        page.theme,
+        slug: page.slug,
+        title: page.title,
+        description: page.description,
+        theme: page.theme,
         generated_at: OffsetDateTime::now_utc(),
         monitors,
         incidents,
@@ -302,9 +299,7 @@ fn map_slug_conflicts(e: sqlx::Error) -> DbError {
             // 23505 = unique_violation, 23514 = check_violation.
             match db.code().as_deref() {
                 Some("23505") => DbError::Conflict("slug is already in use".into()),
-                Some("23514") => DbError::Conflict(
-                    "slug must match ^[a-z0-9-]{2,40}$".into(),
-                ),
+                Some("23514") => DbError::Conflict("slug must match ^[a-z0-9-]{2,40}$".into()),
                 _ => DbError::from(e),
             }
         }

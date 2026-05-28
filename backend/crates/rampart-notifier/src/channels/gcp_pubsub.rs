@@ -27,21 +27,21 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[derive(Debug, Deserialize)]
 pub struct GcpConfig {
     pub client_email: String,
-    pub private_key:  String,
-    pub project_id:   String,
-    pub topic:        String,
+    pub private_key: String,
+    pub project_id: String,
+    pub topic: String,
 }
 
 #[derive(Clone)]
 struct CachedToken {
-    access:    String,
+    access: String,
     expires_at: u64, // unix seconds
 }
 
 pub struct GcpPubsub {
-    cfg:     GcpConfig,
-    client:  reqwest::Client,
-    cached:  Mutex<Option<CachedToken>>,
+    cfg: GcpConfig,
+    client: reqwest::Client,
+    cached: Mutex<Option<CachedToken>>,
 }
 
 impl GcpPubsub {
@@ -82,17 +82,17 @@ impl GcpPubsub {
         let exp = now + 3600;
         #[derive(Serialize)]
         struct Claims<'a> {
-            iss:   &'a str,
+            iss: &'a str,
             scope: &'a str,
-            aud:   &'a str,
-            iat:   u64,
-            exp:   u64,
+            aud: &'a str,
+            iat: u64,
+            exp: u64,
         }
         let claims = Claims {
-            iss:   &self.cfg.client_email,
+            iss: &self.cfg.client_email,
             scope: "https://www.googleapis.com/auth/pubsub",
-            aud:   "https://oauth2.googleapis.com/token",
-            iat:   now,
+            aud: "https://oauth2.googleapis.com/token",
+            iat: now,
             exp,
         };
         let key = EncodingKey::from_rsa_pem(self.cfg.private_key.as_bytes())
@@ -103,14 +103,14 @@ impl GcpPubsub {
         #[derive(Deserialize)]
         struct TokenResp {
             access_token: String,
-            expires_in:   u64,
+            expires_in: u64,
         }
         let resp = self
             .client
             .post("https://oauth2.googleapis.com/token")
             .form(&[
                 ("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer"),
-                ("assertion",  &jwt),
+                ("assertion", &jwt),
             ])
             .send()
             .await?;
@@ -120,11 +120,12 @@ impl GcpPubsub {
                 resp.text().await.unwrap_or_default(),
             ));
         }
-        let t: TokenResp = resp.json().await.map_err(|e| {
-            ChannelError::Upstream(0, format!("malformed token response: {e}"))
-        })?;
+        let t: TokenResp = resp
+            .json()
+            .await
+            .map_err(|e| ChannelError::Upstream(0, format!("malformed token response: {e}")))?;
         Ok(CachedToken {
-            access:    t.access_token,
+            access: t.access_token,
             // Refresh ~60s before expiry so we never publish with a
             // token about to die mid-request.
             expires_at: now + t.expires_in.saturating_sub(60),
@@ -154,7 +155,7 @@ struct PubsubBody {
 }
 #[derive(Serialize)]
 struct Message {
-    data:       String, // base64
+    data: String, // base64
     attributes: serde_json::Value,
 }
 
@@ -177,7 +178,7 @@ impl Channel for GcpPubsub {
             .encode(serde_json::to_vec(&payload).unwrap_or_default());
         let req_body = PubsubBody {
             messages: vec![Message {
-                data:       data_b64,
+                data: data_b64,
                 attributes: serde_json::json!({
                     "monitor_id": event.monitor.id.0.to_string(),
                     "status":     event.status_str(),

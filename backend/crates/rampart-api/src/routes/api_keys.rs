@@ -44,14 +44,23 @@ async fn create(
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     if let Some(exp) = input.expires_at {
         if exp <= OffsetDateTime::now_utc() {
-            return Err(ApiError::BadRequest("expires_at must be in the future".into()));
+            return Err(ApiError::BadRequest(
+                "expires_at must be in the future".into(),
+            ));
         }
     }
     let name = input.name.clone();
     let issued = rampart_db::api_keys::create(s.pool(), input, user.id).await?;
-    crate::audit::record(s.pool(), &user, &headers,
-        "api_key.create", "api_key", Some(issued.key.id.0),
-        Some(serde_json::json!({ "name": name }))).await;
+    crate::audit::record(
+        s.pool(),
+        &user,
+        &headers,
+        "api_key.create",
+        "api_key",
+        Some(issued.key.id.0),
+        Some(serde_json::json!({ "name": name })),
+    )
+    .await;
     Ok((StatusCode::CREATED, Json(issued)))
 }
 
@@ -63,7 +72,15 @@ async fn revoke(
 ) -> Result<StatusCode, ApiError> {
     let key_id = parse(&id)?;
     rampart_db::api_keys::delete(s.pool(), key_id).await?;
-    crate::audit::record(s.pool(), &user, &headers,
-        "api_key.revoke", "api_key", Some(key_id.0), None).await;
+    crate::audit::record(
+        s.pool(),
+        &user,
+        &headers,
+        "api_key.revoke",
+        "api_key",
+        Some(key_id.0),
+        None,
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }

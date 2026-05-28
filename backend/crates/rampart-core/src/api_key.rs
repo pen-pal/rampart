@@ -15,17 +15,17 @@ use validator::Validate;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiKey {
-    pub id:           ApiKeyId,
-    pub name:         String,
+    pub id: ApiKeyId,
+    pub name: String,
     /// First 8 chars of the raw key — safe to display, lets the user
     /// identify which key they're looking at without exposing the
     /// secret half.
-    pub key_prefix:   String,
-    pub scopes:       Vec<String>,
-    pub created_by:   Option<UserId>,
-    pub created_at:   OffsetDateTime,
+    pub key_prefix: String,
+    pub scopes: Vec<String>,
+    pub created_by: Option<UserId>,
+    pub created_at: OffsetDateTime,
     pub last_used_at: Option<OffsetDateTime>,
-    pub expires_at:   Option<OffsetDateTime>,
+    pub expires_at: Option<OffsetDateTime>,
 }
 
 #[derive(Debug, Clone, Deserialize, Validate)]
@@ -46,7 +46,7 @@ pub struct NewApiKey {
 /// prefix is queryable.
 #[derive(Debug, Clone, Serialize)]
 pub struct IssuedApiKey {
-    pub key:   ApiKey,
+    pub key: ApiKey,
     /// Full plaintext token in `rmp_<32 chars>` form.
     pub token: String,
 }

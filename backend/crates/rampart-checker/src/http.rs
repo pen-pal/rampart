@@ -92,9 +92,9 @@ impl HttpProbe {
     async fn execute(
         &self,
         monitor: &Monitor,
-        client:  &Client,
+        client: &Client,
         started: Instant,
-        ts:      OffsetDateTime,
+        ts: OffsetDateTime,
     ) -> Heartbeat {
         let url = match &monitor.url {
             Some(u) => u.clone(),

@@ -21,9 +21,10 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use validator::Validate;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Recurrence {
+    #[default]
     None,
     Daily {
         #[serde(
@@ -43,12 +44,6 @@ pub enum Recurrence {
         )]
         until: Option<OffsetDateTime>,
     },
-}
-
-impl Default for Recurrence {
-    fn default() -> Self {
-        Recurrence::None
-    }
 }
 
 impl Recurrence {
@@ -110,33 +105,33 @@ fn in_time_of_day_window(
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MaintenanceWindow {
-    pub id:          MaintenanceId,
-    pub name:        String,
+    pub id: MaintenanceId,
+    pub name: String,
     pub description: Option<String>,
-    pub start_at:    OffsetDateTime,
-    pub end_at:      OffsetDateTime,
-    pub active:      bool,
-    pub created_at:  OffsetDateTime,
+    pub start_at: OffsetDateTime,
+    pub end_at: OffsetDateTime,
+    pub active: bool,
+    pub created_at: OffsetDateTime,
     /// Monitors covered by this window. Populated on detail reads;
     /// list endpoints may leave this empty for performance.
     #[serde(default)]
     pub monitor_ids: Vec<MonitorId>,
     #[serde(default)]
-    pub recurrence:  Recurrence,
+    pub recurrence: Recurrence,
 }
 
 #[derive(Debug, Clone, Deserialize, Validate)]
 pub struct NewMaintenanceWindow {
     #[validate(length(min = 1, max = 120))]
-    pub name:        String,
+    pub name: String,
 
     #[serde(default)]
     pub description: Option<String>,
 
     #[serde(with = "time::serde::rfc3339")]
-    pub start_at:    OffsetDateTime,
+    pub start_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
-    pub end_at:      OffsetDateTime,
+    pub end_at: OffsetDateTime,
 
     /// Monitors to attach when creating the window. Can be empty —
     /// callers may attach later via the detail route.
@@ -144,7 +139,7 @@ pub struct NewMaintenanceWindow {
     pub monitor_ids: Vec<MonitorId>,
 
     #[serde(default)]
-    pub recurrence:  Recurrence,
+    pub recurrence: Recurrence,
 }
 
 #[cfg(test)]

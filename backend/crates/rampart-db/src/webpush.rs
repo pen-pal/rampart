@@ -11,17 +11,17 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct WebpushSubscription {
-    pub id:       Uuid,
+    pub id: Uuid,
     pub endpoint: String,
-    pub p256dh:   String,
-    pub auth:     String,
+    pub p256dh: String,
+    pub auth: String,
 }
 
 /// VAPID keypair as stored in settings. `private` is base64 PKCS#8 DER;
 /// `public` is base64url uncompressed P-256 point (handed to the browser).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VapidKeys {
-    pub public:  String,
+    pub public: String,
     pub private: String,
 }
 

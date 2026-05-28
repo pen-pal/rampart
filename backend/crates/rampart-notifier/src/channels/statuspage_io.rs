@@ -12,7 +12,10 @@ pub struct StatuspageConfig {
     pub page_id: String,
 }
 
-pub struct StatuspageIo { cfg: StatuspageConfig, client: reqwest::Client }
+pub struct StatuspageIo {
+    cfg: StatuspageConfig,
+    client: reqwest::Client,
+}
 
 impl StatuspageIo {
     pub fn from_config(raw: &serde_json::Value) -> Result<Self, ChannelError> {
@@ -21,25 +24,37 @@ impl StatuspageIo {
         if cfg.api_key.is_empty() || cfg.page_id.is_empty() {
             return Err(ChannelError::BadConfig("api_key + page_id required".into()));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
 #[derive(Serialize)]
-struct Payload<'a> { incident: Inc<'a> }
+struct Payload<'a> {
+    incident: Inc<'a>,
+}
 #[derive(Serialize)]
 struct Inc<'a> {
-    name:    &'a str,
-    status:  &'a str,
-    body:    &'a str,
+    name: &'a str,
+    status: &'a str,
+    body: &'a str,
     impact_override: &'static str,
 }
 
 #[async_trait]
 impl Channel for StatuspageIo {
     async fn send(&self, subject: &str, body: &str, event: &Event) -> Result<(), ChannelError> {
-        let status = if event.heartbeat.status == MonitorStatus::Up { "resolved" } else { "investigating" };
-        let url = format!("https://api.statuspage.io/v1/pages/{}/incidents", self.cfg.page_id);
+        let status = if event.heartbeat.status == MonitorStatus::Up {
+            "resolved"
+        } else {
+            "investigating"
+        };
+        let url = format!(
+            "https://api.statuspage.io/v1/pages/{}/incidents",
+            self.cfg.page_id
+        );
         let payload = Payload {
             incident: Inc {
                 name: subject,
@@ -48,11 +63,18 @@ impl Channel for StatuspageIo {
                 impact_override: "minor",
             },
         };
-        let resp = self.client.post(&url)
+        let resp = self
+            .client
+            .post(&url)
             .header("Authorization", format!("OAuth {}", self.cfg.api_key))
-            .json(&payload).send().await?;
+            .json(&payload)
+            .send()
+            .await?;
         if !resp.status().is_success() {
-            return Err(ChannelError::Upstream(resp.status().as_u16(), resp.text().await.unwrap_or_default()));
+            return Err(ChannelError::Upstream(
+                resp.status().as_u16(),
+                resp.text().await.unwrap_or_default(),
+            ));
         }
         Ok(())
     }

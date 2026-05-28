@@ -24,10 +24,14 @@ const HEADER_CHALLENGE: u8 = 0x41; // 'A'
 pub struct SteamProbe;
 
 impl SteamProbe {
-    pub fn new() -> Self { Self }
+    pub fn new() -> Self {
+        Self
+    }
 }
 impl Default for SteamProbe {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[async_trait]
@@ -80,7 +84,9 @@ impl Probe for SteamProbe {
                 }
                 let n2 = match timeout(to, socket.recv(&mut buf)).await {
                     Ok(Ok(n)) => n,
-                    Ok(Err(e)) => return down(monitor, ts, started, &format!("recv (challenge): {e}")),
+                    Ok(Err(e)) => {
+                        return down(monitor, ts, started, &format!("recv (challenge): {e}"))
+                    }
                     Err(_) => return down(monitor, ts, started, "challenge response timed out"),
                 };
                 if n2 >= 5 && buf[..4] == [0xFF, 0xFF, 0xFF, 0xFF] && buf[4] == HEADER_INFO_RESP {
@@ -89,7 +95,12 @@ impl Probe for SteamProbe {
                     down(monitor, ts, started, "no info after challenge")
                 }
             }
-            other => down(monitor, ts, started, &format!("unexpected header 0x{other:02X}")),
+            other => down(
+                monitor,
+                ts,
+                started,
+                &format!("unexpected header 0x{other:02X}"),
+            ),
         }
     }
 }

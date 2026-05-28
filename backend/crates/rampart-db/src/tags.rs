@@ -8,18 +8,18 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 struct TagRow {
-    id:         Uuid,
-    name:       String,
-    color:      String,
+    id: Uuid,
+    name: String,
+    color: String,
     created_at: OffsetDateTime,
 }
 
 impl From<TagRow> for Tag {
     fn from(r: TagRow) -> Self {
         Tag {
-            id:         TagId::from_uuid(r.id),
-            name:       r.name,
-            color:      r.color,
+            id: TagId::from_uuid(r.id),
+            name: r.name,
+            color: r.color,
             created_at: r.created_at,
         }
     }
@@ -124,8 +124,8 @@ pub async fn list_for_monitor(pool: &DbPool, monitor: MonitorId) -> DbResult<Vec
     Ok(rows
         .into_iter()
         .map(|r| TagBrief {
-            id:    TagId::from_uuid(r.id),
-            name:  r.name,
+            id: TagId::from_uuid(r.id),
+            name: r.name,
             color: r.color,
         })
         .collect())
@@ -160,8 +160,8 @@ pub async fn hydrate_for_monitors(
         by.entry(MonitorId::from_uuid(r.monitor_id))
             .or_default()
             .push(TagBrief {
-                id:    TagId::from_uuid(r.tag_id),
-                name:  r.name,
+                id: TagId::from_uuid(r.tag_id),
+                name: r.name,
                 color: r.color,
             });
     }

@@ -30,7 +30,7 @@ struct Inner {
 }
 
 pub struct TotpChallenge {
-    pub user_id:    UserId,
+    pub user_id: UserId,
     pub expires_at: OffsetDateTime,
 }
 

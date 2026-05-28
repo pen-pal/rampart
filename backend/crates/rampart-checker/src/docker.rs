@@ -26,10 +26,14 @@ use tokio::time::timeout;
 pub struct DockerProbe;
 
 impl DockerProbe {
-    pub fn new() -> Self { Self }
+    pub fn new() -> Self {
+        Self
+    }
 }
 impl Default for DockerProbe {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[async_trait]
@@ -45,7 +49,12 @@ impl Probe for DockerProbe {
             .and_then(|v| v.as_str())
             .map(str::to_string);
         let Some(container) = container else {
-            return down(monitor, ts, started, "docker monitor requires config.container");
+            return down(
+                monitor,
+                ts,
+                started,
+                "docker monitor requires config.container",
+            );
         };
 
         // Defaults — env vars (DOCKER_HOST) work too via Docker::connect_with_defaults.
@@ -68,7 +77,10 @@ impl Probe for DockerProbe {
             Ok(Ok(info)) => {
                 let state = info.state.unwrap_or_default();
                 let running = state.running.unwrap_or(false);
-                let raw = state.status.map(|s| format!("{s:?}")).unwrap_or_else(|| "?".into());
+                let raw = state
+                    .status
+                    .map(|s| format!("{s:?}"))
+                    .unwrap_or_else(|| "?".into());
                 if running {
                     Heartbeat {
                         monitor_id: monitor.id,

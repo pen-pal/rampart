@@ -107,14 +107,14 @@ impl Probe for MssqlProbe {
         };
         match result {
             Ok(Ok(_)) => Heartbeat {
-                monitor_id:  monitor.id,
+                monitor_id: monitor.id,
                 ts,
-                status:      MonitorStatus::Up,
-                latency_ms:  Some(ms_i32(started.elapsed())),
+                status: MonitorStatus::Up,
+                latency_ms: Some(ms_i32(started.elapsed())),
                 status_code: None,
-                msg:         Some("SELECT 1 ok".into()),
-                retries:     0,
-                important:   false,
+                msg: Some("SELECT 1 ok".into()),
+                retries: 0,
+                important: false,
             },
             Ok(Err(e)) => down(monitor, ts, started, &format!("query: {e}")),
             Err(_) => down(monitor, ts, started, "query timed out"),
@@ -124,13 +124,13 @@ impl Probe for MssqlProbe {
 
 fn down(monitor: &Monitor, ts: OffsetDateTime, started: Instant, msg: &str) -> Heartbeat {
     Heartbeat {
-        monitor_id:  monitor.id,
+        monitor_id: monitor.id,
         ts,
-        status:      MonitorStatus::Down,
-        latency_ms:  Some(ms_i32(started.elapsed())),
+        status: MonitorStatus::Down,
+        latency_ms: Some(ms_i32(started.elapsed())),
         status_code: None,
-        msg:         Some(msg.into()),
-        retries:     0,
-        important:   false,
+        msg: Some(msg.into()),
+        retries: 0,
+        important: false,
     }
 }

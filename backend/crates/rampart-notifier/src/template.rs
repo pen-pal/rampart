@@ -57,14 +57,15 @@ pub fn render(template: &str, event: &Event) -> String {
 
 fn build_context(event: &Event) -> Object {
     let monitor = &event.monitor;
-    let hb      = &event.heartbeat;
+    let hb = &event.heartbeat;
 
     let kind = serde_json::to_string(&monitor.kind)
         .unwrap_or_default()
         .trim_matches('"')
         .to_string();
     let id = monitor.id.0.to_string();
-    let ts = hb.ts
+    let ts = hb
+        .ts
         .format(&time::format_description::well_known::Rfc3339)
         .unwrap_or_default();
 
@@ -168,10 +169,7 @@ mod tests {
     #[test]
     fn render_supports_conditional_blocks() {
         let e = event_up_to_down();
-        let out = render(
-            r#"{% if status == "down" %}🔴{% else %}🟢{% endif %}"#,
-            &e,
-        );
+        let out = render(r#"{% if status == "down" %}🔴{% else %}🟢{% endif %}"#, &e);
         assert_eq!(out, "🔴");
     }
 

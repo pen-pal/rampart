@@ -33,16 +33,16 @@ struct MonitorRow {
     follow_redirect: bool,
     ignore_tls: bool,
     proxy_id: Option<Uuid>,
-    push_token:   Option<String>,
+    push_token: Option<String>,
     last_push_at: Option<OffsetDateTime>,
     active: bool,
     current_status: MonitorStatus,
     created_at: OffsetDateTime,
     updated_at: OffsetDateTime,
-    cert_days_left:  Option<i32>,
-    cert_subject:    Option<String>,
+    cert_days_left: Option<i32>,
+    cert_subject: Option<String>,
     cert_checked_at: Option<OffsetDateTime>,
-    group_id:        Option<Uuid>,
+    group_id: Option<Uuid>,
 }
 
 impl From<MonitorRow> for Monitor {
@@ -68,17 +68,17 @@ impl From<MonitorRow> for Monitor {
             follow_redirect: r.follow_redirect,
             ignore_tls: r.ignore_tls,
             proxy_id: r.proxy_id.map(ProxyId::from_uuid),
-            push_token:   r.push_token,
+            push_token: r.push_token,
             last_push_at: r.last_push_at,
             active: r.active,
             current_status: r.current_status,
             created_at: r.created_at,
             updated_at: r.updated_at,
             tags: Vec::new(),
-            cert_days_left:  r.cert_days_left,
-            cert_subject:    r.cert_subject,
+            cert_days_left: r.cert_days_left,
+            cert_subject: r.cert_subject,
             cert_checked_at: r.cert_checked_at,
-            group_id:        r.group_id.map(MonitorGroupId::from_uuid),
+            group_id: r.group_id.map(MonitorGroupId::from_uuid),
         }
     }
 }
@@ -165,7 +165,9 @@ fn generate_push_token() -> String {
     use rand::Rng;
     const ALPHA: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     let mut rng = rand::thread_rng();
-    (0..24).map(|_| ALPHA[rng.gen_range(0..ALPHA.len())] as char).collect()
+    (0..24)
+        .map(|_| ALPHA[rng.gen_range(0..ALPHA.len())] as char)
+        .collect()
 }
 
 /// Look up a monitor by its push_token. Used by the public /push/:token
@@ -185,16 +187,10 @@ pub async fn find_by_push_token(pool: &DbPool, token: &str) -> DbResult<Option<M
 /// per-tick freshness check on push monitors. Returns None for both
 /// "no such monitor" and "never pushed" cases; the caller treats them
 /// identically (status = Down).
-pub async fn fetch_last_push_at(
-    pool: &DbPool,
-    id: MonitorId,
-) -> DbResult<Option<OffsetDateTime>> {
-    let row = sqlx::query!(
-        r#"SELECT last_push_at FROM monitors WHERE id = $1"#,
-        id.0,
-    )
-    .fetch_optional(pool)
-    .await?;
+pub async fn fetch_last_push_at(pool: &DbPool, id: MonitorId) -> DbResult<Option<OffsetDateTime>> {
+    let row = sqlx::query!(r#"SELECT last_push_at FROM monitors WHERE id = $1"#, id.0,)
+        .fetch_optional(pool)
+        .await?;
     Ok(row.and_then(|r| r.last_push_at))
 }
 

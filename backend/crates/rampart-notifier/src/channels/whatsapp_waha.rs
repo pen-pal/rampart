@@ -8,14 +8,17 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize)]
 pub struct WahaConfig {
     pub base_url: String,
-    pub session:  String,
+    pub session: String,
     /// "<phone>@c.us" for individual or group jid.
-    pub chat_id:  String,
+    pub chat_id: String,
     #[serde(default)]
-    pub api_key:  Option<String>,
+    pub api_key: Option<String>,
 }
 
-pub struct WhatsappWaha { cfg: WahaConfig, client: reqwest::Client }
+pub struct WhatsappWaha {
+    cfg: WahaConfig,
+    client: reqwest::Client,
+}
 
 impl WhatsappWaha {
     pub fn from_config(raw: &serde_json::Value) -> Result<Self, ChannelError> {
@@ -24,7 +27,10 @@ impl WhatsappWaha {
         if cfg.chat_id.trim().is_empty() {
             return Err(ChannelError::BadConfig("chat_id required".into()));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
@@ -33,25 +39,27 @@ struct Payload<'a> {
     session: &'a str,
     #[serde(rename = "chatId")]
     chat_id: &'a str,
-    text:    String,
+    text: String,
 }
 
 #[async_trait]
 impl Channel for WhatsappWaha {
     async fn send(&self, subject: &str, body: &str, _event: &Event) -> Result<(), ChannelError> {
         let url = format!("{}/api/sendText", self.cfg.base_url.trim_end_matches('/'));
-        let mut req = self.client.post(&url)
-            .json(&Payload {
-                session: &self.cfg.session,
-                chat_id: &self.cfg.chat_id,
-                text: format!("{subject}\n{body}"),
-            });
+        let mut req = self.client.post(&url).json(&Payload {
+            session: &self.cfg.session,
+            chat_id: &self.cfg.chat_id,
+            text: format!("{subject}\n{body}"),
+        });
         if let Some(k) = &self.cfg.api_key {
             req = req.header("X-Api-Key", k);
         }
         let resp = req.send().await?;
         if !resp.status().is_success() {
-            return Err(ChannelError::Upstream(resp.status().as_u16(), resp.text().await.unwrap_or_default()));
+            return Err(ChannelError::Upstream(
+                resp.status().as_u16(),
+                resp.text().await.unwrap_or_default(),
+            ));
         }
         Ok(())
     }

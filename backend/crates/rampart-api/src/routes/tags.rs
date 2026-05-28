@@ -52,10 +52,7 @@ async fn create(
     Ok((StatusCode::CREATED, Json(t)))
 }
 
-async fn remove(
-    State(s): State<AppState>,
-    Path(id): Path<String>,
-) -> Result<StatusCode, ApiError> {
+async fn remove(State(s): State<AppState>, Path(id): Path<String>) -> Result<StatusCode, ApiError> {
     rampart_db::tags::delete(s.pool(), parse_tag(&id)?).await?;
     Ok(StatusCode::NO_CONTENT)
 }

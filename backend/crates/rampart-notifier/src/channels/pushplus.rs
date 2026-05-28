@@ -11,7 +11,10 @@ pub struct PushplusConfig {
     pub topic: Option<String>,
 }
 
-pub struct Pushplus { cfg: PushplusConfig, client: reqwest::Client }
+pub struct Pushplus {
+    cfg: PushplusConfig,
+    client: reqwest::Client,
+}
 
 impl Pushplus {
     pub fn from_config(raw: &serde_json::Value) -> Result<Self, ChannelError> {
@@ -20,18 +23,21 @@ impl Pushplus {
         if cfg.token.trim().is_empty() {
             return Err(ChannelError::BadConfig("token required".into()));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
 #[derive(Serialize)]
 struct Payload<'a> {
-    token:    &'a str,
-    title:    &'a str,
-    content:  &'a str,
+    token: &'a str,
+    title: &'a str,
+    content: &'a str,
     template: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
-    topic:    &'a Option<String>,
+    topic: &'a Option<String>,
 }
 
 #[async_trait]
@@ -44,8 +50,12 @@ impl Channel for Pushplus {
             template: "txt",
             topic: &self.cfg.topic,
         };
-        let resp = self.client.post("https://www.pushplus.plus/send")
-            .json(&payload).send().await?;
+        let resp = self
+            .client
+            .post("https://www.pushplus.plus/send")
+            .json(&payload)
+            .send()
+            .await?;
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
         if !status.is_success() {

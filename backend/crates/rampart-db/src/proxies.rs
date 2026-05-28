@@ -7,28 +7,28 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 struct ProxyRow {
-    id:         Uuid,
-    protocol:   String,
-    host:       String,
-    port:       i32,
-    auth:       bool,
-    username:   Option<String>,
-    password:   Option<String>,
-    active:     bool,
+    id: Uuid,
+    protocol: String,
+    host: String,
+    port: i32,
+    auth: bool,
+    username: Option<String>,
+    password: Option<String>,
+    active: bool,
     created_at: OffsetDateTime,
 }
 
 impl From<ProxyRow> for Proxy {
     fn from(r: ProxyRow) -> Self {
         Proxy {
-            id:         ProxyId::from_uuid(r.id),
-            protocol:   r.protocol,
-            host:       r.host,
-            port:       r.port,
-            auth:       r.auth,
-            username:   r.username,
-            password:   r.password,
-            active:     r.active,
+            id: ProxyId::from_uuid(r.id),
+            protocol: r.protocol,
+            host: r.host,
+            port: r.port,
+            auth: r.auth,
+            username: r.username,
+            password: r.password,
+            active: r.active,
             created_at: r.created_at,
         }
     }
@@ -99,13 +99,9 @@ pub async fn delete(pool: &DbPool, id: ProxyId) -> DbResult<()> {
 }
 
 pub async fn set_active(pool: &DbPool, id: ProxyId, active: bool) -> DbResult<()> {
-    let result = sqlx::query!(
-        "UPDATE proxies SET active = $1 WHERE id = $2",
-        active,
-        id.0,
-    )
-    .execute(pool)
-    .await?;
+    let result = sqlx::query!("UPDATE proxies SET active = $1 WHERE id = $2", active, id.0,)
+        .execute(pool)
+        .await?;
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }

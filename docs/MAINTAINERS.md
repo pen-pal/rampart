@@ -36,7 +36,6 @@ gh api -X PUT repos/pen-pal/Rampart/branches/main/protection \
   -F "required_status_checks[contexts][]=backend · cargo test --workspace" \
   -F "required_status_checks[contexts][]=frontend · vitest + build" \
   -F "required_status_checks[contexts][]=cargo deny (advisories + licenses + bans)" \
-  -F "required_status_checks[contexts][]=cargo audit (RUSTSEC)" \
   -F "required_pull_request_reviews[required_approving_review_count]=1" \
   -F "required_pull_request_reviews[require_code_owner_reviews]=true" \
   -F "enforce_admins=false" \

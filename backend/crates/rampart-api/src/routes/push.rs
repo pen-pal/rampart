@@ -35,41 +35,45 @@ pub struct PushParams {
     #[serde(default = "default_status")]
     pub status: String,
     #[serde(default)]
-    pub msg:    Option<String>,
+    pub msg: Option<String>,
     #[serde(default)]
-    pub ping:   Option<i32>,
+    pub ping: Option<i32>,
 }
-fn default_status() -> String { "up".into() }
+fn default_status() -> String {
+    "up".into()
+}
 
 async fn push(
     State(state): State<AppState>,
-    Path(token):  Path<String>,
-    Query(p):     Query<PushParams>,
+    Path(token): Path<String>,
+    Query(p): Query<PushParams>,
 ) -> Result<(StatusCode, &'static str), ApiError> {
     let monitor_id = rampart_db::monitors::find_by_push_token(state.pool(), &token)
         .await?
         .ok_or(ApiError::NotFound)?;
 
     let status = match p.status.as_str() {
-        "up"     => MonitorStatus::Up,
-        "down"   => MonitorStatus::Down,
-        "warn"   => MonitorStatus::Warn,
-        _        => return Err(ApiError::BadRequest(
-            "status must be one of up / down / warn".into()
-        )),
+        "up" => MonitorStatus::Up,
+        "down" => MonitorStatus::Down,
+        "warn" => MonitorStatus::Warn,
+        _ => {
+            return Err(ApiError::BadRequest(
+                "status must be one of up / down / warn".into(),
+            ))
+        }
     };
 
     // Write the heartbeat + bump last_push_at. Both go through the writer
     // path the scheduler uses, so dashboard reads see them consistently.
     let hb = Heartbeat {
         monitor_id,
-        ts:          OffsetDateTime::now_utc(),
+        ts: OffsetDateTime::now_utc(),
         status,
-        latency_ms:  p.ping,
+        latency_ms: p.ping,
         status_code: None,
-        msg:         p.msg.or_else(|| Some("push received".into())),
-        retries:     0,
-        important:   false,
+        msg: p.msg.or_else(|| Some("push received".into())),
+        retries: 0,
+        important: false,
     };
     rampart_db::heartbeats::insert_many(state.pool(), std::slice::from_ref(&hb)).await?;
     rampart_db::monitors::bump_push_at(state.pool(), monitor_id).await?;

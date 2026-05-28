@@ -147,12 +147,9 @@ pub async fn set_totp_secret(pool: &DbPool, id: UserId, secret: &str) -> DbResul
 }
 
 pub async fn enable_totp(pool: &DbPool, id: UserId) -> DbResult<()> {
-    sqlx::query!(
-        "UPDATE users SET totp_enabled = TRUE WHERE id = $1",
-        id.0,
-    )
-    .execute(pool)
-    .await?;
+    sqlx::query!("UPDATE users SET totp_enabled = TRUE WHERE id = $1", id.0,)
+        .execute(pool)
+        .await?;
     Ok(())
 }
 
@@ -213,7 +210,9 @@ pub async fn set_admin(pool: &DbPool, id: UserId, is_admin: bool) -> DbResult<()
     )
     .execute(pool)
     .await?;
-    if result.rows_affected() == 0 { return Err(DbError::NotFound); }
+    if result.rows_affected() == 0 {
+        return Err(DbError::NotFound);
+    }
     Ok(())
 }
 
@@ -221,7 +220,9 @@ pub async fn delete(pool: &DbPool, id: UserId) -> DbResult<()> {
     let result = sqlx::query!("DELETE FROM users WHERE id = $1", id.0)
         .execute(pool)
         .await?;
-    if result.rows_affected() == 0 { return Err(DbError::NotFound); }
+    if result.rows_affected() == 0 {
+        return Err(DbError::NotFound);
+    }
     Ok(())
 }
 
@@ -233,6 +234,8 @@ pub async fn set_password(pool: &DbPool, id: UserId, hash: &str) -> DbResult<()>
     )
     .execute(pool)
     .await?;
-    if result.rows_affected() == 0 { return Err(DbError::NotFound); }
+    if result.rows_affected() == 0 {
+        return Err(DbError::NotFound);
+    }
     Ok(())
 }

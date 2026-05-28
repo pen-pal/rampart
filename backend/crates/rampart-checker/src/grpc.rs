@@ -25,10 +25,14 @@ use tonic_health::pb::HealthCheckRequest;
 pub struct GrpcProbe;
 
 impl GrpcProbe {
-    pub fn new() -> Self { Self }
+    pub fn new() -> Self {
+        Self
+    }
 }
 impl Default for GrpcProbe {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[async_trait]
@@ -43,7 +47,14 @@ impl Probe for GrpcProbe {
             Some(u) if !u.is_empty() => u.to_string(),
             _ => match (monitor.hostname.as_deref(), monitor.port) {
                 (Some(h), Some(p)) => format!("http://{h}:{p}"),
-                _ => return down(monitor, ts, started, "grpc monitor requires url or hostname+port"),
+                _ => {
+                    return down(
+                        monitor,
+                        ts,
+                        started,
+                        "grpc monitor requires url or hostname+port",
+                    )
+                }
             },
         };
 

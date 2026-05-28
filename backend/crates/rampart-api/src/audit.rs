@@ -23,18 +23,16 @@ pub async fn record(
     payload: Option<serde_json::Value>,
 ) {
     let ip = client_ip(headers);
-    let ua = headers
-        .get("user-agent")
-        .and_then(|v| v.to_str().ok());
+    let ua = headers.get("user-agent").and_then(|v| v.to_str().ok());
     let entry = NewEntry {
-        actor_user_id:    Some(user.id),
+        actor_user_id: Some(user.id),
         actor_api_key_id: None,
         action,
         resource_kind,
         resource_id,
         payload,
-        ip_addr:          ip,
-        user_agent:       ua,
+        ip_addr: ip,
+        user_agent: ua,
     };
     if let Err(e) = rampart_db::audit::insert(pool, entry).await {
         tracing::warn!(error = %e, action, "audit insert failed");

@@ -26,7 +26,10 @@ impl GoogleChat {
                 "webhook_url must start with https://chat.googleapis.com/".into(),
             ));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
@@ -40,7 +43,8 @@ impl Channel for GoogleChat {
     async fn send(&self, subject: &str, body: &str, _event: &Event) -> Result<(), ChannelError> {
         // Plain text — Chat renders newlines + basic markdown.
         let text = format!("*{subject}*\n{body}");
-        let resp = self.client
+        let resp = self
+            .client
             .post(&self.cfg.webhook_url)
             .json(&Payload { text: &text })
             .send()

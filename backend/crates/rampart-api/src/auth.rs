@@ -151,7 +151,10 @@ pub async fn require_session(
 /// Extract a bearer token from the Authorization header. Trims whitespace
 /// and accepts `Bearer` case-insensitively (some clients lowercase it).
 fn bearer_token(headers: &axum::http::HeaderMap) -> Option<String> {
-    let v = headers.get(axum::http::header::AUTHORIZATION)?.to_str().ok()?;
+    let v = headers
+        .get(axum::http::header::AUTHORIZATION)?
+        .to_str()
+        .ok()?;
     let mut parts = v.splitn(2, ' ');
     let scheme = parts.next()?;
     if !scheme.eq_ignore_ascii_case("bearer") {
@@ -166,10 +169,7 @@ fn bearer_token(headers: &axum::http::HeaderMap) -> Option<String> {
 
 /// Like `require_session` but additionally rejects non-admins with 403.
 /// Apply on top of `require_session` (it relies on the User in extensions).
-pub async fn require_admin(
-    req: Request,
-    next: Next,
-) -> Result<Response, ApiError> {
+pub async fn require_admin(req: Request, next: Next) -> Result<Response, ApiError> {
     let user = req
         .extensions()
         .get::<rampart_db::users::User>()

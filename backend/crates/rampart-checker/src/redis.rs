@@ -60,14 +60,14 @@ impl Probe for RedisProbe {
         let ping_fut = cmd.query_async::<String>(&mut conn);
         match timeout(to, ping_fut).await {
             Ok(Ok(s)) => Heartbeat {
-                monitor_id:  monitor.id,
+                monitor_id: monitor.id,
                 ts,
-                status:      MonitorStatus::Up,
-                latency_ms:  Some(ms_i32(started.elapsed())),
+                status: MonitorStatus::Up,
+                latency_ms: Some(ms_i32(started.elapsed())),
                 status_code: None,
-                msg:         Some(format!("PING → {s}")),
-                retries:     0,
-                important:   false,
+                msg: Some(format!("PING → {s}")),
+                retries: 0,
+                important: false,
             },
             Ok(Err(e)) => down(monitor, ts, started, &format!("PING: {e}")),
             Err(_) => down(monitor, ts, started, "PING timed out"),
@@ -77,14 +77,14 @@ impl Probe for RedisProbe {
 
 fn down(monitor: &Monitor, ts: OffsetDateTime, started: Instant, msg: &str) -> Heartbeat {
     Heartbeat {
-        monitor_id:  monitor.id,
+        monitor_id: monitor.id,
         ts,
-        status:      MonitorStatus::Down,
-        latency_ms:  Some(ms_i32(started.elapsed())),
+        status: MonitorStatus::Down,
+        latency_ms: Some(ms_i32(started.elapsed())),
         status_code: None,
-        msg:         Some(msg.into()),
-        retries:     0,
-        important:   false,
+        msg: Some(msg.into()),
+        retries: 0,
+        important: false,
     }
 }
 
@@ -112,7 +112,10 @@ fn build_url(monitor: &Monitor) -> Result<String, String> {
         Some(p) if !p.is_empty() => format!(":{p}@"),
         _ => String::new(),
     };
-    let db = monitor.config.get("db").and_then(|v| v.as_u64()).unwrap_or(0);
+    let db = monitor
+        .config
+        .get("db")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
     Ok(format!("{scheme}://{creds}{host}:{port}/{db}"))
 }
-

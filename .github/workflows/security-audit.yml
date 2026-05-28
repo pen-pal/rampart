@@ -1,7 +1,11 @@
 # Rust dependency security + license/ban scanning.
-# CodeQL can't see Rust, so this is the Rust-side equivalent:
-#   - cargo audit  → RUSTSEC advisory database (known CVEs)
-#   - cargo deny   → advisories + license policy + duplicate/banned crates
+#
+# CodeQL can't analyze Rust, so cargo-deny is the Rust-side gate. Its
+# `advisories` check scans the full RUSTSEC database (same source as
+# cargo-audit) AND enforces the license policy + crate bans, reading the
+# accepted-advisory ignore list from backend/deny.toml. We run it alone
+# rather than also running cargo-audit, which would duplicate the RUSTSEC
+# scan with a second, separately-maintained ignore list.
 name: security-audit
 
 on:
@@ -10,14 +14,14 @@ on:
     paths:
       - "backend/**/Cargo.toml"
       - "backend/Cargo.lock"
-      - "deny.toml"
+      - "backend/deny.toml"
       - ".github/workflows/security-audit.yml"
   pull_request:
     branches: [main]
     paths:
       - "backend/**/Cargo.toml"
       - "backend/Cargo.lock"
-      - "deny.toml"
+      - "backend/deny.toml"
   schedule:
     - cron: "0 5 * * 3"   # weekly, Wednesday 05:00 UTC — catches newly disclosed CVEs
   workflow_dispatch:
@@ -26,19 +30,6 @@ permissions:
   contents: read
 
 jobs:
-  cargo-audit:
-    name: cargo audit (RUSTSEC)
-    runs-on: ubuntu-latest
-    defaults:
-      run: { working-directory: backend }
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: rustsec/audit-check@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          working-directory: backend
-
   cargo-deny:
     name: cargo deny (advisories + licenses + bans)
     runs-on: ubuntu-latest

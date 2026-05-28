@@ -8,16 +8,13 @@
 //!
 //! `monitor.url` — page to render.
 //! `monitor.config`:
-//!   * `renderer_url`  — full POST endpoint (e.g.
-//!                       `http://browserless:3000/content`)
-//!   * `keyword`       — required substring in rendered HTML
-//!   * `keyword_invert`— bool, optional. When true, success requires the
-//!                       keyword to be ABSENT (useful for "page must not
-//!                       contain error banner")
-//!   * `token`         — optional bearer token forwarded to the renderer
-//!                       (browserless's API auth)
-//!   * `wait_selector` — optional CSS selector to wait for before
-//!                       capturing HTML (forwarded as `waitForSelector`)
+//! * `renderer_url` — full POST endpoint (e.g. `http://browserless:3000/content`)
+//! * `keyword` — required substring in rendered HTML
+//! * `keyword_invert` — bool, optional. When true, success requires the
+//!   keyword to be ABSENT (useful for "page must not contain error banner")
+//! * `token` — optional bearer token forwarded to the renderer (browserless API auth)
+//! * `wait_selector` — optional CSS selector to wait for before capturing
+//!   HTML (forwarded as `waitForSelector`)
 //!
 //! Timeout: monitor.timeout_seconds. We add a small buffer to the
 //! renderer's own internal timeout so we win the race when the page
@@ -64,12 +61,12 @@ impl Probe for BrowserProbe {
         };
         let cfg = &monitor.config;
         let renderer = cfg.get("renderer_url").and_then(|v| v.as_str());
-        let keyword  = cfg.get("keyword").and_then(|v| v.as_str());
-        let invert   = cfg
+        let keyword = cfg.get("keyword").and_then(|v| v.as_str());
+        let invert = cfg
             .get("keyword_invert")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
-        let token         = cfg.get("token").and_then(|v| v.as_str());
+        let token = cfg.get("token").and_then(|v| v.as_str());
         let wait_selector = cfg.get("wait_selector").and_then(|v| v.as_str());
 
         let renderer = match renderer {
@@ -105,11 +102,7 @@ impl Probe for BrowserProbe {
         let resp = match req.send().await {
             Ok(r) => r,
             Err(e) => {
-                return fail(
-                    monitor,
-                    ts,
-                    &format!("renderer call failed: {e}"),
-                );
+                return fail(monitor, ts, &format!("renderer call failed: {e}"));
             }
         };
         let status = resp.status();
@@ -145,7 +138,9 @@ impl Probe for BrowserProbe {
         } else if invert {
             (
                 MonitorStatus::Down,
-                Some(format!("keyword '{keyword}' unexpectedly present in rendered HTML")),
+                Some(format!(
+                    "keyword '{keyword}' unexpectedly present in rendered HTML"
+                )),
             )
         } else {
             (

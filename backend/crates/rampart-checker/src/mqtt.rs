@@ -27,10 +27,14 @@ use tokio::time::timeout;
 pub struct MqttProbe;
 
 impl MqttProbe {
-    pub fn new() -> Self { Self }
+    pub fn new() -> Self {
+        Self
+    }
 }
 impl Default for MqttProbe {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[async_trait]
@@ -59,7 +63,11 @@ impl Probe for MqttProbe {
         ) {
             opts.set_credentials(u, p);
         }
-        let use_tls = monitor.config.get("tls").and_then(|v| v.as_bool()).unwrap_or(false);
+        let use_tls = monitor
+            .config
+            .get("tls")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
         if use_tls {
             opts.set_transport(Transport::tls_with_default_config());
         }

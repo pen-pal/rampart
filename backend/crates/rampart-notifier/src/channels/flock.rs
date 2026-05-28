@@ -9,7 +9,10 @@ pub struct FlockConfig {
     pub webhook_url: String,
 }
 
-pub struct Flock { cfg: FlockConfig, client: reqwest::Client }
+pub struct Flock {
+    cfg: FlockConfig,
+    client: reqwest::Client,
+}
 
 impl Flock {
     pub fn from_config(raw: &serde_json::Value) -> Result<Self, ChannelError> {
@@ -18,21 +21,34 @@ impl Flock {
         if !cfg.webhook_url.starts_with("https://") {
             return Err(ChannelError::BadConfig("webhook_url required".into()));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
 #[derive(Serialize)]
-struct Payload { text: String }
+struct Payload {
+    text: String,
+}
 
 #[async_trait]
 impl Channel for Flock {
     async fn send(&self, subject: &str, body: &str, _event: &Event) -> Result<(), ChannelError> {
-        let resp = self.client.post(&self.cfg.webhook_url)
-            .json(&Payload { text: format!("**{subject}**\n{body}") })
-            .send().await?;
+        let resp = self
+            .client
+            .post(&self.cfg.webhook_url)
+            .json(&Payload {
+                text: format!("**{subject}**\n{body}"),
+            })
+            .send()
+            .await?;
         if !resp.status().is_success() {
-            return Err(ChannelError::Upstream(resp.status().as_u16(), resp.text().await.unwrap_or_default()));
+            return Err(ChannelError::Upstream(
+                resp.status().as_u16(),
+                resp.text().await.unwrap_or_default(),
+            ));
         }
         Ok(())
     }

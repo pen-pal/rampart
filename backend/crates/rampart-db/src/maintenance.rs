@@ -9,14 +9,14 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 struct WindowRow {
-    id:          Uuid,
-    name:        String,
+    id: Uuid,
+    name: String,
     description: Option<String>,
-    start_at:    OffsetDateTime,
-    end_at:      OffsetDateTime,
-    active:      bool,
-    created_at:  OffsetDateTime,
-    recurrence:  serde_json::Value,
+    start_at: OffsetDateTime,
+    end_at: OffsetDateTime,
+    active: bool,
+    created_at: OffsetDateTime,
+    recurrence: serde_json::Value,
 }
 
 impl From<WindowRow> for MaintenanceWindow {
@@ -29,13 +29,13 @@ impl From<WindowRow> for MaintenanceWindow {
             Recurrence::None
         });
         MaintenanceWindow {
-            id:          MaintenanceId::from_uuid(r.id),
-            name:        r.name,
+            id: MaintenanceId::from_uuid(r.id),
+            name: r.name,
             description: r.description,
-            start_at:    r.start_at,
-            end_at:      r.end_at,
-            active:      r.active,
-            created_at:  r.created_at,
+            start_at: r.start_at,
+            end_at: r.end_at,
+            active: r.active,
+            created_at: r.created_at,
             monitor_ids: Vec::new(),
             recurrence,
         }
@@ -114,9 +114,8 @@ pub async fn create(pool: &DbPool, input: NewMaintenanceWindow) -> DbResult<Main
     let id = MaintenanceId::new();
     let mut tx = pool.begin().await?;
 
-    let recurrence_json = serde_json::to_value(&input.recurrence).map_err(|e| {
-        DbError::Conflict(format!("serialize recurrence: {e}"))
-    })?;
+    let recurrence_json = serde_json::to_value(&input.recurrence)
+        .map_err(|e| DbError::Conflict(format!("serialize recurrence: {e}")))?;
     sqlx::query!(
         r#"
         INSERT INTO maintenance_windows

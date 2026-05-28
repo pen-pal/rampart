@@ -108,7 +108,7 @@ pub struct Monitor {
     // bumps every time we receive a heartbeat through that URL. NULL for
     // monitors of other kinds.
     #[serde(default)]
-    pub push_token:   Option<String>,
+    pub push_token: Option<String>,
     #[serde(default)]
     pub last_push_at: Option<OffsetDateTime>,
     // State
@@ -124,9 +124,9 @@ pub struct Monitor {
     /// TLS cert snapshot — populated for HTTPS HTTP monitors. Null
     /// when never inspected or when the URL is plain http.
     #[serde(default)]
-    pub cert_days_left:  Option<i32>,
+    pub cert_days_left: Option<i32>,
     #[serde(default)]
-    pub cert_subject:    Option<String>,
+    pub cert_subject: Option<String>,
     #[serde(default)]
     pub cert_checked_at: Option<OffsetDateTime>,
     /// Optional cosmetic group. NULL → default bucket.
@@ -225,19 +225,19 @@ pub struct UpdateMonitor {
     #[validate(range(min = 1, max = 600))]
     pub timeout_seconds: Option<i32>,
 
-    pub max_retries:         Option<i32>,
-    pub retry_interval_sec:  Option<i32>,
+    pub max_retries: Option<i32>,
+    pub retry_interval_sec: Option<i32>,
     pub resend_interval_sec: Option<i32>,
-    pub upside_down:         Option<bool>,
+    pub upside_down: Option<bool>,
 
-    pub http_method:       Option<String>,
+    pub http_method: Option<String>,
     #[serde(default)]
-    pub http_body:         Option<String>,
+    pub http_body: Option<String>,
     #[serde(default)]
-    pub http_headers:      Option<serde_json::Value>,
+    pub http_headers: Option<serde_json::Value>,
     pub accepted_statuses: Option<Vec<i32>>,
-    pub follow_redirect:   Option<bool>,
-    pub ignore_tls:        Option<bool>,
+    pub follow_redirect: Option<bool>,
+    pub ignore_tls: Option<bool>,
 
     #[serde(default)]
     pub proxy_id: Option<ProxyId>,
@@ -250,9 +250,7 @@ pub struct UpdateMonitor {
     pub group_id: Option<Option<MonitorGroupId>>,
 }
 
-fn deserialize_optional_group_id<'de, D>(
-    de: D,
-) -> Result<Option<Option<MonitorGroupId>>, D::Error>
+fn deserialize_optional_group_id<'de, D>(de: D) -> Result<Option<Option<MonitorGroupId>>, D::Error>
 where
     D: serde::Deserializer<'de>,
 {

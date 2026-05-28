@@ -39,8 +39,8 @@ pub fn sample_monitor() -> Monitor {
         created_at: now,
         updated_at: now,
         tags: Vec::new(),
-        cert_days_left:  None,
-        cert_subject:    None,
+        cert_days_left: None,
+        cert_subject: None,
         cert_checked_at: None,
         group_id: None,
     }

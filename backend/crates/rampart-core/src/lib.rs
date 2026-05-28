@@ -24,6 +24,7 @@ pub mod tag;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
 
+pub use api_key::{ApiKey, IssuedApiKey, NewApiKey};
 pub use error::{CoreError, Result};
 pub use heartbeat::Heartbeat;
 pub use ids::{
@@ -36,10 +37,9 @@ pub use maintenance::{MaintenanceWindow, NewMaintenanceWindow};
 pub use monitor::{Monitor, MonitorKind, MonitorStatus, NewMonitor, UpdateMonitor};
 pub use monitor_group::{MonitorGroup, NewMonitorGroup, UpdateMonitorGroup};
 pub use notification::{ChannelKind, MonitorNotification, Notification, NotificationTemplate};
+pub use proxy::{NewProxy, Proxy, ProxyProtocol};
 pub use status_page::{
     NewStatusPage, PublicIncident, PublicIncidentUpdate, PublicStatusMonitor, PublicStatusPage,
     StatusPage, UpdateStatusPage,
 };
 pub use tag::{NewTag, Tag, TagBrief};
-pub use api_key::{ApiKey, IssuedApiKey, NewApiKey};
-pub use proxy::{NewProxy, Proxy, ProxyProtocol};

@@ -15,18 +15,18 @@ use std::str::FromStr;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SmtpConfig {
-    pub host:       String,
-    pub port:       u16,
+    pub host: String,
+    pub port: u16,
     /// "tls" (465), "starttls" (587), or "plain" (25 — bring your own
     /// network, don't expose this to the internet).
     pub encryption: String,
     #[serde(default)]
-    pub username:   Option<String>,
+    pub username: Option<String>,
     #[serde(default)]
-    pub password:   Option<String>,
+    pub password: Option<String>,
     /// Mailbox the email is sent from. Format: `Name <addr@host>` or
     /// just `addr@host`.
-    pub from:       String,
+    pub from: String,
 }
 
 pub async fn load(pool: &DbPool) -> Result<Option<SmtpConfig>, String> {
@@ -59,10 +59,13 @@ pub async fn send(
         .map_err(|e| format!("build: {e}"))?;
 
     let builder = match cfg.encryption.as_str() {
-        "tls"      => AsyncSmtpTransport::<Tokio1Executor>::relay(&cfg.host).map_err(|e| e.to_string())?,
-        "starttls" => AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&cfg.host).map_err(|e| e.to_string())?,
-        "plain"    => AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&cfg.host),
-        other      => return Err(format!("unknown encryption: {other}")),
+        "tls" => {
+            AsyncSmtpTransport::<Tokio1Executor>::relay(&cfg.host).map_err(|e| e.to_string())?
+        }
+        "starttls" => AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&cfg.host)
+            .map_err(|e| e.to_string())?,
+        "plain" => AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&cfg.host),
+        other => return Err(format!("unknown encryption: {other}")),
     };
     let mut builder = builder.port(cfg.port);
     if let (Some(u), Some(p)) = (cfg.username.as_deref(), cfg.password.as_deref()) {
@@ -70,6 +73,9 @@ pub async fn send(
     }
     let transport = builder.build();
 
-    transport.send(msg).await.map_err(|e| format!("send: {e}"))?;
+    transport
+        .send(msg)
+        .await
+        .map_err(|e| format!("send: {e}"))?;
     Ok(())
 }

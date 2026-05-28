@@ -23,11 +23,11 @@ pub mod push;
 pub mod status_pages;
 pub mod stream;
 pub mod subscribers;
-pub mod webpush;
 pub mod tags;
 pub mod templates;
 pub mod totp;
 pub mod users;
+pub mod webpush;
 
 use crate::state::AppState;
 use axum::Router;
@@ -76,8 +76,7 @@ pub fn v1_protected() -> Router<AppState> {
         // /v1/audit-log — admin only via the layer the users router uses.
         .nest(
             "/audit-log",
-            audit::router()
-                .route_layer(axum::middleware::from_fn(crate::auth::require_admin)),
+            audit::router().route_layer(axum::middleware::from_fn(crate::auth::require_admin)),
         )
         // /v1/api-keys — list/create/revoke
         .nest("/api-keys", api_keys::router())

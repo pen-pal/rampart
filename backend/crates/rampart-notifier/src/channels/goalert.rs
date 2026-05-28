@@ -10,7 +10,10 @@ pub struct GoAlertConfig {
     pub integration_url: String,
 }
 
-pub struct GoAlert { cfg: GoAlertConfig, client: reqwest::Client }
+pub struct GoAlert {
+    cfg: GoAlertConfig,
+    client: reqwest::Client,
+}
 
 impl GoAlert {
     pub fn from_config(raw: &serde_json::Value) -> Result<Self, ChannelError> {
@@ -19,7 +22,10 @@ impl GoAlert {
         if !cfg.integration_url.starts_with("http") {
             return Err(ChannelError::BadConfig("integration_url required".into()));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
@@ -27,23 +33,35 @@ impl GoAlert {
 struct Payload<'a> {
     summary: &'a str,
     details: &'a str,
-    action:  &'a str,
-    dedup:   String,
+    action: &'a str,
+    dedup: String,
 }
 
 #[async_trait]
 impl Channel for GoAlert {
     async fn send(&self, subject: &str, body: &str, event: &Event) -> Result<(), ChannelError> {
-        let action = if event.heartbeat.status == MonitorStatus::Up { "close" } else { "trigger" };
+        let action = if event.heartbeat.status == MonitorStatus::Up {
+            "close"
+        } else {
+            "trigger"
+        };
         let payload = Payload {
             summary: subject,
             details: body,
             action,
             dedup: format!("rampart-monitor-{}", event.monitor.id.0),
         };
-        let resp = self.client.post(&self.cfg.integration_url).json(&payload).send().await?;
+        let resp = self
+            .client
+            .post(&self.cfg.integration_url)
+            .json(&payload)
+            .send()
+            .await?;
         if !resp.status().is_success() {
-            return Err(ChannelError::Upstream(resp.status().as_u16(), resp.text().await.unwrap_or_default()));
+            return Err(ChannelError::Upstream(
+                resp.status().as_u16(),
+                resp.text().await.unwrap_or_default(),
+            ));
         }
         Ok(())
     }

@@ -8,15 +8,20 @@ use serde::{Deserialize, Serialize};
 pub struct PromosmsConfig {
     pub username: String,
     pub password: String,
-    pub sender:   String,
-    pub to:       String,
+    pub sender: String,
+    pub to: String,
     /// "1" (ECO), "3" (Full)
     #[serde(default = "default_type")]
-    pub kind:     String,
+    pub kind: String,
 }
-fn default_type() -> String { "3".into() }
+fn default_type() -> String {
+    "3".into()
+}
 
-pub struct Promosms { cfg: PromosmsConfig, client: reqwest::Client }
+pub struct Promosms {
+    cfg: PromosmsConfig,
+    client: reqwest::Client,
+}
 
 impl Promosms {
     pub fn from_config(raw: &serde_json::Value) -> Result<Self, ChannelError> {
@@ -25,17 +30,20 @@ impl Promosms {
         if cfg.username.is_empty() || cfg.password.is_empty() || cfg.to.is_empty() {
             return Err(ChannelError::BadConfig("missing required fields".into()));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
 #[derive(Serialize)]
 struct Payload<'a> {
-    text:      String,
-    sender:    &'a str,
+    text: String,
+    sender: &'a str,
     recipients: Vec<&'a str>,
     #[serde(rename = "type")]
-    kind:      &'a str,
+    kind: &'a str,
 }
 
 #[async_trait]
@@ -44,14 +52,27 @@ impl Channel for Promosms {
         let payload = Payload {
             text: format!("{subject}\n{body}"),
             sender: &self.cfg.sender,
-            recipients: self.cfg.to.split(',').map(str::trim).filter(|s| !s.is_empty()).collect(),
+            recipients: self
+                .cfg
+                .to
+                .split(',')
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .collect(),
             kind: &self.cfg.kind,
         };
-        let resp = self.client.post("https://api.promosms.com/api/rest/v3_2/sms")
+        let resp = self
+            .client
+            .post("https://api.promosms.com/api/rest/v3_2/sms")
             .basic_auth(&self.cfg.username, Some(&self.cfg.password))
-            .json(&payload).send().await?;
+            .json(&payload)
+            .send()
+            .await?;
         if !resp.status().is_success() {
-            return Err(ChannelError::Upstream(resp.status().as_u16(), resp.text().await.unwrap_or_default()));
+            return Err(ChannelError::Upstream(
+                resp.status().as_u16(),
+                resp.text().await.unwrap_or_default(),
+            ));
         }
         Ok(())
     }

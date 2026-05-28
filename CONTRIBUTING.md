@@ -113,20 +113,21 @@ git add .sqlx
 
 ### Security scanning
 
-CI runs dependency security gates that you can reproduce locally before pushing:
+CI runs a Rust dependency security gate (cargo-deny) that you can reproduce locally before pushing:
 
 ```bash
 cd backend
-cargo install cargo-deny cargo-audit   # one-time
-cargo audit                            # RUSTSEC advisory check
-cargo deny --manifest-path Cargo.toml check   # advisories + license policy + bans
+cargo install cargo-deny   # one-time
+cargo deny check           # advisories (RUSTSEC) + license policy + bans + sources
 ```
 
-License policy lives in [`deny.toml`](deny.toml). The project is AGPL-3.0, so a
-new dependency must be under a license on the allow-list there. If `cargo deny`
-rejects a transitive crate with a legitimate license, add it to the allow-list
-(or an `[[licenses.exceptions]]`) in the same PR. The JavaScript frontend is
-covered separately by CodeQL.
+Policy lives in [`backend/deny.toml`](backend/deny.toml). The project is
+AGPL-3.0, so a new dependency must be under a license on the allow-list there.
+If `cargo deny` rejects a transitive crate with a legitimate license, add it to
+the allow-list in the same PR. cargo-deny's `advisories` check scans the same
+RUSTSEC database as `cargo audit`; accepted-with-justification advisories live
+in the `[advisories] ignore` list in `deny.toml` (see also
+`docs/SECURITY-DEBT.md`). The JavaScript frontend is covered separately by CodeQL.
 
 Frontend (~32 unit tests):
 

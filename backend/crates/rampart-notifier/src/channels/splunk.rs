@@ -13,7 +13,10 @@ pub struct SplunkConfig {
     pub integration_url: String,
 }
 
-pub struct Splunk { cfg: SplunkConfig, client: reqwest::Client }
+pub struct Splunk {
+    cfg: SplunkConfig,
+    client: reqwest::Client,
+}
 
 impl Splunk {
     pub fn from_config(raw: &serde_json::Value) -> Result<Self, ChannelError> {
@@ -22,16 +25,19 @@ impl Splunk {
         if !cfg.integration_url.starts_with("http") {
             return Err(ChannelError::BadConfig("integration_url required".into()));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
 #[derive(Serialize)]
 struct Payload<'a> {
-    message_type:        &'a str,
-    entity_id:           String,
-    state_message:       String,
-    monitoring_tool:     &'static str,
+    message_type: &'a str,
+    entity_id: String,
+    state_message: String,
+    monitoring_tool: &'static str,
     entity_display_name: &'a str,
 }
 
@@ -39,9 +45,9 @@ struct Payload<'a> {
 impl Channel for Splunk {
     async fn send(&self, subject: &str, body: &str, event: &Event) -> Result<(), ChannelError> {
         let kind = match event.heartbeat.status {
-            MonitorStatus::Up   => "RECOVERY",
+            MonitorStatus::Up => "RECOVERY",
             MonitorStatus::Warn => "WARNING",
-            _                    => "CRITICAL",
+            _ => "CRITICAL",
         };
         let payload = Payload {
             message_type: kind,
@@ -50,9 +56,17 @@ impl Channel for Splunk {
             monitoring_tool: "rampart",
             entity_display_name: &event.monitor.name,
         };
-        let resp = self.client.post(&self.cfg.integration_url).json(&payload).send().await?;
+        let resp = self
+            .client
+            .post(&self.cfg.integration_url)
+            .json(&payload)
+            .send()
+            .await?;
         if !resp.status().is_success() {
-            return Err(ChannelError::Upstream(resp.status().as_u16(), resp.text().await.unwrap_or_default()));
+            return Err(ChannelError::Upstream(
+                resp.status().as_u16(),
+                resp.text().await.unwrap_or_default(),
+            ));
         }
         Ok(())
     }

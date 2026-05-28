@@ -40,9 +40,9 @@ fn parse(s: &str) -> Result<UserId, ApiError> {
 
 #[derive(Deserialize)]
 struct CreateUserInput {
-    email:    String,
+    email: String,
     #[serde(default)]
-    name:     Option<String>,
+    name: Option<String>,
     password: String,
     #[serde(default)]
     is_admin: bool,
@@ -59,7 +59,9 @@ async fn create(
     Json(input): Json<CreateUserInput>,
 ) -> Result<(StatusCode, Json<User>), ApiError> {
     if input.password.len() < 10 {
-        return Err(ApiError::BadRequest("password must be at least 10 characters".into()));
+        return Err(ApiError::BadRequest(
+            "password must be at least 10 characters".into(),
+        ));
     }
     if !input.email.contains('@') {
         return Err(ApiError::BadRequest("email looks invalid".into()));
@@ -75,14 +77,23 @@ async fn create(
         },
     )
     .await?;
-    crate::audit::record(s.pool(), &caller, &headers,
-        "user.create", "user", Some(u.id.0),
-        Some(serde_json::json!({ "email": input.email, "is_admin": input.is_admin }))).await;
+    crate::audit::record(
+        s.pool(),
+        &caller,
+        &headers,
+        "user.create",
+        "user",
+        Some(u.id.0),
+        Some(serde_json::json!({ "email": input.email, "is_admin": input.is_admin })),
+    )
+    .await;
     Ok((StatusCode::CREATED, Json(u)))
 }
 
 #[derive(Deserialize)]
-struct SetAdminInput { is_admin: bool }
+struct SetAdminInput {
+    is_admin: bool,
+}
 
 async fn set_admin(
     State(s): State<AppState>,
@@ -98,9 +109,20 @@ async fn set_admin(
         return Err(ApiError::BadRequest("you can't demote yourself".into()));
     }
     rampart_db::users::set_admin(s.pool(), target, body.is_admin).await?;
-    crate::audit::record(s.pool(), &caller, &headers,
-        if body.is_admin { "user.promote" } else { "user.demote" },
-        "user", Some(target.0), None).await;
+    crate::audit::record(
+        s.pool(),
+        &caller,
+        &headers,
+        if body.is_admin {
+            "user.promote"
+        } else {
+            "user.demote"
+        },
+        "user",
+        Some(target.0),
+        None,
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -115,15 +137,23 @@ async fn remove(
         return Err(ApiError::BadRequest("you can't delete yourself".into()));
     }
     rampart_db::users::delete(s.pool(), target).await?;
-    crate::audit::record(s.pool(), &caller, &headers,
-        "user.delete", "user", Some(target.0), None).await;
+    crate::audit::record(
+        s.pool(),
+        &caller,
+        &headers,
+        "user.delete",
+        "user",
+        Some(target.0),
+        None,
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 
 #[derive(Deserialize)]
 struct ChangePasswordInput {
     current_password: String,
-    new_password:     String,
+    new_password: String,
 }
 
 async fn change_password(
@@ -132,7 +162,9 @@ async fn change_password(
     Json(input): Json<ChangePasswordInput>,
 ) -> Result<StatusCode, ApiError> {
     if input.new_password.len() < 10 {
-        return Err(ApiError::BadRequest("new password must be at least 10 characters".into()));
+        return Err(ApiError::BadRequest(
+            "new password must be at least 10 characters".into(),
+        ));
     }
     let raw = rampart_db::users::get_by_email(s.pool(), &caller.email)
         .await

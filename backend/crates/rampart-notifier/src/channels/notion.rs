@@ -10,20 +10,28 @@ use serde_json::json;
 
 #[derive(Debug, Deserialize)]
 pub struct NotionConfig {
-    pub api_token:   String,
+    pub api_token: String,
     pub database_id: String,
 }
 
-pub struct Notion { cfg: NotionConfig, client: reqwest::Client }
+pub struct Notion {
+    cfg: NotionConfig,
+    client: reqwest::Client,
+}
 
 impl Notion {
     pub fn from_config(raw: &serde_json::Value) -> Result<Self, ChannelError> {
         let cfg: NotionConfig = serde_json::from_value(raw.clone())
             .map_err(|e| ChannelError::BadConfig(e.to_string()))?;
         if cfg.api_token.is_empty() || cfg.database_id.is_empty() {
-            return Err(ChannelError::BadConfig("api_token + database_id required".into()));
+            return Err(ChannelError::BadConfig(
+                "api_token + database_id required".into(),
+            ));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
@@ -45,12 +53,19 @@ impl Channel for Notion {
                 }
             }]
         });
-        let resp = self.client.post("https://api.notion.com/v1/pages")
+        let resp = self
+            .client
+            .post("https://api.notion.com/v1/pages")
             .bearer_auth(&self.cfg.api_token)
             .header("Notion-Version", "2022-06-28")
-            .json(&payload).send().await?;
+            .json(&payload)
+            .send()
+            .await?;
         if !resp.status().is_success() {
-            return Err(ChannelError::Upstream(resp.status().as_u16(), resp.text().await.unwrap_or_default()));
+            return Err(ChannelError::Upstream(
+                resp.status().as_u16(),
+                resp.text().await.unwrap_or_default(),
+            ));
         }
         Ok(())
     }

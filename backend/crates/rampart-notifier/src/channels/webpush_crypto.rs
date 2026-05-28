@@ -98,7 +98,13 @@ fn encrypt_with_keys(
         .map_err(|e| WebPushError::Crypto(format!("aes key: {e}")))?;
     let nonce = Nonce::from_slice(&nonce_bytes);
     let ciphertext = cipher
-        .encrypt(nonce, Payload { msg: &padded, aad: b"" })
+        .encrypt(
+            nonce,
+            Payload {
+                msg: &padded,
+                aad: b"",
+            },
+        )
         .map_err(|e| WebPushError::Crypto(format!("aes-gcm: {e}")))?;
 
     // RFC 8188 header: salt(16) || rs(4, BE) || idlen(1) || keyid(as_public).
@@ -113,12 +119,7 @@ fn encrypt_with_keys(
     Ok(EncryptedPayload { body })
 }
 
-fn hkdf_expand(
-    salt: &[u8],
-    ikm: &[u8],
-    info: &[u8],
-    len: usize,
-) -> Result<Vec<u8>, WebPushError> {
+fn hkdf_expand(salt: &[u8], ikm: &[u8], info: &[u8], len: usize) -> Result<Vec<u8>, WebPushError> {
     let hk = Hkdf::<Sha256>::new(Some(salt), ikm);
     let mut out = vec![0u8; len];
     hk.expand(info, &mut out)
@@ -222,14 +223,26 @@ mod tests {
         key_info.extend_from_slice(b"WebPush: info\0");
         key_info.extend_from_slice(&ua_public);
         key_info.extend_from_slice(keyid);
-        let ikm = hkdf_expand(auth_secret, shared.raw_secret_bytes().as_slice(), &key_info, 32).unwrap();
+        let ikm = hkdf_expand(
+            auth_secret,
+            shared.raw_secret_bytes().as_slice(),
+            &key_info,
+            32,
+        )
+        .unwrap();
 
         let cek = hkdf_expand(salt, &ikm, b"Content-Encoding: aes128gcm\0", 16).unwrap();
         let nonce = hkdf_expand(salt, &ikm, b"Content-Encoding: nonce\0", 12).unwrap();
 
         let cipher = Aes128Gcm::new_from_slice(&cek).unwrap();
         let mut pt = cipher
-            .decrypt(Nonce::from_slice(&nonce), Payload { msg: ciphertext, aad: b"" })
+            .decrypt(
+                Nonce::from_slice(&nonce),
+                Payload {
+                    msg: ciphertext,
+                    aad: b"",
+                },
+            )
             .unwrap();
         // Strip the single-record padding delimiter (0x02).
         while matches!(pt.last(), Some(0u8)) {
@@ -254,13 +267,17 @@ mod tests {
             .unwrap();
         let auth = URL_SAFE_NO_PAD.decode("BTBZMqHH6r4Tts7J_aSIgg").unwrap();
         let as_secret = SecretKey::from_slice(
-            &URL_SAFE_NO_PAD.decode("yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw").unwrap(),
+            &URL_SAFE_NO_PAD
+                .decode("yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw")
+                .unwrap(),
         )
         .unwrap();
         let salt = URL_SAFE_NO_PAD.decode("DGv6ra1nlYgDh4VAd6lkpg").unwrap();
         // Receiver (UA) private key from the RFC.
         let ua_secret = SecretKey::from_slice(
-            &URL_SAFE_NO_PAD.decode("q1dXpw3UpT5VOmu_cf_v6ih07Aems3njxI-JWgLcM94").unwrap(),
+            &URL_SAFE_NO_PAD
+                .decode("q1dXpw3UpT5VOmu_cf_v6ih07Aems3njxI-JWgLcM94")
+                .unwrap(),
         )
         .unwrap();
         // Sanity: the RFC's UA private key must match the p256dh we encrypt to.
@@ -280,7 +297,11 @@ mod tests {
     #[test]
     fn random_roundtrip() {
         let ua_secret = SecretKey::random(&mut rand::thread_rng());
-        let ua_public = ua_secret.public_key().to_encoded_point(false).as_bytes().to_vec();
+        let ua_public = ua_secret
+            .public_key()
+            .to_encoded_point(false)
+            .as_bytes()
+            .to_vec();
         let mut auth = [0u8; 16];
         use rand::RngCore;
         rand::thread_rng().fill_bytes(&mut auth);

@@ -32,7 +32,9 @@ pub fn admin_router() -> Router<AppState> {
 }
 
 #[derive(Deserialize)]
-struct SubscribeInput { email: String }
+struct SubscribeInput {
+    email: String,
+}
 
 async fn subscribe(
     State(s): State<AppState>,
@@ -101,7 +103,10 @@ async fn smtp_get(State(s): State<AppState>) -> Result<Json<serde_json::Value>, 
     let value = raw.map(|mut v| {
         if let Some(obj) = v.as_object_mut() {
             if obj.contains_key("password") {
-                obj.insert("password".into(), serde_json::Value::String("(redacted)".into()));
+                obj.insert(
+                    "password".into(),
+                    serde_json::Value::String("(redacted)".into()),
+                );
             }
         }
         v
@@ -145,9 +150,9 @@ async fn smtp_put(
 async fn retention_get(State(s): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
     // Default mirrors `RetentionConfig::default()` in rampart-db::prune.
     let raw = rampart_db::settings::get(s.pool(), "retention_days").await?;
-    Ok(Json(
-        raw.unwrap_or_else(|| serde_json::json!({ "heartbeats": 90, "audit_log": 365 })),
-    ))
+    Ok(Json(raw.unwrap_or_else(
+        || serde_json::json!({ "heartbeats": 90, "audit_log": 365 }),
+    )))
 }
 
 #[derive(Deserialize)]

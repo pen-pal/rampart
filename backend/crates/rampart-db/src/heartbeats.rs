@@ -115,9 +115,9 @@ pub async fn recent_for_monitor(
 pub async fn range_for_monitor(
     pool: &DbPool,
     monitor: MonitorId,
-    since:   time::OffsetDateTime,
-    until:   time::OffsetDateTime,
-    limit:   i64,
+    since: time::OffsetDateTime,
+    until: time::OffsetDateTime,
+    limit: i64,
 ) -> DbResult<Vec<Heartbeat>> {
     let rows = sqlx::query!(
         r#"
@@ -137,21 +137,27 @@ pub async fn range_for_monitor(
         ORDER BY ts ASC
         LIMIT $4
         "#,
-        monitor.0, since, until, limit,
+        monitor.0,
+        since,
+        until,
+        limit,
     )
     .fetch_all(pool)
     .await?;
 
-    Ok(rows.into_iter().map(|r| Heartbeat {
-        monitor_id: MonitorId::from_uuid(r.monitor_id),
-        ts: r.ts,
-        status: r.status,
-        latency_ms: r.latency_ms,
-        status_code: r.status_code,
-        msg: r.msg,
-        retries: r.retries,
-        important: r.important,
-    }).collect())
+    Ok(rows
+        .into_iter()
+        .map(|r| Heartbeat {
+            monitor_id: MonitorId::from_uuid(r.monitor_id),
+            ts: r.ts,
+            status: r.status,
+            latency_ms: r.latency_ms,
+            status_code: r.status_code,
+            msg: r.msg,
+            retries: r.retries,
+            important: r.important,
+        })
+        .collect())
 }
 
 /// Uptime % over the trailing `window_seconds`. Returns None if no

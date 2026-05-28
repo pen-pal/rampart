@@ -90,7 +90,7 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<Notification>> {
             template_id: r.template_id.map(NotificationTemplateId::from_uuid),
             created_at: r.created_at,
             cooldown_seconds: r.cooldown_seconds,
-            last_fired_at:    r.last_fired_at,
+            last_fired_at: r.last_fired_at,
         })
         .collect())
 }
@@ -117,7 +117,7 @@ pub async fn get(pool: &DbPool, id: NotificationId) -> DbResult<Notification> {
         template_id: row.template_id.map(NotificationTemplateId::from_uuid),
         created_at: row.created_at,
         cooldown_seconds: row.cooldown_seconds,
-        last_fired_at:    row.last_fired_at,
+        last_fired_at: row.last_fired_at,
     })
 }
 
@@ -149,7 +149,7 @@ pub async fn create(pool: &DbPool, input: NewNotification) -> DbResult<Notificat
         template_id: row.template_id.map(NotificationTemplateId::from_uuid),
         created_at: row.created_at,
         cooldown_seconds: row.cooldown_seconds,
-        last_fired_at:    row.last_fired_at,
+        last_fired_at: row.last_fired_at,
     })
 }
 
@@ -195,7 +195,7 @@ pub async fn update(
         template_id: row.template_id.map(NotificationTemplateId::from_uuid),
         created_at: row.created_at,
         cooldown_seconds: row.cooldown_seconds,
-        last_fired_at:    row.last_fired_at,
+        last_fired_at: row.last_fired_at,
     })
 }
 
@@ -288,7 +288,7 @@ pub async fn for_monitor(pool: &DbPool, monitor: MonitorId) -> DbResult<Vec<Noti
             template_id: r.template_id.map(NotificationTemplateId::from_uuid),
             created_at: r.created_at,
             cooldown_seconds: r.cooldown_seconds,
-            last_fired_at:    r.last_fired_at,
+            last_fired_at: r.last_fired_at,
         })
         .collect())
 }

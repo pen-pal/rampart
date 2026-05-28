@@ -9,11 +9,16 @@ use serde::Deserialize;
 pub struct PushdeerConfig {
     pub push_key: String,
     #[serde(default = "default_server")]
-    pub server:   String,
+    pub server: String,
 }
-fn default_server() -> String { "https://api2.pushdeer.com".into() }
+fn default_server() -> String {
+    "https://api2.pushdeer.com".into()
+}
 
-pub struct Pushdeer { cfg: PushdeerConfig, client: reqwest::Client }
+pub struct Pushdeer {
+    cfg: PushdeerConfig,
+    client: reqwest::Client,
+}
 
 impl Pushdeer {
     pub fn from_config(raw: &serde_json::Value) -> Result<Self, ChannelError> {
@@ -22,7 +27,10 @@ impl Pushdeer {
         if cfg.push_key.trim().is_empty() {
             return Err(ChannelError::BadConfig("push_key required".into()));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
@@ -30,16 +38,22 @@ impl Pushdeer {
 impl Channel for Pushdeer {
     async fn send(&self, subject: &str, body: &str, _event: &Event) -> Result<(), ChannelError> {
         let url = format!("{}/message/push", self.cfg.server.trim_end_matches('/'));
-        let resp = self.client.post(&url)
+        let resp = self
+            .client
+            .post(&url)
             .form(&[
                 ("pushkey", self.cfg.push_key.as_str()),
-                ("text",    subject),
-                ("desp",    body),
-                ("type",    "markdown"),
+                ("text", subject),
+                ("desp", body),
+                ("type", "markdown"),
             ])
-            .send().await?;
+            .send()
+            .await?;
         if !resp.status().is_success() {
-            return Err(ChannelError::Upstream(resp.status().as_u16(), resp.text().await.unwrap_or_default()));
+            return Err(ChannelError::Upstream(
+                resp.status().as_u16(),
+                resp.text().await.unwrap_or_default(),
+            ));
         }
         Ok(())
     }

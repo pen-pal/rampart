@@ -7,12 +7,15 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize)]
 pub struct SmsPartnerConfig {
     pub api_key: String,
-    pub sender:  String,
+    pub sender: String,
     /// comma-separated FR-format numbers
-    pub to:      String,
+    pub to: String,
 }
 
-pub struct Smspartner { cfg: SmsPartnerConfig, client: reqwest::Client }
+pub struct Smspartner {
+    cfg: SmsPartnerConfig,
+    client: reqwest::Client,
+}
 
 impl Smspartner {
     pub fn from_config(raw: &serde_json::Value) -> Result<Self, ChannelError> {
@@ -21,7 +24,10 @@ impl Smspartner {
         if cfg.api_key.is_empty() || cfg.to.is_empty() {
             return Err(ChannelError::BadConfig("api_key + to required".into()));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
@@ -33,7 +39,7 @@ struct Payload<'a> {
     phone_numbers: &'a str,
     message: String,
     #[serde(rename = "sender")]
-    sender:  &'a str,
+    sender: &'a str,
 }
 
 #[async_trait]
@@ -45,10 +51,17 @@ impl Channel for Smspartner {
             message: format!("{subject}\n{body}"),
             sender: &self.cfg.sender,
         };
-        let resp = self.client.post("https://api.smspartner.fr/v1/send")
-            .json(&payload).send().await?;
+        let resp = self
+            .client
+            .post("https://api.smspartner.fr/v1/send")
+            .json(&payload)
+            .send()
+            .await?;
         if !resp.status().is_success() {
-            return Err(ChannelError::Upstream(resp.status().as_u16(), resp.text().await.unwrap_or_default()));
+            return Err(ChannelError::Upstream(
+                resp.status().as_u16(),
+                resp.text().await.unwrap_or_default(),
+            ));
         }
         Ok(())
     }

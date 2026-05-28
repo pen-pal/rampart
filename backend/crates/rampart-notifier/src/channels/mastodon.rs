@@ -6,15 +6,20 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 pub struct MastodonConfig {
-    pub server:       String,
+    pub server: String,
     pub access_token: String,
     /// "public" | "unlisted" | "private" | "direct"; default "private".
     #[serde(default = "default_visibility")]
-    pub visibility:   String,
+    pub visibility: String,
 }
-fn default_visibility() -> String { "private".into() }
+fn default_visibility() -> String {
+    "private".into()
+}
 
-pub struct Mastodon { cfg: MastodonConfig, client: reqwest::Client }
+pub struct Mastodon {
+    cfg: MastodonConfig,
+    client: reqwest::Client,
+}
 
 impl Mastodon {
     pub fn from_config(raw: &serde_json::Value) -> Result<Self, ChannelError> {
@@ -23,13 +28,16 @@ impl Mastodon {
         if cfg.access_token.trim().is_empty() {
             return Err(ChannelError::BadConfig("access_token required".into()));
         }
-        Ok(Self { cfg, client: reqwest::Client::new() })
+        Ok(Self {
+            cfg,
+            client: reqwest::Client::new(),
+        })
     }
 }
 
 #[derive(Serialize)]
 struct Payload<'a> {
-    status:     String,
+    status: String,
     visibility: &'a str,
 }
 
@@ -42,12 +50,21 @@ impl Channel for Mastodon {
             status = status.chars().take(497).collect::<String>() + "…";
         }
         let url = format!("{}/api/v1/statuses", self.cfg.server.trim_end_matches('/'));
-        let resp = self.client.post(&url)
+        let resp = self
+            .client
+            .post(&url)
             .bearer_auth(&self.cfg.access_token)
-            .json(&Payload { status, visibility: &self.cfg.visibility })
-            .send().await?;
+            .json(&Payload {
+                status,
+                visibility: &self.cfg.visibility,
+            })
+            .send()
+            .await?;
         if !resp.status().is_success() {
-            return Err(ChannelError::Upstream(resp.status().as_u16(), resp.text().await.unwrap_or_default()));
+            return Err(ChannelError::Upstream(
+                resp.status().as_u16(),
+                resp.text().await.unwrap_or_default(),
+            ));
         }
         Ok(())
     }
