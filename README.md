@@ -23,7 +23,7 @@ rampart/
 
 ## State of things
 
-What works today, against Uptime Kuma parity:
+What works today:
 
 | Area                | Status                                              |
 | ---                 | ---                                                 |
@@ -38,7 +38,7 @@ What works today, against Uptime Kuma parity:
 | **Auth**            | Session cookie + 2FA (TOTP + 10 single-use recovery codes), API keys (`Authorization: Bearer rmp_…`), multi-user (admin can create/promote/demote/delete), self-service password change |
 | **Audit log**       | Append-only record of mutating actions, admin-only viewer with cursor pagination + resource_kind, action-prefix, and actor filters |
 | **Retention**       | Hourly prune loop for heartbeats + audit log; windows configurable in the admin UI |
-| **Templates**       | Liquid (Kuma-compatible) for notification subject + body — filters, conditionals, loops |
+| **Templates**       | Liquid templating for notification subject + body — filters, conditionals, loops |
 | **Proxies**         | HTTP/SOCKS proxy registry; HTTP-family monitors route through assigned proxy |
 | **Cert tracking**   | Auto-inspect leaf cert on HTTPS monitors every hour; days-left badge on detail page |
 | **Edit monitor**    | Full PATCH endpoint + modal exposing common fields (schedule, target, HTTP options) |

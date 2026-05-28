@@ -25,7 +25,7 @@ use serde::Deserialize;
 use time::OffsetDateTime;
 
 pub fn router() -> Router<AppState> {
-    // Accept both POST and GET — Kuma's clients use GET in cron snippets;
+    // Accept both POST and GET — cron/curl snippets commonly use GET;
     // POST is more correct for "I'm asserting state". Both work.
     Router::new().route("/:token", post(push).get(push))
 }

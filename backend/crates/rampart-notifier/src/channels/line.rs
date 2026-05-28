@@ -1,8 +1,8 @@
 //! LINE Messaging API — push message.
 //!
 //! Needs a channel access token (from the LINE Developers Console) and
-//! the destination user / group / room id. Different from LINE Notify
-//! which Kuma also supports; this is the modern Messaging API.
+//! the destination user / group / room id. This targets the modern
+//! Messaging API, not the deprecated LINE Notify service.
 
 use crate::{Channel, ChannelError, Event};
 use async_trait::async_trait;

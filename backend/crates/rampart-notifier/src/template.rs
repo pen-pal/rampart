@@ -1,8 +1,7 @@
 //! Notification template renderer — Liquid dialect.
 //!
-//! Same surface area as Kuma's notification templates, so users porting
-//! from there can copy templates over verbatim. Supports filters
-//! (`upcase`, `downcase`, `date`, `truncate`, …), conditionals
+//! Standard Liquid surface for notification subject + body. Supports
+//! filters (`upcase`, `downcase`, `date`, `truncate`, …), conditionals
 //! (`{% if status == "down" %}…{% endif %}`), and loops. Unknown vars
 //! render to empty strings, matching Liquid's default lenient mode.
 //!
