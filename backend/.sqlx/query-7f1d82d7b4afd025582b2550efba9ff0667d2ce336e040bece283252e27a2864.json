@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, name, description, start_at, end_at, active, created_at\n        FROM maintenance_windows\n        ORDER BY start_at DESC\n        ",
+  "query": "\n        SELECT id, name, description, start_at, end_at, active, created_at, recurrence\n        FROM maintenance_windows\n        WHERE id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -37,10 +37,17 @@
         "ordinal": 6,
         "name": "created_at",
         "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "recurrence",
+        "type_info": "Jsonb"
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid"
+      ]
     },
     "nullable": [
       false,
@@ -49,8 +56,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "46a1dca2590373a9c3d4870c73d3e6f90bcbf465a9bceda05399d9b0d22edb45"
+  "hash": "7f1d82d7b4afd025582b2550efba9ff0667d2ce336e040bece283252e27a2864"
 }

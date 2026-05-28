@@ -140,7 +140,10 @@
                 "betterstack",
                 "statuspage_io",
                 "datadog",
-                "newrelic"
+                "newrelic",
+                "aws_sns",
+                "azure_servicebus",
+                "gcp_pubsub"
               ]
             }
           }

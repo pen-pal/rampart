@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE monitor_groups\n           SET name       = COALESCE($2, name),\n               sort_order = COALESCE($3, sort_order)\n         WHERE id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d097542aee2c5849ee486c131bb747bc37f2e1ca65b9fc2f91e566d445461e62"
+}

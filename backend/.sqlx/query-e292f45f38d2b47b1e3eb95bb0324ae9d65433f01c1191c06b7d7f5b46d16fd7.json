@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT w.start_at, w.end_at, w.recurrence\n        FROM maintenance_windows w\n        JOIN maintenance_window_monitors m ON m.window_id = w.id\n        WHERE m.monitor_id = $1\n          AND w.active\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "start_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 1,
+        "name": "end_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 2,
+        "name": "recurrence",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "e292f45f38d2b47b1e3eb95bb0324ae9d65433f01c1191c06b7d7f5b46d16fd7"
+}

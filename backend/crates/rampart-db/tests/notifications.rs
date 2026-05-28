@@ -30,6 +30,7 @@ fn http_monitor(name: &str) -> NewMonitor {
         follow_redirect: true,
         ignore_tls: false,
         proxy_id: None,
+        group_id: None,
     }
 }
 
@@ -40,6 +41,7 @@ fn webhook_channel(name: &str) -> NewNotification {
         config: serde_json::json!({"url": "https://example.com/hook"}),
         active: true,
         template_id: None,
+        cooldown_seconds: 0,
     }
 }
 

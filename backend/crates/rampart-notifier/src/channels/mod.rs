@@ -7,6 +7,9 @@
 pub mod alerta;
 pub mod alertnow;
 pub mod alertops;
+pub mod aws_sns;
+pub mod azure_servicebus;
+pub mod gcp_pubsub;
 pub mod aliyun_sms;
 pub mod apprise;
 pub mod asana;
@@ -267,6 +270,9 @@ pub async fn dispatch(
         ChannelKind::StatuspageIo   => Box::new(statuspage_io::StatuspageIo::from_config(config)?),
         ChannelKind::Datadog        => Box::new(datadog::Datadog::from_config(config)?),
         ChannelKind::Newrelic       => Box::new(newrelic::Newrelic::from_config(config)?),
+        ChannelKind::AwsSns         => Box::new(aws_sns::AwsSns::from_config(config)?),
+        ChannelKind::AzureServicebus => Box::new(azure_servicebus::AzureServicebus::from_config(config)?),
+        ChannelKind::GcpPubsub      => Box::new(gcp_pubsub::GcpPubsub::from_config(config)?),
         _ => {
             return Err(ChannelError::BadConfig(format!(
                 "channel kind {kind:?} not implemented yet"

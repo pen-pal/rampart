@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO maintenance_windows\n            (id, name, description, start_at, end_at, active, recurrence)\n        VALUES ($1, $2, $3, $4, $5, TRUE, $6)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Timestamptz",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "44db08e19dff14627da75bb8589f918ba432abe736f0118a0f1addc6652b9e84"
+}

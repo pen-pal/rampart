@@ -31,6 +31,10 @@ pub struct NewNotification {
     pub active: bool,
     #[serde(default)]
     pub template_id: Option<NotificationTemplateId>,
+    /// 0 = no cooldown (legacy). Suppresses sends within N seconds of
+    /// the channel's last successful fire.
+    #[serde(default)]
+    pub cooldown_seconds: i32,
 }
 fn default_enabled() -> bool {
     true
@@ -121,8 +125,8 @@ pub async fn create(pool: &DbPool, input: NewNotification) -> DbResult<Notificat
     let id = Uuid::now_v7();
     let row = sqlx::query!(
         r#"
-        INSERT INTO notifications (id, kind, name, config, active, template_id)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO notifications (id, kind, name, config, active, template_id, cooldown_seconds)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING id, kind AS "kind: ChannelKind", name, config, active,
                   template_id, created_at, cooldown_seconds, last_fired_at
         "#,
@@ -132,6 +136,7 @@ pub async fn create(pool: &DbPool, input: NewNotification) -> DbResult<Notificat
         input.config,
         input.active,
         input.template_id.map(|t| t.0),
+        input.cooldown_seconds,
     )
     .fetch_one(pool)
     .await?;

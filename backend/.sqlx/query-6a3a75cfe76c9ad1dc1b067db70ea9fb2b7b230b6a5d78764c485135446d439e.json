@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, actor_user_id, actor_api_key_id, action, resource_kind,\n               resource_id, payload, ip_addr, user_agent, ts\n        FROM audit_log\n        WHERE ($1::bigint IS NULL OR id < $1)\n          AND ($2::text   IS NULL OR resource_kind = $2)\n        ORDER BY id DESC\n        LIMIT $3\n        ",
+  "query": "\n        SELECT id, actor_user_id, actor_api_key_id, action, resource_kind,\n               resource_id, payload, ip_addr, user_agent, ts\n        FROM audit_log\n        WHERE ($1::bigint IS NULL OR id < $1)\n          AND ($2::text   IS NULL OR resource_kind = $2)\n          AND ($3::text   IS NULL OR action LIKE $3)\n          AND ($4::uuid   IS NULL OR actor_user_id = $4)\n        ORDER BY id DESC\n        LIMIT $5\n        ",
   "describe": {
     "columns": [
       {
@@ -58,6 +58,8 @@
       "Left": [
         "Int8",
         "Text",
+        "Text",
+        "Uuid",
         "Int8"
       ]
     },
@@ -74,5 +76,5 @@
       false
     ]
   },
-  "hash": "b8012c3a69023611bc55a390a4cbaf9929c48a488c6637d90529afde51ac8a2f"
+  "hash": "6a3a75cfe76c9ad1dc1b067db70ea9fb2b7b230b6a5d78764c485135446d439e"
 }

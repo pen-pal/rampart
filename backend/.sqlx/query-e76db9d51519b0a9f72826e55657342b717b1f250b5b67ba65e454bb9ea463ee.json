@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT 1 AS hit\n        FROM monitor_dependencies d\n        JOIN monitors p ON p.id = d.depends_on_id\n        WHERE d.monitor_id = $1\n          AND p.active\n          AND (p.current_status = 'down' OR p.current_status = 'pending')\n        LIMIT 1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "hit",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "e76db9d51519b0a9f72826e55657342b717b1f250b5b67ba65e454bb9ea463ee"
+}

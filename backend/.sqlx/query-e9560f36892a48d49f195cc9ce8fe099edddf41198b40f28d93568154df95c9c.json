@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO monitors (\n            id, name, kind, url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token\n        ) VALUES (\n            $1, $2, $3, $4, $5, $6, $7,\n            $8, $9, $10,\n            $11, $12, $13,\n            $14, $15, $16,\n            $17, $18, $19, $20,\n            $21\n        )\n        RETURNING\n            id, name,\n            kind   AS \"kind: MonitorKind\",\n            url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, last_push_at,\n            active,\n            current_status AS \"current_status: MonitorStatus\",\n            created_at, updated_at,\n            cert_days_left, cert_subject, cert_checked_at\n        ",
+  "query": "\n        INSERT INTO monitors (\n            id, name, kind, url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, group_id\n        ) VALUES (\n            $1, $2, $3, $4, $5, $6, $7,\n            $8, $9, $10,\n            $11, $12, $13,\n            $14, $15, $16,\n            $17, $18, $19, $20,\n            $21, $22\n        )\n        RETURNING\n            id, name,\n            kind   AS \"kind: MonitorKind\",\n            url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, last_push_at,\n            active,\n            current_status AS \"current_status: MonitorStatus\",\n            created_at, updated_at,\n            cert_days_left, cert_subject, cert_checked_at,\n            group_id\n        ",
   "describe": {
     "columns": [
       {
@@ -40,7 +40,8 @@
                 "mssql",
                 "redis",
                 "mongodb",
-                "domain"
+                "domain",
+                "browser"
               ]
             }
           }
@@ -189,6 +190,11 @@
         "ordinal": 28,
         "name": "cert_checked_at",
         "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 29,
+        "name": "group_id",
+        "type_info": "Uuid"
       }
     ],
     "parameters": {
@@ -219,7 +225,8 @@
                 "mssql",
                 "redis",
                 "mongodb",
-                "domain"
+                "domain",
+                "browser"
               ]
             }
           }
@@ -241,7 +248,8 @@
         "Bool",
         "Bool",
         "Uuid",
-        "Text"
+        "Text",
+        "Uuid"
       ]
     },
     "nullable": [
@@ -273,8 +281,9 @@
       false,
       true,
       true,
+      true,
       true
     ]
   },
-  "hash": "915fdff6f1f7698f4fabcee51f6c3521aa78c07f56222dd6aa1a1f1d49ec5ee8"
+  "hash": "e9560f36892a48d49f195cc9ce8fe099edddf41198b40f28d93568154df95c9c"
 }

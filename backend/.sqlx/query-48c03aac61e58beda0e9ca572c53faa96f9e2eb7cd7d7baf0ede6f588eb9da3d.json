@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            id, name,\n            kind   AS \"kind: MonitorKind\",\n            url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, last_push_at,\n            active,\n            current_status AS \"current_status: MonitorStatus\",\n            created_at, updated_at,\n            cert_days_left, cert_subject, cert_checked_at\n        FROM monitors\n        ORDER BY created_at DESC\n        ",
+  "query": "\n        SELECT\n            id, name,\n            kind   AS \"kind: MonitorKind\",\n            url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, last_push_at,\n            active,\n            current_status AS \"current_status: MonitorStatus\",\n            created_at, updated_at,\n            cert_days_left, cert_subject, cert_checked_at,\n            group_id\n        FROM monitors\n        WHERE id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -40,7 +40,8 @@
                 "mssql",
                 "redis",
                 "mongodb",
-                "domain"
+                "domain",
+                "browser"
               ]
             }
           }
@@ -189,10 +190,17 @@
         "ordinal": 28,
         "name": "cert_checked_at",
         "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 29,
+        "name": "group_id",
+        "type_info": "Uuid"
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid"
+      ]
     },
     "nullable": [
       false,
@@ -223,8 +231,9 @@
       false,
       true,
       true,
+      true,
       true
     ]
   },
-  "hash": "79f2e020bd27965eaad23ba3523226b0f4869d20ffe2f44501ea741dfc30447c"
+  "hash": "48c03aac61e58beda0e9ca572c53faa96f9e2eb7cd7d7baf0ede6f588eb9da3d"
 }

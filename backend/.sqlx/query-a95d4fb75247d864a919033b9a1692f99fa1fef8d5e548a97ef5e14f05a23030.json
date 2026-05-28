@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM monitor_dependencies WHERE monitor_id = $1 AND depends_on_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a95d4fb75247d864a919033b9a1692f99fa1fef8d5e548a97ef5e14f05a23030"
+}

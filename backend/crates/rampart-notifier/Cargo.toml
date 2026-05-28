@@ -28,6 +28,8 @@ sha1        = { workspace = true }
 base64      = { workspace = true }
 rand        = { workspace = true }
 hex         = { workspace = true }
+urlencoding  = { workspace = true }
+jsonwebtoken = { workspace = true }
 
 [dev-dependencies]
 rampart-core = { path = "../rampart-core", features = ["testing"] }

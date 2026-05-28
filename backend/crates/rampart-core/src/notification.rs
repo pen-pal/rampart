@@ -148,6 +148,9 @@ pub enum ChannelKind {
     StatuspageIo,
     Datadog,
     Newrelic,
+    AwsSns,
+    AzureServicebus,
+    GcpPubsub,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
