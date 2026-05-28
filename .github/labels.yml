@@ -1,0 +1,72 @@
+# Canonical label set, synced to the repo by .github/workflows/labels.yml
+# (EndBug/label-sync). Edit here, not in the GitHub UI, so labels stay
+# reproducible. These names are referenced by the issue templates and the
+# labeler / stale / conflict-labeler workflows.
+
+# ── type ──────────────────────────────────────────────────────────────────
+- name: bug
+  color: "d73a4a"
+  description: Something is broken or behaving unexpectedly.
+- name: enhancement
+  color: "a2eeef"
+  description: New feature or request.
+- name: needs-triage
+  color: "fbca04"
+  description: Awaiting maintainer review.
+- name: dependencies
+  color: "0366d6"
+  description: Dependency updates (Dependabot).
+- name: wontfix
+  color: "ffffff"
+  description: Out of scope or will not be addressed.
+- name: documentation
+  color: "0075ca"
+  description: Docs-only change.
+
+# ── workflow / automation ───────────────────────────────────────────────
+- name: has-conflicts
+  color: "b60205"
+  description: Merge conflicts with the base branch — needs a rebase.
+- name: stale
+  color: "795548"
+  description: No activity for a while; will be auto-closed.
+
+# ── triage helpers ──────────────────────────────────────────────────────
+- name: good-first-issue
+  color: "7057ff"
+  description: Good for newcomers.
+- name: help-wanted
+  color: "008672"
+  description: Maintainers would welcome help here.
+- name: pinned
+  color: "ededed"
+  description: Exempt from the stale bot.
+- name: security
+  color: "ee0701"
+  description: Security-relevant; exempt from stale.
+- name: roadmap
+  color: "5319e7"
+  description: Tracked on the roadmap; exempt from stale.
+- name: work-in-progress
+  color: "fef2c0"
+  description: Not ready for review/merge.
+
+# ── area (auto-applied by the path labeler) ─────────────────────────────
+- name: "area: backend"
+  color: "1d76db"
+  description: Rust workspace.
+- name: "area: frontend"
+  color: "0e8a16"
+  description: React app.
+- name: "area: db"
+  color: "5319e7"
+  description: Migrations / schema.
+- name: "area: docs"
+  color: "0075ca"
+  description: Documentation.
+- name: "area: ci"
+  color: "bfdadc"
+  description: CI / workflows / tooling.
+- name: "area: docker"
+  color: "2496ed"
+  description: Container image / compose.

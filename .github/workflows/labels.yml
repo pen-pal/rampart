@@ -1,0 +1,24 @@
+# Sync the repo's labels to .github/labels.yml. Run on changes to the
+# manifest, or manually. `prune: true` removes labels not in the file, so
+# the manifest is the single source of truth.
+name: labels
+
+on:
+  push:
+    branches: [main]
+    paths: [".github/labels.yml"]
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EndBug/label-sync@v2
+        with:
+          config-file: .github/labels.yml
+          delete-other-labels: true
+          token: ${{ secrets.GITHUB_TOKEN }}

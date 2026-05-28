@@ -103,13 +103,30 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check
 ```
 
-CI builds use `SQLX_OFFLINE=true` against the committed `.sqlx/` cache. If you change a `sqlx::query!`, regenerate it:
+CI builds use `SQLX_OFFLINE=true` against the committed `.sqlx/` cache. If you change a `sqlx::query!` (including adding a migration that a query depends on), regenerate it and commit the result — CI will fail otherwise:
 
 ```bash
 cd backend
 DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart cargo sqlx prepare --workspace
 git add .sqlx
 ```
+
+### Security scanning
+
+CI runs dependency security gates that you can reproduce locally before pushing:
+
+```bash
+cd backend
+cargo install cargo-deny cargo-audit   # one-time
+cargo audit                            # RUSTSEC advisory check
+cargo deny --manifest-path Cargo.toml check   # advisories + license policy + bans
+```
+
+License policy lives in [`deny.toml`](deny.toml). The project is AGPL-3.0, so a
+new dependency must be under a license on the allow-list there. If `cargo deny`
+rejects a transitive crate with a legitimate license, add it to the allow-list
+(or an `[[licenses.exceptions]]`) in the same PR. The JavaScript frontend is
+covered separately by CodeQL.
 
 Frontend (~32 unit tests):
 
