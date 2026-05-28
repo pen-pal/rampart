@@ -1,6 +1,6 @@
 # backend/HACKING.md
 
-Rust-specific conventions for the `rampart-*` crates. Read this before touching code in `backend/crates/`. The top-level [`README`](../README.md) covers how to run; [`docs/DESIGN.md`](../docs/DESIGN.md) covers the why and the v1→v2 pivot history.
+Rust-specific conventions for the `rampart-*` crates. Read this before touching code in `backend/crates/`. The top-level [`README`](../README.md) covers how to run; [`docs/DESIGN-ORIGINAL.md`](../docs/DESIGN-ORIGINAL.md) covers the why and the v1→v2 pivot history.
 
 ## Crate boundaries (do not violate)
 

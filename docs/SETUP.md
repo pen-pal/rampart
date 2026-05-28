@@ -57,8 +57,10 @@ on the next tick. Default interval is 60 s; the dashboard polls every
 
 ### 6. Wire alerts
 
-`#/notifications` → `+ Add a new channel` → pick from 126 channels →
+`#/notifications` → `+ Add a new channel` → pick from 130 channels →
 test → save. Attach to monitors from the monitor detail page sidebar.
+For Web Push, save the channel first, then click **Enable push** on its
+row to subscribe the browser.
 
 ### 7. (Optional) Add 2FA
 
@@ -82,7 +84,7 @@ Useful for bare-metal homelabs or systemd-managed services.
 | Tool       | Min version | Notes                                     |
 | ---        | ---         | ---                                       |
 | Postgres   | 14          | 16+ recommended                           |
-| Rust       | 1.78        | https://rustup.rs                         |
+| Rust       | 1.88        | https://rustup.rs (transitive deps need edition2024) |
 | Node       | 20          | for the frontend bundle                   |
 | `sqlx-cli` | 0.8         | only needed if you want to inspect migrations |
 

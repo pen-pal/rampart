@@ -8,7 +8,7 @@ rampart/
 │   └── crates/
 │       ├── rampart-core       — pure types, no I/O
 │       ├── rampart-db         — sqlx repository layer
-│       ├── rampart-checker    — probe runners (20 kinds)
+│       ├── rampart-checker    — probe runners (21 kinds)
 │       ├── rampart-scheduler  — per-monitor tokio tasks + batched writer
 │       ├── rampart-notifier   — channel fan-out (130 adapters)
 │       └── rampart-api        — axum HTTP server (embeds React via rust-embed)

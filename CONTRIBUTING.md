@@ -14,7 +14,7 @@ Rampart is **not** an enterprise observability platform. The following are delib
 - APM tracing, RUM, log management, server-agent metrics
 - Kubernetes / cloud-provider scanners
 
-These were considered and removed during the v1 → v2 design pivot. The full rationale is in [`docs/DESIGN.md`](docs/DESIGN.md).
+These were considered and removed during the v1 → v2 design pivot. The full rationale is in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 
 **A useful test:** *"would a solo operator or a small-team SRE say 'that's not what I came here for'?"* If yes, it doesn't belong here.
 
