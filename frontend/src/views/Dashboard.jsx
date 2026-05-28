@@ -7,11 +7,13 @@ import {
   Search, Plus, Bell, ChevronDown, ChevronRight, Activity,
   AlertCircle, Pause, MoreHorizontal, Calendar,
   Tag, ArrowUpRight, Wrench, Zap, Globe, Server,
-  Database, Radio, Lock, Hash,
+  Database, Radio, Lock, Hash, Sun, Moon, Monitor,
 } from 'lucide-react';
 import {
   api, useApi, formatRelative, offsetDateTimeArrayToDate, statusToClass,
 } from '../lib/api.js';
+import { getTheme, setTheme } from '../lib/theme.js';
+import { useHeartbeatStream, useDebouncedTick } from '../lib/sse.js';
 
 // ──────────────────────────────────────────────────────────────────────────
 // DESIGN SYSTEM v2 — friendly, modern, operator-focused
@@ -239,7 +241,23 @@ const SERIES_COLORS = ['#14b8a6', '#6366f1', '#10b981', '#ef4444'];
 
 // ─── main component ───────────────────────────────────────────────────────
 export default function Dashboard({ user, onLogout } = {}) {
-  const monitorsState = useApi(() => api.monitors.list(),         [], { pollMs: 10_000 });
+  // Live heartbeat overlay — SSE pushes mutate `liveHb` immediately so
+  // status pulses don't wait for the next poll. The polled hooks below
+  // still run as the source of truth + reconnect fallback.
+  const [liveHb, setLiveHb] = useState(() => new Map());
+  const stream = useHeartbeatStream(hb => {
+    setLiveHb(prev => {
+      const next = new Map(prev);
+      next.set(hb.monitor_id, hb);
+      return next;
+    });
+  });
+  // Debounced tick lets polled hooks refetch on activity bursts without
+  // hammering — coalesces N heartbeats per ~500ms window into one bump.
+  const liveTick = useDebouncedTick(stream.lastEventAt, 500);
+
+  const monitorsState = useApi(() => api.monitors.list(),         [liveTick], { pollMs: 30_000 });
+  const groupsState   = useApi(() => api.monitorGroups.list(),     [],         { pollMs: 60_000 });
   const [windowSec, setWindowSec] = useState(86400); // 1h | 24h | 7d | 30d
   // small helper so the summary-card label stays in sync with the picker.
   // eslint-disable-next-line no-inner-declarations
@@ -250,9 +268,9 @@ export default function Dashboard({ user, onLogout } = {}) {
          : s === 2592000 ? 'last 30d'
          : `last ${s}s`;
   }
-  const summaryState  = useApi(() => api.monitors.summary(windowSec), [windowSec], { pollMs: 15_000 });
-  const historyState  = useApi(() => api.monitors.history(60),    [], { pollMs: 10_000 });
-  const countsState   = useApi(() => api.notifications.counts(),  [], { pollMs: 30_000 });
+  const summaryState  = useApi(() => api.monitors.summary(windowSec), [windowSec, liveTick], { pollMs: 30_000 });
+  const historyState  = useApi(() => api.monitors.history(60),    [liveTick], { pollMs: 30_000 });
+  const countsState   = useApi(() => api.notifications.counts(),  [], { pollMs: 60_000 });
   const channelCount  = useMemo(() => {
     const m = new Map();
     (countsState.data || []).forEach(r => m.set(r.monitor_id, r.count));
@@ -279,7 +297,10 @@ export default function Dashboard({ user, onLogout } = {}) {
     return m;
   }, [monitors]);
 
-  const [openGroup, setOpenGroup] = useState(true);
+  // Per-group expand/collapse state — keyed by group id (or 'ungrouped').
+  // Default-open so existing users see all monitors without a click.
+  const [openGroups, setOpenGroups] = useState(() => ({ ungrouped: true }));
+  const toggleGroup = (key) => setOpenGroups(s => ({ ...s, [key]: !(s[key] ?? true) }));
   const [query, setQuery] = useState('');
   const [tagFilter, setTagFilter] = useState(new Set()); // tag IDs to require
 
@@ -349,7 +370,7 @@ export default function Dashboard({ user, onLogout } = {}) {
       <style>{css}</style>
 
       {/* ─── top bar ─────────────────────────────────────────────── */}
-      <header style={{
+      <header className="dash-topbar" style={{
         display: 'flex', alignItems: 'center', gap: 16,
         padding: '12px 20px', borderBottom: '1px solid var(--border)',
         background: 'var(--surface)', position: 'sticky', top: 0, zIndex: 10
@@ -373,7 +394,15 @@ export default function Dashboard({ user, onLogout } = {}) {
           <span className="kbd" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)' }}>⌘K</span>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+        <div style={{ display: 'flex', gap: 8, marginLeft: 'auto', alignItems: 'center' }}>
+          <span title={stream.connected ? 'Live · receiving heartbeat stream' : 'Live stream offline · falling back to polling'}
+            style={{
+              width: 8, height: 8, borderRadius: '50%',
+              background: stream.connected ? 'var(--up)' : 'var(--text-3)',
+              boxShadow: stream.connected ? '0 0 0 3px var(--up-soft)' : 'none',
+              transition: 'background .2s',
+            }}/>
+          <ThemeToggle/>
           <a className="btn btn-ghost" title="Notification channels" href="#/notifications" style={{ textDecoration: 'none' }}>
             <Bell size={14}/>
           </a>
@@ -398,10 +427,10 @@ export default function Dashboard({ user, onLogout } = {}) {
       </header>
 
       {/* ─── layout ──────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr' }}>
+      <div className="dash-shell" style={{ display: 'grid', gridTemplateColumns: '320px 1fr' }}>
 
         {/* ─── sidebar ───────────────────────────────────────────── */}
-        <aside style={{
+        <aside className="dash-sidebar" style={{
           borderRight: '1px solid var(--border)', background: 'var(--surface)',
           padding: '16px 12px', height: 'calc(100vh - 57px)', overflowY: 'auto',
           position: 'sticky', top: 57
@@ -414,7 +443,7 @@ export default function Dashboard({ user, onLogout } = {}) {
               </span>
               <span className="mono tabular" style={{ fontSize: 11, color: 'var(--text-3)' }}>{monitors.length} total</span>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+            <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
               {[
                 { label: 'up',     v: upCount,     color: 'var(--up)' },
                 { label: 'warn',   v: warnCount,   color: 'var(--warn)' },
@@ -429,25 +458,41 @@ export default function Dashboard({ user, onLogout } = {}) {
             </div>
           </div>
 
-          {/* single "All monitors" group — backend has no group/folder concept */}
-          {monitors.length > 0 ? (
-            <div style={{ marginBottom: 4 }}>
-              <div className="group-head" onClick={() => setOpenGroup(g => !g)}>
-                {openGroup ? <ChevronDown size={11}/> : <ChevronRight size={11}/>}
-                <span>monitors</span>
-                <span style={{ marginLeft: 'auto', color: 'var(--text-3)', fontWeight: 500 }}>{filtered.length}</span>
-              </div>
-              {openGroup && filtered.map(m => (
-                <MonitorRow
-                  key={m.id}
-                  m={m}
-                  active={false}
-                  onClick={() => openMonitor(m.id)}
-                  uptimePct={summaryById.get(m.id)?.uptime_pct}
-                />
-              ))}
-            </div>
-          ) : !monitorsState.loading && (
+          {monitors.length > 0 ? (() => {
+            const groups = groupsState.data || [];
+            // Bucket: declared groups in sort order, then "Ungrouped" tail.
+            const buckets = groups.map(g => ({
+              key:  g.id,
+              name: g.name,
+              rows: filtered.filter(m => m.group_id === g.id),
+            }));
+            const ungrouped = filtered.filter(m => !m.group_id);
+            buckets.push({ key: 'ungrouped', name: 'Ungrouped', rows: ungrouped });
+            // Skip empty buckets unless the bucket is the only one.
+            const visible = buckets.filter(b => b.rows.length > 0);
+            const display = visible.length === 0 ? [{ key:'ungrouped', name:'Monitors', rows: filtered }] : visible;
+            return display.map(b => {
+              const open = openGroups[b.key] ?? true;
+              return (
+                <div key={b.key} style={{ marginBottom: 4 }}>
+                  <div className="group-head" onClick={() => toggleGroup(b.key)}>
+                    {open ? <ChevronDown size={11}/> : <ChevronRight size={11}/>}
+                    <span>{b.name}</span>
+                    <span style={{ marginLeft: 'auto', color: 'var(--text-3)', fontWeight: 500 }}>{b.rows.length}</span>
+                  </div>
+                  {open && b.rows.map(m => (
+                    <MonitorRow
+                      key={m.id}
+                      m={m}
+                      active={false}
+                      onClick={() => openMonitor(m.id)}
+                      uptimePct={summaryById.get(m.id)?.uptime_pct}
+                    />
+                  ))}
+                </div>
+              );
+            });
+          })() : !monitorsState.loading && (
             <div className="empty" style={{ paddingTop: 32 }}>
               No monitors yet.<br/>
               <button className="btn btn-accent" onClick={goToNewMonitor} style={{ marginTop: 12 }}>
@@ -462,7 +507,7 @@ export default function Dashboard({ user, onLogout } = {}) {
         </aside>
 
         {/* ─── main panel ────────────────────────────────────────── */}
-        <main style={{ padding: '28px 36px', maxWidth: 1100 }}>
+        <main className="dash-main" style={{ padding: '28px 36px', maxWidth: 1100 }}>
 
           {/* hero */}
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28 }}>
@@ -542,7 +587,7 @@ export default function Dashboard({ user, onLogout } = {}) {
           </div>
 
           {/* two column: incidents + upcoming maintenance */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 16, marginBottom: 20 }}>
+          <div className="hero-split" style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 16, marginBottom: 20 }}>
             <div className="card" style={{ padding: '18px 20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                 <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -635,7 +680,7 @@ export default function Dashboard({ user, onLogout } = {}) {
               )}
             </div>
 
-            <div style={{
+            <div className="activity-row" style={{
               display: 'grid',
               gridTemplateColumns: '24px 1.4fr 70px 70px 1.5fr 60px',
               gap: 16, padding: '10px 22px',
@@ -673,7 +718,7 @@ export default function Dashboard({ user, onLogout } = {}) {
               const uptime = summary?.uptime_pct;
               const cls = statusToClass(m.current_status);
               return (
-                <div key={m.id} onClick={() => openMonitor(m.id)} style={{
+                <div key={m.id} onClick={() => openMonitor(m.id)} className="activity-row" style={{
                   display: 'grid',
                   gridTemplateColumns: '24px 1.4fr 70px 70px 1.5fr 60px',
                   gap: 16, padding: '14px 22px',
@@ -747,5 +792,22 @@ export default function Dashboard({ user, onLogout } = {}) {
         </main>
       </div>
     </div>
+  );
+}
+
+// Cycles light → dark → system. Icon reflects the *current* preference,
+// not the resolved theme — picking "system" is its own intent.
+function ThemeToggle() {
+  const [pref, setPref] = useState(getTheme());
+  const next = pref === 'light' ? 'dark' : pref === 'dark' ? 'system' : 'light';
+  const Icon = pref === 'dark' ? Moon : pref === 'system' ? Monitor : Sun;
+  const label = pref === 'dark' ? 'Dark · click for System'
+              : pref === 'system' ? 'System · click for Light'
+              : 'Light · click for Dark';
+  return (
+    <button className="btn btn-ghost" title={label}
+      onClick={() => { setTheme(next); setPref(next); }}>
+      <Icon size={14}/>
+    </button>
   );
 }

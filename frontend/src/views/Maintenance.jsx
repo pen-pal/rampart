@@ -86,6 +86,34 @@ function fromLocalInput(s) {
   return new Date(s).toISOString();
 }
 
+function buildRecurrence(kind, weekdays, untilStr) {
+  if (kind === 'none') return { kind: 'none' };
+  const until = untilStr ? fromLocalInput(untilStr) : undefined;
+  if (kind === 'daily')  return until ? { kind: 'daily',  until } : { kind: 'daily' };
+  if (kind === 'weekly') {
+    const ws = Array.from(weekdays).sort((a,b) => a - b);
+    return until ? { kind: 'weekly', weekdays: ws, until }
+                 : { kind: 'weekly', weekdays: ws };
+  }
+  return { kind: 'none' };
+}
+
+function describeRecurrence(r) {
+  if (!r || r.kind === 'none') return 'Once';
+  const names = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  // `until` comes back as a `time::OffsetDateTime` — serde renders that
+  // as a 9-tuple [year, ordinal-day, hour, minute, …]. Use the same
+  // helper the rest of the page uses for start/end_at.
+  const untilDate = r.until ? (offsetDateTimeArrayToDate(r.until) || new Date(r.until)) : null;
+  const tail = untilDate ? ` · until ${untilDate.toLocaleDateString()}` : '';
+  if (r.kind === 'daily') return `Daily${tail}`;
+  if (r.kind === 'weekly') {
+    const ws = (r.weekdays || []).map(i => names[i] ?? '?').join(' ');
+    return `Weekly · ${ws || '—'}${tail}`;
+  }
+  return 'Once';
+}
+
 export default function Maintenance() {
   const windowsState = useApi(() => api.maintenance.list(), [], { pollMs: 30_000 });
   const monitorsState = useApi(() => api.monitors.list(), []);
@@ -215,6 +243,7 @@ function WindowRow({ w, monitorsById, busy, onTogglePause, onDelete }) {
           {fmt(startDate)} → {fmt(endDate)}
           {state === 'upcoming' && ` · starts ${formatRelative(startDate)}`}
           {state === 'active'   && ` · ends ${formatRelative(endDate)}`}
+          {' · '}<span style={{ color: 'var(--accent-2)' }}>{describeRecurrence(w.recurrence)}</span>
         </div>
         <div style={{ fontSize: 11.5, color: 'var(--text-2)' }}>
           {w.monitor_ids.length === 0
@@ -258,6 +287,11 @@ function CreateForm({ monitors, onCancel, onCreated }) {
   const [picked, setPicked] = useState(initial.picked);
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState(null);
+  // Recurrence: 'none' | 'daily' | 'weekly'. Weekdays only meaningful
+  // for weekly; until is optional in both repeat modes.
+  const [recurKind, setRecurKind] = useState('none');
+  const [weekdays,  setWeekdays]  = useState(new Set([1,2,3,4,5])); // Mon-Fri
+  const [until,     setUntil]     = useState(''); // datetime-local string
 
   const toggle = (id) => {
     const next = new Set(picked);
@@ -272,12 +306,14 @@ function CreateForm({ monitors, onCancel, onCreated }) {
 
     setSubmitting(true);
     try {
+      const recurrence = buildRecurrence(recurKind, weekdays, until);
       await api.maintenance.create({
         name:        name.trim(),
         description: desc.trim() || null,
         start_at:    fromLocalInput(start),
         end_at:      fromLocalInput(end),
         monitor_ids: Array.from(picked),
+        recurrence,
       });
       onCreated();
     } catch (e) {
@@ -309,7 +345,7 @@ function CreateForm({ monitors, onCancel, onCreated }) {
         <textarea className="textarea" value={desc} onChange={e => setDesc(e.target.value)} rows={2} placeholder="Postgres 17 in-place upgrade — expect ~15min downtime"/>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+      <div className="form-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
         <div className="field" style={{ marginBottom: 0 }}>
           <label className="field-label">Start</label>
           <input type="datetime-local" className="input" value={start} onChange={e => setStart(e.target.value)}/>
@@ -319,6 +355,54 @@ function CreateForm({ monitors, onCancel, onCreated }) {
           <input type="datetime-local" className="input" value={end} onChange={e => setEnd(e.target.value)}/>
         </div>
       </div>
+
+      <div className="field">
+        <label className="field-label">Repeats</label>
+        <select className="input" value={recurKind} onChange={e => setRecurKind(e.target.value)}>
+          <option value="none">Once · single-shot</option>
+          <option value="daily">Daily · same time every day</option>
+          <option value="weekly">Weekly · pick weekdays</option>
+        </select>
+        <div className="field-hint" style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 6 }}>
+          The Start / End times above define the time-of-day window when repeating.
+          Date portion only matters for the first occurrence.
+        </div>
+      </div>
+
+      {recurKind === 'weekly' && (
+        <div className="field">
+          <label className="field-label">Weekdays</label>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d, i) => (
+              <button key={d} type="button"
+                className="btn"
+                onClick={() => {
+                  const next = new Set(weekdays);
+                  if (next.has(i)) next.delete(i); else next.add(i);
+                  setWeekdays(next);
+                }}
+                style={{
+                  background: weekdays.has(i) ? 'var(--accent)' : 'var(--surface)',
+                  color: weekdays.has(i) ? 'white' : 'var(--text-2)',
+                  borderColor: weekdays.has(i) ? 'var(--accent)' : 'var(--border)',
+                  padding: '6px 10px',
+                }}>
+                {d}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {recurKind !== 'none' && (
+        <div className="field">
+          <label className="field-label">Repeat until (optional)</label>
+          <input type="datetime-local" className="input" value={until} onChange={e => setUntil(e.target.value)}/>
+          <div className="field-hint" style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 6 }}>
+            Leave blank to repeat indefinitely.
+          </div>
+        </div>
+      )}
 
       <div className="field">
         <label className="field-label">Monitors ({picked.size} selected)</label>

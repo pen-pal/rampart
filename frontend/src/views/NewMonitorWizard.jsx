@@ -117,6 +117,10 @@ const types = [
     example: 'Assert your API returns {"status": "ok"}',
     placeholder: { url: 'https://api.example.com/health', jsonPath: 'status', jsonExpected: 'ok' } },
 
+  { id: 'browser',    icon: Globe,         name: 'Browser',       desc: 'Headless render → keyword', badge: 'new',
+    example: 'Catch SPA pages that look fine to curl but render an error',
+    placeholder: { url: 'https://app.example.com', keyword: 'Dashboard' } },
+
   { id: 'tcp',        icon: Server,        name: 'TCP port',      desc: 'Raw socket connect', badge: 'popular',
     example: 'Verify a port is open (DB, Redis, MQTT broker)',
     placeholder: { hostname: 'db.internal', port: '5432' } },
@@ -196,6 +200,10 @@ const fieldsFor = (kind) => {
       jsonPath: kind === 'json_query',
     };
   }
+  if (kind === 'browser') {
+    // Reuses the existing url + keyword inputs and adds a renderer_url.
+    return { url: true, keyword: true, renderer: true };
+  }
   if (['tcp','grpc','mqtt','steam','kafka','radius'].includes(kind)) return { hostname: true, port: true };
   if (['postgres','mysql','mssql','redis','mongodb'].includes(kind)) return { hostname: true, port: true };
   if (kind === 'ping')   return { hostname: true };
@@ -224,6 +232,7 @@ export default function NewMonitorWizard() {
   const [keyword, setKeyword] = useState('');
   const [jsonPath, setJsonPath] = useState('');
   const [jsonExpected, setJsonExpected] = useState('');
+  const [rendererUrl, setRendererUrl] = useState('http://browserless:3000/content');
 
   const [intervalSec, setIntervalSec] = useState('60');
   const [timeoutSec,  setTimeoutSec]  = useState('10');
@@ -272,6 +281,7 @@ export default function NewMonitorWizard() {
 
     const config = {};
     if (fields.keyword  && keyword)  config.keyword = keyword;
+    if (fields.renderer && rendererUrl) config.renderer_url = rendererUrl;
     if (fields.jsonPath && jsonPath) {
       config.json_path = jsonPath;
       if (jsonExpected) config.expected_value = jsonExpected;
@@ -491,6 +501,19 @@ export default function NewMonitorWizard() {
                   </div>
                 )}
 
+                {fields.renderer && (
+                  <div className="field">
+                    <label className="field-label">Renderer URL</label>
+                    <input className="input mono" value={rendererUrl} onChange={e => setRendererUrl(e.target.value)}
+                      placeholder="http://browserless:3000/content"/>
+                    <div className="field-hint">
+                      External headless service that returns rendered HTML for the target URL.
+                      Run <code>browserless/chrome</code> alongside Rampart, then point this here.
+                      Rampart ships no Chromium binary by design — keeps the image lean.
+                    </div>
+                  </div>
+                )}
+
                 {fields.jsonPath && (
                   <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
                     <div className="field">
@@ -519,7 +542,7 @@ export default function NewMonitorWizard() {
               </div>
 
               <div style={{ maxWidth: 580 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="form-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div className="field">
                     <label className="field-label"><Clock size={12}/> Check interval</label>
                     <select className="select" value={intervalSec} onChange={e => setIntervalSec(e.target.value)}>

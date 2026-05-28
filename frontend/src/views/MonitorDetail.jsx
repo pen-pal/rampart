@@ -3,7 +3,7 @@ import {
   AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, ReferenceLine,
 } from 'recharts';
 import {
-  ChevronLeft, Pause, Play, Edit3, Trash2, Bell, Plus, X, Send,
+  ChevronLeft, Pause, Play, Edit3, Trash2, Bell, Plus, X, Send, Download,
   Globe, Server, Lock, AlertCircle, Activity, Hash, Radio, Database,
   MoreHorizontal, Calendar, ChevronDown, Copy, Check, Zap,
 } from 'lucide-react';
@@ -263,6 +263,14 @@ export default function MonitorDetail({ monitorId }) {
       window.location.hash = '#/';
     } catch (e) { alert(`Failed: ${e.message}`); setActing(false); }
   };
+  const doClone = async () => {
+    if (!monitor || acting) return;
+    setActing(true);
+    try {
+      const copy = await api.monitors.clone(monitor.id);
+      window.location.hash = `#/monitor/${copy.id}`;
+    } catch (e) { alert(`Failed: ${e.message}`); setActing(false); }
+  };
 
   // ── missing-id / loading / not-found ──────────────────────────────────
   if (!monitorId) {
@@ -355,6 +363,10 @@ export default function MonitorDetail({ monitorId }) {
               {monitor.active ? <><Pause size={13}/> Pause</> : <><Play size={13}/> Resume</>}
             </button>
             <button className="btn" onClick={() => setEditing(true)} disabled={acting}><Edit3 size={13}/> Edit</button>
+            <button className="btn" onClick={doClone} disabled={acting} title="Duplicate with the same config (no history)"><Copy size={13}/> Clone</button>
+            <a className="btn" href={`/v1/monitors/${monitor.id}/heartbeats.csv`} title="Download last 30 days of heartbeats as CSV" download>
+              <Download size={13}/> CSV
+            </a>
             <button className="btn btn-danger" onClick={doDelete} disabled={acting}><Trash2 size={13}/> Delete</button>
           </div>
         </div>
@@ -368,9 +380,9 @@ export default function MonitorDetail({ monitorId }) {
         </div>
       </header>
 
-      <main style={{ padding: '24px 32px', maxWidth: 1200, margin: '0 auto' }}>
+      <main className="dash-main" style={{ padding: '24px 32px', maxWidth: 1200, margin: '0 auto' }}>
         {/* KPI row */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
+        <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
           <Kpi
             label="Uptime · 24h"
             value={uptime24h != null ? uptime24h.toFixed(2) : '—'}
@@ -487,7 +499,7 @@ export default function MonitorDetail({ monitorId }) {
         </div>
 
         {/* recent heartbeats + downtime side by side */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 16 }}>
+        <div className="detail-grid" style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 16 }}>
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <div style={{ padding: '16px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
               <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -699,7 +711,7 @@ function EditModal({ monitor, onCancel }) {
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
       padding: 20,
     }}>
-      <div style={{
+      <div className="modal-card" style={{
         background: 'var(--surface)', borderRadius: 12, maxWidth: 640, width: '100%',
         maxHeight: '90vh', overflow: 'auto', padding: 24,
       }}>
@@ -717,7 +729,7 @@ function EditModal({ monitor, onCancel }) {
           <input className="input" value={name} onChange={e => setName(e.target.value)}/>
         </Field>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10 }}>
+        <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10 }}>
           <Field label="Interval (s)"><input className="input" value={intervalSec} onChange={e => setIntervalSec(e.target.value)}/></Field>
           <Field label="Timeout (s)"><input className="input" value={timeoutSec} onChange={e => setTimeoutSec(e.target.value)}/></Field>
           <Field label="Retries"><input className="input" value={retries} onChange={e => setRetries(e.target.value)}/></Field>
@@ -845,6 +857,7 @@ function ConfigPanel({ monitor }) {
       </div>
 
       <TagsCard monitor={monitor}/>
+      <DependenciesCard monitor={monitor}/>
 
       {(monitor.kind === 'http' || monitor.kind === 'keyword' || monitor.kind === 'json_query') && (
         <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
@@ -1133,6 +1146,92 @@ function TagsCard({ monitor }) {
             <button className="btn btn-accent" disabled={busy || !newName.trim()} onClick={createAndAttach} style={{ padding: '4px 8px', fontSize: 11 }}>Create</button>
             <button className="btn btn-ghost" disabled={busy} onClick={() => { setCreating(false); setNewName(''); }} style={{ padding: '4px 6px' }}><X size={11}/></button>
           </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DependenciesCard({ monitor }) {
+  const depsState = useApi(() => api.dependencies.list(monitor.id), [monitor.id]);
+  const monitors  = useApi(() => api.monitors.list(), []);
+  const [busy, setBusy] = useState(false);
+  const [err,  setErr]  = useState(null);
+
+  const parents  = depsState.data?.parents  || [];
+  const children = depsState.data?.children || [];
+  const byId = new Map((monitors.data || []).map(m => [m.id, m]));
+  const candidates = (monitors.data || []).filter(m =>
+    m.id !== monitor.id && !parents.includes(m.id)
+  );
+
+  const attach = async (parentId) => {
+    setErr(null); setBusy(true);
+    try { await api.dependencies.attach(monitor.id, parentId); window.location.reload(); }
+    catch (e) { setErr(e.message || 'attach failed'); setBusy(false); }
+  };
+  const detach = async (parentId) => {
+    setBusy(true);
+    try { await api.dependencies.detach(monitor.id, parentId); window.location.reload(); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
+      <div style={{ padding: '16px 22px' }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Dependencies</h3>
+        <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4 }}>
+          When any parent is Down, alerts on this monitor are suppressed
+          — keeps a root cause from paging every dependent.
+        </div>
+      </div>
+      <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)' }}>
+        <div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 6 }}>Depends on</div>
+        {err && <div className="banner-err" style={{ marginBottom: 10 }}>{err}</div>}
+        {parents.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 8 }}>No upstream dependencies.</div>}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+          {parents.map(pid => {
+            const p = byId.get(pid);
+            return (
+              <span key={pid} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                background: 'var(--surface-2)', color: 'var(--text)',
+                fontSize: 12, padding: '4px 6px 4px 10px', borderRadius: 999,
+              }}>
+                {p?.name || pid.slice(0, 8)}
+                <button disabled={busy} onClick={() => detach(pid)} title="Detach" style={{
+                  background: 'var(--border-2)', border: 'none', color: 'var(--text-2)',
+                  borderRadius: '50%', width: 16, height: 16, cursor: 'pointer',
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <X size={9}/>
+                </button>
+              </span>
+            );
+          })}
+          {candidates.length > 0 && (
+            <select disabled={busy} className="select" style={{ fontSize: 12, padding: '4px 8px', width: 'auto' }}
+              value="" onChange={e => e.target.value && attach(e.target.value)}>
+              <option value="">+ Add parent…</option>
+              {candidates.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+          )}
+        </div>
+
+        {children.length > 0 && (
+          <>
+            <div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 6 }}>Dependents</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {children.map(cid => (
+                <span key={cid} style={{
+                  fontSize: 12, color: 'var(--text-2)',
+                  background: 'var(--surface-2)', padding: '3px 8px', borderRadius: 999,
+                }}>
+                  {byId.get(cid)?.name || cid.slice(0, 8)}
+                </span>
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>

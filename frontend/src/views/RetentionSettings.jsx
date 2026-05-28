@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ChevronLeft, Save, Loader2, AlertCircle, Mail,
+  ChevronLeft, Save, Loader2, AlertCircle, Database,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
 
@@ -32,20 +32,23 @@ const css = `
   .btn-accent:hover { background: var(--accent-2); }
   .btn-ghost  { background: transparent; border-color: transparent; }
   .btn-ghost:hover { background: var(--surface-2); }
-  .input, .select {
+  .input {
     width: 100%; padding: 9px 12px; border-radius: 8px;
     background: var(--surface); border: 1px solid var(--border);
     font-size: 13px; color: var(--text); outline: none; font-family: inherit;
   }
-  .input:focus, .select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-  .field { margin-bottom: 12px; }
+  .input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .field { margin-bottom: 14px; }
   .field-label { font-size: 11px; font-weight: 500; color: var(--text-3); text-transform: uppercase; letter-spacing: .04em; display: block; margin-bottom: 5px; }
+  .field-hint { font-size: 12px; color: var(--text-3); margin-top: 4px; }
   .banner-err { background: var(--down-soft); color: #b91c1c; border: 1px solid #fecaca; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; }
   .banner-ok  { background: var(--up-soft);   color: #047857; border: 1px solid #a7f3d0; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
 `;
 
-export default function SmtpSettings() {
-  const [cfg,  setCfg]  = useState({ host: '', port: 587, encryption: 'starttls', username: '', password: '', from: '' });
+export default function RetentionSettings() {
+  const [heartbeats, setHb] = useState(90);
+  const [auditLog,   setAl] = useState(365);
   const [busy, setBusy] = useState(false);
   const [load, setLoad] = useState(true);
   const [err,  setErr]  = useState(null);
@@ -54,16 +57,10 @@ export default function SmtpSettings() {
   useEffect(() => {
     (async () => {
       try {
-        const r = await api.smtp.get();
+        const r = await api.retention.get();
         if (r && typeof r === 'object') {
-          setCfg({
-            host:       r.host       || '',
-            port:       r.port       || 587,
-            encryption: r.encryption || 'starttls',
-            username:   r.username   || '',
-            password:   r.password   || '',
-            from:       r.from       || '',
-          });
+          setHb(Number(r.heartbeats) || 90);
+          setAl(Number(r.audit_log)  || 365);
         }
       } catch (e) { setErr(e.message); }
       finally { setLoad(false); }
@@ -72,15 +69,15 @@ export default function SmtpSettings() {
 
   const save = async () => {
     setErr(null); setOk(false);
-    if (!cfg.host || !cfg.from) { setErr('Host and From address are required.'); return; }
+    const hb = parseInt(heartbeats, 10);
+    const al = parseInt(auditLog, 10);
+    if (!hb || !al || hb < 1 || al < 1) {
+      setErr('Both windows must be a positive number of days.');
+      return;
+    }
     setBusy(true);
     try {
-      await api.smtp.put({
-        ...cfg,
-        port:     parseInt(cfg.port, 10) || 587,
-        username: cfg.username || null,
-        password: cfg.password || null,
-      });
+      await api.retention.put(hb, al);
       setOk(true);
     } catch (e) { setErr(e.message || 'Save failed.'); }
     finally { setBusy(false); }
@@ -94,11 +91,13 @@ export default function SmtpSettings() {
           <ChevronLeft size={14}/> Dashboard
         </a>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-          <Mail size={20}/>
-          <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0, letterSpacing: '-.02em' }}>SMTP settings</h1>
+          <Database size={20}/>
+          <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0, letterSpacing: '-.02em' }}>Retention</h1>
         </div>
         <p style={{ fontSize: 13, color: 'var(--text-2)', margin: '0 0 22px' }}>
-          Outgoing email for status-page subscribers. Per-monitor email notifications use their own per-channel config.
+          A background prune loop runs every hour and deletes rows older than
+          these windows. Lowering a window deletes data on the next tick — there
+          is no undo.
         </p>
 
         {load ? (
@@ -106,40 +105,28 @@ export default function SmtpSettings() {
         ) : (
           <div className="card" style={{ padding: 22 }}>
             {err && <div className="banner-err"><AlertCircle size={14} style={{ verticalAlign: '-2px', marginRight: 6 }}/>{err}</div>}
-            {ok  && <div className="banner-ok">SMTP saved.</div>}
+            {ok  && <div className="banner-ok">Retention saved. Next prune tick applies the new window.</div>}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px', gap: 10 }}>
-              <div className="field">
-                <label className="field-label">Host</label>
-                <input className="input" value={cfg.host} onChange={e => setCfg({ ...cfg, host: e.target.value })} placeholder="smtp.example.com"/>
-              </div>
-              <div className="field">
-                <label className="field-label">Port</label>
-                <input className="input mono" value={cfg.port} onChange={e => setCfg({ ...cfg, port: e.target.value })}/>
-              </div>
-            </div>
             <div className="field">
-              <label className="field-label">Encryption</label>
-              <select className="select" value={cfg.encryption} onChange={e => setCfg({ ...cfg, encryption: e.target.value })}>
-                <option value="starttls">STARTTLS · port 587</option>
-                <option value="tls">TLS · port 465</option>
-                <option value="plain">none · port 25 (insecure)</option>
-              </select>
-            </div>
-            <div className="form-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <div className="field">
-                <label className="field-label">Username</label>
-                <input className="input" value={cfg.username} onChange={e => setCfg({ ...cfg, username: e.target.value })}/>
-              </div>
-              <div className="field">
-                <label className="field-label">Password</label>
-                <input className="input" type="password" value={cfg.password} onChange={e => setCfg({ ...cfg, password: e.target.value })} placeholder="(redacted on read)"/>
+              <label className="field-label">Heartbeats · days</label>
+              <input className="input mono" type="number" min="1" step="1"
+                value={heartbeats} onChange={e => setHb(e.target.value)}/>
+              <div className="field-hint">
+                Per-check probe results. The dashboard's uptime strip rolls up
+                90 days, so anything lower trims that view. Default <code>90</code>.
               </div>
             </div>
+
             <div className="field">
-              <label className="field-label">From</label>
-              <input className="input" value={cfg.from} onChange={e => setCfg({ ...cfg, from: e.target.value })} placeholder='"Rampart" &lt;status@example.com&gt;'/>
+              <label className="field-label">Audit log · days</label>
+              <input className="input mono" type="number" min="1" step="1"
+                value={auditLog} onChange={e => setAl(e.target.value)}/>
+              <div className="field-hint">
+                Admin actions, logins, config changes. Compliance reviews
+                typically want 1 year — default <code>365</code>.
+              </div>
             </div>
+
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button className="btn btn-accent" onClick={save} disabled={busy}>
                 {busy ? <><Loader2 size={13}/> Saving…</> : <><Save size={13}/> Save</>}

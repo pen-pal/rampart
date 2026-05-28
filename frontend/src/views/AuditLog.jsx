@@ -48,12 +48,13 @@ export default function AuditLog() {
   const [loading, setLoading] = useState(true);
   const [err,     setErr]     = useState(null);
   const [kind,    setKind]    = useState('');
+  const [action,  setAction]  = useState('');
   const [done,    setDone]    = useState(false);
 
   const load = async (before) => {
     setLoading(true); setErr(null);
     try {
-      const rows = await api.audit.list(100, before, kind || null);
+      const rows = await api.audit.list(100, before, kind || null, action.trim() || null);
       if (before == null) setEntries(rows);
       else                setEntries(prev => [...prev, ...rows]);
       if (rows.length < 100) setDone(true);
@@ -61,8 +62,13 @@ export default function AuditLog() {
     finally { setLoading(false); }
   };
 
-  // initial + on filter change
-  useEffect(() => { setDone(false); load(null); /* eslint-disable-next-line */ }, [kind]);
+  // initial + on filter change. Debounce the free-text action filter so
+  // we don't fire a request per keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => { setDone(false); load(null); }, 250);
+    return () => clearTimeout(t);
+    /* eslint-disable-next-line */
+  }, [kind, action]);
 
   return (
     <div className="rampart">
@@ -82,10 +88,15 @@ export default function AuditLog() {
               Append-only record of mutating actions. Admin-only.
             </p>
           </div>
-          <select className="select" value={kind} onChange={e => setKind(e.target.value)}>
-            <option value="">All kinds</option>
-            {KIND_OPTIONS.filter(Boolean).map(k => <option key={k} value={k}>{k}</option>)}
-          </select>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input className="input" style={{ width: 200 }} value={action}
+              onChange={e => setAction(e.target.value)}
+              placeholder="action prefix e.g. monitor."/>
+            <select className="select" value={kind} onChange={e => setKind(e.target.value)}>
+              <option value="">All kinds</option>
+              {KIND_OPTIONS.filter(Boolean).map(k => <option key={k} value={k}>{k}</option>)}
+            </select>
+          </div>
         </div>
 
         {err && <div className="banner-err"><AlertCircle size={14} style={{ verticalAlign: '-2px', marginRight: 6 }}/>{err}</div>}

@@ -226,6 +226,9 @@ const SUPPORTED = [
   { id: 'statuspage_io',   name: 'Statuspage.io',   icon: Siren,    hint: 'Atlassian Statuspage incidents — API key + page_id' },
   { id: 'datadog',         name: 'Datadog Events',  icon: Siren,    hint: 'Datadog /api/v1/events — DD-API-KEY' },
   { id: 'newrelic',        name: 'New Relic Events',icon: Siren,    hint: 'New Relic events insert — Api-Key + account_id' },
+  { id: 'aws_sns',         name: 'AWS SNS',         icon: Siren,    hint: 'AWS SNS Publish — SigV4 signed; topic ARN or SMS phone number' },
+  { id: 'azure_servicebus',name: 'Azure Service Bus',icon: Siren,    hint: 'Azure SB queue/topic — SAS token, send-only policy supported' },
+  { id: 'gcp_pubsub',      name: 'GCP Pub/Sub',     icon: Siren,    hint: 'Google Cloud Pub/Sub — service-account JSON; auto-rotates OAuth2 token' },
   // push
   { id: 'ntfy',       name: 'ntfy.sh',         icon: Smartphone,    hint: 'Push to phone via ntfy.sh (free) or self-hosted ntfy server' },
   { id: 'gotify',     name: 'Gotify',          icon: Server,        hint: 'Self-hosted push server (https://gotify.net)' },
@@ -294,6 +297,17 @@ function ConfigForm({ kind, config, setConfig }) {
           <select className="select" value={config.method || 'POST'} onChange={e => set('method', e.target.value)}>
             <option>POST</option><option>PUT</option><option>PATCH</option>
           </select>
+        </div>
+        <div className="field">
+          <label className="field-label">HMAC secret <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+          <input className="input mono" type="password" value={config.secret || ''}
+            onChange={e => set('secret', e.target.value)}
+            placeholder="shared secret — receiver verifies X-Rampart-Signature"/>
+          <div className="field-hint">
+            When set, every request gets <code>X-Rampart-Signature: sha256=&lt;hex&gt;</code>
+            computed as <code>HMAC-SHA256(secret, raw_body)</code>. Receiver must
+            recompute against the raw bytes — re-serialized JSON will not match.
+          </div>
         </div>
       </>
     );
@@ -2173,6 +2187,75 @@ function ConfigForm({ kind, config, setConfig }) {
       </>
     );
   }
+  if (kind === 'aws_sns') {
+    return (
+      <>
+        <div className="field"><label className="field-label">Region</label>
+          <input className="input mono" value={config.region || ''}
+            onChange={e => set('region', e.target.value)} placeholder="us-east-1"/></div>
+        <div className="field"><label className="field-label">Topic ARN <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· or phone number</span></label>
+          <input className="input mono" value={config.topic_arn || ''}
+            onChange={e => set('topic_arn', e.target.value)} placeholder="arn:aws:sns:us-east-1:123456789012:alerts"/></div>
+        <div className="field"><label className="field-label">Phone number (SMS, E.164)</label>
+          <input className="input mono" value={config.phone_number || ''}
+            onChange={e => set('phone_number', e.target.value)} placeholder="+15555550100"/></div>
+        <div className="field"><label className="field-label">Access key ID</label>
+          <input className="input mono" value={config.access_key_id || ''}
+            onChange={e => set('access_key_id', e.target.value)} placeholder="AKIA…"/></div>
+        <div className="field"><label className="field-label">Secret access key</label>
+          <input className="input mono" type="password" value={config.secret_access_key || ''}
+            onChange={e => set('secret_access_key', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Session token <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional, STS</span></label>
+          <input className="input mono" type="password" value={config.session_token || ''}
+            onChange={e => set('session_token', e.target.value)}/></div>
+      </>
+    );
+  }
+  if (kind === 'gcp_pubsub') {
+    return (
+      <>
+        <div className="field"><label className="field-label">Project ID</label>
+          <input className="input mono" value={config.project_id || ''}
+            onChange={e => set('project_id', e.target.value)} placeholder="my-gcp-project"/></div>
+        <div className="field"><label className="field-label">Topic</label>
+          <input className="input mono" value={config.topic || ''}
+            onChange={e => set('topic', e.target.value)} placeholder="rampart-alerts"/></div>
+        <div className="field"><label className="field-label">Service account email</label>
+          <input className="input mono" value={config.client_email || ''}
+            onChange={e => set('client_email', e.target.value)} placeholder="rampart@my-project.iam.gserviceaccount.com"/></div>
+        <div className="field"><label className="field-label">Private key (PEM, from service-account JSON)</label>
+          <textarea className="input mono" rows={6} value={config.private_key || ''}
+            onChange={e => set('private_key', e.target.value)}
+            placeholder="-----BEGIN PRIVATE KEY-----\n..."/></div>
+        <div className="field-hint" style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
+          Paste the <code>private_key</code> field verbatim from the downloaded JSON,
+          including the BEGIN/END lines. Access tokens are minted on demand and
+          cached in memory until ~60s before expiry.
+        </div>
+      </>
+    );
+  }
+  if (kind === 'azure_servicebus') {
+    return (
+      <>
+        <div className="field"><label className="field-label">Namespace</label>
+          <input className="input mono" value={config.namespace || ''}
+            onChange={e => set('namespace', e.target.value)} placeholder="my-namespace (omit .servicebus.windows.net)"/></div>
+        <div className="field"><label className="field-label">Queue or topic</label>
+          <input className="input mono" value={config.entity || ''}
+            onChange={e => set('entity', e.target.value)} placeholder="alerts"/></div>
+        <div className="field"><label className="field-label">SAS key name</label>
+          <input className="input mono" value={config.sas_key_name || ''}
+            onChange={e => set('sas_key_name', e.target.value)} placeholder="RootManageSharedAccessKey"/></div>
+        <div className="field"><label className="field-label">SAS key</label>
+          <input className="input mono" type="password" value={config.sas_key || ''}
+            onChange={e => set('sas_key', e.target.value)}/></div>
+        <div className="field"><label className="field-label">Token TTL (seconds)</label>
+          <input className="input mono" type="number" min="60" value={config.ttl_seconds || 300}
+            onChange={e => set('ttl_seconds', Number(e.target.value) || 300)}/></div>
+      </>
+    );
+  }
   if (kind === 'sms_twilio') {
     return (
       <>
@@ -2213,6 +2296,7 @@ export default function Notifications() {
   const [name,    setName]    = useState('');
   const [config,  setConfig]  = useState({});
   const [templateId, setTemplateId] = useState('');
+  const [cooldown,   setCooldown]   = useState(0);
   const [busy,    setBusy]    = useState(false);
   const [msg,     setMsg]     = useState(null);
 
@@ -2228,7 +2312,7 @@ export default function Notifications() {
     if (!name.trim()) { setMsg({ kind: 'err', text: 'Name is required.' }); return; }
     setBusy(true);
     try {
-      await api.notifications.create(kind, name.trim(), config, templateId || null);
+      await api.notifications.create(kind, name.trim(), config, templateId || null, cooldown);
       setMsg({ kind: 'ok', text: 'Channel added. Reloading…' });
       setTimeout(reload, 400);
     } catch (e2) {
@@ -2334,6 +2418,13 @@ export default function Notifications() {
                   ))}
                 </select>
                 <div className="field-hint">Manage templates on the <strong>Templates</strong> tab. Leave on default for the built-in subject + body.</div>
+              </div>
+
+              <div className="field">
+                <label className="field-label">Cooldown <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· seconds · optional</span></label>
+                <input className="input" type="number" min="0" step="1" value={cooldown}
+                  onChange={e => setCooldown(e.target.value)} placeholder="0 (no cooldown)"/>
+                <div className="field-hint">Suppress repeated fires within this window. Useful for flap-prone monitors paired with SMS or paging. <code>0</code> disables.</div>
               </div>
 
               {msg && <div className={msg.kind === 'ok' ? 'banner-ok' : 'banner-err'} style={{ marginBottom: 12 }}>{msg.text}</div>}

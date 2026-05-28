@@ -68,6 +68,7 @@ export const api = {
     remove:  (id)         => request(`/v1/monitors/${id}`, { method: 'DELETE' }),
     pause:   (id)         => request(`/v1/monitors/${id}/pause`,  { method: 'POST' }),
     resume:  (id)         => request(`/v1/monitors/${id}/resume`, { method: 'POST' }),
+    clone:   (id)         => request(`/v1/monitors/${id}/clone`,  { method: 'POST' }),
     summary: (windowSec)  => request(`/v1/monitors/summary?window=${windowSec ?? 86400}`),
     history: (per)        => request(`/v1/monitors/history?per=${per ?? 60}`),
     heartbeats: (id, limit) => request(`/v1/monitors/${id}/heartbeats?limit=${limit ?? 100}`),
@@ -89,7 +90,7 @@ export const api = {
   notifications: {
     list:        ()                                  => request('/v1/notifications'),
     get:         (id)                                => request(`/v1/notifications/${id}`),
-    create:      (kind, name, config, templateId)    => request('/v1/notifications', { method: 'POST', body: { kind, name, config, active: true, template_id: templateId || null } }),
+    create:      (kind, name, config, templateId, cooldownSeconds = 0) => request('/v1/notifications', { method: 'POST', body: { kind, name, config, active: true, template_id: templateId || null, cooldown_seconds: Number(cooldownSeconds) || 0 } }),
     update:      (id, patch)                         => request(`/v1/notifications/${id}`, { method: 'PATCH', body: patch }),
     remove:      (id)                                => request(`/v1/notifications/${id}`, { method: 'DELETE' }),
     test:        (id)                                => request(`/v1/notifications/${id}/test`, { method: 'POST' }),
@@ -124,11 +125,13 @@ export const api = {
     revoke: (id)                => request(`/v1/api-keys/${id}`, { method: 'DELETE' }),
   },
   audit: {
-    list: (limit, before, kind) => {
+    list: (limit, before, kind, action, actor) => {
       const qs = new URLSearchParams();
       if (limit)  qs.set('limit',  String(limit));
       if (before) qs.set('before', String(before));
       if (kind)   qs.set('kind',   kind);
+      if (action) qs.set('action', action);
+      if (actor)  qs.set('actor',  actor);
       const s = qs.toString();
       return request(`/v1/audit-log${s ? '?' + s : ''}`);
     },
@@ -141,6 +144,10 @@ export const api = {
   smtp: {
     get: () => request('/v1/settings/smtp'),
     put: (cfg) => request('/v1/settings/smtp', { method: 'PUT', body: cfg }),
+  },
+  retention: {
+    get: () => request('/v1/settings/retention'),
+    put: (heartbeats, auditLog) => request('/v1/settings/retention', { method: 'PUT', body: { heartbeats: Number(heartbeats), audit_log: Number(auditLog) } }),
   },
   incidents: {
     listForPage:  (pageId)              => request(`/v1/status-pages/${pageId}/incidents`),
@@ -166,6 +173,17 @@ export const api = {
     update:     (id, patch)         => request(`/v1/status-pages/${id}`, { method: 'PATCH', body: patch }),
     remove:     (id)                => request(`/v1/status-pages/${id}`, { method: 'DELETE' }),
     publicView: (slug)              => request(`/v1/public/status-pages/${slug}`),
+  },
+  monitorGroups: {
+    list:   ()             => request('/v1/monitor-groups'),
+    create: (name, sortOrder = 0) => request('/v1/monitor-groups', { method: 'POST', body: { name, sort_order: Number(sortOrder) || 0 } }),
+    update: (id, patch)    => request(`/v1/monitor-groups/${id}`, { method: 'PATCH', body: patch }),
+    remove: (id)           => request(`/v1/monitor-groups/${id}`, { method: 'DELETE' }),
+  },
+  dependencies: {
+    list:    (mid)              => request(`/v1/monitors/${mid}/dependencies`),
+    attach:  (childId, parentId) => request(`/v1/monitors/${childId}/dependencies/${parentId}`, { method: 'POST' }),
+    detach:  (childId, parentId) => request(`/v1/monitors/${childId}/dependencies/${parentId}`, { method: 'DELETE' }),
   },
   maintenance: {
     list:        ()                  => request('/v1/maintenance-windows'),
