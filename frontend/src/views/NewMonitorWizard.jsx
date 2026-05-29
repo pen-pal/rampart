@@ -413,7 +413,7 @@ export default function NewMonitorWizard() {
                 <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em', margin: '0 0 8px' }}>Step 1 · Pick a check type</p>
                 <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 8px', letterSpacing: '-.02em' }}>What do you want to monitor?</h1>
                 <p style={{ fontSize: 14, color: 'var(--text-2)', margin: 0 }}>
-                  20 types in the catalog. All twenty probe runners ship today — RADIUS, Docker, Steam, Kafka, gRPC, MQTT, the SQL family, plus the network primitives. Pick a kind to get started.
+                  26 types in the catalog — all ship today. HTTP family, the SQL family, gRPC, MQTT, Kafka, Docker, Steam, RADIUS, DNS/TLS/domain, headless-browser, and banner checks (SSH/SMTP/IMAP/FTP/POP3). Pick a kind to get started.
                 </p>
               </div>
 
