@@ -11,6 +11,7 @@
 //! This crate runs probes. It does no scheduling, no persistence, no
 //! alerting — those live elsewhere.
 
+pub mod banner;
 pub mod browser;
 pub mod dns;
 pub mod docker;
@@ -67,6 +68,7 @@ pub struct Probes {
     kafka: kafka::KafkaProbe,
     radius: radius::RadiusProbe,
     browser: browser::BrowserProbe,
+    banner: banner::BannerProbe,
 }
 
 impl Probes {
@@ -90,6 +92,7 @@ impl Probes {
             kafka: kafka::KafkaProbe::new(),
             radius: radius::RadiusProbe::new(),
             browser: browser::BrowserProbe::new(),
+            banner: banner::BannerProbe::new(),
         }
     }
 
@@ -130,6 +133,9 @@ impl Probes {
             MonitorKind::Kafka => self.kafka.run(monitor).await,
             MonitorKind::Radius => self.radius.run(monitor).await,
             MonitorKind::Browser => self.browser.run(monitor).await,
+            MonitorKind::Ssh | MonitorKind::Smtp | MonitorKind::Imap => {
+                self.banner.run(monitor).await
+            }
             unsupported => unsupported_kind(monitor.id, unsupported),
         }
     }

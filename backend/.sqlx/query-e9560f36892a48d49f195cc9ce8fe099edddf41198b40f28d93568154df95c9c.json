@@ -41,7 +41,10 @@
                 "redis",
                 "mongodb",
                 "domain",
-                "browser"
+                "browser",
+                "ssh",
+                "smtp",
+                "imap"
               ]
             }
           }
@@ -226,7 +229,10 @@
                 "redis",
                 "mongodb",
                 "domain",
-                "browser"
+                "browser",
+                "ssh",
+                "smtp",
+                "imap"
               ]
             }
           }

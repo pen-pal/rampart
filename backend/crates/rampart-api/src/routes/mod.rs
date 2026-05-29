@@ -58,11 +58,17 @@ pub fn v1_protected() -> Router<AppState> {
                 .merge(routing::monitor_router()),
         )
         // /v1/monitor-groups CRUD + folder tags/channels
-        .nest("/monitor-groups", monitor_groups::router().merge(routing::group_router()))
+        .nest(
+            "/monitor-groups",
+            monitor_groups::router().merge(routing::group_router()),
+        )
         // /v1/tags CRUD
         .nest("/tags", tags::router())
         // /v1/notifications CRUD + channel tags
-        .nest("/notifications", notifications::router().merge(routing::channel_router()))
+        .nest(
+            "/notifications",
+            notifications::router().merge(routing::channel_router()),
+        )
         // /v1/notification-templates CRUD
         .nest("/notification-templates", templates::router())
         // /v1/maintenance-windows CRUD + attach/detach

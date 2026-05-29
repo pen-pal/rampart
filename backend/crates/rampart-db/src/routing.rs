@@ -86,10 +86,16 @@ pub async fn resolve_channels_for_monitor(
 // ── read helpers (for the UI) ─────────────────────────────────────────────
 
 pub async fn group_tag_ids(pool: &DbPool, group: MonitorGroupId) -> DbResult<Vec<TagId>> {
-    let rows = sqlx::query!(r#"SELECT tag_id FROM group_tags WHERE group_id = $1"#, group.0)
-        .fetch_all(pool)
-        .await?;
-    Ok(rows.into_iter().map(|r| TagId::from_uuid(r.tag_id)).collect())
+    let rows = sqlx::query!(
+        r#"SELECT tag_id FROM group_tags WHERE group_id = $1"#,
+        group.0
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| TagId::from_uuid(r.tag_id))
+        .collect())
 }
 
 pub async fn channel_tag_ids(pool: &DbPool, notif: NotificationId) -> DbResult<Vec<TagId>> {
@@ -99,7 +105,10 @@ pub async fn channel_tag_ids(pool: &DbPool, notif: NotificationId) -> DbResult<V
     )
     .fetch_all(pool)
     .await?;
-    Ok(rows.into_iter().map(|r| TagId::from_uuid(r.tag_id)).collect())
+    Ok(rows
+        .into_iter()
+        .map(|r| TagId::from_uuid(r.tag_id))
+        .collect())
 }
 
 pub async fn group_channel_ids(

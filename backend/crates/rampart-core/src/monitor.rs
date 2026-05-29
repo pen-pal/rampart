@@ -51,6 +51,10 @@ pub enum MonitorKind {
     /// headless service (e.g. browserless/chrome) via config.renderer_url,
     /// then probe asserts on a keyword in the *rendered* HTML.
     Browser,
+    // banner protocols — connect + validate the server's greeting line.
+    Ssh,
+    Smtp,
+    Imap,
 }
 
 /// Current rolled-up status of a monitor (or of one heartbeat).

@@ -125,6 +125,18 @@ const types = [
     example: 'Verify a port is open (DB, Redis, MQTT broker)',
     placeholder: { hostname: 'db.internal', port: '5432' } },
 
+  { id: 'ssh',        icon: Server,        name: 'SSH',           desc: 'Connect + check SSH- banner',
+    example: 'Confirm a bastion / git host is accepting SSH',
+    placeholder: { hostname: 'bastion.internal', port: '22' } },
+
+  { id: 'smtp',       icon: Server,        name: 'SMTP',          desc: 'Connect + check 220 greeting',
+    example: 'Make sure your mail relay still answers',
+    placeholder: { hostname: 'mail.internal', port: '25' } },
+
+  { id: 'imap',       icon: Server,        name: 'IMAP',          desc: 'Connect + check * OK greeting',
+    example: 'Watch your IMAP server availability',
+    placeholder: { hostname: 'imap.internal', port: '143' } },
+
   { id: 'ping',       icon: Radio,         name: 'Ping',          desc: 'ICMP echo',
     example: 'Detect when your home router or VPN endpoint drops',
     placeholder: { hostname: '192.168.1.1' } },
@@ -204,7 +216,7 @@ const fieldsFor = (kind) => {
     // Reuses the existing url + keyword inputs and adds a renderer_url.
     return { url: true, keyword: true, renderer: true };
   }
-  if (['tcp','grpc','mqtt','steam','kafka','radius'].includes(kind)) return { hostname: true, port: true };
+  if (['tcp','grpc','mqtt','steam','kafka','radius','ssh','smtp','imap'].includes(kind)) return { hostname: true, port: true };
   if (['postgres','mysql','mssql','redis','mongodb'].includes(kind)) return { hostname: true, port: true };
   if (kind === 'ping')   return { hostname: true };
   if (kind === 'dns')    return { hostname: true };
@@ -215,6 +227,7 @@ const fieldsFor = (kind) => {
 
 const defaultPort = (kind) => ({
   tcp: 443, grpc: 443, mqtt: 1883, steam: 27015, kafka: 9092, radius: 1812,
+  ssh: 22, smtp: 25, imap: 143,
   postgres: 5432, mysql: 3306, mssql: 1433, redis: 6379, mongodb: 27017,
 })[kind] || null;
 
