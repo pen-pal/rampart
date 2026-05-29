@@ -2499,6 +2499,7 @@ export default function Notifications() {
 
         {/* Add form — top of page, only in add mode. Edit mode renders the
             same form inline under the row being edited (see channel list). */}
+        {showAdd && !editId && channelFormCard()}
 
         {/* Channel list */}
         <div className="card" style={{ padding: 0 }}>
