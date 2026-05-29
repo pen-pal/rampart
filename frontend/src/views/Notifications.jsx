@@ -2308,6 +2308,7 @@ export default function Notifications() {
 
   const [tab,     setTab]     = useState('channels');  // 'channels' | 'templates'
   const [showAdd, setShowAdd] = useState(false);
+  const [editId,  setEditId]  = useState(null);        // null = add mode; id = editing
   const [kind,    setKind]    = useState('slack');
   const [name,    setName]    = useState('');
   const [config,  setConfig]  = useState({});
@@ -2322,17 +2323,47 @@ export default function Notifications() {
     window.location.reload();
   };
 
+  const resetForm = () => {
+    setEditId(null); setKind('slack'); setName(''); setConfig({});
+    setTemplateId(''); setCooldown(0); setMsg(null);
+  };
+
+  // Prefill the form from an existing channel and switch to edit mode.
+  // Kind is locked while editing — config shape is kind-specific, so
+  // changing it would orphan the existing config blob.
+  const startEdit = (c) => {
+    setEditId(c.id);
+    setKind(c.kind);
+    setName(c.name);
+    setConfig(c.config || {});
+    setTemplateId(c.template_id || '');
+    setCooldown(c.cooldown_seconds || 0);
+    setMsg(null);
+    setShowAdd(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const submit = async (e) => {
     e?.preventDefault?.();
     setMsg(null);
     if (!name.trim()) { setMsg({ kind: 'err', text: 'Name is required.' }); return; }
     setBusy(true);
     try {
-      await api.notifications.create(kind, name.trim(), config, templateId || null, cooldown);
-      setMsg({ kind: 'ok', text: 'Channel added. Reloading…' });
+      if (editId) {
+        await api.notifications.update(editId, {
+          name: name.trim(),
+          config,
+          template_id: templateId || null,
+          cooldown_seconds: Number(cooldown) || 0,
+        });
+        setMsg({ kind: 'ok', text: 'Channel updated. Reloading…' });
+      } else {
+        await api.notifications.create(kind, name.trim(), config, templateId || null, cooldown);
+        setMsg({ kind: 'ok', text: 'Channel added. Reloading…' });
+      }
       setTimeout(reload, 400);
     } catch (e2) {
-      setMsg({ kind: 'err', text: e2.message || 'Failed to create channel.' });
+      setMsg({ kind: 'err', text: e2.message || 'Failed to save channel.' });
       setBusy(false);
     }
   };
@@ -2371,7 +2402,8 @@ export default function Notifications() {
           <Bell size={15}/> Notifications
         </span>
         {tab === 'channels' && (
-          <button className="btn btn-accent" style={{ marginLeft: 'auto' }} onClick={() => setShowAdd(s => !s)}>
+          <button className="btn btn-accent" style={{ marginLeft: 'auto' }}
+            onClick={() => { if (showAdd) { setShowAdd(false); resetForm(); } else { resetForm(); setShowAdd(true); } }}>
             <Plus size={13}/> {showAdd ? 'Hide form' : 'Add channel'}
           </button>
         )}
@@ -2401,7 +2433,15 @@ export default function Notifications() {
         {/* Add form */}
         {showAdd && (
           <div className="card" style={{ padding: 20, marginBottom: 20 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 14px' }}>Add a new channel</h3>
+            <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 14px' }}>
+              {editId ? `Edit channel · ${name}` : 'Add a new channel'}
+            </h3>
+            {editId && (
+              <div className="field-hint" style={{ marginBottom: 12, color: 'var(--text-3)' }}>
+                Channel type can't be changed — config fields are type-specific. Delete + re-add to switch type.
+              </div>
+            )}
+            {!editId && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 14 }}>
               {SUPPORTED.map(s => {
                 const Icon = s.icon;
@@ -2416,6 +2456,7 @@ export default function Notifications() {
                 );
               })}
             </div>
+            )}
 
             <form onSubmit={submit}>
               <div className="field">
@@ -2447,9 +2488,11 @@ export default function Notifications() {
 
               <div style={{ display: 'flex', gap: 8 }}>
                 <button className="btn btn-accent" type="submit" disabled={busy}>
-                  {busy ? <><Loader2 size={13} className="spin"/> Saving…</> : <><Plus size={13}/> Save channel</>}
+                  {busy ? <><Loader2 size={13} className="spin"/> Saving…</>
+                        : editId ? <><Save size={13}/> Update channel</>
+                                 : <><Plus size={13}/> Save channel</>}
                 </button>
-                <button className="btn" type="button" onClick={() => setShowAdd(false)}>Cancel</button>
+                <button className="btn" type="button" onClick={() => { setShowAdd(false); resetForm(); }}>Cancel</button>
               </div>
             </form>
           </div>
@@ -2482,6 +2525,9 @@ export default function Notifications() {
                   </div>
                 </div>
                 {c.kind === 'webpush' && <EnablePushButton notificationId={c.id}/>}
+                <button className="btn" onClick={() => startEdit(c)} title="Edit this channel">
+                  <Edit3 size={12}/> Edit
+                </button>
                 <button className="btn" onClick={() => sendTest(c.id)} title="Send a test message">
                   <Send size={12}/> Test
                 </button>

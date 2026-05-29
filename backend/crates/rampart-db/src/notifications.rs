@@ -55,6 +55,8 @@ pub struct UpdateNotification {
     /// idiom to distinguish absent (None) from explicit `null` (Some(None)).
     #[serde(default, deserialize_with = "double_option")]
     pub template_id: Option<Option<NotificationTemplateId>>,
+    #[serde(default)]
+    pub cooldown_seconds: Option<i32>,
 }
 
 /// Wraps the deserialized value in an outer `Some` so the caller can
@@ -162,6 +164,7 @@ pub async fn update(
     let new_name = input.name.unwrap_or(cur.name);
     let new_config = input.config.unwrap_or(cur.config);
     let new_active = input.active.unwrap_or(cur.active);
+    let new_cooldown = input.cooldown_seconds.unwrap_or(cur.cooldown_seconds);
     // template_id: outer None = keep current; outer Some(None) = clear;
     // outer Some(Some(id)) = set.
     let new_template_id = match input.template_id {
@@ -173,7 +176,7 @@ pub async fn update(
     let row = sqlx::query!(
         r#"
         UPDATE notifications
-        SET name = $2, config = $3, active = $4, template_id = $5
+        SET name = $2, config = $3, active = $4, template_id = $5, cooldown_seconds = $6
         WHERE id = $1
         RETURNING id, kind AS "kind: ChannelKind", name, config, active,
                   template_id, created_at, cooldown_seconds, last_fired_at
@@ -183,6 +186,7 @@ pub async fn update(
         new_config,
         new_active,
         new_template_id,
+        new_cooldown,
     )
     .fetch_one(pool)
     .await?;

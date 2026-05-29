@@ -51,6 +51,7 @@ fn empty_update() -> UpdateNotification {
         config: None,
         active: None,
         template_id: None,
+        cooldown_seconds: None,
     }
 }
 

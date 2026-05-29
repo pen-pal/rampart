@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE notifications\n        SET name = $2, config = $3, active = $4, template_id = $5\n        WHERE id = $1\n        RETURNING id, kind AS \"kind: ChannelKind\", name, config, active,\n                  template_id, created_at, cooldown_seconds, last_fired_at\n        ",
+  "query": "\n        UPDATE notifications\n        SET name = $2, config = $3, active = $4, template_id = $5, cooldown_seconds = $6\n        WHERE id = $1\n        RETURNING id, kind AS \"kind: ChannelKind\", name, config, active,\n                  template_id, created_at, cooldown_seconds, last_fired_at\n        ",
   "describe": {
     "columns": [
       {
@@ -192,7 +192,8 @@
         "Text",
         "Jsonb",
         "Bool",
-        "Uuid"
+        "Uuid",
+        "Int4"
       ]
     },
     "nullable": [
@@ -207,5 +208,5 @@
       true
     ]
   },
-  "hash": "5f7a1050d15adea1fd38688d8c64a87886b6bc07e4d285a190ec8e5d0f1f03bb"
+  "hash": "a9ecd0dd182765cac73c014b5ff18ffad7f803eeedb15e4454454cba342fac20"
 }
