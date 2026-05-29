@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Bell, Plus, Trash2, Send, ChevronLeft, MessageSquare, Hash, Mail,
   Webhook as WebhookIcon, AlertCircle, Loader2, Smartphone, Server, Megaphone,
   Siren, Phone, Rocket, Layers, FileText, Edit3, Save, X, BellRing, Search,
+  ChevronDown, Check,
 } from 'lucide-react';
 import { api, useApi } from '../lib/api.js';
 
@@ -105,10 +106,6 @@ const css = `
 `;
 
 // Channels wired into the notifier. 20 first-party + 1 generic.
-// Quick-access set shown first when the picker search is empty — the
-// channels most installs reach for. Everything else is one search away.
-const POPULAR = ['slack', 'discord', 'telegram', 'email', 'webhook', 'pagerduty', 'teams', 'ntfy', 'gotify', 'pushover', 'sms_twilio', 'webpush'];
-
 const SUPPORTED = [
   // chat
   { id: 'slack',       name: 'Slack',           icon: MessageSquare, hint: 'Incoming-webhook URL from https://api.slack.com/messaging/webhooks' },
@@ -2446,53 +2443,17 @@ export default function Notifications() {
                 Channel type can't be changed — config fields are type-specific. Delete + re-add to switch type.
               </div>
             )}
-            {!editId && (() => {
-              const q = kindQuery.trim().toLowerCase();
-              // With a query: match name/id/hint. Without: show the
-              // curated Popular set so the picker isn't a 130-row wall.
-              const shown = q
-                ? SUPPORTED.filter(s =>
-                    s.name.toLowerCase().includes(q) ||
-                    s.id.includes(q) ||
-                    (s.hint || '').toLowerCase().includes(q))
-                : SUPPORTED.filter(s => POPULAR.includes(s.id));
-              const selected = SUPPORTED.find(s => s.id === kind);
-              return (
-                <div style={{ marginBottom: 14 }}>
-                  <div style={{ position: 'relative', marginBottom: 8 }}>
-                    <Search size={13} color="var(--text-3)" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }}/>
-                    <input className="input" value={kindQuery} onChange={e => setKindQuery(e.target.value)}
-                      placeholder={`Search ${SUPPORTED.length} channel types…`} style={{ paddingLeft: 30 }}/>
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 6 }}>
-                    {q
-                      ? `${shown.length} match${shown.length === 1 ? '' : 'es'}`
-                      : 'Popular — search above for all ' + SUPPORTED.length}
-                    {selected && !shown.some(s => s.id === kind) &&
-                      <span> · selected: <strong style={{ color: 'var(--accent-2)' }}>{selected.name}</strong></span>}
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, maxHeight: 260, overflowY: 'auto' }}>
-                    {shown.map(s => {
-                      const Icon = s.icon;
-                      return (
-                        <div key={s.id} className={`kind-card ${kind === s.id ? 'active' : ''}`} onClick={() => { setKind(s.id); setConfig({}); }}>
-                          <Icon size={16} color={kind === s.id ? 'var(--accent-2)' : 'var(--text-2)'}/>
-                          <div>
-                            <div style={{ fontSize: 13, fontWeight: 500 }}>{s.name}</div>
-                            <div style={{ fontSize: 11, color: 'var(--text-3)', lineHeight: 1.3, marginTop: 2 }}>{s.hint}</div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {shown.length === 0 && (
-                      <div style={{ gridColumn: '1 / -1', padding: 16, textAlign: 'center', fontSize: 12, color: 'var(--text-3)' }}>
-                        No channel type matches “{kindQuery}”.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
+            {!editId && (
+              <div className="field">
+                <label className="field-label">Channel type</label>
+                <ChannelTypeDropdown
+                  value={kind}
+                  query={kindQuery}
+                  setQuery={setKindQuery}
+                  onSelect={(id) => { setKind(id); setConfig({}); }}
+                />
+              </div>
+            )}
 
             <form onSubmit={submit}>
               <div className="field">
@@ -2609,8 +2570,54 @@ const EVENT_KINDS = [
   { id: 'incident_resolved', label: 'Incident resolved' },
 ];
 
+// Starter templates — click to prefill the editor, tweak, then save.
+// Covers the common alert tones (terse paging, rich chat, recovery,
+// maintenance, incident) so users aren't staring at a blank form.
+const TEMPLATE_PRESETS = [
+  {
+    name: 'Concise outage (paging)',
+    event_kind: 'monitor_down',
+    subject_template: '🔴 DOWN: {{monitor.name}}',
+    body_template: '{{monitor.name}} is DOWN ({{status_code}}).\n{{msg}}',
+  },
+  {
+    name: 'Rich chat alert',
+    event_kind: 'monitor_down',
+    subject_template: '🔴 {{monitor.name}} is down',
+    body_template:
+      '*{{monitor.name}}* went *{{status}}* (was {{prev_status}})\n' +
+      '• URL: {{monitor.url}}\n• Code: {{status_code}}\n• Latency: {{latency_ms}}ms\n' +
+      '• Message: {{msg}}\n• At: {{ts}}',
+  },
+  {
+    name: 'Recovery / all clear',
+    event_kind: 'monitor_up',
+    subject_template: '✅ RECOVERED: {{monitor.name}}',
+    body_template: '{{monitor.name}} is back UP (was {{prev_status}}).\nLatency: {{latency_ms}}ms at {{ts}}',
+  },
+  {
+    name: 'Degraded warning',
+    event_kind: 'monitor_warn',
+    subject_template: '🟡 DEGRADED: {{monitor.name}}',
+    body_template: '{{monitor.name}} is degraded.\nLatency: {{latency_ms}}ms · Code: {{status_code}}\n{{msg}}',
+  },
+  {
+    name: 'Maintenance window',
+    event_kind: 'maintenance_start',
+    subject_template: '🔧 Maintenance: {{monitor.name}}',
+    body_template: 'Planned maintenance affecting {{monitor.name}} has started. Alerts are suppressed until it ends.',
+  },
+  {
+    name: 'Incident update',
+    event_kind: 'incident_updated',
+    subject_template: '📣 Incident update: {{monitor.name}}',
+    body_template: '{{msg}}\n\nStatus: {{status}} · {{ts}}',
+  },
+];
+
 function TemplatesPanel({ state, reload }) {
   const [showAdd, setShowAdd] = useState(false);
+  const [prefill, setPrefill] = useState(null);  // preset to seed a new template
   const [editing, setEditing] = useState(null);  // template object being edited, or null
 
   return (
@@ -2620,17 +2627,36 @@ function TemplatesPanel({ state, reload }) {
           Reusable subject + body strings. Attach to channels to customise what they send.
         </p>
         {!showAdd && !editing && (
-          <button className="btn btn-accent" onClick={() => setShowAdd(true)}>
+          <button className="btn btn-accent" onClick={() => { setPrefill(null); setShowAdd(true); }}>
             <Plus size={13}/> New template
           </button>
         )}
       </div>
 
+      {/* Starter presets — one click to seed the editor. */}
+      {!showAdd && !editing && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 8 }}>
+            Start from a preset
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {TEMPLATE_PRESETS.map(p => (
+              <button key={p.name} className="btn" style={{ fontSize: 12 }}
+                onClick={() => { setPrefill(p); setShowAdd(true); }}
+                title={p.subject_template}>
+                <FileText size={12}/> {p.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {(showAdd || editing) && (
         <TemplateForm
           initial={editing}
-          onCancel={() => { setShowAdd(false); setEditing(null); }}
-          onSaved={() => { setShowAdd(false); setEditing(null); reload(); }}
+          prefill={prefill}
+          onCancel={() => { setShowAdd(false); setEditing(null); setPrefill(null); }}
+          onSaved={() => { setShowAdd(false); setEditing(null); setPrefill(null); reload(); }}
         />
       )}
 
@@ -2673,11 +2699,14 @@ function TemplatesPanel({ state, reload }) {
   );
 }
 
-function TemplateForm({ initial, onCancel, onSaved }) {
-  const [name,       setName]       = useState(initial?.name || '');
-  const [eventKind,  setEventKind]  = useState(initial?.event_kind || 'monitor_down');
-  const [subject,    setSubject]    = useState(initial?.subject_template || '[{{status}}] {{monitor.name}}');
-  const [body,       setBody]       = useState(initial?.body_template ||
+function TemplateForm({ initial, prefill, onCancel, onSaved }) {
+  // initial = editing an existing template (has id); prefill = seed a new
+  // one from a preset. initial wins if both somehow present.
+  const seed = initial || prefill;
+  const [name,       setName]       = useState(seed?.name || '');
+  const [eventKind,  setEventKind]  = useState(seed?.event_kind || 'monitor_down');
+  const [subject,    setSubject]    = useState(seed?.subject_template || '[{{status}}] {{monitor.name}}');
+  const [body,       setBody]       = useState(seed?.body_template ||
     '{{monitor.name}} is now {{status}} (was {{prev_status}}).\n\nLatency: {{latency_ms}}ms\nCode: {{status_code}}\nMessage: {{msg}}\nTime: {{ts}}');
   const [busy, setBusy] = useState(false);
   const [err,  setErr]  = useState(null);
@@ -2825,4 +2854,88 @@ function urlBase64ToUint8Array(base64String) {
   const out = new Uint8Array(raw.length);
   for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
   return out;
+}
+
+// Channel-type combobox. Click opens a panel listing ALL channel types
+// (grouped by category, click-out + Esc to close); type to filter. No
+// "popular" shortlist — opening shows everything.
+function ChannelTypeDropdown({ value, query, setQuery, onSelect }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    // Focus the search box when the panel opens.
+    setTimeout(() => inputRef.current && inputRef.current.focus(), 0);
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+
+  const selected = SUPPORTED.find(s => s.id === value) || SUPPORTED[0];
+  const SelIcon = selected.icon;
+  const q = query.trim().toLowerCase();
+  const matches = q
+    ? SUPPORTED.filter(s =>
+        s.name.toLowerCase().includes(q) || s.id.includes(q) || (s.hint || '').toLowerCase().includes(q))
+    : SUPPORTED;
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      {/* Trigger */}
+      <button type="button" className="input" onClick={() => setOpen(o => !o)}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', cursor: 'pointer', width: '100%' }}>
+        <SelIcon size={15} color="var(--accent-2)"/>
+        <span style={{ fontWeight: 500, fontSize: 13 }}>{selected.name}</span>
+        <span style={{ marginLeft: 'auto', color: 'var(--text-3)', fontSize: 11 }}>{SUPPORTED.length} types</span>
+        <ChevronDown size={14} color="var(--text-3)" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}/>
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 50,
+          background: 'var(--surface)', border: '1px solid var(--border-2)', borderRadius: 10,
+          boxShadow: '0 12px 32px rgba(0,0,0,.28)', overflow: 'hidden',
+        }}>
+          <div style={{ position: 'relative', padding: 8, borderBottom: '1px solid var(--border)' }}>
+            <Search size={13} color="var(--text-3)" style={{ position: 'absolute', left: 18, top: '50%', transform: 'translateY(-50%)' }}/>
+            <input ref={inputRef} className="input" value={query} onChange={e => setQuery(e.target.value)}
+              placeholder="Filter channel types…" style={{ paddingLeft: 28 }}/>
+          </div>
+          <div style={{ maxHeight: 320, overflowY: 'auto', padding: 4 }}>
+            {matches.map(s => {
+              const Icon = s.icon;
+              const active = s.id === value;
+              return (
+                <button type="button" key={s.id}
+                  onClick={() => { onSelect(s.id); setQuery(''); setOpen(false); }}
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 10, width: '100%',
+                    padding: '8px 10px', borderRadius: 7, border: 'none', cursor: 'pointer',
+                    background: active ? 'var(--accent-soft)' : 'transparent', textAlign: 'left',
+                  }}
+                  onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'var(--surface-2)'; }}
+                  onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent'; }}>
+                  <Icon size={15} color={active ? 'var(--accent-2)' : 'var(--text-2)'} style={{ marginTop: 1, flexShrink: 0 }}/>
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{s.name}</span>
+                    <span style={{ display: 'block', fontSize: 11, color: 'var(--text-3)', lineHeight: 1.3, marginTop: 1 }}>{s.hint}</span>
+                  </span>
+                  {active && <Check size={14} color="var(--accent-2)" style={{ marginLeft: 'auto', flexShrink: 0 }}/>}
+                </button>
+              );
+            })}
+            {matches.length === 0 && (
+              <div style={{ padding: 16, textAlign: 'center', fontSize: 12, color: 'var(--text-3)' }}>
+                No channel type matches “{query}”.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
