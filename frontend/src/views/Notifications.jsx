@@ -2306,6 +2306,7 @@ function ConfigForm({ kind, config, setConfig }) {
 export default function Notifications() {
   const list      = useApi(() => api.notifications.list(), [], { pollMs: 0 });
   const templates = useApi(() => api.templates.list(),      [], { pollMs: 0 });
+  const allTags   = useApi(() => api.tags.list(),           [], { pollMs: 0 });
 
   const [tab,     setTab]     = useState('channels');  // 'channels' | 'templates'
   const [showAdd, setShowAdd] = useState(false);
@@ -2449,6 +2450,18 @@ export default function Notifications() {
           <button className="btn" type="button" onClick={() => { setShowAdd(false); resetForm(); }}>Cancel</button>
         </div>
       </form>
+
+      {/* Channel routing tags — edit mode only (needs a saved channel id).
+          A channel sharing a tag with a monitor or its folder auto-routes. */}
+      {editId && (
+        <div style={{ borderTop: '1px solid var(--border)', marginTop: 16, paddingTop: 14 }}>
+          <div className="field-label" style={{ marginBottom: 6 }}>Routing tags</div>
+          <div className="field-hint" style={{ marginBottom: 8 }}>
+            This channel auto-fires for any monitor (or folder) sharing one of these tags — no manual attach needed.
+          </div>
+          <ChannelTagEditor channelId={editId} allTags={allTags.data || []}/>
+        </div>
+      )}
     </div>
   );
 
@@ -2948,6 +2961,61 @@ function ChannelTypeDropdown({ value, query, setQuery, onSelect }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Tag chips for a notification channel — drives tag-based auto-routing.
+function ChannelTagEditor({ channelId, allTags }) {
+  const [tagIds, setTagIds] = useState(null);  // null = loading
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    api.routing.channelTags(channelId)
+      .then(ids => { if (live) setTagIds(ids); })
+      .catch(() => { if (live) setTagIds([]); });
+    return () => { live = false; };
+  }, [channelId]);
+
+  const toggle = async (tagId) => {
+    setBusy(true);
+    try {
+      if (tagIds.includes(tagId)) { await api.routing.delChannelTag(channelId, tagId); setTagIds(ids => ids.filter(x => x !== tagId)); }
+      else { await api.routing.addChannelTag(channelId, tagId); setTagIds(ids => [...ids, tagId]); }
+    } catch (e) { alert(e.message); } finally { setBusy(false); }
+  };
+
+  if (tagIds === null) return <span style={{ fontSize: 12, color: 'var(--text-3)' }}>…</span>;
+  const byId = new Map(allTags.map(t => [t.id, t]));
+  const avail = allTags.filter(t => !tagIds.includes(t.id));
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+      {tagIds.length === 0 && <span style={{ fontSize: 12, color: 'var(--text-3)' }}>No tags. </span>}
+      {tagIds.map(id => {
+        const t = byId.get(id);
+        return (
+          <span key={id} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 500,
+            padding: '3px 4px 3px 9px', borderRadius: 999, background: t?.color || '#888', color: '#fff',
+          }}>
+            {t?.name || id.slice(0, 8)}
+            <button disabled={busy} onClick={() => toggle(id)} style={{
+              background: 'rgba(255,255,255,.25)', border: 'none', color: '#fff', borderRadius: '50%',
+              width: 15, height: 15, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            }}><X size={9}/></button>
+          </span>
+        );
+      })}
+      {avail.length > 0 && (
+        <select className="select" style={{ width: 'auto', padding: '4px 8px', fontSize: 12 }} disabled={busy}
+          value="" onChange={e => e.target.value && toggle(e.target.value)}>
+          <option value="">+ tag…</option>
+          {avail.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </select>
+      )}
+      {allTags.length === 0 && <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>Create tags on a monitor first.</span>}
     </div>
   );
 }

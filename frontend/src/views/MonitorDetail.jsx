@@ -908,57 +908,94 @@ function ConfigPanel({ monitor }) {
 // channels (created in /#/notifications), and send a test.
 function MonitorChannels({ monitorId }) {
   const [reloadKey, setReloadKey] = useState(0);
-  const attached = useApi(() => api.notifications.forMonitor(monitorId), [monitorId, reloadKey]);
-  const all = useApi(() => api.notifications.list(), [reloadKey]);
+  const all       = useApi(() => api.notifications.list(), [reloadKey]);
+  const attached  = useApi(() => api.notifications.forMonitor(monitorId), [monitorId, reloadKey]);
+  const effective = useApi(() => api.routing.effective(monitorId), [monitorId, reloadKey]);
+  const excludes  = useApi(() => api.routing.excludes(monitorId),  [monitorId, reloadKey]);
   const [showPicker, setShowPicker] = useState(false);
 
+  const byId        = new Map((all.data || []).map(c => [c.id, c]));
   const attachedIds = new Set((attached.data || []).map(c => c.id));
-  const available = (all.data || []).filter(c => !attachedIds.has(c.id));
+  const effectiveIds = effective.data || [];
+  const excludeIds  = new Set(excludes.data || []);
+  const available   = (all.data || []).filter(c => !attachedIds.has(c.id) && !effectiveIds.includes(c.id));
 
   const bounce = () => setReloadKey(k => k + 1);
 
   const attach = async (nid) => {
-    try { await api.notifications.attach(monitorId, nid); bounce(); setShowPicker(false); }
-    catch (e) { alert(e.message); }
+    try { await api.notifications.attach(monitorId, nid); bounce(); setShowPicker(false); } catch (e) { alert(e.message); }
   };
-  const detach = async (nid) => {
-    try { await api.notifications.detach(monitorId, nid); bounce(); }
-    catch (e) { alert(e.message); }
+  // Remove from this monitor: exclusion always wins, so it covers
+  // tag/folder auto-routed channels too. Also drop a direct attach edge
+  // if present, so the channel doesn't linger as "attached but muted".
+  const remove = async (nid) => {
+    try {
+      if (attachedIds.has(nid)) await api.notifications.detach(monitorId, nid);
+      await api.routing.addExclude(monitorId, nid);
+      bounce();
+    } catch (e) { alert(e.message); }
+  };
+  const restore = async (nid) => {
+    try { await api.routing.delExclude(monitorId, nid); bounce(); } catch (e) { alert(e.message); }
   };
   const sendTest = async (nid) => {
-    try { await api.notifications.test(nid); alert('Test sent. Check the channel.'); }
-    catch (e) { alert(e.message); }
+    try { await api.notifications.test(nid); alert('Test sent. Check the channel.'); } catch (e) { alert(e.message); }
   };
+
+  const loading = effective.loading || all.loading;
 
   return (
     <div className="card" style={{ padding: '18px 20px' }}>
-      <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+      <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 8 }}>
         <Bell size={14} color="var(--text-2)"/> Notifications
       </h3>
+      <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 10 }}>
+        Channels that will fire for this monitor — direct attachments plus tag/folder auto-routing.
+      </div>
 
-      {(attached.data || []).length === 0 && !attached.loading && (
+      {!loading && effectiveIds.length === 0 && (
         <div className="empty" style={{ padding: 0, fontSize: 12, marginBottom: 10 }}>
-          No channels attached. Create channels at <a href="#/notifications" style={{ color: 'var(--accent)' }}>Notifications</a>, then attach them here.
+          No channels will fire. Attach one below, or tag this monitor/its folder to match a channel.
         </div>
       )}
 
-      {(attached.data || []).map(c => (
-        <div key={c.id} style={{
-          display: 'grid', gridTemplateColumns: '1fr auto auto', alignItems: 'center', gap: 8,
-          padding: '8px 0', borderTop: '1px solid var(--border)',
-        }}>
-          <div>
-            <div style={{ fontSize: 12.5, fontWeight: 500 }}>{c.name}</div>
-            <div style={{ fontSize: 10, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em' }}>{c.kind}</div>
+      {effectiveIds.map(nid => {
+        const c = byId.get(nid);
+        if (!c) return null;
+        const auto = !attachedIds.has(nid);  // in effective but not directly attached → tag/folder
+        return (
+          <div key={nid} style={{
+            display: 'grid', gridTemplateColumns: '1fr auto auto', alignItems: 'center', gap: 8,
+            padding: '8px 0', borderTop: '1px solid var(--border)',
+          }}>
+            <div>
+              <div style={{ fontSize: 12.5, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+                {c.name}
+                {auto && <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--accent-2)', background: 'var(--accent-soft)', padding: '1px 5px', borderRadius: 999, textTransform: 'uppercase', letterSpacing: '.04em' }}>auto</span>}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em' }}>{c.kind}</div>
+            </div>
+            <button className="btn" onClick={() => sendTest(nid)} title="Send test" style={{ padding: '4px 8px', fontSize: 11 }}><Send size={11}/></button>
+            <button className="btn btn-danger" onClick={() => remove(nid)} title="Remove from this monitor" style={{ padding: '4px 8px', fontSize: 11 }}><X size={11}/></button>
           </div>
-          <button className="btn" onClick={() => sendTest(c.id)} title="Send test" style={{ padding: '4px 8px', fontSize: 11 }}>
-            <Send size={11}/>
-          </button>
-          <button className="btn btn-danger" onClick={() => detach(c.id)} title="Detach" style={{ padding: '4px 8px', fontSize: 11 }}>
-            <X size={11}/>
-          </button>
+        );
+      })}
+
+      {/* Excluded — auto-routed channels the operator pulled off this monitor. */}
+      {excludeIds.size > 0 && (
+        <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 10, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em', fontWeight: 600, marginBottom: 6 }}>Excluded</div>
+          {[...excludeIds].map(nid => {
+            const c = byId.get(nid);
+            return (
+              <div key={nid} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 0' }}>
+                <span style={{ fontSize: 12, color: 'var(--text-3)', textDecoration: 'line-through' }}>{c?.name || nid.slice(0, 8)}</span>
+                <button className="btn btn-ghost" onClick={() => restore(nid)} style={{ padding: '3px 8px', fontSize: 11 }}>Restore</button>
+              </div>
+            );
+          })}
         </div>
-      ))}
+      )}
 
       {showPicker ? (
         <div style={{ marginTop: 12, padding: 10, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface-2)' }}>
