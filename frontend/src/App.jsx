@@ -12,6 +12,7 @@ import Security          from './views/Security.jsx';
 import Users             from './views/Users.jsx';
 import SmtpSettings      from './views/SmtpSettings.jsx';
 import RetentionSettings from './views/RetentionSettings.jsx';
+import Folders           from './views/Folders.jsx';
 import AuditLog          from './views/AuditLog.jsx';
 import StatusPageView    from './views/StatusPageView.jsx';
 import { api } from './lib/api.js';
@@ -30,6 +31,7 @@ const VIEW_LABEL = {
   'users':         'Users',
   'smtp-settings':      'SMTP',
   'retention-settings': 'Retention',
+  'folders':            'Folders',
   'audit':         'Audit log',
   'public-status': 'Public view',
   'login':         'Login',
@@ -95,6 +97,7 @@ export default function App() {
     case 'users':         view = <Users />; break;
     case 'smtp-settings':      view = <SmtpSettings />; break;
     case 'retention-settings': view = <RetentionSettings />; break;
+    case 'folders':            view = <Folders />; break;
     case 'audit':         view = <AuditLog />; break;
     case 'public-status': view = <StatusPageView slug={route.id} />; break;
     case 'dashboard':
@@ -125,6 +128,7 @@ function ViewSwitcher({ current }) {
     { hash: '#/proxies',       view: 'proxies'       },
     { hash: '#/security',      view: 'security'      },
     { hash: '#/users',         view: 'users'         },
+    { hash: '#/folders',            view: 'folders'           },
     { hash: '#/settings/smtp',      view: 'smtp-settings'      },
     { hash: '#/settings/retention', view: 'retention-settings' },
     { hash: '#/audit',         view: 'audit'         },

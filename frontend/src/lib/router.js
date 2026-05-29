@@ -26,6 +26,7 @@ export function parseRoute(hash) {
   if (h === '#/proxies')            return { view: 'proxies',       id: null };
   if (h === '#/security')           return { view: 'security',      id: null };
   if (h === '#/users')              return { view: 'users',         id: null };
+  if (h === '#/folders')            return { view: 'folders',            id: null };
   if (h === '#/settings/smtp')      return { view: 'smtp-settings',      id: null };
   if (h === '#/settings/retention') return { view: 'retention-settings', id: null };
   if (h === '#/audit')              return { view: 'audit',         id: null };

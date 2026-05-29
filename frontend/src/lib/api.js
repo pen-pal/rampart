@@ -185,6 +185,24 @@ export const api = {
     create: (name, sortOrder = 0) => request('/v1/monitor-groups', { method: 'POST', body: { name, sort_order: Number(sortOrder) || 0 } }),
     update: (id, patch)    => request(`/v1/monitor-groups/${id}`, { method: 'PATCH', body: patch }),
     remove: (id)           => request(`/v1/monitor-groups/${id}`, { method: 'DELETE' }),
+    // Tags on a folder.
+    tags:      (id)            => request(`/v1/monitor-groups/${id}/tags`),
+    addTag:    (id, tagId)     => request(`/v1/monitor-groups/${id}/tags/${tagId}`, { method: 'POST' }),
+    delTag:    (id, tagId)     => request(`/v1/monitor-groups/${id}/tags/${tagId}`, { method: 'DELETE' }),
+    // Channels attached at the folder level.
+    channels:  (id)            => request(`/v1/monitor-groups/${id}/channels`),
+    addChannel:(id, notifId)   => request(`/v1/monitor-groups/${id}/channels/${notifId}`, { method: 'POST' }),
+    delChannel:(id, notifId)   => request(`/v1/monitor-groups/${id}/channels/${notifId}`, { method: 'DELETE' }),
+  },
+  // Tag-based routing: tags on channels, per-monitor excludes, resolved set.
+  routing: {
+    channelTags:   (notifId)          => request(`/v1/notifications/${notifId}/tags`),
+    addChannelTag: (notifId, tagId)   => request(`/v1/notifications/${notifId}/tags/${tagId}`, { method: 'POST' }),
+    delChannelTag: (notifId, tagId)   => request(`/v1/notifications/${notifId}/tags/${tagId}`, { method: 'DELETE' }),
+    excludes:        (mid)            => request(`/v1/monitors/${mid}/excludes`),
+    addExclude:      (mid, notifId)   => request(`/v1/monitors/${mid}/excludes/${notifId}`, { method: 'POST' }),
+    delExclude:      (mid, notifId)   => request(`/v1/monitors/${mid}/excludes/${notifId}`, { method: 'DELETE' }),
+    effective:       (mid)            => request(`/v1/monitors/${mid}/effective-channels`),
   },
   dependencies: {
     list:    (mid)              => request(`/v1/monitors/${mid}/dependencies`),
