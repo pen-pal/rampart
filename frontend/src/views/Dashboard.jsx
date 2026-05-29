@@ -533,12 +533,20 @@ export default function Dashboard({ user, onLogout } = {}) {
         {/* ─── main panel ────────────────────────────────────────── */}
         <main className="dash-main" style={{ padding: '28px 36px', maxWidth: 1500 }}>
 
-          {/* hero */}
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28 }}>
+          {/* hero — health-reactive banner: accent edge in the health
+              colour, alert tint when something's down/degraded, calm
+              surface when all clear. */}
+          <div style={{
+            display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+            marginBottom: 28, padding: '18px 22px', borderRadius: 12,
+            border: '1px solid var(--border)', borderLeft: `4px solid ${heroColor}`,
+            background: (anyDown || anyWarn) ? heroSoft : 'var(--surface)',
+            transition: 'background .25s, border-color .25s',
+          }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
                 <span className="dot" style={{ background: heroColor, boxShadow: `0 0 0 5px ${heroSoft}` }}/>
-                <h1 style={{ fontSize: 26, fontWeight: 600, margin: 0, letterSpacing: '-.02em' }}>{heroTitle}</h1>
+                <h1 style={{ fontSize: 26, fontWeight: 600, margin: 0, letterSpacing: '-.02em', color: (anyDown || anyWarn) ? heroColor : 'var(--text)' }}>{heroTitle}</h1>
               </div>
               <p style={{ fontSize: 14, color: 'var(--text-2)', margin: '0 0 0 20px' }}>
                 {monitors.length === 0 && <>Create your first monitor to start receiving heartbeats.</>}
