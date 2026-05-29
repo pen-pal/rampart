@@ -2334,6 +2334,8 @@ export default function Notifications() {
   // Kind is locked while editing — config shape is kind-specific, so
   // changing it would orphan the existing config blob.
   const startEdit = (c) => {
+    // If already editing this row, toggle the inline editor closed.
+    if (editId === c.id) { resetForm(); return; }
     setEditId(c.id);
     setKind(c.kind);
     setName(c.name);
@@ -2341,8 +2343,7 @@ export default function Notifications() {
     setTemplateId(c.template_id || '');
     setCooldown(c.cooldown_seconds || 0);
     setMsg(null);
-    setShowAdd(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setShowAdd(false);  // edit renders inline under the row, not at top
   };
 
   const submit = async (e) => {
@@ -2386,6 +2387,70 @@ export default function Notifications() {
   };
 
   const channels = list.data || [];
+
+  // The add/edit channel form. Rendered at the top in add mode, or inline
+  // under the row being edited. `inline` tweaks margins for the nested case.
+  const channelFormCard = (inline = false) => (
+    <div className="card" style={{ padding: 20, marginBottom: inline ? 0 : 20 }}>
+      <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 14px' }}>
+        {editId ? `Edit channel · ${name}` : 'Add a new channel'}
+      </h3>
+      {editId && (
+        <div className="field-hint" style={{ marginBottom: 12, color: 'var(--text-3)' }}>
+          Channel type can't be changed — config fields are type-specific. Delete + re-add to switch type.
+        </div>
+      )}
+      {!editId && (
+        <div className="field">
+          <label className="field-label">Channel type</label>
+          <ChannelTypeDropdown
+            value={kind}
+            query={kindQuery}
+            setQuery={setKindQuery}
+            onSelect={(id) => { setKind(id); setConfig({}); }}
+          />
+        </div>
+      )}
+
+      <form onSubmit={submit}>
+        <div className="field">
+          <label className="field-label">Display name</label>
+          <input className="input" value={name} onChange={e => setName(e.target.value)}
+            placeholder="e.g. Production alerts"/>
+        </div>
+        <ConfigForm kind={kind} config={config} setConfig={setConfig}/>
+
+        <div className="field">
+          <label className="field-label">Template <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+          <select className="select" value={templateId} onChange={e => setTemplateId(e.target.value)}>
+            <option value="">— Use default subject/body —</option>
+            {(templates.data || []).map(t => (
+              <option key={t.id} value={t.id}>{t.name} ({t.event_kind})</option>
+            ))}
+          </select>
+          <div className="field-hint">Manage templates on the <strong>Templates</strong> tab. Leave on default for the built-in subject + body.</div>
+        </div>
+
+        <div className="field">
+          <label className="field-label">Cooldown <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· seconds · optional</span></label>
+          <input className="input" type="number" min="0" step="1" value={cooldown}
+            onChange={e => setCooldown(e.target.value)} placeholder="0 (no cooldown)"/>
+          <div className="field-hint">Suppress repeated fires within this window. Useful for flap-prone monitors paired with SMS or paging. <code>0</code> disables.</div>
+        </div>
+
+        {msg && <div className={msg.kind === 'ok' ? 'banner-ok' : 'banner-err'} style={{ marginBottom: 12 }}>{msg.text}</div>}
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-accent" type="submit" disabled={busy}>
+            {busy ? <><Loader2 size={13} className="spin"/> Saving…</>
+                  : editId ? <><Save size={13}/> Update channel</>
+                           : <><Plus size={13}/> Save channel</>}
+          </button>
+          <button className="btn" type="button" onClick={() => { setShowAdd(false); resetForm(); }}>Cancel</button>
+        </div>
+      </form>
+    </div>
+  );
 
   return (
     <div className="rampart">
@@ -2432,68 +2497,8 @@ export default function Notifications() {
 
         {tab === 'channels' && (<>
 
-        {/* Add form */}
-        {showAdd && (
-          <div className="card" style={{ padding: 20, marginBottom: 20 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 14px' }}>
-              {editId ? `Edit channel · ${name}` : 'Add a new channel'}
-            </h3>
-            {editId && (
-              <div className="field-hint" style={{ marginBottom: 12, color: 'var(--text-3)' }}>
-                Channel type can't be changed — config fields are type-specific. Delete + re-add to switch type.
-              </div>
-            )}
-            {!editId && (
-              <div className="field">
-                <label className="field-label">Channel type</label>
-                <ChannelTypeDropdown
-                  value={kind}
-                  query={kindQuery}
-                  setQuery={setKindQuery}
-                  onSelect={(id) => { setKind(id); setConfig({}); }}
-                />
-              </div>
-            )}
-
-            <form onSubmit={submit}>
-              <div className="field">
-                <label className="field-label">Display name</label>
-                <input className="input" value={name} onChange={e => setName(e.target.value)}
-                  placeholder={kind === 'slack' ? '#alerts (production)' : kind === 'discord' ? 'discord-monitoring' : 'pagerduty webhook'}/>
-              </div>
-              <ConfigForm kind={kind} config={config} setConfig={setConfig}/>
-
-              <div className="field">
-                <label className="field-label">Template <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
-                <select className="select" value={templateId} onChange={e => setTemplateId(e.target.value)}>
-                  <option value="">— Use default subject/body —</option>
-                  {(templates.data || []).map(t => (
-                    <option key={t.id} value={t.id}>{t.name} ({t.event_kind})</option>
-                  ))}
-                </select>
-                <div className="field-hint">Manage templates on the <strong>Templates</strong> tab. Leave on default for the built-in subject + body.</div>
-              </div>
-
-              <div className="field">
-                <label className="field-label">Cooldown <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· seconds · optional</span></label>
-                <input className="input" type="number" min="0" step="1" value={cooldown}
-                  onChange={e => setCooldown(e.target.value)} placeholder="0 (no cooldown)"/>
-                <div className="field-hint">Suppress repeated fires within this window. Useful for flap-prone monitors paired with SMS or paging. <code>0</code> disables.</div>
-              </div>
-
-              {msg && <div className={msg.kind === 'ok' ? 'banner-ok' : 'banner-err'} style={{ marginBottom: 12 }}>{msg.text}</div>}
-
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn btn-accent" type="submit" disabled={busy}>
-                  {busy ? <><Loader2 size={13} className="spin"/> Saving…</>
-                        : editId ? <><Save size={13}/> Update channel</>
-                                 : <><Plus size={13}/> Save channel</>}
-                </button>
-                <button className="btn" type="button" onClick={() => { setShowAdd(false); resetForm(); }}>Cancel</button>
-              </div>
-            </form>
-          </div>
-        )}
+        {/* Add form — top of page, only in add mode. Edit mode renders the
+            same form inline under the row being edited (see channel list). */}
 
         {/* Channel list */}
         <div className="card" style={{ padding: 0 }}>
@@ -2509,8 +2514,10 @@ export default function Notifications() {
             const meta = SUPPORTED.find(s => s.id === c.kind);
             const Icon = meta ? meta.icon : AlertCircle;
             const tpl = c.template_id && (templates.data || []).find(t => t.id === c.template_id);
+            const editingThis = editId === c.id;
             return (
-              <div key={c.id} className="channel-row">
+              <React.Fragment key={c.id}>
+              <div className="channel-row" style={editingThis ? { background: 'var(--surface-2)' } : undefined}>
                 <Icon size={16} color="var(--text-2)"/>
                 <div>
                   <div style={{ fontSize: 13.5, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -2522,8 +2529,8 @@ export default function Notifications() {
                   </div>
                 </div>
                 {c.kind === 'webpush' && <EnablePushButton notificationId={c.id}/>}
-                <button className="btn" onClick={() => startEdit(c)} title="Edit this channel">
-                  <Edit3 size={12}/> Edit
+                <button className={`btn ${editingThis ? 'btn-accent' : ''}`} onClick={() => startEdit(c)} title="Edit this channel">
+                  <Edit3 size={12}/> {editingThis ? 'Close' : 'Edit'}
                 </button>
                 <button className="btn" onClick={() => sendTest(c.id)} title="Send a test message">
                   <Send size={12}/> Test
@@ -2532,6 +2539,10 @@ export default function Notifications() {
                   <Trash2 size={12}/>
                 </button>
               </div>
+              {editingThis && (
+                <div style={{ padding: '0 16px 16px' }}>{channelFormCard(true)}</div>
+              )}
+              </React.Fragment>
             );
           })}
         </div>
