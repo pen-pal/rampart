@@ -61,7 +61,7 @@ const css = `
   .kind-card.active { border-color: var(--accent); background: var(--accent-soft); }
 
   .channel-row {
-    display: grid; grid-template-columns: 30px 1fr auto auto;
+    display: grid; grid-template-columns: 30px 1fr auto;
     align-items: center; gap: 14px;
     padding: 12px 18px; border-top: 1px solid var(--border);
   }
@@ -2542,16 +2542,18 @@ export default function Notifications() {
                     {meta ? meta.name : c.kind} · {c.active ? 'enabled' : 'disabled'}
                   </div>
                 </div>
-                {c.kind === 'webpush' && <EnablePushButton notificationId={c.id}/>}
-                <button className={`btn ${editingThis ? 'btn-accent' : ''}`} onClick={() => startEdit(c)} title="Edit this channel">
-                  <Edit3 size={12}/> {editingThis ? 'Close' : 'Edit'}
-                </button>
-                <button className="btn" onClick={() => sendTest(c.id)} title="Send a test message">
-                  <Send size={12}/> Test
-                </button>
-                <button className="btn btn-danger" onClick={() => removeOne(c.id)} title="Delete">
-                  <Trash2 size={12}/>
-                </button>
+                <div style={{ gridColumn: '3', display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
+                  {c.kind === 'webpush' && <EnablePushButton notificationId={c.id}/>}
+                  <button className={`btn ${editingThis ? 'btn-accent' : ''}`} onClick={() => startEdit(c)} title="Edit this channel">
+                    <Edit3 size={12}/> {editingThis ? 'Close' : 'Edit'}
+                  </button>
+                  <button className="btn" onClick={() => sendTest(c.id)} title="Send a test message">
+                    <Send size={12}/> Test
+                  </button>
+                  <button className="btn btn-danger" onClick={() => removeOne(c.id)} title="Delete">
+                    <Trash2 size={12}/>
+                  </button>
+                </div>
               </div>
               {editingThis && (
                 <div style={{ padding: '0 16px 16px' }}>{channelFormCard(true)}</div>
