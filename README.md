@@ -1,6 +1,6 @@
 # Rampart
 
-Self-hosted uptime monitoring. Rust workspace + React frontend in a single binary. Postgres-backed. 24 probe kinds, 130 notification channels (incl. Web Push + AWS SNS / Azure Service Bus / GCP Pub/Sub), public status pages with subscribers + incidents, maintenance windows with recurrence, folders + tag-based notification routing, dependency-aware alert suppression, 2FA, API keys, audit log, multi-user, dark mode, live SSE updates, bulk operations, heartbeat CSV export, TLS cert tracking, push monitors, tag filtering, Liquid templates.
+Self-hosted uptime monitoring. Rust workspace + React frontend in a single binary. Postgres-backed. 26 probe kinds, 130 notification channels (incl. Web Push + AWS SNS / Azure Service Bus / GCP Pub/Sub), public status pages with subscribers + incidents, maintenance windows with recurrence, folders + tag-based notification routing, dependency-aware alert suppression, 2FA, API keys, audit log, multi-user, dark mode, live SSE updates, bulk operations, heartbeat CSV export, TLS cert tracking, push monitors, tag filtering, Liquid templates.
 
 ```
 rampart/
@@ -8,7 +8,7 @@ rampart/
 │   └── crates/
 │       ├── rampart-core       — pure types, no I/O
 │       ├── rampart-db         — sqlx repository layer
-│       ├── rampart-checker    — probe runners (24 kinds)
+│       ├── rampart-checker    — probe runners (26 kinds)
 │       ├── rampart-scheduler  — per-monitor tokio tasks + batched writer
 │       ├── rampart-notifier   — channel fan-out (130 adapters)
 │       └── rampart-api        — axum HTTP server (embeds React via rust-embed)
@@ -27,7 +27,7 @@ What works today:
 
 | Area                | Status                                              |
 | ---                 | ---                                                 |
-| **Probes**          | 24 / 24 implemented — HTTP / keyword / JSON, TCP, ping (ICMP), DNS, push, TLS cert, domain expiry, Postgres / MySQL / MSSQL / Redis / MongoDB, gRPC (health.v1), MQTT, Docker, Steam (A2S), Kafka (ApiVersions), RADIUS, headless-browser keyword (via an external renderer), SSH / SMTP / IMAP (banner check) |
+| **Probes**          | 26 / 26 implemented — HTTP / keyword / JSON, TCP, ping (ICMP), DNS, push, TLS cert, domain expiry, Postgres / MySQL / MSSQL / Redis / MongoDB, gRPC (health.v1), MQTT, Docker, Steam (A2S), Kafka (ApiVersions), RADIUS, headless-browser keyword (via an external renderer), SSH / SMTP / IMAP / FTP / POP3 (banner check) |
 | **Notifications**   | 128 native channels + Apprise gateway + Generic Webhook (130 total). Slack, Discord, Telegram, Teams, Email/SMTP, Pushover, Gotify, ntfy, PagerDuty, Mattermost, Rocket.Chat, Twilio SMS, Matrix, GoogleChat, WeCom, DingTalk, Feishu, Line, Bark, Pushbullet, SendGrid, Resend, Brevo, Mailgun, Mailjet, Postmark, Mandrill, SparkPost, Opsgenie, PagerTree, Squadcast, Signal, Zulip, Lark, GoAlert, Alerta, AlertNow, SIGNL4, Heii On-Call, ServerChan, PushPlus, PushDeer, Aliyun SMS, Mastodon, Pumble, Bitrix24, Stackfield, Splunk On-Call, Grafana OnCall, Home Assistant, ClickSend, 46elks, CallMeBot, Telnyx, Notifery, WAHA, Threema, Bale, Pushy, ZohoCliq, SmsManager, SMSEagle, Octopush, Whapi, 360messenger, Evolution, Flock, SerwerSMS, SMSPlanet, SMSC.ru, Cellsynt, seven.io, GtxMessaging, Onesender, PromoSMS, SMSPartner, SMS.ir, FreeMobile, FlashDuty, Teltonika, Kook, Nostr, OneBot, OneChat, MAX, Halo PSA, Jira SM, SpugPush, WPush, VK, YZJ, Google Sheets, Gorush, Fluxer, Splash, MessageBird, Plivo, Vonage, Bandwidth, Webex, Pushcut, SMSGlobal, AlertOps, Spike.sh, Zenduty, RingCentral, iLert, Linear, ClickUp, Trello, GitHub Issue, GitLab Issue, Asana, Notion, Sentry, Rollbar, Honeybadger, Healthchecks.io, BetterStack, Statuspage.io, Datadog Events, New Relic Events, AWS SNS, Azure Service Bus, GCP Pub/Sub, Web Push (browser, RFC 8291). Per-channel cooldown + HMAC-signed Generic Webhook. |
 | **Status pages**    | Public read-only views at `/#/s/:slug`. Worst-status-wins rollup, 90-day uptime per component, incidents banner with running updates, email subscribers (single-opt-in + unsubscribe token), dark/light theme |
 | **Folders + routing** | Folders group monitors on the dashboard. Tag a folder/monitor/channel, and a channel auto-routes to any monitor sharing a tag; channels attach at folder level too. Per-monitor exclude pulls a channel off one monitor (wins over every routing path). Resolved live per alert. |
