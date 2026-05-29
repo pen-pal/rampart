@@ -579,7 +579,7 @@ export default function Dashboard({ user, onLogout } = {}) {
                 ))}
               </div>
             </div>
-            <div style={{ height: 240 }}>
+            <div style={{ height: trend.rows.length > 0 ? 240 : 88 }}>
               {trend.rows.length > 0 ? (
                 <ResponsiveContainer>
                   <LineChart data={trend.rows} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
