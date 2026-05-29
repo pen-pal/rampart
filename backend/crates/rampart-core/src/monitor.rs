@@ -55,6 +55,8 @@ pub enum MonitorKind {
     Ssh,
     Smtp,
     Imap,
+    Ftp,
+    Pop3,
 }
 
 /// Current rolled-up status of a monitor (or of one heartbeat).

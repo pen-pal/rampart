@@ -137,6 +137,14 @@ const types = [
     example: 'Watch your IMAP server availability',
     placeholder: { hostname: 'imap.internal', port: '143' } },
 
+  { id: 'ftp',        icon: Server,        name: 'FTP',           desc: 'Connect + check 220 greeting',
+    example: 'Confirm an FTP drop site still answers',
+    placeholder: { hostname: 'ftp.internal', port: '21' } },
+
+  { id: 'pop3',       icon: Server,        name: 'POP3',          desc: 'Connect + check +OK greeting',
+    example: 'Watch a POP3 mailbox server',
+    placeholder: { hostname: 'pop.internal', port: '110' } },
+
   { id: 'ping',       icon: Radio,         name: 'Ping',          desc: 'ICMP echo',
     example: 'Detect when your home router or VPN endpoint drops',
     placeholder: { hostname: '192.168.1.1' } },
@@ -216,7 +224,7 @@ const fieldsFor = (kind) => {
     // Reuses the existing url + keyword inputs and adds a renderer_url.
     return { url: true, keyword: true, renderer: true };
   }
-  if (['tcp','grpc','mqtt','steam','kafka','radius','ssh','smtp','imap'].includes(kind)) return { hostname: true, port: true };
+  if (['tcp','grpc','mqtt','steam','kafka','radius','ssh','smtp','imap','ftp','pop3'].includes(kind)) return { hostname: true, port: true };
   if (['postgres','mysql','mssql','redis','mongodb'].includes(kind)) return { hostname: true, port: true };
   if (kind === 'ping')   return { hostname: true };
   if (kind === 'dns')    return { hostname: true };
@@ -227,7 +235,7 @@ const fieldsFor = (kind) => {
 
 const defaultPort = (kind) => ({
   tcp: 443, grpc: 443, mqtt: 1883, steam: 27015, kafka: 9092, radius: 1812,
-  ssh: 22, smtp: 25, imap: 143,
+  ssh: 22, smtp: 25, imap: 143, ftp: 21, pop3: 110,
   postgres: 5432, mysql: 3306, mssql: 1433, redis: 6379, mongodb: 27017,
 })[kind] || null;
 

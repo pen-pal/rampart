@@ -44,7 +44,9 @@
                 "browser",
                 "ssh",
                 "smtp",
-                "imap"
+                "imap",
+                "ftp",
+                "pop3"
               ]
             }
           }
@@ -232,7 +234,9 @@
                 "browser",
                 "ssh",
                 "smtp",
-                "imap"
+                "imap",
+                "ftp",
+                "pop3"
               ]
             }
           }

@@ -36,8 +36,9 @@ impl Default for BannerProbe {
 fn default_expect(kind: MonitorKind) -> &'static str {
     match kind {
         MonitorKind::Ssh => "SSH-",
-        MonitorKind::Smtp => "220",
+        MonitorKind::Smtp | MonitorKind::Ftp => "220",
         MonitorKind::Imap => "* OK",
+        MonitorKind::Pop3 => "+OK",
         _ => "",
     }
 }
@@ -47,6 +48,8 @@ fn default_port(kind: MonitorKind) -> u16 {
         MonitorKind::Ssh => 22,
         MonitorKind::Smtp => 25,
         MonitorKind::Imap => 143,
+        MonitorKind::Ftp => 21,
+        MonitorKind::Pop3 => 110,
         _ => 0,
     }
 }

@@ -133,9 +133,11 @@ impl Probes {
             MonitorKind::Kafka => self.kafka.run(monitor).await,
             MonitorKind::Radius => self.radius.run(monitor).await,
             MonitorKind::Browser => self.browser.run(monitor).await,
-            MonitorKind::Ssh | MonitorKind::Smtp | MonitorKind::Imap => {
-                self.banner.run(monitor).await
-            }
+            MonitorKind::Ssh
+            | MonitorKind::Smtp
+            | MonitorKind::Imap
+            | MonitorKind::Ftp
+            | MonitorKind::Pop3 => self.banner.run(monitor).await,
             unsupported => unsupported_kind(monitor.id, unsupported),
         }
     }
