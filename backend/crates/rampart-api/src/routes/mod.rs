@@ -20,6 +20,7 @@ pub mod monitors;
 pub mod notifications;
 pub mod proxies;
 pub mod push;
+pub mod routing;
 pub mod status_pages;
 pub mod stream;
 pub mod subscribers;
@@ -53,14 +54,15 @@ pub fn v1_protected() -> Router<AppState> {
             monitors::router()
                 .merge(notifications::monitor_attach_router())
                 .merge(tags::monitor_tag_router())
-                .merge(monitor_groups::dep_router()),
+                .merge(monitor_groups::dep_router())
+                .merge(routing::monitor_router()),
         )
-        // /v1/monitor-groups CRUD
-        .nest("/monitor-groups", monitor_groups::router())
+        // /v1/monitor-groups CRUD + folder tags/channels
+        .nest("/monitor-groups", monitor_groups::router().merge(routing::group_router()))
         // /v1/tags CRUD
         .nest("/tags", tags::router())
-        // /v1/notifications CRUD
-        .nest("/notifications", notifications::router())
+        // /v1/notifications CRUD + channel tags
+        .nest("/notifications", notifications::router().merge(routing::channel_router()))
         // /v1/notification-templates CRUD
         .nest("/notification-templates", templates::router())
         // /v1/maintenance-windows CRUD + attach/detach

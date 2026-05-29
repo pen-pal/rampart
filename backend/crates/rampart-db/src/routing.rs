@@ -83,6 +83,57 @@ pub async fn resolve_channels_for_monitor(
         .collect())
 }
 
+// ── read helpers (for the UI) ─────────────────────────────────────────────
+
+pub async fn group_tag_ids(pool: &DbPool, group: MonitorGroupId) -> DbResult<Vec<TagId>> {
+    let rows = sqlx::query!(r#"SELECT tag_id FROM group_tags WHERE group_id = $1"#, group.0)
+        .fetch_all(pool)
+        .await?;
+    Ok(rows.into_iter().map(|r| TagId::from_uuid(r.tag_id)).collect())
+}
+
+pub async fn channel_tag_ids(pool: &DbPool, notif: NotificationId) -> DbResult<Vec<TagId>> {
+    let rows = sqlx::query!(
+        r#"SELECT tag_id FROM notification_tags WHERE notification_id = $1"#,
+        notif.0
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(|r| TagId::from_uuid(r.tag_id)).collect())
+}
+
+pub async fn group_channel_ids(
+    pool: &DbPool,
+    group: MonitorGroupId,
+) -> DbResult<Vec<NotificationId>> {
+    let rows = sqlx::query!(
+        r#"SELECT notification_id FROM group_notifications WHERE group_id = $1"#,
+        group.0
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| NotificationId::from_uuid(r.notification_id))
+        .collect())
+}
+
+pub async fn monitor_exclude_ids(
+    pool: &DbPool,
+    monitor: MonitorId,
+) -> DbResult<Vec<NotificationId>> {
+    let rows = sqlx::query!(
+        r#"SELECT notification_id FROM monitor_notification_excludes WHERE monitor_id = $1"#,
+        monitor.0
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| NotificationId::from_uuid(r.notification_id))
+        .collect())
+}
+
 // ── junction helpers (used by API routes + tests) ─────────────────────────
 
 pub async fn tag_group(pool: &DbPool, group: MonitorGroupId, tag: TagId) -> DbResult<()> {
