@@ -141,10 +141,15 @@ export default function StatusPageView({ slug }) {
   }
 
   const themeClass = data.theme === 'dark' ? 'public dark' : 'public';
-  const status = overall(data.monitors);
+  // Active operator-posted incidents shouldn't be contradicted by an
+  // "all operational" banner. If monitors look healthy but an incident is
+  // posted, surface it in the banner instead of claiming all-clear.
+  const hasIncidents = (data.incidents || []).length > 0;
+  let status = overall(data.monitors);
+  if (status === 'up' && hasIncidents) status = 'warn';
   const summary = {
     up:   ['All systems operational', 'summary-up'],
-    warn: ['Some systems degraded',   'summary-warn'],
+    warn: [hasIncidents ? 'Active incident — see below' : 'Some systems degraded', 'summary-warn'],
     down: ['Service disruption',      'summary-down'],
     maintenance: ['Scheduled maintenance in progress', 'summary-maint'],
   }[status];
