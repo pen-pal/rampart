@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   Bell, Plus, Trash2, Send, ChevronLeft, MessageSquare, Hash, Mail,
   Webhook as WebhookIcon, AlertCircle, Loader2, Smartphone, Server, Megaphone,
-  Siren, Phone, Rocket, Layers, FileText, Edit3, Save, X, BellRing,
+  Siren, Phone, Rocket, Layers, FileText, Edit3, Save, X, BellRing, Search,
 } from 'lucide-react';
 import { api, useApi } from '../lib/api.js';
 
@@ -105,6 +105,10 @@ const css = `
 `;
 
 // Channels wired into the notifier. 20 first-party + 1 generic.
+// Quick-access set shown first when the picker search is empty — the
+// channels most installs reach for. Everything else is one search away.
+const POPULAR = ['slack', 'discord', 'telegram', 'email', 'webhook', 'pagerduty', 'teams', 'ntfy', 'gotify', 'pushover', 'sms_twilio', 'webpush'];
+
 const SUPPORTED = [
   // chat
   { id: 'slack',       name: 'Slack',           icon: MessageSquare, hint: 'Incoming-webhook URL from https://api.slack.com/messaging/webhooks' },
@@ -2316,6 +2320,7 @@ export default function Notifications() {
   const [cooldown,   setCooldown]   = useState(0);
   const [busy,    setBusy]    = useState(false);
   const [msg,     setMsg]     = useState(null);
+  const [kindQuery, setKindQuery] = useState('');  // filters the channel picker
 
   const reload = async () => {
     // useApi doesn't expose a refetch; bounce the hash to nothing visible
@@ -2325,7 +2330,7 @@ export default function Notifications() {
 
   const resetForm = () => {
     setEditId(null); setKind('slack'); setName(''); setConfig({});
-    setTemplateId(''); setCooldown(0); setMsg(null);
+    setTemplateId(''); setCooldown(0); setMsg(null); setKindQuery('');
   };
 
   // Prefill the form from an existing channel and switch to edit mode.
@@ -2441,22 +2446,53 @@ export default function Notifications() {
                 Channel type can't be changed — config fields are type-specific. Delete + re-add to switch type.
               </div>
             )}
-            {!editId && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 14 }}>
-              {SUPPORTED.map(s => {
-                const Icon = s.icon;
-                return (
-                  <div key={s.id} className={`kind-card ${kind === s.id ? 'active' : ''}`} onClick={() => { setKind(s.id); setConfig({}); }}>
-                    <Icon size={16} color={kind === s.id ? 'var(--accent-2)' : 'var(--text-2)'}/>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>{s.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-3)', lineHeight: 1.3, marginTop: 2 }}>{s.hint}</div>
-                    </div>
+            {!editId && (() => {
+              const q = kindQuery.trim().toLowerCase();
+              // With a query: match name/id/hint. Without: show the
+              // curated Popular set so the picker isn't a 130-row wall.
+              const shown = q
+                ? SUPPORTED.filter(s =>
+                    s.name.toLowerCase().includes(q) ||
+                    s.id.includes(q) ||
+                    (s.hint || '').toLowerCase().includes(q))
+                : SUPPORTED.filter(s => POPULAR.includes(s.id));
+              const selected = SUPPORTED.find(s => s.id === kind);
+              return (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ position: 'relative', marginBottom: 8 }}>
+                    <Search size={13} color="var(--text-3)" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }}/>
+                    <input className="input" value={kindQuery} onChange={e => setKindQuery(e.target.value)}
+                      placeholder={`Search ${SUPPORTED.length} channel types…`} style={{ paddingLeft: 30 }}/>
                   </div>
-                );
-              })}
-            </div>
-            )}
+                  <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 6 }}>
+                    {q
+                      ? `${shown.length} match${shown.length === 1 ? '' : 'es'}`
+                      : 'Popular — search above for all ' + SUPPORTED.length}
+                    {selected && !shown.some(s => s.id === kind) &&
+                      <span> · selected: <strong style={{ color: 'var(--accent-2)' }}>{selected.name}</strong></span>}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, maxHeight: 260, overflowY: 'auto' }}>
+                    {shown.map(s => {
+                      const Icon = s.icon;
+                      return (
+                        <div key={s.id} className={`kind-card ${kind === s.id ? 'active' : ''}`} onClick={() => { setKind(s.id); setConfig({}); }}>
+                          <Icon size={16} color={kind === s.id ? 'var(--accent-2)' : 'var(--text-2)'}/>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 500 }}>{s.name}</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-3)', lineHeight: 1.3, marginTop: 2 }}>{s.hint}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {shown.length === 0 && (
+                      <div style={{ gridColumn: '1 / -1', padding: 16, textAlign: 'center', fontSize: 12, color: 'var(--text-3)' }}>
+                        No channel type matches “{kindQuery}”.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             <form onSubmit={submit}>
               <div className="field">
