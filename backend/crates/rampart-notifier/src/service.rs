@@ -88,7 +88,10 @@ async fn dispatch_one(pool: &DbPool, event: Event) -> anyhow::Result<()> {
         }
     }
 
-    let rows = rampart_db::notifications::for_monitor(pool, event.monitor.id).await?;
+    // Resolve effective channels: explicitly-attached ∪ tag-matched ∪
+    // folder-attached − excluded. Replaces the old direct attach lookup
+    // so tag/folder routing fires without materialized rows.
+    let rows = rampart_db::routing::resolve_channels_for_monitor(pool, event.monitor.id).await?;
     if rows.is_empty() {
         return Ok(());
     }

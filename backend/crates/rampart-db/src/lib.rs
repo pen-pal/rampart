@@ -17,6 +17,7 @@ pub mod notifications;
 pub mod proxies;
 pub mod prune;
 pub mod recovery_codes;
+pub mod routing;
 pub mod sessions;
 pub mod settings;
 pub mod status_pages;
