@@ -3,7 +3,14 @@
 
 import React, { useEffect, useState } from 'react';
 import { CheckCircle2, AlertCircle, AlertTriangle, Calendar, Loader2 } from 'lucide-react';
-import { api } from '../lib/api.js';
+import { api, offsetDateTimeArrayToDate } from '../lib/api.js';
+
+// Timestamps from the API are `time::OffsetDateTime` → serde renders them
+// as a numeric array, which `new Date()` can't parse ("Invalid Date").
+// Coerce arrays via the helper; fall back to Date for ISO strings.
+function toDate(v) {
+  return Array.isArray(v) ? offsetDateTimeArrayToDate(v) : new Date(v);
+}
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -198,7 +205,7 @@ export default function StatusPageView({ slug }) {
         </div>
 
         <p style={{ marginTop: 24, fontSize: 11, color: 'var(--text-3)', textAlign: 'center' }}>
-          Last updated {new Date(data.generated_at).toLocaleString()}
+          Last updated {toDate(data.generated_at).toLocaleString()}
         </p>
       </div>
     </div>
@@ -273,7 +280,7 @@ function Incident({ incident }) {
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
         <strong style={{ fontSize: 14 }}>{incident.title}</strong>
         <span style={{ fontSize: 11, opacity: .75 }}>
-          {new Date(incident.created_at).toLocaleString()}
+          {toDate(incident.created_at).toLocaleString()}
         </span>
       </div>
       <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{incident.content}</div>
@@ -283,7 +290,7 @@ function Incident({ incident }) {
           fontSize: 12.5, opacity: .9,
         }}>
           <div style={{ fontSize: 11, opacity: .8 }}>
-            {new Date(u.posted_at).toLocaleString()}
+            {toDate(u.posted_at).toLocaleString()}
           </div>
           <div style={{ whiteSpace: 'pre-wrap' }}>{u.message}</div>
         </div>
