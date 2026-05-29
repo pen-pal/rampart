@@ -529,7 +529,7 @@ export default function Dashboard({ user, onLogout } = {}) {
         </aside>
 
         {/* ─── main panel ────────────────────────────────────────── */}
-        <main className="dash-main" style={{ padding: '28px 36px', maxWidth: 1100 }}>
+        <main className="dash-main" style={{ padding: '28px 36px', maxWidth: 1500 }}>
 
           {/* hero */}
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28 }}>
