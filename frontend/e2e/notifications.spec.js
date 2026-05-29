@@ -11,8 +11,10 @@ test('create a webhook channel via the Notifications page', async ({ page, brows
   await ensureLoggedIn(page);
   await gotoView(page, '#/notifications', 'h1:has-text("Notifications")');
   await page.getByRole('button', { name: /add channel/i }).click();
-  // Webhook tile.
-  await page.locator('.kind-card', { hasText: /generic webhook/i }).click();
+  // Channel type is a combobox: open it, filter, pick Generic Webhook.
+  await page.getByRole('button', { name: /types/i }).click();
+  await page.getByPlaceholder(/filter channel types/i).fill('webhook');
+  await page.getByRole('button', { name: /generic webhook/i }).click();
   // Form inputs in order: display name → url.
   await page.locator('form input.input').first().fill(channelName);
   await page.locator('form input.mono').first().fill('https://example.com/hook-ui');
