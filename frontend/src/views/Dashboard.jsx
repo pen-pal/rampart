@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import {
   LineChart, Line, XAxis, YAxis,
   ResponsiveContainer, Tooltip,
@@ -8,6 +8,7 @@ import {
   AlertCircle, Pause, MoreHorizontal, Calendar,
   Tag, ArrowUpRight, Wrench, Zap, Globe, Server,
   Database, Radio, Lock, Hash, Sun, Moon, Monitor,
+  Menu, Folder, Calendar as CalIcon, Network, Key, ScrollText, Users as UsersIcon, Mail, Database as DbIcon, Settings,
 } from 'lucide-react';
 import {
   api, useApi, formatRelative, offsetDateTimeArrayToDate, statusToClass,
@@ -425,6 +426,7 @@ export default function Dashboard({ user, onLogout } = {}) {
               transition: 'background .2s',
             }}/>
           <ThemeToggle/>
+          <NavMenu/>
           <a className="btn btn-ghost" title="Notification channels" href="#/notifications" style={{ textDecoration: 'none' }}>
             <Bell size={14}/>
           </a>
@@ -848,6 +850,62 @@ export default function Dashboard({ user, onLogout } = {}) {
           <div style={{ height: 40 }}/>
         </main>
       </div>
+    </div>
+  );
+}
+
+// Header nav menu — single discoverable entry point to every admin page.
+// Previously these were only reachable via the dev-only floating switcher.
+function NavMenu() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+
+  const items = [
+    { href: '#/folders',          label: 'Folders',        Icon: Folder },
+    { href: '#/maintenance',      label: 'Maintenance',    Icon: CalIcon },
+    { href: '#/proxies',          label: 'Proxies',        Icon: Network },
+    { href: '#/api-keys',         label: 'API keys',       Icon: Key },
+    { href: '#/audit',            label: 'Audit log',      Icon: ScrollText },
+    { href: '#/users',            label: 'Users',          Icon: UsersIcon },
+    { href: '#/security',         label: 'Security / 2FA', Icon: Lock },
+    { sep: true },
+    { href: '#/settings/smtp',      label: 'SMTP settings',    Icon: Mail },
+    { href: '#/settings/retention', label: 'Retention',        Icon: DbIcon },
+  ];
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button className="btn btn-ghost" title="Menu" onClick={() => setOpen(o => !o)}>
+        <Menu size={15}/>
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 60, minWidth: 190,
+          background: 'var(--surface)', border: '1px solid var(--border-2)', borderRadius: 10,
+          boxShadow: '0 12px 32px rgba(0,0,0,.22)', padding: 6,
+        }}>
+          {items.map((it, i) => it.sep
+            ? <div key={i} style={{ height: 1, background: 'var(--border)', margin: '6px 4px' }}/>
+            : (
+              <a key={it.href} href={it.href} onClick={() => setOpen(false)} style={{
+                display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', borderRadius: 7,
+                color: 'var(--text)', textDecoration: 'none', fontSize: 13,
+              }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-2)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                <it.Icon size={14} color="var(--text-3)"/> {it.label}
+              </a>
+            ))}
+        </div>
+      )}
     </div>
   );
 }
