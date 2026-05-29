@@ -59,7 +59,7 @@ checked-in `.sqlx/` cache in CI). One module per resource. Tests use
 One file per kind under `src/`: `http.rs`, `tcp.rs`, `dns.rs`,
 `ping.rs`, `tls.rs`, `domain.rs`, `postgres.rs`, `mysql.rs`, `mssql.rs`,
 `redis.rs`, `mongodb.rs`, `grpc.rs`, `mqtt.rs`, `docker.rs`, `steam.rs`,
-`kafka.rs`, `radius.rs`, `browser.rs`. Each implements
+`kafka.rs`, `radius.rs`, `browser.rs`, `banner.rs`. Each implements
 `Probe::run(&Monitor) -> Heartbeat`. The probe layer never touches the
 database (push monitors and TLS cert inspection go through the scheduler
 instead).
@@ -67,6 +67,10 @@ instead).
 The `browser` probe ships no Chromium — it POSTs the target URL to an
 operator-run headless renderer (browserless/chrome compatible) named in
 `config.renderer_url` and asserts a keyword in the rendered HTML.
+
+`banner.rs` backs the SSH / SMTP / IMAP kinds: connect over TCP, read the
+greeting line, and confirm the expected prefix (`SSH-` / `220` / `* OK`,
+overridable via `config.expect`). 24 kinds total.
 
 Probe-kind dispatch lives in `lib.rs::Probes::run`. Adding a new kind:
 new file → register in `Probes::new` → add arm in `run`.
@@ -130,7 +134,21 @@ Two adapters break the single-target mould:
   request — SigV4, SAS token, and a cached OAuth2-from-JWT token
   respectively.
 
-Two suppression rules run before fan-out: per-channel **cooldown**
+Channel selection is resolved live per alert by `rampart_db::routing`
+(not the old direct-attach lookup):
+
+    effective_channels(monitor) =
+        explicitly_attached(monitor)
+      ∪ channels_sharing_a_tag(monitor.tags ∪ folder.tags)
+      ∪ folder.attached_channels
+      − explicitly_excluded(monitor)
+
+So tagging a folder/monitor and a channel with the same tag auto-routes
+that channel; a per-monitor exclude pulls it back off one monitor and
+wins over every inclusion path. No materialized rows — a tag edit takes
+effect on the next fire.
+
+Two further suppression rules run before fan-out: per-channel **cooldown**
 (skip if fired within N seconds) and **dependency suppression** — if any
 parent monitor in `monitor_dependencies` is Down/Pending, the child's
 alert is suppressed (the heartbeat is still recorded) so one root cause
@@ -194,14 +212,17 @@ Key tables:
 | `sessions`                     | server-side sessions keyed by UUID v4            |
 | `api_keys`                     | SHA-256 hash + 8-char prefix + scopes            |
 | `totp_recovery_codes`          | hashed, single-use                               |
-| `monitors`                     | 21 kinds, scheduling, HTTP opts, push_token, cert snapshot, `group_id` |
+| `monitors`                     | 24 kinds, scheduling, HTTP opts, push_token, cert snapshot, `group_id` |
 | `monitor_tags`                 | M2M with `tags`                                  |
-| `monitor_groups`               | cosmetic dashboard grouping (FK `ON DELETE SET NULL`) |
+| `monitor_groups`               | folders — dashboard grouping (FK `ON DELETE SET NULL`) |
 | `monitor_dependencies`         | self-referential DAG for alert suppression       |
 | `heartbeats`                   | append-only, batched-write, retention-pruned     |
 | `notifications`                | channel rows (+ `cooldown_seconds`, `last_fired_at`) |
 | `notification_templates`       | Liquid subject + body                            |
-| `monitor_notifications`        | M2M routing                                      |
+| `monitor_notifications`        | M2M explicit channel attach                      |
+| `group_tags` / `notification_tags` | tags on folders + channels (drive routing)  |
+| `group_notifications`          | folder-level channel attach                      |
+| `monitor_notification_excludes`| per-monitor channel exclusion (wins over routing)|
 | `webpush_subscriptions`        | browser Push endpoints + keys per channel        |
 | `maintenance_windows` + `_monitors` | suppression schedule (+ `recurrence` JSONB) |
 | `proxies`                      | HTTP/SOCKS upstreams                             |
@@ -222,8 +243,8 @@ heartbeats no longer grow unbounded.
 Vite + React. Hash-based router (`#/`, `#/monitor/:id`, `#/status-page`,
 `#/s/:slug` public viewer, `#/notifications`, `#/maintenance`,
 `#/users`, `#/api-keys`, `#/security`, `#/proxies`, `#/audit`,
-`#/settings/smtp`, `#/settings/retention`). Public viewer (`#/s/:slug`)
-bypasses the `App.jsx` auth gate.
+`#/folders`, `#/settings/smtp`, `#/settings/retention`). Public viewer
+(`#/s/:slug`) bypasses the `App.jsx` auth gate.
 
 Cross-cutting UI: a global dark / light / system theme (`lib/theme.js`,
 CSS-variable overrides injected once), a Server-Sent-Events live
