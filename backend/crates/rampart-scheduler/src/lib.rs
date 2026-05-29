@@ -435,22 +435,29 @@ async fn writer_loop(
         }
 
         if flush(&pool, &buffer).await {
-            // send() returns Err when there are zero subscribers — that
-            // is normal (nobody watching) so ignore. Lagged consumers see
-            // RecvError::Lagged on their own receiver instead.
             for hb in &buffer {
+                // send() returns Err when there are zero subscribers —
+                // that is normal (nobody watching) so ignore.
                 let _ = bcast.send(hb.clone());
+
+                // Bounce the monitor's current_status on a status flip,
+                // *after* the heartbeat insert so a dashboard reader never
+                // sees current_status ahead of the heartbeat backing it.
+                // `important` is set by run_once exactly when the status
+                // changed, so this only writes on real transitions — and
+                // it's what makes the dashboard counts / hero / badges
+                // reflect reality (previously current_status never moved
+                // off Pending). Last flip in the batch wins per monitor.
+                if hb.important {
+                    if let Err(e) =
+                        rampart_db::monitors::set_status(&pool, hb.monitor_id, hb.status).await
+                    {
+                        error!(monitor = %hb.monitor_id, error = %e, "set_status failed");
+                    }
+                }
             }
         }
         buffer.clear();
-
-        // Also bounce the monitor's current_status if any heartbeat in
-        // the batch was important. Done after the heartbeat insert so a
-        // dashboard reader never sees current_status ahead of the
-        // heartbeat that backs it.
-        // (We don't keep the original batch around after clear(), so
-        // tracking-via-side-channel would be cleaner — left as a TODO
-        // until the API needs it for live updates.)
     }
 }
 
