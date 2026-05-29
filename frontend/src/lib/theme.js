@@ -11,6 +11,9 @@
 const STORAGE_KEY = 'rampart_theme';
 
 const DARK_CSS = `
+/* Render native controls (select option popups, date pickers, scrollbars)
+   in dark too — otherwise a native <select> shows an OS-light dropdown. */
+[data-theme="dark"] { color-scheme: dark; }
 [data-theme="dark"] .rampart {
   --bg:        #0c0a09;
   --surface:   #1c1917;
