@@ -270,11 +270,14 @@ export function formatRelative(iso) {
   // Backend serializes time via the `time` crate as an int array.
   // Convert defensively for both shapes.
   const date = iso instanceof Array ? offsetDateTimeArrayToDate(iso) : new Date(iso);
-  const sec = Math.max(0, Math.round((Date.now() - date.getTime()) / 1000));
-  if (sec < 60)        return `${sec}s ago`;
-  if (sec < 3600)      return `${Math.round(sec / 60)}m ago`;
-  if (sec < 86400)     return `${Math.round(sec / 3600)}h ago`;
-  return `${Math.round(sec / 86400)}d ago`;
+  const deltaSec = Math.round((Date.now() - date.getTime()) / 1000);
+  const future = deltaSec < 0;
+  const sec = Math.abs(deltaSec);
+  const fmt = sec < 60        ? `${sec}s`
+            : sec < 3600      ? `${Math.round(sec / 60)}m`
+            : sec < 86400     ? `${Math.round(sec / 3600)}h`
+            :                   `${Math.round(sec / 86400)}d`;
+  return future ? `in ${fmt}` : `${fmt} ago`;
 }
 
 export function formatClock(iso) {
