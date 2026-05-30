@@ -20,11 +20,6 @@ ignore = [
     # MySQL server mounts a timing attack during auth — Rampart connects
     # OUT to operator-controlled DBs, so not a realistic threat.
     "RUSTSEC-2023-0071",
-    # hickory-proto 0.24 (via hickory-resolver, DNS probe): O(n^2) name
-    # compression → CPU-amplified DoS from a hostile DNS response. Fix in
-    # hickory 0.26; resolver bump pending. Self-hosted, operator picks the
-    # resolver target.
-    "RUSTSEC-2026-0119",
     # rustls-webpki 0.102 (via rumqttc -> rustls 0.22): cert name-constraint
     # + CRL-parse panics. Fix needs rustls 0.23 (webpki 0.103), gated on a
     # rumqttc upgrade. MQTT probe verifies an operator-specified broker's

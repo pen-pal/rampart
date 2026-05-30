@@ -16,9 +16,10 @@
 
 use crate::{ms_i32, Probe};
 use async_trait::async_trait;
-use hickory_resolver::config::{NameServerConfigGroup, ResolverConfig, ResolverOpts};
+use hickory_resolver::config::{NameServerConfig, ResolverConfig};
+use hickory_resolver::net::runtime::TokioRuntimeProvider;
 use hickory_resolver::proto::rr::RecordType;
-use hickory_resolver::TokioAsyncResolver;
+use hickory_resolver::TokioResolver;
 use rampart_core::{Heartbeat, Monitor, MonitorStatus};
 use std::net::IpAddr;
 use std::str::FromStr;
@@ -87,7 +88,7 @@ impl Probe for DnsProbe {
             Err(e) => return down(monitor, ts, started, &format!("dns lookup failed: {e}")),
         };
 
-        let rendered: Vec<String> = answers.iter().map(|r| r.to_string()).collect();
+        let rendered: Vec<String> = answers.answers().iter().map(|r| r.to_string()).collect();
         if rendered.is_empty() {
             return down(monitor, ts, started, "dns answer was empty");
         }
@@ -148,20 +149,26 @@ fn parse_record_type(s: &str) -> Option<RecordType> {
 }
 
 /// Build a resolver. If the user supplied a specific server, we use just
-/// that one over UDP/53 — otherwise we fall back to the host's
+/// that one over UDP+TCP/53 — otherwise we fall back to the host's
 /// /etc/resolv.conf style defaults. (The `system-config` feature in
 /// hickory-resolver pulls in this fallback.)
-fn build_resolver(addr: Option<&str>) -> Result<TokioAsyncResolver, String> {
-    let opts = ResolverOpts::default();
+fn build_resolver(addr: Option<&str>) -> Result<TokioResolver, String> {
     match addr {
-        None => Ok(TokioAsyncResolver::tokio(ResolverConfig::default(), opts)),
+        None => {
+            let builder = TokioResolver::builder_tokio()
+                .map_err(|e| format!("system resolver init failed: {e}"))?;
+            builder
+                .build()
+                .map_err(|e| format!("resolver build failed: {e}"))
+        }
         Some(s) => {
             let ip = IpAddr::from_str(s).map_err(|e| format!("invalid resolver IP: {e}"))?;
-            let group = NameServerConfigGroup::from_ips_clear(&[ip], 53, true);
-            Ok(TokioAsyncResolver::tokio(
-                ResolverConfig::from_parts(None, vec![], group),
-                opts,
-            ))
+            let ns = NameServerConfig::udp_and_tcp(ip);
+            let cfg = ResolverConfig::from_parts(None, vec![], vec![ns]);
+            let builder = TokioResolver::builder_with_config(cfg, TokioRuntimeProvider::default());
+            builder
+                .build()
+                .map_err(|e| format!("resolver build failed: {e}"))
         }
     }
 }

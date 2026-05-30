@@ -104,7 +104,7 @@ rust-embed  = { version = "8", features = ["mime-guess"] }
 # probe-specific crates
 # DNS resolver for the `dns` monitor kind. Pure-rust, async, supports
 # every record type the audience cares about (A/AAAA/CNAME/MX/TXT/NS/SRV/CAA/SOA).
-hickory-resolver = { version = "0.24", default-features = false, features = ["tokio-runtime", "system-config"] }
+hickory-resolver = { version = "0.26", default-features = false, features = ["tokio", "system-config"] }
 # ICMP echo for the `ping` monitor kind. Userland — needs CAP_NET_RAW or
 # unprivileged ICMP sockets (Linux: net.ipv4.ping_group_range; macOS: built-in).
 surge-ping       = { version = "0.8" }
@@ -120,10 +120,7 @@ tiberius         = { version = "0.12", default-features = false, features = ["td
 tokio-util       = { version = "0.7", features = ["compat"] }
 # Redis + MongoDB drivers for the remaining DB probes.
 redis            = { version = "0.27", default-features = false, features = ["tokio-rustls-comp", "tls-rustls-webpki-roots"] }
-# mongodb pinned to ~3.2; later patches in the 3.x line transitively
-# depend on a hickory-proto that requires a jni version still being
-# rolled out to crates.io.
-mongodb          = "=3.2.0"
+mongodb          = "3"
 # gRPC + MQTT probe deps
 tonic            = { version = "0.12", default-features = false, features = ["transport", "codegen", "prost"] }
 tonic-health     = { version = "0.12", default-features = false, features = ["transport"] }
