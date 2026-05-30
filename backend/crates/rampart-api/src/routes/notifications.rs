@@ -2,14 +2,15 @@
 
 use crate::error::ApiError;
 use crate::state::AppState;
-use axum::extract::{Path, State};
-use axum::http::StatusCode;
+use axum::extract::{Extension, Path, State};
+use axum::http::{HeaderMap, StatusCode};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use rampart_core::ids::{MonitorId, NotificationId};
 use rampart_db::notifications::{
     MonitorChannelCount, NewNotification, Notification, UpdateNotification,
 };
+use rampart_db::users::User;
 use serde::Deserialize;
 use std::str::FromStr;
 use uuid::Uuid;
@@ -46,12 +47,19 @@ async fn list(State(state): State<AppState>) -> Result<Json<Vec<Notification>>, 
 
 async fn create(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Json(input): Json<NewNotification>,
 ) -> Result<(StatusCode, Json<Notification>), ApiError> {
     if input.name.trim().is_empty() {
         return Err(ApiError::BadRequest("name is required".into()));
     }
     let n = rampart_db::notifications::create(state.pool(), input).await?;
+    crate::audit::record(
+        state.pool(), &user, &headers,
+        "notification.create", "notification", Some(n.id.0),
+        Some(serde_json::json!({ "name": n.name, "kind": n.kind })),
+    ).await;
     Ok((StatusCode::CREATED, Json(n)))
 }
 
@@ -67,21 +75,33 @@ async fn get_one(
 
 async fn update(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path(id): Path<String>,
     Json(input): Json<UpdateNotification>,
 ) -> Result<Json<Notification>, ApiError> {
     let id = parse_notif(&id)?;
-    Ok(Json(
-        rampart_db::notifications::update(state.pool(), id, input).await?,
-    ))
+    let n = rampart_db::notifications::update(state.pool(), id, input).await?;
+    crate::audit::record(
+        state.pool(), &user, &headers,
+        "notification.update", "notification", Some(id.0),
+        Some(serde_json::json!({ "name": n.name, "active": n.active })),
+    ).await;
+    Ok(Json(n))
 }
 
 async fn remove(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let id = parse_notif(&id)?;
     rampart_db::notifications::delete(state.pool(), id).await?;
+    crate::audit::record(
+        state.pool(), &user, &headers,
+        "notification.delete", "notification", Some(id.0), None,
+    ).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -109,21 +129,35 @@ async fn list_for_monitor(
 
 async fn attach(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path(AttachPath { mid, nid }): Path<AttachPath>,
 ) -> Result<StatusCode, ApiError> {
     let mid = parse_monitor(&mid)?;
     let nid = parse_notif(&nid)?;
     rampart_db::notifications::attach(state.pool(), mid, nid).await?;
+    crate::audit::record(
+        state.pool(), &user, &headers,
+        "notification.attach", "monitor", Some(mid.0),
+        Some(serde_json::json!({ "notification_id": nid.0 })),
+    ).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
 async fn detach(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path(AttachPath { mid, nid }): Path<AttachPath>,
 ) -> Result<StatusCode, ApiError> {
     let mid = parse_monitor(&mid)?;
     let nid = parse_notif(&nid)?;
     rampart_db::notifications::detach(state.pool(), mid, nid).await?;
+    crate::audit::record(
+        state.pool(), &user, &headers,
+        "notification.detach", "monitor", Some(mid.0),
+        Some(serde_json::json!({ "notification_id": nid.0 })),
+    ).await;
     Ok(StatusCode::NO_CONTENT)
 }
 

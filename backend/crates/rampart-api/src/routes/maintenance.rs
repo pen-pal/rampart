@@ -2,12 +2,13 @@
 
 use crate::error::ApiError;
 use crate::state::AppState;
-use axum::extract::{Path, State};
-use axum::http::StatusCode;
+use axum::extract::{Extension, Path, State};
+use axum::http::{HeaderMap, StatusCode};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use rampart_core::ids::{MaintenanceId, MonitorId};
 use rampart_core::maintenance::{MaintenanceWindow, NewMaintenanceWindow};
+use rampart_db::users::User;
 use std::str::FromStr;
 use uuid::Uuid;
 use validator::Validate;
@@ -46,6 +47,8 @@ async fn get_one(
 
 async fn create(
     State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Json(input): Json<NewMaintenanceWindow>,
 ) -> Result<(StatusCode, Json<MaintenanceWindow>), ApiError> {
     input
@@ -55,11 +58,26 @@ async fn create(
         return Err(ApiError::BadRequest("end_at must be after start_at".into()));
     }
     let w = rampart_db::maintenance::create(s.pool(), input).await?;
+    crate::audit::record(
+        s.pool(), &user, &headers,
+        "maintenance.create", "maintenance_window", Some(w.id.0),
+        Some(serde_json::json!({ "name": w.name, "start_at": w.start_at, "end_at": w.end_at })),
+    ).await;
     Ok((StatusCode::CREATED, Json(w)))
 }
 
-async fn remove(State(s): State<AppState>, Path(id): Path<String>) -> Result<StatusCode, ApiError> {
-    rampart_db::maintenance::delete(s.pool(), parse_id(&id)?).await?;
+async fn remove(
+    State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    let wid = parse_id(&id)?;
+    rampart_db::maintenance::delete(s.pool(), wid).await?;
+    crate::audit::record(
+        s.pool(), &user, &headers,
+        "maintenance.delete", "maintenance_window", Some(wid.0), None,
+    ).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -70,25 +88,51 @@ struct SetActiveBody {
 
 async fn set_active(
     State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path(id): Path<String>,
     Json(body): Json<SetActiveBody>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::maintenance::set_active(s.pool(), parse_id(&id)?, body.active).await?;
+    let wid = parse_id(&id)?;
+    rampart_db::maintenance::set_active(s.pool(), wid, body.active).await?;
+    crate::audit::record(
+        s.pool(), &user, &headers,
+        "maintenance.set_active", "maintenance_window", Some(wid.0),
+        Some(serde_json::json!({ "active": body.active })),
+    ).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
 async fn attach(
     State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path((id, monitor_id)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::maintenance::attach(s.pool(), parse_id(&id)?, parse_monitor(&monitor_id)?).await?;
+    let wid = parse_id(&id)?;
+    let mid = parse_monitor(&monitor_id)?;
+    rampart_db::maintenance::attach(s.pool(), wid, mid).await?;
+    crate::audit::record(
+        s.pool(), &user, &headers,
+        "maintenance.attach", "maintenance_window", Some(wid.0),
+        Some(serde_json::json!({ "monitor_id": mid.0 })),
+    ).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
 async fn detach(
     State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path((id, monitor_id)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::maintenance::detach(s.pool(), parse_id(&id)?, parse_monitor(&monitor_id)?).await?;
+    let wid = parse_id(&id)?;
+    let mid = parse_monitor(&monitor_id)?;
+    rampart_db::maintenance::detach(s.pool(), wid, mid).await?;
+    crate::audit::record(
+        s.pool(), &user, &headers,
+        "maintenance.detach", "maintenance_window", Some(wid.0),
+        Some(serde_json::json!({ "monitor_id": mid.0 })),
+    ).await;
     Ok(StatusCode::NO_CONTENT)
 }

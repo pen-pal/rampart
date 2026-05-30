@@ -8,12 +8,13 @@
 
 use crate::error::ApiError;
 use crate::state::AppState;
-use axum::extract::{Path, State};
-use axum::http::StatusCode;
+use axum::extract::{Extension, Path, State};
+use axum::http::{HeaderMap, StatusCode};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use rampart_core::ids::{MonitorGroupId, MonitorId};
 use rampart_core::monitor_group::{MonitorGroup, NewMonitorGroup, UpdateMonitorGroup};
+use rampart_db::users::User;
 use serde::Serialize;
 use std::str::FromStr;
 use uuid::Uuid;
@@ -52,29 +53,50 @@ async fn list(State(s): State<AppState>) -> Result<Json<Vec<MonitorGroup>>, ApiE
 
 async fn create(
     State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Json(input): Json<NewMonitorGroup>,
 ) -> Result<(StatusCode, Json<MonitorGroup>), ApiError> {
     input.validate()?;
     let g = rampart_db::monitor_groups::create(s.pool(), input).await?;
+    crate::audit::record(
+        s.pool(), &user, &headers,
+        "monitor_group.create", "monitor_group", Some(g.id.0),
+        Some(serde_json::json!({ "name": g.name, "parent_id": g.parent_id })),
+    ).await;
     Ok((StatusCode::CREATED, Json(g)))
 }
 
 async fn update(
     State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path(id): Path<String>,
     Json(input): Json<UpdateMonitorGroup>,
 ) -> Result<Json<MonitorGroup>, ApiError> {
     input.validate()?;
-    Ok(Json(
-        rampart_db::monitor_groups::update(s.pool(), parse_group(&id)?, input).await?,
-    ))
+    let gid = parse_group(&id)?;
+    let g = rampart_db::monitor_groups::update(s.pool(), gid, input).await?;
+    crate::audit::record(
+        s.pool(), &user, &headers,
+        "monitor_group.update", "monitor_group", Some(gid.0),
+        Some(serde_json::json!({ "name": g.name, "parent_id": g.parent_id })),
+    ).await;
+    Ok(Json(g))
 }
 
 async fn delete_one(
     State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::monitor_groups::delete(s.pool(), parse_group(&id)?).await?;
+    let gid = parse_group(&id)?;
+    rampart_db::monitor_groups::delete(s.pool(), gid).await?;
+    crate::audit::record(
+        s.pool(), &user, &headers,
+        "monitor_group.delete", "monitor_group", Some(gid.0), None,
+    ).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -96,20 +118,34 @@ async fn list_deps(
 
 async fn attach_dep(
     State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path((id, parent_id)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
     let child = parse_monitor(&id)?;
     let parent = parse_monitor(&parent_id)?;
     rampart_db::monitor_groups::attach_dependency(s.pool(), child, parent).await?;
+    crate::audit::record(
+        s.pool(), &user, &headers,
+        "monitor.attach_dependency", "monitor", Some(child.0),
+        Some(serde_json::json!({ "depends_on": parent.0 })),
+    ).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
 async fn detach_dep(
     State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path((id, parent_id)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
     let child = parse_monitor(&id)?;
     let parent = parse_monitor(&parent_id)?;
     rampart_db::monitor_groups::detach_dependency(s.pool(), child, parent).await?;
+    crate::audit::record(
+        s.pool(), &user, &headers,
+        "monitor.detach_dependency", "monitor", Some(child.0),
+        Some(serde_json::json!({ "depends_on": parent.0 })),
+    ).await;
     Ok(StatusCode::NO_CONTENT)
 }

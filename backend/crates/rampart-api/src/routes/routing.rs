@@ -8,11 +8,12 @@
 
 use crate::error::ApiError;
 use crate::state::AppState;
-use axum::extract::{Path, State};
-use axum::http::StatusCode;
+use axum::extract::{Extension, Path, State};
+use axum::http::{HeaderMap, StatusCode};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use rampart_core::ids::{MonitorGroupId, MonitorId, NotificationId, TagId};
+use rampart_db::users::User;
 use std::str::FromStr;
 use uuid::Uuid;
 
@@ -80,16 +81,34 @@ async fn list_group_tags(
 }
 async fn add_group_tag(
     State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path((id, tag)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::routing::tag_group(s.pool(), pg(&id)?, pt(&tag)?).await?;
+    let gid = pg(&id)?;
+    let tid = pt(&tag)?;
+    rampart_db::routing::tag_group(s.pool(), gid, tid).await?;
+    crate::audit::record(
+        s.pool(), &user, &headers,
+        "routing.tag_group", "monitor_group", Some(gid.0),
+        Some(serde_json::json!({ "tag_id": tid.0 })),
+    ).await;
     Ok(StatusCode::NO_CONTENT)
 }
 async fn del_group_tag(
     State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path((id, tag)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::routing::untag_group(s.pool(), pg(&id)?, pt(&tag)?).await?;
+    let gid = pg(&id)?;
+    let tid = pt(&tag)?;
+    rampart_db::routing::untag_group(s.pool(), gid, tid).await?;
+    crate::audit::record(
+        s.pool(), &user, &headers,
+        "routing.untag_group", "monitor_group", Some(gid.0),
+        Some(serde_json::json!({ "tag_id": tid.0 })),
+    ).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -103,16 +122,34 @@ async fn list_group_channels(
 }
 async fn add_group_channel(
     State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path((id, notif)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::routing::attach_group_channel(s.pool(), pg(&id)?, pn(&notif)?).await?;
+    let gid = pg(&id)?;
+    let nid = pn(&notif)?;
+    rampart_db::routing::attach_group_channel(s.pool(), gid, nid).await?;
+    crate::audit::record(
+        s.pool(), &user, &headers,
+        "routing.attach_group_channel", "monitor_group", Some(gid.0),
+        Some(serde_json::json!({ "notification_id": nid.0 })),
+    ).await;
     Ok(StatusCode::NO_CONTENT)
 }
 async fn del_group_channel(
     State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path((id, notif)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::routing::detach_group_channel(s.pool(), pg(&id)?, pn(&notif)?).await?;
+    let gid = pg(&id)?;
+    let nid = pn(&notif)?;
+    rampart_db::routing::detach_group_channel(s.pool(), gid, nid).await?;
+    crate::audit::record(
+        s.pool(), &user, &headers,
+        "routing.detach_group_channel", "monitor_group", Some(gid.0),
+        Some(serde_json::json!({ "notification_id": nid.0 })),
+    ).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -126,16 +163,34 @@ async fn list_channel_tags(
 }
 async fn add_channel_tag(
     State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path((id, tag)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::routing::tag_channel(s.pool(), pn(&id)?, pt(&tag)?).await?;
+    let nid = pn(&id)?;
+    let tid = pt(&tag)?;
+    rampart_db::routing::tag_channel(s.pool(), nid, tid).await?;
+    crate::audit::record(
+        s.pool(), &user, &headers,
+        "routing.tag_channel", "notification", Some(nid.0),
+        Some(serde_json::json!({ "tag_id": tid.0 })),
+    ).await;
     Ok(StatusCode::NO_CONTENT)
 }
 async fn del_channel_tag(
     State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path((id, tag)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::routing::untag_channel(s.pool(), pn(&id)?, pt(&tag)?).await?;
+    let nid = pn(&id)?;
+    let tid = pt(&tag)?;
+    rampart_db::routing::untag_channel(s.pool(), nid, tid).await?;
+    crate::audit::record(
+        s.pool(), &user, &headers,
+        "routing.untag_channel", "notification", Some(nid.0),
+        Some(serde_json::json!({ "tag_id": tid.0 })),
+    ).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -149,16 +204,34 @@ async fn list_excludes(
 }
 async fn add_exclude(
     State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path((id, notif)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::routing::exclude_channel(s.pool(), pm(&id)?, pn(&notif)?).await?;
+    let mid = pm(&id)?;
+    let nid = pn(&notif)?;
+    rampart_db::routing::exclude_channel(s.pool(), mid, nid).await?;
+    crate::audit::record(
+        s.pool(), &user, &headers,
+        "routing.exclude_channel", "monitor", Some(mid.0),
+        Some(serde_json::json!({ "notification_id": nid.0 })),
+    ).await;
     Ok(StatusCode::NO_CONTENT)
 }
 async fn del_exclude(
     State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path((id, notif)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::routing::unexclude_channel(s.pool(), pm(&id)?, pn(&notif)?).await?;
+    let mid = pm(&id)?;
+    let nid = pn(&notif)?;
+    rampart_db::routing::unexclude_channel(s.pool(), mid, nid).await?;
+    crate::audit::record(
+        s.pool(), &user, &headers,
+        "routing.unexclude_channel", "monitor", Some(mid.0),
+        Some(serde_json::json!({ "notification_id": nid.0 })),
+    ).await;
     Ok(StatusCode::NO_CONTENT)
 }
 

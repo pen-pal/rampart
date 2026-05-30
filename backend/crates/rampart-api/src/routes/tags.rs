@@ -2,12 +2,13 @@
 
 use crate::error::ApiError;
 use crate::state::AppState;
-use axum::extract::{Path, State};
-use axum::http::StatusCode;
+use axum::extract::{Extension, Path, State};
+use axum::http::{HeaderMap, StatusCode};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use rampart_core::ids::{MonitorId, TagId};
 use rampart_core::tag::{NewTag, Tag, TagBrief};
+use rampart_db::users::User;
 use std::str::FromStr;
 use uuid::Uuid;
 use validator::Validate;
@@ -43,17 +44,34 @@ async fn list(State(s): State<AppState>) -> Result<Json<Vec<Tag>>, ApiError> {
 
 async fn create(
     State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Json(input): Json<NewTag>,
 ) -> Result<(StatusCode, Json<Tag>), ApiError> {
     input
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     let t = rampart_db::tags::create(s.pool(), input).await?;
+    crate::audit::record(
+        s.pool(), &user, &headers,
+        "tag.create", "tag", Some(t.id.0),
+        Some(serde_json::json!({ "name": t.name, "color": t.color })),
+    ).await;
     Ok((StatusCode::CREATED, Json(t)))
 }
 
-async fn remove(State(s): State<AppState>, Path(id): Path<String>) -> Result<StatusCode, ApiError> {
-    rampart_db::tags::delete(s.pool(), parse_tag(&id)?).await?;
+async fn remove(
+    State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    let tid = parse_tag(&id)?;
+    rampart_db::tags::delete(s.pool(), tid).await?;
+    crate::audit::record(
+        s.pool(), &user, &headers,
+        "tag.delete", "tag", Some(tid.0), None,
+    ).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -68,16 +86,34 @@ async fn list_for_monitor(
 
 async fn attach(
     State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path((id, tag_id)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::tags::attach(s.pool(), parse_monitor(&id)?, parse_tag(&tag_id)?).await?;
+    let mid = parse_monitor(&id)?;
+    let tid = parse_tag(&tag_id)?;
+    rampart_db::tags::attach(s.pool(), mid, tid).await?;
+    crate::audit::record(
+        s.pool(), &user, &headers,
+        "tag.attach", "monitor", Some(mid.0),
+        Some(serde_json::json!({ "tag_id": tid.0 })),
+    ).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
 async fn detach(
     State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path((id, tag_id)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::tags::detach(s.pool(), parse_monitor(&id)?, parse_tag(&tag_id)?).await?;
+    let mid = parse_monitor(&id)?;
+    let tid = parse_tag(&tag_id)?;
+    rampart_db::tags::detach(s.pool(), mid, tid).await?;
+    crate::audit::record(
+        s.pool(), &user, &headers,
+        "tag.detach", "monitor", Some(mid.0),
+        Some(serde_json::json!({ "tag_id": tid.0 })),
+    ).await;
     Ok(StatusCode::NO_CONTENT)
 }
