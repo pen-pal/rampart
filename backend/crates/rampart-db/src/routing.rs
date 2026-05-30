@@ -5,10 +5,13 @@
 //!
 //!   effective_channels(monitor) =
 //!       explicitly_attached(monitor)
-//!     ∪ channels_sharing_a_tag(monitor.tags ∪ folder.tags)
-//!     ∪ folder.attached_channels
+//!     ∪ channels_sharing_a_tag(monitor.tags ∪ ancestor_folder_tags)
+//!     ∪ ancestor_folder_attached_channels
 //!     − explicitly_excluded(monitor)
 //!
+//! `ancestor_folder` is the monitor's direct folder plus every folder up
+//! the parent chain to root — so a tag on a top-level "Production" folder
+//! propagates down to monitors inside its nested "Databases" sub-folder.
 //! Only `active` channels are returned. Exclusions always win.
 
 use crate::notifications::Notification;
@@ -28,16 +31,27 @@ pub async fn resolve_channels_for_monitor(
     // channels, distinct.
     let rows = sqlx::query!(
         r#"
-        WITH mon AS (
+        WITH RECURSIVE mon AS (
             SELECT id, group_id FROM monitors WHERE id = $1
         ),
-        -- tags on the monitor + tags on its folder
+        -- The monitor's direct folder plus every folder up the parent chain.
+        -- `UNION` (not UNION ALL) terminates on any data-level cycle, but the
+        -- application-level cycle guard at write time should prevent those.
+        ancestors AS (
+            SELECT group_id AS gid FROM mon WHERE group_id IS NOT NULL
+            UNION
+            SELECT mg.parent_id AS gid
+            FROM monitor_groups mg
+            JOIN ancestors a ON mg.id = a.gid
+            WHERE mg.parent_id IS NOT NULL
+        ),
+        -- Tags on the monitor + tags on every ancestor folder.
         eff_tags AS (
             SELECT tag_id FROM monitor_tags WHERE monitor_id = $1
             UNION
             SELECT gt.tag_id
             FROM group_tags gt
-            JOIN mon ON mon.group_id = gt.group_id
+            WHERE gt.group_id IN (SELECT gid FROM ancestors)
         ),
         candidates AS (
             -- explicitly attached
@@ -48,10 +62,10 @@ pub async fn resolve_channels_for_monitor(
             FROM notification_tags nt
             WHERE nt.tag_id IN (SELECT tag_id FROM eff_tags)
             UNION
-            -- attached at the folder level
+            -- attached to any ancestor folder
             SELECT gn.notification_id AS id
             FROM group_notifications gn
-            JOIN mon ON mon.group_id = gn.group_id
+            WHERE gn.group_id IN (SELECT gid FROM ancestors)
         )
         SELECT n.id, n.kind AS "kind: ChannelKind", n.name, n.config, n.active,
                n.template_id, n.created_at, n.cooldown_seconds, n.last_fired_at

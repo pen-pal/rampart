@@ -240,6 +240,76 @@ async fn dedupes_across_paths_and_skips_inactive(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../../migrations")]
+async fn nested_folder_tag_propagates_to_child_monitor(pool: PgPool) {
+    // Production (root)  →  Databases (nested)  →  m1 lives in Databases.
+    // Tag on Production + channel sharing that tag must reach m1.
+    let prod = monitor_groups::create(
+        &pool,
+        NewMonitorGroup { name: "Production".into(), sort_order: 0, parent_id: None },
+    )
+    .await
+    .unwrap();
+    let db = monitor_groups::create(
+        &pool,
+        NewMonitorGroup { name: "Databases".into(), sort_order: 0, parent_id: Some(prod.id) },
+    )
+    .await
+    .unwrap();
+    let mut nm = http_monitor("m1");
+    nm.group_id = Some(db.id);
+    let m = monitors::create(&pool, nm).await.unwrap();
+    let c = notifications::create(&pool, channel("prod-pager"))
+        .await
+        .unwrap();
+    let prod_tag = mk_tag(&pool, "prod").await;
+    routing::tag_group(&pool, prod.id, prod_tag).await.unwrap();
+    routing::tag_channel(&pool, c.id, prod_tag).await.unwrap();
+
+    let got = routing::resolve_channels_for_monitor(&pool, m.id)
+        .await
+        .unwrap();
+    assert_eq!(names(&got), vec!["prod-pager"]);
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn nested_folder_attached_channel_propagates_to_child_monitor(pool: PgPool) {
+    // Channel attached at the GRANDPARENT folder reaches a monitor two
+    // levels down.
+    let root = monitor_groups::create(
+        &pool,
+        NewMonitorGroup { name: "All".into(), sort_order: 0, parent_id: None },
+    )
+    .await
+    .unwrap();
+    let mid = monitor_groups::create(
+        &pool,
+        NewMonitorGroup { name: "Region".into(), sort_order: 0, parent_id: Some(root.id) },
+    )
+    .await
+    .unwrap();
+    let leaf = monitor_groups::create(
+        &pool,
+        NewMonitorGroup { name: "Service".into(), sort_order: 0, parent_id: Some(mid.id) },
+    )
+    .await
+    .unwrap();
+    let mut nm = http_monitor("m1");
+    nm.group_id = Some(leaf.id);
+    let m = monitors::create(&pool, nm).await.unwrap();
+    let c = notifications::create(&pool, channel("ops-pager"))
+        .await
+        .unwrap();
+    routing::attach_group_channel(&pool, root.id, c.id)
+        .await
+        .unwrap();
+
+    let got = routing::resolve_channels_for_monitor(&pool, m.id)
+        .await
+        .unwrap();
+    assert_eq!(names(&got), vec!["ops-pager"]);
+}
+
+#[sqlx::test(migrations = "../../migrations")]
 async fn no_tags_no_attach_yields_nothing(pool: PgPool) {
     let m = monitors::create(&pool, http_monitor("m1")).await.unwrap();
     let _c = notifications::create(&pool, channel("orphan"))

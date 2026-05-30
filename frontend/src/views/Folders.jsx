@@ -149,8 +149,8 @@ export default function Folders() {
         <p style={{ fontSize: 13, color: 'var(--text-2)', margin: '4px 0 22px' }}>
           Group monitors into folders, and nest folders inside folders. Add monitors directly to a folder below.
           Tag a folder and a channel with the same tag and the channel auto-routes to every monitor in the folder;
-          attach a channel to a folder to cover all its monitors. (Tag/channel routing applies to the folder's own
-          monitors, not nested sub-folders.)
+          attach a channel to a folder to cover all its monitors. Tags and attached channels propagate down through
+          nested sub-folders, so a tag on a top-level folder covers everything beneath it.
         </p>
 
         {err && <div className="banner-err" style={{ marginBottom: 16 }}><AlertCircle size={14} style={{ verticalAlign: '-2px', marginRight: 6 }}/>{err}</div>}
