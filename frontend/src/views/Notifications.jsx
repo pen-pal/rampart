@@ -2534,9 +2534,10 @@ export default function Notifications() {
               <div className="channel-row" style={editingThis ? { background: 'var(--surface-2)' } : undefined}>
                 <Icon size={16} color="var(--text-2)"/>
                 <div>
-                  <div style={{ fontSize: 13.5, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     {c.name}
                     {tpl && <span className="template-pill"><FileText size={9}/> {tpl.name}</span>}
+                    <ChannelRowTagPills channelId={c.id} allTags={allTags.data || []}/>
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2, textTransform: 'uppercase', letterSpacing: '.04em' }}>
                     {meta ? meta.name : c.kind} · {c.active ? 'enabled' : 'disabled'}
@@ -2968,6 +2969,38 @@ function ChannelTypeDropdown({ value, query, setQuery, onSelect }) {
 }
 
 // Tag chips for a notification channel — drives tag-based auto-routing.
+// Inline read-only tag chips for the channel list row, so users can see at
+// a glance which channels carry routing tags without expanding Edit. Lazy
+// per-row fetch — the channel list could hydrate tags server-side later if
+// the row count grows enough that N parallel requests is a problem.
+function ChannelRowTagPills({ channelId, allTags }) {
+  const [ids, setIds] = useState([]);
+  useEffect(() => {
+    let live = true;
+    api.routing.channelTags(channelId)
+      .then(r => { if (live) setIds(r || []); })
+      .catch(() => { /* ignore — show nothing */ });
+    return () => { live = false; };
+  }, [channelId]);
+  if (!ids.length) return null;
+  const byId = new Map(allTags.map(t => [t.id, t]));
+  return (
+    <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+      {ids.map(id => {
+        const t = byId.get(id);
+        return (
+          <span key={id} style={{
+            background: t?.color || '#888', color: '#fff',
+            fontSize: 10, fontWeight: 500, padding: '2px 7px', borderRadius: 999,
+          }}>
+            {t?.name || id.slice(0, 6)}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
 function ChannelTagEditor({ channelId, allTags }) {
   const [tagIds, setTagIds] = useState(null);  // null = loading
   const [busy, setBusy] = useState(false);
