@@ -227,6 +227,7 @@ export default function MonitorDetail({ monitorId }) {
   const heartbeatState = useApi(() => monitorId ? api.monitors.heartbeats(monitorId, 500) : Promise.resolve([]),   [monitorId], { pollMs: 10_000 });
   const summaryState   = useApi(() => api.monitors.summary(86400),       [], { pollMs: 15_000 });
   const summaryState30 = useApi(() => api.monitors.summary(2_592_000),   [], { pollMs: 60_000 });
+  const groupsState    = useApi(() => api.monitorGroups.list(),          [], { pollMs: 60_000 });
 
   const monitor = monitorState.data;
   const heartbeats = heartbeatState.data || [];
@@ -318,9 +319,28 @@ export default function MonitorDetail({ monitorId }) {
         background: 'var(--surface)', borderBottom: '1px solid var(--border)',
         padding: '14px 24px 0', position: 'sticky', top: 0, zIndex: 10
       }}>
-        <div style={{ fontSize: 12, color: 'var(--text-3)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-3)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
           <ChevronLeft size={14} style={{ cursor: 'pointer' }} onClick={() => { window.location.hash = '#/'; }}/>
           <a href="#/" style={{ cursor: 'pointer', color: 'var(--text-3)', textDecoration: 'none' }}>Monitors</a>
+          {(() => {
+            // Walk the folder ancestor chain so the breadcrumb shows where
+            // a monitor lives in the (possibly nested) folder tree.
+            const groups = groupsState.data || [];
+            const byId   = new Map(groups.map(g => [g.id, g]));
+            const chain  = [];
+            let cur = monitor.group_id ? byId.get(monitor.group_id) : null;
+            const seen = new Set();
+            while (cur && !seen.has(cur.id)) {
+              chain.unshift(cur); seen.add(cur.id);
+              cur = cur.parent_id ? byId.get(cur.parent_id) : null;
+            }
+            return chain.map(g => (
+              <React.Fragment key={g.id}>
+                <span>/</span>
+                <a href="#/folders" style={{ cursor: 'pointer', color: 'var(--text-3)', textDecoration: 'none' }}>{g.name}</a>
+              </React.Fragment>
+            ));
+          })()}
           <span>/</span>
           <span style={{ color: 'var(--text)', fontWeight: 500 }}>{monitor.name}</span>
         </div>
