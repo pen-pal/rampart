@@ -484,22 +484,49 @@ export default function Dashboard({ user, onLogout } = {}) {
 
           {monitors.length > 0 ? (() => {
             const groups = groupsState.data || [];
-            // Bucket: declared groups in sort order, then "Ungrouped" tail.
-            const buckets = groups.map(g => ({
-              key:  g.id,
-              name: g.name,
-              rows: filtered.filter(m => m.group_id === g.id),
-            }));
+            // Group folders by parent so we can walk the tree in DFS order.
+            // A folder's own count is just its DIRECT monitors — nested
+            // folders render as their own indented bucket below.
+            const byParent = new Map();
+            for (const g of groups) {
+              const k = g.parent_id || '__root__';
+              if (!byParent.has(k)) byParent.set(k, []);
+              byParent.get(k).push(g);
+            }
+            const buckets = [];
+            const walk = (key, depth) => {
+              for (const g of (byParent.get(key) || [])) {
+                buckets.push({
+                  key:  g.id,
+                  name: g.name,
+                  rows: filtered.filter(m => m.group_id === g.id),
+                  depth,
+                });
+                walk(g.id, depth + 1);
+              }
+            };
+            walk('__root__', 0);
             const ungrouped = filtered.filter(m => !m.group_id);
-            buckets.push({ key: 'ungrouped', name: 'Ungrouped', rows: ungrouped });
-            // Skip empty buckets unless the bucket is the only one.
-            const visible = buckets.filter(b => b.rows.length > 0);
-            const display = visible.length === 0 ? [{ key:'ungrouped', name:'Monitors', rows: filtered }] : visible;
+            buckets.push({ key: 'ungrouped', name: 'Ungrouped', rows: ungrouped, depth: 0 });
+            // Skip empty buckets unless the bucket is the only one. Folders
+            // with no direct monitors but with non-empty descendants stay
+            // visible so the hierarchy reads correctly.
+            const hasDescendantWithRows = (gid) => {
+              for (const child of (byParent.get(gid) || [])) {
+                if (filtered.some(m => m.group_id === child.id)) return true;
+                if (hasDescendantWithRows(child.id)) return true;
+              }
+              return false;
+            };
+            const visible = buckets.filter(b =>
+              b.rows.length > 0 || (b.key !== 'ungrouped' && hasDescendantWithRows(b.key))
+            );
+            const display = visible.length === 0 ? [{ key:'ungrouped', name:'Monitors', rows: filtered, depth: 0 }] : visible;
             return display.map(b => {
               const open = openGroups[b.key] ?? true;
               return (
                 <div key={b.key} style={{ marginBottom: 4 }}>
-                  <div className="group-head" onClick={() => toggleGroup(b.key)}>
+                  <div className="group-head" style={{ paddingLeft: 12 + (b.depth || 0) * 14 }} onClick={() => toggleGroup(b.key)}>
                     {open ? <ChevronDown size={11}/> : <ChevronRight size={11}/>}
                     <span>{b.name}</span>
                     <span style={{ marginLeft: 'auto', color: 'var(--text-3)', fontWeight: 500 }}>{b.rows.length}</span>
@@ -729,7 +756,31 @@ export default function Dashboard({ user, onLogout } = {}) {
                     runBulk({ action: 'set_group', group_id: v === '__ungroup__' ? null : v });
                   }}>
                   <option value="__placeholder__">Move to group…</option>
-                  {(groupsState.data || []).map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                  {(() => {
+                    // Render the folder tree as flat <option>s, prefixing
+                    // depth with "── " so nested folders are visible in
+                    // the picker.
+                    const all = groupsState.data || [];
+                    const byParent = new Map();
+                    for (const g of all) {
+                      const k = g.parent_id || '__root__';
+                      if (!byParent.has(k)) byParent.set(k, []);
+                      byParent.get(k).push(g);
+                    }
+                    const out = [];
+                    const walk = (key, depth) => {
+                      for (const g of (byParent.get(key) || [])) {
+                        out.push(
+                          <option key={g.id} value={g.id}>
+                            {'  '.repeat(depth)}{depth > 0 ? '↳ ' : ''}{g.name}
+                          </option>
+                        );
+                        walk(g.id, depth + 1);
+                      }
+                    };
+                    walk('__root__', 0);
+                    return out;
+                  })()}
                   <option value="__ungroup__">Ungrouped</option>
                 </select>
                 <button className="btn btn-danger" disabled={bulkBusy}
