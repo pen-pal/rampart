@@ -494,23 +494,28 @@ export default function Dashboard({ user, onLogout } = {}) {
               byParent.get(k).push(g);
             }
             const buckets = [];
-            const walk = (key, depth) => {
+            // Track each bucket's ancestor chain so we can hide a folder
+            // when ANY ancestor is collapsed (cascading collapse).
+            const walk = (key, depth, ancestors) => {
               for (const g of (byParent.get(key) || [])) {
                 buckets.push({
                   key:  g.id,
                   name: g.name,
                   rows: filtered.filter(m => m.group_id === g.id),
                   depth,
+                  ancestors,
                 });
-                walk(g.id, depth + 1);
+                walk(g.id, depth + 1, [...ancestors, g.id]);
               }
             };
-            walk('__root__', 0);
+            walk('__root__', 0, []);
             const ungrouped = filtered.filter(m => !m.group_id);
-            buckets.push({ key: 'ungrouped', name: 'Ungrouped', rows: ungrouped, depth: 0 });
+            buckets.push({ key: 'ungrouped', name: 'Ungrouped', rows: ungrouped, depth: 0, ancestors: [] });
             // Skip empty buckets unless the bucket is the only one. Folders
             // with no direct monitors but with non-empty descendants stay
-            // visible so the hierarchy reads correctly.
+            // visible so the hierarchy reads correctly. Then hide anything
+            // beneath a collapsed ancestor — collapsing "Production" should
+            // also hide "Databases" + its children, not leave them dangling.
             const hasDescendantWithRows = (gid) => {
               for (const child of (byParent.get(gid) || [])) {
                 if (filtered.some(m => m.group_id === child.id)) return true;
@@ -518,9 +523,14 @@ export default function Dashboard({ user, onLogout } = {}) {
               }
               return false;
             };
-            const visible = buckets.filter(b =>
-              b.rows.length > 0 || (b.key !== 'ungrouped' && hasDescendantWithRows(b.key))
-            );
+            const visible = buckets
+              .filter(b =>
+                b.rows.length > 0 || (b.key !== 'ungrouped' && hasDescendantWithRows(b.key))
+              )
+              .filter(b =>
+                // openGroups[key] defaults to true (open) when absent.
+                b.ancestors.every(a => openGroups[a] ?? true)
+              );
             const display = visible.length === 0 ? [{ key:'ungrouped', name:'Monitors', rows: filtered, depth: 0 }] : visible;
             return display.map(b => {
               const open = openGroups[b.key] ?? true;
