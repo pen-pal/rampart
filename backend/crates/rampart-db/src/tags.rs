@@ -131,6 +131,45 @@ pub async fn list_for_monitor(pool: &DbPool, monitor: MonitorId) -> DbResult<Vec
         .collect())
 }
 
+/// One round trip that returns tags for every channel in `ids`. Used by
+/// the notification list endpoint so the UI can render routing tag chips
+/// inline without per-row fetches.
+pub async fn hydrate_for_channels(
+    pool: &DbPool,
+    ids: &[rampart_core::ids::NotificationId],
+) -> DbResult<HashMap<rampart_core::ids::NotificationId, Vec<TagBrief>>> {
+    if ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let raw_ids: Vec<Uuid> = ids.iter().map(|n| n.0).collect();
+    let rows = sqlx::query!(
+        r#"
+        SELECT nt.notification_id, t.id AS tag_id, t.name, t.color
+        FROM notification_tags nt
+        JOIN tags t ON t.id = nt.tag_id
+        WHERE nt.notification_id = ANY($1)
+        ORDER BY t.name
+        "#,
+        &raw_ids,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let mut by: HashMap<rampart_core::ids::NotificationId, Vec<TagBrief>> = HashMap::new();
+    for r in rows {
+        by.entry(rampart_core::ids::NotificationId::from_uuid(
+            r.notification_id,
+        ))
+        .or_default()
+        .push(TagBrief {
+            id: TagId::from_uuid(r.tag_id),
+            name: r.name,
+            color: r.color,
+        });
+    }
+    Ok(by)
+}
+
 /// One round trip that returns tags for every monitor in `ids`. Used
 /// by the monitor list endpoint so we don't fan out N queries on a
 /// large dashboard.

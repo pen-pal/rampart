@@ -93,6 +93,7 @@ pub async fn resolve_channels_for_monitor(
             created_at: r.created_at,
             cooldown_seconds: r.cooldown_seconds,
             last_fired_at: r.last_fired_at,
+            tags: Vec::new(),
         })
         .collect())
 }

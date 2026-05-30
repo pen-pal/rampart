@@ -2,6 +2,7 @@
 
 use crate::{DbError, DbPool, DbResult};
 use rampart_core::ids::{MonitorId, NotificationId, NotificationTemplateId};
+use rampart_core::tag::TagBrief;
 use rampart_core::ChannelKind;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
@@ -20,6 +21,13 @@ pub struct Notification {
     pub cooldown_seconds: i32,
     #[serde(default)]
     pub last_fired_at: Option<OffsetDateTime>,
+    /// Routing tags attached to this channel. Hydrated by the DB layer on
+    /// list/get reads so the UI can render them inline without fanning out
+    /// N follow-up requests. Empty by default for paths that don't need it
+    /// (e.g. the routing resolver — the notifier itself doesn't display
+    /// tags, only uses them for matching).
+    #[serde(default)]
+    pub tags: Vec<TagBrief>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -81,7 +89,7 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<Notification>> {
     )
     .fetch_all(pool)
     .await?;
-    Ok(rows
+    let mut channels: Vec<Notification> = rows
         .into_iter()
         .map(|r| Notification {
             id: NotificationId::from_uuid(r.id),
@@ -93,8 +101,17 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<Notification>> {
             created_at: r.created_at,
             cooldown_seconds: r.cooldown_seconds,
             last_fired_at: r.last_fired_at,
+            tags: Vec::new(),
         })
-        .collect())
+        .collect();
+    let ids: Vec<NotificationId> = channels.iter().map(|c| c.id).collect();
+    let mut tag_map = crate::tags::hydrate_for_channels(pool, &ids).await?;
+    for c in channels.iter_mut() {
+        if let Some(t) = tag_map.remove(&c.id) {
+            c.tags = t;
+        }
+    }
+    Ok(channels)
 }
 
 pub async fn get(pool: &DbPool, id: NotificationId) -> DbResult<Notification> {
@@ -110,8 +127,10 @@ pub async fn get(pool: &DbPool, id: NotificationId) -> DbResult<Notification> {
     .fetch_optional(pool)
     .await?
     .ok_or(DbError::NotFound)?;
+    let nid = NotificationId::from_uuid(row.id);
+    let mut tag_map = crate::tags::hydrate_for_channels(pool, &[nid]).await?;
     Ok(Notification {
-        id: NotificationId::from_uuid(row.id),
+        id: nid,
         kind: row.kind,
         name: row.name,
         config: row.config,
@@ -120,6 +139,7 @@ pub async fn get(pool: &DbPool, id: NotificationId) -> DbResult<Notification> {
         created_at: row.created_at,
         cooldown_seconds: row.cooldown_seconds,
         last_fired_at: row.last_fired_at,
+        tags: tag_map.remove(&nid).unwrap_or_default(),
     })
 }
 
@@ -152,6 +172,7 @@ pub async fn create(pool: &DbPool, input: NewNotification) -> DbResult<Notificat
         created_at: row.created_at,
         cooldown_seconds: row.cooldown_seconds,
         last_fired_at: row.last_fired_at,
+        tags: Vec::new(),
     })
 }
 
@@ -200,6 +221,7 @@ pub async fn update(
         created_at: row.created_at,
         cooldown_seconds: row.cooldown_seconds,
         last_fired_at: row.last_fired_at,
+        tags: Vec::new(),
     })
 }
 
@@ -281,7 +303,7 @@ pub async fn for_monitor(pool: &DbPool, monitor: MonitorId) -> DbResult<Vec<Noti
     )
     .fetch_all(pool)
     .await?;
-    Ok(rows
+    let mut channels: Vec<Notification> = rows
         .into_iter()
         .map(|r| Notification {
             id: NotificationId::from_uuid(r.id),
@@ -293,8 +315,17 @@ pub async fn for_monitor(pool: &DbPool, monitor: MonitorId) -> DbResult<Vec<Noti
             created_at: r.created_at,
             cooldown_seconds: r.cooldown_seconds,
             last_fired_at: r.last_fired_at,
+            tags: Vec::new(),
         })
-        .collect())
+        .collect();
+    let ids: Vec<NotificationId> = channels.iter().map(|c| c.id).collect();
+    let mut tag_map = crate::tags::hydrate_for_channels(pool, &ids).await?;
+    for c in channels.iter_mut() {
+        if let Some(t) = tag_map.remove(&c.id) {
+            c.tags = t;
+        }
+    }
+    Ok(channels)
 }
 
 /// Stamp last_fired_at = NOW() after a successful send.
