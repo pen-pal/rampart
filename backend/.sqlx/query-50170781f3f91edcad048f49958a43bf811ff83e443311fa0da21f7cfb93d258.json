@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO monitor_groups (id, name, sort_order)\n        VALUES ($1, $2, $3)\n        RETURNING id, name, sort_order, created_at\n        ",
+  "query": "SELECT id, name, sort_order, parent_id, created_at FROM monitor_groups WHERE id = $1",
   "describe": {
     "columns": [
       {
@@ -20,23 +20,27 @@
       },
       {
         "ordinal": 3,
+        "name": "parent_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
         "name": "created_at",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid",
-        "Text",
-        "Int4"
+        "Uuid"
       ]
     },
     "nullable": [
       false,
       false,
       false,
+      true,
       false
     ]
   },
-  "hash": "96bb29908f8ec7438b1e3af66b1d587030eef800b855bfae90f8f86ea5bbd7a4"
+  "hash": "50170781f3f91edcad048f49958a43bf811ff83e443311fa0da21f7cfb93d258"
 }

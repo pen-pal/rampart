@@ -104,6 +104,7 @@ async fn folder_tag_match_resolves(pool: PgPool) {
         NewMonitorGroup {
             name: "Edge".into(),
             sort_order: 0,
+            parent_id: None,
         },
     )
     .await
@@ -132,6 +133,7 @@ async fn folder_attached_channel_resolves(pool: PgPool) {
         NewMonitorGroup {
             name: "DB".into(),
             sort_order: 0,
+            parent_id: None,
         },
     )
     .await
@@ -159,6 +161,7 @@ async fn exclusion_wins_over_every_inclusion(pool: PgPool) {
         NewMonitorGroup {
             name: "G".into(),
             sort_order: 0,
+            parent_id: None,
         },
     )
     .await

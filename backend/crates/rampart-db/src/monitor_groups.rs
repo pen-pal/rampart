@@ -23,6 +23,7 @@ struct GroupRow {
     id: Uuid,
     name: String,
     sort_order: i32,
+    parent_id: Option<Uuid>,
     created_at: OffsetDateTime,
 }
 
@@ -32,6 +33,7 @@ impl From<GroupRow> for MonitorGroup {
             id: MonitorGroupId::from_uuid(r.id),
             name: r.name,
             sort_order: r.sort_order,
+            parent_id: r.parent_id.map(MonitorGroupId::from_uuid),
             created_at: r.created_at,
         }
     }
@@ -41,7 +43,7 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<MonitorGroup>> {
     let rows = sqlx::query_as!(
         GroupRow,
         r#"
-        SELECT id, name, sort_order, created_at
+        SELECT id, name, sort_order, parent_id, created_at
         FROM monitor_groups
         ORDER BY sort_order, name
         "#,
@@ -56,13 +58,14 @@ pub async fn create(pool: &DbPool, input: NewMonitorGroup) -> DbResult<MonitorGr
     let row = sqlx::query_as!(
         GroupRow,
         r#"
-        INSERT INTO monitor_groups (id, name, sort_order)
-        VALUES ($1, $2, $3)
-        RETURNING id, name, sort_order, created_at
+        INSERT INTO monitor_groups (id, name, sort_order, parent_id)
+        VALUES ($1, $2, $3, $4)
+        RETURNING id, name, sort_order, parent_id, created_at
         "#,
         id.0,
         input.name,
         input.sort_order,
+        input.parent_id.map(|g| g.0),
     )
     .fetch_one(pool)
     .await?;
@@ -90,14 +93,63 @@ pub async fn update(
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }
+    // Reparenting is tri-state (omitted / null / set), so it can't ride the
+    // COALESCE above — COALESCE can't tell "leave alone" from "set to null".
+    if let Some(parent) = patch.parent_id {
+        if let Some(p) = parent {
+            if p == id {
+                return Err(DbError::Conflict("folder cannot be its own parent".into()));
+            }
+            if would_form_group_cycle(pool, id, p).await? {
+                return Err(DbError::Conflict("nesting would form a cycle".into()));
+            }
+        }
+        sqlx::query!(
+            r#"UPDATE monitor_groups SET parent_id = $1 WHERE id = $2"#,
+            parent.map(|g| g.0),
+            id.0,
+        )
+        .execute(pool)
+        .await?;
+    }
     let row = sqlx::query_as!(
         GroupRow,
-        r#"SELECT id, name, sort_order, created_at FROM monitor_groups WHERE id = $1"#,
+        r#"SELECT id, name, sort_order, parent_id, created_at FROM monitor_groups WHERE id = $1"#,
         id.0,
     )
     .fetch_one(pool)
     .await?;
     Ok(row.into())
+}
+
+/// True iff making `new_parent` the parent of `group` would create a cycle
+/// — i.e. `group` is already an ancestor of `new_parent`. Walks up the
+/// parent chain from `new_parent`; the forest is shallow so this is cheap.
+pub async fn would_form_group_cycle(
+    pool: &DbPool,
+    group: MonitorGroupId,
+    new_parent: MonitorGroupId,
+) -> DbResult<bool> {
+    let mut current = Some(new_parent);
+    let mut seen: HashSet<MonitorGroupId> = HashSet::new();
+    while let Some(node) = current {
+        if node == group {
+            return Ok(true);
+        }
+        if !seen.insert(node) {
+            break; // pre-existing cycle (shouldn't happen) — stop walking
+        }
+        let row = sqlx::query!(
+            r#"SELECT parent_id FROM monitor_groups WHERE id = $1"#,
+            node.0,
+        )
+        .fetch_optional(pool)
+        .await?;
+        current = row
+            .and_then(|r| r.parent_id)
+            .map(MonitorGroupId::from_uuid);
+    }
+    Ok(false)
 }
 
 pub async fn delete(pool: &DbPool, id: MonitorGroupId) -> DbResult<()> {

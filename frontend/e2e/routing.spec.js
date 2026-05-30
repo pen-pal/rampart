@@ -23,11 +23,18 @@ test('create a folder, tag it, attach a channel — via the Folders page', async
   // Create the folder.
   await page.getByPlaceholder(/new folder name/i).fill(folder);
   await page.getByRole('button', { name: /create folder/i }).click();
-  await expect(page.getByText(folder)).toBeVisible({ timeout: 10_000 });
 
-  // The new folder card carries tag + channel <select> pickers; choose ours.
-  const card = page.locator('.card', { hasText: folder });
-  await card.getByRole('combobox').first().selectOption({ label: tagName });
+  // Scope to the owning card via its name <span>. Other cards reference this
+  // folder only inside their parent-selector <option>s (DB is shared across
+  // browser projects), so a plain getText/hasText would match many elements.
+  const card = page.locator('.card').filter({ has: page.locator('span', { hasText: folder }) });
+  await expect(card).toBeVisible({ timeout: 10_000 });
+
+  // The folder card carries several <select> pickers (parent / monitor /
+  // tag / channel). Target the tag picker by the option it contains rather
+  // than by position, so it survives layout changes.
+  await card.locator('select').filter({ has: page.locator('option', { hasText: tagName }) })
+    .first().selectOption({ label: tagName });
   await expect(card.getByText(tagName)).toBeVisible({ timeout: 10_000 });
 
   // Verify the folder tag landed via API.

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, name, sort_order, created_at FROM monitor_groups WHERE id = $1",
+  "query": "\n        SELECT id, name, sort_order, parent_id, created_at\n        FROM monitor_groups\n        ORDER BY sort_order, name\n        ",
   "describe": {
     "columns": [
       {
@@ -20,21 +20,25 @@
       },
       {
         "ordinal": 3,
+        "name": "parent_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
         "name": "created_at",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
-      "Left": [
-        "Uuid"
-      ]
+      "Left": []
     },
     "nullable": [
       false,
       false,
       false,
+      true,
       false
     ]
   },
-  "hash": "3643a86ad39c62db2667bd8c880a6f0754a54a31ee131d95bf0cfd7a5d04fac8"
+  "hash": "860a65f79ffcd4176eb7cbb99a3409b1001b9c2307896819e14797d7f320037a"
 }
