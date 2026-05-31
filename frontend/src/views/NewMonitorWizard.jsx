@@ -215,7 +215,7 @@ const fieldsFor = (kind) => {
   const httpKinds = ['http','keyword','json_query'];
   if (httpKinds.includes(kind)) {
     return {
-      url: true, method: true, statuses: true,
+      url: true, method: true, statuses: true, httpExtras: true,
       keyword:  kind === 'keyword',
       jsonPath: kind === 'json_query',
     };
@@ -227,11 +227,13 @@ const fieldsFor = (kind) => {
   if (['tcp','grpc','mqtt','steam','kafka','radius','ssh','smtp','imap','ftp','pop3'].includes(kind)) return { hostname: true, port: true };
   if (['postgres','mysql','mssql','redis','mongodb'].includes(kind)) return { hostname: true, port: true };
   if (kind === 'ping')   return { hostname: true };
-  if (kind === 'dns')    return { hostname: true };
+  if (kind === 'dns')    return { hostname: true, dns: true };
   if (kind === 'tls')    return { url: true };
   if (kind === 'domain') return { url: true };
   return {};
 };
+
+const DNS_RECORD_TYPES = ['A','AAAA','CNAME','MX','TXT','NS','SRV','CAA','SOA'];
 
 const defaultPort = (kind) => ({
   tcp: 443, grpc: 443, mqtt: 1883, steam: 27015, kafka: 9092, radius: 1812,
@@ -254,6 +256,9 @@ export default function NewMonitorWizard() {
   const [jsonPath, setJsonPath] = useState('');
   const [jsonExpected, setJsonExpected] = useState('');
   const [rendererUrl, setRendererUrl] = useState('http://browserless:3000/content');
+  const [dnsRecordType, setDnsRecordType] = useState('A');
+  const [dnsResolver,   setDnsResolver]   = useState('');
+  const [dnsExpected,   setDnsExpected]   = useState('');
 
   const [intervalSec, setIntervalSec] = useState('60');
   const [timeoutSec,  setTimeoutSec]  = useState('10');
@@ -307,6 +312,11 @@ export default function NewMonitorWizard() {
       config.json_path = jsonPath;
       if (jsonExpected) config.expected_value = jsonExpected;
     }
+    if (fields.dns) {
+      if (dnsRecordType && dnsRecordType !== 'A') config.record_type = dnsRecordType;
+      if (dnsResolver.trim()) config.resolver = dnsResolver.trim();
+      if (dnsExpected.trim()) config.expected = dnsExpected.trim();
+    }
 
     const payload = {
       name: name.trim(),
@@ -315,11 +325,15 @@ export default function NewMonitorWizard() {
       timeout_seconds:  parseInt(timeoutSec, 10)  || 10,
       max_retries:      Math.max(0, parseInt(retries, 10) || 0),
       upside_down:      upsideDown,
-      follow_redirect:  followRedir,
-      http_method:      method,
-      accepted_statuses: acceptedStatuses.length ? acceptedStatuses : undefined,
       config:           Object.keys(config).length ? config : undefined,
     };
+    // HTTP-family extras are noise on every other kind; only attach them
+    // when the form actually rendered the HTTP inputs.
+    if (fields.httpExtras) {
+      payload.follow_redirect  = followRedir;
+      payload.http_method      = method;
+      payload.accepted_statuses = acceptedStatuses.length ? acceptedStatuses : undefined;
+    }
     if (fields.url      && url)      payload.url      = url;
     if (fields.hostname && hostname) payload.hostname = hostname;
     if (fields.port     && port)     payload.port     = parseInt(port, 10);
@@ -519,6 +533,29 @@ export default function NewMonitorWizard() {
                     <input className="input mono" value={keyword} onChange={e => setKeyword(e.target.value)}
                       placeholder={meta.placeholder?.keyword || 'operational'}/>
                     <div className="field-hint">Heartbeat is up only if the response body contains this string.</div>
+                  </div>
+                )}
+
+                {fields.dns && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="field">
+                      <label className="field-label">Record type</label>
+                      <select className="select" value={dnsRecordType} onChange={e => setDnsRecordType(e.target.value)}>
+                        {DNS_RECORD_TYPES.map(t => <option key={t}>{t}</option>)}
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label className="field-label">Resolver (optional)</label>
+                      <input className="input mono" value={dnsResolver} onChange={e => setDnsResolver(e.target.value)}
+                        placeholder="1.1.1.1"/>
+                      <div className="field-hint">IP of an alternate resolver. Leaves /etc/resolv.conf default when blank.</div>
+                    </div>
+                    <div className="field" style={{ gridColumn: '1 / -1' }}>
+                      <label className="field-label">Expected (optional)</label>
+                      <input className="input mono" value={dnsExpected} onChange={e => setDnsExpected(e.target.value)}
+                        placeholder="93.184.216.34"/>
+                      <div className="field-hint">Substring that must appear in any answer for the heartbeat to count as up.</div>
+                    </div>
                   </div>
                 )}
 
