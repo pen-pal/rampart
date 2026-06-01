@@ -300,8 +300,21 @@ export default function Dashboard({ user, onLogout } = {}) {
 
   // Per-group expand/collapse state — keyed by group id (or 'ungrouped').
   // Default-open so existing users see all monitors without a click.
-  const [openGroups, setOpenGroups] = useState(() => ({ ungrouped: true }));
-  const toggleGroup = (key) => setOpenGroups(s => ({ ...s, [key]: !(s[key] ?? true) }));
+  // Folder collapse state lives in localStorage so toggles survive a reload.
+  // Default-open semantics: absent key = open; only explicit `false` collapses.
+  const [openGroups, setOpenGroups] = useState(() => {
+    try {
+      const raw = localStorage.getItem('rampart_open_groups');
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (parsed && typeof parsed === 'object') return parsed;
+    } catch { /* fall through */ }
+    return { ungrouped: true };
+  });
+  const toggleGroup = (key) => setOpenGroups(s => {
+    const next = { ...s, [key]: !(s[key] ?? true) };
+    try { localStorage.setItem('rampart_open_groups', JSON.stringify(next)); } catch { /* ignore quota */ }
+    return next;
+  });
 
   // Bulk-selection state for the activity table.
   const [selected, setSelected] = useState(() => new Set());
