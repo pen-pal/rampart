@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   ChevronLeft, Loader2, AlertCircle, ScrollText, ChevronDown,
 } from 'lucide-react';
-import { api, formatRelative, offsetDateTimeArrayToDate } from '../lib/api.js';
+import { api, useApi, formatRelative, offsetDateTimeArrayToDate } from '../lib/api.js';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -50,6 +50,11 @@ export default function AuditLog() {
   const [kind,    setKind]    = useState('');
   const [action,  setAction]  = useState('');
   const [done,    setDone]    = useState(false);
+
+  // Hydrate actor user names so rows can show "alice" not the raw uuid.
+  // Users list is admin-only and tiny; fetch once.
+  const usersState = useApi(() => api.users.list().catch(() => []), []);
+  const usersById  = new Map((usersState.data || []).map(u => [u.id, u]));
 
   const load = async (before) => {
     setLoading(true); setErr(null);
@@ -103,20 +108,20 @@ export default function AuditLog() {
 
         <div className="card" style={{ overflow: 'hidden' }}>
           <div style={{
-            display: 'grid', gridTemplateColumns: '170px 1fr 1fr 1fr',
+            display: 'grid', gridTemplateColumns: '140px 130px 1fr 1fr 1fr',
             gap: 16, padding: '10px 18px',
             fontSize: 11, fontWeight: 600, color: 'var(--text-3)',
             textTransform: 'uppercase', letterSpacing: '.04em',
             background: 'var(--surface-2)', borderBottom: '1px solid var(--border)'
           }}>
-            <span>When</span><span>Action</span><span>Resource</span><span>Payload</span>
+            <span>When</span><span>Actor</span><span>Action</span><span>Resource</span><span>Payload</span>
           </div>
           {entries.length === 0 && !loading ? (
             <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
               No audit entries yet.
             </div>
           ) : entries.map(e => (
-            <Row key={e.id} entry={e}/>
+            <Row key={e.id} entry={e} usersById={usersById}/>
           ))}
           {loading && <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-3)' }}><Loader2 size={14}/></div>}
         </div>
@@ -133,18 +138,30 @@ export default function AuditLog() {
   );
 }
 
-function Row({ entry }) {
+function Row({ entry, usersById }) {
   const [open, setOpen] = useState(false);
   const hasPayload = entry.payload != null;
+  const u = entry.actor_user_id ? usersById.get(entry.actor_user_id) : null;
+  const actorLabel = u
+    ? (u.name || u.email)
+    : entry.actor_api_key_id
+      ? `API key · ${String(entry.actor_api_key_id).slice(0, 6)}`
+      : entry.actor_user_id
+        ? String(entry.actor_user_id).slice(0, 8)
+        : 'system';
   return (
     <div style={{
-      display: 'grid', gridTemplateColumns: '170px 1fr 1fr 1fr',
+      display: 'grid', gridTemplateColumns: '140px 130px 1fr 1fr 1fr',
       gap: 16, padding: '12px 18px',
       borderBottom: '1px solid var(--border)', alignItems: 'baseline',
       fontSize: 12.5,
     }}>
       <span style={{ color: 'var(--text-3)' }} title={tsToDate(entry.ts).toLocaleString()}>
         {formatRelative(tsToDate(entry.ts))}
+      </span>
+      <span style={{ color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+            title={u?.email || actorLabel}>
+        {actorLabel}
       </span>
       <span className="mono">{entry.action}</span>
       <span>
