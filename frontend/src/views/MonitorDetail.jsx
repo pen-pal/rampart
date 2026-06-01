@@ -676,6 +676,11 @@ function EditModal({ monitor, onCancel }) {
   const [follow,      setFollow]      = useState(!!monitor.follow_redirect);
   const [ignoreTls,   setIgnoreTls]   = useState(!!monitor.ignore_tls);
   const [upside,      setUpside]      = useState(!!monitor.upside_down);
+  const [config,      setConfig]      = useState(
+    monitor.config && Object.keys(monitor.config).length
+      ? JSON.stringify(monitor.config, null, 2)
+      : '',
+  );
   const [busy,        setBusy]        = useState(false);
   const [err,         setErr]         = useState(null);
 
@@ -691,6 +696,15 @@ function EditModal({ monitor, onCancel }) {
       try { headersJson = JSON.parse(headers); }
       catch { setErr('Headers must be valid JSON.'); return; }
     }
+    let configJson = {};
+    if (config.trim()) {
+      try { configJson = JSON.parse(config); }
+      catch { setErr('Probe config must be valid JSON.'); return; }
+      if (typeof configJson !== 'object' || Array.isArray(configJson) || configJson === null) {
+        setErr('Probe config must be a JSON object.');
+        return;
+      }
+    }
     const acceptedStatuses = statuses
       .split(',').map(s => parseInt(s.trim(), 10)).filter(Number.isFinite);
 
@@ -701,6 +715,7 @@ function EditModal({ monitor, onCancel }) {
       max_retries:        parseInt(retries,     10) || 0,
       resend_interval_sec: parseInt(resend,     10) || 0,
       upside_down:        upside,
+      config:             configJson,
     };
     if (monitor.url != null)         patch.url            = url || null;
     if (hasHostname)                 patch.hostname       = hostname || null;
@@ -798,6 +813,15 @@ function EditModal({ monitor, onCancel }) {
           </div>
         )}
 
+        <Field label="Probe config (JSON)">
+          <textarea className="input mono" rows={4}
+            value={config} onChange={e => setConfig(e.target.value)}
+            placeholder={configPlaceholder(monitor.kind)}/>
+          <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>
+            {configHint(monitor.kind)}
+          </div>
+        </Field>
+
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
           <button className="btn btn-ghost" onClick={onCancel} disabled={busy}>Cancel</button>
           <button className="btn btn-accent" onClick={save} disabled={busy}>
@@ -807,6 +831,36 @@ function EditModal({ monitor, onCancel }) {
       </div>
     </div>
   );
+}
+
+// Per-kind placeholder + hint for the JSON config textarea in EditModal.
+// The probe layer reads `monitor.config` as a free-form JSON object — these
+// helpers surface the keys each probe actually reads so operators don't
+// have to guess from source.
+function configPlaceholder(kind) {
+  switch (kind) {
+    case 'dns':       return '{\n  "record_type": "A",\n  "resolver": "1.1.1.1",\n  "expected": "93.184.216.34"\n}';
+    case 'keyword':   return '{\n  "keyword": "operational"\n}';
+    case 'json_query':return '{\n  "json_path": "$.status",\n  "expected_value": "ok"\n}';
+    case 'browser':   return '{\n  "renderer_url": "http://browserless:3000/content",\n  "keyword": "operational"\n}';
+    case 'ssh':       return '{\n  "expect": "SSH-"\n}';
+    case 'smtp':      return '{\n  "expect": "220"\n}';
+    case 'imap':      return '{\n  "expect": "* OK"\n}';
+    case 'pop3':      return '{\n  "expect": "+OK"\n}';
+    case 'ftp':       return '{\n  "expect": "220"\n}';
+    default:          return '{}';
+  }
+}
+function configHint(kind) {
+  switch (kind) {
+    case 'dns':       return 'Keys: record_type (A | AAAA | CNAME | MX | TXT | NS | SRV | CAA | SOA), resolver (IP), expected (substring).';
+    case 'keyword':   return 'Key: keyword — substring the response body must contain.';
+    case 'json_query':return 'Keys: json_path (JSONPath), expected_value (optional exact match).';
+    case 'browser':   return 'Keys: renderer_url (URL of the headless renderer), keyword (substring required in rendered HTML).';
+    case 'ssh':       case 'smtp': case 'imap': case 'pop3': case 'ftp':
+                      return 'Key: expect — prefix the server greeting must start with. Empty uses the protocol default.';
+    default:          return 'Free-form JSON read by the probe runtime. Leave empty if this probe has no extra config.';
+  }
 }
 
 function Field({ label, children }) {
