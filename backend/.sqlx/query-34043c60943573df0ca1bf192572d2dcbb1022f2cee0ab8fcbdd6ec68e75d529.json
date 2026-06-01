@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT t.id AS tag_id,\n               (SELECT COUNT(*) FROM monitor_tags      m WHERE m.tag_id = t.id) AS \"monitors!: i64\",\n               (SELECT COUNT(*) FROM notification_tags n WHERE n.tag_id = t.id) AS \"channels!: i64\",\n               (SELECT COUNT(*) FROM group_tags        g WHERE g.tag_id = t.id) AS \"groups!: i64\"\n        FROM tags t\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "tag_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "monitors!: i64",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "channels!: i64",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "groups!: i64",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "34043c60943573df0ca1bf192572d2dcbb1022f2cee0ab8fcbdd6ec68e75d529"
+}

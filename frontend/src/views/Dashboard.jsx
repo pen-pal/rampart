@@ -8,7 +8,7 @@ import {
   AlertCircle, Pause, MoreHorizontal, Calendar,
   Tag, ArrowUpRight, Wrench, Zap, Globe, Server,
   Database, Radio, Lock, Hash, Sun, Moon, Monitor,
-  Menu, Folder, Calendar as CalIcon, Network, Key, ScrollText, Users as UsersIcon, Mail, Database as DbIcon, Settings,
+  Menu, Folder, Tag as TagIcon, Calendar as CalIcon, Network, Key, ScrollText, Users as UsersIcon, Mail, Database as DbIcon, Settings,
 } from 'lucide-react';
 import {
   api, useApi, formatRelative, offsetDateTimeArrayToDate, statusToClass,
@@ -939,6 +939,7 @@ function NavMenu() {
 
   const items = [
     { href: '#/folders',          label: 'Folders',        Icon: Folder },
+    { href: '#/tags',             label: 'Tags',           Icon: TagIcon },
     { href: '#/maintenance',      label: 'Maintenance',    Icon: CalIcon },
     { href: '#/proxies',          label: 'Proxies',        Icon: Network },
     { href: '#/api-keys',         label: 'API keys',       Icon: Key },

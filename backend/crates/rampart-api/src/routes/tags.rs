@@ -7,7 +7,8 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use rampart_core::ids::{MonitorId, TagId};
-use rampart_core::tag::{NewTag, Tag, TagBrief};
+use rampart_core::tag::{NewTag, Tag, TagBrief, UpdateTag};
+use rampart_db::tags::TagUsage;
 use rampart_db::users::User;
 use std::str::FromStr;
 use uuid::Uuid;
@@ -16,7 +17,8 @@ use validator::Validate;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list).post(create))
-        .route("/:id", axum::routing::delete(remove))
+        .route("/usage", get(usage))
+        .route("/:id", axum::routing::patch(update).delete(remove))
 }
 
 /// Sub-router mounted under /v1/monitors so the path is
@@ -58,6 +60,30 @@ async fn create(
         Some(serde_json::json!({ "name": t.name, "color": t.color })),
     ).await;
     Ok((StatusCode::CREATED, Json(t)))
+}
+
+async fn update(
+    State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(input): Json<UpdateTag>,
+) -> Result<Json<Tag>, ApiError> {
+    input
+        .validate()
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    let tid = parse_tag(&id)?;
+    let t = rampart_db::tags::update(s.pool(), tid, input).await?;
+    crate::audit::record(
+        s.pool(), &user, &headers,
+        "tag.update", "tag", Some(tid.0),
+        Some(serde_json::json!({ "name": t.name, "color": t.color })),
+    ).await;
+    Ok(Json(t))
+}
+
+async fn usage(State(s): State<AppState>) -> Result<Json<Vec<TagUsage>>, ApiError> {
+    Ok(Json(rampart_db::tags::usage(s.pool()).await?))
 }
 
 async fn remove(

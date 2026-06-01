@@ -1,8 +1,9 @@
 //! Tag repository.
 
 use crate::{DbError, DbPool, DbResult};
-use rampart_core::tag::{NewTag, Tag, TagBrief};
+use rampart_core::tag::{NewTag, Tag, TagBrief, UpdateTag};
 use rampart_core::{MonitorId, TagId};
+use serde::Serialize;
 use std::collections::HashMap;
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -69,6 +70,66 @@ pub async fn create(pool: &DbPool, input: NewTag) -> DbResult<Tag> {
         _ => DbError::from(e),
     })?;
     Ok(row.into())
+}
+
+pub async fn update(pool: &DbPool, id: TagId, patch: UpdateTag) -> DbResult<Tag> {
+    let result = sqlx::query!(
+        r#"
+        UPDATE tags
+           SET name  = COALESCE($2, name),
+               color = COALESCE($3, color)
+         WHERE id = $1
+        "#,
+        id.0,
+        patch.name,
+        patch.color,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| match &e {
+        sqlx::Error::Database(db) if db.code().as_deref() == Some("23505") => {
+            DbError::Conflict("tag name is already in use".into())
+        }
+        _ => DbError::from(e),
+    })?;
+    if result.rows_affected() == 0 {
+        return Err(DbError::NotFound);
+    }
+    get(pool, id).await
+}
+
+/// Per-tag usage counts: how many monitors, channels, and folders carry
+/// each tag. Returned as a single row per tag (zero rows for an unused
+/// tag are filled in by the caller if it wants to render them).
+#[derive(Debug, Clone, Serialize)]
+pub struct TagUsage {
+    pub tag_id: TagId,
+    pub monitors: i64,
+    pub channels: i64,
+    pub groups: i64,
+}
+
+pub async fn usage(pool: &DbPool) -> DbResult<Vec<TagUsage>> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT t.id AS tag_id,
+               (SELECT COUNT(*) FROM monitor_tags      m WHERE m.tag_id = t.id) AS "monitors!: i64",
+               (SELECT COUNT(*) FROM notification_tags n WHERE n.tag_id = t.id) AS "channels!: i64",
+               (SELECT COUNT(*) FROM group_tags        g WHERE g.tag_id = t.id) AS "groups!: i64"
+        FROM tags t
+        "#,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| TagUsage {
+            tag_id: TagId::from_uuid(r.tag_id),
+            monitors: r.monitors,
+            channels: r.channels,
+            groups: r.groups,
+        })
+        .collect())
 }
 
 pub async fn delete(pool: &DbPool, id: TagId) -> DbResult<()> {

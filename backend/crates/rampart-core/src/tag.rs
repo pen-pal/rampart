@@ -34,6 +34,15 @@ pub struct NewTag {
     pub color: String,
 }
 
+#[derive(Debug, Clone, Deserialize, Validate)]
+pub struct UpdateTag {
+    #[validate(length(min = 1, max = 40))]
+    pub name: Option<String>,
+
+    /// `#rrggbb`. Omit to leave color unchanged.
+    pub color: Option<String>,
+}
+
 fn default_color() -> String {
     "#14b8a6".into()
 }
