@@ -47,6 +47,9 @@ pub enum MonitorKind {
     /// memcached text-protocol probe — TCP connect, send "version\r\n",
     /// expect server response starting with "VERSION " (configurable).
     Memcached,
+    /// NTP probe — sends a minimal SNTPv4 client packet over UDP and
+    /// asserts the server responds (mode=server, stratum != 0).
+    Ntp,
     // registry
     Domain,
     /// Headless-browser-rendered check. We don't ship a Chromium binary

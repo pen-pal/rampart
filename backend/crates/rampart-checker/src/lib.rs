@@ -21,6 +21,7 @@ pub mod http;
 pub mod kafka;
 pub mod memcached;
 pub mod mongodb;
+pub mod ntp;
 pub mod mqtt;
 pub mod mssql;
 pub mod mysql;
@@ -63,6 +64,7 @@ pub struct Probes {
     redis: redis::RedisProbe,
     mongodb: mongodb::MongodbProbe,
     memcached: memcached::MemcachedProbe,
+    ntp: ntp::NtpProbe,
     grpc: grpc::GrpcProbe,
     mqtt: mqtt::MqttProbe,
     docker: docker::DockerProbe,
@@ -88,6 +90,7 @@ impl Probes {
             redis: redis::RedisProbe::new(),
             mongodb: mongodb::MongodbProbe::new(),
             memcached: memcached::MemcachedProbe::new(),
+            ntp: ntp::NtpProbe::new(),
             grpc: grpc::GrpcProbe::new(),
             mqtt: mqtt::MqttProbe::new(),
             docker: docker::DockerProbe::new(),
@@ -130,6 +133,7 @@ impl Probes {
             MonitorKind::Redis => self.redis.run(monitor).await,
             MonitorKind::Mongodb => self.mongodb.run(monitor).await,
             MonitorKind::Memcached => self.memcached.run(monitor).await,
+            MonitorKind::Ntp => self.ntp.run(monitor).await,
             MonitorKind::Grpc => self.grpc.run(monitor).await,
             MonitorKind::Mqtt => self.mqtt.run(monitor).await,
             MonitorKind::Docker => self.docker.run(monitor).await,

@@ -47,7 +47,8 @@
                 "imap",
                 "ftp",
                 "pop3",
-                "memcached"
+                "memcached",
+                "ntp"
               ]
             }
           }
