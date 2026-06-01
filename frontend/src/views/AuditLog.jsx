@@ -134,6 +134,8 @@ export default function AuditLog() {
 }
 
 function Row({ entry }) {
+  const [open, setOpen] = useState(false);
+  const hasPayload = entry.payload != null;
   return (
     <div style={{
       display: 'grid', gridTemplateColumns: '170px 1fr 1fr 1fr',
@@ -149,8 +151,21 @@ function Row({ entry }) {
         <span className="mono" style={{ color: 'var(--text-2)' }}>{entry.resource_kind}</span>
         {entry.resource_id && <span className="mono" style={{ color: 'var(--text-3)', fontSize: 11 }}>{' '}{entry.resource_id.slice(0, 8)}</span>}
       </span>
-      <code className="mono" style={{ fontSize: 11, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-        {entry.payload ? JSON.stringify(entry.payload) : '—'}
+      <code
+        className="mono"
+        onClick={() => hasPayload && setOpen(o => !o)}
+        title={hasPayload ? (open ? 'Click to collapse' : 'Click to expand') : undefined}
+        style={{
+          fontSize: 11, color: 'var(--text-3)',
+          cursor: hasPayload ? 'pointer' : 'default',
+          ...(open
+            ? { whiteSpace: 'pre-wrap', wordBreak: 'break-all' }
+            : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }),
+        }}
+      >
+        {hasPayload
+          ? (open ? JSON.stringify(entry.payload, null, 2) : JSON.stringify(entry.payload))
+          : '—'}
       </code>
     </div>
   );
