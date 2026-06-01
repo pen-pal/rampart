@@ -142,6 +142,24 @@ pub struct NewMaintenanceWindow {
     pub recurrence: Recurrence,
 }
 
+#[derive(Debug, Clone, Deserialize, Validate)]
+pub struct UpdateMaintenanceWindow {
+    #[validate(length(min = 1, max = 120))]
+    pub name: Option<String>,
+
+    /// Send `null` to clear, omit to leave unchanged.
+    #[serde(default)]
+    pub description: Option<Option<String>>,
+
+    #[serde(default, with = "time::serde::rfc3339::option")]
+    pub start_at: Option<OffsetDateTime>,
+    #[serde(default, with = "time::serde::rfc3339::option")]
+    pub end_at: Option<OffsetDateTime>,
+
+    #[serde(default)]
+    pub recurrence: Option<Recurrence>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

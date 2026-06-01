@@ -3,7 +3,9 @@
 //! Single-tenant, no workspace scoping — auth happens at the API layer.
 
 use crate::{DbError, DbPool, DbResult};
-use rampart_core::maintenance::{MaintenanceWindow, NewMaintenanceWindow, Recurrence};
+use rampart_core::maintenance::{
+    MaintenanceWindow, NewMaintenanceWindow, Recurrence, UpdateMaintenanceWindow,
+};
 use rampart_core::{MaintenanceId, MonitorId};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -144,6 +146,50 @@ pub async fn create(pool: &DbPool, input: NewMaintenanceWindow) -> DbResult<Main
     }
     tx.commit().await?;
 
+    get(pool, id).await
+}
+
+pub async fn update(
+    pool: &DbPool,
+    id: MaintenanceId,
+    patch: UpdateMaintenanceWindow,
+) -> DbResult<MaintenanceWindow> {
+    // Description uses double-Option: outer None = field absent; Some(None)
+    // = explicit null (clear); Some(Some(x)) = set. The `description` column
+    // is nullable so we map both Some shapes through a single binding.
+    let desc_provided = patch.description.is_some();
+    let desc_value: Option<String> = patch.description.flatten();
+    let recurrence_json = match &patch.recurrence {
+        Some(r) => Some(
+            serde_json::to_value(r)
+                .map_err(|e| DbError::Conflict(format!("serialize recurrence: {e}")))?,
+        ),
+        None => None,
+    };
+
+    let result = sqlx::query!(
+        r#"
+        UPDATE maintenance_windows
+           SET name        = COALESCE($2, name),
+               description = CASE WHEN $3::BOOL THEN $4 ELSE description END,
+               start_at    = COALESCE($5, start_at),
+               end_at      = COALESCE($6, end_at),
+               recurrence  = COALESCE($7, recurrence)
+         WHERE id = $1
+        "#,
+        id.0,
+        patch.name,
+        desc_provided,
+        desc_value,
+        patch.start_at,
+        patch.end_at,
+        recurrence_json,
+    )
+    .execute(pool)
+    .await?;
+    if result.rows_affected() == 0 {
+        return Err(DbError::NotFound);
+    }
     get(pool, id).await
 }
 

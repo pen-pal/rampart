@@ -7,7 +7,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use rampart_core::ids::{MaintenanceId, MonitorId};
-use rampart_core::maintenance::{MaintenanceWindow, NewMaintenanceWindow};
+use rampart_core::maintenance::{MaintenanceWindow, NewMaintenanceWindow, UpdateMaintenanceWindow};
 use rampart_db::users::User;
 use std::str::FromStr;
 use uuid::Uuid;
@@ -16,7 +16,7 @@ use validator::Validate;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list).post(create))
-        .route("/:id", get(get_one).delete(remove))
+        .route("/:id", get(get_one).patch(update).delete(remove))
         .route("/:id/active", post(set_active))
         .route("/:id/monitors/:monitor_id", post(attach).delete(detach))
 }
@@ -69,6 +69,26 @@ async fn create(
         })),
     ).await;
     Ok((StatusCode::CREATED, Json(w)))
+}
+
+async fn update(
+    State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(input): Json<UpdateMaintenanceWindow>,
+) -> Result<Json<MaintenanceWindow>, ApiError> {
+    input
+        .validate()
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    let wid = parse_id(&id)?;
+    let w = rampart_db::maintenance::update(s.pool(), wid, input).await?;
+    crate::audit::record(
+        s.pool(), &user, &headers,
+        "maintenance.update", "maintenance_window", Some(wid.0),
+        Some(serde_json::json!({ "name": w.name })),
+    ).await;
+    Ok(Json(w))
 }
 
 async fn remove(

@@ -215,6 +215,7 @@ export const api = {
     list:        ()                  => request('/v1/maintenance-windows'),
     get:         (id)                => request(`/v1/maintenance-windows/${id}`),
     create:      (input)             => request('/v1/maintenance-windows', { method: 'POST', body: input }),
+    update:      (id, patch)         => request(`/v1/maintenance-windows/${id}`, { method: 'PATCH', body: patch }),
     remove:      (id)                => request(`/v1/maintenance-windows/${id}`, { method: 'DELETE' }),
     setActive:   (id, active)        => request(`/v1/maintenance-windows/${id}/active`, { method: 'POST', body: { active } }),
     attach:      (id, monitorId)     => request(`/v1/maintenance-windows/${id}/monitors/${monitorId}`, { method: 'POST' }),

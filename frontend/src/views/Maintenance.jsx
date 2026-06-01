@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   Calendar, Plus, Trash2, ChevronLeft, Loader2, AlertCircle,
-  Pause, Play, X,
+  Pause, Play, X, Pencil, Check,
 } from 'lucide-react';
 import { api, useApi, formatRelative, offsetDateTimeArrayToDate } from '../lib/api.js';
 
@@ -152,6 +152,15 @@ export default function Maintenance() {
     finally { setBusy(null); }
   };
 
+  const rename = async (w, name) => {
+    setBusy(w.id); setErr(null);
+    try {
+      await api.maintenance.update(w.id, { name });
+      reload();
+    } catch (e) { setErr(e.message); throw e; }
+    finally { setBusy(null); }
+  };
+
   const onCreate = () => {
     setShowForm(false);
     reload();
@@ -215,6 +224,7 @@ export default function Maintenance() {
               monitorsById={monitorsById}
               busy={busy === w.id}
               onTogglePause={() => togglePause(w)}
+              onRename={name => rename(w, name)}
               onDelete={() => remove(w.id)}
             />
           ))}
@@ -224,7 +234,7 @@ export default function Maintenance() {
   );
 }
 
-function WindowRow({ w, monitorsById, busy, onTogglePause, onDelete }) {
+function WindowRow({ w, monitorsById, busy, onTogglePause, onRename, onDelete }) {
   const state = windowState(w);
   const startDate = offsetDateTimeArrayToDate(w.start_at);
   const endDate   = offsetDateTimeArrayToDate(w.end_at);
@@ -232,11 +242,36 @@ function WindowRow({ w, monitorsById, busy, onTogglePause, onDelete }) {
     month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
   });
 
+  const [editing, setEditing] = useState(false);
+  const [draft,   setDraft]   = useState(w.name);
+  React.useEffect(() => { setDraft(w.name); }, [w.name]);
+  const saveName = async () => {
+    const n = draft.trim();
+    if (!n || n === w.name) { setEditing(false); setDraft(w.name); return; }
+    try { await onRename(n); setEditing(false); }
+    catch { /* err surfaced by parent */ }
+  };
+
   return (
     <div className="row">
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-          <span style={{ fontSize: 13.5, fontWeight: 600 }}>{w.name}</span>
+          {editing ? (
+            <>
+              <input className="input" autoFocus value={draft} onChange={e => setDraft(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') { setEditing(false); setDraft(w.name); } }}
+                style={{ width: 240, fontSize: 13, padding: '4px 8px' }}/>
+              <button className="btn btn-accent" disabled={busy} onClick={saveName} style={{ padding: '4px 8px' }}><Check size={12}/></button>
+              <button className="btn btn-ghost" onClick={() => { setEditing(false); setDraft(w.name); }} style={{ padding: '4px 8px' }}><X size={12}/></button>
+            </>
+          ) : (
+            <>
+              <span style={{ fontSize: 13.5, fontWeight: 600 }}>{w.name}</span>
+              <button className="btn btn-ghost" style={{ padding: '2px 5px' }} title="Rename" onClick={() => setEditing(true)}>
+                <Pencil size={11}/>
+              </button>
+            </>
+          )}
           <span className={`pill pill-${state}`}>{state}</span>
         </div>
         <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginBottom: 4 }}>
