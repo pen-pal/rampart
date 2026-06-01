@@ -58,10 +58,15 @@ async fn create(
         return Err(ApiError::BadRequest("end_at must be after start_at".into()));
     }
     let w = rampart_db::maintenance::create(s.pool(), input).await?;
+    let rfc3339 = time::format_description::well_known::Rfc3339;
     crate::audit::record(
         s.pool(), &user, &headers,
         "maintenance.create", "maintenance_window", Some(w.id.0),
-        Some(serde_json::json!({ "name": w.name, "start_at": w.start_at, "end_at": w.end_at })),
+        Some(serde_json::json!({
+            "name": w.name,
+            "start_at": w.start_at.format(&rfc3339).unwrap_or_default(),
+            "end_at":   w.end_at.format(&rfc3339).unwrap_or_default(),
+        })),
     ).await;
     Ok((StatusCode::CREATED, Json(w)))
 }
