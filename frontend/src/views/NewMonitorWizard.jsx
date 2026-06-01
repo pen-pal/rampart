@@ -224,7 +224,8 @@ const fieldsFor = (kind) => {
     // Reuses the existing url + keyword inputs and adds a renderer_url.
     return { url: true, keyword: true, renderer: true };
   }
-  if (['tcp','grpc','mqtt','steam','kafka','radius','ssh','smtp','imap','ftp','pop3'].includes(kind)) return { hostname: true, port: true };
+  if (['ssh','smtp','imap','ftp','pop3'].includes(kind)) return { hostname: true, port: true, banner: true };
+  if (['tcp','grpc','mqtt','steam','kafka','radius'].includes(kind)) return { hostname: true, port: true };
   if (['postgres','mysql','mssql','redis','mongodb'].includes(kind)) return { hostname: true, port: true };
   if (kind === 'ping')   return { hostname: true };
   if (kind === 'dns')    return { hostname: true, dns: true };
@@ -259,6 +260,7 @@ export default function NewMonitorWizard() {
   const [dnsRecordType, setDnsRecordType] = useState('A');
   const [dnsResolver,   setDnsResolver]   = useState('');
   const [dnsExpected,   setDnsExpected]   = useState('');
+  const [bannerExpect,  setBannerExpect]  = useState('');
 
   const [intervalSec, setIntervalSec] = useState('60');
   const [timeoutSec,  setTimeoutSec]  = useState('10');
@@ -316,6 +318,9 @@ export default function NewMonitorWizard() {
       if (dnsRecordType && dnsRecordType !== 'A') config.record_type = dnsRecordType;
       if (dnsResolver.trim()) config.resolver = dnsResolver.trim();
       if (dnsExpected.trim()) config.expected = dnsExpected.trim();
+    }
+    if (fields.banner && bannerExpect.trim()) {
+      config.expect = bannerExpect.trim();
     }
 
     const payload = {
@@ -555,6 +560,28 @@ export default function NewMonitorWizard() {
                       <input className="input mono" value={dnsExpected} onChange={e => setDnsExpected(e.target.value)}
                         placeholder="93.184.216.34"/>
                       <div className="field-hint">Substring that must appear in any answer for the heartbeat to count as up.</div>
+                    </div>
+                  </div>
+                )}
+
+                {fields.banner && (
+                  <div className="field">
+                    <label className="field-label">Banner prefix to require (optional)</label>
+                    <input className="input mono" value={bannerExpect} onChange={e => setBannerExpect(e.target.value)}
+                      placeholder={
+                        type === 'ssh' ? 'SSH-' :
+                        type === 'smtp' ? '220' :
+                        type === 'imap' ? '* OK' :
+                        type === 'pop3' ? '+OK' :
+                        type === 'ftp' ? '220' : ''
+                      }/>
+                    <div className="field-hint">
+                      Leave blank for the well-known greeting prefix
+                      ({type === 'ssh' ? '"SSH-"' :
+                        type === 'smtp' || type === 'ftp' ? '"220"' :
+                        type === 'imap' ? '"* OK"' :
+                        type === 'pop3' ? '"+OK"' : 'protocol default'}).
+                      Override only when probing a non-standard server.
                     </div>
                   </div>
                 )}
