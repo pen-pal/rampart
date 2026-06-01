@@ -44,6 +44,9 @@ pub enum MonitorKind {
     Mssql,
     Redis,
     Mongodb,
+    /// memcached text-protocol probe — TCP connect, send "version\r\n",
+    /// expect server response starting with "VERSION " (configurable).
+    Memcached,
     // registry
     Domain,
     /// Headless-browser-rendered check. We don't ship a Chromium binary

@@ -19,6 +19,7 @@ pub mod domain;
 pub mod grpc;
 pub mod http;
 pub mod kafka;
+pub mod memcached;
 pub mod mongodb;
 pub mod mqtt;
 pub mod mssql;
@@ -61,6 +62,7 @@ pub struct Probes {
     mssql: mssql::MssqlProbe,
     redis: redis::RedisProbe,
     mongodb: mongodb::MongodbProbe,
+    memcached: memcached::MemcachedProbe,
     grpc: grpc::GrpcProbe,
     mqtt: mqtt::MqttProbe,
     docker: docker::DockerProbe,
@@ -85,6 +87,7 @@ impl Probes {
             mssql: mssql::MssqlProbe::new(),
             redis: redis::RedisProbe::new(),
             mongodb: mongodb::MongodbProbe::new(),
+            memcached: memcached::MemcachedProbe::new(),
             grpc: grpc::GrpcProbe::new(),
             mqtt: mqtt::MqttProbe::new(),
             docker: docker::DockerProbe::new(),
@@ -126,6 +129,7 @@ impl Probes {
             MonitorKind::Mssql => self.mssql.run(monitor).await,
             MonitorKind::Redis => self.redis.run(monitor).await,
             MonitorKind::Mongodb => self.mongodb.run(monitor).await,
+            MonitorKind::Memcached => self.memcached.run(monitor).await,
             MonitorKind::Grpc => self.grpc.run(monitor).await,
             MonitorKind::Mqtt => self.mqtt.run(monitor).await,
             MonitorKind::Docker => self.docker.run(monitor).await,
