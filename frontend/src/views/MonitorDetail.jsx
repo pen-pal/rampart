@@ -234,7 +234,11 @@ export default function MonitorDetail({ monitorId }) {
   const [editing, setEditing] = useState(false);
 
   const monitorState   = useApi(() => monitorId ? api.monitors.get(monitorId)         : Promise.resolve(null), [monitorId], { pollMs: 15_000 });
-  const heartbeatState = useApi(() => monitorId ? api.monitors.heartbeats(monitorId, 500) : Promise.resolve([]),   [monitorId], { pollMs: 10_000 });
+  // 2000 = the backend's hard cap on this endpoint. Aligning lets the
+  // Heartbeats tab show as much history as the API will give us — a
+  // proper cursor-paged "Load more" would belong if monitors ever
+  // accumulate enough rows for 2000 to feel limiting.
+  const heartbeatState = useApi(() => monitorId ? api.monitors.heartbeats(monitorId, 2000) : Promise.resolve([]), [monitorId], { pollMs: 10_000 });
   const summaryState   = useApi(() => api.monitors.summary(86400),       [], { pollMs: 15_000 });
   const summaryState30 = useApi(() => api.monitors.summary(2_592_000),   [], { pollMs: 60_000 });
   const groupsState    = useApi(() => api.monitorGroups.list(),          [], { pollMs: 60_000 });
