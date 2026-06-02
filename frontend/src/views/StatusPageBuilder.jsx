@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   ChevronLeft, Plus, Trash2, ExternalLink, Save, AlertCircle, Loader2, X, Globe,
+  Pencil, Check,
 } from 'lucide-react';
 import { api, useApi, offsetDateTimeArrayToDate } from '../lib/api.js';
 
@@ -446,19 +447,51 @@ function IncidentRow({ incident, busy, onResolve, onDelete, onPostUpdate }) {
     finally { setPosting(false); }
   };
 
+  const [editing, setEditing] = useState(false);
+  const [title, setTitle] = useState(incident.title);
+  const [content, setContent] = useState(incident.content);
+  const [saving, setSaving] = useState(false);
+  const saveEdit = async () => {
+    const t = title.trim(), c = content.trim();
+    if (!t) { setEditing(false); setTitle(incident.title); return; }
+    if (t === incident.title && c === incident.content) { setEditing(false); return; }
+    setSaving(true);
+    try { await api.incidents.update(incident.id, { title: t, content: c }); onPostUpdate(); setEditing(false); }
+    catch (e) { alert(e.message); }
+    finally { setSaving(false); }
+  };
+  const cancelEdit = () => { setEditing(false); setTitle(incident.title); setContent(incident.content); };
+
   return (
     <div style={{ padding: 12, marginBottom: 10, border: '1px solid var(--border)', borderRadius: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-        <span style={{ fontSize: 13.5, fontWeight: 600 }}>{incident.title}</span>
-        <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)' }}>{incident.style}</span>
-        {!incident.active && <span style={{ fontSize: 10.5, color: 'var(--accent-2)', background: 'var(--accent-soft)', padding: '1px 6px', borderRadius: 999 }}>resolved</span>}
-        {incident.pinned && incident.active && <span style={{ fontSize: 10.5, color: 'var(--text-3)' }}>pinned</span>}
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
-          {incident.active && <button className="btn btn-ghost" onClick={onResolve} disabled={busy} style={{ padding: '3px 8px', fontSize: 11 }}>Resolve</button>}
-          <button className="btn btn-ghost btn-danger" onClick={onDelete} disabled={busy} style={{ padding: '3px 8px', fontSize: 11 }}><Trash2 size={11}/></button>
-        </div>
+        {editing ? (
+          <>
+            <input className="input" autoFocus value={title} onChange={e => setTitle(e.target.value)}
+              style={{ fontSize: 13.5, fontWeight: 600, padding: '4px 8px', flex: 1 }}/>
+            <button className="btn btn-accent" onClick={saveEdit} disabled={saving} style={{ padding: '3px 8px', fontSize: 11 }}><Check size={11}/></button>
+            <button className="btn btn-ghost" onClick={cancelEdit} disabled={saving} style={{ padding: '3px 8px', fontSize: 11 }}><X size={11}/></button>
+          </>
+        ) : (
+          <>
+            <span style={{ fontSize: 13.5, fontWeight: 600 }}>{incident.title}</span>
+            <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)' }}>{incident.style}</span>
+            {!incident.active && <span style={{ fontSize: 10.5, color: 'var(--accent-2)', background: 'var(--accent-soft)', padding: '1px 6px', borderRadius: 999 }}>resolved</span>}
+            {incident.pinned && incident.active && <span style={{ fontSize: 10.5, color: 'var(--text-3)' }}>pinned</span>}
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+              {incident.active && <button className="btn btn-ghost" onClick={() => setEditing(true)} disabled={busy} style={{ padding: '3px 8px', fontSize: 11 }} title="Edit title + content"><Pencil size={11}/></button>}
+              {incident.active && <button className="btn btn-ghost" onClick={onResolve} disabled={busy} style={{ padding: '3px 8px', fontSize: 11 }}>Resolve</button>}
+              <button className="btn btn-ghost btn-danger" onClick={onDelete} disabled={busy} style={{ padding: '3px 8px', fontSize: 11 }}><Trash2 size={11}/></button>
+            </div>
+          </>
+        )}
       </div>
-      <div style={{ fontSize: 12.5, color: 'var(--text-2)', marginBottom: 8, whiteSpace: 'pre-wrap' }}>{incident.content}</div>
+      {editing ? (
+        <textarea className="input" value={content} onChange={e => setContent(e.target.value)}
+          rows={3} style={{ fontSize: 12.5, marginBottom: 8, width: '100%' }}/>
+      ) : (
+        <div style={{ fontSize: 12.5, color: 'var(--text-2)', marginBottom: 8, whiteSpace: 'pre-wrap' }}>{incident.content}</div>
+      )}
 
       {(updates.data || []).map(u => (
         <div key={u.id} style={{ fontSize: 12, color: 'var(--text-2)', paddingLeft: 12, borderLeft: '2px solid var(--border)', marginBottom: 6 }}>
