@@ -338,7 +338,16 @@ export default function Dashboard({ user, onLogout } = {}) {
     }
   };
   const [query, setQuery] = useState('');
-  const [tagFilter, setTagFilter] = useState(new Set()); // tag IDs to require
+  // tag IDs to require — persisted to localStorage so the chosen filter
+  // survives reloads (operators often filter to "prod" and want it sticky).
+  const [tagFilter, setTagFilter] = useState(() => {
+    try {
+      const raw = localStorage.getItem('rampart_tag_filter');
+      const arr = raw ? JSON.parse(raw) : null;
+      if (Array.isArray(arr)) return new Set(arr);
+    } catch { /* fall through */ }
+    return new Set();
+  });
 
   // All tags currently in use across the visible monitors. We don't fetch
   // /v1/tags separately — the hydrated tags on each monitor are enough
@@ -353,6 +362,7 @@ export default function Dashboard({ user, onLogout } = {}) {
     setTagFilter(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
+      try { localStorage.setItem('rampart_tag_filter', JSON.stringify([...next])); } catch { /* ignore quota */ }
       return next;
     });
   };
