@@ -3,7 +3,7 @@ import {
   Bell, Plus, Trash2, Send, ChevronLeft, MessageSquare, Hash, Mail,
   Webhook as WebhookIcon, AlertCircle, Loader2, Smartphone, Server, Megaphone,
   Siren, Phone, Rocket, Layers, FileText, Edit3, Save, X, BellRing, Search,
-  ChevronDown, Check,
+  ChevronDown, Check, Copy,
 } from 'lucide-react';
 import { api, useApi } from '../lib/api.js';
 
@@ -85,7 +85,7 @@ const css = `
   .tabs button.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.04); }
 
   .template-row {
-    display: grid; grid-template-columns: 30px 1fr auto auto auto;
+    display: grid; grid-template-columns: 30px 1fr auto auto auto auto;
     align-items: center; gap: 14px;
     padding: 12px 18px; border-top: 1px solid var(--border);
   }
@@ -2717,6 +2717,21 @@ function TemplatesPanel({ state, reload }) {
             </span>
             <button className="btn" onClick={() => setEditing(t)} title="Edit">
               <Edit3 size={12}/>
+            </button>
+            <button className="btn" onClick={() => {
+              // Clone — open the new-template form pre-filled from this template.
+              // Drop the id so save() POSTs as a fresh row, and tweak name so the
+              // unique constraint doesn't trip on first save.
+              setEditing(null);
+              setPrefill({
+                name: `${t.name} (copy)`,
+                event_kind: t.event_kind,
+                subject_template: t.subject_template,
+                body_template: t.body_template,
+              });
+              setShowAdd(true);
+            }} title="Clone — start a new template from this one">
+              <Copy size={12}/>
             </button>
             <button className="btn btn-danger" onClick={async () => {
               if (!confirm(`Delete template "${t.name}"?`)) return;
