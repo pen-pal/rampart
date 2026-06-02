@@ -135,7 +135,7 @@ function bucketLatency(heartbeats, buckets = 144) {
   const last  = hbs[hbs.length - 1];
   const t0 = (first.ts instanceof Array ? offsetDateTimeArrayToDate(first.ts) : new Date(first.ts)).getTime();
   const t1 = (last.ts  instanceof Array ? offsetDateTimeArrayToDate(last.ts)  : new Date(last.ts)).getTime();
-  if (t1 <= t0) return hbs.map((h, i) => latencyPoint(h, i));
+  if (t1 <= t0) return hbs.map((h, i) => latencyPoint(h, i, 0));
 
   const width = (t1 - t0) / buckets;
   const bins = Array.from({ length: buckets }, () => ({ sum: 0, count: 0, t: 0 }));
@@ -147,20 +147,30 @@ function bucketLatency(heartbeats, buckets = 144) {
     bins[i].count += 1;
     bins[i].t      = t;
   }
+  // Pick a label precision based on the total span. < 1 hour → include
+  // seconds so closely-bunched samples don't all read "22:02"; otherwise
+  // minutes are enough.
+  const span = t1 - t0;
+  const fmt = span < 3600_000
+    ? (d) => d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    : (d) => d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   return bins.map((b, i) => ({
     t: i,
     label: b.count > 0
-      ? new Date(b.t).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-      : new Date(t0 + i * width).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+      ? fmt(new Date(b.t))
+      : fmt(new Date(t0 + i * width)),
     latency: b.count > 0 ? Math.round(b.sum / b.count) : null,
   }));
 }
 
-function latencyPoint(h, i) {
+function latencyPoint(h, i, spanMs) {
   const date = h.ts instanceof Array ? offsetDateTimeArrayToDate(h.ts) : new Date(h.ts);
+  const opts = (spanMs != null && spanMs < 3600_000)
+    ? { hour: '2-digit', minute: '2-digit', second: '2-digit' }
+    : { hour: '2-digit', minute: '2-digit' };
   return {
     t: i,
-    label: date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+    label: date.toLocaleTimeString('en-GB', opts),
     latency: h.status === 'up' ? (h.latency_ms ?? null) : null,
   };
 }
