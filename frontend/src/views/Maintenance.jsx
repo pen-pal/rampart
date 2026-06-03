@@ -46,7 +46,7 @@ const css = `
   }
   .input:focus, .select:focus, .textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
   .row {
-    display: grid; grid-template-columns: 1fr auto auto auto;
+    display: grid; grid-template-columns: 1fr auto auto auto auto;
     align-items: center; gap: 14px;
     padding: 14px 18px; border-top: 1px solid var(--border);
   }
@@ -118,9 +118,10 @@ export default function Maintenance() {
   const windowsState = useApi(() => api.maintenance.list(), [], { pollMs: 30_000 });
   const monitorsState = useApi(() => api.monitors.list(), []);
 
-  const [showForm, setShowForm] = useState(false);
-  const [err,      setErr]      = useState(null);
-  const [busy,     setBusy]     = useState(null); // id being mutated
+  const [showForm,      setShowForm]      = useState(false);
+  const [editingWindow, setEditingWindow] = useState(null); // window to edit (full form)
+  const [err,           setErr]           = useState(null);
+  const [busy,          setBusy]          = useState(null); // id being mutated
 
   const monitorsById = useMemo(() => {
     const m = {};
@@ -161,8 +162,9 @@ export default function Maintenance() {
     finally { setBusy(null); }
   };
 
-  const onCreate = () => {
+  const onSaved = () => {
     setShowForm(false);
+    setEditingWindow(null);
     reload();
   };
 
@@ -198,11 +200,12 @@ export default function Maintenance() {
           </div>
         )}
 
-        {showForm && (
-          <CreateForm
+        {(showForm || editingWindow) && (
+          <MaintenanceForm
             monitors={monitorsState.data || []}
-            onCancel={() => setShowForm(false)}
-            onCreated={onCreate}
+            existing={editingWindow}
+            onCancel={() => { setShowForm(false); setEditingWindow(null); }}
+            onSaved={onSaved}
           />
         )}
 
@@ -225,6 +228,7 @@ export default function Maintenance() {
               busy={busy === w.id}
               onTogglePause={() => togglePause(w)}
               onRename={name => rename(w, name)}
+              onEdit={() => setEditingWindow(w)}
               onDelete={() => remove(w.id)}
             />
           ))}
@@ -234,7 +238,7 @@ export default function Maintenance() {
   );
 }
 
-function WindowRow({ w, monitorsById, busy, onTogglePause, onRename, onDelete }) {
+function WindowRow({ w, monitorsById, busy, onTogglePause, onRename, onEdit, onDelete }) {
   const state = windowState(w);
   const startDate = offsetDateTimeArrayToDate(w.start_at);
   const endDate   = offsetDateTimeArrayToDate(w.end_at);
@@ -288,6 +292,9 @@ function WindowRow({ w, monitorsById, busy, onTogglePause, onRename, onDelete })
                 .join(' · ')}
         </div>
       </div>
+      <button className="btn btn-ghost" onClick={onEdit} disabled={busy} title="Edit schedule + recurrence">
+        <Pencil size={13}/> Edit
+      </button>
       <button className="btn btn-ghost" onClick={onTogglePause} disabled={busy} title={w.active ? 'Pause' : 'Resume'}>
         {w.active ? <Pause size={13}/> : <Play size={13}/>}
         {w.active ? 'Pause' : 'Resume'}
@@ -300,9 +307,21 @@ function WindowRow({ w, monitorsById, busy, onTogglePause, onRename, onDelete })
   );
 }
 
-function CreateForm({ monitors, onCancel, onCreated }) {
-  // Defaults: now + 1h start, 2h duration. Most maintenance is short.
+function MaintenanceForm({ monitors, existing, onCancel, onSaved }) {
+  // Defaults for create: now + 1h start, 2h duration. For edit: seed from
+  // the existing window (start/end/recurrence/description/monitors).
   const initial = useMemo(() => {
+    if (existing) {
+      const startD = Array.isArray(existing.start_at) ? offsetDateTimeArrayToDate(existing.start_at) : new Date(existing.start_at);
+      const endD   = Array.isArray(existing.end_at)   ? offsetDateTimeArrayToDate(existing.end_at)   : new Date(existing.end_at);
+      return {
+        name:   existing.name,
+        desc:   existing.description || '',
+        start:  toLocalInput(startD),
+        end:    toLocalInput(endD),
+        picked: new Set(existing.monitor_ids || []),
+      };
+    }
     const now = new Date();
     const start = new Date(now.getTime() + 60 * 60_000);
     const end   = new Date(start.getTime() + 2 * 60 * 60_000);
@@ -313,7 +332,16 @@ function CreateForm({ monitors, onCancel, onCreated }) {
       end:    toLocalInput(end),
       picked: new Set(),
     };
-  }, []);
+  }, [existing]);
+
+  // Seed recurrence shape from the existing window if any.
+  const initialRecur = useMemo(() => {
+    const r = existing?.recurrence;
+    if (!r || r.kind === 'none') return { kind: 'none', weekdays: new Set([1,2,3,4,5]), until: '' };
+    if (r.kind === 'daily')  return { kind: 'daily',  weekdays: new Set([1,2,3,4,5]), until: r.until ? toLocalInput(new Date(r.until)) : '' };
+    if (r.kind === 'weekly') return { kind: 'weekly', weekdays: new Set(r.weekdays || []),  until: r.until ? toLocalInput(new Date(r.until)) : '' };
+    return { kind: 'none', weekdays: new Set([1,2,3,4,5]), until: '' };
+  }, [existing]);
 
   const [name,  setName]  = useState(initial.name);
   const [desc,  setDesc]  = useState(initial.desc);
@@ -324,9 +352,9 @@ function CreateForm({ monitors, onCancel, onCreated }) {
   const [err, setErr] = useState(null);
   // Recurrence: 'none' | 'daily' | 'weekly'. Weekdays only meaningful
   // for weekly; until is optional in both repeat modes.
-  const [recurKind, setRecurKind] = useState('none');
-  const [weekdays,  setWeekdays]  = useState(new Set([1,2,3,4,5])); // Mon-Fri
-  const [until,     setUntil]     = useState(''); // datetime-local string
+  const [recurKind, setRecurKind] = useState(initialRecur.kind);
+  const [weekdays,  setWeekdays]  = useState(initialRecur.weekdays);
+  const [until,     setUntil]     = useState(initialRecur.until);
 
   const toggle = (id) => {
     const next = new Set(picked);
@@ -342,17 +370,30 @@ function CreateForm({ monitors, onCancel, onCreated }) {
     setSubmitting(true);
     try {
       const recurrence = buildRecurrence(recurKind, weekdays, until);
-      await api.maintenance.create({
-        name:        name.trim(),
-        description: desc.trim() || null,
-        start_at:    fromLocalInput(start),
-        end_at:      fromLocalInput(end),
-        monitor_ids: Array.from(picked),
-        recurrence,
-      });
-      onCreated();
+      if (existing) {
+        // PATCH only the body fields; monitor attachments aren't editable
+        // through this form yet (would need a diff against existing
+        // monitor_ids + sequential attach/detach calls).
+        await api.maintenance.update(existing.id, {
+          name:        name.trim(),
+          description: desc.trim() || null,
+          start_at:    fromLocalInput(start),
+          end_at:      fromLocalInput(end),
+          recurrence,
+        });
+      } else {
+        await api.maintenance.create({
+          name:        name.trim(),
+          description: desc.trim() || null,
+          start_at:    fromLocalInput(start),
+          end_at:      fromLocalInput(end),
+          monitor_ids: Array.from(picked),
+          recurrence,
+        });
+      }
+      onSaved();
     } catch (e) {
-      setErr(e.message || 'Failed to create window.');
+      setErr(e.message || (existing ? 'Failed to save changes.' : 'Failed to create window.'));
       setSubmitting(false);
     }
   };
@@ -360,7 +401,7 @@ function CreateForm({ monitors, onCancel, onCreated }) {
   return (
     <div className="card" style={{ padding: 20, marginBottom: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-        <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>New maintenance window</h3>
+        <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>{existing ? `Edit · ${existing.name}` : 'New maintenance window'}</h3>
         <button className="btn btn-ghost" onClick={onCancel} disabled={submitting}><X size={14}/></button>
       </div>
 
@@ -439,29 +480,48 @@ function CreateForm({ monitors, onCancel, onCreated }) {
         </div>
       )}
 
-      <div className="field">
-        <label className="field-label">Monitors ({picked.size} selected)</label>
-        <div style={{ maxHeight: 200, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8, padding: 4 }}>
-          {monitors.length === 0 ? (
-            <div style={{ padding: 12, fontSize: 12, color: 'var(--text-3)' }}>No monitors yet — create one first.</div>
-          ) : monitors.map(m => (
-            <label key={m.id} style={{
-              display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-              borderRadius: 6, cursor: 'pointer',
-              background: picked.has(m.id) ? 'var(--accent-soft)' : 'transparent',
-            }}>
-              <input type="checkbox" checked={picked.has(m.id)} onChange={() => toggle(m.id)}/>
-              <span style={{ fontSize: 12.5 }}>{m.name}</span>
-              <span style={{ fontSize: 10.5, color: 'var(--text-3)', textTransform: 'uppercase', marginLeft: 'auto' }}>{m.kind}</span>
-            </label>
-          ))}
+      {/* Monitor attachments aren't editable from this form — they're
+          managed by the dedicated attach/detach routes. Show them as
+          read-only when editing so users see what the window targets
+          without thinking the form will rewrite them. */}
+      {existing ? (
+        <div className="field">
+          <label className="field-label">Monitors ({(existing.monitor_ids || []).length})</label>
+          <div style={{ fontSize: 12, color: 'var(--text-3)', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 8 }}>
+            {(existing.monitor_ids || []).length === 0
+              ? 'No monitors attached. Use the dashboard or this window\'s detail to attach.'
+              : 'Attachments are managed separately — this form only edits the schedule + recurrence.'}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="field">
+          <label className="field-label">Monitors ({picked.size} selected)</label>
+          <div style={{ maxHeight: 200, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8, padding: 4 }}>
+            {monitors.length === 0 ? (
+              <div style={{ padding: 12, fontSize: 12, color: 'var(--text-3)' }}>No monitors yet — create one first.</div>
+            ) : monitors.map(m => (
+              <label key={m.id} style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
+                borderRadius: 6, cursor: 'pointer',
+                background: picked.has(m.id) ? 'var(--accent-soft)' : 'transparent',
+              }}>
+                <input type="checkbox" checked={picked.has(m.id)} onChange={() => toggle(m.id)}/>
+                <span style={{ fontSize: 12.5 }}>{m.name}</span>
+                <span style={{ fontSize: 10.5, color: 'var(--text-3)', textTransform: 'uppercase', marginLeft: 'auto' }}>{m.kind}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
         <button className="btn btn-ghost" onClick={onCancel} disabled={submitting}>Cancel</button>
         <button className="btn btn-accent" onClick={submit} disabled={submitting}>
-          {submitting ? <><Loader2 size={13} className="spin"/> Creating…</> : <><Plus size={13}/> Create window</>}
+          {submitting
+            ? <><Loader2 size={13} className="spin"/> {existing ? 'Saving…' : 'Creating…'}</>
+            : existing
+              ? <><Check size={13}/> Save changes</>
+              : <><Plus size={13}/> Create window</>}
         </button>
       </div>
     </div>
