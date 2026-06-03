@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   ChevronLeft, Plus, Trash2, ExternalLink, Save, AlertCircle, Loader2, X, Globe,
-  Pencil, Check,
+  Pencil, Check, Copy,
 } from 'lucide-react';
 import { api, useApi, offsetDateTimeArrayToDate } from '../lib/api.js';
 
@@ -47,7 +47,7 @@ const css = `
   .input.mono { font-family: 'JetBrains Mono', monospace; }
   .input:focus, .textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
   .row {
-    display: grid; grid-template-columns: 1fr auto auto auto;
+    display: grid; grid-template-columns: 1fr auto auto auto auto;
     align-items: center; gap: 14px;
     padding: 14px 18px; border-top: 1px solid var(--border);
   }
@@ -138,6 +138,16 @@ export default function StatusPageBuilder() {
               page={p}
               busy={busy === p.id}
               onEdit={() => setEditing(p)}
+              onClone={() => setEditing({
+                // Strip id so Editor treats this as a new POST; blank slug
+                // (it must be unique) and suffix the title so the duplicate
+                // is visually distinct in the list before the user tweaks.
+                slug: '',
+                title: `${p.title} (copy)`,
+                description: p.description,
+                theme: p.theme,
+                monitor_ids: [...p.monitor_ids],
+              })}
               onDelete={() => remove(p.id)}
             />
           ))}
@@ -147,7 +157,7 @@ export default function StatusPageBuilder() {
   );
 }
 
-function PageRow({ page, busy, onEdit, onDelete }) {
+function PageRow({ page, busy, onEdit, onClone, onDelete }) {
   const url = `${window.location.origin}/#/s/${page.slug}`;
   return (
     <div className="row">
@@ -165,6 +175,7 @@ function PageRow({ page, busy, onEdit, onDelete }) {
         </div>
       </div>
       <button className="btn btn-ghost" onClick={onEdit} disabled={busy}>Edit</button>
+      <button className="btn btn-ghost" onClick={onClone} disabled={busy} title="Clone — start a new page seeded from this one"><Copy size={13}/></button>
       <button className="btn btn-ghost btn-danger" onClick={onDelete} disabled={busy}><Trash2 size={13}/></button>
       <span/>
     </div>
@@ -172,7 +183,9 @@ function PageRow({ page, busy, onEdit, onDelete }) {
 }
 
 function Editor({ page, monitors, onCancel, onSaved }) {
-  const isNew = !page;
+  // Clones come in with everything pre-filled except `id`, so detect new
+  // mode via absence-of-id rather than absence-of-page.
+  const isNew = !page?.id;
   const [slug,        setSlug]        = useState(page?.slug        || '');
   const [title,       setTitle]       = useState(page?.title       || '');
   const [description, setDescription] = useState(page?.description || '');
