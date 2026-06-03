@@ -49,7 +49,6 @@ Living list of dependency major bumps we are aware of and deliberately holding b
 | `tonic`               | 0.12    | 0.13        | Generated-code prefix changed; `prost` 0.14 is required in lockstep. Re-run codegen, audit the gRPC health probe.                                                                                                                                                                          |
 | `prost`               | 0.13    | 0.14        | Tied to `tonic` 0.13.                                                                                                                                                                                                                                                                      |
 | `rumqttc`             | 0.24    | 0.25        | **Rejected, not just deferred.** 0.25 unconditionally adds `aws-lc-rs` + `cmake` to the build graph, which contradicts the pure-Rust crypto invariant the project advertises (see README "Why Rampart" + `docs/DESIGN-ORIGINAL.md`). Will revisit only if upstream restores a featureless rustls path. |
-| `tokio-tungstenite`   | 0.24    | 0.29        | Default features changed; we rely on the `rustls-tls-webpki-roots` feature being available without aws-lc-rs. Verify the feature set still composes the same crypto stack before bumping.                                                                                                  |
 
 ### npm
 

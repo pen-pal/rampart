@@ -134,7 +134,7 @@ tonic            = { version = "0.12", default-features = false, features = ["tr
 tonic-health     = { version = "0.12", default-features = false, features = ["transport"] }
 prost            = "0.13"
 rumqttc          = { version = "0.24", default-features = false, features = ["use-rustls"] }
-tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
+tokio-tungstenite = { version = "0.29", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
 # Docker over the local socket or remote HTTP API.
 # `http` + `pipe` are the bollard default features but we set
 # `default-features = false` to keep `buildkit` etc out of the graph;
