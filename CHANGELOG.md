@@ -26,7 +26,7 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 - Two-tone shield + ECG-pulse logo (`docs/assets/logo.svg`) replaces the earlier teal-shield-with-R mark.
 - New `docs/assets/wordmark.svg` lockup for GitHub social-preview / README hero contexts.
 - Favicon and in-app brand mark (Dashboard header + Login card) re-shaped to match.
-- Maintainer follow-up: run `npm run screenshots` once locally so `docs/assets/dashboard.png` + `dashboard-dark.png` + the walkthrough series pick up the new in-app brand mark. Until then those PNGs still show the previous teal Activity-icon brand.
+- All in-tree screenshots regenerated against the new mark — `docs/assets/dashboard.png`, `docs/assets/dashboard-dark.png`, and the eleven walkthrough PNGs under `docs/assets/screenshots/`.
 
 ### Versioning
 - Workspace version centralised in `[workspace.package].version`; member crates inherit via `version.workspace = true`.
@@ -36,10 +36,14 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ### CI / Tooling
 - E2E matrix now runs Playwright across Chromium, Firefox, WebKit, and the branded Chrome + Edge channels (17 specs × 5 projects = 85 runs per push).
-- Dependabot groups: `cargo-routine` + `cargo-security`, `npm-routine` + `npm-security`, monthly grouped runs for GitHub Actions and Docker.
+- Dependabot groups restructured into routine (minor + patch) / major / security per ecosystem. The previous routine group bundled major bumps together, which made any given PR effectively unreviewable.
 - CodeQL workflow split per language; Rust stays on `build-mode: none` until upstream supports `manual`.
 - Conflict-labeler workflow creates the `has-conflicts` label idempotently so a clean clone runs without a manual bootstrap step.
 - Dockerfile base images bumped: `node:20-alpine` → `node:26-alpine`, `rust:1.88-slim-bookworm` → `rust:1.96-slim-bookworm`. MSRV floor unchanged.
+- New `docs/DEPENDENCIES.md` records the bump policy and the living list of deliberately-deferred major bumps with the reasoning for each (axum 0.8, sqlx 0.9, RustCrypto 0.11/0.13/0.13, rumqttc 0.25 rejected for aws-lc-rs, React 19, Vite 8, lucide-react 1.x, recharts 3, etc.).
+
+### Changed
+- Frontend dev dep `jsdom` bumped 25 → 29 (test-only; all 32 vitest tests pass on the new resolver).
 
 ---
 
