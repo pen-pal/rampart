@@ -85,9 +85,24 @@ Every probe supports per-monitor intervals, timeouts, retries, and re-alerts.
 Liquid-templated subject + body, per-channel cooldown, HMAC-signed Generic Webhooks, and tag-based auto-routing.
 
 <details>
-<summary><strong>Click to expand the full list of 130 channels</strong></summary>
+<summary><strong>Click to expand all 130 channels — grouped by category</strong></summary>
 
-Slack · Discord · Telegram · Teams · Email/SMTP · Pushover · Gotify · ntfy · PagerDuty · Mattermost · Rocket.Chat · Twilio SMS · Matrix · Google Chat · WeCom · DingTalk · Feishu · Line · Bark · Pushbullet · SendGrid · Resend · Brevo · Mailgun · Mailjet · Postmark · Mandrill · SparkPost · Opsgenie · PagerTree · Squadcast · Signal · Zulip · Lark · GoAlert · Alerta · AlertNow · SIGNL4 · Heii On-Call · ServerChan · PushPlus · PushDeer · Aliyun SMS · Mastodon · Pumble · Bitrix24 · Stackfield · Splunk On-Call · Grafana OnCall · Home Assistant · ClickSend · 46elks · CallMeBot · Telnyx · Notifery · WAHA · Threema · Bale · Pushy · ZohoCliq · SmsManager · SMSEagle · Octopush · Whapi · 360messenger · Evolution · Flock · SerwerSMS · SMSPlanet · SMSC.ru · Cellsynt · seven.io · GtxMessaging · Onesender · PromoSMS · SMSPartner · SMS.ir · FreeMobile · FlashDuty · Teltonika · Kook · Nostr · OneBot · OneChat · MAX · Halo PSA · Jira SM · SpugPush · WPush · VK · YZJ · Google Sheets · Gorush · Fluxer · Splash · MessageBird · Plivo · Vonage · Bandwidth · Webex · Pushcut · SMSGlobal · AlertOps · Spike.sh · Zenduty · RingCentral · iLert · Linear · ClickUp · Trello · GitHub Issue · GitLab Issue · Asana · Notion · Sentry · Rollbar · Honeybadger · Healthchecks.io · BetterStack · Statuspage.io · Datadog Events · New Relic Events · AWS SNS · Azure Service Bus · GCP Pub/Sub · Apprise gateway · Generic Webhook (HMAC signed) · Web Push (browser, RFC 8291)
+<br/>
+
+| Category | Channels |
+| :--- | :--- |
+| 💬 **Team chat** | Slack · Discord · Microsoft Teams · Mattermost · Rocket.Chat · Matrix · Google Chat · Zulip · Pumble · Lark · Webex · Flock · ZohoCliq · Bitrix24 · Stackfield · MAX · Kook · OneChat · OneBot |
+| 📨 **Telegram & friends** | Telegram · Signal · WhatsApp via WAHA · Threema · Mastodon · Nostr · Pushy · Pushbullet · Pushcut · Bale |
+| 🇨🇳 **APAC chat / push** | WeCom · DingTalk · Feishu · Line · Bark · ServerChan · PushPlus · PushDeer · SpugPush · WPush · YZJ · VK |
+| 📱 **Mobile push** | Pushover · Gotify · ntfy · Notifery · Onesender · Gorush · Fluxer · Splash · Evolution |
+| 📧 **Email (transactional)** | Generic SMTP · SendGrid · Resend · Brevo · Mailgun · Mailjet · Postmark · Mandrill · SparkPost |
+| 📞 **SMS providers** | Twilio · Aliyun SMS · ClickSend · 46elks · CallMeBot · Telnyx · MessageBird · Plivo · Vonage · Bandwidth · SMSEagle · Octopush · SerwerSMS · SMSPlanet · SMSC.ru · Cellsynt · seven.io · GtxMessaging · PromoSMS · SMSPartner · SMS.ir · FreeMobile · SMSGlobal · SmsManager · Teltonika · Whapi · 360messenger |
+| 🚨 **Incident & on-call** | PagerDuty · Opsgenie · PagerTree · Squadcast · GoAlert · Alerta · AlertNow · SIGNL4 · Heii On-Call · Splunk On-Call · Grafana OnCall · AlertOps · Spike.sh · Zenduty · RingCentral · iLert · FlashDuty · Halo PSA · Jira Service Management |
+| 🎫 **Issue trackers / PM** | Linear · ClickUp · Trello · GitHub Issues · GitLab Issues · Asana · Notion |
+| 📊 **Observability** | Sentry · Rollbar · Honeybadger · Healthchecks.io · BetterStack · Statuspage.io · Datadog Events · New Relic Events |
+| ☁️ **Cloud event bus** | AWS SNS · Azure Service Bus · GCP Pub/Sub |
+| 🏠 **Smart home / IoT** | Home Assistant |
+| 🧰 **Programmable / catch-all** | Apprise gateway · Generic Webhook (HMAC-signed) · Web Push (browser, RFC 8291) · Google Sheets (Apps Script) |
 
 </details>
 
@@ -296,3 +311,88 @@ Modifications you serve over the network must be shared back. Run it on your own
   <br/>
   <sub><strong>Built with 🦀 Rust by the Rampart community.</strong></sub>
 </div>
+
+
+## ❓ FAQ & Troubleshooting
+
+<details>
+<summary><strong>How do I reset the admin password if I'm locked out?</strong></summary>
+
+Since Rampart uses a standard Postgres backend, you can reset the admin password directly via the database if you lose access:
+
+```bash
+# 1. Open a shell in your postgres container
+docker exec -it rampart-postgres-1 psql -U rampart
+
+# 2. Delete the existing admin user (replace 'admin@local' with your email)
+DELETE FROM users WHERE email = 'admin@local';
+
+# 3. Exit psql
+\q
+
+# 4. Restart the app and visit the UI to recreate the admin account
+docker compose restart rampart
+```
+</details>
+
+<details>
+<summary><strong>How do I backup my data?</strong></summary>
+
+Because Rampart relies entirely on Postgres, backing up is trivial. Just use standard Postgres tools:
+
+```bash
+# Dump the database
+docker exec rampart-postgres-1 pg_dump -U rampart rampart > backup_$(date +%F).sql
+
+# Restore from a backup
+cat backup_2024-01-01.sql | docker exec -i rampart-postgres-1 psql -U rampart rampart
+```
+*Tip: Automate this with a simple cron job or a tool like [ProBackup](https://github.com/probackup-nl/probackup).*
+</details>
+
+<details>
+<summary><strong>Why isn't my Generic Webhook firing?</strong></summary>
+
+1. **Check the URL:** Ensure the target URL is reachable from the Rampart container. If you are testing against `localhost`, remember that inside Docker, `localhost` means the container itself. Use `host.docker.internal` or your host's LAN IP.
+2. **Check HMAC:** If you enabled HMAC signing, ensure the receiving server is calculating the signature exactly the same way (usually `HMAC-SHA256` of the raw JSON body).
+3. **Check Logs:** Run `docker compose logs -f rampart | grep notifier` to see if the HTTP request is returning a non-2xx status code.
+</details>
+
+---
+
+## 🗺️ Roadmap
+
+Rampart is feature-complete for 95% of uptime monitoring use cases, but we are actively working on:
+
+- [ ] **Prometheus Exporter:** Expose a `/metrics` endpoint so you can scrape Rampart's internal health and probe latencies into your existing Grafana stack.
+- [ ] **Public API Rate Limiting:** Add configurable rate limits to the `/v1` API to prevent abuse if exposed to the public internet.
+- [ ] **Webhook Payload Builder:** A visual UI for testing and formatting Liquid templates before saving them to a notification channel.
+- [ ] **Read-Only Roles:** Allow team members to view dashboards and status pages without being able to mutate monitors or delete data.
+
+*Have a feature request? [Open a Discussion](https://github.com/rampart-io/rampart/discussions) before submitting a PR to ensure it aligns with our scope.*
+
+---
+
+## 🤝 Contributing & Community
+
+We love contributions! Whether it's fixing a typo, adding a new probe kind, or improving the UI, your help is welcome. 
+
+Please read [**CONTRIBUTING.md**](CONTRIBUTING.md) for guidelines on how to set up your dev environment, our coding standards, and how to add new probes or notification channels.
+
+- 🐛 **Found a bug?** [Open an Issue](https://github.com/rampart-io/rampart/issues/new?template=bug_report.md).
+- 💡 **Have an idea?** [Start a Discussion](https://github.com/rampart-io/rampart/discussions).
+- 💬 **Need help?** Join our [Discord Server](https://discord.gg/rampart) or ask in [GitHub Discussions](https://github.com/rampart-io/rampart/discussions).
+
+---
+
+## ⭐ Star History
+
+If you find Rampart useful, please consider giving it a star! It helps us grow the community and keeps us motivated.
+
+<a href="https://star-history.com/#rampart-io/rampart&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=rampart-io/rampart&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=rampart-io/rampart&type=Date" />
+    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=rampart-io/rampart&type=Date" />
+  </picture>
+</a>

@@ -1,50 +1,86 @@
+# Dependabot policy.
+#
+# Goal: keep dependencies fresh without flooding the PR list. Dependabot
+# v2 groups bundle multiple updates into a single PR per group/week.
+# We split each ecosystem into two groups by `applies-to`:
+#
+#   * version-updates  — routine bumps (minor / patch / major), one PR
+#                        per ecosystem per week. Majors land grouped so
+#                        an obvious cluster like "axum 0.7 → 0.8 + tower
+#                        0.5 → 0.6" arrives together instead of as ten
+#                        racing PRs.
+#   * security-updates — vulnerability fixes. Separate group so a CVE
+#                        bump doesn't sit behind a routine major-bump
+#                        review.
+#
+# `open-pull-requests-limit: 5` (down from 10) puts a hard ceiling on
+# the queue per ecosystem — Dependabot reuses slots in priority order
+# when more updates exist.
+
 version: 2
 updates:
-  # Rust workspace
+  # ── Rust workspace ─────────────────────────────────────────────────
   - package-ecosystem: cargo
     directory: "/backend"
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     labels: ["dependencies", "area: backend"]
-    groups:
-      # Batch low-risk patch/minor bumps so we don't drown in PRs.
-      rust-minor-patch:
-        update-types: ["minor", "patch"]
     commit-message:
       prefix: "deps(cargo)"
+    groups:
+      cargo-routine:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch", "major"]
+      cargo-security:
+        applies-to: security-updates
+        patterns: ["*"]
 
-  # Frontend
+  # ── Frontend ───────────────────────────────────────────────────────
   - package-ecosystem: npm
     directory: "/frontend"
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     labels: ["dependencies", "area: frontend"]
-    groups:
-      npm-minor-patch:
-        update-types: ["minor", "patch"]
     commit-message:
       prefix: "deps(npm)"
+    groups:
+      npm-routine:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch", "major"]
+      npm-security:
+        applies-to: security-updates
+        patterns: ["*"]
 
-  # GitHub Actions
+  # ── GitHub Actions ─────────────────────────────────────────────────
+  # Workflow action versions drift quietly; group monthly so the noise
+  # is one PR not ten.
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
+    open-pull-requests-limit: 3
     labels: ["dependencies", "area: ci"]
     commit-message:
-      prefix: "deps(actions)"
+      prefix: "ci(actions)"
+    groups:
+      actions-all:
+        patterns: ["*"]
 
-  # Dockerfile base images
+  # ── Docker base images ─────────────────────────────────────────────
   - package-ecosystem: docker
     directory: "/"
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
+    open-pull-requests-limit: 2
     labels: ["dependencies", "area: docker"]
     commit-message:
-      prefix: "deps(docker)"
+      prefix: "docker"
+    groups:
+      docker-all:
+        patterns: ["*"]
