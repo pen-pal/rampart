@@ -59,6 +59,10 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 ### Security
 - `RUSTSEC-2023-0071` (the `rsa` Marvin-timing-sidechannel advisory) cleared. The sqlx 0.9 bump reworked the MySQL auth path so the pure-Rust `rsa` crate is no longer in the dependency tree. Removed from `deny.toml`'s ignore list and recorded under "Progress" in `docs/SECURITY-DEBT.md`. The remaining four `rustls-webpki 0.102` advisories (via `rumqttc` 0.24) still apply — see security-debt for the upstream blocker.
 
+### Changed
+- Backend dep `x509-parser` bumped 0.16 → 0.18. Single call-site in `rampart-checker/src/tls.rs` (`X509Certificate::from_der`) carries across the bump; no source changes.
+- `generic-array = "=0.14.7"` added as a direct dep on `rampart-notifier` to prevent `cargo update` from re-bumping it. 0.14.9 marks the slice-accessor API used by `webpush_crypto.rs` as deprecated, which `-D warnings` in CI converts to a hard error. The constraint stays until the RustCrypto coordinated stable lands.
+
 ---
 
 ## [0.1.0] — 2026-06-03
