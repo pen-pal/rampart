@@ -48,7 +48,12 @@ jobs:
         - language: javascript-typescript
           build-mode: none
         - language: rust
-          build-mode: none
+          # `manual` so the extractor hooks into rustc during a real
+          # `cargo build` — without that the extractor can only parse
+          # sources and call-target / type resolution rates land below
+          # CodeQL's quality thresholds (49% calls / 51% types in
+          # `build-mode: none`).
+          build-mode: manual
         # CodeQL supports the following values keywords for 'language': 'actions', 'c-cpp', 'csharp', 'go', 'java-kotlin', 'javascript-typescript', 'python', 'ruby', 'rust', 'swift'
         # Use `c-cpp` to analyze code written in C, C++ or both
         # Use 'java-kotlin' to analyze code written in Java, Kotlin or both
@@ -80,22 +85,28 @@ jobs:
         # For more details on CodeQL's query packs, refer to: https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
         # queries: security-extended,security-and-quality
 
-    # If the analyze step fails for one of the languages you are analyzing with
-    # "We were unable to automatically build your code", modify the matrix above
-    # to set the build mode to "manual" for that language. Then modify this step
-    # to build your code.
-    # ℹ️ Command-line programs to run using the OS shell.
-    # 📚 See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
-    - name: Run manual build steps
-      if: matrix.build-mode == 'manual'
-      shell: bash
-      run: |
-        echo 'If you are using a "manual" build mode for one or more of the' \
-          'languages you are analyzing, replace this with the commands to build' \
-          'your code, for example:'
-        echo '  make bootstrap'
-        echo '  make release'
-        exit 1
+    # Rust manual build: run a real cargo build so the extractor sees the
+    # full crate graph + rustc-resolved types. Without this CodeQL's Rust
+    # quality metrics dip below threshold ("Percentage of calls with call
+    # target: 49% / threshold 50%") and the analysis flags as low-quality.
+    - name: Install Rust toolchain
+      if: matrix.language == 'rust'
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache cargo
+      if: matrix.language == 'rust'
+      uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: backend
+
+    - name: Build Rust workspace for CodeQL extraction
+      if: matrix.language == 'rust'
+      working-directory: backend
+      env:
+        # Use the committed sqlx offline cache; we don't bring up Postgres
+        # for the CodeQL job (extraction doesn't need to run queries).
+        SQLX_OFFLINE: 'true'
+      run: cargo build --workspace --all-targets
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4
