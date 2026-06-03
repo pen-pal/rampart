@@ -86,6 +86,11 @@ uuid = { version = "1.10", features = ["v4", "v7", "serde"] }
 time = { version = "0.3", features = ["serde", "serde-well-known", "macros", "formatting"] }
 
 # http client (for probe runners + outbound notifications)
+# Held at 0.12 — reqwest 0.13's `rustls` feature routes through
+# `hyper-rustls` 0.27 which defaults to `aws-lc-rs` (C crypto), and
+# the public feature set on the crate doesn't currently expose a
+# clean ring-only path. See `docs/DEPENDENCIES.md` for the full
+# rejection rationale and the conditions under which to revisit.
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "gzip", "stream"] }
 
 # SMTP for the email notification channel
