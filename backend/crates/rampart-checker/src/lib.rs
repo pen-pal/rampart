@@ -32,6 +32,7 @@ pub mod redis;
 pub mod steam;
 pub mod tcp;
 pub mod tls;
+pub mod websocket;
 
 use async_trait::async_trait;
 use rampart_core::{Heartbeat, Monitor, MonitorId, MonitorKind, MonitorStatus};
@@ -65,6 +66,7 @@ pub struct Probes {
     mongodb: mongodb::MongodbProbe,
     memcached: memcached::MemcachedProbe,
     ntp: ntp::NtpProbe,
+    websocket: websocket::WebsocketProbe,
     grpc: grpc::GrpcProbe,
     mqtt: mqtt::MqttProbe,
     docker: docker::DockerProbe,
@@ -91,6 +93,7 @@ impl Probes {
             mongodb: mongodb::MongodbProbe::new(),
             memcached: memcached::MemcachedProbe::new(),
             ntp: ntp::NtpProbe::new(),
+            websocket: websocket::WebsocketProbe::new(),
             grpc: grpc::GrpcProbe::new(),
             mqtt: mqtt::MqttProbe::new(),
             docker: docker::DockerProbe::new(),
@@ -134,6 +137,7 @@ impl Probes {
             MonitorKind::Mongodb => self.mongodb.run(monitor).await,
             MonitorKind::Memcached => self.memcached.run(monitor).await,
             MonitorKind::Ntp => self.ntp.run(monitor).await,
+            MonitorKind::Websocket => self.websocket.run(monitor).await,
             MonitorKind::Grpc => self.grpc.run(monitor).await,
             MonitorKind::Mqtt => self.mqtt.run(monitor).await,
             MonitorKind::Docker => self.docker.run(monitor).await,

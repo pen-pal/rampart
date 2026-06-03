@@ -74,7 +74,7 @@ overridable via `config.expect`). `memcached.rs` does the same shape on
 a request/response basis — writes `version\r\n` first, then asserts the
 response starts with `VERSION `. `ntp.rs` is the lone UDP probe — it
 sends a minimal SNTPv4 client packet and confirms a server-mode reply
-with non-zero stratum. 28 kinds total.
+with non-zero stratum. 29 kinds total.
 
 Probe-kind dispatch lives in `lib.rs::Probes::run`. Adding a new kind:
 new file → register in `Probes::new` → add arm in `run`.
@@ -216,7 +216,7 @@ Key tables:
 | `sessions`                     | server-side sessions keyed by UUID v4            |
 | `api_keys`                     | SHA-256 hash + 8-char prefix + scopes            |
 | `totp_recovery_codes`          | hashed, single-use                               |
-| `monitors`                     | 28 kinds, scheduling, HTTP opts, push_token, cert snapshot, `group_id` |
+| `monitors`                     | 29 kinds, scheduling, HTTP opts, push_token, cert snapshot, `group_id` |
 | `monitor_tags`                 | M2M with `tags`                                  |
 | `monitor_groups`               | folders — dashboard grouping (FK `ON DELETE SET NULL`) |
 | `monitor_dependencies`         | self-referential DAG for alert suppression       |

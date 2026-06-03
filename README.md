@@ -6,13 +6,13 @@
 
 ### Self-hosted uptime monitoring you can actually trust.
 
-**One Rust binary. One Postgres. 28 probe kinds. 130 notification channels.**<br/>
+**One Rust binary. One Postgres. 29 probe kinds. 130 notification channels.**<br/>
 Public status pages • Live SSE updates • Folder & tag routing • Dependency-aware alerts • 2FA • Audit logs.
 
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 [![Built with Rust](https://img.shields.io/badge/built%20with-Rust-dea584.svg?logo=rust)](https://www.rust-lang.org/)
 [![Postgres](https://img.shields.io/badge/database-Postgres%2014%2B-336791.svg?logo=postgresql)](https://www.postgresql.org/)
-[![Probes](https://img.shields.io/badge/probes-28-brightgreen.svg)](#-28-probe-kinds)
+[![Probes](https://img.shields.io/badge/probes-29-brightgreen.svg)](#-29-probe-kinds)
 [![Channels](https://img.shields.io/badge/channels-130-brightgreen.svg)](#-130-notification-channels)
 [![Bundle](https://img.shields.io/badge/binary-~10%20MB-informational.svg)](#-why-rampart)
 
@@ -66,7 +66,7 @@ We built Rampart because we were tired of choosing between bloated SaaS tools an
 
 ## ✨ Features at a Glance
 
-### 🔍 28 Probe Kinds
+### 🔍 29 Probe Kinds
 Every probe supports per-monitor intervals, timeouts, retries, and re-alerts. 
 
 | Category | Supported Kinds |
@@ -118,7 +118,7 @@ rampart/
 │   └── crates/
 │       ├── rampart-core                  # pure types, no I/O
 │       ├── rampart-db                    # sqlx repository layer
-│       ├── rampart-checker               # probe runners (28 kinds)
+│       ├── rampart-checker               # probe runners (29 kinds)
 │       ├── rampart-scheduler             # per-monitor tokio tasks + batched writer
 │       ├── rampart-notifier              # channel fan-out (130 adapters)
 │       └── rampart-api                   # axum HTTP server (embeds React)

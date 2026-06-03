@@ -126,6 +126,7 @@ tonic            = { version = "0.12", default-features = false, features = ["tr
 tonic-health     = { version = "0.12", default-features = false, features = ["transport"] }
 prost            = "0.13"
 rumqttc          = { version = "0.24", default-features = false, features = ["use-rustls"] }
+tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
 # Docker over the local socket or remote HTTP API.
 bollard          = { version = "0.17", default-features = false, features = ["ssl"] }
 md-5             = "0.10"

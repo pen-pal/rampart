@@ -50,6 +50,11 @@ pub enum MonitorKind {
     /// NTP probe — sends a minimal SNTPv4 client packet over UDP and
     /// asserts the server responds (mode=server, stratum != 0).
     Ntp,
+    /// WebSocket probe — opens an `ws://` / `wss://` handshake and
+    /// asserts the server completes RFC 6455's upgrade exchange.
+    /// Optional config: `expect` substring required in the first text
+    /// frame the server sends (skipped when absent).
+    Websocket,
     // registry
     Domain,
     /// Headless-browser-rendered check. We don't ship a Chromium binary

@@ -48,7 +48,8 @@
                 "ftp",
                 "pop3",
                 "memcached",
-                "ntp"
+                "ntp",
+                "websocket"
               ]
             }
           }
@@ -240,7 +241,8 @@
                 "ftp",
                 "pop3",
                 "memcached",
-                "ntp"
+                "ntp",
+                "websocket"
               ]
             }
           }
