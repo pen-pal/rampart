@@ -61,7 +61,8 @@
                 "pop3",
                 "memcached",
                 "ntp",
-                "websocket"
+                "websocket",
+                "nats"
               ]
             }
           }
@@ -422,7 +423,8 @@
                 "pop3",
                 "memcached",
                 "ntp",
-                "websocket"
+                "websocket",
+                "nats"
               ]
             }
           }

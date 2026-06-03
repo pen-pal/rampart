@@ -39,3 +39,4 @@ tokio-tungstenite = { workspace = true }
 futures          = { workspace = true }
 bollard          = { workspace = true }
 md-5             = { workspace = true }
+async-nats       = { workspace = true }

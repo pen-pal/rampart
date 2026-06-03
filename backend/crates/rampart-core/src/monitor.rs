@@ -55,6 +55,10 @@ pub enum MonitorKind {
     /// Optional config: `expect` substring required in the first text
     /// frame the server sends (skipped when absent).
     Websocket,
+    /// NATS probe — opens a TCP connection to a NATS server, runs the
+    /// INFO / CONNECT / PING handshake via the official `async-nats`
+    /// client, asserts a successful flush. URL is `nats://host:port`.
+    Nats,
     // registry
     Domain,
     /// Headless-browser-rendered check. We don't ship a Chromium binary
