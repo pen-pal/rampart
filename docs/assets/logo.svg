@@ -1,22 +1,68 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Rampart wordmark — shield silhouette evoking the "rampart" defensive
-     wall, with a stylised "R" cut into the negative space. Accent colour
-     #14b8a6 matches the app's --accent CSS variable so the README hero
-     reads as the same brand as the dashboard screenshot below it. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" role="img" aria-label="Rampart">
+<!-- Rampart brand mark.
+     Crenellated shield: the "rampart" (battlemented defensive wall) read.
+     ECG pulse cut across the centre: the uptime-monitor read.
+     Teal gradient #5eead4 → #0d9488 matches the app's --accent ramp so
+     the README hero reads as the same brand as the dashboard screenshot. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Rampart">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#2dd4bf"/>
-      <stop offset="1" stop-color="#0d9488"/>
+    <linearGradient id="shieldFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#5eead4"/>
+      <stop offset="55%"  stop-color="#14b8a6"/>
+      <stop offset="100%" stop-color="#0d9488"/>
+    </linearGradient>
+    <linearGradient id="pulseStroke" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#f0fdfa"/>
+      <stop offset="100%" stop-color="#ffffff"/>
     </linearGradient>
   </defs>
-  <!-- shield -->
-  <path d="M48 4 L86 16 V44 C86 66 70 84 48 92 C26 84 10 66 10 44 V16 Z"
-        fill="url(#bg)" stroke="#0f766e" stroke-width="2" stroke-linejoin="round"/>
-  <!-- crenellation across the top -->
-  <path d="M16 18 H22 V14 H30 V18 H36 V14 H44 V18 H52 V14 H60 V18 H66 V14 H74 V18 H80 V24 H16 Z"
-        fill="#0f766e"/>
-  <!-- "R" mark -->
-  <path d="M34 36 H54 a10 10 0 0 1 0 20 H46 L58 76 H50 L40 58 H42 V76 H34 Z M42 44 V50 H52 a3 3 0 0 0 0 -6 Z"
-        fill="#ffffff"/>
+
+  <!-- Battlemented shield body. Top edge crenellation: 5 merlons (height 8)
+       alternated with 4 crenels (width 9), framed by the shield sides. -->
+  <path
+    d="M 16 12
+       h 12 v 8 h 9 v -8
+       h 12 v 8 h 9 v -8
+       h 12 v 8 h 9 v -8
+       h 12 v 8 h 9 v -8
+       h 12
+       V 60
+       C 112 92, 94 110, 64 120
+       C 34 110, 16 92, 16 60
+       Z"
+    fill="url(#shieldFill)"
+    stroke="#0f766e"
+    stroke-width="2.5"
+    stroke-linejoin="round"
+    stroke-linecap="round"
+  />
+
+  <!-- Mortar lines between merlons — subtle, suggests stone-stacked depth. -->
+  <g stroke="#0f766e" stroke-width="1.2" stroke-linecap="round" opacity="0.55">
+    <line x1="37" y1="12" x2="37" y2="20"/>
+    <line x1="58" y1="12" x2="58" y2="20"/>
+    <line x1="79" y1="12" x2="79" y2="20"/>
+    <line x1="100" y1="12" x2="100" y2="20"/>
+  </g>
+
+  <!-- ECG pulse: flat-line → small dip → sharp R-peak → return → flat-line.
+       Stroke width tuned so the pulse reads clearly at 32px favicon size. -->
+  <path
+    d="M 26 78
+       L 44 78
+       L 50 70
+       L 56 90
+       L 62 54
+       L 68 90
+       L 74 78
+       L 102 78"
+    fill="none"
+    stroke="url(#pulseStroke)"
+    stroke-width="4"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- Pulse baseline tick at the start of the trace. -->
+  <circle cx="26" cy="78" r="2.4" fill="#ffffff"/>
 </svg>
