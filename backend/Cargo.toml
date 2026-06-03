@@ -38,7 +38,7 @@ tokio = { version = "1.40", features = ["full"] }
 
 # web
 axum       = { version = "0.7", features = ["macros", "http2", "tracing"] }
-axum-extra = { version = "0.9", features = ["cookie", "typed-header"] }
+axum-extra = { version = "0.12", features = ["cookie", "typed-header"] }
 tower      = { version = "0.5", features = ["util", "timeout", "limit"] }
 tower-http = { version = "0.6", features = ["cors", "trace", "compression-gzip", "timeout", "request-id"] }
 hyper      = { version = "1.4", features = ["full"] }
