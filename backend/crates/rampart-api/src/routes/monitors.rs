@@ -181,6 +181,8 @@ enum BulkAction {
     SetGroup { group_id: Option<String> },
     AddTag { tag_id: String },
     RemoveTag { tag_id: String },
+    AttachChannel { notification_id: String },
+    DetachChannel { notification_id: String },
 }
 
 #[derive(Debug, Deserialize)]
@@ -212,7 +214,7 @@ async fn bulk(
         return Err(ApiError::BadRequest("too many monitors (max 500)".into()));
     }
 
-    use rampart_core::ids::{MonitorGroupId, TagId};
+    use rampart_core::ids::{MonitorGroupId, NotificationId, TagId};
     // Resolve action-level params once before the loop.
     let group: Option<Option<MonitorGroupId>> = match &req.action {
         BulkAction::SetGroup { group_id } => Some(match group_id.as_deref() {
@@ -230,6 +232,15 @@ async fn bulk(
             Uuid::from_str(tag_id)
                 .map(TagId::from_uuid)
                 .map_err(|_| ApiError::BadRequest("invalid tag_id".into()))?,
+        ),
+        _ => None,
+    };
+    let notif: Option<NotificationId> = match &req.action {
+        BulkAction::AttachChannel { notification_id }
+        | BulkAction::DetachChannel { notification_id } => Some(
+            Uuid::from_str(notification_id)
+                .map(NotificationId::from_uuid)
+                .map_err(|_| ApiError::BadRequest("invalid notification_id".into()))?,
         ),
         _ => None,
     };
@@ -254,6 +265,12 @@ async fn bulk(
             }
             BulkAction::AddTag { .. } => rampart_db::tags::attach(pool, mid, tag.unwrap()).await,
             BulkAction::RemoveTag { .. } => rampart_db::tags::detach(pool, mid, tag.unwrap()).await,
+            BulkAction::AttachChannel { .. } => {
+                rampart_db::notifications::attach(pool, mid, notif.unwrap()).await
+            }
+            BulkAction::DetachChannel { .. } => {
+                rampart_db::notifications::detach(pool, mid, notif.unwrap()).await
+            }
         };
         match res {
             Ok(()) => ok += 1,
@@ -269,6 +286,8 @@ async fn bulk(
         BulkAction::SetGroup { .. } => "set_group",
         BulkAction::AddTag { .. } => "add_tag",
         BulkAction::RemoveTag { .. } => "remove_tag",
+        BulkAction::AttachChannel { .. } => "attach_channel",
+        BulkAction::DetachChannel { .. } => "detach_channel",
     };
     crate::audit::record(
         pool,

@@ -259,6 +259,7 @@ export default function Dashboard({ user, onLogout } = {}) {
 
   const monitorsState = useApi(() => api.monitors.list(),         [liveTick], { pollMs: 30_000 });
   const groupsState   = useApi(() => api.monitorGroups.list(),     [],         { pollMs: 60_000 });
+  const channelsState = useApi(() => api.notifications.list(),     [],         { pollMs: 60_000 });
   const [windowSec, setWindowSec] = useState(86400); // 1h | 24h | 7d | 30d
   // small helper so the summary-card label stays in sync with the picker.
   // eslint-disable-next-line no-inner-declarations
@@ -815,6 +816,29 @@ export default function Dashboard({ user, onLogout } = {}) {
                     return out;
                   })()}
                   <option value="__ungroup__">Ungrouped</option>
+                </select>
+                <select className="select" style={{ width: 'auto', padding: '4px 8px', fontSize: 12 }} disabled={bulkBusy}
+                  value="__placeholder__"
+                  onChange={e => {
+                    const v = e.target.value;
+                    if (v === '__placeholder__') return;
+                    if (v.startsWith('detach:')) {
+                      runBulk({ action: 'detach_channel', notification_id: v.slice('detach:'.length) });
+                    } else {
+                      runBulk({ action: 'attach_channel', notification_id: v });
+                    }
+                  }}>
+                  <option value="__placeholder__">Channel…</option>
+                  <optgroup label="Attach">
+                    {(channelsState.data || []).map(c => (
+                      <option key={`a-${c.id}`} value={c.id}>{c.name}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Detach">
+                    {(channelsState.data || []).map(c => (
+                      <option key={`d-${c.id}`} value={`detach:${c.id}`}>{c.name}</option>
+                    ))}
+                  </optgroup>
                 </select>
                 <button className="btn btn-danger" disabled={bulkBusy}
                   onClick={() => runBulk({ action: 'delete' }, `Delete ${selected.size} monitor(s) and all their heartbeats? This cannot be undone.`)}>
