@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # ─── stage 1: build the React bundle ─────────────────────────────────────
-FROM node:20-alpine AS frontend
+FROM node:26-alpine AS frontend
 WORKDIR /src
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm ci
