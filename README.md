@@ -13,6 +13,10 @@ One Rust binary. One Postgres. 28 probe kinds. 130 notification channels. Public
 [![Notification channels](https://img.shields.io/badge/channels-130-brightgreen.svg)](#notifications)
 [![Bundle](https://img.shields.io/badge/binary-~10%20MB-informational.svg)](#why-rampart)
 
+<br/>
+
+<img src="docs/assets/dashboard.png" alt="Rampart dashboard — folder tree sidebar, mixed-state health banner, live response-time chart" width="900"/>
+
 </div>
 
 ---
