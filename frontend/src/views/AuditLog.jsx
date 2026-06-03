@@ -1,7 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ChevronLeft, Loader2, AlertCircle, ScrollText, ChevronDown,
+  ChevronLeft, Loader2, AlertCircle, ScrollText, ChevronDown, Download,
 } from 'lucide-react';
+
+function csvHref(kind, action) {
+  const qs = new URLSearchParams();
+  if (kind)          qs.set('kind',   kind);
+  if (action.trim()) qs.set('action', action.trim());
+  const tail = qs.toString();
+  return `/v1/audit-log/csv${tail ? `?${tail}` : ''}`;
+}
 import { api, useApi, formatRelative, offsetDateTimeArrayToDate } from '../lib/api.js';
 
 const css = `
@@ -101,6 +109,11 @@ export default function AuditLog() {
               <option value="">All kinds</option>
               {KIND_OPTIONS.filter(Boolean).map(k => <option key={k} value={k}>{k}</option>)}
             </select>
+            <a className="btn" download
+              href={csvHref(kind, action)}
+              title="Download up to 50,000 entries matching the current filters as CSV">
+              <Download size={13}/> CSV
+            </a>
           </div>
         </div>
 
