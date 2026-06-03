@@ -423,14 +423,16 @@ export default function Dashboard({ user, onLogout } = {}) {
         background: 'var(--surface)', position: 'sticky', top: 0, zIndex: 10
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: 8,
-            background: 'linear-gradient(135deg, var(--accent), var(--accent-2))',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'white', boxShadow: '0 2px 8px rgba(20,184,166,.35)'
-          }}>
-            <Activity size={15} strokeWidth={2.4}/>
-          </div>
+          {/* Brand mark — inline copy of docs/assets/logo.svg (slate shield
+              + orange ECG pulse). Kept inline rather than fetched via an
+              <img> so it inherits text colour transitions and renders
+              without an extra HTTP request from the embedded bundle. */}
+          <svg width="28" height="28" viewBox="0 0 24 24" role="img" aria-label="Rampart">
+            <path fill="#3b414c" d="M12 2 L20 4 V12 C20 17 17 21 12 22 C7 21 4 17 4 12 V4 Z"/>
+            <path fill="none" stroke="#d27a3c" strokeWidth="1.6"
+                  strokeLinecap="round" strokeLinejoin="round"
+                  d="M6 13 H9 L11 9 L13 16 L15 7 L17 13 H18"/>
+          </svg>
           <span style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-.01em' }}>Rampart</span>
           <span className="pill" style={{ background: 'var(--surface-2)', color: 'var(--text-3)' }}>v0.4.0</span>
         </div>

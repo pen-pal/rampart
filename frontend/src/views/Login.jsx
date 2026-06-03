@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Activity, LogIn, UserPlus, Loader2 } from 'lucide-react';
+import { LogIn, UserPlus, Loader2 } from 'lucide-react';
 import { api, useApi } from '../lib/api.js';
 
 const css = `
@@ -30,12 +30,11 @@ const css = `
     display: flex; align-items: center; gap: 10px;
     margin-bottom: 24px;
   }
-  .auth-brand-mark {
-    width: 32px; height: 32px; border-radius: 8px;
-    background: linear-gradient(135deg, var(--accent), var(--accent-2));
-    display: flex; align-items: center; justify-content: center;
-    color: white; box-shadow: 0 2px 8px rgba(20,184,166,.35);
-  }
+  /* Brand mark — inline copy of docs/assets/logo.svg. Slate shield with
+     an orange ECG-pulse cut across the centre. Matches the README hero +
+     favicon + GitHub social-preview mark exactly so the auth screen sets
+     the same brand frame the dashboard / marketing surfaces use. */
+  .auth-brand-mark { width: 32px; height: 32px; }
 
   .field { margin-bottom: 16px; }
   .field-label {
@@ -171,9 +170,12 @@ export default function Login() {
       <style>{css}</style>
       <div className="auth-card">
         <div className="auth-brand">
-          <div className="auth-brand-mark">
-            <Activity size={17} strokeWidth={2.4}/>
-          </div>
+          <svg className="auth-brand-mark" viewBox="0 0 24 24" role="img" aria-label="Rampart">
+            <path fill="#3b414c" d="M12 2 L20 4 V12 C20 17 17 21 12 22 C7 21 4 17 4 12 V4 Z"/>
+            <path fill="none" stroke="#d27a3c" strokeWidth="1.6"
+                  strokeLinecap="round" strokeLinejoin="round"
+                  d="M6 13 H9 L11 9 L13 16 L15 7 L17 13 H18"/>
+          </svg>
           <div>
             <div style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-.01em' }}>Rampart</div>
             <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>
