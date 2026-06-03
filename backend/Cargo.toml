@@ -129,7 +129,7 @@ rumqttc          = { version = "0.24", default-features = false, features = ["us
 tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
 # Docker over the local socket or remote HTTP API.
 bollard          = { version = "0.17", default-features = false, features = ["ssl"] }
-md-5             = "0.10"
+md-5             = "0.11"
 # Liquid templates for notification subject + body — familiar
 # `{{ … | filter }}` syntax with filters, conditionals, and loops.
 liquid           = "0.26"
