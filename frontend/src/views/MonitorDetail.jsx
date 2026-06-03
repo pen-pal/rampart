@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, ReferenceLine,
 } from 'recharts';
@@ -235,17 +235,44 @@ export default function MonitorDetail({ monitorId }) {
   const [testing, setTesting] = useState(false);
 
   const monitorState   = useApi(() => monitorId ? api.monitors.get(monitorId)         : Promise.resolve(null), [monitorId], { pollMs: 15_000 });
-  // 2000 = the backend's hard cap on this endpoint. Aligning lets the
-  // Heartbeats tab show as much history as the API will give us — a
-  // proper cursor-paged "Load more" would belong if monitors ever
-  // accumulate enough rows for 2000 to feel limiting.
+  // 2000 = the backend's hard cap on this endpoint. We poll the newest
+  // page every 10s and accumulate older pages on demand via the cursor
+  // "Load more" button below (the heartbeat tab footer).
   const heartbeatState = useApi(() => monitorId ? api.monitors.heartbeats(monitorId, 2000) : Promise.resolve([]), [monitorId], { pollMs: 10_000 });
+  const [olderHeartbeats, setOlderHeartbeats]   = useState([]);
+  const [loadingMore,     setLoadingMore]       = useState(false);
+  const [allLoaded,       setAllLoaded]         = useState(false);
+  // Reset accumulated older pages when the user navigates to a different
+  // monitor — otherwise old monitor's history bleeds into the next view.
+  useEffect(() => { setOlderHeartbeats([]); setAllLoaded(false); }, [monitorId]);
   const summaryState   = useApi(() => api.monitors.summary(86400),       [], { pollMs: 15_000 });
   const summaryState30 = useApi(() => api.monitors.summary(2_592_000),   [], { pollMs: 60_000 });
   const groupsState    = useApi(() => api.monitorGroups.list(),          [], { pollMs: 60_000 });
 
   const monitor = monitorState.data;
-  const heartbeats = heartbeatState.data || [];
+  // Combined view = freshly polled page + accumulated older pages.
+  // Order is descending-ts (newest first) like the backend returns.
+  const heartbeats = useMemo(
+    () => [...(heartbeatState.data || []), ...olderHeartbeats],
+    [heartbeatState.data, olderHeartbeats],
+  );
+
+  const loadMore = async () => {
+    if (loadingMore || heartbeats.length === 0) return;
+    const oldest = heartbeats[heartbeats.length - 1];
+    // Backend serialises OffsetDateTime as a numeric array; convert back
+    // to an ISO string for the cursor.
+    const ts = Array.isArray(oldest.ts)
+      ? offsetDateTimeArrayToDate(oldest.ts).toISOString()
+      : new Date(oldest.ts).toISOString();
+    setLoadingMore(true);
+    try {
+      const next = await api.monitors.heartbeats(monitor.id, 2000, ts);
+      if (!next || next.length === 0) setAllLoaded(true);
+      else setOlderHeartbeats(prev => [...prev, ...next]);
+    } catch (e) { alert(`Load more failed: ${e.message}`); }
+    finally { setLoadingMore(false); }
+  };
   const summary24h = (summaryState.data   || []).find(s => s.monitor_id === monitorId);
   const summary30d = (summaryState30.data || []).find(s => s.monitor_id === monitorId);
 
@@ -592,8 +619,15 @@ export default function MonitorDetail({ monitorId }) {
                 </div>
               );
             })}
-            <div style={{ padding: '12px 18px', textAlign: 'center', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text-3)' }}>
-              showing {filteredLog.length} of {heartbeats.length} loaded
+            <div style={{ padding: '12px 18px', textAlign: 'center', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text-3)', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12 }}>
+              <span>showing {filteredLog.length} of {heartbeats.length} loaded</span>
+              {!allLoaded && heartbeats.length > 0 && (
+                <button className="btn" style={{ padding: '4px 10px', fontSize: 11 }}
+                  onClick={loadMore} disabled={loadingMore}>
+                  {loadingMore ? <><Loader2 size={11} className="spin"/> Loading…</> : <>Load older</>}
+                </button>
+              )}
+              {allLoaded && <span style={{ fontStyle: 'italic' }}>all history loaded</span>}
             </div>
           </div>
 
@@ -673,8 +707,15 @@ export default function MonitorDetail({ monitorId }) {
                 </div>
               );
             })}
-            <div style={{ padding: '12px 22px', textAlign: 'center', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text-3)' }}>
-              Loaded the most recent {heartbeats.length} heartbeats — more land as the scheduler probes.
+            <div style={{ padding: '12px 22px', textAlign: 'center', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text-3)', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12 }}>
+              <span>Loaded {heartbeats.length} heartbeats — more land as the scheduler probes.</span>
+              {!allLoaded && heartbeats.length > 0 && (
+                <button className="btn" style={{ padding: '4px 10px', fontSize: 11 }}
+                  onClick={loadMore} disabled={loadingMore}>
+                  {loadingMore ? <><Loader2 size={11} className="spin"/> Loading…</> : <>Load older</>}
+                </button>
+              )}
+              {allLoaded && <span style={{ fontStyle: 'italic' }}>all history loaded</span>}
             </div>
           </div>
         )}

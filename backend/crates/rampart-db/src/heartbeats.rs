@@ -72,6 +72,18 @@ pub async fn recent_for_monitor(
     monitor: MonitorId,
     limit: i64,
 ) -> DbResult<Vec<Heartbeat>> {
+    recent_for_monitor_before(pool, monitor, limit, None).await
+}
+
+/// Paginated variant — pass `before` to fetch heartbeats strictly older
+/// than that timestamp, in descending-ts order. The "Load more" UI sets
+/// this to the oldest already-loaded heartbeat's ts.
+pub async fn recent_for_monitor_before(
+    pool: &DbPool,
+    monitor: MonitorId,
+    limit: i64,
+    before: Option<time::OffsetDateTime>,
+) -> DbResult<Vec<Heartbeat>> {
     let rows = sqlx::query!(
         r#"
         SELECT
@@ -85,11 +97,13 @@ pub async fn recent_for_monitor(
             important
         FROM heartbeats
         WHERE monitor_id = $1
+          AND ($3::timestamptz IS NULL OR ts < $3)
         ORDER BY ts DESC
         LIMIT $2
         "#,
         monitor.0,
         limit,
+        before,
     )
     .fetch_all(pool)
     .await?;

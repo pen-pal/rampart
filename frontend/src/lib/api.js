@@ -74,7 +74,11 @@ export const api = {
     bulk:    (monitorIds, action) => request('/v1/monitors/bulk', { method: 'POST', body: { monitor_ids: monitorIds, ...action } }),
     summary: (windowSec)  => request(`/v1/monitors/summary?window=${windowSec ?? 86400}`),
     history: (per)        => request(`/v1/monitors/history?per=${per ?? 60}`),
-    heartbeats: (id, limit) => request(`/v1/monitors/${id}/heartbeats?limit=${limit ?? 100}`),
+    heartbeats: (id, limit, before) => {
+      const qs = new URLSearchParams({ limit: String(limit ?? 100) });
+      if (before) qs.set('before', before);
+      return request(`/v1/monitors/${id}/heartbeats?${qs.toString()}`);
+    },
   },
   health: {
     live:  () => request('/healthz'),

@@ -480,6 +480,10 @@ pub struct HeartbeatsQuery {
     /// Max rows. Default 100. Clamped to 2000.
     #[serde(default = "default_hb_limit")]
     pub limit: i64,
+    /// Cursor — return heartbeats strictly older than this RFC3339 ts.
+    /// Frontend's "Load more" sets it to the oldest already-loaded ts.
+    #[serde(default, with = "time::serde::rfc3339::option")]
+    pub before: Option<OffsetDateTime>,
 }
 fn default_hb_limit() -> i64 {
     100
@@ -492,7 +496,13 @@ async fn heartbeats(
 ) -> Result<Json<Vec<Heartbeat>>, ApiError> {
     let monitor_id = parse_monitor_id(&id)?;
     let limit = q.limit.clamp(1, 2000);
-    let hbs = rampart_db::heartbeats::recent_for_monitor(state.pool(), monitor_id, limit).await?;
+    let hbs = rampart_db::heartbeats::recent_for_monitor_before(
+        state.pool(),
+        monitor_id,
+        limit,
+        q.before,
+    )
+    .await?;
     Ok(Json(hbs))
 }
 
