@@ -11,7 +11,7 @@
 // disk under `docs/`. Run it locally and commit the result.
 
 import { test, expect } from '@playwright/test';
-import { api, fixtures, gotoView, uniq } from './helpers.js';
+import { api, ensureLoggedIn, fixtures, gotoView, uniq } from './helpers.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs/promises';
@@ -99,6 +99,7 @@ test('02 login — sign-in screen', async ({ page }) => {
 // 03 — Empty dashboard (fresh install, no monitors yet)
 // ──────────────────────────────────────────────────────────────────────
 test('03 dashboard — empty state', async ({ page }) => {
+  await ensureLoggedIn(page);
   await page.goto('/');
   await expect(page.getByRole('button', { name: /add monitor/i })).toBeVisible();
   // Let the no-monitors empty-state panel settle.
@@ -113,32 +114,33 @@ const DEMO_MONITOR_NAME = 'Acme API';
 const DEMO_MONITOR_URL  = 'https://api.example.com/health';
 
 test('04 wizard — step 1, pick a probe kind', async ({ page }) => {
+  await ensureLoggedIn(page);
   await page.goto('/');
   await page.getByRole('button', { name: /add monitor/i }).click();
   await page.waitForURL(/#\/new-monitor/);
   await expect(page.getByText(/Pick a check type/i)).toBeVisible();
   await page.screenshot({ path: shot('04-wizard-kind.png'), fullPage: false });
-  await page.getByRole('button', { name: /continue/i }).click();
 });
 
 test('05 wizard — step 2, target URL + name', async ({ page }) => {
-  // Re-enter the wizard from the start so the spec is replayable
-  // independently — the previous step navigated forward but if we
-  // jumped to this spec via --grep we'd be on a different surface.
-  await page.goto('/#/new-monitor');
+  await ensureLoggedIn(page);
+  await gotoView(page, '#/new-monitor');
   await expect(page.getByText(/Pick a check type/i)).toBeVisible();
   await page.getByRole('button', { name: /continue/i }).click();
 
   await page.locator('input.input:not(.mono)').first().fill(DEMO_MONITOR_NAME);
   await page.locator('input.input.mono').first().fill(DEMO_MONITOR_URL);
   await page.screenshot({ path: shot('05-wizard-target.png'), fullPage: false });
-  await page.getByRole('button', { name: /continue/i }).click();
 });
 
 test('06 wizard — step 3, schedule defaults', async ({ page }) => {
-  // The wizard keeps form state between routes via a hook — so as long
-  // as we got here through 05 without a hard reload, the name + URL
-  // persist. Confirm the schedule step is visible.
+  await ensureLoggedIn(page);
+  await gotoView(page, '#/new-monitor');
+  await page.getByRole('button', { name: /continue/i }).click();
+  await page.locator('input.input:not(.mono)').first().fill(DEMO_MONITOR_NAME);
+  await page.locator('input.input.mono').first().fill(DEMO_MONITOR_URL);
+  await page.getByRole('button', { name: /continue/i }).click();
+
   await expect(page.getByRole('button', { name: /create monitor/i })).toBeVisible();
   await page.screenshot({ path: shot('06-wizard-schedule.png'), fullPage: false });
   await page.getByRole('button', { name: /create monitor/i }).click();
@@ -149,6 +151,7 @@ test('06 wizard — step 3, schedule defaults', async ({ page }) => {
 // 07 — Monitor detail after the first few heartbeats
 // ──────────────────────────────────────────────────────────────────────
 test('07 monitor-detail — first heartbeats', async ({ page }) => {
+  await ensureLoggedIn(page);
   // Trigger a couple of out-of-cycle probes so the chart has something
   // to render. test-now is exposed on the API.
   const monitors = await api(page, 'GET', '/v1/monitors');
@@ -170,6 +173,7 @@ test('07 monitor-detail — first heartbeats', async ({ page }) => {
 // 08 — Dashboard with one monitor in the list
 // ──────────────────────────────────────────────────────────────────────
 test('08 dashboard — first monitor visible', async ({ page }) => {
+  await ensureLoggedIn(page);
   await page.goto('/');
   await expect(page.getByText(DEMO_MONITOR_NAME).first()).toBeVisible();
   await page.waitForTimeout(800);
@@ -183,6 +187,7 @@ test('08 dashboard — first monitor visible', async ({ page }) => {
 // 09 — Notification channels page (create a webhook channel for the demo)
 // ──────────────────────────────────────────────────────────────────────
 test('09 notifications — channels list with one webhook', async ({ page, browserName }) => {
+  await ensureLoggedIn(page);
   const name = uniq('demo-webhook', browserName);
   await api(page, 'POST', '/v1/notifications', {
     kind: 'webhook', name,
@@ -198,7 +203,8 @@ test('09 notifications — channels list with one webhook', async ({ page, brows
 // 10 — Status-page builder
 // ──────────────────────────────────────────────────────────────────────
 test('10 status-page — builder view', async ({ page }) => {
-  await gotoView(page, '#/status-pages', 'h1, h2, [class*="page-title"]');
+  await ensureLoggedIn(page);
+  await gotoView(page, '#/status-page', 'h1, h2, [class*="page-title"]');
   await page.waitForTimeout(500);
   await page.screenshot({ path: shot('10-status-pages.png'), fullPage: false });
 });
@@ -210,8 +216,9 @@ test('10 status-page — builder view', async ({ page }) => {
 // state matches what a user with dark mode preference would see, then
 // reload to repaint everything from the new tokens.
 test('11 dashboard-dark — dark theme', async ({ page }) => {
+  await ensureLoggedIn(page);
   await page.goto('/');
-  await page.evaluate(() => localStorage.setItem('rampart.theme', 'dark'));
+  await page.evaluate(() => localStorage.setItem('rampart_theme', 'dark'));
   await page.reload();
   await expect(page.getByText(DEMO_MONITOR_NAME).first()).toBeVisible();
   await page.waitForTimeout(800);
