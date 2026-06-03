@@ -108,6 +108,7 @@ export const api = {
     create:  (input)         => request('/v1/notification-templates', { method: 'POST', body: input }),
     update:  (id, patch)     => request(`/v1/notification-templates/${id}`, { method: 'PATCH', body: patch }),
     remove:  (id)            => request(`/v1/notification-templates/${id}`, { method: 'DELETE' }),
+    preview: (subject, body) => request('/v1/notification-templates/preview', { method: 'POST', body: { subject_template: subject, body_template: body } }),
   },
   users: {
     list:           ()                                    => request('/v1/users'),

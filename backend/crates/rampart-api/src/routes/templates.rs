@@ -4,16 +4,18 @@ use crate::error::ApiError;
 use crate::state::AppState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use rampart_core::ids::NotificationTemplateId;
 use rampart_db::templates::{NewTemplate, Template, UpdateTemplate};
+use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use uuid::Uuid;
 
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list).post(create))
+        .route("/preview", post(preview))
         .route("/:id", get(get_one).patch(update).delete(remove))
 }
 
@@ -63,4 +65,83 @@ async fn update(
 async fn remove(State(s): State<AppState>, Path(id): Path<String>) -> Result<StatusCode, ApiError> {
     rampart_db::templates::delete(s.pool(), parse(&id)?).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Deserialize)]
+struct PreviewBody {
+    #[serde(default)]
+    subject_template: String,
+    #[serde(default)]
+    body_template: String,
+}
+
+#[derive(Serialize)]
+struct PreviewResponse {
+    subject: String,
+    body: String,
+}
+
+/// Render the subject + body templates against a canned fake heartbeat
+/// so the user can see what the notification will actually look like
+/// without firing a real channel send. No DB write, no state change —
+/// pure pass-through to the Liquid renderer the notifier uses.
+async fn preview(Json(input): Json<PreviewBody>) -> Result<Json<PreviewResponse>, ApiError> {
+    use rampart_core::{ids::MonitorId, Heartbeat, Monitor, MonitorKind, MonitorStatus};
+    use rampart_notifier::{template::render, Event, EventKind};
+    use time::OffsetDateTime;
+
+    let now = OffsetDateTime::now_utc();
+    let monitor = Monitor {
+        id: MonitorId::new(),
+        name: "example-monitor".into(),
+        kind: MonitorKind::Http,
+        url: Some("https://example.com".into()),
+        hostname: None,
+        port: None,
+        config: serde_json::Value::Null,
+        interval_seconds: 60,
+        retry_interval_sec: 60,
+        max_retries: 0,
+        timeout_seconds: 10,
+        resend_interval_sec: 0,
+        upside_down: false,
+        http_method: "GET".into(),
+        http_body: None,
+        http_headers: None,
+        accepted_statuses: vec![200],
+        follow_redirect: true,
+        ignore_tls: false,
+        proxy_id: None,
+        push_token: None,
+        last_push_at: None,
+        active: true,
+        current_status: MonitorStatus::Down,
+        created_at: now,
+        updated_at: now,
+        tags: Vec::new(),
+        cert_days_left: None,
+        cert_subject: None,
+        cert_checked_at: None,
+        group_id: None,
+    };
+    let hb = Heartbeat {
+        monitor_id: monitor.id,
+        ts: now,
+        status: MonitorStatus::Down,
+        latency_ms: Some(417),
+        status_code: Some(503),
+        msg: Some("Service Unavailable".into()),
+        retries: 0,
+        important: true,
+    };
+    let event = Event {
+        kind: EventKind::Test,
+        monitor,
+        heartbeat: hb,
+        prev_status: Some(MonitorStatus::Up),
+    };
+    Ok(Json(PreviewResponse {
+        subject: render(&input.subject_template, &event),
+        body:    render(&input.body_template,    &event),
+    }))
 }

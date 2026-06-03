@@ -2758,10 +2758,22 @@ function TemplateForm({ initial, prefill, onCancel, onSaved }) {
     '{{monitor.name}} is now {{status}} (was {{prev_status}}).\n\nLatency: {{latency_ms}}ms\nCode: {{status_code}}\nMessage: {{msg}}\nTime: {{ts}}');
   const [busy, setBusy] = useState(false);
   const [err,  setErr]  = useState(null);
+  const [preview,    setPreview]    = useState(null);  // { subject, body } | null
+  const [previewing, setPreviewing] = useState(false);
 
   const insertPlaceholder = (ph, target) => {
     if (target === 'subject') setSubject(s => s + ph);
     else                      setBody(b => b + ph);
+  };
+
+  const doPreview = async () => {
+    setPreviewing(true);
+    setErr(null);
+    try {
+      const r = await api.templates.preview(subject, body);
+      setPreview(r);
+    } catch (e) { setErr(e.message || 'Preview failed.'); }
+    finally { setPreviewing(false); }
   };
 
   const save = async (e) => {
@@ -2831,9 +2843,33 @@ function TemplateForm({ initial, prefill, onCancel, onSaved }) {
 
         {err && <div className="banner-err" style={{ marginBottom: 12 }}>{err}</div>}
 
+        {preview && (
+          <div className="field" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span className="field-label" style={{ margin: 0 }}>Preview · rendered against a fake "down" heartbeat</span>
+              <button type="button" className="btn btn-ghost" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => setPreview(null)}>
+                <X size={11}/> Close
+              </button>
+            </div>
+            {preview.subject && (
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 10.5, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 2 }}>Subject</div>
+                <div className="mono" style={{ fontSize: 12.5, color: 'var(--text)' }}>{preview.subject}</div>
+              </div>
+            )}
+            <div>
+              <div style={{ fontSize: 10.5, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 2 }}>Body</div>
+              <pre className="mono" style={{ fontSize: 12, color: 'var(--text)', margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{preview.body}</pre>
+            </div>
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-accent" type="submit" disabled={busy}>
             {busy ? <><Loader2 size={13} className="spin"/> Saving…</> : <><Save size={13}/> {initial ? 'Update template' : 'Save template'}</>}
+          </button>
+          <button className="btn" type="button" onClick={doPreview} disabled={previewing}>
+            {previewing ? <><Loader2 size={13} className="spin"/> Rendering…</> : <><BellRing size={13}/> Preview</>}
           </button>
           <button className="btn" type="button" onClick={onCancel}><X size={13}/> Cancel</button>
         </div>
