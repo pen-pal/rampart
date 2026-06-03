@@ -49,6 +49,7 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 - Backend dep `thiserror` bumped 1 → 2. All four `derive(Error)` sites (`rampart-core::error`, `rampart-db`, `rampart-api::error`, `rampart-notifier`) compile clean against the new derive macro without source changes.
 - Frontend dep `lucide-react` bumped 0.383 → 1.17. The 1.x release kept the top-level named-import surface intact (`import { Activity } from 'lucide-react'`) so all ~60 icon import sites compile without a path rewrite; the rumoured `lucide-react/icons/<Name>` deep-import requirement turned out to be optional, not mandatory.
 - Backend dep `tokio-tungstenite` bumped 0.24 → 0.29. The `connect` + `rustls-tls-webpki-roots` feature names carried over so the websocket probe (`rampart-checker/src/websocket.rs`) compiles without source changes. Verified the crypto stack remains pure-Rust: neither `aws-lc-rs` nor `cmake` enters the dependency tree.
+- Backend deps `tonic` 0.12 → 0.14, `tonic-health` 0.12 → 0.14, `prost` 0.13 → 0.14 bumped in lockstep. tonic 0.14 retired the `prost` named feature (now implicit), split TLS into per-backend features (`tls-ring` + `tls-webpki-roots` selected for pure-Rust), and tonic-health folded its previous `transport` feature into the default set. The gRPC health probe (`rampart-checker/src/grpc.rs`) compiles without source changes; aws-lc-rs / cmake still absent from the tree.
 
 ---
 

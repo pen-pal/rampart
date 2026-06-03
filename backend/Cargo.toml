@@ -130,9 +130,17 @@ tokio-util       = { version = "0.7", features = ["compat"] }
 redis            = { version = "0.27", default-features = false, features = ["tokio-rustls-comp", "tls-rustls-webpki-roots"] }
 mongodb          = "3"
 # gRPC + MQTT probe deps
-tonic            = { version = "0.12", default-features = false, features = ["transport", "codegen", "prost"] }
-tonic-health     = { version = "0.12", default-features = false, features = ["transport"] }
-prost            = "0.13"
+# tonic 0.14 reshuffled the feature set:
+#   - `prost` is no longer a named feature (always present via the
+#     codegen path that the probe uses)
+#   - TLS support was split out — `tls-ring` selects the ring-backed
+#     rustls transport, `tls-webpki-roots` ships the trust anchors
+#     so `grpcs://` URIs reach the server without an explicit config
+# Defaults are off to keep the dep graph minimal; the four features
+# below are what the gRPC health probe actually exercises.
+tonic            = { version = "0.14", default-features = false, features = ["transport", "codegen", "tls-ring", "tls-webpki-roots"] }
+tonic-health     = "0.14"
+prost            = "0.14"
 rumqttc          = { version = "0.24", default-features = false, features = ["use-rustls"] }
 tokio-tungstenite = { version = "0.29", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
 # Docker over the local socket or remote HTTP API.
