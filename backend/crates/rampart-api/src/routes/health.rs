@@ -4,6 +4,11 @@
 //! `/readyz`  is readiness — 200 only when the DB is reachable.
 //! `/metrics` exposes Prometheus text — gauges and counters covering
 //! monitor status, latency, and domain/cert expiry.
+//!
+//! Both `/healthz` and `/metrics` surface the binary's version (read at
+//! compile time from `CARGO_PKG_VERSION`, which inherits the workspace
+//! `[workspace.package].version`). The dashboard reads the version off
+//! `/healthz` for the header pill so it never drifts from the build.
 
 use crate::error::ApiError;
 use crate::state::AppState;
@@ -14,6 +19,12 @@ use axum::routing::get;
 use axum::{Json, Router};
 use serde_json::json;
 
+/// Workspace version baked in at compile time. Inherited from
+/// `[workspace.package].version` via the `version.workspace = true`
+/// member-crate setting, then re-exported by Cargo as the standard
+/// `CARGO_PKG_VERSION` env var. A release is "bump that one line".
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/healthz", get(liveness))
@@ -22,7 +33,10 @@ pub fn router() -> Router<AppState> {
 }
 
 async fn liveness() -> impl IntoResponse {
-    (StatusCode::OK, Json(json!({ "status": "alive" })))
+    (
+        StatusCode::OK,
+        Json(json!({ "status": "alive", "version": VERSION })),
+    )
 }
 
 async fn readiness(State(state): State<AppState>) -> Result<impl IntoResponse, ApiError> {
@@ -39,11 +53,11 @@ async fn readiness(State(state): State<AppState>) -> Result<impl IntoResponse, A
 /// as the scheduler/correlator come online. The format is just text so we
 /// hand-format rather than pull in the prometheus crate for one metric.
 async fn metrics() -> impl IntoResponse {
-    let body = "\
-# HELP rampart_build_info Build metadata.
-# TYPE rampart_build_info gauge
-rampart_build_info{version=\"0.1.0\"} 1
-";
+    let body = format!(
+        "# HELP rampart_build_info Build metadata.\n\
+         # TYPE rampart_build_info gauge\n\
+         rampart_build_info{{version=\"{VERSION}\"}} 1\n",
+    );
     (
         StatusCode::OK,
         [("content-type", "text/plain; version=0.0.4")],

@@ -270,6 +270,19 @@ export default function Dashboard({ user, onLogout } = {}) {
          : s === 2592000 ? 'last 30d'
          : `last ${s}s`;
   }
+  // Backend version — read once at mount off `/healthz`. The api binary
+  // bakes `CARGO_PKG_VERSION` (= workspace.package.version) into the
+  // response, so the header pill always reflects the running build and
+  // can't drift like the hard-coded "v0.4.0" string it used to be.
+  const [version, setVersion] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    api.health.live()
+      .then(d => { if (!cancelled) setVersion(d?.version || null); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
   const summaryState  = useApi(() => api.monitors.summary(windowSec), [windowSec, liveTick], { pollMs: 30_000 });
   const historyState  = useApi(() => api.monitors.history(60),    [liveTick], { pollMs: 30_000 });
   const countsState   = useApi(() => api.notifications.counts(),  [], { pollMs: 60_000 });
@@ -434,7 +447,10 @@ export default function Dashboard({ user, onLogout } = {}) {
                   d="M6 13 H9 L11 9 L13 16 L15 7 L17 13 H18"/>
           </svg>
           <span style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-.01em' }}>Rampart</span>
-          <span className="pill" style={{ background: 'var(--surface-2)', color: 'var(--text-3)' }}>v0.4.0</span>
+          <span className="pill" title={version ? `Running rampart-api v${version}` : 'Version unavailable'}
+                style={{ background: 'var(--surface-2)', color: 'var(--text-3)' }}>
+            {version ? `v${version}` : '·'}
+          </span>
         </div>
 
         <div style={{ position: 'relative', flex: 1, maxWidth: 420 }}>
