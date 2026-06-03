@@ -33,6 +33,14 @@ jsonwebtoken = { workspace = true }
 p256         = { workspace = true }
 hkdf         = { workspace = true }
 aes-gcm      = { workspace = true }
+# generic-array 0.14.9+ marks the slice-accessor API used by
+# webpush_crypto.rs as deprecated, which CI converts to a hard error
+# via `-D warnings`. Pin to the last pre-deprecation patch until the
+# RustCrypto stack moves to generic-array 1.x (see docs/DEPENDENCIES.md).
+# This must be a direct dep — declaring it only in `[workspace.
+# dependencies]` doesn't constrain resolution, but a direct `=` dep
+# does, so `cargo update` can't silently re-bump it.
+generic-array = "=0.14.7"
 
 [dev-dependencies]
 rampart-core = { path = "../rampart-core", features = ["testing"] }
