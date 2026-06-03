@@ -1,10 +1,19 @@
 # Contributing to Rampart
 
-Thanks for your interest. Rampart is a self-hosted uptime monitor for **homelabs, indie devs, and small teams**, shipping as a single binary backed by Postgres. Before opening an issue or a PR, please read the scope section below — it'll save us all time.
+Thanks for your interest in Rampart! 🦀
 
-## Scope (read this first)
+Rampart is a self-hosted uptime monitor built for **homelabs, indie devs, and small teams**, shipping as a single binary backed by Postgres. 
 
-Rampart is **not** an enterprise observability platform. The following are deliberately out of scope and will be closed as `wontfix`:
+Before opening an issue or a PR, please read the scope section below carefully — it will save us all a lot of time.
+
+---
+
+## 🎯 Scope (Read This First)
+
+Rampart is **not** an enterprise observability platform. We have a strict focus.
+
+### 🚫 Out of Scope
+The following features were considered and deliberately removed during the v1 → v2 design pivot. PRs or issues for these will be closed as `wontfix`:
 
 - Multi-region distributed probing
 - SLO targets / error budgets
@@ -14,87 +23,101 @@ Rampart is **not** an enterprise observability platform. The following are delib
 - APM tracing, RUM, log management, server-agent metrics
 - Kubernetes / cloud-provider scanners
 
-These were considered and removed during the v1 → v2 design pivot. The full rationale is in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
+> **The Litmus Test:** *"Would a solo operator or a small-team SRE say 'that's not what I came here for'?"* If yes, it doesn't belong here.
+> 
+> *Full rationale for these decisions is in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).*
 
-**A useful test:** *"would a solo operator or a small-team SRE say 'that's not what I came here for'?"* If yes, it doesn't belong here.
+### ✅ In Scope
+The core feature set is shipped (29 probe kinds, 130 notification channels, status pages, folders, dependencies, maintenance, 2FA, audit log). What's still welcome:
 
-In scope:
-- The 17 unimplemented probe runners (DNS, ping, push, gRPC, TLS, Docker, databases, MQTT, Steam, RADIUS, Kafka, domain WHOIS)
-- The `rampart-notifier` crate (Slack / Discord / Email / Webhook fan-out)
-- Auth (session-based, argon2)
-- Public status-page renderer
-- Incidents + maintenance REST APIs
-- Data importers (SQLite / JSON exports from existing monitors)
-- Anything in the [README "What to build next"](README.md#what-to-build-next) section
+- **Additional probe kinds** — anything in the spirit of the existing 29. LDAP, AMQP/RabbitMQ, NATS, Cassandra, SNMP v1 GET, mDNS / SSDP, DNS-over-HTTPS, Whois/RDAP HTTP, etc.
+- **Additional notification channels** — drop a new adapter into `rampart-notifier/src/channels/` following the pattern of the existing 128 native channels.
+- **Importers** — bring monitors in from JSON / CSV / SQLite exports of other self-hosted dashboards. One-shot tools, not background sync.
+- **UI polish + bug-fixes** — see open issues tagged [`good-first-issue`](https://github.com/pen-pal/Rampart/labels/good-first-issue) and [`help-wanted`](https://github.com/pen-pal/Rampart/labels/help-wanted).
+- **Docs** — production deployment recipes, Helm charts, Terraform modules, language-specific push-monitor client snippets.
 
-## Project layout
+---
 
-```
-backend/       Rust workspace, 5 crates (rampart-core/-db/-checker/-scheduler/-api)
-frontend/      Vite + React, 4 dashboard views
-docs/          Design rationale and architecture
+## 📂 Project Layout
+
+```text
+backend/       Rust workspace, 6 crates (rampart-core / -db / -checker / -scheduler / -notifier / -api)
+frontend/      Vite + React SPA, one view per file under src/views/
+docs/          Design rationale, architecture, security-debt log
 LICENSE        AGPL-3.0-or-later
-README.md      Setup + how to run
+README.md      Quick start + feature overview
 ```
 
-Per-area conventions live in:
-- [`backend/HACKING.md`](backend/HACKING.md) — crate boundaries, sqlx patterns, probe trait, scheduler design, how to add a new monitor kind end-to-end
-- [`frontend/HACKING.md`](frontend/HACKING.md) — design tokens, inline-CSS-in-JSX rationale, component patterns
+**Required Reading Before Touching Code:**
+- [`backend/HACKING.md`](backend/HACKING.md) — Crate boundaries, sqlx patterns, probe trait, scheduler design, how to add a new monitor kind end-to-end.
+- [`frontend/HACKING.md`](frontend/HACKING.md) — Design tokens, inline-CSS-in-JSX rationale, component patterns.
 
-Both files are required reading before touching code in their respective area.
+---
 
-## Setup
+## 🛠️ Setup
 
-See the [README](README.md#run-it-single-binary-recommended) for the canonical setup. Quick version:
+See the [README](README.md#run-it-single-binary-recommended) for the canonical setup. Here is the quick version:
 
 ```bash
-# Postgres
+# 1. Start Postgres
 cd backend && docker compose up -d postgres
 cp .env.example .env
 
-# Frontend bundle (one-shot — only re-run when you change UI)
+# 2. Frontend bundle (one-shot — only re-run when you change UI)
 cd ../frontend && npm install && npm run build
 
-# Backend
+# 3. Run Backend
 cd ../backend && cargo run -p rampart-api
 ```
 
-Open <http://localhost:3000>.
+👉 Open [http://localhost:3000](http://localhost:3000).
 
-For fast UI iteration, run `npm run dev` in `frontend/` and hit `:5173` — Vite proxies `/v1/*` to `:3000`.
+**Fast UI Iteration:** Run `npm run dev` in `frontend/` and hit `:5173` — Vite proxies `/v1/*` to `:3000`.
 
-## Conventions
+---
 
-- **Edition** 2021, **MSRV** 1.78
-- **Time** via the `time` crate (not chrono), `OffsetDateTime` in UTC
-- **IDs** are UUIDv7 wrapped in per-entity newtypes (`MonitorId`, `IncidentId`, etc.) — see `rampart-core/src/ids.rs`. Never pass a raw `Uuid` between functions when a typed ID exists.
-- **DB access** via `sqlx::query!` / `sqlx::query_as!` (compile-time checked). Raw SQL, no query builder DSL.
-- **Domain errors** in `rampart-core::CoreError`, db errors in `rampart-db::DbError`, api errors in `rampart-api::error::ApiError`. Don't leak `sqlx::Error` to clients.
-- **One probe per file** in `rampart-checker/src/`. Don't unify them prematurely.
-- **Frontend CSS** is inline CSS-in-JSX per view (`<style>{css}</style>`). No Tailwind, no CSS modules. Each view is self-contained on purpose.
-- **No AI features.** Removed in the v2 pivot; do not re-introduce.
+## 📏 Conventions & Rules
 
-## How to add a new monitor kind
+We have strong opinions to keep the codebase fast and the binary small.
+
+| Rule | Details |
+| :--- | :--- |
+| 🦀 **Rust** | Edition 2021, **MSRV 1.88** (forced by transitive `time` 0.3.47 / `base64ct` edition2024 deps; the release Dockerfile pins `rust:1.88` to match). |
+| ⏱️ **Time** | Use the `time` crate (not `chrono`). Always use `OffsetDateTime` in UTC. |
+| 🆔 **IDs** | UUIDv7 wrapped in per-entity newtypes (`MonitorId`, `IncidentId`, etc.). See `rampart-core/src/ids.rs`. **Never** pass a raw `Uuid` between functions when a typed ID exists. |
+| 🗄️ **DB Access** | Use `sqlx::query!` / `sqlx::query_as!` (compile-time checked). Raw SQL only, **no query builder DSL**. |
+| ❌ **Errors** | Domain errors in `rampart-core::CoreError`, db errors in `rampart-db::DbError`, api errors in `rampart-api::error::ApiError`. **Don't leak `sqlx::Error` to clients.** |
+| 🔍 **Probes** | **One probe per file** in `rampart-checker/src/`. Don't unify them prematurely. |
+| 🎨 **Frontend CSS** | Inline CSS-in-JSX per view (`<style>{css}</style>`). **No Tailwind, no CSS modules.** Each view is self-contained on purpose. |
+| 🤖 **No AI** | Removed in the v2 pivot. **Do not re-introduce AI features.** |
+
+---
+
+## ➕ How to Add a New Monitor Kind
 
 End-to-end, in order:
 
 1. **Migration:** `ALTER TYPE monitor_kind ADD VALUE IF NOT EXISTS 'newthing';` in a new `backend/migrations/000N_*.sql`.
-2. **Enum variant:** add to `MonitorKind` in `rampart-core/src/monitor.rs`.
-3. **Probe:** new file in `rampart-checker/src/newthing.rs` implementing `Probe`. Always return `Heartbeat`, never `Result` — failures become heartbeats with `status = Down` and a descriptive `msg`.
-4. **Dispatch:** add the match arm in `rampart-checker/src/lib.rs::Probes::run`.
-5. **Wizard UI:** add to the `types` array in `frontend/src/views/NewMonitorWizard.jsx` with icon + description. Drop the `stub: true` flag once it actually probes.
-6. **Field requirements:** update `fieldsFor()` in the same file.
+2. **Enum Variant:** Add to `MonitorKind` in `rampart-core/src/monitor.rs`.
+3. **Probe:** New file in `rampart-checker/src/newthing.rs` implementing `Probe`. 
+   - *Rule:* Always return `Heartbeat`, never `Result`. Failures become heartbeats with `status = Down` and a descriptive `msg`.
+4. **Dispatch:** Add the match arm in `rampart-checker/src/lib.rs::Probes::run`.
+5. **Wizard UI:** Add to the `types` array in `frontend/src/views/NewMonitorWizard.jsx` with an icon + description + example + placeholder.
+6. **Field Requirements:** Update `fieldsFor()` in the same file to declare which inputs this kind needs (`url`, `hostname` + `port`, `dns`, `banner`, etc.).
+7. **Port preset (optional):** Add a default to `defaultPort()` if the protocol has a well-known one.
+8. **Counts:** Bump the "29 types" line in the wizard intro, the README badge + heading, and `docs/ARCHITECTURE.md`.
 
-More detail in `backend/HACKING.md`.
+*More detail available in [`backend/HACKING.md`](backend/HACKING.md).*
 
-## Tests
+---
 
-Backend (unit + integration, ~131 tests):
+## 🧪 Tests & CI
+
+### Backend (Unit + Integration)
+~131 tests. `sqlx::test` makes its own per-test isolated databases off the base URL.
 
 ```bash
 cd backend
-# Run Postgres for integration tests — sqlx::test makes its own
-# per-test isolated databases off this base URL.
 docker compose up -d postgres
 DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart sqlx migrate run --source migrations
 
@@ -103,7 +126,8 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check
 ```
 
-CI builds use `SQLX_OFFLINE=true` against the committed `.sqlx/` cache. If you change a `sqlx::query!` (including adding a migration that a query depends on), regenerate it and commit the result — CI will fail otherwise:
+**⚠️ Crucial: SQLx Offline Cache**
+CI builds use `SQLX_OFFLINE=true` against the committed `.sqlx/` cache. If you change a `sqlx::query!` (including adding a migration that a query depends on), you **must** regenerate it and commit the result, or CI will fail:
 
 ```bash
 cd backend
@@ -111,25 +135,17 @@ DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart cargo sqlx prepar
 git add .sqlx
 ```
 
-### Security scanning
-
-CI runs a Rust dependency security gate (cargo-deny) that you can reproduce locally before pushing:
-
+**Security Scanning (`cargo-deny`)**
+CI runs a Rust dependency security gate. Reproduce locally before pushing:
 ```bash
 cd backend
 cargo install cargo-deny   # one-time
 cargo deny check           # advisories (RUSTSEC) + license policy + bans + sources
 ```
+*Policy lives in [`backend/deny.toml`](backend/deny.toml). The project is AGPL-3.0, so new dependencies must be on the allow-list. If `cargo deny` rejects a transitive crate with a legitimate license, add it to the allow-list in the same PR.*
 
-Policy lives in [`backend/deny.toml`](backend/deny.toml). The project is
-AGPL-3.0, so a new dependency must be under a license on the allow-list there.
-If `cargo deny` rejects a transitive crate with a legitimate license, add it to
-the allow-list in the same PR. cargo-deny's `advisories` check scans the same
-RUSTSEC database as `cargo audit`; accepted-with-justification advisories live
-in the `[advisories] ignore` list in `deny.toml` (see also
-`docs/SECURITY-DEBT.md`). The JavaScript frontend is covered separately by CodeQL.
-
-Frontend (~32 unit tests):
+### Frontend (Unit)
+~32 tests using Vitest.
 
 ```bash
 cd frontend
@@ -138,39 +154,51 @@ npm test               # vitest run
 npm run build          # vite build, surfaces JSX errors
 ```
 
-End-to-end (~11 flows × 3 browsers via Playwright):
+### End-to-End (Playwright)
+17 flows × 5 browser projects (Chromium, Firefox, WebKit + branded Chrome / Edge channels) = 85 cross-browser runs per CI push.
 
 ```bash
 cd backend && cargo build -p rampart-api      # one-time + when api changes
 cd frontend
 npm ci && npm run build                       # one-time + after UI changes
-npx playwright install                        # downloads Chromium/Firefox/WebKit
-npx playwright test                           # all 3 browsers
+npx playwright install                        # bundled engines (chromium / firefox / webkit)
+npx playwright install chrome msedge          # optional — branded channels
+npx playwright test                           # all available browsers
 npx playwright test --project=chromium        # just chromium (fastest)
 npx playwright test --ui                      # interactive debugger
 ```
-
-E2E spins up a dedicated `rampart_test` database, runs migrations, and launches `rampart-api` on port 3001 — it won't fight your dev `:3000` process.
+*Note: E2E spins up a dedicated `rampart_test` database, runs migrations, and launches `rampart-api` on port 3001 — it won't fight your dev `:3000` process. Brave / Vivaldi / Arc are Chromium forks covered by `chromium` + `chrome`; LibreWolf is a Firefox fork covered by `firefox`.*
 
 The full CI gate runs all of the above on push + PR — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
-## Pull requests
+---
 
-- **Branch from `main`.** Name it `kind/short-description` (e.g. `probe/dns`, `fix/scheduler-leak`, `docs/sqlx-cache`).
-- **One concern per PR.** A feature and a refactor go in separate PRs.
-- **Commit messages** — short imperative subject (≤70 chars), body explains the *why*. Reference issues like `Fixes #42` when applicable.
-- **No `--no-verify`.** If a hook fails, fix the underlying issue.
+## 📬 Pull Requests
+
+- **Branch from `main`.** Name it `kind/short-description` (e.g., `probe/dns`, `fix/scheduler-leak`, `docs/sqlx-cache`).
+- **One concern per PR.** A feature and a refactor must go in separate PRs.
+- **Commit messages:** Short imperative subject (≤70 chars), body explains the *why*. Reference issues like `Fixes #42` when applicable.
+- **No `--no-verify`.** If a git hook fails, fix the underlying issue.
 - **Don't bump versions** in PRs — that's done at release time.
 
-## Reporting bugs / requesting features
+---
+
+## 🐛 Reporting Bugs / Requesting Features
 
 Before opening an issue:
 
-1. Check if it's a known stub (see the README's "Not yet" list — many probes deliberately return `Down "not yet implemented"`).
-2. Check if it falls in the rejected scope above.
-3. For bugs: include `rampart-api` version, Postgres version, the relevant log lines, and steps to reproduce. The log lines from `rampart_scheduler` are usually the most informative.
-4. For features: explain the use case in concrete terms. "Some other tool has X" is not a use case; "I run a homelab and need to be told when my Plex server stops responding" is.
+1. **Check the scope:** Ensure it doesn't fall into the [Out of Scope](#-out-of-scope) list above — those PRs get closed as `wontfix`.
+2. **Search existing alerts:** The Dependabot + CodeQL panels under [Security](https://github.com/pen-pal/Rampart/security) already track most known dependency / static-analysis issues with the accepted ones documented in [`docs/SECURITY-DEBT.md`](docs/SECURITY-DEBT.md).
+3. **For bugs:** Include `rampart-api` version (`/healthz` exposes it), Postgres version, browser + OS (for UI bugs), relevant log lines, and steps to reproduce. *(Tip: log lines from `rampart_scheduler` are usually the most informative.)*
+4. **For features:** Explain the use case in concrete terms.
+   - ❌ *"Some other tool has X"* is not a use case.
+   - ✅ *"I run a homelab and need to be told when my Plex server stops responding"* is a great use case.
+5. **For vulnerabilities:** Do **not** open a public issue. Use GitHub's [private vulnerability reporting](https://github.com/pen-pal/Rampart/security/advisories/new) so we can ship a patch before it's on the issue tracker.
 
-## License
+---
 
-By contributing, you agree your contributions will be licensed under [AGPL-3.0-or-later](LICENSE), the same license as the project. There is no CLA. We use AGPL deliberately to keep the project + its derivatives in the open — if you can't accept that, this isn't the project for you, and that's fine.
+## ⚖️ License
+
+By contributing, you agree your contributions will be licensed under [**AGPL-3.0-or-later**](LICENSE), the same license as the project. 
+
+There is no CLA. We use AGPL deliberately to keep the project and its derivatives in the open. If you can't accept that, this isn't the project for you, and that's completely fine.
