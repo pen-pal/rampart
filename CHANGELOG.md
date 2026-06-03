@@ -56,6 +56,9 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 - Backend dep `sqlx` bumped 0.8 → 0.9. The `query!`/`query_as!` macro contracts are unchanged so no source modifications were needed across `rampart-db` or the route handlers. The `.sqlx/` offline cache was regenerated against 0.9 (77 of the 154 entries refresh; the others stay byte-identical) and committed; CI's `SQLX_OFFLINE=true` build is verified clean against the new cache.
 - Frontend trio bumped in lockstep: `react` + `react-dom` 18.3 → 19.2, `vite` 7.3 → 8.0, `@vitejs/plugin-react` 5.2 → 6.0. The dashboard codebase doesn't exercise the React 19 breaking surfaces (`defaultProps` for function components, `PropTypes` from `react`, the old Suspense fallback timing semantics), so no source changes were needed. Vite 8 ships rolldown as the build engine — production builds are visibly faster (~150 ms vs ~1.2 s on the same source). Verified via all 17 e2e specs + 11-step screenshot regeneration; no runtime regressions.
 
+### Security
+- `RUSTSEC-2023-0071` (the `rsa` Marvin-timing-sidechannel advisory) cleared. The sqlx 0.9 bump reworked the MySQL auth path so the pure-Rust `rsa` crate is no longer in the dependency tree. Removed from `deny.toml`'s ignore list and recorded under "Progress" in `docs/SECURITY-DEBT.md`. The remaining four `rustls-webpki 0.102` advisories (via `rumqttc` 0.24) still apply — see security-debt for the upstream blocker.
+
 ---
 
 ## [0.1.0] — 2026-06-03
