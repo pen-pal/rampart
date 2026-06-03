@@ -23,8 +23,11 @@ use tracing::warn;
 /// bumps the UA without a code edit. The trailing `(+url)` follows the
 /// long-standing convention for identifying a polite crawler / probe
 /// to upstream operators.
-const USER_AGENT: &str =
-    concat!("Rampart/", env!("CARGO_PKG_VERSION"), " (+https://github.com/pen-pal/rampart)");
+const USER_AGENT: &str = concat!(
+    "Rampart/",
+    env!("CARGO_PKG_VERSION"),
+    " (+https://github.com/pen-pal/rampart)"
+);
 
 pub struct HttpProbe {
     client: OnceCell<Client>,
