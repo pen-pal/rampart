@@ -30,7 +30,7 @@ edition      = "2021"
 # edition2024 / rustc 1.88). The release Dockerfile pins rust:1.88 to match.
 rust-version = "1.88"
 license      = "AGPL-3.0-or-later"
-repository   = "https://github.com/pen-pal/Rampart"
+repository   = "https://github.com/pen-pal/rampart"
 
 [workspace.dependencies]
 # async runtime

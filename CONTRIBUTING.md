@@ -33,7 +33,7 @@ The core feature set is shipped (29 probe kinds, 130 notification channels, stat
 - **Additional probe kinds** — anything in the spirit of the existing 29. LDAP, AMQP/RabbitMQ, NATS, Cassandra, SNMP v1 GET, mDNS / SSDP, DNS-over-HTTPS, Whois/RDAP HTTP, etc.
 - **Additional notification channels** — drop a new adapter into `rampart-notifier/src/channels/` following the pattern of the existing 128 native channels.
 - **Importers** — bring monitors in from JSON / CSV / SQLite exports of other self-hosted dashboards. One-shot tools, not background sync.
-- **UI polish + bug-fixes** — see open issues tagged [`good-first-issue`](https://github.com/pen-pal/Rampart/labels/good-first-issue) and [`help-wanted`](https://github.com/pen-pal/Rampart/labels/help-wanted).
+- **UI polish + bug-fixes** — see open issues tagged [`good-first-issue`](https://github.com/pen-pal/rampart/labels/good-first-issue) and [`help-wanted`](https://github.com/pen-pal/rampart/labels/help-wanted).
 - **Docs** — production deployment recipes, Helm charts, Terraform modules, language-specific push-monitor client snippets.
 
 ---
@@ -188,12 +188,12 @@ The full CI gate runs all of the above on push + PR — see [`.github/workflows/
 Before opening an issue:
 
 1. **Check the scope:** Ensure it doesn't fall into the [Out of Scope](#-out-of-scope) list above — those PRs get closed as `wontfix`.
-2. **Search existing alerts:** The Dependabot + CodeQL panels under [Security](https://github.com/pen-pal/Rampart/security) already track most known dependency / static-analysis issues with the accepted ones documented in [`docs/SECURITY-DEBT.md`](docs/SECURITY-DEBT.md).
+2. **Search existing alerts:** The Dependabot + CodeQL panels under [Security](https://github.com/pen-pal/rampart/security) already track most known dependency / static-analysis issues with the accepted ones documented in [`docs/SECURITY-DEBT.md`](docs/SECURITY-DEBT.md).
 3. **For bugs:** Include `rampart-api` version (`/healthz` exposes it), Postgres version, browser + OS (for UI bugs), relevant log lines, and steps to reproduce. *(Tip: log lines from `rampart_scheduler` are usually the most informative.)*
 4. **For features:** Explain the use case in concrete terms.
    - ❌ *"Some other tool has X"* is not a use case.
    - ✅ *"I run a homelab and need to be told when my Plex server stops responding"* is a great use case.
-5. **For vulnerabilities:** Do **not** open a public issue. Use GitHub's [private vulnerability reporting](https://github.com/pen-pal/Rampart/security/advisories/new) so we can ship a patch before it's on the issue tracker.
+5. **For vulnerabilities:** Do **not** open a public issue. Use GitHub's [private vulnerability reporting](https://github.com/pen-pal/rampart/security/advisories/new) so we can ship a patch before it's on the issue tracker.
 
 ---
 

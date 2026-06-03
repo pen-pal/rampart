@@ -13,7 +13,7 @@ upgrade before reporting against an older tag.
 Two private channels, in order of preference:
 
 1. **GitHub private advisory (preferred):**
-   [Report a vulnerability](https://github.com/pen-pal/Rampart/security/advisories/new).
+   [Report a vulnerability](https://github.com/pen-pal/rampart/security/advisories/new).
    This keeps the report private until a fix ships and gives us a place to
    collaborate on the patch.
 

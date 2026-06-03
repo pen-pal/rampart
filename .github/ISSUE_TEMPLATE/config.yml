@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Questions & support
-    url: https://github.com/pen-pal/Rampart/discussions
+    url: https://github.com/pen-pal/rampart/discussions
     about: Ask setup/usage questions in Discussions. The issue tracker is for confirmed bugs and scoped feature requests only.
   - name: Security vulnerability
-    url: https://github.com/pen-pal/Rampart/security/advisories/new
+    url: https://github.com/pen-pal/rampart/security/advisories/new
     about: Report vulnerabilities privately. Never open a public issue for a security problem.

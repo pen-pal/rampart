@@ -12,8 +12,8 @@ Easiest. One command builds the image + brings up Postgres + Rampart.
 ### 1. Clone
 
 ```bash
-git clone https://github.com/pen-pal/Rampart.git
-cd Rampart
+git clone https://github.com/pen-pal/rampart.git
+cd rampart
 ```
 
 ### 2. (Optional) Override credentials

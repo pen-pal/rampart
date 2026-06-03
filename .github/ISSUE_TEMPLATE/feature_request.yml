@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Before filing: Rampart has a deliberately **bounded scope**. Please read the "Scope" section of [CONTRIBUTING.md](https://github.com/pen-pal/Rampart/blob/main/CONTRIBUTING.md) — enterprise-observability features (multi-region probing, SLO budgets, on-call rotations, multi-tenancy, APM/RUM/logs) are out of scope and will be closed as `wontfix`.
+        Before filing: Rampart has a deliberately **bounded scope**. Please read the "Scope" section of [CONTRIBUTING.md](https://github.com/pen-pal/rampart/blob/main/CONTRIBUTING.md) — enterprise-observability features (multi-region probing, SLO budgets, on-call rotations, multi-tenancy, APM/RUM/logs) are out of scope and will be closed as `wontfix`.
 
   - type: checkboxes
     id: preflight

@@ -5,7 +5,7 @@ fastest path depending on what you need.
 
 ## "How do I…?" / setup & usage questions
 
-Use **[GitHub Discussions](https://github.com/pen-pal/Rampart/discussions)**,
+Use **[GitHub Discussions](https://github.com/pen-pal/rampart/discussions)**,
 not the issue tracker. Before posting:
 
 - Read [`docs/SETUP.md`](docs/SETUP.md) — covers Docker, bare binary, and the

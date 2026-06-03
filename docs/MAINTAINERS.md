@@ -14,11 +14,11 @@ the Actions tab). No manual step needed — just merge the manifest.
 
 ```bash
 # Discussions (the issue template + SUPPORT.md route questions here)
-gh api -X PATCH repos/pen-pal/Rampart -f has_discussions=true
+gh api -X PATCH repos/pen-pal/rampart -f has_discussions=true
 
 # Dependabot alerts + security updates
-gh api -X PUT repos/pen-pal/Rampart/vulnerability-alerts
-gh api -X PUT repos/pen-pal/Rampart/automated-security-fixes
+gh api -X PUT repos/pen-pal/rampart/vulnerability-alerts
+gh api -X PUT repos/pen-pal/rampart/automated-security-fixes
 ```
 
 Private security advisories are enabled by default on public repos; confirm
@@ -29,7 +29,7 @@ GitHub Advanced Security, which is free for public repos).
 ## 3. Branch protection on `main`
 
 ```bash
-gh api -X PUT repos/pen-pal/Rampart/branches/main/protection \
+gh api -X PUT repos/pen-pal/rampart/branches/main/protection \
   -H "Accept: application/vnd.github+json" \
   -F "required_status_checks[strict]=true" \
   -F "required_status_checks[contexts][]=backend · clippy + fmt" \

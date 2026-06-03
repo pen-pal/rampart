@@ -34,8 +34,8 @@ Public status pages • Live SSE updates • Folder & tag routing • Dependency
 Get up and running in under 60 seconds. No SaaS accounts, no agents, no extra services.
 
 ```bash
-git clone https://github.com/pen-pal/Rampart.git
-cd Rampart
+git clone https://github.com/pen-pal/rampart.git
+cd rampart
 docker compose up -d
 ```
 
@@ -153,8 +153,8 @@ rampart/
 ### 🐳 Docker (Recommended)
 
 ```bash
-git clone https://github.com/pen-pal/Rampart.git
-cd Rampart
+git clone https://github.com/pen-pal/rampart.git
+cd rampart
 docker compose up -d           # builds image + starts postgres
 ```
 👉 Open [http://localhost:3000](http://localhost:3000)
@@ -289,13 +289,13 @@ npx playwright test       # e2e on Chromium + Firefox + WebKit
 
 PRs welcome — read [**CONTRIBUTING.md**](CONTRIBUTING.md) first. The scope rules at the top of that file are load-bearing: they keep "self-hosted uptime monitoring" from drifting into "an everything-platform with three half-working features."
 
-Good first issues are tagged [`good-first-issue`](https://github.com/pen-pal/Rampart/labels/good-first-issue) and [`help-wanted`](https://github.com/pen-pal/Rampart/labels/help-wanted). Adding a probe or a notification channel? Both have step-by-step guides in CONTRIBUTING.
+Good first issues are tagged [`good-first-issue`](https://github.com/pen-pal/rampart/labels/good-first-issue) and [`help-wanted`](https://github.com/pen-pal/rampart/labels/help-wanted). Adding a probe or a notification channel? Both have step-by-step guides in CONTRIBUTING.
 
 ---
 
 ## 🔒 Security
 
-Found a vulnerability? **Don't open a public issue.** Use GitHub's [private vulnerability reporting](https://github.com/pen-pal/Rampart/security/advisories/new) so we can ship a patch before it lands on the issue tracker.
+Found a vulnerability? **Don't open a public issue.** Use GitHub's [private vulnerability reporting](https://github.com/pen-pal/rampart/security/advisories/new) so we can ship a patch before it lands on the issue tracker.
 
 CodeQL + Dependabot + cargo-deny + cargo-audit run on every push. Accepted-with-justification advisories are tracked in [**docs/SECURITY-DEBT.md**](docs/SECURITY-DEBT.md) so the acceptance is visible, not buried.
 
