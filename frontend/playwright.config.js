@@ -55,10 +55,32 @@ export default defineConfig({
   },
 
   projects: [
+    // Engines bundled with Playwright — installed via `npx playwright
+    // install`. Cover the three real rendering engines (Blink / Gecko /
+    // WebKit) so Safari + Firefox-only regressions surface in CI, not
+    // in production from a user's iPhone.
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    // Firefox + WebKit kept for CI cross-browser runs; locally `chromium`
-    // is the default and others can be opted into with --project=firefox.
     { name: 'firefox',  use: { ...devices['Desktop Firefox'] } },
     { name: 'webkit',   use: { ...devices['Desktop Safari'] } },
+
+    // Branded channels — same engines, real installer build. Skipped
+    // unless the binary is present on the runner; CI installs them via
+    // `npx playwright install msedge chrome`. Locally these no-op if
+    // you don't have Edge / Chrome installed.
+    //
+    // Brave / Vivaldi / LibreWolf / Arc aren't bundled with Playwright,
+    // but Brave + Vivaldi + Arc are Chromium forks (covered by
+    // `chromium` + the `chrome` channel) and LibreWolf is a Firefox
+    // fork (covered by `firefox`). Adding them as separate projects
+    // would only catch repackaging differences, which a uptime
+    // monitor's web UI doesn't exercise.
+    {
+      name: 'chrome',
+      use: { ...devices['Desktop Chrome'], channel: 'chrome' },
+    },
+    {
+      name: 'msedge',
+      use: { ...devices['Desktop Edge'], channel: 'msedge' },
+    },
   ],
 });
