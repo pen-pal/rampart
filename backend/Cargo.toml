@@ -41,7 +41,7 @@ axum       = { version = "0.7", features = ["macros", "http2", "tracing"] }
 axum-extra = { version = "0.9", features = ["cookie", "typed-header"] }
 tower      = { version = "0.5", features = ["util", "timeout", "limit"] }
 tower-http = { version = "0.6", features = ["cors", "trace", "compression-gzip", "timeout", "request-id"] }
-hyper      = { version = "1.4", features = ["full"] }
+hyper      = { version = "1.10", features = ["full"] }
 
 # database
 # `mysql` is here (not in rampart-db) so the `mysql` probe can use the
@@ -74,7 +74,7 @@ thiserror = "1"
 anyhow    = "1"
 
 # identity / time
-uuid = { version = "1.10", features = ["v4", "v7", "serde"] }
+uuid = { version = "1.23", features = ["v4", "v7", "serde"] }
 time = { version = "0.3", features = ["serde", "serde-well-known", "macros", "formatting"] }
 
 # http client (for probe runners + outbound notifications)
