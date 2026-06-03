@@ -44,6 +44,7 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ### Changed
 - Frontend dev dep `jsdom` bumped 25 → 29 (test-only; all 32 vitest tests pass on the new resolver).
+- Backend dep `webpki-roots` bumped 0.26 → 1.0. Compiled clean against the two call sites in `rampart-checker/src/tls.rs` without code changes (the `TLS_SERVER_ROOTS` static carries over and `RootCertStore::extend` still accepts its iterator).
 
 ---
 
