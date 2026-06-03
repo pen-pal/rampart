@@ -19,8 +19,8 @@ use validator::Validate;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list).post(create))
-        .route("/:id", axum::routing::delete(remove))
-        .route("/:id/active", post(set_active))
+        .route("/{id}", axum::routing::delete(remove))
+        .route("/{id}/active", post(set_active))
 }
 
 fn parse(s: &str) -> Result<ProxyId, ApiError> {

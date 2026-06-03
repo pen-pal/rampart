@@ -20,7 +20,7 @@ use validator::Validate;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list).post(create))
-        .route("/:id", axum::routing::delete(revoke))
+        .route("/{id}", axum::routing::delete(revoke))
 }
 
 fn parse(s: &str) -> Result<ApiKeyId, ApiError> {

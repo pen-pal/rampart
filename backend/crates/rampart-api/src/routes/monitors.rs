@@ -28,14 +28,14 @@ pub fn router() -> Router<AppState> {
         .route("/bulk", post(bulk))
         .route("/summary", get(summary))
         .route("/history", get(history_all))
-        .route("/:id", get(get_one).patch(update).delete(delete_one))
-        .route("/:id/heartbeats", get(heartbeats))
-        .route("/:id/heartbeats.csv", get(heartbeats_csv))
-        .route("/:id/pause", post(pause))
-        .route("/:id/resume", post(resume))
-        .route("/:id/clone", post(clone_one))
-        .route("/:id/regenerate-push-token", post(regenerate_push_token))
-        .route("/:id/test-now", post(test_now))
+        .route("/{id}", get(get_one).patch(update).delete(delete_one))
+        .route("/{id}/heartbeats", get(heartbeats))
+        .route("/{id}/heartbeats.csv", get(heartbeats_csv))
+        .route("/{id}/pause", post(pause))
+        .route("/{id}/resume", post(resume))
+        .route("/{id}/clone", post(clone_one))
+        .route("/{id}/regenerate-push-token", post(regenerate_push_token))
+        .route("/{id}/test-now", post(test_now))
 }
 
 fn parse_monitor_id(s: &str) -> Result<MonitorId, ApiError> {

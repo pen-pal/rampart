@@ -19,14 +19,14 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list).post(create))
         .route("/counts", get(counts))
-        .route("/:id", get(get_one).patch(update).delete(remove))
-        .route("/:id/test", post(send_test))
+        .route("/{id}", get(get_one).patch(update).delete(remove))
+        .route("/{id}/test", post(send_test))
 }
 
 pub fn monitor_attach_router() -> Router<AppState> {
     Router::new()
-        .route("/:mid/notifications", get(list_for_monitor))
-        .route("/:mid/notifications/:nid", post(attach).delete(detach))
+        .route("/{mid}/notifications", get(list_for_monitor))
+        .route("/{mid}/notifications/{nid}", post(attach).delete(detach))
 }
 
 fn parse_notif(id: &str) -> Result<NotificationId, ApiError> {

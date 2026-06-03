@@ -19,33 +19,33 @@ use uuid::Uuid;
 
 pub fn group_router() -> Router<AppState> {
     Router::new()
-        .route("/:id/tags", get(list_group_tags))
+        .route("/{id}/tags", get(list_group_tags))
         .route(
-            "/:id/tags/:tag_id",
+            "/{id}/tags/{tag_id}",
             post(add_group_tag).delete(del_group_tag),
         )
-        .route("/:id/channels", get(list_group_channels))
+        .route("/{id}/channels", get(list_group_channels))
         .route(
-            "/:id/channels/:notif_id",
+            "/{id}/channels/{notif_id}",
             post(add_group_channel).delete(del_group_channel),
         )
 }
 
 pub fn channel_router() -> Router<AppState> {
     Router::new()
-        .route("/:id/tags", get(list_channel_tags))
+        .route("/{id}/tags", get(list_channel_tags))
         .route(
-            "/:id/tags/:tag_id",
+            "/{id}/tags/{tag_id}",
             post(add_channel_tag).delete(del_channel_tag),
         )
 }
 
 pub fn monitor_router() -> Router<AppState> {
     Router::new()
-        .route("/:id/effective-channels", get(effective_channels))
-        .route("/:id/excludes", get(list_excludes))
+        .route("/{id}/effective-channels", get(effective_channels))
+        .route("/{id}/excludes", get(list_excludes))
         .route(
-            "/:id/excludes/:notif_id",
+            "/{id}/excludes/{notif_id}",
             post(add_exclude).delete(del_exclude),
         )
 }

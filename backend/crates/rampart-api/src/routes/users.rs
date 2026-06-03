@@ -22,8 +22,8 @@ pub fn admin_router() -> Router<AppState> {
     // Mounted with .route_layer(require_admin) at the caller site.
     Router::new()
         .route("/", get(list).post(create))
-        .route("/:id", axum::routing::delete(remove))
-        .route("/:id/admin", post(set_admin))
+        .route("/{id}", axum::routing::delete(remove))
+        .route("/{id}/admin", post(set_admin))
 }
 
 pub fn self_router() -> Router<AppState> {

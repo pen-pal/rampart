@@ -16,7 +16,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list).post(create))
         .route("/preview", post(preview))
-        .route("/:id", get(get_one).patch(update).delete(remove))
+        .route("/{id}", get(get_one).patch(update).delete(remove))
 }
 
 fn parse(id: &str) -> Result<NotificationTemplateId, ApiError> {
