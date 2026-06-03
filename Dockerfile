@@ -13,7 +13,7 @@ RUN npm run build
 # rust-embed inlines frontend/dist/ into the binary at compile time. The
 # embed macro reads "../../../frontend/dist/" relative to rampart-api, so
 # we materialize the same layout inside the build context.
-FROM rust:1.88-slim-bookworm AS backend
+FROM rust:1.96-slim-bookworm AS backend
 WORKDIR /src
 
 # Build-time C toolchain + pkg-config for the few native deps in the tree
