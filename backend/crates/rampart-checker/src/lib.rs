@@ -24,6 +24,7 @@ pub mod mongodb;
 pub mod mqtt;
 pub mod mssql;
 pub mod mysql;
+pub mod nats;
 pub mod ntp;
 pub mod ping;
 pub mod postgres;
@@ -67,6 +68,7 @@ pub struct Probes {
     memcached: memcached::MemcachedProbe,
     ntp: ntp::NtpProbe,
     websocket: websocket::WebsocketProbe,
+    nats: nats::NatsProbe,
     grpc: grpc::GrpcProbe,
     mqtt: mqtt::MqttProbe,
     docker: docker::DockerProbe,
@@ -94,6 +96,7 @@ impl Probes {
             memcached: memcached::MemcachedProbe::new(),
             ntp: ntp::NtpProbe::new(),
             websocket: websocket::WebsocketProbe::new(),
+            nats: nats::NatsProbe::new(),
             grpc: grpc::GrpcProbe::new(),
             mqtt: mqtt::MqttProbe::new(),
             docker: docker::DockerProbe::new(),
@@ -138,6 +141,7 @@ impl Probes {
             MonitorKind::Memcached => self.memcached.run(monitor).await,
             MonitorKind::Ntp => self.ntp.run(monitor).await,
             MonitorKind::Websocket => self.websocket.run(monitor).await,
+            MonitorKind::Nats => self.nats.run(monitor).await,
             MonitorKind::Grpc => self.grpc.run(monitor).await,
             MonitorKind::Mqtt => self.mqtt.run(monitor).await,
             MonitorKind::Docker => self.docker.run(monitor).await,

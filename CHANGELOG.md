@@ -18,6 +18,7 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 ## [Unreleased]
 
 ### Added
+- **NATS probe (`MonitorKind::Nats`)** — connects to a `nats://host:port` server, runs the INFO / CONNECT / PING handshake via the official `async-nats` client, asserts a successful flush. Plaintext URIs only today; `tls://` is a follow-up. Probe count: 30. `rampart-checker/src/nats.rs`, migration `0035_nats.sql`, wizard card with `nats://nats.internal:4222` placeholder.
 - `docs/WALKTHROUGH.md` — labelled step-by-step tour of the first-run experience (admin setup → probe wizard → first heartbeats → notification channels → status pages → dark theme), one screenshot per step.
 - `frontend/e2e/screenshots.spec.js` — Playwright-driven screenshot generator (`npm run screenshots`) that re-derives every walkthrough PNG plus the two README hero shots in one pass. Excluded from CI so it doesn't mutate disk on every push.
 - `docs/assets/screenshots/README.md` — regeneration procedure + screenshot inventory.
