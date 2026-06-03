@@ -1,74 +1,55 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Rampart wordmark = brand mark + setwidth wordtype + tagline.
-     Drop-in for the README hero block; ~3:1 aspect so it composes well on
-     both GitHub social previews (1280×640) and small-screen readme renders.
-     Pairs the logo.svg mark with a heavy geometric sans wordtype set on
-     the system font stack — no webfont fetch, no licence question. -->
+<!-- Rampart wordmark = brand mark + "RAMPART" wordtype.
+     Drop-in for the README hero block and GitHub social preview slot
+     (1280×640 crops cleanly off 480×144 at 3:1). Same mark as logo.svg
+     translated into the left third; wordtype sits to its right in a
+     heavy geometric sans on the system font stack (no webfont fetch,
+     no licence question). -->
 <svg xmlns="http://www.w3.org/2000/svg"
      viewBox="0 0 480 144"
      width="480" height="144"
      role="img"
      aria-label="Rampart — self-hosted uptime monitor">
   <defs>
-    <linearGradient id="markFill" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%"   stop-color="#5eead4"/>
-      <stop offset="55%"  stop-color="#14b8a6"/>
-      <stop offset="100%" stop-color="#0d9488"/>
-    </linearGradient>
-    <linearGradient id="pulse" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%"   stop-color="#f0fdfa"/>
-      <stop offset="100%" stop-color="#ffffff"/>
+    <linearGradient id="slateFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#3b414c"/>
+      <stop offset="100%" stop-color="#2c323b"/>
     </linearGradient>
   </defs>
 
   <!-- ─── Brand mark (translated copy of logo.svg) ─────────────────────── -->
   <g transform="translate(8 8)">
     <path
-      d="M 16 12
-         h 12 v 8 h 9 v -8
-         h 12 v 8 h 9 v -8
-         h 12 v 8 h 9 v -8
-         h 12 v 8 h 9 v -8
-         h 12
-         V 60
-         C 112 92, 94 110, 64 120
-         C 34 110, 16 92, 16 60
-         Z"
-      fill="url(#markFill)"
-      stroke="#0f766e"
-      stroke-width="2.5"
+      d="M 64 12 h 6 v 8 h 9 v -8 h 12 v 8 h 9 v -8 h 12 V 60
+         C 112 92, 94 110, 64 120 Z"
+      fill="url(#slateFill)" stroke="#2a2f38" stroke-width="0.8"
       stroke-linejoin="round"
-      stroke-linecap="round"
     />
-    <g stroke="#0f766e" stroke-width="1.2" stroke-linecap="round" opacity="0.55">
-      <line x1="37" y1="12" x2="37" y2="20"/>
-      <line x1="58" y1="12" x2="58" y2="20"/>
-      <line x1="79" y1="12" x2="79" y2="20"/>
-      <line x1="100" y1="12" x2="100" y2="20"/>
-    </g>
     <path
-      d="M 26 78 L 44 78 L 50 70 L 56 90 L 62 54 L 68 90 L 74 78 L 102 78"
-      fill="none" stroke="url(#pulse)" stroke-width="4"
-      stroke-linecap="round" stroke-linejoin="round"
+      d="M 64 12 h -6 v 8 h -9 v -8 h -12 v 8 h -9 v -8 h -12 V 60
+         C 16 92, 34 110, 64 120"
+      fill="none" stroke="#d27a3c" stroke-width="4"
+      stroke-linejoin="round" stroke-linecap="round"
     />
-    <circle cx="26" cy="78" r="2.4" fill="#ffffff"/>
+    <path
+      d="M 22 68 L 44 68 L 50 56 L 56 92 L 64 36 L 72 92 L 78 56 L 84 68 L 106 68"
+      fill="none" stroke="#ffffff" stroke-width="8"
+      stroke-linejoin="round" stroke-linecap="round"
+    />
+    <path
+      d="M 22 68 L 44 68 L 50 56 L 56 92 L 64 36 L 72 92 L 78 56 L 84 68 L 106 68"
+      fill="none" stroke="#d27a3c" stroke-width="4"
+      stroke-linejoin="round" stroke-linecap="round"
+    />
   </g>
 
   <!-- ─── Wordtype ────────────────────────────────────────────────────── -->
-  <!-- The fill is solid teal at 100% so the mark gradient remains the
-       eye-catch; the wordtype stays evenly weighted across the row. -->
-  <text x="158" y="78"
+  <!-- All-caps RAMPART set in slate to match the right-half shield fill,
+       weight 800 so it carries the visual mass of the mark beside it. -->
+  <text x="158" y="92"
         font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif"
         font-weight="800"
-        font-size="58"
-        letter-spacing="-1"
-        fill="#0f766e">Rampart</text>
-
-  <!-- ─── Tagline ─────────────────────────────────────────────────────── -->
-  <text x="160" y="112"
-        font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif"
-        font-weight="500"
-        font-size="18"
-        letter-spacing="0.2"
-        fill="#475569">self-hosted uptime · one binary · Postgres only</text>
+        font-size="62"
+        letter-spacing="2"
+        fill="#2c323b">RAMPART</text>
 </svg>

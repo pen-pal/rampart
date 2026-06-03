@@ -1,68 +1,71 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Rampart brand mark.
-     Crenellated shield: the "rampart" (battlemented defensive wall) read.
-     ECG pulse cut across the centre: the uptime-monitor read.
-     Teal gradient #5eead4 → #0d9488 matches the app's --accent ramp so
-     the README hero reads as the same brand as the dashboard screenshot. -->
+<!-- Rampart brand mark — two-tone battlemented shield with ECG pulse.
+     Left half: burnt-orange outline (silhouette).
+     Right half: slate fill with subtle vertical gradient (depth).
+     Centre: ECG pulse — orange foreground, white halo so the line still
+     reads where it crosses the dark slate. The split-at-centre composition
+     evokes "two sides of the wall" while the pulse keeps the uptime-
+     monitor identity. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Rampart">
   <defs>
-    <linearGradient id="shieldFill" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%"   stop-color="#5eead4"/>
-      <stop offset="55%"  stop-color="#14b8a6"/>
-      <stop offset="100%" stop-color="#0d9488"/>
-    </linearGradient>
-    <linearGradient id="pulseStroke" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%"   stop-color="#f0fdfa"/>
-      <stop offset="100%" stop-color="#ffffff"/>
+    <linearGradient id="slateFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#3b414c"/>
+      <stop offset="100%" stop-color="#2c323b"/>
     </linearGradient>
   </defs>
 
-  <!-- Battlemented shield body. Top edge crenellation: 5 merlons (height 8)
-       alternated with 4 crenels (width 9), framed by the shield sides. -->
+  <!-- Right half: filled slate. Battlements: half-merlon at centre
+       (x 64→70), crenel (70→79), merlon (79→91), crenel (91→100),
+       merlon (100→112). Body descends to the bottom apex at 64,120. -->
   <path
-    d="M 16 12
-       h 12 v 8 h 9 v -8
-       h 12 v 8 h 9 v -8
-       h 12 v 8 h 9 v -8
+    d="M 64 12
+       h 6 v 8 h 9 v -8
        h 12 v 8 h 9 v -8
        h 12
        V 60
        C 112 92, 94 110, 64 120
-       C 34 110, 16 92, 16 60
        Z"
-    fill="url(#shieldFill)"
-    stroke="#0f766e"
-    stroke-width="2.5"
+    fill="url(#slateFill)"
+    stroke="#2a2f38"
+    stroke-width="0.8"
     stroke-linejoin="round"
-    stroke-linecap="round"
   />
 
-  <!-- Mortar lines between merlons — subtle, suggests stone-stacked depth. -->
-  <g stroke="#0f766e" stroke-width="1.2" stroke-linecap="round" opacity="0.55">
-    <line x1="37" y1="12" x2="37" y2="20"/>
-    <line x1="58" y1="12" x2="58" y2="20"/>
-    <line x1="79" y1="12" x2="79" y2="20"/>
-    <line x1="100" y1="12" x2="100" y2="20"/>
-  </g>
-
-  <!-- ECG pulse: flat-line → small dip → sharp R-peak → return → flat-line.
-       Stroke width tuned so the pulse reads clearly at 32px favicon size. -->
+  <!-- Left half: orange silhouette stroke. Same battlement pattern
+       mirrored: half-merlon (64→58), crenel, merlon, crenel, merlon,
+       then down the left edge to the shared bottom apex at 64,120. -->
   <path
-    d="M 26 78
-       L 44 78
-       L 50 70
-       L 56 90
-       L 62 54
-       L 68 90
-       L 74 78
-       L 102 78"
+    d="M 64 12
+       h -6 v 8 h -9 v -8
+       h -12 v 8 h -9 v -8
+       h -12
+       V 60
+       C 16 92, 34 110, 64 120"
     fill="none"
-    stroke="url(#pulseStroke)"
+    stroke="#d27a3c"
     stroke-width="4"
-    stroke-linecap="round"
     stroke-linejoin="round"
+    stroke-linecap="round"
   />
 
-  <!-- Pulse baseline tick at the start of the trace. -->
-  <circle cx="26" cy="78" r="2.4" fill="#ffffff"/>
+  <!-- ECG pulse — drawn twice: a wider white halo underlayer so the
+       line stays legible where it crosses the dark slate half, then
+       the orange foreground stroke on top. Shape is the classic QRS-T
+       complex: flat → P → Q → R-peak → S → T → flat. -->
+  <path
+    d="M 22 68 L 44 68 L 50 56 L 56 92 L 64 36 L 72 92 L 78 56 L 84 68 L 106 68"
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="8"
+    stroke-linejoin="round"
+    stroke-linecap="round"
+  />
+  <path
+    d="M 22 68 L 44 68 L 50 56 L 56 92 L 64 36 L 72 92 L 78 56 L 84 68 L 106 68"
+    fill="none"
+    stroke="#d27a3c"
+    stroke-width="4"
+    stroke-linejoin="round"
+    stroke-linecap="round"
+  />
 </svg>
