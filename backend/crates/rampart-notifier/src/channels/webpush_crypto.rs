@@ -51,9 +51,11 @@ pub fn encrypt(
     ua_public: &[u8],
     auth_secret: &[u8],
 ) -> Result<EncryptedPayload, WebPushError> {
-    use rand::RngCore;
-    let mut salt = [0u8; 16];
-    rand::thread_rng().fill_bytes(&mut salt);
+    // 16 bytes of OS-RNG entropy. Direct `rand::random` rather than the
+    // zero-init + fill_bytes idiom — the former trips CodeQL's
+    // hard-coded-cryptographic-value query on the `[0u8; 16]` literal,
+    // even though the buffer is immediately overwritten.
+    let salt: [u8; 16] = rand::random();
     let as_secret = SecretKey::random(&mut rand::thread_rng());
     encrypt_with_keys(plaintext, ua_public, auth_secret, &as_secret, &salt)
 }
@@ -302,9 +304,7 @@ mod tests {
             .to_encoded_point(false)
             .as_bytes()
             .to_vec();
-        let mut auth = [0u8; 16];
-        use rand::RngCore;
-        rand::thread_rng().fill_bytes(&mut auth);
+        let auth: [u8; 16] = rand::random();
         let msg = b"rampart: monitor api.example.com is DOWN";
         let out = encrypt(msg, &ua_public, &auth).unwrap();
         let recovered = decrypt(&out.body, &ua_secret, &auth);
