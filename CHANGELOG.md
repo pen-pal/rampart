@@ -17,21 +17,29 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+- `docs/WALKTHROUGH.md` — labelled step-by-step tour of the first-run experience (admin setup → probe wizard → first heartbeats → notification channels → status pages → dark theme), one screenshot per step.
+- `frontend/e2e/screenshots.spec.js` — Playwright-driven screenshot generator (`npm run screenshots`) that re-derives every walkthrough PNG plus the two README hero shots in one pass. Excluded from CI so it doesn't mutate disk on every push.
+- `docs/assets/screenshots/README.md` — regeneration procedure + screenshot inventory.
+
 ### Brand
 - Two-tone shield + ECG-pulse logo (`docs/assets/logo.svg`) replaces the earlier teal-shield-with-R mark.
 - New `docs/assets/wordmark.svg` lockup for GitHub social-preview / README hero contexts.
 - Favicon and in-app brand mark (Dashboard header + Login card) re-shaped to match.
+- Maintainer follow-up: run `npm run screenshots` once locally so `docs/assets/dashboard.png` + `dashboard-dark.png` + the walkthrough series pick up the new in-app brand mark. Until then those PNGs still show the previous teal Activity-icon brand.
 
 ### Versioning
 - Workspace version centralised in `[workspace.package].version`; member crates inherit via `version.workspace = true`.
 - `/healthz` returns the version (`{"status":"alive","version":"<x.y.z>"}`); the dashboard header pill is now dynamic instead of a hard-coded string.
 - Prometheus `rampart_build_info` gauge interpolates `CARGO_PKG_VERSION` instead of a hard-coded literal.
+- HTTP probe User-Agent and Honeybadger notifier payload now read the workspace version via `env!("CARGO_PKG_VERSION")` instead of hard-coded `"0.1"` strings.
 
 ### CI / Tooling
 - E2E matrix now runs Playwright across Chromium, Firefox, WebKit, and the branded Chrome + Edge channels (17 specs × 5 projects = 85 runs per push).
 - Dependabot groups: `cargo-routine` + `cargo-security`, `npm-routine` + `npm-security`, monthly grouped runs for GitHub Actions and Docker.
 - CodeQL workflow split per language; Rust stays on `build-mode: none` until upstream supports `manual`.
 - Conflict-labeler workflow creates the `has-conflicts` label idempotently so a clean clone runs without a manual bootstrap step.
+- Dockerfile base images bumped: `node:20-alpine` → `node:26-alpine`, `rust:1.88-slim-bookworm` → `rust:1.96-slim-bookworm`. MSRV floor unchanged.
 
 ---
 
