@@ -52,6 +52,10 @@ allow = [
     "MPL-2.0",
     "CC0-1.0",
     "CDLA-Permissive-2.0",
+    # Boost Software License 1.0 — permissive, OSI-approved, FSF Free/Libre,
+    # SPDX-listed as GPL-compatible. Pulled in via `xxhash-rust` (transitive
+    # of `redis` ≥ 1.0).
+    "BSL-1.0",
 ]
 confidence-threshold = 0.9
 
