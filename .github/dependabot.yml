@@ -2,16 +2,29 @@
 #
 # Goal: keep dependencies fresh without flooding the PR list. Dependabot
 # v2 groups bundle multiple updates into a single PR per group/week.
-# We split each ecosystem into two groups by `applies-to`:
+# We split each ecosystem into three groups:
 #
-#   * version-updates  — routine bumps (minor / patch / major), one PR
-#                        per ecosystem per week. Majors land grouped so
-#                        an obvious cluster like "axum 0.7 → 0.8 + tower
-#                        0.5 → 0.6" arrives together instead of as ten
-#                        racing PRs.
-#   * security-updates — vulnerability fixes. Separate group so a CVE
-#                        bump doesn't sit behind a routine major-bump
-#                        review.
+#   * <eco>-routine   — minor + patch only. Safe-by-construction under
+#                       semver; grouped so a fresh weekly run lands as
+#                       one PR instead of ten racing ones. The bulk of
+#                       what flows through CI on a normal week.
+#   * <eco>-major     — semver-major bumps, also grouped. Each major in
+#                       this PR is a deliberate review decision (api
+#                       break, behavioural change, transitive crypto
+#                       stack swap) so the PR is expected to need
+#                       splitting / cherry-picking; the grouping just
+#                       means we don't get ten separate PRs all needing
+#                       the same review attention.
+#   * <eco>-security  — vulnerability fixes. Separate so a CVE bump
+#                       doesn't sit behind a routine review.
+#
+# Earlier revisions of this file collapsed routine + major into one
+# group, which produced PRs that bundled ~18 semver-major bumps each.
+# That made any individual review nearly impossible (e.g. rumqttc 0.25,
+# which pulls aws-lc-rs + cmake — explicitly rejected — landed in the
+# same PR as a benign uuid patch bump). Splitting the buckets keeps the
+# routine PR mergeable and pushes the deliberate calls into a stream
+# whose name announces it needs scrutiny.
 #
 # `open-pull-requests-limit: 5` (down from 10) puts a hard ceiling on
 # the queue per ecosystem — Dependabot reuses slots in priority order
@@ -33,7 +46,11 @@ updates:
       cargo-routine:
         applies-to: version-updates
         patterns: ["*"]
-        update-types: ["minor", "patch", "major"]
+        update-types: ["minor", "patch"]
+      cargo-major:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["major"]
       cargo-security:
         applies-to: security-updates
         patterns: ["*"]
@@ -52,7 +69,11 @@ updates:
       npm-routine:
         applies-to: version-updates
         patterns: ["*"]
-        update-types: ["minor", "patch", "major"]
+        update-types: ["minor", "patch"]
+      npm-major:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["major"]
       npm-security:
         applies-to: security-updates
         patterns: ["*"]
