@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "screenshots": "SCREENSHOTS_RUN=1 playwright test e2e/screenshots.spec.js --project=chromium"
   },
   "dependencies": {
     "lucide-react": "^0.383.0",

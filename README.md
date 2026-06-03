@@ -41,6 +41,8 @@ docker compose up -d
 
 👉 **Open [http://localhost:3000](http://localhost:3000)** — Your first visit automatically creates the admin account. Migrations run on boot. That's it.
 
+> 📖 **Want a step-by-step tour?** [`docs/WALKTHROUGH.md`](docs/WALKTHROUGH.md) walks the full first-run journey — admin setup, probe wizard, first heartbeats, notification channels, status pages — with a labelled screenshot for every step. New here? Start there.
+
 ---
 
 ## 🛡️ Why Rampart?

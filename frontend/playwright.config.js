@@ -19,6 +19,10 @@ const TEST_API_URL = 'http://localhost:3001';
 
 export default defineConfig({
   testDir:    './e2e',
+  // The screenshot generator mutates files on disk under docs/assets/.
+  // It runs only when invoked explicitly via `npm run screenshots`, never
+  // as part of the regular CI matrix.
+  testIgnore: process.env.SCREENSHOTS_RUN ? [] : ['**/screenshots.spec.js'],
   fullyParallel: false,    // tests share one server + DB; serialise for sanity
   forbidOnly: !!process.env.CI,
   retries:    process.env.CI ? 1 : 0,
