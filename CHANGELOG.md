@@ -47,6 +47,7 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 - Backend dep `webpki-roots` bumped 0.26 → 1.0. Compiled clean against the two call sites in `rampart-checker/src/tls.rs` without code changes (the `TLS_SERVER_ROOTS` static carries over and `RootCertStore::extend` still accepts its iterator).
 - Backend dep `bollard` bumped 0.17 → 0.21. Per-endpoint options structs relocated to `bollard::query_parameters` and the `default-features = false` profile now lists `pipe` + `http` explicitly to keep `connect_with_socket` / `connect_with_http` reachable. Behaviour unchanged.
 - Backend dep `thiserror` bumped 1 → 2. All four `derive(Error)` sites (`rampart-core::error`, `rampart-db`, `rampart-api::error`, `rampart-notifier`) compile clean against the new derive macro without source changes.
+- Frontend dep `lucide-react` bumped 0.383 → 1.17. The 1.x release kept the top-level named-import surface intact (`import { Activity } from 'lucide-react'`) so all ~60 icon import sites compile without a path rewrite; the rumoured `lucide-react/icons/<Name>` deep-import requirement turned out to be optional, not mandatory.
 
 ---
 
