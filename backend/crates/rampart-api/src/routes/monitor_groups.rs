@@ -60,10 +60,15 @@ async fn create(
     input.validate()?;
     let g = rampart_db::monitor_groups::create(s.pool(), input).await?;
     crate::audit::record(
-        s.pool(), &user, &headers,
-        "monitor_group.create", "monitor_group", Some(g.id.0),
+        s.pool(),
+        &user,
+        &headers,
+        "monitor_group.create",
+        "monitor_group",
+        Some(g.id.0),
         Some(serde_json::json!({ "name": g.name, "parent_id": g.parent_id })),
-    ).await;
+    )
+    .await;
     Ok((StatusCode::CREATED, Json(g)))
 }
 
@@ -78,10 +83,15 @@ async fn update(
     let gid = parse_group(&id)?;
     let g = rampart_db::monitor_groups::update(s.pool(), gid, input).await?;
     crate::audit::record(
-        s.pool(), &user, &headers,
-        "monitor_group.update", "monitor_group", Some(gid.0),
+        s.pool(),
+        &user,
+        &headers,
+        "monitor_group.update",
+        "monitor_group",
+        Some(gid.0),
         Some(serde_json::json!({ "name": g.name, "parent_id": g.parent_id })),
-    ).await;
+    )
+    .await;
     Ok(Json(g))
 }
 
@@ -94,9 +104,15 @@ async fn delete_one(
     let gid = parse_group(&id)?;
     rampart_db::monitor_groups::delete(s.pool(), gid).await?;
     crate::audit::record(
-        s.pool(), &user, &headers,
-        "monitor_group.delete", "monitor_group", Some(gid.0), None,
-    ).await;
+        s.pool(),
+        &user,
+        &headers,
+        "monitor_group.delete",
+        "monitor_group",
+        Some(gid.0),
+        None,
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -126,10 +142,15 @@ async fn attach_dep(
     let parent = parse_monitor(&parent_id)?;
     rampart_db::monitor_groups::attach_dependency(s.pool(), child, parent).await?;
     crate::audit::record(
-        s.pool(), &user, &headers,
-        "monitor.attach_dependency", "monitor", Some(child.0),
+        s.pool(),
+        &user,
+        &headers,
+        "monitor.attach_dependency",
+        "monitor",
+        Some(child.0),
         Some(serde_json::json!({ "depends_on": parent.0 })),
-    ).await;
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -143,9 +164,14 @@ async fn detach_dep(
     let parent = parse_monitor(&parent_id)?;
     rampart_db::monitor_groups::detach_dependency(s.pool(), child, parent).await?;
     crate::audit::record(
-        s.pool(), &user, &headers,
-        "monitor.detach_dependency", "monitor", Some(child.0),
+        s.pool(),
+        &user,
+        &headers,
+        "monitor.detach_dependency",
+        "monitor",
+        Some(child.0),
         Some(serde_json::json!({ "depends_on": parent.0 })),
-    ).await;
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }

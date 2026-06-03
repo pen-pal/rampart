@@ -55,10 +55,15 @@ async fn create(
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     let t = rampart_db::tags::create(s.pool(), input).await?;
     crate::audit::record(
-        s.pool(), &user, &headers,
-        "tag.create", "tag", Some(t.id.0),
+        s.pool(),
+        &user,
+        &headers,
+        "tag.create",
+        "tag",
+        Some(t.id.0),
         Some(serde_json::json!({ "name": t.name, "color": t.color })),
-    ).await;
+    )
+    .await;
     Ok((StatusCode::CREATED, Json(t)))
 }
 
@@ -75,10 +80,15 @@ async fn update(
     let tid = parse_tag(&id)?;
     let t = rampart_db::tags::update(s.pool(), tid, input).await?;
     crate::audit::record(
-        s.pool(), &user, &headers,
-        "tag.update", "tag", Some(tid.0),
+        s.pool(),
+        &user,
+        &headers,
+        "tag.update",
+        "tag",
+        Some(tid.0),
         Some(serde_json::json!({ "name": t.name, "color": t.color })),
-    ).await;
+    )
+    .await;
     Ok(Json(t))
 }
 
@@ -95,9 +105,15 @@ async fn remove(
     let tid = parse_tag(&id)?;
     rampart_db::tags::delete(s.pool(), tid).await?;
     crate::audit::record(
-        s.pool(), &user, &headers,
-        "tag.delete", "tag", Some(tid.0), None,
-    ).await;
+        s.pool(),
+        &user,
+        &headers,
+        "tag.delete",
+        "tag",
+        Some(tid.0),
+        None,
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -120,10 +136,15 @@ async fn attach(
     let tid = parse_tag(&tag_id)?;
     rampart_db::tags::attach(s.pool(), mid, tid).await?;
     crate::audit::record(
-        s.pool(), &user, &headers,
-        "tag.attach", "monitor", Some(mid.0),
+        s.pool(),
+        &user,
+        &headers,
+        "tag.attach",
+        "monitor",
+        Some(mid.0),
         Some(serde_json::json!({ "tag_id": tid.0 })),
-    ).await;
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -137,9 +158,14 @@ async fn detach(
     let tid = parse_tag(&tag_id)?;
     rampart_db::tags::detach(s.pool(), mid, tid).await?;
     crate::audit::record(
-        s.pool(), &user, &headers,
-        "tag.detach", "monitor", Some(mid.0),
+        s.pool(),
+        &user,
+        &headers,
+        "tag.detach",
+        "monitor",
+        Some(mid.0),
         Some(serde_json::json!({ "tag_id": tid.0 })),
-    ).await;
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }

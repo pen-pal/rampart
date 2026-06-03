@@ -51,10 +51,15 @@ async fn create(
     }
     let p = rampart_db::proxies::create(s.pool(), input).await?;
     crate::audit::record(
-        s.pool(), &user, &headers,
-        "proxy.create", "proxy", Some(p.id.0),
+        s.pool(),
+        &user,
+        &headers,
+        "proxy.create",
+        "proxy",
+        Some(p.id.0),
         Some(serde_json::json!({ "protocol": p.protocol, "host": p.host, "port": p.port })),
-    ).await;
+    )
+    .await;
     Ok((StatusCode::CREATED, Json(p)))
 }
 
@@ -67,9 +72,15 @@ async fn remove(
     let pid = parse(&id)?;
     rampart_db::proxies::delete(s.pool(), pid).await?;
     crate::audit::record(
-        s.pool(), &user, &headers,
-        "proxy.delete", "proxy", Some(pid.0), None,
-    ).await;
+        s.pool(),
+        &user,
+        &headers,
+        "proxy.delete",
+        "proxy",
+        Some(pid.0),
+        None,
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -88,9 +99,14 @@ async fn set_active(
     let pid = parse(&id)?;
     rampart_db::proxies::set_active(s.pool(), pid, body.active).await?;
     crate::audit::record(
-        s.pool(), &user, &headers,
-        "proxy.set_active", "proxy", Some(pid.0),
+        s.pool(),
+        &user,
+        &headers,
+        "proxy.set_active",
+        "proxy",
+        Some(pid.0),
         Some(serde_json::json!({ "active": body.active })),
-    ).await;
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }

@@ -364,7 +364,7 @@ async fn test_now(
             // Proxy reference dangling — fall back to direct probe so the
             // test still completes; the surfaced status will show the
             // misconfiguration via msg.
-            Err(_)    => probes.run(&monitor).await,
+            Err(_) => probes.run(&monitor).await,
         }
     } else {
         probes.run(&monitor).await
@@ -377,10 +377,15 @@ async fn test_now(
         rampart_db::monitors::set_status(state.pool(), monitor_id, hb.status).await?;
     }
     crate::audit::record(
-        state.pool(), &user, &headers,
-        "monitor.test_now", "monitor", Some(monitor_id.0),
+        state.pool(),
+        &user,
+        &headers,
+        "monitor.test_now",
+        "monitor",
+        Some(monitor_id.0),
         Some(serde_json::json!({ "status": hb.status })),
-    ).await;
+    )
+    .await;
     Ok(Json(hb))
 }
 

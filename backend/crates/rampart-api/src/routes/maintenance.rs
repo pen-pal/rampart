@@ -60,14 +60,19 @@ async fn create(
     let w = rampart_db::maintenance::create(s.pool(), input).await?;
     let rfc3339 = time::format_description::well_known::Rfc3339;
     crate::audit::record(
-        s.pool(), &user, &headers,
-        "maintenance.create", "maintenance_window", Some(w.id.0),
+        s.pool(),
+        &user,
+        &headers,
+        "maintenance.create",
+        "maintenance_window",
+        Some(w.id.0),
         Some(serde_json::json!({
             "name": w.name,
             "start_at": w.start_at.format(&rfc3339).unwrap_or_default(),
             "end_at":   w.end_at.format(&rfc3339).unwrap_or_default(),
         })),
-    ).await;
+    )
+    .await;
     Ok((StatusCode::CREATED, Json(w)))
 }
 
@@ -84,10 +89,15 @@ async fn update(
     let wid = parse_id(&id)?;
     let w = rampart_db::maintenance::update(s.pool(), wid, input).await?;
     crate::audit::record(
-        s.pool(), &user, &headers,
-        "maintenance.update", "maintenance_window", Some(wid.0),
+        s.pool(),
+        &user,
+        &headers,
+        "maintenance.update",
+        "maintenance_window",
+        Some(wid.0),
         Some(serde_json::json!({ "name": w.name })),
-    ).await;
+    )
+    .await;
     Ok(Json(w))
 }
 
@@ -100,9 +110,15 @@ async fn remove(
     let wid = parse_id(&id)?;
     rampart_db::maintenance::delete(s.pool(), wid).await?;
     crate::audit::record(
-        s.pool(), &user, &headers,
-        "maintenance.delete", "maintenance_window", Some(wid.0), None,
-    ).await;
+        s.pool(),
+        &user,
+        &headers,
+        "maintenance.delete",
+        "maintenance_window",
+        Some(wid.0),
+        None,
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -121,10 +137,15 @@ async fn set_active(
     let wid = parse_id(&id)?;
     rampart_db::maintenance::set_active(s.pool(), wid, body.active).await?;
     crate::audit::record(
-        s.pool(), &user, &headers,
-        "maintenance.set_active", "maintenance_window", Some(wid.0),
+        s.pool(),
+        &user,
+        &headers,
+        "maintenance.set_active",
+        "maintenance_window",
+        Some(wid.0),
         Some(serde_json::json!({ "active": body.active })),
-    ).await;
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -138,10 +159,15 @@ async fn attach(
     let mid = parse_monitor(&monitor_id)?;
     rampart_db::maintenance::attach(s.pool(), wid, mid).await?;
     crate::audit::record(
-        s.pool(), &user, &headers,
-        "maintenance.attach", "maintenance_window", Some(wid.0),
+        s.pool(),
+        &user,
+        &headers,
+        "maintenance.attach",
+        "maintenance_window",
+        Some(wid.0),
         Some(serde_json::json!({ "monitor_id": mid.0 })),
-    ).await;
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -155,9 +181,14 @@ async fn detach(
     let mid = parse_monitor(&monitor_id)?;
     rampart_db::maintenance::detach(s.pool(), wid, mid).await?;
     crate::audit::record(
-        s.pool(), &user, &headers,
-        "maintenance.detach", "maintenance_window", Some(wid.0),
+        s.pool(),
+        &user,
+        &headers,
+        "maintenance.detach",
+        "maintenance_window",
+        Some(wid.0),
         Some(serde_json::json!({ "monitor_id": mid.0 })),
-    ).await;
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }

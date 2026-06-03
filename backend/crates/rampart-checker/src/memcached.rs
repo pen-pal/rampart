@@ -44,7 +44,12 @@ impl Probe for MemcachedProbe {
         let to = Duration::from_secs(monitor.timeout_seconds as u64);
 
         let Some(host) = monitor.hostname.as_deref() else {
-            return down(monitor, ts, started, "memcached monitor requires a hostname");
+            return down(
+                monitor,
+                ts,
+                started,
+                "memcached monitor requires a hostname",
+            );
         };
         let port = monitor.port.map(|p| p as u16).unwrap_or(DEFAULT_PORT);
         let expect = monitor
@@ -67,10 +72,10 @@ impl Probe for MemcachedProbe {
         // Read a small chunk — the version response is well under 64 bytes.
         let mut buf = [0u8; 128];
         let n = match timeout(to, stream.read(&mut buf)).await {
-            Ok(Ok(0))  => return down(monitor, ts, started, "server closed connection"),
-            Ok(Ok(n))  => n,
+            Ok(Ok(0)) => return down(monitor, ts, started, "server closed connection"),
+            Ok(Ok(n)) => n,
             Ok(Err(e)) => return down(monitor, ts, started, &format!("read failed: {e}")),
-            Err(_)     => return down(monitor, ts, started, "read timed out"),
+            Err(_) => return down(monitor, ts, started, "read timed out"),
         };
         let resp = String::from_utf8_lossy(&buf[..n]);
         let head = resp.lines().next().unwrap_or("").trim_end_matches('\r');

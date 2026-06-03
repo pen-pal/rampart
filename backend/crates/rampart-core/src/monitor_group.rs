@@ -42,9 +42,7 @@ pub struct UpdateMonitorGroup {
     pub parent_id: Option<Option<MonitorGroupId>>,
 }
 
-fn deserialize_optional_parent_id<'de, D>(
-    de: D,
-) -> Result<Option<Option<MonitorGroupId>>, D::Error>
+fn deserialize_optional_parent_id<'de, D>(de: D) -> Result<Option<Option<MonitorGroupId>>, D::Error>
 where
     D: serde::Deserializer<'de>,
 {

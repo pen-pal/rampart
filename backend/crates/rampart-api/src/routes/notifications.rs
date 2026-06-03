@@ -56,10 +56,15 @@ async fn create(
     }
     let n = rampart_db::notifications::create(state.pool(), input).await?;
     crate::audit::record(
-        state.pool(), &user, &headers,
-        "notification.create", "notification", Some(n.id.0),
+        state.pool(),
+        &user,
+        &headers,
+        "notification.create",
+        "notification",
+        Some(n.id.0),
         Some(serde_json::json!({ "name": n.name, "kind": n.kind })),
-    ).await;
+    )
+    .await;
     Ok((StatusCode::CREATED, Json(n)))
 }
 
@@ -83,10 +88,15 @@ async fn update(
     let id = parse_notif(&id)?;
     let n = rampart_db::notifications::update(state.pool(), id, input).await?;
     crate::audit::record(
-        state.pool(), &user, &headers,
-        "notification.update", "notification", Some(id.0),
+        state.pool(),
+        &user,
+        &headers,
+        "notification.update",
+        "notification",
+        Some(id.0),
         Some(serde_json::json!({ "name": n.name, "active": n.active })),
-    ).await;
+    )
+    .await;
     Ok(Json(n))
 }
 
@@ -99,9 +109,15 @@ async fn remove(
     let id = parse_notif(&id)?;
     rampart_db::notifications::delete(state.pool(), id).await?;
     crate::audit::record(
-        state.pool(), &user, &headers,
-        "notification.delete", "notification", Some(id.0), None,
-    ).await;
+        state.pool(),
+        &user,
+        &headers,
+        "notification.delete",
+        "notification",
+        Some(id.0),
+        None,
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -137,10 +153,15 @@ async fn attach(
     let nid = parse_notif(&nid)?;
     rampart_db::notifications::attach(state.pool(), mid, nid).await?;
     crate::audit::record(
-        state.pool(), &user, &headers,
-        "notification.attach", "monitor", Some(mid.0),
+        state.pool(),
+        &user,
+        &headers,
+        "notification.attach",
+        "monitor",
+        Some(mid.0),
         Some(serde_json::json!({ "notification_id": nid.0 })),
-    ).await;
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -154,10 +175,15 @@ async fn detach(
     let nid = parse_notif(&nid)?;
     rampart_db::notifications::detach(state.pool(), mid, nid).await?;
     crate::audit::record(
-        state.pool(), &user, &headers,
-        "notification.detach", "monitor", Some(mid.0),
+        state.pool(),
+        &user,
+        &headers,
+        "notification.detach",
+        "monitor",
+        Some(mid.0),
         Some(serde_json::json!({ "notification_id": nid.0 })),
-    ).await;
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 

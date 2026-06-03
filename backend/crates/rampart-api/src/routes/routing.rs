@@ -89,10 +89,15 @@ async fn add_group_tag(
     let tid = pt(&tag)?;
     rampart_db::routing::tag_group(s.pool(), gid, tid).await?;
     crate::audit::record(
-        s.pool(), &user, &headers,
-        "routing.tag_group", "monitor_group", Some(gid.0),
+        s.pool(),
+        &user,
+        &headers,
+        "routing.tag_group",
+        "monitor_group",
+        Some(gid.0),
         Some(serde_json::json!({ "tag_id": tid.0 })),
-    ).await;
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 async fn del_group_tag(
@@ -105,10 +110,15 @@ async fn del_group_tag(
     let tid = pt(&tag)?;
     rampart_db::routing::untag_group(s.pool(), gid, tid).await?;
     crate::audit::record(
-        s.pool(), &user, &headers,
-        "routing.untag_group", "monitor_group", Some(gid.0),
+        s.pool(),
+        &user,
+        &headers,
+        "routing.untag_group",
+        "monitor_group",
+        Some(gid.0),
         Some(serde_json::json!({ "tag_id": tid.0 })),
-    ).await;
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -130,10 +140,15 @@ async fn add_group_channel(
     let nid = pn(&notif)?;
     rampart_db::routing::attach_group_channel(s.pool(), gid, nid).await?;
     crate::audit::record(
-        s.pool(), &user, &headers,
-        "routing.attach_group_channel", "monitor_group", Some(gid.0),
+        s.pool(),
+        &user,
+        &headers,
+        "routing.attach_group_channel",
+        "monitor_group",
+        Some(gid.0),
         Some(serde_json::json!({ "notification_id": nid.0 })),
-    ).await;
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 async fn del_group_channel(
@@ -146,10 +161,15 @@ async fn del_group_channel(
     let nid = pn(&notif)?;
     rampart_db::routing::detach_group_channel(s.pool(), gid, nid).await?;
     crate::audit::record(
-        s.pool(), &user, &headers,
-        "routing.detach_group_channel", "monitor_group", Some(gid.0),
+        s.pool(),
+        &user,
+        &headers,
+        "routing.detach_group_channel",
+        "monitor_group",
+        Some(gid.0),
         Some(serde_json::json!({ "notification_id": nid.0 })),
-    ).await;
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -171,10 +191,15 @@ async fn add_channel_tag(
     let tid = pt(&tag)?;
     rampart_db::routing::tag_channel(s.pool(), nid, tid).await?;
     crate::audit::record(
-        s.pool(), &user, &headers,
-        "routing.tag_channel", "notification", Some(nid.0),
+        s.pool(),
+        &user,
+        &headers,
+        "routing.tag_channel",
+        "notification",
+        Some(nid.0),
         Some(serde_json::json!({ "tag_id": tid.0 })),
-    ).await;
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 async fn del_channel_tag(
@@ -187,10 +212,15 @@ async fn del_channel_tag(
     let tid = pt(&tag)?;
     rampart_db::routing::untag_channel(s.pool(), nid, tid).await?;
     crate::audit::record(
-        s.pool(), &user, &headers,
-        "routing.untag_channel", "notification", Some(nid.0),
+        s.pool(),
+        &user,
+        &headers,
+        "routing.untag_channel",
+        "notification",
+        Some(nid.0),
         Some(serde_json::json!({ "tag_id": tid.0 })),
-    ).await;
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -212,10 +242,15 @@ async fn add_exclude(
     let nid = pn(&notif)?;
     rampart_db::routing::exclude_channel(s.pool(), mid, nid).await?;
     crate::audit::record(
-        s.pool(), &user, &headers,
-        "routing.exclude_channel", "monitor", Some(mid.0),
+        s.pool(),
+        &user,
+        &headers,
+        "routing.exclude_channel",
+        "monitor",
+        Some(mid.0),
         Some(serde_json::json!({ "notification_id": nid.0 })),
-    ).await;
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 async fn del_exclude(
@@ -228,10 +263,15 @@ async fn del_exclude(
     let nid = pn(&notif)?;
     rampart_db::routing::unexclude_channel(s.pool(), mid, nid).await?;
     crate::audit::record(
-        s.pool(), &user, &headers,
-        "routing.unexclude_channel", "monitor", Some(mid.0),
+        s.pool(),
+        &user,
+        &headers,
+        "routing.unexclude_channel",
+        "monitor",
+        Some(mid.0),
         Some(serde_json::json!({ "notification_id": nid.0 })),
-    ).await;
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 

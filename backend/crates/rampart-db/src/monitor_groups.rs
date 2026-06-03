@@ -145,9 +145,7 @@ pub async fn would_form_group_cycle(
         )
         .fetch_optional(pool)
         .await?;
-        current = row
-            .and_then(|r| r.parent_id)
-            .map(MonitorGroupId::from_uuid);
+        current = row.and_then(|r| r.parent_id).map(MonitorGroupId::from_uuid);
     }
     Ok(false)
 }

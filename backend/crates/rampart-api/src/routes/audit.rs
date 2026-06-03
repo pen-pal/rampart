@@ -88,7 +88,9 @@ async fn list_csv(
             e.id,
             e.ts.format(&fmt).unwrap_or_default(),
             e.actor_user_id.map(|u| u.0.to_string()).unwrap_or_default(),
-            e.actor_api_key_id.map(|k| k.0.to_string()).unwrap_or_default(),
+            e.actor_api_key_id
+                .map(|k| k.0.to_string())
+                .unwrap_or_default(),
             csv_escape(&e.action),
             csv_escape(&e.resource_kind),
             e.resource_id.map(|i| i.to_string()).unwrap_or_default(),

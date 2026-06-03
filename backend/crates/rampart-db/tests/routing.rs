@@ -245,13 +245,21 @@ async fn nested_folder_tag_propagates_to_child_monitor(pool: PgPool) {
     // Tag on Production + channel sharing that tag must reach m1.
     let prod = monitor_groups::create(
         &pool,
-        NewMonitorGroup { name: "Production".into(), sort_order: 0, parent_id: None },
+        NewMonitorGroup {
+            name: "Production".into(),
+            sort_order: 0,
+            parent_id: None,
+        },
     )
     .await
     .unwrap();
     let db = monitor_groups::create(
         &pool,
-        NewMonitorGroup { name: "Databases".into(), sort_order: 0, parent_id: Some(prod.id) },
+        NewMonitorGroup {
+            name: "Databases".into(),
+            sort_order: 0,
+            parent_id: Some(prod.id),
+        },
     )
     .await
     .unwrap();
@@ -277,19 +285,31 @@ async fn nested_folder_attached_channel_propagates_to_child_monitor(pool: PgPool
     // levels down.
     let root = monitor_groups::create(
         &pool,
-        NewMonitorGroup { name: "All".into(), sort_order: 0, parent_id: None },
+        NewMonitorGroup {
+            name: "All".into(),
+            sort_order: 0,
+            parent_id: None,
+        },
     )
     .await
     .unwrap();
     let mid = monitor_groups::create(
         &pool,
-        NewMonitorGroup { name: "Region".into(), sort_order: 0, parent_id: Some(root.id) },
+        NewMonitorGroup {
+            name: "Region".into(),
+            sort_order: 0,
+            parent_id: Some(root.id),
+        },
     )
     .await
     .unwrap();
     let leaf = monitor_groups::create(
         &pool,
-        NewMonitorGroup { name: "Service".into(), sort_order: 0, parent_id: Some(mid.id) },
+        NewMonitorGroup {
+            name: "Service".into(),
+            sort_order: 0,
+            parent_id: Some(mid.id),
+        },
     )
     .await
     .unwrap();

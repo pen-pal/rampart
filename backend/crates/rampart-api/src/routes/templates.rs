@@ -142,6 +142,6 @@ async fn preview(Json(input): Json<PreviewBody>) -> Result<Json<PreviewResponse>
     };
     Ok(Json(PreviewResponse {
         subject: render(&input.subject_template, &event),
-        body:    render(&input.body_template,    &event),
+        body: render(&input.body_template, &event),
     }))
 }
