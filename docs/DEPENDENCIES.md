@@ -51,7 +51,6 @@ Living list of dependency major bumps we are aware of and deliberately holding b
 | `prost`               | 0.13    | 0.14        | Tied to `tonic` 0.13.                                                                                                                                                                                                                                                                      |
 | `rumqttc`             | 0.24    | 0.25        | **Rejected, not just deferred.** 0.25 unconditionally adds `aws-lc-rs` + `cmake` to the build graph, which contradicts the pure-Rust crypto invariant the project advertises (see README "Why Rampart" + `docs/DESIGN-ORIGINAL.md`). Will revisit only if upstream restores a featureless rustls path. |
 | `tokio-tungstenite`   | 0.24    | 0.29        | Default features changed; we rely on the `rustls-tls-webpki-roots` feature being available without aws-lc-rs. Verify the feature set still composes the same crypto stack before bumping.                                                                                                  |
-| `bollard`             | 0.17    | 0.21        | Docker API client. Multiple breaking changes across the path from 0.17 → 0.21. The docker probe is one file; the migration is mechanical, just hasn't been scheduled.                                                                                                                       |
 
 ### npm
 

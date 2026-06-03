@@ -16,7 +16,10 @@
 
 use crate::{ms_i32, Probe};
 use async_trait::async_trait;
-use bollard::container::InspectContainerOptions;
+// bollard 0.20+ relocated the per-endpoint options structs into the
+// `query_parameters` module (re-exported from `bollard-stubs`). The old
+// `bollard::container::InspectContainerOptions` path no longer resolves.
+use bollard::query_parameters::InspectContainerOptions;
 use bollard::Docker;
 use rampart_core::{Heartbeat, Monitor, MonitorStatus};
 use std::time::{Duration, Instant};
