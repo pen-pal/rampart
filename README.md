@@ -48,10 +48,11 @@ Compared to the obvious alternatives:
 - **vs. SaaS (Datadog / Pingdom / Site24x7)** — Lives on your hardware,
   no per-monitor pricing, no log-volume bills, no data leaving your
   perimeter.
-- **vs. Uptime Kuma** — Same self-hosted spirit, broader probe catalog
-  (databases / banner protocols / Kafka / RADIUS / NTP), proper tag
-  routing, real audit log, Postgres instead of sqlite, single Rust
-  binary instead of Node + Chromium.
+- **vs. other self-hosted dashboards** — Broader probe catalog
+  (databases / banner protocols / Kafka / RADIUS / NTP / Memcached),
+  proper tag routing with folder ancestor inheritance, real audit log,
+  Postgres instead of sqlite, a single Rust binary instead of a Node
+  runtime + headless Chromium.
 - **vs. roll-your-own Prometheus blackbox** — Out of the box: status
   pages, incident posting, maintenance windows, dependency-aware
   alerting, 130 outbound channels.
