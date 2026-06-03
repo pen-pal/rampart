@@ -35,6 +35,7 @@ pub fn router() -> Router<AppState> {
         .route("/:id/resume", post(resume))
         .route("/:id/clone", post(clone_one))
         .route("/:id/regenerate-push-token", post(regenerate_push_token))
+        .route("/:id/test-now", post(test_now))
 }
 
 fn parse_monitor_id(s: &str) -> Result<MonitorId, ApiError> {
@@ -332,6 +333,55 @@ async fn clone_one(
     )
     .await;
     Ok((StatusCode::CREATED, Json(cloned)))
+}
+
+/// Run a one-shot probe right now, write the resulting heartbeat as if
+/// it were a scheduled one, and return it to the caller. Used by the UI
+/// "Test now" button so operators can verify a freshly-edited monitor
+/// without waiting up to `interval_seconds` for the scheduler's next
+/// tick. Push monitors don't have a real probe — they receive instead
+/// of send — so they're rejected with a 400.
+async fn test_now(
+    State(state): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<rampart_core::Heartbeat>, ApiError> {
+    let monitor_id = parse_monitor_id(&id)?;
+    let monitor = rampart_db::monitors::get(state.pool(), monitor_id).await?;
+    if monitor.kind == rampart_core::MonitorKind::Push {
+        return Err(ApiError::BadRequest(
+            "push monitors can't be probed from the server — they receive heartbeats, not send them".into(),
+        ));
+    }
+
+    // Run the probe synchronously. If the monitor has a proxy, route
+    // through it the same way the scheduler does.
+    let probes = rampart_checker::Probes::new();
+    let hb = if let Some(pid) = monitor.proxy_id {
+        match rampart_db::proxies::get(state.pool(), pid).await {
+            Ok(proxy) => probes.http_with_proxy(&monitor, &proxy).await,
+            // Proxy reference dangling — fall back to direct probe so the
+            // test still completes; the surfaced status will show the
+            // misconfiguration via msg.
+            Err(_)    => probes.run(&monitor).await,
+        }
+    } else {
+        probes.run(&monitor).await
+    };
+
+    // Persist the heartbeat + bump current_status to match — same shape
+    // as a scheduled tick that flipped status.
+    rampart_db::heartbeats::insert_many(state.pool(), std::slice::from_ref(&hb)).await?;
+    if hb.status != monitor.current_status {
+        rampart_db::monitors::set_status(state.pool(), monitor_id, hb.status).await?;
+    }
+    crate::audit::record(
+        state.pool(), &user, &headers,
+        "monitor.test_now", "monitor", Some(monitor_id.0),
+        Some(serde_json::json!({ "status": hb.status })),
+    ).await;
+    Ok(Json(hb))
 }
 
 /// Rotate a push monitor's token. Used when the existing token leaks or

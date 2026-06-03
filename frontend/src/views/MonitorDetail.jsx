@@ -5,7 +5,7 @@ import {
 import {
   ChevronLeft, Pause, Play, Edit3, Trash2, Bell, Plus, X, Send, Download,
   Globe, Server, Lock, AlertCircle, Activity, Hash, Radio, Database,
-  MoreHorizontal, Calendar, ChevronDown, Copy, Check, Zap,
+  MoreHorizontal, Calendar, ChevronDown, Copy, Check, Zap, Loader2,
 } from 'lucide-react';
 import {
   api, useApi, formatRelative, offsetDateTimeArrayToDate, statusToClass,
@@ -232,6 +232,7 @@ export default function MonitorDetail({ monitorId }) {
   const [logFilter, setLogFilter] = useState('all');
   const [acting, setActing] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [testing, setTesting] = useState(false);
 
   const monitorState   = useApi(() => monitorId ? api.monitors.get(monitorId)         : Promise.resolve(null), [monitorId], { pollMs: 15_000 });
   // 2000 = the backend's hard cap on this endpoint. Aligning lets the
@@ -285,6 +286,20 @@ export default function MonitorDetail({ monitorId }) {
       const copy = await api.monitors.clone(monitor.id);
       window.location.hash = `#/monitor/${copy.id}`;
     } catch (e) { alert(`Failed: ${e.message}`); setActing(false); }
+  };
+  const doTestNow = async () => {
+    if (!monitor || testing) return;
+    setTesting(true);
+    try {
+      const hb = await api.monitors.testNow(monitor.id);
+      // useApi polls every 10s so the new heartbeat row + status will
+      // appear on the next tick. Surface the immediate result in a tiny
+      // alert so the operator sees the probe outcome without waiting.
+      const latency = hb.latency_ms != null ? ` (${hb.latency_ms}ms)` : '';
+      const msg     = hb.msg ? `\n${hb.msg}` : '';
+      alert(`Probe ran — status: ${hb.status}${latency}${msg}`);
+    } catch (e) { alert(`Failed: ${e.message}`); }
+    finally { setTesting(false); }
   };
 
   // ── missing-id / loading / not-found ──────────────────────────────────
@@ -393,6 +408,12 @@ export default function MonitorDetail({ monitorId }) {
           </div>
 
           <div style={{ display: 'flex', gap: 6 }}>
+            {monitor.kind !== 'push' && (
+              <button className="btn" onClick={doTestNow} disabled={acting || testing}
+                title="Run the probe right now, without waiting for the next scheduled tick">
+                {testing ? <><Loader2 size={13} className="spin"/> Testing…</> : <><Zap size={13}/> Test now</>}
+              </button>
+            )}
             <button className="btn" onClick={doPauseResume} disabled={acting}>
               {monitor.active ? <><Pause size={13}/> Pause</> : <><Play size={13}/> Resume</>}
             </button>
