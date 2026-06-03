@@ -179,7 +179,8 @@ The full CI gate runs all of the above on push + PR — see [`.github/workflows/
 - **One concern per PR.** A feature and a refactor must go in separate PRs.
 - **Commit messages:** Short imperative subject (≤70 chars), body explains the *why*. Reference issues like `Fixes #42` when applicable.
 - **No `--no-verify`.** If a git hook fails, fix the underlying issue.
-- **Don't bump versions** in PRs — that's done at release time.
+- **Don't bump versions** in PRs — that's done at release time. The release procedure (single-line bump in `[workspace.package].version`, tag, GitHub release, artifact build) is documented in [`docs/RELEASING.md`](docs/RELEASING.md).
+- **Add a changelog entry.** Drop a one-line note under the appropriate sub-heading (`Added` / `Changed` / `Deprecated` / `Removed` / `Fixed` / `Security`) of the `## [Unreleased]` section in [`CHANGELOG.md`](CHANGELOG.md). The maintainer cuts the section into a versioned block when the release goes out — your PR doesn't need to pick the version number.
 
 ---
 

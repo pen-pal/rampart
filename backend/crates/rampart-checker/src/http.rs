@@ -18,6 +18,14 @@ use std::time::{Duration, Instant};
 use time::OffsetDateTime;
 use tracing::warn;
 
+/// User-Agent advertised by the HTTP probe. Built at compile time so it
+/// tracks `[workspace.package].version` — bumping the workspace version
+/// bumps the UA without a code edit. The trailing `(+url)` follows the
+/// long-standing convention for identifying a polite crawler / probe
+/// to upstream operators.
+const USER_AGENT: &str =
+    concat!("Rampart/", env!("CARGO_PKG_VERSION"), " (+https://github.com/pen-pal/rampart)");
+
 pub struct HttpProbe {
     client: OnceCell<Client>,
 }
@@ -32,7 +40,7 @@ impl HttpProbe {
     fn client(&self) -> &Client {
         self.client.get_or_init(|| {
             ClientBuilder::new()
-                .user_agent("Rampart/0.1 (+https://github.com/rampart-io/rampart)")
+                .user_agent(USER_AGENT)
                 .redirect(reqwest::redirect::Policy::none()) // honored per-monitor below
                 .pool_idle_timeout(Duration::from_secs(60))
                 .tcp_keepalive(Duration::from_secs(30))
@@ -66,7 +74,7 @@ fn build_proxy_client(proxy: &Proxy) -> Result<Client, String> {
         p = p.basic_auth(u, "");
     }
     ClientBuilder::new()
-        .user_agent("Rampart/0.1 (+https://github.com/rampart-io/rampart)")
+        .user_agent(USER_AGENT)
         .redirect(reqwest::redirect::Policy::none())
         .proxy(p)
         .build()
