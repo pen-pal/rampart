@@ -6,22 +6,46 @@
       {
         "ordinal": 0,
         "name": "id",
-        "type_info": "Uuid"
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "incidents",
+            "name": "id"
+          }
+        }
       },
       {
         "ordinal": 1,
         "name": "status_page_id",
-        "type_info": "Uuid"
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "incidents",
+            "name": "status_page_id"
+          }
+        }
       },
       {
         "ordinal": 2,
         "name": "title",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "incidents",
+            "name": "title"
+          }
+        }
       },
       {
         "ordinal": 3,
         "name": "content",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "incidents",
+            "name": "content"
+          }
+        }
       },
       {
         "ordinal": 4,
@@ -39,32 +63,68 @@
               ]
             }
           }
+        },
+        "origin": {
+          "Table": {
+            "table": "incidents",
+            "name": "style"
+          }
         }
       },
       {
         "ordinal": 5,
         "name": "pinned",
-        "type_info": "Bool"
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "incidents",
+            "name": "pinned"
+          }
+        }
       },
       {
         "ordinal": 6,
         "name": "active",
-        "type_info": "Bool"
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "incidents",
+            "name": "active"
+          }
+        }
       },
       {
         "ordinal": 7,
         "name": "resolved_at",
-        "type_info": "Timestamptz"
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "incidents",
+            "name": "resolved_at"
+          }
+        }
       },
       {
         "ordinal": 8,
         "name": "created_at",
-        "type_info": "Timestamptz"
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "incidents",
+            "name": "created_at"
+          }
+        }
       },
       {
         "ordinal": 9,
         "name": "created_by",
-        "type_info": "Uuid"
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "incidents",
+            "name": "created_by"
+          }
+        }
       }
     ],
     "parameters": {

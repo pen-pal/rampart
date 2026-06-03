@@ -56,7 +56,7 @@ hyper      = { version = "1.4", features = ["full"] }
 # same sqlx instance. Cargo unifies features so this also lands in
 # rampart-db's tree, which is a small compile-time cost we eat to keep
 # from juggling two sqlx instances.
-sqlx = { version = "0.8", features = [
+sqlx = { version = "0.9", features = [
   "runtime-tokio",
   "tls-rustls",
   "postgres",

@@ -6,27 +6,57 @@
       {
         "ordinal": 0,
         "name": "id",
-        "type_info": "Uuid"
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "incident_updates",
+            "name": "id"
+          }
+        }
       },
       {
         "ordinal": 1,
         "name": "incident_id",
-        "type_info": "Uuid"
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "incident_updates",
+            "name": "incident_id"
+          }
+        }
       },
       {
         "ordinal": 2,
         "name": "message",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "incident_updates",
+            "name": "message"
+          }
+        }
       },
       {
         "ordinal": 3,
         "name": "posted_at",
-        "type_info": "Timestamptz"
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "incident_updates",
+            "name": "posted_at"
+          }
+        }
       },
       {
         "ordinal": 4,
         "name": "posted_by",
-        "type_info": "Uuid"
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "incident_updates",
+            "name": "posted_by"
+          }
+        }
       }
     ],
     "parameters": {
