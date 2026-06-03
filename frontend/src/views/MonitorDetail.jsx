@@ -462,7 +462,7 @@ export default function MonitorDetail({ monitorId }) {
         )}
 
         {monitor.kind === 'push' && monitor.push_token && (
-          <PushUrlCard token={monitor.push_token} lastPushAt={monitor.last_push_at} interval={monitor.interval_seconds}/>
+          <PushUrlCard monitorId={monitor.id} token={monitor.push_token} lastPushAt={monitor.last_push_at} interval={monitor.interval_seconds}/>
         )}
 
         {(monitor.kind === 'http' || monitor.kind === 'keyword' || monitor.kind === 'json_query')
@@ -1153,9 +1153,11 @@ function CertCard({ monitor }) {
   );
 }
 
-function PushUrlCard({ token, lastPushAt, interval }) {
-  const [copied, setCopied] = useState(false);
-  const url = `${window.location.origin}/push/${token}?status=up&msg=ok`;
+function PushUrlCard({ monitorId, token, lastPushAt, interval }) {
+  const [currentToken, setCurrentToken] = useState(token);
+  const [copied, setCopied]   = useState(false);
+  const [rotating, setRotating] = useState(false);
+  const url = `${window.location.origin}/push/${currentToken}?status=up&msg=ok`;
 
   const copy = async () => {
     try {
@@ -1163,6 +1165,21 @@ function PushUrlCard({ token, lastPushAt, interval }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1600);
     } catch { /* clipboard refused — silently no-op */ }
+  };
+
+  const regenerate = async () => {
+    if (!confirm(
+      'Regenerate the push token? The current URL stops working immediately — '
+      + 'any cron / CI job still using it will start receiving 404 responses '
+      + 'until you give them the new URL.'
+    )) return;
+    setRotating(true);
+    try {
+      const r = await api.monitors.regeneratePushToken(monitorId);
+      setCurrentToken(r.push_token);
+    } catch (e) {
+      alert(e.message || 'Failed to regenerate token.');
+    } finally { setRotating(false); }
   };
 
   const lastPushDate = lastPushAt ? offsetDateTimeArrayToDate(lastPushAt) : null;
@@ -1176,14 +1193,18 @@ function PushUrlCard({ token, lastPushAt, interval }) {
         Have your cron / CI / backup job call this URL on each successful run.
         If we don't hear from it within {interval}s (plus grace), the monitor flips to Down.
       </p>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', flexWrap: 'wrap' }}>
         <code className="mono" style={{
-          flex: 1, padding: '8px 10px', fontSize: 12, background: 'var(--surface-2)',
+          flex: '1 1 320px', padding: '8px 10px', fontSize: 12, background: 'var(--surface-2)',
           border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)',
           overflow: 'auto', whiteSpace: 'nowrap',
         }}>{url}</code>
         <button className="btn btn-ghost" onClick={copy} style={{ padding: '0 12px', fontSize: 12 }}>
           {copied ? <><Check size={12}/> Copied</> : <><Copy size={12}/> Copy</>}
+        </button>
+        <button className="btn btn-ghost" onClick={regenerate} disabled={rotating} style={{ padding: '0 12px', fontSize: 12 }}
+          title="Issue a new token; the current URL stops working immediately">
+          {rotating ? 'Rotating…' : 'Regenerate'}
         </button>
       </div>
       <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-3)' }}>

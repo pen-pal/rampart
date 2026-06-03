@@ -158,6 +158,29 @@ pub async fn create(pool: &DbPool, input: NewMonitor) -> DbResult<Monitor> {
     Ok(row.into())
 }
 
+/// Rotate the push token on an existing push monitor. The new token
+/// replaces the old one atomically; any in-flight push requests still
+/// holding the old token start failing with 404 immediately. Errors
+/// with NotFound when the monitor doesn't exist or isn't a push kind.
+pub async fn regenerate_push_token(pool: &DbPool, id: MonitorId) -> DbResult<String> {
+    let token = generate_push_token();
+    let result = sqlx::query!(
+        r#"
+        UPDATE monitors
+           SET push_token = $1, updated_at = NOW()
+         WHERE id = $2 AND kind = 'push'
+        "#,
+        token,
+        id.0,
+    )
+    .execute(pool)
+    .await?;
+    if result.rows_affected() == 0 {
+        return Err(DbError::NotFound);
+    }
+    Ok(token)
+}
+
 /// 24 url-safe characters of entropy from the OS RNG. Unique-indexed so
 /// even an extremely unlikely collision becomes a transient DB error
 /// the caller can retry.

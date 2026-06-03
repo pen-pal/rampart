@@ -34,6 +34,7 @@ pub fn router() -> Router<AppState> {
         .route("/:id/pause", post(pause))
         .route("/:id/resume", post(resume))
         .route("/:id/clone", post(clone_one))
+        .route("/:id/regenerate-push-token", post(regenerate_push_token))
 }
 
 fn parse_monitor_id(s: &str) -> Result<MonitorId, ApiError> {
@@ -331,6 +332,33 @@ async fn clone_one(
     )
     .await;
     Ok((StatusCode::CREATED, Json(cloned)))
+}
+
+/// Rotate a push monitor's token. Used when the existing token leaks or
+/// is suspected of being compromised — any caller still holding the old
+/// token starts getting 404s immediately.
+async fn regenerate_push_token(
+    State(state): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let monitor_id = parse_monitor_id(&id)?;
+    let token = rampart_db::monitors::regenerate_push_token(state.pool(), monitor_id).await?;
+    crate::audit::record(
+        state.pool(),
+        &user,
+        &headers,
+        "monitor.regenerate_push_token",
+        "monitor",
+        Some(monitor_id.0),
+        // Don't log the new token itself; the previous one is already
+        // invalidated and an attacker who has the audit log already has
+        // bigger problems, but no need to make it worse.
+        None,
+    )
+    .await;
+    Ok(Json(serde_json::json!({ "push_token": token })))
 }
 
 #[derive(Debug, Deserialize)]
