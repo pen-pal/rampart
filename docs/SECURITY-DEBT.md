@@ -17,6 +17,8 @@ dependency cuts a new major version.
 | 2026-0098 | `rustls-webpki` 0.102 | (same) | (same) | (same) |
 | 2026-0099 | `rustls-webpki` 0.102 | (same) | (same) | (same) |
 | 2026-0104 | `rustls-webpki` 0.102 | (same) | (same) | (same) |
+| GHSA-pwjx-qhcg-rvj4 | `rustls-webpki` 0.102 | (same) | CRLs not considered authoritative by `distributionPoint` due to faulty matching logic. Same chain — only affects callers that explicitly opt-in to CRL checking via `RevocationOptions`, which our MQTT probe does not. | (same) |
+| GHSA-82j2-j2ch-gfr8 | `rustls-webpki` 0.102 | (same) | DoS via panic on malformed CRL `BIT STRING`. Same chain — also CRL-only; reachable only when CRL revocation is explicitly enabled, which our default config doesn't do. | (same) |
 
 ## Progress
 
