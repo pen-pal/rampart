@@ -77,6 +77,12 @@ async fn push(
     };
     rampart_db::heartbeats::insert_many(state.pool(), std::slice::from_ref(&hb)).await?;
     rampart_db::monitors::bump_push_at(state.pool(), monitor_id).await?;
+    // Push heartbeats are direct assertions from an external job, so the
+    // monitor's current_status should reflect the latest payload — not
+    // the "important flip only" semantics used by scheduler heartbeats.
+    // Without this, push monitors never leave their default state and
+    // the dashboard reads them as down forever.
+    rampart_db::monitors::set_status(state.pool(), monitor_id, status).await?;
 
     Ok((StatusCode::OK, "ok"))
 }
