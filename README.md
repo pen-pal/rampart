@@ -15,7 +15,12 @@ One Rust binary. One Postgres. 28 probe kinds. 130 notification channels. Public
 
 <br/>
 
-<img src="docs/assets/dashboard.png" alt="Rampart dashboard — folder tree sidebar, mixed-state health banner, live response-time chart" width="900"/>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/dashboard-dark.png">
+  <img src="docs/assets/dashboard.png" alt="Rampart dashboard — folder tree sidebar, mixed-state health banner, live response-time chart" width="900"/>
+</picture>
+
+<sub>Light + dark — switches automatically based on viewer's <code>prefers-color-scheme</code>.</sub>
 
 </div>
 
