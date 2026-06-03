@@ -15,11 +15,6 @@ unmaintained = "workspace"
 # dependency-upgrade pass — see docs/SECURITY-DEBT.md. Review on every
 # `cargo update`.
 ignore = [
-    # rsa (via sqlx-mysql): Marvin timing sidechannel. No upstream fix
-    # exists for the pure-Rust rsa crate. Reachable only if a malicious
-    # MySQL server mounts a timing attack during auth — Rampart connects
-    # OUT to operator-controlled DBs, so not a realistic threat.
-    "RUSTSEC-2023-0071",
     # rustls-webpki 0.102 (via rumqttc -> rustls 0.22): cert name-constraint
     # + CRL-parse panics. Fix needs rustls 0.23 (webpki 0.103), gated on a
     # rumqttc upgrade. MQTT probe verifies an operator-specified broker's
