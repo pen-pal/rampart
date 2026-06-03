@@ -72,7 +72,9 @@ pub fn build_clear_cookie<'a>(secure: bool) -> Cookie<'a> {
 /// stale-state bugs if we revoke a session out-of-band.
 pub struct AuthUser(pub User);
 
-#[axum::async_trait]
+// axum 0.8 dropped the `#[async_trait]` requirement on extractor
+// implementations — native async-fn-in-trait carries the signature
+// directly since rustc 1.75.
 impl FromRequestParts<AppState> for AuthUser {
     type Rejection = ApiError;
 

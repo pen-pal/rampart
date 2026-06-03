@@ -19,14 +19,14 @@ use uuid::Uuid;
 
 pub fn public_router() -> Router<AppState> {
     Router::new()
-        .route("/status-pages/:slug/subscribe", post(subscribe))
-        .route("/subscribe/unsubscribe/:token", get(unsubscribe))
+        .route("/status-pages/{slug}/subscribe", post(subscribe))
+        .route("/subscribe/unsubscribe/{token}", get(unsubscribe))
 }
 
 pub fn admin_router() -> Router<AppState> {
     Router::new()
-        .route("/status-pages/:id/subscribers", get(list))
-        .route("/subscribers/:id", axum::routing::delete(delete_one))
+        .route("/status-pages/{id}/subscribers", get(list))
+        .route("/subscribers/{id}", axum::routing::delete(delete_one))
         .route("/settings/smtp", get(smtp_get).put(smtp_put))
         .route("/settings/retention", get(retention_get).put(retention_put))
 }

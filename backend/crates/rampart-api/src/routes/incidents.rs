@@ -28,14 +28,14 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 pub fn page_router() -> Router<AppState> {
-    Router::new().route("/:page_id/incidents", get(list_for_page).post(create))
+    Router::new().route("/{page_id}/incidents", get(list_for_page).post(create))
 }
 
 pub fn incident_router() -> Router<AppState> {
     Router::new()
-        .route("/:id", axum::routing::patch(update).delete(delete_one))
-        .route("/:id/resolve", post(resolve))
-        .route("/:id/updates", get(list_updates).post(post_update))
+        .route("/{id}", axum::routing::patch(update).delete(delete_one))
+        .route("/{id}/resolve", post(resolve))
+        .route("/{id}/updates", get(list_updates).post(post_update))
 }
 
 fn parse_page(s: &str) -> Result<StatusPageId, ApiError> {

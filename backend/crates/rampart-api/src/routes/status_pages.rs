@@ -21,11 +21,11 @@ use validator::Validate;
 pub fn admin_router() -> Router<AppState> {
     Router::new()
         .route("/", get(list).post(create))
-        .route("/:id", get(get_one).patch(update).delete(remove))
+        .route("/{id}", get(get_one).patch(update).delete(remove))
 }
 
 pub fn public_router() -> Router<AppState> {
-    Router::new().route("/:slug", get(public_view))
+    Router::new().route("/{slug}", get(public_view))
 }
 
 fn parse(id: &str) -> Result<StatusPageId, ApiError> {

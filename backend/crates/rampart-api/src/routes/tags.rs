@@ -18,15 +18,15 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list).post(create))
         .route("/usage", get(usage))
-        .route("/:id", axum::routing::patch(update).delete(remove))
+        .route("/{id}", axum::routing::patch(update).delete(remove))
 }
 
 /// Sub-router mounted under /v1/monitors so the path is
 /// /v1/monitors/:id/tags + /v1/monitors/:id/tags/:tag_id.
 pub fn monitor_tag_router() -> Router<AppState> {
     Router::new()
-        .route("/:id/tags", get(list_for_monitor))
-        .route("/:id/tags/:tag_id", post(attach).delete(detach))
+        .route("/{id}/tags", get(list_for_monitor))
+        .route("/{id}/tags/{tag_id}", post(attach).delete(detach))
 }
 
 fn parse_tag(s: &str) -> Result<TagId, ApiError> {

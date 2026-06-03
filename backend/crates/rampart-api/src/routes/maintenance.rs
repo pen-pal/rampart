@@ -16,9 +16,9 @@ use validator::Validate;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list).post(create))
-        .route("/:id", get(get_one).patch(update).delete(remove))
-        .route("/:id/active", post(set_active))
-        .route("/:id/monitors/:monitor_id", post(attach).delete(detach))
+        .route("/{id}", get(get_one).patch(update).delete(remove))
+        .route("/{id}/active", post(set_active))
+        .route("/{id}/monitors/{monitor_id}", post(attach).delete(detach))
 }
 
 fn parse_id(s: &str) -> Result<MaintenanceId, ApiError> {

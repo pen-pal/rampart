@@ -23,14 +23,14 @@ use validator::Validate;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list).post(create))
-        .route("/:id", axum::routing::patch(update).delete(delete_one))
+        .route("/{id}", axum::routing::patch(update).delete(delete_one))
 }
 
 pub fn dep_router() -> Router<AppState> {
     Router::new()
-        .route("/:id/dependencies", get(list_deps))
+        .route("/{id}/dependencies", get(list_deps))
         .route(
-            "/:id/dependencies/:parent_id",
+            "/{id}/dependencies/{parent_id}",
             post(attach_dep).delete(detach_dep),
         )
 }
