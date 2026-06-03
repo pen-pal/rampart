@@ -198,5 +198,5 @@ docker compose up -d --build
 ```
 
 The migrator is forward-only and runs on every boot. To pin a release,
-edit the `image: ghcr.io/rampart-io/rampart:latest` in `compose.yaml`
+edit the `image: ghcr.io/pen-pal/rampart:latest` in `compose.yaml`
 to a tagged version.

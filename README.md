@@ -369,7 +369,7 @@ Rampart is feature-complete for 95% of uptime monitoring use cases, but we are a
 - [ ] **Webhook Payload Builder:** A visual UI for testing and formatting Liquid templates before saving them to a notification channel.
 - [ ] **Read-Only Roles:** Allow team members to view dashboards and status pages without being able to mutate monitors or delete data.
 
-*Have a feature request? [Open a Discussion](https://github.com/rampart-io/rampart/discussions) before submitting a PR to ensure it aligns with our scope.*
+*Have a feature request? [Open a Discussion](https://github.com/pen-pal/rampart/discussions) before submitting a PR to ensure it aligns with our scope.*
 
 ---
 
@@ -379,9 +379,10 @@ We love contributions! Whether it's fixing a typo, adding a new probe kind, or i
 
 Please read [**CONTRIBUTING.md**](CONTRIBUTING.md) for guidelines on how to set up your dev environment, our coding standards, and how to add new probes or notification channels.
 
-- 🐛 **Found a bug?** [Open an Issue](https://github.com/rampart-io/rampart/issues/new?template=bug_report.md).
-- 💡 **Have an idea?** [Start a Discussion](https://github.com/rampart-io/rampart/discussions).
-- 💬 **Need help?** Join our [Discord Server](https://discord.gg/rampart) or ask in [GitHub Discussions](https://github.com/rampart-io/rampart/discussions).
+- 🐛 **Found a bug?** [Open an Issue](https://github.com/pen-pal/rampart/issues/new?template=bug_report.md).
+- 💡 **Have an idea?** [Start a Discussion](https://github.com/pen-pal/rampart/discussions).
+- 💬 **Need help?** Join our [Discord Server](https://discord.gg/rampart) or ask in [GitHub Discussions](https://github.com/pen-pal/rampart/discussions).
+- 📋 **What changed?** Read the [**CHANGELOG**](CHANGELOG.md) or browse [tagged releases](https://github.com/pen-pal/rampart/releases). Cutting a release is documented in [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
@@ -389,10 +390,10 @@ Please read [**CONTRIBUTING.md**](CONTRIBUTING.md) for guidelines on how to set 
 
 If you find Rampart useful, please consider giving it a star! It helps us grow the community and keeps us motivated.
 
-<a href="https://star-history.com/#rampart-io/rampart&Date">
+<a href="https://star-history.com/#pen-pal/rampart&Date">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=rampart-io/rampart&type=Date&theme=dark" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=rampart-io/rampart&type=Date" />
-    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=rampart-io/rampart&type=Date" />
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=pen-pal/rampart&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=pen-pal/rampart&type=Date" />
+    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=pen-pal/rampart&type=Date" />
   </picture>
 </a>

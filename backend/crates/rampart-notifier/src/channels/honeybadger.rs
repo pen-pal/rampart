@@ -62,8 +62,8 @@ impl Channel for Honeybadger {
         let payload = Payload {
             notifier: Notifier {
                 name: "rampart",
-                version: "0.1",
-                url: "https://github.com/rampart-io/rampart",
+                version: env!("CARGO_PKG_VERSION"),
+                url: "https://github.com/pen-pal/rampart",
             },
             error: HbError {
                 class: "MonitorAlert",
