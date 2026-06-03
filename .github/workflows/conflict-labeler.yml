@@ -22,6 +22,23 @@ jobs:
   label:
     runs-on: ubuntu-latest
     steps:
+      # Ensure the `has-conflicts` label exists. The repo's labels are
+      # normally synced from .github/labels.yml by the `labels` workflow,
+      # but that only fires when the manifest changes — on a fresh repo
+      # (or one where the sync hasn't run yet) the conflict-labeler
+      # action errors with "label 'has-conflicts' was not found".
+      # `gh label create` with `--force` is idempotent: creates if
+      # missing, updates colour/description if already present.
+      - name: Ensure has-conflicts label exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create has-conflicts \
+            --repo "${{ github.repository }}" \
+            --color b60205 \
+            --description "Merge conflicts with the base branch — needs a rebase." \
+            --force
+
       - uses: prince-chrismc/label-merge-conflicts-action@v3
         with:
           conflict_label_name: "has-conflicts"
