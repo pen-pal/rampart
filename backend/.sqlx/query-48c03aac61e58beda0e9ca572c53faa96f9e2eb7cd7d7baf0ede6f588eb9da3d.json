@@ -64,7 +64,8 @@
                 "websocket",
                 "nats",
                 "ldap",
-                "amqp"
+                "amqp",
+                "doh"
               ]
             }
           }
