@@ -88,6 +88,11 @@ pub enum MonitorKind {
     /// `community` (default `public`) + `oid` (default sysDescr at
     /// `1.3.6.1.2.1.1.1.0`) control the query.
     Snmp,
+    /// Cassandra / ScyllaDB probe. Opens a CQL session to the listed
+    /// node (default port 9042), runs `SELECT release_version FROM
+    /// system.local` to confirm the server is past the CQL handshake
+    /// and answering queries. Plaintext only today; TLS deferred.
+    Cassandra,
     // registry
     Domain,
     /// Headless-browser-rendered check. We don't ship a Chromium binary

@@ -14,6 +14,7 @@
 pub mod amqp;
 pub mod banner;
 pub mod browser;
+pub mod cassandra;
 pub mod dns;
 pub mod docker;
 pub mod doh;
@@ -79,6 +80,7 @@ pub struct Probes {
     doh: doh::DohProbe,
     rdap: rdap::RdapProbe,
     snmp: snmp::SnmpProbe,
+    cassandra: cassandra::CassandraProbe,
     grpc: grpc::GrpcProbe,
     mqtt: mqtt::MqttProbe,
     docker: docker::DockerProbe,
@@ -112,6 +114,7 @@ impl Probes {
             doh: doh::DohProbe::new(),
             rdap: rdap::RdapProbe::new(),
             snmp: snmp::SnmpProbe::new(),
+            cassandra: cassandra::CassandraProbe::new(),
             grpc: grpc::GrpcProbe::new(),
             mqtt: mqtt::MqttProbe::new(),
             docker: docker::DockerProbe::new(),
@@ -162,6 +165,7 @@ impl Probes {
             MonitorKind::Doh => self.doh.run(monitor).await,
             MonitorKind::Rdap => self.rdap.run(monitor).await,
             MonitorKind::Snmp => self.snmp.run(monitor).await,
+            MonitorKind::Cassandra => self.cassandra.run(monitor).await,
             MonitorKind::Grpc => self.grpc.run(monitor).await,
             MonitorKind::Mqtt => self.mqtt.run(monitor).await,
             MonitorKind::Docker => self.docker.run(monitor).await,

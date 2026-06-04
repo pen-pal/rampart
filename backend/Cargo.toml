@@ -171,6 +171,11 @@ ldap3            = { version = "0.12", default-features = false, features = ["tl
 lapin            = { version = "3", default-features = false }
 # SNMP v1/v2c client. Pure-Rust, tokio-async, no C deps.
 csnmp            = "0.4"
+# Cassandra / ScyllaDB driver. Pure-Rust, tokio-async. default-features
+# off because the default feature set drags in `openssl` for TLS; the
+# probe handles plaintext CQL only (TLS is a follow-up that would wire
+# our rustls ClientConfig through `scylla::SessionConfig::rustls_*`).
+scylla           = { version = "1", default-features = false }
 # Docker over the local socket or remote HTTP API.
 # `http` + `pipe` are the bollard default features but we set
 # `default-features = false` to keep `buildkit` etc out of the graph;

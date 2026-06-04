@@ -43,3 +43,4 @@ async-nats       = { workspace = true }
 ldap3            = { workspace = true }
 lapin            = { workspace = true }
 csnmp            = { workspace = true }
+scylla           = { workspace = true }
