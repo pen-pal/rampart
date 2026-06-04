@@ -68,7 +68,9 @@
                 "doh",
                 "rdap",
                 "snmp",
-                "cassandra"
+                "cassandra",
+                "mdns",
+                "ssdp"
               ]
             }
           }

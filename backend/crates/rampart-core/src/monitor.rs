@@ -93,6 +93,16 @@ pub enum MonitorKind {
     /// system.local` to confirm the server is past the CQL handshake
     /// and answering queries. Plaintext only today; TLS deferred.
     Cassandra,
+    /// mDNS service-discovery probe (RFC 6762). Sends a multicast
+    /// DNS query for `_services._dns-sd._udp.local` (the meta-service
+    /// enumerator) to `224.0.0.251:5353` and counts unicast responses
+    /// over the timeout window. Up when at least one peer answers.
+    Mdns,
+    /// SSDP / UPnP service-discovery probe. Sends an HTTP-over-UDP
+    /// `M-SEARCH * HTTP/1.1` to `239.255.255.250:1900` and counts
+    /// unicast responses. Up when at least one peer answers (e.g.
+    /// a smart-TV, NAS, or UPnP-enabled router on the LAN).
+    Ssdp,
     // registry
     Domain,
     /// Headless-browser-rendered check. We don't ship a Chromium binary
