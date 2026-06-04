@@ -95,6 +95,7 @@ mod tests {
 
     #[test]
     fn accepts_minimal_config() {
+        crate::init_test_crypto();
         assert!(Apprise::from_config(&json!({
             "apprise_url": "http://apprise:8000",
             "urls":        "tgram://bot:tok/chat"

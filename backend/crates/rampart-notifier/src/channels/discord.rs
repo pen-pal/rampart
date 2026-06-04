@@ -68,6 +68,7 @@ mod tests {
 
     #[test]
     fn accepts_both_discord_and_discordapp_hosts() {
+        crate::init_test_crypto();
         assert!(Discord::from_config(
             &json!({"webhook_url": "https://discord.com/api/webhooks/1/x"})
         )

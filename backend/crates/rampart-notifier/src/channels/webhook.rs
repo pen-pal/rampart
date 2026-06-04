@@ -87,6 +87,7 @@ mod tests {
 
     #[test]
     fn accepts_http_and_https() {
+        crate::init_test_crypto();
         assert!(Webhook::from_config(&json!({"url": "http://example.com/x"})).is_ok());
         assert!(Webhook::from_config(&json!({"url": "https://example.com/x"})).is_ok());
     }

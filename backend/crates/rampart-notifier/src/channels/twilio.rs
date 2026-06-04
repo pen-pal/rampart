@@ -137,6 +137,7 @@ mod tests {
 
     #[test]
     fn accepts_valid_config() {
+        crate::init_test_crypto();
         assert!(Twilio::from_config(&base()).is_ok());
     }
 }

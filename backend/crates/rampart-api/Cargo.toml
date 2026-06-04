@@ -43,6 +43,11 @@ totp-rs            = { workspace = true }
 base32             = { workspace = true }
 lettre             = { workspace = true }
 futures            = { workspace = true }
+# Needed by `main.rs` to install ring as the global rustls
+# CryptoProvider — reqwest 0.13's `rustls-no-provider` feature
+# leaves the choice to the consuming binary so the whole workspace
+# shares one crypto stack.
+rustls             = { workspace = true }
 tokio-stream       = { version = "0.1", features = ["sync"] }
 
 [dev-dependencies]

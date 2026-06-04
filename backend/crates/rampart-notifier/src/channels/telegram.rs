@@ -100,6 +100,7 @@ mod tests {
 
     #[test]
     fn accepts_minimal_valid_config() {
+        crate::init_test_crypto();
         let ok = Telegram::from_config(&json!({"bot_token": "abc", "chat_id": "-100123"}));
         assert!(ok.is_ok());
     }

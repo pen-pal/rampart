@@ -44,3 +44,11 @@ generic-array = "=0.14.7"
 
 [dev-dependencies]
 rampart-core = { path = "../rampart-core", features = ["testing"] }
+# Each channel test constructs a `reqwest::Client::new()`. With
+# reqwest 0.13 + `rustls-no-provider`, the Client builder probes
+# for an installed CryptoProvider at construction time and panics
+# if none is set — `main.rs` installs `rustls::crypto::ring` in
+# production, but tests don't go through that path. This dep lets
+# `crate::init_test_crypto()` do the same install once per test
+# executable.
+rustls       = { workspace = true }
