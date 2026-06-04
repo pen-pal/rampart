@@ -46,6 +46,7 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 - HTTP probe User-Agent and Honeybadger notifier payload now read the workspace version via `env!("CARGO_PKG_VERSION")` instead of hard-coded `"0.1"` strings.
 
 ### CI / Tooling
+- **Docker build/push split into per-arch matrix.** The previous layout built `linux/amd64` + `linux/arm64` sequentially on one amd64 runner using QEMU emulation — arm64 under QEMU runs Rust compilation 5-10× slower, and an empty buildcache on the first push made the serial build run over two hours. New layout has two parallel jobs (amd64 on `ubuntu-latest`, arm64 on the native `ubuntu-24.04-arm` runner with no QEMU), each pushing by digest into separate `:buildcache-amd64` / `:buildcache-arm64` registry caches, plus a final `assemble manifest` job that uses `docker buildx imagetools create` to merge the two digests under the user-facing tag. Each leg has a `timeout-minutes: 90` hard ceiling so a future hang can't run unbounded.
 - E2E matrix now runs Playwright across Chromium, Firefox, WebKit, and the branded Chrome + Edge channels (17 specs × 5 projects = 85 runs per push).
 - Dependabot groups restructured into routine (minor + patch) / major / security per ecosystem. The previous routine group bundled major bumps together, which made any given PR effectively unreviewable.
 - CodeQL workflow split per language; Rust stays on `build-mode: none` until upstream supports `manual`.
