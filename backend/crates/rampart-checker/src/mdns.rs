@@ -157,11 +157,11 @@ mod tests {
         // Header: 12 bytes
         assert_eq!(&q[..2], &[0, 0]); // id
         assert_eq!(&q[4..6], &[0, 1]); // qdcount
-        // Question starts at offset 12:
-        //   1 label  "_http"  (5)
-        //   1 label  "_tcp"   (4)
-        //   1 label  "local"  (5)
-        //   root terminator (0)
+                                       // Question starts at offset 12:
+                                       //   1 label  "_http"  (5)
+                                       //   1 label  "_tcp"   (4)
+                                       //   1 label  "local"  (5)
+                                       //   root terminator (0)
         assert_eq!(q[12], 5);
         assert_eq!(&q[13..18], b"_http");
         assert_eq!(q[18], 4);

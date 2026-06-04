@@ -86,10 +86,26 @@ async fn main() -> anyhow::Result<()> {
 fn init_tracing() {
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("rampart=info,tower_http=info,info"));
-    tracing_subscriber::fmt()
+
+    // Production deploys typically ship logs to a structured aggregator
+    // (Loki / Datadog / Splunk / SaaS log providers). `RAMPART_LOG_FORMAT
+    // =json` swaps the human-readable formatter for the JSON one so the
+    // aggregator can index `request_id` as a first-class field rather
+    // than re-parsing it out of the log text. Default stays compact +
+    // human-readable for dev / `docker compose up` use.
+    let json = std::env::var("RAMPART_LOG_FORMAT").as_deref() == Ok("json");
+    let builder = tracing_subscriber::fmt()
         .with_env_filter(filter)
-        .with_target(true)
-        .init();
+        .with_target(true);
+    if json {
+        builder
+            .json()
+            .with_current_span(true)
+            .flatten_event(true)
+            .init();
+    } else {
+        builder.init();
+    }
 }
 
 async fn shutdown_signal() {

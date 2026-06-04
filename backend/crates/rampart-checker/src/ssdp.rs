@@ -87,7 +87,10 @@ impl Probe for SsdpProbe {
         };
 
         if let Err(e) = sock
-            .send_to(req.as_bytes(), SocketAddr::new(SSDP_GROUP.into(), SSDP_PORT))
+            .send_to(
+                req.as_bytes(),
+                SocketAddr::new(SSDP_GROUP.into(), SSDP_PORT),
+            )
             .await
         {
             return down(monitor, ts, started, &format!("send: {e}"));
