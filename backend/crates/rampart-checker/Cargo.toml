@@ -42,3 +42,4 @@ md-5             = { workspace = true }
 async-nats       = { workspace = true }
 ldap3            = { workspace = true }
 lapin            = { workspace = true }
+csnmp            = { workspace = true }

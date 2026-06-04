@@ -81,6 +81,13 @@ pub enum MonitorKind {
     /// URL is the RDAP base (e.g. `https://rdap.org/domain`); config
     /// `domain` carries the lookup target (e.g. `example.com`).
     Rdap,
+    /// SNMP v2c GET probe. Issues a single SNMP GET for an OID
+    /// against a UDP-reachable agent (default port 161); Up when the
+    /// agent replies with a varbind. Same wire format as SNMPv1's GET
+    /// — works for both. Hostname + port carry the agent; config
+    /// `community` (default `public`) + `oid` (default sysDescr at
+    /// `1.3.6.1.2.1.1.1.0`) control the query.
+    Snmp,
     // registry
     Domain,
     /// Headless-browser-rendered check. We don't ship a Chromium binary

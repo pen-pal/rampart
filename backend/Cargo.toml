@@ -169,6 +169,8 @@ ldap3            = { version = "0.12", default-features = false, features = ["tl
 # a follow-up that wires our existing rustls ClientConfig through
 # lapin's connector. Today the probe handles `amqp://` plaintext.
 lapin            = { version = "3", default-features = false }
+# SNMP v1/v2c client. Pure-Rust, tokio-async, no C deps.
+csnmp            = "0.4"
 # Docker over the local socket or remote HTTP API.
 # `http` + `pipe` are the bollard default features but we set
 # `default-features = false` to keep `buildkit` etc out of the graph;
