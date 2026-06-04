@@ -63,7 +63,8 @@
                 "ntp",
                 "websocket",
                 "nats",
-                "ldap"
+                "ldap",
+                "amqp"
               ]
             }
           }
@@ -426,7 +427,8 @@
                 "ntp",
                 "websocket",
                 "nats",
-                "ldap"
+                "ldap",
+                "amqp"
               ]
             }
           }

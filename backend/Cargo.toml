@@ -164,6 +164,11 @@ async-nats       = { version = "0.36", default-features = false, features = ["se
 # we reject (C crypto, see docs/DEPENDENCIES.md). `sync` left off
 # since the tokio async surface is what the probe uses.
 ldap3            = { version = "0.12", default-features = false, features = ["tls-rustls-ring"] }
+# AMQP 0-9-1 client (RabbitMQ et al). Pure-Rust. `default-features
+# off` keeps the native-tls path out; the probe defers `amqps://` to
+# a follow-up that wires our existing rustls ClientConfig through
+# lapin's connector. Today the probe handles `amqp://` plaintext.
+lapin            = { version = "3", default-features = false }
 # Docker over the local socket or remote HTTP API.
 # `http` + `pipe` are the bollard default features but we set
 # `default-features = false` to keep `buildkit` etc out of the graph;

@@ -11,6 +11,7 @@
 //! This crate runs probes. It does no scheduling, no persistence, no
 //! alerting — those live elsewhere.
 
+pub mod amqp;
 pub mod banner;
 pub mod browser;
 pub mod dns;
@@ -71,6 +72,7 @@ pub struct Probes {
     websocket: websocket::WebsocketProbe,
     nats: nats::NatsProbe,
     ldap: ldap::LdapProbe,
+    amqp: amqp::AmqpProbe,
     grpc: grpc::GrpcProbe,
     mqtt: mqtt::MqttProbe,
     docker: docker::DockerProbe,
@@ -100,6 +102,7 @@ impl Probes {
             websocket: websocket::WebsocketProbe::new(),
             nats: nats::NatsProbe::new(),
             ldap: ldap::LdapProbe::new(),
+            amqp: amqp::AmqpProbe::new(),
             grpc: grpc::GrpcProbe::new(),
             mqtt: mqtt::MqttProbe::new(),
             docker: docker::DockerProbe::new(),
@@ -146,6 +149,7 @@ impl Probes {
             MonitorKind::Websocket => self.websocket.run(monitor).await,
             MonitorKind::Nats => self.nats.run(monitor).await,
             MonitorKind::Ldap => self.ldap.run(monitor).await,
+            MonitorKind::Amqp => self.amqp.run(monitor).await,
             MonitorKind::Grpc => self.grpc.run(monitor).await,
             MonitorKind::Mqtt => self.mqtt.run(monitor).await,
             MonitorKind::Docker => self.docker.run(monitor).await,
