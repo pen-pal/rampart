@@ -233,6 +233,10 @@ const types = [
     example: 'Probe a DoH endpoint (Cloudflare, Google, NextDNS) and confirm it answers',
     placeholder: { url: 'https://cloudflare-dns.com/dns-query' } },
 
+  { id: 'rdap',       icon: Globe,         name: 'RDAP',          desc: 'HTTP successor to WHOIS',
+    example: 'Modern domain-registration lookup with structured days-until-expiry',
+    placeholder: { url: 'https://rdap.org/domain' } },
+
   { id: 'domain',     icon: Globe,         name: 'Domain expiry', desc: 'WHOIS lookup',
     example: 'Reminder 60 days before your domain registration lapses',
     placeholder: { url: 'example.com' } },
@@ -264,6 +268,7 @@ const fieldsFor = (kind) => {
   if (kind === 'ldap')      return { url: true };
   if (kind === 'amqp')      return { url: true };
   if (kind === 'doh')       return { url: true };
+  if (kind === 'rdap')      return { url: true };
   return {};
 };
 
@@ -465,7 +470,7 @@ export default function NewMonitorWizard() {
                 <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em', margin: '0 0 8px' }}>Step 1 · Pick a check type</p>
                 <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 8px', letterSpacing: '-.02em' }}>What do you want to monitor?</h1>
                 <p style={{ fontSize: 14, color: 'var(--text-2)', margin: 0 }}>
-                  33 types in the catalog — all ship today. HTTP family, the SQL family, Memcached, NTP, WebSocket, NATS, LDAP, AMQP, DNS/DoH/TLS/domain, gRPC, MQTT, Kafka, Docker, Steam, RADIUS, headless-browser, and banner checks (SSH/SMTP/IMAP/FTP/POP3). Pick a kind to get started.
+                  34 types in the catalog — all ship today. HTTP family, the SQL family, Memcached, NTP, WebSocket, NATS, LDAP, AMQP, DNS/DoH/TLS/domain/RDAP, gRPC, MQTT, Kafka, Docker, Steam, RADIUS, headless-browser, and banner checks (SSH/SMTP/IMAP/FTP/POP3). Pick a kind to get started.
                 </p>
               </div>
 

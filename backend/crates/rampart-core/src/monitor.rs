@@ -75,6 +75,12 @@ pub enum MonitorKind {
     /// dns-query`). Config: `query` (default `example.com`), `rtype`
     /// (default `A`).
     Doh,
+    /// RDAP probe (RFC 7480 / 9082). Queries a domain via an RDAP
+    /// server, asserts a 200 + valid `application/rdap+json` payload,
+    /// surfaces days-until-expiry as a soft-fail Warn when present.
+    /// URL is the RDAP base (e.g. `https://rdap.org/domain`); config
+    /// `domain` carries the lookup target (e.g. `example.com`).
+    Rdap,
     // registry
     Domain,
     /// Headless-browser-rendered check. We don't ship a Chromium binary

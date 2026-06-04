@@ -65,7 +65,8 @@
                 "nats",
                 "ldap",
                 "amqp",
-                "doh"
+                "doh",
+                "rdap"
               ]
             }
           }
@@ -430,7 +431,8 @@
                 "nats",
                 "ldap",
                 "amqp",
-                "doh"
+                "doh",
+                "rdap"
               ]
             }
           }
