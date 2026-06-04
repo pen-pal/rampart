@@ -245,6 +245,14 @@ const types = [
     example: 'Check a Cassandra / ScyllaDB node is past the CQL handshake and answering queries',
     placeholder: { hostname: 'cassandra.internal', port: '9042' } },
 
+  { id: 'mdns',       icon: Radio,         name: 'mDNS',          desc: 'Multicast service discovery',
+    example: 'Confirm at least one peer is advertising mDNS services on the link (LAN homelab probe)',
+    placeholder: {} },
+
+  { id: 'ssdp',       icon: Radio,         name: 'SSDP / UPnP',   desc: 'M-SEARCH discovery',
+    example: 'Confirm at least one UPnP device (TV, NAS, router) responds on the LAN',
+    placeholder: {} },
+
   { id: 'domain',     icon: Globe,         name: 'Domain expiry', desc: 'WHOIS lookup',
     example: 'Reminder 60 days before your domain registration lapses',
     placeholder: { url: 'example.com' } },
@@ -279,6 +287,8 @@ const fieldsFor = (kind) => {
   if (kind === 'rdap')      return { url: true };
   if (kind === 'snmp')      return { hostname: true, port: true };
   if (kind === 'cassandra') return { hostname: true, port: true };
+  if (kind === 'mdns')      return {};
+  if (kind === 'ssdp')      return {};
   return {};
 };
 
@@ -481,7 +491,7 @@ export default function NewMonitorWizard() {
                 <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em', margin: '0 0 8px' }}>Step 1 · Pick a check type</p>
                 <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 8px', letterSpacing: '-.02em' }}>What do you want to monitor?</h1>
                 <p style={{ fontSize: 14, color: 'var(--text-2)', margin: 0 }}>
-                  36 types in the catalog — all ship today. HTTP family, the SQL family, Memcached, Cassandra/ScyllaDB, NTP, WebSocket, NATS, LDAP, AMQP, DNS/DoH/TLS/domain/RDAP, SNMP, gRPC, MQTT, Kafka, Docker, Steam, RADIUS, headless-browser, and banner checks (SSH/SMTP/IMAP/FTP/POP3). Pick a kind to get started.
+                  38 types in the catalog — all ship today. HTTP family, the SQL family, Memcached, Cassandra/ScyllaDB, NTP, WebSocket, NATS, LDAP, AMQP, DNS/DoH/TLS/domain/RDAP, SNMP, mDNS, SSDP/UPnP, gRPC, MQTT, Kafka, Docker, Steam, RADIUS, headless-browser, and banner checks (SSH/SMTP/IMAP/FTP/POP3). Pick a kind to get started.
                 </p>
               </div>
 

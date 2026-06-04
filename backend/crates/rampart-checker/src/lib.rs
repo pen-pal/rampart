@@ -23,6 +23,7 @@ pub mod grpc;
 pub mod http;
 pub mod kafka;
 pub mod ldap;
+pub mod mdns;
 pub mod memcached;
 pub mod mongodb;
 pub mod mqtt;
@@ -35,6 +36,7 @@ pub mod postgres;
 pub mod radius;
 pub mod rdap;
 pub mod snmp;
+pub mod ssdp;
 pub mod redis;
 pub mod steam;
 pub mod tcp;
@@ -81,6 +83,8 @@ pub struct Probes {
     rdap: rdap::RdapProbe,
     snmp: snmp::SnmpProbe,
     cassandra: cassandra::CassandraProbe,
+    mdns: mdns::MdnsProbe,
+    ssdp: ssdp::SsdpProbe,
     grpc: grpc::GrpcProbe,
     mqtt: mqtt::MqttProbe,
     docker: docker::DockerProbe,
@@ -115,6 +119,8 @@ impl Probes {
             rdap: rdap::RdapProbe::new(),
             snmp: snmp::SnmpProbe::new(),
             cassandra: cassandra::CassandraProbe::new(),
+            mdns: mdns::MdnsProbe::new(),
+            ssdp: ssdp::SsdpProbe::new(),
             grpc: grpc::GrpcProbe::new(),
             mqtt: mqtt::MqttProbe::new(),
             docker: docker::DockerProbe::new(),
@@ -166,6 +172,8 @@ impl Probes {
             MonitorKind::Rdap => self.rdap.run(monitor).await,
             MonitorKind::Snmp => self.snmp.run(monitor).await,
             MonitorKind::Cassandra => self.cassandra.run(monitor).await,
+            MonitorKind::Mdns => self.mdns.run(monitor).await,
+            MonitorKind::Ssdp => self.ssdp.run(monitor).await,
             MonitorKind::Grpc => self.grpc.run(monitor).await,
             MonitorKind::Mqtt => self.mqtt.run(monitor).await,
             MonitorKind::Docker => self.docker.run(monitor).await,
