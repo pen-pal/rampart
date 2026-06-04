@@ -65,6 +65,7 @@ mod tests {
 
     #[test]
     fn accepts_valid_slack_webhook() {
+        crate::init_test_crypto();
         let ok =
             Slack::from_config(&json!({"webhook_url": "https://hooks.slack.com/services/T/B/x"}));
         assert!(ok.is_ok());

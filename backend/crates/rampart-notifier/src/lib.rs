@@ -23,6 +23,21 @@ pub mod event;
 pub mod service;
 pub mod template;
 
+/// Install the ring `CryptoProvider` as the global default if no
+/// provider is set yet. Called once per test executable from each
+/// channel-test module — `reqwest::Client::new()` panics with "No
+/// provider set" on `rustls-no-provider` builds otherwise. Production
+/// binaries get this via `rampart-api::main`'s startup install; tests
+/// can't share that path, so each test crate that constructs a
+/// reqwest client routes through here.
+#[cfg(test)]
+pub(crate) fn init_test_crypto() {
+    static INIT: std::sync::Once = std::sync::Once::new();
+    INIT.call_once(|| {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    });
+}
+
 pub use event::{Event, EventKind};
 pub use service::{NotifierHandle, NotifierService};
 

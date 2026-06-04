@@ -21,6 +21,16 @@ use tracing_subscriber::EnvFilter;
 async fn main() -> anyhow::Result<()> {
     init_tracing();
 
+    // Install the ring `CryptoProvider` as the global default before
+    // any rustls-backed client is constructed. `reqwest 0.13` is
+    // configured with the `rustls-no-provider` feature so this is
+    // the single decision point for "which crypto stack does the
+    // whole workspace use" — it propagates to `tokio-rustls`,
+    // `hyper-rustls`, and every other indirect consumer. Returns
+    // `Err(())` if a provider was already installed (e.g. from a
+    // test re-running this fn); we tolerate that.
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     let database_url =
         std::env::var("DATABASE_URL").map_err(|_| anyhow::anyhow!("DATABASE_URL not set"))?;
     let pool_size: u32 = std::env::var("DATABASE_POOL_SIZE")

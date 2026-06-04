@@ -112,6 +112,7 @@ mod tests {
 
     #[test]
     fn accepts_valid_priority_range() {
+        crate::init_test_crypto();
         for p in -2..=2 {
             assert!(
                 Pushover::from_config(&json!({"api_token": "x", "user_key": "y", "priority": p}))

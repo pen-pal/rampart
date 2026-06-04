@@ -75,12 +75,14 @@ mod tests {
 
     #[test]
     fn accepts_minimal_config() {
+        crate::init_test_crypto();
         let ok = PagerDuty::from_config(&json!({"routing_key": "abc123"}));
         assert!(ok.is_ok());
     }
 
     #[test]
     fn accepts_optional_severity_and_component() {
+        crate::init_test_crypto();
         let ok = PagerDuty::from_config(&json!({
             "routing_key": "abc",
             "severity":    "warning",
