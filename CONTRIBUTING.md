@@ -28,7 +28,7 @@ The following features were considered and deliberately removed during the v1 �
 > *Full rationale for these decisions is in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).*
 
 ### ✅ In Scope
-The core feature set is shipped (31 probe kinds, 130 notification channels, status pages, folders, dependencies, maintenance, 2FA, audit log). What's still welcome:
+The core feature set is shipped (32 probe kinds, 130 notification channels, status pages, folders, dependencies, maintenance, 2FA, audit log). What's still welcome:
 
 - **Additional probe kinds** — anything in the spirit of the existing 29. LDAP, AMQP/RabbitMQ, NATS, Cassandra, SNMP v1 GET, mDNS / SSDP, DNS-over-HTTPS, Whois/RDAP HTTP, etc.
 - **Additional notification channels** — drop a new adapter into `rampart-notifier/src/channels/` following the pattern of the existing 128 native channels.
@@ -105,7 +105,7 @@ End-to-end, in order:
 5. **Wizard UI:** Add to the `types` array in `frontend/src/views/NewMonitorWizard.jsx` with an icon + description + example + placeholder.
 6. **Field Requirements:** Update `fieldsFor()` in the same file to declare which inputs this kind needs (`url`, `hostname` + `port`, `dns`, `banner`, etc.).
 7. **Port preset (optional):** Add a default to `defaultPort()` if the protocol has a well-known one.
-8. **Counts:** Bump the "31 types" line in the wizard intro, the README badge + heading, and `docs/ARCHITECTURE.md`.
+8. **Counts:** Bump the "32 types" line in the wizard intro, the README badge + heading, and `docs/ARCHITECTURE.md`.
 
 *More detail available in [`backend/HACKING.md`](backend/HACKING.md).*
 

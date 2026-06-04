@@ -64,6 +64,10 @@ pub enum MonitorKind {
     /// `bind_dn` + `bind_password` config switches from anonymous to
     /// authenticated bind so the probe also validates credentials.
     Ldap,
+    /// AMQP 0-9-1 probe (RabbitMQ et al). Opens a TCP connection to the
+    /// broker, completes the protocol handshake via the `lapin` client,
+    /// closes cleanly. URL is `amqp://user:pass@host:5672/vhost`.
+    Amqp,
     // registry
     Domain,
     /// Headless-browser-rendered check. We don't ship a Chromium binary

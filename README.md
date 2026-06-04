@@ -6,13 +6,13 @@
 
 ### Self-hosted uptime monitoring you can actually trust.
 
-**One Rust binary. One Postgres. 31 probe kinds. 130 notification channels.**<br/>
+**One Rust binary. One Postgres. 32 probe kinds. 130 notification channels.**<br/>
 Public status pages • Live SSE updates • Folder & tag routing • Dependency-aware alerts • 2FA • Audit logs.
 
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 [![Built with Rust](https://img.shields.io/badge/built%20with-Rust-dea584.svg?logo=rust)](https://www.rust-lang.org/)
 [![Postgres](https://img.shields.io/badge/database-Postgres%2014%2B-336791.svg?logo=postgresql)](https://www.postgresql.org/)
-[![Probes](https://img.shields.io/badge/probes-31-brightgreen.svg)](#-31-probe-kinds)
+[![Probes](https://img.shields.io/badge/probes-32-brightgreen.svg)](#-32-probe-kinds)
 [![Channels](https://img.shields.io/badge/channels-130-brightgreen.svg)](#-130-notification-channels)
 [![Bundle](https://img.shields.io/badge/binary-~10%20MB-informational.svg)](#-why-rampart)
 
@@ -68,7 +68,7 @@ We built Rampart because we were tired of choosing between bloated SaaS tools an
 
 ## ✨ Features at a Glance
 
-### 🔍 31 Probe Kinds
+### 🔍 32 Probe Kinds
 Every probe supports per-monitor intervals, timeouts, retries, and re-alerts. 
 
 | Category | Supported Kinds |
@@ -76,7 +76,7 @@ Every probe supports per-monitor intervals, timeouts, retries, and re-alerts.
 | 🌐 **HTTP Family** | HTTP, Keyword (substring), JSON query (JSONPath + expected value) |
 | 📡 **Network** | TCP, ICMP ping, DNS (A/AAAA/CNAME/MX/TXT/NS/SRV/CAA/SOA), TLS cert days-left, Domain expiry (WHOIS), NTP (SNTPv4) |
 | 🗄️ **Databases** | Postgres, MySQL, MSSQL, Redis, MongoDB, Memcached |
-| 📢 **Messaging / RPC** | gRPC `health.v1`, MQTT, Kafka (ApiVersions handshake), NATS, RADIUS |
+| 📢 **Messaging / RPC** | gRPC `health.v1`, MQTT, Kafka (ApiVersions handshake), NATS, LDAP, AMQP, RADIUS |
 | 🐳 **Containers** | Docker daemon |
 | 🏷️ **Banner Protocols** | SSH, SMTP, IMAP, FTP, POP3 (greeting prefix check, `expect` overridable) |
 | 🎯 **Specialty** | Push (anything POSTing to `/push/:token`), headless-browser keyword, Steam (A2S) |
@@ -135,7 +135,7 @@ rampart/
 │   └── crates/
 │       ├── rampart-core                  # pure types, no I/O
 │       ├── rampart-db                    # sqlx repository layer
-│       ├── rampart-checker               # probe runners (31 kinds)
+│       ├── rampart-checker               # probe runners (32 kinds)
 │       ├── rampart-scheduler             # per-monitor tokio tasks + batched writer
 │       ├── rampart-notifier              # channel fan-out (130 adapters)
 │       └── rampart-api                   # axum HTTP server (embeds React)

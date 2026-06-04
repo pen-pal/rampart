@@ -225,6 +225,10 @@ const types = [
     example: 'Verify your directory server is reachable and an account still authenticates',
     placeholder: { url: 'ldap://ldap.internal:389' } },
 
+  { id: 'amqp',       icon: Radio,         name: 'AMQP',          desc: 'RabbitMQ-compatible handshake',
+    example: 'Confirm a RabbitMQ broker is reachable, authenticated, and serving the vhost',
+    placeholder: { url: 'amqp://guest:guest@rabbitmq.internal:5672/%2F' } },
+
   { id: 'domain',     icon: Globe,         name: 'Domain expiry', desc: 'WHOIS lookup',
     example: 'Reminder 60 days before your domain registration lapses',
     placeholder: { url: 'example.com' } },
@@ -254,6 +258,7 @@ const fieldsFor = (kind) => {
   if (kind === 'websocket') return { url: true };
   if (kind === 'nats')      return { url: true };
   if (kind === 'ldap')      return { url: true };
+  if (kind === 'amqp')      return { url: true };
   return {};
 };
 
@@ -455,7 +460,7 @@ export default function NewMonitorWizard() {
                 <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em', margin: '0 0 8px' }}>Step 1 · Pick a check type</p>
                 <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 8px', letterSpacing: '-.02em' }}>What do you want to monitor?</h1>
                 <p style={{ fontSize: 14, color: 'var(--text-2)', margin: 0 }}>
-                  31 types in the catalog — all ship today. HTTP family, the SQL family, Memcached, NTP, WebSocket, NATS, LDAP, gRPC, MQTT, Kafka, Docker, Steam, RADIUS, DNS/TLS/domain, headless-browser, and banner checks (SSH/SMTP/IMAP/FTP/POP3). Pick a kind to get started.
+                  32 types in the catalog — all ship today. HTTP family, the SQL family, Memcached, NTP, WebSocket, NATS, LDAP, AMQP, gRPC, MQTT, Kafka, Docker, Steam, RADIUS, DNS/TLS/domain, headless-browser, and banner checks (SSH/SMTP/IMAP/FTP/POP3). Pick a kind to get started.
                 </p>
               </div>
 
