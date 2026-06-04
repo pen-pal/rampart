@@ -237,6 +237,10 @@ const types = [
     example: 'Modern domain-registration lookup with structured days-until-expiry',
     placeholder: { url: 'https://rdap.org/domain' } },
 
+  { id: 'snmp',       icon: Server,        name: 'SNMP',          desc: 'v2c GET against an OID',
+    example: 'Confirm a network device (switch / router / UPS / printer) is replying to SNMP',
+    placeholder: { hostname: 'switch.internal', port: '161' } },
+
   { id: 'domain',     icon: Globe,         name: 'Domain expiry', desc: 'WHOIS lookup',
     example: 'Reminder 60 days before your domain registration lapses',
     placeholder: { url: 'example.com' } },
@@ -269,6 +273,7 @@ const fieldsFor = (kind) => {
   if (kind === 'amqp')      return { url: true };
   if (kind === 'doh')       return { url: true };
   if (kind === 'rdap')      return { url: true };
+  if (kind === 'snmp')      return { hostname: true, port: true };
   return {};
 };
 
@@ -278,6 +283,7 @@ const defaultPort = (kind) => ({
   tcp: 443, grpc: 443, mqtt: 1883, steam: 27015, kafka: 9092, radius: 1812,
   ssh: 22, smtp: 25, imap: 143, ftp: 21, pop3: 110,
   postgres: 5432, mysql: 3306, mssql: 1433, redis: 6379, mongodb: 27017, memcached: 11211, ntp: 123,
+  snmp: 161,
 })[kind] || null;
 
 // ── main ──────────────────────────────────────────────────────────────────
@@ -470,7 +476,7 @@ export default function NewMonitorWizard() {
                 <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em', margin: '0 0 8px' }}>Step 1 · Pick a check type</p>
                 <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 8px', letterSpacing: '-.02em' }}>What do you want to monitor?</h1>
                 <p style={{ fontSize: 14, color: 'var(--text-2)', margin: 0 }}>
-                  34 types in the catalog — all ship today. HTTP family, the SQL family, Memcached, NTP, WebSocket, NATS, LDAP, AMQP, DNS/DoH/TLS/domain/RDAP, gRPC, MQTT, Kafka, Docker, Steam, RADIUS, headless-browser, and banner checks (SSH/SMTP/IMAP/FTP/POP3). Pick a kind to get started.
+                  35 types in the catalog — all ship today. HTTP family, the SQL family, Memcached, NTP, WebSocket, NATS, LDAP, AMQP, DNS/DoH/TLS/domain/RDAP, SNMP, gRPC, MQTT, Kafka, Docker, Steam, RADIUS, headless-browser, and banner checks (SSH/SMTP/IMAP/FTP/POP3). Pick a kind to get started.
                 </p>
               </div>
 
