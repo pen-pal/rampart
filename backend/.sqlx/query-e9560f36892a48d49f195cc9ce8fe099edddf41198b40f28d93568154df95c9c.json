@@ -67,7 +67,8 @@
                 "amqp",
                 "doh",
                 "rdap",
-                "snmp"
+                "snmp",
+                "cassandra"
               ]
             }
           }
@@ -434,7 +435,8 @@
                 "amqp",
                 "doh",
                 "rdap",
-                "snmp"
+                "snmp",
+                "cassandra"
               ]
             }
           }
