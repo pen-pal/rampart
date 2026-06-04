@@ -65,7 +65,8 @@
                 "nats",
                 "ldap",
                 "amqp",
-                "doh"
+                "doh",
+                "rdap"
               ]
             }
           }

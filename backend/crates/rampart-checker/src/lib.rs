@@ -32,6 +32,7 @@ pub mod ntp;
 pub mod ping;
 pub mod postgres;
 pub mod radius;
+pub mod rdap;
 pub mod redis;
 pub mod steam;
 pub mod tcp;
@@ -75,6 +76,7 @@ pub struct Probes {
     ldap: ldap::LdapProbe,
     amqp: amqp::AmqpProbe,
     doh: doh::DohProbe,
+    rdap: rdap::RdapProbe,
     grpc: grpc::GrpcProbe,
     mqtt: mqtt::MqttProbe,
     docker: docker::DockerProbe,
@@ -106,6 +108,7 @@ impl Probes {
             ldap: ldap::LdapProbe::new(),
             amqp: amqp::AmqpProbe::new(),
             doh: doh::DohProbe::new(),
+            rdap: rdap::RdapProbe::new(),
             grpc: grpc::GrpcProbe::new(),
             mqtt: mqtt::MqttProbe::new(),
             docker: docker::DockerProbe::new(),
@@ -154,6 +157,7 @@ impl Probes {
             MonitorKind::Ldap => self.ldap.run(monitor).await,
             MonitorKind::Amqp => self.amqp.run(monitor).await,
             MonitorKind::Doh => self.doh.run(monitor).await,
+            MonitorKind::Rdap => self.rdap.run(monitor).await,
             MonitorKind::Grpc => self.grpc.run(monitor).await,
             MonitorKind::Mqtt => self.mqtt.run(monitor).await,
             MonitorKind::Docker => self.docker.run(monitor).await,
