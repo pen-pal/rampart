@@ -221,6 +221,10 @@ const types = [
     example: 'Confirm a NATS server is accepting clients and round-trips PING/PONG',
     placeholder: { url: 'nats://nats.internal:4222' } },
 
+  { id: 'ldap',       icon: Lock,          name: 'LDAP',          desc: 'Connect + simple bind',
+    example: 'Verify your directory server is reachable and an account still authenticates',
+    placeholder: { url: 'ldap://ldap.internal:389' } },
+
   { id: 'domain',     icon: Globe,         name: 'Domain expiry', desc: 'WHOIS lookup',
     example: 'Reminder 60 days before your domain registration lapses',
     placeholder: { url: 'example.com' } },
@@ -249,6 +253,7 @@ const fieldsFor = (kind) => {
   if (kind === 'domain') return { url: true };
   if (kind === 'websocket') return { url: true };
   if (kind === 'nats')      return { url: true };
+  if (kind === 'ldap')      return { url: true };
   return {};
 };
 
@@ -450,7 +455,7 @@ export default function NewMonitorWizard() {
                 <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em', margin: '0 0 8px' }}>Step 1 · Pick a check type</p>
                 <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 8px', letterSpacing: '-.02em' }}>What do you want to monitor?</h1>
                 <p style={{ fontSize: 14, color: 'var(--text-2)', margin: 0 }}>
-                  30 types in the catalog — all ship today. HTTP family, the SQL family, Memcached, NTP, WebSocket, NATS, gRPC, MQTT, Kafka, Docker, Steam, RADIUS, DNS/TLS/domain, headless-browser, and banner checks (SSH/SMTP/IMAP/FTP/POP3). Pick a kind to get started.
+                  31 types in the catalog — all ship today. HTTP family, the SQL family, Memcached, NTP, WebSocket, NATS, LDAP, gRPC, MQTT, Kafka, Docker, Steam, RADIUS, DNS/TLS/domain, headless-browser, and banner checks (SSH/SMTP/IMAP/FTP/POP3). Pick a kind to get started.
                 </p>
               </div>
 

@@ -59,6 +59,11 @@ pub enum MonitorKind {
     /// INFO / CONNECT / PING handshake via the official `async-nats`
     /// client, asserts a successful flush. URL is `nats://host:port`.
     Nats,
+    /// LDAP probe — connects to a directory server and runs a simple
+    /// bind. URL is `ldap://host:389` or `ldaps://host:636`. Optional
+    /// `bind_dn` + `bind_password` config switches from anonymous to
+    /// authenticated bind so the probe also validates credentials.
+    Ldap,
     // registry
     Domain,
     /// Headless-browser-rendered check. We don't ship a Chromium binary
