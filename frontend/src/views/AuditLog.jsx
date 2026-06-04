@@ -3,10 +3,11 @@ import {
   ChevronLeft, Loader2, AlertCircle, ScrollText, ChevronDown, Download,
 } from 'lucide-react';
 
-function csvHref(kind, action) {
+function csvHref(kind, action, actor) {
   const qs = new URLSearchParams();
   if (kind)          qs.set('kind',   kind);
   if (action.trim()) qs.set('action', action.trim());
+  if (actor)         qs.set('actor',  actor);
   const tail = qs.toString();
   return `/v1/audit-log/csv${tail ? `?${tail}` : ''}`;
 }
@@ -42,6 +43,13 @@ const css = `
     background: var(--surface); border: 1px solid var(--border);
     font-size: 12.5px; color: var(--text); outline: none; font-family: inherit;
   }
+  .input {
+    padding: 6px 10px; border-radius: 7px;
+    background: var(--surface); border: 1px solid var(--border);
+    font-size: 12.5px; color: var(--text); outline: none; font-family: inherit;
+  }
+  .input::placeholder { color: var(--text-3); }
+  .input:focus, .select:focus { border-color: var(--accent); }
   .banner-err { background: var(--down-soft); color: #b91c1c; border: 1px solid #fecaca; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; }
 `;
 
@@ -57,6 +65,7 @@ export default function AuditLog() {
   const [err,     setErr]     = useState(null);
   const [kind,    setKind]    = useState('');
   const [action,  setAction]  = useState('');
+  const [actor,   setActor]   = useState('');
   const [done,    setDone]    = useState(false);
 
   // Hydrate actor user names so rows can show "alice" not the raw uuid.
@@ -67,7 +76,12 @@ export default function AuditLog() {
   const load = async (before) => {
     setLoading(true); setErr(null);
     try {
-      const rows = await api.audit.list(100, before, kind || null, action.trim() || null);
+      const rows = await api.audit.list(
+        100, before,
+        kind || null,
+        action.trim() || null,
+        actor || null,
+      );
       if (before == null) setEntries(rows);
       else                setEntries(prev => [...prev, ...rows]);
       if (rows.length < 100) setDone(true);
@@ -76,12 +90,14 @@ export default function AuditLog() {
   };
 
   // initial + on filter change. Debounce the free-text action filter so
-  // we don't fire a request per keystroke.
+  // we don't fire a request per keystroke. Kind / actor selects don't
+  // need the debounce but share the effect for symmetry — 250ms gap
+  // after the last change before the load fires.
   useEffect(() => {
     const t = setTimeout(() => { setDone(false); load(null); }, 250);
     return () => clearTimeout(t);
     /* eslint-disable-next-line */
-  }, [kind, action]);
+  }, [kind, action, actor]);
 
   return (
     <div className="rampart">
@@ -101,16 +117,32 @@ export default function AuditLog() {
               Append-only record of mutating actions. Admin-only.
             </p>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <input className="input" style={{ width: 200 }} value={action}
               onChange={e => setAction(e.target.value)}
               placeholder="action prefix e.g. monitor."/>
-            <select className="select" value={kind} onChange={e => setKind(e.target.value)}>
+            <select className="select" value={kind} onChange={e => setKind(e.target.value)}
+              title="Filter by resource kind">
               <option value="">All kinds</option>
               {KIND_OPTIONS.filter(Boolean).map(k => <option key={k} value={k}>{k}</option>)}
             </select>
+            <select className="select" value={actor} onChange={e => setActor(e.target.value)}
+              title="Filter by actor — which admin account performed the action"
+              style={{ maxWidth: 200 }}>
+              <option value="">All actors</option>
+              {(usersState.data || []).map(u =>
+                <option key={u.id} value={u.id}>{u.name || u.email}</option>
+              )}
+            </select>
+            {(kind || action || actor) && (
+              <button className="btn btn-ghost"
+                onClick={() => { setKind(''); setAction(''); setActor(''); }}
+                title="Clear all filters">
+                Clear
+              </button>
+            )}
             <a className="btn" download
-              href={csvHref(kind, action)}
+              href={csvHref(kind, action, actor)}
               title="Download up to 50,000 entries matching the current filters as CSV">
               <Download size={13}/> CSV
             </a>
