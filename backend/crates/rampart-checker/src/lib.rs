@@ -16,6 +16,7 @@ pub mod banner;
 pub mod browser;
 pub mod dns;
 pub mod docker;
+pub mod doh;
 pub mod domain;
 pub mod grpc;
 pub mod http;
@@ -73,6 +74,7 @@ pub struct Probes {
     nats: nats::NatsProbe,
     ldap: ldap::LdapProbe,
     amqp: amqp::AmqpProbe,
+    doh: doh::DohProbe,
     grpc: grpc::GrpcProbe,
     mqtt: mqtt::MqttProbe,
     docker: docker::DockerProbe,
@@ -103,6 +105,7 @@ impl Probes {
             nats: nats::NatsProbe::new(),
             ldap: ldap::LdapProbe::new(),
             amqp: amqp::AmqpProbe::new(),
+            doh: doh::DohProbe::new(),
             grpc: grpc::GrpcProbe::new(),
             mqtt: mqtt::MqttProbe::new(),
             docker: docker::DockerProbe::new(),
@@ -150,6 +153,7 @@ impl Probes {
             MonitorKind::Nats => self.nats.run(monitor).await,
             MonitorKind::Ldap => self.ldap.run(monitor).await,
             MonitorKind::Amqp => self.amqp.run(monitor).await,
+            MonitorKind::Doh => self.doh.run(monitor).await,
             MonitorKind::Grpc => self.grpc.run(monitor).await,
             MonitorKind::Mqtt => self.mqtt.run(monitor).await,
             MonitorKind::Docker => self.docker.run(monitor).await,

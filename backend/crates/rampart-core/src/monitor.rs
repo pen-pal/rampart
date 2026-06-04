@@ -68,6 +68,13 @@ pub enum MonitorKind {
     /// broker, completes the protocol handshake via the `lapin` client,
     /// closes cleanly. URL is `amqp://user:pass@host:5672/vhost`.
     Amqp,
+    /// DNS-over-HTTPS probe (RFC 8484, JSON variant). GETs the DoH
+    /// endpoint with `?name=<query>&type=<rtype>`, asserts the response
+    /// `Status == 0` (NOERROR) and the `Answer` array is non-empty.
+    /// URL is the DoH endpoint (e.g. `https://cloudflare-dns.com/
+    /// dns-query`). Config: `query` (default `example.com`), `rtype`
+    /// (default `A`).
+    Doh,
     // registry
     Domain,
     /// Headless-browser-rendered check. We don't ship a Chromium binary
