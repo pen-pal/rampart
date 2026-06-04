@@ -11,6 +11,7 @@ pub mod audit;
 pub mod heartbeats;
 pub mod incidents;
 pub mod maintenance;
+pub mod metrics;
 pub mod monitor_groups;
 pub mod monitors;
 pub mod notifications;
