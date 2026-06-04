@@ -62,7 +62,8 @@
                 "memcached",
                 "ntp",
                 "websocket",
-                "nats"
+                "nats",
+                "ldap"
               ]
             }
           }

@@ -19,6 +19,7 @@ pub mod domain;
 pub mod grpc;
 pub mod http;
 pub mod kafka;
+pub mod ldap;
 pub mod memcached;
 pub mod mongodb;
 pub mod mqtt;
@@ -69,6 +70,7 @@ pub struct Probes {
     ntp: ntp::NtpProbe,
     websocket: websocket::WebsocketProbe,
     nats: nats::NatsProbe,
+    ldap: ldap::LdapProbe,
     grpc: grpc::GrpcProbe,
     mqtt: mqtt::MqttProbe,
     docker: docker::DockerProbe,
@@ -97,6 +99,7 @@ impl Probes {
             ntp: ntp::NtpProbe::new(),
             websocket: websocket::WebsocketProbe::new(),
             nats: nats::NatsProbe::new(),
+            ldap: ldap::LdapProbe::new(),
             grpc: grpc::GrpcProbe::new(),
             mqtt: mqtt::MqttProbe::new(),
             docker: docker::DockerProbe::new(),
@@ -142,6 +145,7 @@ impl Probes {
             MonitorKind::Ntp => self.ntp.run(monitor).await,
             MonitorKind::Websocket => self.websocket.run(monitor).await,
             MonitorKind::Nats => self.nats.run(monitor).await,
+            MonitorKind::Ldap => self.ldap.run(monitor).await,
             MonitorKind::Grpc => self.grpc.run(monitor).await,
             MonitorKind::Mqtt => self.mqtt.run(monitor).await,
             MonitorKind::Docker => self.docker.run(monitor).await,
