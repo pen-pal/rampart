@@ -143,7 +143,10 @@ impl Probe for DohProbe {
                 status: MonitorStatus::Up,
                 latency_ms: Some(ms_i32(elapsed)),
                 status_code: Some(http_status),
-                msg: Some(format!("NOERROR · {query} {rtype} · {} records", body.answer.len())),
+                msg: Some(format!(
+                    "NOERROR · {query} {rtype} · {} records",
+                    body.answer.len()
+                )),
                 retries: 0,
                 important: false,
             },

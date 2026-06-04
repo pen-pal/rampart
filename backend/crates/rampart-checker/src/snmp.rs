@@ -72,7 +72,9 @@ impl Probe for SnmpProbe {
         // to target a specific family can use a v4/v6 literal.
         let host_owned = host.to_string();
         let resolved = match tokio::task::spawn_blocking(move || {
-            (host_owned.as_str(), port).to_socket_addrs().map(|mut it| it.next())
+            (host_owned.as_str(), port)
+                .to_socket_addrs()
+                .map(|mut it| it.next())
         })
         .await
         {

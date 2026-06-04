@@ -29,9 +29,30 @@ pub use state::AppState;
 /// Build a Router for the given AppState. Used by `main.rs` for the
 /// production binary and by `tests/` to drive the API in-process.
 pub fn build_router(state: AppState) -> Router {
+    // Custom span builder so every per-request log line is decorated
+    // with the `x-request-id` value `SetRequestIdLayer` minted upstream.
+    // The header exists by the time TraceLayer sees the request because
+    // ServiceBuilder applies layers in declaration order on the
+    // inbound path — SetRequestIdLayer wraps outermost, TraceLayer
+    // sees a request whose `x-request-id` is already populated.
+    let trace_layer =
+        TraceLayer::new_for_http().make_span_with(|req: &axum::http::Request<axum::body::Body>| {
+            let request_id = req
+                .headers()
+                .get("x-request-id")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("");
+            tracing::info_span!(
+                "http",
+                method     = %req.method(),
+                uri        = %req.uri(),
+                request_id = %request_id,
+            )
+        });
+
     let middleware = tower::ServiceBuilder::new()
         .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
-        .layer(TraceLayer::new_for_http())
+        .layer(trace_layer)
         .layer(PropagateRequestIdLayer::x_request_id())
         .layer(CompressionLayer::new())
         .layer(TimeoutLayer::with_status_code(
