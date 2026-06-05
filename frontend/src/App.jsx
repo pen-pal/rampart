@@ -1,23 +1,40 @@
-import React, { useEffect, useState } from 'react';
-import Dashboard         from './views/Dashboard.jsx';
-import MonitorDetail     from './views/MonitorDetail.jsx';
-import StatusPageBuilder from './views/StatusPageBuilder.jsx';
-import NewMonitorWizard  from './views/NewMonitorWizard.jsx';
-import Login             from './views/Login.jsx';
-import Notifications     from './views/Notifications.jsx';
-import Maintenance       from './views/Maintenance.jsx';
-import ApiKeys           from './views/ApiKeys.jsx';
-import Proxies           from './views/Proxies.jsx';
-import Security          from './views/Security.jsx';
-import Users             from './views/Users.jsx';
-import SmtpSettings      from './views/SmtpSettings.jsx';
-import RetentionSettings from './views/RetentionSettings.jsx';
-import Folders           from './views/Folders.jsx';
-import Tags              from './views/Tags.jsx';
-import AuditLog          from './views/AuditLog.jsx';
-import StatusPageView    from './views/StatusPageView.jsx';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
+// Views are lazy-loaded so that the initial bundle stays lean — each view
+// becomes its own async chunk and only loads when the route is visited.
+const Dashboard         = lazy(() => import('./views/Dashboard.jsx'));
+const MonitorDetail     = lazy(() => import('./views/MonitorDetail.jsx'));
+const StatusPageBuilder = lazy(() => import('./views/StatusPageBuilder.jsx'));
+const NewMonitorWizard  = lazy(() => import('./views/NewMonitorWizard.jsx'));
+const Login             = lazy(() => import('./views/Login.jsx'));
+const Notifications     = lazy(() => import('./views/Notifications.jsx'));
+const Maintenance       = lazy(() => import('./views/Maintenance.jsx'));
+const ApiKeys           = lazy(() => import('./views/ApiKeys.jsx'));
+const Proxies           = lazy(() => import('./views/Proxies.jsx'));
+const Security          = lazy(() => import('./views/Security.jsx'));
+const Users             = lazy(() => import('./views/Users.jsx'));
+const SmtpSettings      = lazy(() => import('./views/SmtpSettings.jsx'));
+const RetentionSettings = lazy(() => import('./views/RetentionSettings.jsx'));
+const Folders           = lazy(() => import('./views/Folders.jsx'));
+const Tags              = lazy(() => import('./views/Tags.jsx'));
+const AuditLog          = lazy(() => import('./views/AuditLog.jsx'));
+const StatusPageView    = lazy(() => import('./views/StatusPageView.jsx'));
 import { api } from './lib/api.js';
 import { parseRoute } from './lib/router.js';
+
+// Minimal centered fallback shown while a lazy view chunk is downloading.
+// Uses existing theme CSS vars so it adapts to light/dark automatically.
+function ViewFallback() {
+  return (
+    <div style={{
+      position: 'fixed', inset: 0,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: 'var(--bg)', color: 'var(--text-3)',
+      fontFamily: 'Inter, system-ui, sans-serif', fontSize: 13,
+    }}>
+      Loading…
+    </div>
+  );
+}
 
 const VIEW_LABEL = {
   'dashboard':     'Dashboard',
@@ -113,7 +130,9 @@ export default function App() {
 
   return (
     <>
-      {view}
+      <Suspense fallback={<ViewFallback />}>
+        {view}
+      </Suspense>
       {route.view !== 'login' && route.view !== 'public-status' && <ViewSwitcher current={route.view} />}
     </>
   );

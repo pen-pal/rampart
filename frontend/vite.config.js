@@ -4,6 +4,21 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        // Split heavy third-party libs into their own long-lived vendor
+        // chunks so app-code changes don't bust their cache, and so the
+        // initial entry chunk stays under the 500 kB warning threshold.
+        // Vite 8 ships with rolldown, which reads the same `rollupOptions`
+        // / `manualChunks` keys, so this works for both bundlers.
+        manualChunks(id) {
+          if (id.includes('node_modules/recharts'))     return 'vendor-recharts';
+          if (id.includes('node_modules/lucide-react')) return 'vendor-lucide';
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     // Proxy /v1 requests to the Rust API in dev so fetch('/v1/monitors')
