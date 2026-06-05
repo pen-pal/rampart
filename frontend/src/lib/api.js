@@ -133,13 +133,15 @@ export const api = {
     revoke: (id)                => request(`/v1/api-keys/${id}`, { method: 'DELETE' }),
   },
   audit: {
-    list: (limit, before, kind, action, actor) => {
+    list: (limit, before, kind, action, actor, from, to) => {
       const qs = new URLSearchParams();
       if (limit)  qs.set('limit',  String(limit));
       if (before) qs.set('before', String(before));
       if (kind)   qs.set('kind',   kind);
       if (action) qs.set('action', action);
       if (actor)  qs.set('actor',  actor);
+      if (from)   qs.set('from',   from);
+      if (to)     qs.set('to',     to);
       const s = qs.toString();
       return request(`/v1/audit-log${s ? '?' + s : ''}`);
     },

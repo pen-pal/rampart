@@ -9,6 +9,7 @@ use axum::{Json, Router};
 use rampart_db::audit::{AuditEntry, AuditFilter};
 use serde::Deserialize;
 use std::str::FromStr;
+use time::OffsetDateTime;
 use uuid::Uuid;
 
 pub fn router() -> Router<AppState> {
@@ -27,6 +28,12 @@ struct ListQuery {
     action: Option<String>,
     /// Filter to a single actor user id.
     actor: Option<String>,
+    /// Inclusive lower bound on `ts`, RFC3339.
+    #[serde(default, with = "time::serde::rfc3339::option")]
+    from: Option<OffsetDateTime>,
+    /// Inclusive upper bound on `ts`, RFC3339.
+    #[serde(default, with = "time::serde::rfc3339::option")]
+    to: Option<OffsetDateTime>,
 }
 fn default_limit() -> i64 {
     100
@@ -49,6 +56,8 @@ async fn list(
         kind,
         action_prefix,
         actor,
+        from: q.from,
+        to: q.to,
     };
     Ok(Json(
         rampart_db::audit::list(s.pool(), q.limit, filter).await?,
@@ -77,6 +86,8 @@ async fn list_csv(
         kind,
         action_prefix,
         actor,
+        from: q.from,
+        to: q.to,
     };
     let entries = rampart_db::audit::list(s.pool(), 50_000, filter).await?;
     let fmt = time::format_description::well_known::Rfc3339;
