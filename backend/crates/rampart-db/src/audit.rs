@@ -65,6 +65,10 @@ pub struct AuditFilter<'a> {
     /// action). Empty/None = no filter.
     pub action_prefix: Option<&'a str>,
     pub actor: Option<Uuid>,
+    /// Inclusive lower bound on `ts`. None = no lower bound.
+    pub from: Option<OffsetDateTime>,
+    /// Inclusive upper bound on `ts`. None = no upper bound.
+    pub to: Option<OffsetDateTime>,
 }
 
 pub async fn list(pool: &DbPool, limit: i64, filter: AuditFilter<'_>) -> DbResult<Vec<AuditEntry>> {
@@ -81,13 +85,17 @@ pub async fn list(pool: &DbPool, limit: i64, filter: AuditFilter<'_>) -> DbResul
           AND ($2::text   IS NULL OR resource_kind = $2)
           AND ($3::text   IS NULL OR action LIKE $3)
           AND ($4::uuid   IS NULL OR actor_user_id = $4)
+          AND ($5::timestamptz IS NULL OR ts >= $5)
+          AND ($6::timestamptz IS NULL OR ts <= $6)
         ORDER BY id DESC
-        LIMIT $5
+        LIMIT $7
         "#,
         filter.before_id,
         filter.kind,
         action_like,
         filter.actor,
+        filter.from,
+        filter.to,
         limit,
     )
     .fetch_all(pool)

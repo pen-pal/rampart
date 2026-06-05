@@ -3,11 +3,24 @@ import {
   ChevronLeft, Loader2, AlertCircle, ScrollText, ChevronDown, Download,
 } from 'lucide-react';
 
-function csvHref(kind, action, actor) {
+// Local "YYYY-MM-DDTHH:MM" from <input type="datetime-local"> → ISO 8601 with
+// the browser's offset. Empty string returns null so callers can skip the
+// query param.
+function dtLocalToIso(s) {
+  if (!s) return null;
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+function csvHref(kind, action, actor, from, to) {
   const qs = new URLSearchParams();
   if (kind)          qs.set('kind',   kind);
   if (action.trim()) qs.set('action', action.trim());
   if (actor)         qs.set('actor',  actor);
+  const fromIso = dtLocalToIso(from);
+  const toIso   = dtLocalToIso(to);
+  if (fromIso)       qs.set('from',   fromIso);
+  if (toIso)         qs.set('to',     toIso);
   const tail = qs.toString();
   return `/v1/audit-log/csv${tail ? `?${tail}` : ''}`;
 }
@@ -66,6 +79,8 @@ export default function AuditLog() {
   const [kind,    setKind]    = useState('');
   const [action,  setAction]  = useState('');
   const [actor,   setActor]   = useState('');
+  const [from,    setFrom]    = useState('');
+  const [to,      setTo]      = useState('');
   const [done,    setDone]    = useState(false);
 
   // Hydrate actor user names so rows can show "alice" not the raw uuid.
@@ -81,6 +96,8 @@ export default function AuditLog() {
         kind || null,
         action.trim() || null,
         actor || null,
+        dtLocalToIso(from),
+        dtLocalToIso(to),
       );
       if (before == null) setEntries(rows);
       else                setEntries(prev => [...prev, ...rows]);
@@ -97,7 +114,7 @@ export default function AuditLog() {
     const t = setTimeout(() => { setDone(false); load(null); }, 250);
     return () => clearTimeout(t);
     /* eslint-disable-next-line */
-  }, [kind, action, actor]);
+  }, [kind, action, actor, from, to]);
 
   return (
     <div className="rampart">
@@ -134,15 +151,21 @@ export default function AuditLog() {
                 <option key={u.id} value={u.id}>{u.name || u.email}</option>
               )}
             </select>
-            {(kind || action || actor) && (
+            <input className="input" type="datetime-local" value={from}
+              onChange={e => setFrom(e.target.value)}
+              title="From (inclusive) — only entries on or after this time"/>
+            <input className="input" type="datetime-local" value={to}
+              onChange={e => setTo(e.target.value)}
+              title="To (inclusive) — only entries on or before this time"/>
+            {(kind || action || actor || from || to) && (
               <button className="btn btn-ghost"
-                onClick={() => { setKind(''); setAction(''); setActor(''); }}
+                onClick={() => { setKind(''); setAction(''); setActor(''); setFrom(''); setTo(''); }}
                 title="Clear all filters">
                 Clear
               </button>
             )}
             <a className="btn" download
-              href={csvHref(kind, action, actor)}
+              href={csvHref(kind, action, actor, from, to)}
               title="Download up to 50,000 entries matching the current filters as CSV">
               <Download size={13}/> CSV
             </a>
