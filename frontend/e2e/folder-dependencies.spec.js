@@ -14,6 +14,12 @@
 import { test, expect } from '@playwright/test';
 import { api, ensureLoggedIn, uniq } from './helpers.js';
 
+// Resources (monitors, folders, dependency edges) are created against the
+// shared cross-browser test DB. Serial-mode here matches the sibling specs
+// (subscribers / maintenance / status-page-admin) so an intra-file panic
+// can't race a teardown against a next-test setup.
+test.describe.configure({ mode: 'serial' });
+
 test('folder + monitor dependency edges attach, list, and refuse cycles', async ({ page, browserName }) => {
   await ensureLoggedIn(page);
 

@@ -3,9 +3,13 @@ import {
   ChevronLeft, Loader2, AlertCircle, ScrollText, ChevronDown, Download,
 } from 'lucide-react';
 
-// Local "YYYY-MM-DDTHH:MM" from <input type="datetime-local"> → ISO 8601 with
-// the browser's offset. Empty string returns null so callers can skip the
-// query param.
+// Local "YYYY-MM-DDTHH:MM" from <input type="datetime-local"> → UTC ISO 8601.
+// Per ES2017+ (and every current Chrome / Edge / Firefox / Safari / Node),
+// `new Date(s)` on the date-time form WITHOUT a TZ designator parses as
+// LOCAL time, and `.toISOString()` returns the corresponding UTC moment —
+// which is what the backend's `time::serde::rfc3339::option` expects. So
+// "14:30" entered in UTC+5:45 reaches the server as "08:45Z", correctly.
+// Empty string returns null so callers can skip the query param.
 function dtLocalToIso(s) {
   if (!s) return null;
   const d = new Date(s);
