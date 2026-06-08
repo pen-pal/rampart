@@ -17,130 +17,90 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
-### Added
-- **Frontend bundle code-split.** `src/App.jsx` now lazy-loads every view via `React.lazy()` inside a single `<Suspense>` boundary; `vite.config.js` splits `recharts` and `lucide-react` into dedicated `vendor-*` chunks. Initial-page JS drops from ~957 kB (single chunk) to ~200 kB; recharts (~352 kB) only fetches when a chart view mounts. The long-standing "chunk larger than 500 kB" Vite warning is gone.
-- **Audit log `from` / `to` time-range filter.** Backend (`AuditFilter` + `ListQuery` + `db::audit::list`) gained optional RFC 3339 timestamps that get bound into the SQL as `($N::timestamptz IS NULL OR ts >= $N)` clauses; frontend (`AuditLog.jsx`) adds two `<input type="datetime-local">` controls in the filter row, with a `dtLocalToIso` helper for the conversion. CSV download honours the same params.
-- **Three new e2e specs** — `e2e/maintenance.spec.js` (maintenance-window CRUD + active toggle reflects in UI), `e2e/folder-dependencies.spec.js` (monitor-group create + monitor dependency edges + cycle-guard assertion), `e2e/status-page-admin.spec.js` (admin status-page CRUD distinct from the public subscribe path). E2E matrix is now 22 × 5 = 110 cross-browser runs per CI push.
-
-- **`reqwest` 0.12 → 0.13** finally landed. The `rustls-no-provider` feature is the public ring-only escape hatch — pulls `__rustls` without `__rustls-aws-lc-rs`, leaves crypto-provider selection to the consuming binary. `rampart-api::main` now installs `rustls::crypto::ring` as the global default at startup so all rustls callers (reqwest, tokio-rustls, hyper-rustls) resolve to ring without dragging in `aws-lc-rs` / `cmake` (verified via `cargo tree -i`). Tests in `rampart-notifier::channels` that construct `reqwest::Client::new()` route through a new `crate::init_test_crypto()` `Once`-guarded helper. Also picks up the 0.13 surface changes: `form` + `query` are now per-method features, included in the feature list explicitly. Removes the `reqwest 0.13` rejection from `docs/DEPENDENCIES.md`.
-
-- **`docs/API.md`** — hand-curated endpoint catalogue grouped by URL family (health / auth / monitors / channels / status pages / web push / stream / audit / settings) with per-route pointers back into `backend/crates/rampart-api/src/routes/<name>.rs`. Documents the URL-prefix scheme, auth conventions, cursor-pagination patterns, error envelope, and the deliberate decision not to ship an OpenAPI-generated spec.
-- **Status-page subscriber e2e (`frontend/e2e/subscribers.spec.js`)** — walks the visitor-facing SubscribeBox path end-to-end: admin creates a status page → spec hits the public `#/s/<slug>` view → fills + submits the form → verifies the subscriber row persisted via the admin list endpoint.
-- **Audit-log actor filter + Clear button.** Frontend was already filtering on `kind` + `action`-prefix; backend also supported the `actor` UUID filter but the UI was missing it. Added an actor dropdown populated from `api.users.list()` so admins can narrow by teammate by name (not raw UUID); added a Clear button when any filter is set; styled the action-prefix input with a focus state to match the select neighbours.
-- **`x-request-id` propagated into log spans.** `TraceLayer::new_for_http()` now uses a custom span builder that lifts the `x-request-id` header (already minted by `SetRequestIdLayer` upstream) into the `request_id` span field. Every log line emitted inside a request now carries the id without manual `Span::record` plumbing — Grafana / Loki / Datadog can correlate by `request_id` directly. Setting `RAMPART_LOG_FORMAT=json` swaps the default human-readable formatter for the JSON formatter so structured aggregators index `request_id` as a first-class field.
-- **Live Prometheus metrics on `/metrics`** — beyond the existing `rampart_build_info` gauge, the endpoint now exposes six live-from-Postgres gauges: `rampart_monitors{status}` (by status), `rampart_monitors_by_kind{kind}`, `rampart_channels_active`, `rampart_webpush_subscribers`, `rampart_heartbeats_24h{status}` (rolling 24h window), and `rampart_incidents_open`. Each gauge degrades to a `# error querying …` comment line on DB failure rather than failing the whole scrape, so a Prometheus consumer never sees a torn response. New `rampart-db::metrics` module holds the aggregate queries; sqlx offline cache regenerated.
-- **2FA enrolment e2e spec (`frontend/e2e/totp.spec.js`)** — end-to-end coverage for the TOTP enrol / activate / recovery-codes / disable dance. Computes valid TOTP codes inline via `crypto.subtle` against the base32 secret the EnrollPanel renders, so the spec exercises the real time-stepped one-time-password math rather than mocking it. 18 e2e flows total now × 5 browser projects = 90 cross-browser runs per CI push.
-- **NATS probe (`MonitorKind::Nats`)** — connects to a `nats://host:port` server, runs the INFO / CONNECT / PING handshake via the official `async-nats` client, asserts a successful flush. Plaintext URIs only today; `tls://` is a follow-up. `rampart-checker/src/nats.rs`, migration `0035_nats.sql`, wizard card with `nats://nats.internal:4222` placeholder.
-- **LDAP probe (`MonitorKind::Ldap`)** — connects to a directory server over `ldap://` or `ldaps://` and runs a simple bind. Anonymous by default; optional `bind_dn` + `bind_password` config switches to authenticated bind so the probe doubles as a credential-validity check. `rampart-checker/src/ldap.rs`, migration `0036_ldap.sql`, wizard card with `ldap://ldap.internal:389` placeholder. `ldap3 = { version = "0.12", default-features = false, features = ["tls-rustls-ring"] }` keeps the workspace's pure-Rust crypto stance.
-- **AMQP probe (`MonitorKind::Amqp`)** — connects to a RabbitMQ-compatible broker over `amqp://`, completes the AMQP 0-9-1 protocol handshake (version negotiation → SASL PLAIN auth → tune / open) via the `lapin` client, closes cleanly with a goodbye frame. Up means the broker is reachable AND credentials are valid AND the requested vhost exists. `amqps://` (TLS) is a follow-up. `rampart-checker/src/amqp.rs`, migration `0037_amqp.sql`, wizard card with `amqp://guest:guest@rabbitmq.internal:5672/%2F` placeholder.
-- **DNS-over-HTTPS probe (`MonitorKind::Doh`)** — sends a GET to the DoH endpoint with `?name=<query>&type=<rtype>` + `Accept: application/dns-json`, parses the JSON response, asserts `Status == 0` (NOERROR) and a non-empty `Answer` array. Up on NOERROR + records; Warn on NOERROR + empty answer (resolver replied but the name has no records of that type — operationally interesting, not necessarily broken) or non-zero rcode; Down on transport / HTTP errors. Config: `query` (default `example.com`), `rtype` (default `A`). `rampart-checker/src/doh.rs`, migration `0038_doh.sql`, wizard card with `https://cloudflare-dns.com/dns-query` placeholder.
-- **RDAP probe (`MonitorKind::Rdap`)** — modern HTTP successor to WHOIS (RFC 7480 + 9082). GETs `<url>/<domain>` with `Accept: application/rdap+json` (following up to 5 redirects so the `rdap.org/domain` aggregator can hop to the per-TLD registry), parses the response for an `eventAction == "expiration"` event, surfaces days-until-expiry as the heartbeat message. Up when expiry is past the `warn_days` floor; Warn when inside the warning window (default 30 days); Down on HTTP / parse failure. Config: `domain` (default `example.com`), `warn_days` (default `30`). `rampart-checker/src/rdap.rs`, migration `0039_rdap.sql`, wizard card with `https://rdap.org/domain` placeholder.
-- **SNMP probe (`MonitorKind::Snmp`)** — issues a single SNMP v2c GET (wire-compatible with SNMPv1) for an OID against a UDP-reachable agent. Up when the agent replies with a varbind; Down on transport / timeout / community-mismatch. `csnmp = "0.4"` workspace dep — pure-Rust, no C deps. Defaults: port `161`, community `public`, OID `1.3.6.1.2.1.1.1.0` (sysDescr.0). `rampart-checker/src/snmp.rs`, migration `0040_snmp.sql`, wizard card with `switch.internal:161` placeholder.
-- **Cassandra / ScyllaDB probe (`MonitorKind::Cassandra`)** — opens a CQL session via `scylla::client::session_builder::SessionBuilder`, runs `SELECT release_version FROM system.local`. Exercises both the CQL protocol handshake (STARTUP → SUPPORTED → READY) and a real query path. Up on Ok; Down on connect / auth / query error. Optional `username` + `password` config flips to PLAIN auth. Default port 9042. `scylla = { version = "1", default-features = false }` — pure-Rust, no openssl / aws-lc-rs / cmake (verified via `cargo tree -i`). `rampart-checker/src/cassandra.rs`, migration `0041_cassandra.sql`, wizard card with `cassandra.internal:9042` placeholder.
-- **mDNS service-discovery probe (`MonitorKind::Mdns`)** — sends a hand-rolled multicast DNS query (12-byte header + labels-encoded `_services._dns-sd._udp.local` question) to the IPv4 mDNS group at `224.0.0.251:5353`, joins the group, waits for unicast replies. Up when at least one peer answers. Config `service` narrows from the meta-service to a specific service class (e.g. `_http._tcp.local`). No new deps — the DNS wire format is encoded inline; 3 unit tests cover the encoder.
-- **SSDP / UPnP service-discovery probe (`MonitorKind::Ssdp`)** — sends an HTTP-over-UDP `M-SEARCH * HTTP/1.1` to `239.255.255.250:1900` with a clamp-to-spec `MX` of `min(timeout, 5)` seconds, listens for unicast replies, reports the first responder's first-line preview. Up when at least one UPnP device answers. Config `search_target` narrows the `ST:` header (default `ssdp:all`). No new deps — the SSDP request is text-framed inline; 2 unit tests cover the response-preview helper. Probe count: 38. Both probes land in migration `0042_service_discovery.sql`.
-- `docs/WALKTHROUGH.md` — labelled step-by-step tour of the first-run experience (admin setup → probe wizard → first heartbeats → notification channels → status pages → dark theme), one screenshot per step.
-- `frontend/e2e/screenshots.spec.js` — Playwright-driven screenshot generator (`npm run screenshots`) that re-derives every walkthrough PNG plus the two README hero shots in one pass. Excluded from CI so it doesn't mutate disk on every push.
-- `docs/assets/screenshots/README.md` — regeneration procedure + screenshot inventory.
-
-### Brand
-- Two-tone shield + ECG-pulse logo (`docs/assets/logo.svg`) replaces the earlier teal-shield-with-R mark.
-- New `docs/assets/wordmark.svg` lockup for GitHub social-preview / README hero contexts.
-- Favicon and in-app brand mark (Dashboard header + Login card) re-shaped to match.
-- All in-tree screenshots regenerated against the new mark — `docs/assets/dashboard.png`, `docs/assets/dashboard-dark.png`, and the eleven walkthrough PNGs under `docs/assets/screenshots/`.
-
-### Versioning
-- Workspace version centralised in `[workspace.package].version`; member crates inherit via `version.workspace = true`.
-- `/healthz` returns the version (`{"status":"alive","version":"<x.y.z>"}`); the dashboard header pill is now dynamic instead of a hard-coded string.
-- Prometheus `rampart_build_info` gauge interpolates `CARGO_PKG_VERSION` instead of a hard-coded literal.
-- HTTP probe User-Agent and Honeybadger notifier payload now read the workspace version via `env!("CARGO_PKG_VERSION")` instead of hard-coded `"0.1"` strings.
-
-### CI / Tooling
-- **Docker build/push split into per-arch matrix.** The previous layout built `linux/amd64` + `linux/arm64` sequentially on one amd64 runner using QEMU emulation — arm64 under QEMU runs Rust compilation 5-10× slower, and an empty buildcache on the first push made the serial build run over two hours. New layout has two parallel jobs (amd64 on `ubuntu-latest`, arm64 on the native `ubuntu-24.04-arm` runner with no QEMU), each pushing by digest into separate `:buildcache-amd64` / `:buildcache-arm64` registry caches, plus a final `assemble manifest` job that uses `docker buildx imagetools create` to merge the two digests under the user-facing tag. Each leg has a `timeout-minutes: 90` hard ceiling so a future hang can't run unbounded.
-- E2E matrix now runs Playwright across Chromium, Firefox, WebKit, and the branded Chrome + Edge channels (17 specs × 5 projects = 85 runs per push).
-- Dependabot groups restructured into routine (minor + patch) / major / security per ecosystem. The previous routine group bundled major bumps together, which made any given PR effectively unreviewable.
-- CodeQL workflow split per language; Rust stays on `build-mode: none` until upstream supports `manual`.
-- Conflict-labeler workflow creates the `has-conflicts` label idempotently so a clean clone runs without a manual bootstrap step.
-- Dockerfile base images bumped: `node:20-alpine` → `node:26-alpine`, `rust:1.88-slim-bookworm` → `rust:1.96-slim-bookworm`. MSRV floor unchanged.
-- New `docs/DEPENDENCIES.md` records the bump policy and the living list of deliberately-deferred major bumps with the reasoning for each (axum 0.8, sqlx 0.9, RustCrypto 0.11/0.13/0.13, rumqttc 0.25 rejected for aws-lc-rs, React 19, Vite 8, lucide-react 1.x, recharts 3, etc.).
-
-### Changed
-- Frontend dev dep `jsdom` bumped 25 → 29 (test-only; all 32 vitest tests pass on the new resolver).
-- Backend dep `webpki-roots` bumped 0.26 → 1.0. Compiled clean against the two call sites in `rampart-checker/src/tls.rs` without code changes (the `TLS_SERVER_ROOTS` static carries over and `RootCertStore::extend` still accepts its iterator).
-- Backend dep `bollard` bumped 0.17 → 0.21. Per-endpoint options structs relocated to `bollard::query_parameters` and the `default-features = false` profile now lists `pipe` + `http` explicitly to keep `connect_with_socket` / `connect_with_http` reachable. Behaviour unchanged.
-- Backend dep `thiserror` bumped 1 → 2. All four `derive(Error)` sites (`rampart-core::error`, `rampart-db`, `rampart-api::error`, `rampart-notifier`) compile clean against the new derive macro without source changes.
-- Frontend dep `lucide-react` bumped 0.383 → 1.17. The 1.x release kept the top-level named-import surface intact (`import { Activity } from 'lucide-react'`) so all ~60 icon import sites compile without a path rewrite; the rumoured `lucide-react/icons/<Name>` deep-import requirement turned out to be optional, not mandatory.
-- Backend dep `tokio-tungstenite` bumped 0.24 → 0.29. The `connect` + `rustls-tls-webpki-roots` feature names carried over so the websocket probe (`rampart-checker/src/websocket.rs`) compiles without source changes. Verified the crypto stack remains pure-Rust: neither `aws-lc-rs` nor `cmake` enters the dependency tree.
-- Backend deps `tonic` 0.12 → 0.14, `tonic-health` 0.12 → 0.14, `prost` 0.13 → 0.14 bumped in lockstep. tonic 0.14 retired the `prost` named feature (now implicit), split TLS into per-backend features (`tls-ring` + `tls-webpki-roots` selected for pure-Rust), and tonic-health folded its previous `transport` feature into the default set. The gRPC health probe (`rampart-checker/src/grpc.rs`) compiles without source changes; aws-lc-rs / cmake still absent from the tree.
-- Backend dep `redis` bumped 0.27 → 1.2. The probe (`rampart-checker/src/redis.rs`) compiles unchanged — the four touchpoints (`Client::open`, `get_multiplexed_async_connection`, `redis::cmd("PING")`, `query_async::<String>`) carry across the 1.0 cut. The transitive `xxhash-rust 0.8` (BSL-1.0) added a new license to the `cargo-deny` allow-list (BSL-1.0 is OSI-approved + FSF Free/Libre + AGPL-compatible).
-- Backend deps `axum` 0.7 → 0.8 and `axum-extra` 0.9 → 0.12 bumped in lockstep. Two breaking changes had to land: (a) route path captures changed from `/:id` to `/{id}` syntax (~40 route declarations across `rampart-api::routes::*`), and (b) the `#[axum::async_trait]` attribute on the `AuthUser` extractor is no longer needed — native async-fn-in-trait covers the signature. Otherwise the handler bodies and `IntoResponse` impls carry over unchanged.
-- Frontend dep `recharts` bumped 2.15 → 3.8. Both chart sites — `Dashboard.jsx` (LineChart) and `MonitorDetail.jsx` (AreaChart) — compile and render without source changes; the named-import surface (`LineChart`, `Line`, `XAxis`, `YAxis`, `ResponsiveContainer`, `Tooltip`, `AreaChart`, `Area`, `ReferenceLine`) carried across the 3.0 cut. Verified via the screenshot generator: monitor-detail + dashboard PNGs regenerate cleanly with the new build.
-- Backend dep `sqlx` bumped 0.8 → 0.9. The `query!`/`query_as!` macro contracts are unchanged so no source modifications were needed across `rampart-db` or the route handlers. The `.sqlx/` offline cache was regenerated against 0.9 (77 of the 154 entries refresh; the others stay byte-identical) and committed; CI's `SQLX_OFFLINE=true` build is verified clean against the new cache.
-- Frontend trio bumped in lockstep: `react` + `react-dom` 18.3 → 19.2, `vite` 7.3 → 8.0, `@vitejs/plugin-react` 5.2 → 6.0. The dashboard codebase doesn't exercise the React 19 breaking surfaces (`defaultProps` for function components, `PropTypes` from `react`, the old Suspense fallback timing semantics), so no source changes were needed. Vite 8 ships rolldown as the build engine — production builds are visibly faster (~150 ms vs ~1.2 s on the same source). Verified via all 17 e2e specs + 11-step screenshot regeneration; no runtime regressions.
-
-### Security
-- `RUSTSEC-2023-0071` (the `rsa` Marvin-timing-sidechannel advisory) cleared. The sqlx 0.9 bump reworked the MySQL auth path so the pure-Rust `rsa` crate is no longer in the dependency tree. Removed from `deny.toml`'s ignore list and recorded under "Progress" in `docs/SECURITY-DEBT.md`. The remaining four `rustls-webpki 0.102` advisories (via `rumqttc` 0.24) still apply — see security-debt for the upstream blocker.
-
-### Changed
-- Backend dep `x509-parser` bumped 0.16 → 0.18. Single call-site in `rampart-checker/src/tls.rs` (`X509Certificate::from_der`) carries across the bump; no source changes.
-- `generic-array = "=0.14.7"` added as a direct dep on `rampart-notifier` to prevent `cargo update` from re-bumping it. 0.14.9 marks the slice-accessor API used by `webpush_crypto.rs` as deprecated, which `-D warnings` in CI converts to a hard error. The constraint stays until the RustCrypto coordinated stable lands.
+_No changes yet._
 
 ---
 
-## [0.1.0] — 2026-06-03
+## [0.1.0] — 2026-06-09
 
-First public release. Everything below this line is what the binary ships today.
+First public release. Single Rust binary backed by Postgres, ships a React dashboard embedded into the binary at compile time, covers 38 probe kinds and 130 notification channels.
 
 ### Core
 
-- **29 probe kinds.** HTTP/HTTPS, TCP, DNS (A/AAAA/CNAME/MX/TXT/NS/SRV/CAA/SOA), Ping (ICMP), TLS-handshake + cert expiry, Postgres, MySQL, MSSQL, MongoDB, Redis, gRPC health, MQTT, AMQP, SMTP banner, IMAP banner, POP3 banner, FTP banner, SSH banner, JSON-API, RSS feed freshness, JSON value, JSON schema, keyword match, Docker container, push (heartbeat-receive), browser (synthetic), RADIUS auth, kafka-broker, websocket.
-- **130 notification channels.** Slack, Discord, Telegram, Microsoft Teams, Webhook (custom), Email (SMTP), PagerDuty, Opsgenie, Pushover, Twilio SMS, Signal, Matrix, Mattermost, Rocket.Chat, Gotify, ntfy, Pushy, Apprise bridge, Splunk On-Call, Webex, Zulip, Web Push (RFC 8291) + 108 native adapters in `rampart-notifier/src/channels/`.
-- **Scheduler** runs probes off a tokio-based dispatcher with per-monitor concurrency caps and jittered cadence.
+- **38 probe kinds** — HTTP, Keyword (substring), JsonQuery, TCP, Ping (ICMP), DNS (A/AAAA/CNAME/MX/TXT/NS/SRV/CAA/SOA), Push (heartbeat-receive), gRPC `health.v1`, TLS handshake + cert expiry, Docker container, Steam (A2S), MQTT, RADIUS, Kafka (ApiVersions handshake), Postgres, MySQL, MSSQL, Redis, MongoDB, Memcached, NTP (SNTPv4), WebSocket (RFC 6455), NATS, LDAP, AMQP (RabbitMQ-compatible), DNS-over-HTTPS (RFC 8484 JSON variant), RDAP (RFC 7480/9082), SNMP v2c GET, Cassandra/ScyllaDB, mDNS service discovery, SSDP/UPnP, Domain expiry (WHOIS), headless-browser, SSH banner, SMTP banner, IMAP banner, FTP banner, POP3 banner.
+- **130 notification channels** — Slack, Discord, Telegram, Microsoft Teams, Webhook (HMAC-signed), Email (generic SMTP + SendGrid/Resend/Brevo/Mailgun/Mailjet/Postmark/Mandrill/SparkPost), PagerDuty, Opsgenie, Pushover, Twilio + 26 other SMS providers, Signal, Matrix, Mattermost, Rocket.Chat, Gotify, ntfy, Pushy, Apprise gateway, Splunk On-Call + 18 other incident/on-call platforms, Web Push (RFC 8291 with VAPID), Mastodon/Nostr, Sentry/Rollbar/Honeybadger, AWS SNS / Azure Service Bus / GCP Pub/Sub, Home Assistant, plus 70+ other native adapters in `rampart-notifier/src/channels/`.
+- **Scheduler** runs probes off a tokio-based dispatcher with per-monitor concurrency caps and jittered cadence; batched heartbeat writer cuts INSERT round-trips ~100×.
 - **Liquid templates** for notification subject + body (`{{ … | filter }}` syntax, conditionals, loops). Preview button on the template editor renders against a fake heartbeat so you can iterate without a probe firing.
 - **Folders + tags** for organising large fleets, with routing rules per folder.
-- **Dependency-aware alerts** — mark monitor B as depending on monitor A and B suppresses its own outage notification when A is down.
+- **Dependency-aware alerts** — mark monitor B as depending on monitor A and B suppresses its own outage notification when A is down. Cycle-guarded.
 - **Maintenance windows** — schedule one-shot or recurring quiet periods per monitor / folder.
-- **Status pages** — public, custom-domainable, dependency-aware. SSE stream means visitor view updates without reload.
-- **Audit log** of every state-changing action; CSV export.
-- **2FA (TOTP)** with QR enrolment, including the recovery codes flow.
-- **Push monitor** with regenerable token per monitor.
+- **Status pages** — public, custom-domainable, dependency-aware. SSE stream means the visitor view updates without reload. Email subscriber sign-up with single-opt-in.
+- **Audit log** of every state-changing action; filterable by `kind` / `action` / `actor` / `from` / `to` (RFC 3339 timestamps); CSV export honours the same filters.
+- **2FA (TOTP)** with QR enrolment, recovery codes, and a sign-in challenge gate.
+- **Push monitor** with regenerable token per monitor for incoming heartbeats from cron jobs.
 - **Test-now button** to fire a probe out-of-cycle from the monitor detail view.
+- **Bulk actions** on the dashboard (pause/resume/delete/move/attach-channel/detach-channel).
+- **Per-monitor heartbeat CSV** export via `/v1/monitors/{id}/heartbeats.csv`.
 
 ### API
 
-- `/v1/monitors`, `/v1/monitors/{id}/heartbeats` (with cursor pagination via `before=<rfc3339>`), `/v1/monitors/{id}/test-now`.
-- `/v1/notifications` (channels + counts), `/v1/notifications/test` (send a probe message).
-- `/v1/monitor-channels/bulk` — attach / detach a notification channel across many monitors in one request.
-- `/v1/status-pages`, `/v1/maintenance`, `/v1/folders`, `/v1/tags`, `/v1/dependencies`.
-- `/v1/audit?format=csv` — CSV export of the audit log.
+- `/v1/monitors`, `/v1/monitors/{id}/heartbeats` (cursor pagination via `?before=<rfc3339>&limit=<n>`), `/v1/monitors/{id}/test-now`.
+- `/v1/notifications` (channels + counts), `/v1/notifications/{id}/test` (send a probe message through the real provider).
+- `/v1/monitors/bulk` — multi-monitor action endpoint.
+- `/v1/status-pages` (admin CRUD) + `/v1/public/status-pages/{slug}` (visitor surface) + `/v1/public/status-pages/{slug}/subscribe`.
+- `/v1/maintenance-windows`, `/v1/monitor-groups` (folders), `/v1/monitors/{id}/dependencies/{parent_id}`, `/v1/tags`.
+- `/v1/audit-log` + `/v1/audit-log/csv` with `kind` / `action` prefix / `actor` UUID / `from` / `to` filters.
 - `/v1/auth/...` — register, login, logout, `/me`, TOTP enrol / verify / disable.
-- `/healthz`, `/readyz`, `/metrics` (Prometheus text).
-- SSE stream at `/v1/events` for live heartbeat fan-out.
+- `/v1/api-keys`, `/v1/proxies` (outbound HTTP proxy registry, selectable per-monitor), `/v1/users` (admin).
+- `/v1/settings/smtp`, `/v1/settings/retention` (heartbeat + audit retention in days).
+- `/healthz` (returns `{"status":"alive","version":"<x.y.z>"}`), `/readyz`, `/metrics` (Prometheus text — `rampart_build_info`, `rampart_monitors{status}`, `rampart_monitors_by_kind{kind}`, `rampart_channels_active`, `rampart_webpush_subscribers`, `rampart_heartbeats_24h{status}`, `rampart_incidents_open`).
+- `/v1/stream/heartbeats` — Server-Sent Events live stream.
+- `/push/{token}` — public push-monitor heartbeat sink (the token is the auth).
+- Hand-curated endpoint reference in [`docs/API.md`](docs/API.md) catalogues every route with source-file pointers.
 
 ### Architecture
 
 - Six Rust crates: `rampart-core` (types), `rampart-db` (sqlx repository), `rampart-checker` (probe runners — one file per probe), `rampart-scheduler` (dispatcher), `rampart-notifier` (channel adapters + Liquid template renderer), `rampart-api` (axum HTTP + the main bin).
 - Single binary — the frontend bundle is embedded via `rust-embed`. Debug builds read from `frontend/dist`; release builds compile the bytes in.
+- Workspace version centralised in `[workspace.package].version`; member crates inherit via `version.workspace = true`. `/healthz`, the Prometheus `rampart_build_info` gauge, the dashboard header pill, the HTTP probe User-Agent, and the Honeybadger notifier payload all read `env!("CARGO_PKG_VERSION")` — single decision point per release.
 - sqlx **offline mode** with a committed `.sqlx/` cache. CI builds without bringing up Postgres for compile checks.
 - Migrations live in `backend/migrations/000N_*.sql` and run on boot.
-- MSRV is **Rust 1.88** (forced by transitive `time` 0.3.47, `base64ct` edition2024). Release Dockerfile pins `rust:1.88` to match.
-- Pure-Rust crypto stack — `p256` / `aes-gcm` / `hkdf` / `rustls` — no OpenSSL / aws-lc-rs / cmake dependency.
+- MSRV is **Rust 1.88** (forced by transitive `time` 0.3.47, `base64ct` edition2024). The release Dockerfile uses `rust:1.96-slim-bookworm` for build speed + diagnostics; the MSRV floor is declared in `[workspace.package].rust-version` because that's the contract with library consumers and downstream packagers, not the build pin.
+- Pure-Rust crypto stack — `p256` / `aes-gcm` / `hkdf` / `rustls` (ring provider, installed at startup so all rustls callers share one provider) — no OpenSSL, no `aws-lc-rs`, no `cmake`. The `rumqttc` 0.25 and `reqwest 0.13 + default rustls` paths were both attempted and rejected to preserve this invariant; the documented exception is one accepted advisory chain through `rumqttc` 0.24 + `rustls-webpki` 0.102 (CRL-only code paths not reached in default config). See `docs/SECURITY-DEBT.md` for the full ledger.
+- `tower-http::request_id` mints an `x-request-id` per request, which `TraceLayer` lifts into a `request_id` span field so every log line emitted inside a handler can be grouped by it. `RAMPART_LOG_FORMAT=json` swaps the human-readable formatter for the JSON one so aggregators (Loki / Datadog / Splunk) index the field as a first-class key.
 
 ### Frontend
 
-- Vite + React SPA, **one view per file** under `src/views/`. Inline CSS-in-JSX per view; no Tailwind, no CSS modules.
-- 17 e2e flows on Playwright running against Chromium / Firefox / WebKit + the branded Chrome + Edge channels.
+- Vite 8 + React 19 SPA. **One view per file** under `src/views/`. Inline CSS-in-JSX per view; no Tailwind, no CSS modules.
+- All views lazy-loaded via `React.lazy()` inside a single `<Suspense>` boundary; `recharts` and `lucide-react` split into dedicated `vendor-*` chunks. Initial-page JS sits at ~200 kB (gzipped ~63 kB); charts only fetch when a chart view mounts.
+- 22 e2e flows on Playwright running against Chromium / Firefox / WebKit + the branded Chrome + Edge channels = 110 cross-browser runs per CI push. Specs cover auth + 2FA, monitor CRUD + dashboard, notification channel + template CRUD, status-page public + admin, subscriber subscribe, folder + dependency edges, maintenance windows, tag routing, dark/light theme, and the per-step walkthrough screenshot generator.
 - 32 vitest unit tests covering API helpers, router, theme toggle.
 - Light + dark themes that auto-switch from system preference.
+
+### Brand
+
+- Two-tone shield + ECG-pulse mark (`docs/assets/logo.svg`) with matching wordmark lockup (`docs/assets/wordmark.svg`) for GitHub social preview / README hero.
+- Favicon (inline SVG data URI — no extra HTTP request from the embedded bundle) and in-app brand mark (Dashboard header + Login card) all share the same mark.
+- Step-by-step walkthrough at [`docs/WALKTHROUGH.md`](docs/WALKTHROUGH.md) covers the first-run journey with one labelled screenshot per step (11 PNGs); the screenshots are regenerated end-to-end by `npm run screenshots`.
 
 ### Security
 
 - TLS handshake + cert-expiry probe; cert chain validated with `webpki-roots`.
-- Argon2 password hashing (`argon2` crate).
-- VAPID-signed Web Push (RFC 8291) using `p256` ECDSA — no openssl linkage.
-- TOTP (RFC 6238) for 2FA.
-- CSRF, secure-cookie, and same-site-strict defaults on the auth surface.
-- CodeQL + Dependabot enabled; advisory log in `docs/SECURITY-DEBT.md`.
+- Argon2 password hashing (`argon2` crate). Failed-login costs a constant-time hash compare regardless of whether the user exists — defends against user-enumeration by timing.
+- VAPID-signed Web Push (RFC 8291) using `p256` ECDSA — RFC 8291 §5 known-answer test pinned in `rampart-notifier::channels::webpush_crypto::tests::rfc8291_section5_roundtrip`.
+- TOTP (RFC 6238) for 2FA, with recovery codes.
+- CSRF, secure-cookie (`HttpOnly`, `SameSite=Strict`, `Secure` on HTTPS), and Argon2 defaults across the auth surface.
+- CodeQL + Dependabot enabled. Dependabot groups split routine (minor + patch) / major / security per ecosystem so the routine queue stays mergeable on green.
+- One advisory accepted with justification: `RUSTSEC-2026-0049/0098/0099/0104` + two GHSA aliases on `rustls-webpki` 0.102 (via `rumqttc` 0.24) — CRL paths not reached in default config; full rationale in `docs/SECURITY-DEBT.md`.
+
+### CI / tooling
+
+- Backend gates: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace --all-targets --no-fail-fast`, `cargo deny check` (advisories + bans + licenses + sources).
+- Frontend gates: `npm test` (vitest), `npm run build`, `npx playwright test` across 5 browser projects.
+- Docker build/push split into per-arch matrix (amd64 on `ubuntu-latest`, arm64 on the native `ubuntu-24.04-arm` runner with no QEMU); each leg has a `timeout-minutes: 90` hard ceiling; per-arch buildcache refs (`:buildcache-amd64` / `:buildcache-arm64`); a merge job assembles the multi-arch manifest via `docker buildx imagetools create`.
+- CodeQL workflow split per language; Rust on `build-mode: none` (the only Rust mode `codeql-action@v4` currently accepts).
+- Conflict-labeler workflow creates the `has-conflicts` label idempotently so a clean clone runs without a manual bootstrap step.
+- Dependency-bump policy and the living "deferred majors" table documented in [`docs/DEPENDENCIES.md`](docs/DEPENDENCIES.md).
 
 ### Out of scope (deliberately)
 
