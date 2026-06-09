@@ -92,32 +92,34 @@ pub struct UpdateStatusPage {
     #[validate(length(min = 1, max = 120))]
     pub title: Option<String>,
 
-    #[serde(default)]
+    #[serde(default, deserialize_with = "double_option")]
     pub description: Option<Option<String>>,
 
     #[serde(default)]
     pub theme: Option<String>,
 
     /// `Some(Some(d))` sets the domain, `Some(None)` clears it, `None`
-    /// leaves it alone. Double-Option so a clear is distinguishable from
-    /// "field omitted".
-    #[serde(default)]
+    /// leaves it alone. The `double_option` deserializer is required so a
+    /// JSON `null` lands as `Some(None)` (clear) rather than serde's
+    /// default outer-`None` (no-op) — without it, "clear the domain" over
+    /// the wire silently does nothing.
+    #[serde(default, deserialize_with = "double_option")]
     pub custom_domain: Option<Option<String>>,
 
     /// Same triple-state semantics as `custom_domain`.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "double_option")]
     pub logo_url: Option<Option<String>>,
 
     /// Per-page custom CSS. Same triple-state semantics as `custom_domain`:
     /// `Some(Some(css))` sets it, `Some(None)` clears it, `None` leaves it.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "double_option")]
     pub custom_css: Option<Option<String>>,
 
     /// Write-only plaintext password. `Some(Some(pw))` sets/changes the
     /// password (db layer hashes it → page becomes private), `Some(None)`
     /// clears it (page becomes public again), `None` leaves it unchanged.
     /// Never serialized back out.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "double_option")]
     pub password: Option<Option<String>>,
 
     /// When present, REPLACES the attached set. When absent, leaves it alone.
@@ -127,6 +129,20 @@ pub struct UpdateStatusPage {
 
 fn default_theme() -> String {
     "light".into()
+}
+
+/// Deserializer for `Option<Option<T>>` update fields so a JSON `null`
+/// lands as `Some(None)` (an explicit clear) instead of serde's default
+/// outer-`None` (field omitted / no-op). Mirrors the helper in
+/// `rampart_db::notifications`. Required on every triple-state update
+/// field above, else "clear this field" over the wire silently does
+/// nothing.
+fn double_option<'de, T, D>(d: D) -> Result<Option<Option<T>>, D::Error>
+where
+    T: Deserialize<'de>,
+    D: serde::Deserializer<'de>,
+{
+    Deserialize::deserialize(d).map(Some)
 }
 
 /// Public, read-only projection. Fields here are deliberately tight —
