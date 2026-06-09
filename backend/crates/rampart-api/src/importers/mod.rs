@@ -10,10 +10,13 @@
 
 pub mod betterstack;
 pub mod cachet;
+pub mod checkly;
 pub mod cronitor;
 pub mod datadog;
+pub mod freshping;
 pub mod gatus;
 pub mod healthchecks;
+pub mod hetrixtools;
 pub mod pingdom;
 pub mod rapidspike;
 pub mod site24x7;

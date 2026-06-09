@@ -1,0 +1,34 @@
+[
+  {
+    "id": "ck-3001",
+    "name": "Marketing site",
+    "checkType": "API",
+    "request": {
+      "url": "https://www.example.com",
+      "method": "GET"
+    },
+    "frequency": 1
+  },
+  {
+    "id": "ck-3002",
+    "name": "Checkout journey",
+    "checkType": "BROWSER",
+    "frequency": 5
+  },
+  {
+    "id": "ck-3003",
+    "name": "Primary database",
+    "checkType": "TCP",
+    "tcp": {
+      "host": "db.example.com",
+      "port": 5432
+    },
+    "frequency": 1
+  },
+  {
+    "id": "ck-3004",
+    "name": "Status heartbeat",
+    "checkType": "HEARTBEAT",
+    "frequency": 10
+  }
+]

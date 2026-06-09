@@ -1,0 +1,44 @@
+{
+  "checks": [
+    {
+      "id": 2001,
+      "name": "Marketing site",
+      "check_url": "https://www.example.com",
+      "check_type": "HTTPS",
+      "port": 0,
+      "check_interval": 60
+    },
+    {
+      "id": 2002,
+      "name": "Legacy portal",
+      "check_url": "http://legacy.example.com",
+      "check_type": "HTTP",
+      "port": 0,
+      "check_interval": 300
+    },
+    {
+      "id": 2003,
+      "name": "Edge router",
+      "check_url": "10.0.0.1",
+      "check_type": "PING",
+      "port": 0,
+      "check_interval": 60
+    },
+    {
+      "id": 2004,
+      "name": "Primary database",
+      "check_url": "db.example.com",
+      "check_type": "PORT",
+      "port": 5432,
+      "check_interval": 120
+    },
+    {
+      "id": 2005,
+      "name": "Resolver",
+      "check_url": "example.com",
+      "check_type": "DNS",
+      "port": 0,
+      "check_interval": 60
+    }
+  ]
+}

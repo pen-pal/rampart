@@ -1,0 +1,36 @@
+{
+  "monitors": [
+    {
+      "ID": "ht-1001",
+      "Name": "Marketing site",
+      "Target": "https://www.example.com",
+      "Type": "website",
+      "Port": 0,
+      "Check_Frequency_Seconds": 60
+    },
+    {
+      "ID": "ht-1002",
+      "Name": "Primary database",
+      "Target": "db.example.com",
+      "Type": "service",
+      "Port": 5432,
+      "Check_Frequency_Seconds": 120
+    },
+    {
+      "ID": "ht-1003",
+      "Name": "Edge router",
+      "Target": "10.0.0.1",
+      "Type": "ping",
+      "Port": 0,
+      "Check_Frequency_Seconds": 30
+    },
+    {
+      "ID": "ht-1004",
+      "Name": "Smart bulb",
+      "Target": "blob://device",
+      "Type": "smtp",
+      "Port": 25,
+      "Check_Frequency_Seconds": 300
+    }
+  ]
+}
