@@ -73,9 +73,12 @@ function maintWindow(m) {
   return t('statuspage.public.maint.win.from', { start: s });
 }
 
-// Coarse "starts in {x}" countdown for an upcoming maintenance window.
-function maintStartsIn(m) {
-  const ms = toDate(m.starts_at).getTime() - Date.now();
+// Coarse relative duration ("2 hours" / "40 minutes" / "now") between a
+// future timestamp and now, used for both the "starts in" and "ends in"
+// maintenance countdowns. Reads Date.now() at call time so each render
+// recomputes against the current clock.
+function maintCountdown(targetMs) {
+  const ms = targetMs - Date.now();
   if (ms <= 0) return t('statuspage.public.maint.starts.now');
   const mins = Math.round(ms / 60000);
   if (mins < 60) return t(mins === 1 ? 'statuspage.public.maint.starts.minute' : 'statuspage.public.maint.starts.minutes', { n: mins });
@@ -83,6 +86,19 @@ function maintStartsIn(m) {
   if (hours < 24) return t(hours === 1 ? 'statuspage.public.maint.starts.hour' : 'statuspage.public.maint.starts.hours', { n: hours });
   const days = Math.round(hours / 24);
   return t(days === 1 ? 'statuspage.public.maint.starts.day' : 'statuspage.public.maint.starts.days', { n: days });
+}
+
+// Coarse "starts in {x}" countdown for an upcoming maintenance window.
+function maintStartsIn(m) {
+  return maintCountdown(toDate(m.starts_at).getTime());
+}
+
+// Coarse "ends in {x}" countdown for an active maintenance window that
+// carries a concrete end. Recurring windows (no `ends_at`) return null so
+// the banner falls back to the plain "Active now" pill.
+function maintEndsIn(m) {
+  if (m.ends_at == null) return null;
+  return maintCountdown(toDate(m.ends_at).getTime());
 }
 
 const css = `
@@ -530,6 +546,17 @@ export default function StatusPageView({ slug, byDomainHost }) {
   const [error,   setError]   = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Client-side tick (every 30s) that re-renders the maintenance banner so
+  // its relative countdowns ("Starts in 2h", "Ends in 40m") stay honest
+  // between the 30s data polls. Purely a re-render trigger — it does NOT
+  // re-fetch; the countdown strings recompute from the start/end
+  // timestamps already in `data`.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick(n => n + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
@@ -746,7 +773,15 @@ function MaintenanceBanner({ entry }) {
       </div>
       <span className="maint-when">
         {entry.active
-          ? <>{statusIcon('maintenance', 12)} {t('statuspage.public.maint.active')}</>
+          ? (() => {
+              // Active windows with a concrete end show a live "Ends in
+              // {x}" countdown; recurring windows (no end) keep the plain
+              // "Active now" pill.
+              const endsIn = maintEndsIn(entry);
+              return endsIn
+                ? <>{statusIcon('maintenance', 12)} {t('statuspage.public.maint.ends_in')} {endsIn}</>
+                : <>{statusIcon('maintenance', 12)} {t('statuspage.public.maint.active')}</>;
+            })()
           : <>{t('statuspage.public.maint.starts_in')} {maintStartsIn(entry)}</>}
       </span>
     </div>
