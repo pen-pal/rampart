@@ -1,0 +1,17 @@
+apiVersion: v2
+name: rampart
+description: A Helm chart for deploying Rampart — a Rust-based status/incident service
+type: application
+version: 0.1.0
+appVersion: "0.2.0"
+home: https://github.com/pen-pal/rampart
+sources:
+  - https://github.com/pen-pal/rampart
+maintainers:
+  - name: penpal
+keywords:
+  - rampart
+  - status-page
+  - incident
+  - rust
+icon: https://raw.githubusercontent.com/pen-pal/rampart/main/docs/logo.png

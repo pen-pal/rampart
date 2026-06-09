@@ -1,0 +1,128 @@
+# Default values for rampart.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+image:
+  repository: ghcr.io/pen-pal/rampart
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+# Container resources for the rampart-api pod.
+resources:
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Pod-level security context.
+podSecurityContext:
+  fsGroup: 65534
+
+# Container-level security context.
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+service:
+  type: ClusterIP
+  port: 3000
+
+ingress:
+  enabled: false
+  className: nginx
+  annotations: {}
+  hosts:
+    - host: rampart.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  # - secretName: rampart-tls
+  #   hosts:
+  #     - rampart.example.com
+
+# Embedded Postgres — DISABLED BY DEFAULT.
+# This is intended for local evaluation / dev only.
+# Production deployments should bring their own managed Postgres
+# (RDS, Cloud SQL, Neon, Supabase, etc.) and set externalDatabase.url.
+postgres:
+  embedded: false
+  image: postgres:16-alpine
+  storageSize: 10Gi
+  # Credentials used by the embedded StatefulSet. Override these for any
+  # non-throwaway deployment, even in the evaluation case.
+  user: rampart
+  database: rampart
+  # If empty, a random password is generated on first install and stored
+  # in the embedded-postgres Secret.
+  password: ""
+
+externalDatabase:
+  # Required when postgres.embedded=false.
+  # Format: postgres://user:pass@host:5432/dbname
+  url: ""
+
+# Session signing key. If empty, helm will generate a random 64-char key
+# on install and persist it in the Secret. Lookup is used so upgrades do
+# not rotate the key.
+sessionKey: ""
+
+# Application config exposed via ConfigMap (non-secret).
+config:
+  bindAddr: "0.0.0.0:3000"
+  rustLog: "info,rampart=debug"
+
+# Extra environment variables.
+env: []
+# - name: FOO
+#   value: bar
+
+# Extra envFrom sources.
+envFrom: []
+# - secretRef:
+#     name: my-extra-secret
+
+# Probes
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  initialDelaySeconds: 15
+  periodSeconds: 20
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

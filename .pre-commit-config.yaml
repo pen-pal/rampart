@@ -32,6 +32,10 @@ repos:
       - id: check-json
       - id: check-toml
       - id: check-yaml
+        # Helm chart templates use Go template directives ({{- if … -}})
+        # which the PyYAML loader rejects with a flow-node parse error.
+        # Helm itself validates these via `helm lint` + `helm template`.
+        exclude: ^charts/.*/templates/.*\.ya?ml$
       - id: check-merge-conflict
       - id: check-symlinks
       - id: detect-private-key
