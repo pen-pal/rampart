@@ -19,6 +19,7 @@ const Folders           = lazy(() => import('./views/Folders.jsx'));
 const Tags              = lazy(() => import('./views/Tags.jsx'));
 const AuditLog          = lazy(() => import('./views/AuditLog.jsx'));
 const StatusPageView    = lazy(() => import('./views/StatusPageView.jsx'));
+const ManageSubscription = lazy(() => import('./views/ManageSubscription.jsx'));
 import { api } from './lib/api.js';
 import { isAdmin } from './lib/roles.js';
 import { parseRoute } from './lib/router.js';
@@ -154,6 +155,7 @@ export default function App() {
     && !authState.user
     && route.view !== 'login'
     && route.view !== 'public-status'
+    && route.view !== 'manage-subscription'
   ) {
     if (!window.location.hash.startsWith('#/login')) {
       window.location.hash = '#/login';
@@ -200,6 +202,7 @@ export default function App() {
     case 'tags':               view = <Tags />; break;
     case 'audit':         view = <AuditLog />; break;
     case 'public-status': view = <StatusPageView slug={route.id} />; break;
+    case 'manage-subscription': view = <ManageSubscription token={route.id} />; break;
     case 'dashboard':
     default:            view = <Dashboard user={authState.user} onLogout={async () => {
       try { await api.auth.logout(); } catch {}
@@ -221,7 +224,7 @@ export default function App() {
       </Suspense>
       {showThemeToggle && <FloatingThemeToggle />}
       {showThemeToggle && <FloatingLocalePicker />}
-      {route.view !== 'login' && route.view !== 'public-status' && <ViewSwitcher current={route.view} user={authState.user} />}
+      {route.view !== 'login' && route.view !== 'public-status' && route.view !== 'manage-subscription' && <ViewSwitcher current={route.view} user={authState.user} />}
     </>
   );
 }

@@ -21,6 +21,15 @@ pub fn public_router() -> Router<AppState> {
     Router::new()
         .route("/status-pages/{slug}/subscribe", post(subscribe))
         .route("/subscribe/unsubscribe/{token}", get(unsubscribe))
+        .route("/subscribers/manage/{token}", get(manage))
+        .route(
+            "/subscribers/manage/{token}/unsubscribe-all",
+            post(unsubscribe_all),
+        )
+        .route(
+            "/subscribers/manage/{token}/unsubscribe/{slug}",
+            post(unsubscribe_page),
+        )
 }
 
 /// Status-page subscriber management — editors may manage these (they're
@@ -75,6 +84,61 @@ async fn unsubscribe(
         </head><body><h1>Unsubscribed.</h1>
         <p>You won't receive further updates from this status page.</p></body></html>"#,
     ))
+}
+
+// ── Self-manage (token-based, no auth) ───────────────────────────────────
+
+#[derive(serde::Serialize)]
+struct ManageView {
+    email: String,
+    subscriptions: Vec<rampart_db::subscribers::ManagedSubscription>,
+}
+
+/// Resolve a subscriber by any of their per-page unsubscribe tokens and
+/// return the email plus every page that email is subscribed to.
+async fn manage(
+    State(s): State<AppState>,
+    Path(token): Path<String>,
+) -> Result<Json<ManageView>, ApiError> {
+    let email = rampart_db::subscribers::email_for_token(s.pool(), &token)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    let subscriptions = rampart_db::subscribers::subscriptions_for_email(s.pool(), &email).await?;
+    Ok(Json(ManageView {
+        email,
+        subscriptions,
+    }))
+}
+
+#[derive(serde::Serialize)]
+struct RemovedCount {
+    removed: u64,
+}
+
+/// Remove the token's email from every page in one click.
+async fn unsubscribe_all(
+    State(s): State<AppState>,
+    Path(token): Path<String>,
+) -> Result<Json<RemovedCount>, ApiError> {
+    let email = rampart_db::subscribers::email_for_token(s.pool(), &token)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    let removed = rampart_db::subscribers::unsubscribe_all_for_email(s.pool(), &email).await?;
+    Ok(Json(RemovedCount { removed }))
+}
+
+/// Remove the token's email from a single page (by slug). Scoped to the
+/// token's email so one subscriber can't unsubscribe another.
+async fn unsubscribe_page(
+    State(s): State<AppState>,
+    Path((token, slug)): Path<(String, String)>,
+) -> Result<StatusCode, ApiError> {
+    let email = rampart_db::subscribers::email_for_token(s.pool(), &token)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    let page = rampart_db::status_pages::get_by_slug(s.pool(), &slug).await?;
+    rampart_db::subscribers::unsubscribe_email_from_page(s.pool(), page.id, &email).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 fn parse_page(s: &str) -> Result<StatusPageId, ApiError> {

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM status_page_subscribers WHERE channel = 'email' AND lower(destination) = lower($1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3fcc3014677985eaed8b354a08e4033d6bb433504c301940c4679a96a1872a3a"
+}

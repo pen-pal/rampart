@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM status_page_subscribers WHERE status_page_id = $1 AND channel = 'email' AND lower(destination) = lower($2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9072c8338ca6495073f37a17cfe4c599ea654ac886c536666e21c4d983a24309"
+}
