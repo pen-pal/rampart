@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   ChevronLeft, Upload, FileText, Loader2, AlertCircle, CheckCircle2,
 } from 'lucide-react';
@@ -17,6 +17,7 @@ const css = `
     --accent:#14b8a6; --accent-2:#0d9488; --accent-soft:#ccfbf1;
     --up:#10b981; --up-soft:#d1fae5;
     --down:#ef4444; --down-soft:#fee2e2;
+    --warn:#b45309; --warn-soft:#fef3c7;
     background: var(--bg); color: var(--text);
     font-family: Inter, ui-sans-serif, system-ui, sans-serif;
     min-height: 100vh;
@@ -46,7 +47,116 @@ const css = `
   }
   .textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
   .banner-err { background: var(--down-soft); color: #b91c1c; border: 1px solid #fecaca; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
+  .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .badge-create { background: var(--up-soft); color: #047857; }
+  .badge-skip { background: var(--warn-soft); color: var(--warn); }
 `;
+
+// ── client-side CSV validation ──────────────────────────────────────
+// A best-effort mirror of the server's `parse_csv_and_map` rules
+// (rampart-api/src/importers/csv_import.rs). The server stays
+// authoritative; this just lets the operator see what will happen.
+
+// Canonical MonitorKind serde strings (snake_case), from
+// rampart-core/src/monitor.rs. Anything not in this set → unknown → skip.
+const KNOWN_KINDS = new Set([
+  'http', 'keyword', 'json_query',
+  'tcp', 'ping', 'dns', 'push', 'grpc', 'tls',
+  'docker', 'steam', 'mqtt', 'radius', 'kafka',
+  'postgres', 'mysql', 'mssql', 'redis', 'mongodb', 'memcached', 'ntp',
+  'websocket', 'nats', 'ldap', 'amqp', 'doh', 'rdap', 'snmp',
+  'cassandra', 'mdns', 'ssdp', 'domain', 'browser',
+  'ssh', 'smtp', 'imap', 'ftp', 'pop3',
+]);
+
+// Kinds that probe a full URL (mirror of `Required::Url` arm).
+const URL_KINDS = new Set([
+  'http', 'keyword', 'json_query', 'tls', 'grpc',
+  'websocket', 'doh', 'rdap', 'domain', 'browser',
+]);
+
+// Parse one CSV line into fields, honouring simple double-quoted fields
+// with embedded commas and "" escapes. Hand-rolled to match the small set
+// the server's csv crate accepts for this flat format.
+function parseLine(line) {
+  const out = [];
+  let field = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (line[i + 1] === '"') { field += '"'; i++; }
+        else { inQuotes = false; }
+      } else {
+        field += c;
+      }
+    } else if (c === '"') {
+      inQuotes = true;
+    } else if (c === ',') {
+      out.push(field); field = '';
+    } else {
+      field += c;
+    }
+  }
+  out.push(field);
+  return out.map(f => f.trim());
+}
+
+// Parse + validate the whole CSV. Returns { header, rows, error } where each
+// row is { line, cells:{...}, status:'create'|'skip', reason }.
+function analyze(text) {
+  const trimmed = (text || '').trim();
+  if (!trimmed) return { rows: [], header: null, error: null };
+
+  const lines = trimmed.split(/\r?\n/).filter(l => l.trim() !== '');
+  if (lines.length === 0) return { rows: [], header: null, error: null };
+
+  const header = parseLine(lines[0]).map(h => h.toLowerCase());
+  const idx = (name) => header.indexOf(name);
+  const ni = idx('name'), ki = idx('kind'), ui = idx('url'),
+    hi = idx('hostname'), pi = idx('port');
+
+  if (ni === -1 || ki === -1) {
+    return { rows: [], header, error: t('import.err_header') };
+  }
+
+  const cell = (cells, i) => (i >= 0 && i < cells.length ? cells[i].trim() : '');
+
+  const rows = lines.slice(1).map((line, di) => {
+    const cells = parseLine(line);
+    const name = cell(cells, ni);
+    const kind = cell(cells, ki);
+    const url = cell(cells, ui);
+    const hostname = cell(cells, hi);
+    const port = cell(cells, pi);
+
+    let status = 'create';
+    let reason = '';
+
+    if (!name) {
+      status = 'skip'; reason = t('import.skip_missing_name');
+    } else if (!kind) {
+      status = 'skip'; reason = t('import.skip_unknown_kind', { kind: '' });
+    } else if (!KNOWN_KINDS.has(kind.toLowerCase())) {
+      status = 'skip'; reason = t('import.skip_unknown_kind', { kind });
+    } else {
+      const k = kind.toLowerCase();
+      if (URL_KINDS.has(k)) {
+        if (!url) { status = 'skip'; reason = t('import.skip_missing_field', { field: 'url' }); }
+      } else if (k === 'tcp') {
+        if (!hostname) { status = 'skip'; reason = t('import.skip_missing_field', { field: 'hostname' }); }
+        else if (!port) { status = 'skip'; reason = t('import.skip_missing_field', { field: 'port' }); }
+      } else {
+        if (!hostname) { status = 'skip'; reason = t('import.skip_missing_field', { field: 'hostname' }); }
+      }
+    }
+
+    return { line: di + 2, name, kind, url, hostname, port, status, reason };
+  });
+
+  return { rows, header, error: null };
+}
 
 export default function ImportMonitors({ user } = {}) {
   const writable = canWrite(user);
@@ -54,6 +164,10 @@ export default function ImportMonitors({ user } = {}) {
   const [busy,    setBusy]    = useState(false);
   const [err,     setErr]     = useState(null);
   const [result,  setResult]  = useState(null);
+
+  const preview = useMemo(() => analyze(csv), [csv]);
+  const createCount = preview.rows.filter(r => r.status === 'create').length;
+  const skipCount   = preview.rows.filter(r => r.status === 'skip').length;
 
   const onFilePick = (e) => {
     const file = e.target.files && e.target.files[0];
@@ -135,13 +249,71 @@ export default function ImportMonitors({ user } = {}) {
               />
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
-                <button className="btn btn-accent" onClick={doImport} disabled={busy}>
+                <button className="btn btn-accent" onClick={doImport} disabled={busy || createCount === 0}>
                   {busy
                     ? <><Loader2 size={13}/> {t('import.importing')}</>
                     : <><Upload size={13}/> {t('import.import')}</>}
                 </button>
               </div>
             </div>
+
+            {preview.error && (
+              <div className="banner-err">
+                <AlertCircle size={14} style={{ verticalAlign: '-2px', marginRight: 6 }}/>{preview.error}
+              </div>
+            )}
+
+            {!preview.error && preview.rows.length > 0 && (
+              <div className="card" style={{ padding: 22, marginBottom: 18 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4, gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>{t('import.preview_title')}</div>
+                  <div style={{ fontSize: 12.5, color: 'var(--text-2)' }}>
+                    {t('import.preview_summary', { create: createCount, skip: skipCount })}
+                  </div>
+                </div>
+                <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginBottom: 12 }}>
+                  {t('import.preview_note')}
+                </div>
+
+                <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                  <div style={{
+                    display: 'grid', gridTemplateColumns: '44px 1.4fr 0.9fr 110px 1.6fr',
+                    gap: 12, padding: '8px 12px', fontSize: 11, fontWeight: 600,
+                    color: 'var(--text-3)', background: 'var(--surface-2)',
+                    textTransform: 'uppercase', letterSpacing: '.03em',
+                  }}>
+                    <span>{t('import.col_row')}</span>
+                    <span>{t('import.col_name')}</span>
+                    <span>{t('import.col_kind')}</span>
+                    <span>{t('import.col_status')}</span>
+                    <span>{t('import.col_detail')}</span>
+                  </div>
+                  {preview.rows.map((r, i) => (
+                    <div key={i} style={{
+                      display: 'grid', gridTemplateColumns: '44px 1.4fr 0.9fr 110px 1.6fr',
+                      gap: 12, padding: '8px 12px', fontSize: 12, alignItems: 'center',
+                      borderTop: '1px solid var(--border)',
+                    }}>
+                      <span className="mono" style={{ color: 'var(--text-3)' }}>{r.line}</span>
+                      <span style={{ color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {r.name || <span style={{ color: 'var(--text-3)' }}>—</span>}
+                      </span>
+                      <span className="mono" style={{ color: 'var(--text-2)' }}>
+                        {r.kind || <span style={{ color: 'var(--text-3)' }}>—</span>}
+                      </span>
+                      <span>
+                        <span className={`badge ${r.status === 'create' ? 'badge-create' : 'badge-skip'}`}>
+                          {r.status === 'create' ? t('import.badge_create') : t('import.badge_skip')}
+                        </span>
+                      </span>
+                      <span style={{ color: r.status === 'skip' ? 'var(--warn)' : 'var(--text-3)' }}>
+                        {r.reason || ''}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {result && (
               <div className="card" style={{ padding: 22 }}>
