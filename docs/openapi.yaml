@@ -959,6 +959,53 @@ paths:
       summary: Delete a tag
       responses:
         '204': { description: Deleted. }
+  /v1/incident-templates:
+    get:
+      tags: [Incidents]
+      summary: List incident-update templates
+      description: Reusable canned incident updates (editor/admin write, readonly GET).
+      responses:
+        '200':
+          description: Templates.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/IncidentTemplate' }
+    post:
+      tags: [Incidents]
+      summary: Create an incident template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewIncidentTemplate' }
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IncidentTemplate' }
+  /v1/incident-templates/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [Incidents]
+      summary: Update an incident template
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IncidentTemplate' }
+    delete:
+      tags: [Incidents]
+      summary: Delete an incident template
+      responses:
+        '204': { description: Deleted. }
   /v1/monitors/{id}/tags/{tag_id}:
     parameters:
       - $ref: '#/components/parameters/MonitorId'
@@ -2553,6 +2600,24 @@ components:
         name: { type: string }
         color: { type: string }
       required: [id, name, color]
+
+    IncidentTemplate:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        body: { type: string }
+        style: { $ref: '#/components/schemas/IncidentStyle' }
+        created_at: { type: string, format: date-time }
+      required: [id, name, body, style, created_at]
+
+    NewIncidentTemplate:
+      type: object
+      required: [name, body]
+      properties:
+        name: { type: string }
+        body: { type: string }
+        style: { $ref: '#/components/schemas/IncidentStyle' }
 
     NewTag:
       type: object

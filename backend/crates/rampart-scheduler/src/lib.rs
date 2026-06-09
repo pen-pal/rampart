@@ -25,7 +25,7 @@
 //!   accordingly. Called from the API after monitor create/delete/edit.
 
 use rampart_checker::Probes;
-use rampart_core::{Heartbeat, Monitor, MonitorId, MonitorKind, MonitorStatus};
+use rampart_core::{Heartbeat, Monitor, MonitorId, MonitorKind, MonitorStatus, RetryBackoff};
 use rampart_db::DbPool;
 use rampart_notifier::{Event, EventKind, NotifierHandle};
 use std::collections::HashMap;
@@ -371,26 +371,12 @@ async fn run_once(
         // the other way around. The scheduler's job here is just to
         // check if a push has landed inside the expected interval.
         // Probe crate doesn't touch the DB (layer rule), so we
-        // synthesize the heartbeat here.
+        // synthesize the heartbeat here. No retry: the "result" is a
+        // time-window read, not a flaky network probe.
         push_heartbeat(monitor, pool).await
-    } else if let Some(pid) = monitor.proxy_id {
-        // HTTP-family kinds + a configured proxy route through the
-        // dedicated HttpProbe::run_with_proxy path. Other kinds with a
-        // dangling proxy_id (e.g. a TCP probe) silently ignore it.
-        match rampart_db::proxies::get(pool, pid).await {
-            Ok(proxy)
-                if proxy.active
-                    && matches!(
-                        monitor.kind,
-                        MonitorKind::Http | MonitorKind::Keyword | MonitorKind::JsonQuery
-                    ) =>
-            {
-                probes.http_with_proxy(monitor, &proxy).await
-            }
-            _ => probes.run(monitor).await,
-        }
     } else {
-        probes.run(monitor).await
+        // Real probe path, with an optional retry-with-backoff curve.
+        probe_with_retries(probes, monitor, pool).await
     };
 
     // Mark this heartbeat as important if it flipped the status. Don't
@@ -461,6 +447,70 @@ async fn run_once(
             }
         }
     }
+}
+
+/// Dispatch a single real probe, routing HTTP-family + active-proxy
+/// monitors through the dedicated proxy path.
+async fn probe_once(probes: &Probes, monitor: &Monitor, pool: &DbPool) -> Heartbeat {
+    if let Some(pid) = monitor.proxy_id {
+        // HTTP-family kinds + a configured proxy route through the
+        // dedicated HttpProbe::run_with_proxy path. Other kinds with a
+        // dangling proxy_id (e.g. a TCP probe) silently ignore it.
+        match rampart_db::proxies::get(pool, pid).await {
+            Ok(proxy)
+                if proxy.active
+                    && matches!(
+                        monitor.kind,
+                        MonitorKind::Http | MonitorKind::Keyword | MonitorKind::JsonQuery
+                    ) =>
+            {
+                return probes.http_with_proxy(monitor, &proxy).await;
+            }
+            _ => {}
+        }
+    }
+    probes.run(monitor).await
+}
+
+/// Run a real probe, then — if it failed and the monitor opts into a retry
+/// backoff curve — re-probe up to `max_retries` times, sleeping the
+/// computed delay between attempts before committing the failure.
+///
+/// Behaviour is *identical to history* when `config.retry_backoff` is
+/// absent: a single probe, no inter-retry sleep, immediate result. The
+/// retry loop is gated entirely on the presence of that config block so
+/// existing monitors keep their exact current timing.
+async fn probe_with_retries(probes: &Probes, monitor: &Monitor, pool: &DbPool) -> Heartbeat {
+    let mut hb = probe_once(probes, monitor, pool).await;
+
+    // Fast path: success, no opt-in, or nothing to retry → exactly today.
+    if !hb.status.is_down() || monitor.max_retries <= 0 {
+        return hb;
+    }
+    let backoff = match RetryBackoff::from_config(&monitor.config) {
+        Some(b) => b,
+        None => return hb,
+    };
+
+    // Never let a single retry sleep exceed the monitor interval — a
+    // backoff longer than the cadence would stall the whole loop.
+    let interval_cap = monitor.interval_seconds.max(0) as u32;
+
+    let max_attempts = monitor.max_retries as u32;
+    for attempt in 1..=max_attempts {
+        let delay = backoff.delay_secs(attempt).min(interval_cap);
+        if delay > 0 {
+            tokio::time::sleep(Duration::from_secs(delay as u64)).await;
+        }
+        hb = probe_once(probes, monitor, pool).await;
+        hb.retries = attempt as i32;
+        if !hb.status.is_down() {
+            // Recovered within the retry budget — report the success and
+            // skip committing a Down at all.
+            break;
+        }
+    }
+    hb
 }
 
 fn parse_https(url: &str) -> Option<(String, u16)> {

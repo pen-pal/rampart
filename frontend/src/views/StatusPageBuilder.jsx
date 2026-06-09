@@ -685,6 +685,8 @@ function IngestTokensPanel({ pageId }) {
 
 function IncidentsPanel({ pageId }) {
   const list = useApi(() => api.incidents.listForPage(pageId), [pageId], { pollMs: 20_000 });
+  const [tplBump, setTplBump] = useState(0);
+  const tpls = useApi(() => api.incidentTemplates.list(), [tplBump]);
   const [showNew, setShowNew] = useState(false);
   const [busy,    setBusy]    = useState(null);
   const [err,     setErr]     = useState(null);
@@ -716,7 +718,7 @@ function IncidentsPanel({ pageId }) {
       </div>
       {err && <div style={{ background: 'var(--down-soft)', color: '#b91c1c', padding: '8px 12px', borderRadius: 6, fontSize: 12, marginBottom: 10 }}>{err}</div>}
 
-      {showNew && <NewIncidentForm pageId={pageId} onCancel={() => setShowNew(false)} onCreated={reload}/>}
+      {showNew && <NewIncidentForm pageId={pageId} templates={tpls.data || []} onCancel={() => setShowNew(false)} onCreated={reload}/>}
 
       {incidents.length === 0 ? (
         <div style={{ padding: 16, fontSize: 12.5, color: 'var(--text-3)', textAlign: 'center' }}>
@@ -725,17 +727,107 @@ function IncidentsPanel({ pageId }) {
       ) : incidents.map(i => (
         <IncidentRow key={i.id} incident={i} busy={busy === i.id} onResolve={() => resolve(i.id)} onDelete={() => remove(i.id)} onPostUpdate={reload}/>
       ))}
+
+      <TemplatesPanel templates={tpls.data || []} onChanged={() => setTplBump(n => n + 1)}/>
     </div>
   );
 }
 
-function NewIncidentForm({ pageId, onCancel, onCreated }) {
+// Manage the global incident-update template library. Operators repeat the
+// same phases ("Investigating", "Identified", "Monitoring", "Resolved")
+// on every incident; this small list/add/delete affordance lets them save
+// the canned text once and apply it from the "Use template" dropdown in
+// NewIncidentForm. Global, not per-page — the queries carry no page id.
+function TemplatesPanel({ templates, onChanged }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [body, setBody] = useState('');
+  const [style, setStyle] = useState('warning');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const add = async () => {
+    setErr(null);
+    if (!name.trim() || !body.trim()) { setErr(t('statuspage.tpl.err_required')); return; }
+    setBusy(true);
+    try {
+      await api.incidentTemplates.create({ name: name.trim(), body: body.trim(), style });
+      setName(''); setBody(''); setStyle('warning');
+      onChanged();
+    } catch (e) { setErr(e.message || t('statuspage.tpl.err_save')); }
+    finally { setBusy(false); }
+  };
+
+  const remove = async (id) => {
+    if (!confirm(t('statuspage.tpl.delete_confirm'))) return;
+    setBusy(true);
+    try { await api.incidentTemplates.remove(id); onChanged(); }
+    catch (e) { setErr(e.message); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+      <button
+        className="btn btn-ghost"
+        onClick={() => setOpen(o => !o)}
+        style={{ padding: '3px 0', fontSize: 12, color: 'var(--text-2)' }}
+      >
+        {open ? <ChevronDown size={12}/> : <ChevronRight size={12}/>} {t('statuspage.tpl.manage')} ({templates.length})
+      </button>
+      {open && (
+        <div style={{ marginTop: 10 }}>
+          {err && <div style={{ background: 'var(--down-soft)', color: '#b91c1c', padding: '6px 10px', borderRadius: 6, fontSize: 12, marginBottom: 8 }}>{err}</div>}
+          {templates.length === 0 ? (
+            <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 10 }}>{t('statuspage.tpl.empty')}</div>
+          ) : templates.map(tpl => (
+            <div key={tpl.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+              <span style={{ fontSize: 12.5, fontWeight: 600 }}>{tpl.name}</span>
+              <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)' }}>{tpl.style}</span>
+              <span style={{ flex: 1, fontSize: 11.5, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tpl.body}</span>
+              <button className="btn btn-ghost" onClick={() => remove(tpl.id)} disabled={busy} style={{ padding: '2px 6px' }} title={t('statuspage.tpl.delete')}><Trash2 size={12}/></button>
+            </div>
+          ))}
+          <div style={{ marginTop: 10 }}>
+            <input className="input" placeholder={t('statuspage.tpl.name_placeholder')} value={name} onChange={e => setName(e.target.value)} style={{ marginBottom: 8 }}/>
+            <textarea className="textarea" rows={2} placeholder={t('statuspage.tpl.body_placeholder')} value={body} onChange={e => setBody(e.target.value)} style={{ marginBottom: 8 }}/>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <select className="input" value={style} onChange={e => setStyle(e.target.value)} style={{ width: 140 }}>
+                <option value="info">{t('statuspage.incident.style.info')}</option>
+                <option value="warning">{t('statuspage.incident.style.warning')}</option>
+                <option value="danger">{t('statuspage.incident.style.danger')}</option>
+                <option value="primary">{t('statuspage.incident.style.primary')}</option>
+                <option value="success">{t('statuspage.incident.style.success')}</option>
+              </select>
+              <button className="btn btn-accent" onClick={add} disabled={busy} style={{ padding: '5px 10px', fontSize: 12 }}>
+                <Plus size={12}/> {t('statuspage.tpl.add')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NewIncidentForm({ pageId, templates, onCancel, onCreated }) {
   const [title,   setTitle]   = useState('');
   const [content, setContent] = useState('');
   const [style,   setStyle]   = useState('warning');
   const [pinned,  setPinned]  = useState(true);
   const [busy,    setBusy]    = useState(false);
   const [err,     setErr]     = useState(null);
+
+  // "Use template" — fill the body + style from a saved template. The
+  // value carried in the <select> is the template id; on pick we copy its
+  // body into the content field and its style into the style field,
+  // leaving the title for the operator to fill in per-incident.
+  const applyTemplate = (id) => {
+    const tpl = (templates || []).find(x => x.id === id);
+    if (!tpl) return;
+    setContent(tpl.body);
+    setStyle(tpl.style);
+  };
 
   const submit = async () => {
     setErr(null);
@@ -750,6 +842,20 @@ function NewIncidentForm({ pageId, onCancel, onCreated }) {
   return (
     <div style={{ padding: 12, marginBottom: 12, border: '1px solid var(--border)', borderRadius: 8 }}>
       {err && <div style={{ background: 'var(--down-soft)', color: '#b91c1c', padding: '6px 10px', borderRadius: 6, fontSize: 12, marginBottom: 8 }}>{err}</div>}
+      {(templates || []).length > 0 && (
+        <select
+          className="input"
+          value=""
+          onChange={e => { applyTemplate(e.target.value); e.target.value = ''; }}
+          style={{ marginBottom: 8 }}
+          title={t('statuspage.tpl.use')}
+        >
+          <option value="">{t('statuspage.tpl.use')}</option>
+          {(templates || []).map(tpl => (
+            <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
+          ))}
+        </select>
+      )}
       <input className="input" placeholder={t('statuspage.incident.title_placeholder')} value={title} onChange={e => setTitle(e.target.value)} style={{ marginBottom: 8 }}/>
       <textarea className="textarea" rows={2} placeholder={t('statuspage.incident.content_placeholder')} value={content} onChange={e => setContent(e.target.value)} style={{ marginBottom: 8 }}/>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 10 }}>

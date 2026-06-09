@@ -5,7 +5,7 @@
 //! beyond a visual `style`; no root cause, no AI summary, no post-mortem
 //! document. If you want a write-up, write a blog post.
 
-use crate::ids::{IncidentId, IncidentUpdateId, StatusPageId, UserId};
+use crate::ids::{IncidentId, IncidentTemplateId, IncidentUpdateId, StatusPageId, UserId};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
@@ -46,4 +46,18 @@ pub struct IncidentUpdate {
     pub message: String,
     pub posted_at: OffsetDateTime,
     pub posted_by: Option<UserId>,
+}
+
+/// A reusable incident-update template. Global (not page-scoped): the
+/// operator builds a small library of canned phases — "Investigating",
+/// "Identified", "Monitoring", "Resolved" — and applies one into the
+/// incident form instead of retyping. `style` reuses the incident colour
+/// enum so applying a template fills both the body and the visual style.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IncidentTemplate {
+    pub id: IncidentTemplateId,
+    pub name: String,
+    pub body: String,
+    pub style: IncidentStyle,
+    pub created_at: OffsetDateTime,
 }
