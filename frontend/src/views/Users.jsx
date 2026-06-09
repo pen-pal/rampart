@@ -4,6 +4,7 @@ import {
   Users as UsersIcon,
 } from 'lucide-react';
 import { api, useApi, formatRelative, offsetDateTimeArrayToDate } from '../lib/api.js';
+import { t } from '../lib/i18n.js';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -61,14 +62,14 @@ const css = `
   .select:disabled { opacity: .55; cursor: not-allowed; }
 `;
 
-const ROLE_LABEL = { admin: 'admin', editor: 'editor', readonly: 'readonly' };
+const roleLabel = (role) => t(`users.role.${role}`);
 function roleOf(u) {
   // `role` is authoritative; fall back to the legacy is_admin shim for any
   // row that predates the migration backfill.
   return u.role || (u.is_admin ? 'admin' : 'editor');
 }
 
-const tsToDate = (t) => (Array.isArray(t) ? offsetDateTimeArrayToDate(t) : new Date(t));
+const tsToDate = (ts) => (Array.isArray(ts) ? offsetDateTimeArrayToDate(ts) : new Date(ts));
 
 export default function Users() {
   const meState    = useApi(() => api.auth.me(), []);
@@ -84,7 +85,7 @@ export default function Users() {
   const reload = () => window.location.reload();
 
   const remove = async (id) => {
-    if (!confirm('Delete this user? Their sessions and API keys will be revoked.')) return;
+    if (!confirm(t('users.delete_confirm'))) return;
     setBusy(id); setErr(null);
     try { await api.users.remove(id); reload(); }
     catch (e) { setErr(e.message); }
@@ -107,19 +108,19 @@ export default function Users() {
       <style>{css}</style>
       <div style={{ maxWidth: 920, margin: '0 auto', padding: '32px 32px 64px' }}>
         <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}>
-          <ChevronLeft size={14}/> Dashboard
+          <ChevronLeft size={14}/> {t('common.dashboard')}
         </a>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 22 }}>
           <div>
-            <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 4px', letterSpacing: '-.02em' }}>Users</h1>
+            <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 4px', letterSpacing: '-.02em' }}>{t('users.title')}</h1>
             <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 0 }}>
-              Add team members, promote / demote admins, revoke access. Each user gets their own session + 2FA + API keys.
+              {t('users.subtitle')}
             </p>
           </div>
           {me?.is_admin && (
             <button className="btn btn-accent" onClick={() => setCreating(true)}>
-              <Plus size={14}/> New user
+              <Plus size={14}/> {t('users.new')}
             </button>
           )}
         </div>
@@ -133,9 +134,9 @@ export default function Users() {
             <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-3)' }}>
               <Shield size={28} style={{ marginBottom: 10, opacity: .5 }}/>
               <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-2)', marginBottom: 4 }}>
-                Admin only
+                {t('users.admin_only')}
               </div>
-              <div style={{ fontSize: 12.5 }}>Only admins can view or modify users.</div>
+              <div style={{ fontSize: 12.5 }}>{t('users.admin_only_hint')}</div>
             </div>
           ) : usersState.loading ? (
             <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-3)' }}><Loader2 size={16}/></div>
@@ -145,14 +146,14 @@ export default function Users() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
                   <span style={{ fontSize: 13.5, fontWeight: 600 }}>{u.name || u.email}</span>
                   <span className={`pill pill-${roleOf(u)}`}>
-                    {roleOf(u) === 'admin' ? <><ShieldCheck size={10}/> admin</> : ROLE_LABEL[roleOf(u)]}
+                    {roleOf(u) === 'admin' ? <><ShieldCheck size={10}/> {t('users.role.admin')}</> : roleLabel(roleOf(u))}
                   </span>
-                  {u.totp_enabled && <span className="pill pill-admin" title="Two-factor enabled"><Shield size={10}/> 2FA</span>}
-                  {me?.id === u.id && <span className="pill pill-user">you</span>}
+                  {u.totp_enabled && <span className="pill pill-admin" title={t('users.totp_enabled')}><Shield size={10}/> 2FA</span>}
+                  {me?.id === u.id && <span className="pill pill-user">{t('users.you')}</span>}
                 </div>
                 <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
-                  {u.email}{' · joined '}{formatRelative(tsToDate(u.created_at))}
-                  {u.last_login_at && ` · last login ${formatRelative(tsToDate(u.last_login_at))}`}
+                  {u.email}{' · '}{t('users.joined', { when: formatRelative(tsToDate(u.created_at)) })}
+                  {u.last_login_at && ` · ${t('users.last_login', { when: formatRelative(tsToDate(u.last_login_at)) })}`}
                 </div>
               </div>
               {me?.is_admin && me?.id !== u.id ? (
@@ -162,11 +163,11 @@ export default function Users() {
                     value={roleOf(u)}
                     disabled={busy === u.id}
                     onChange={e => changeRole(u, e.target.value)}
-                    aria-label="Role"
+                    aria-label={t('users.role_label')}
                   >
-                    <option value="admin">admin</option>
-                    <option value="editor">editor</option>
-                    <option value="readonly">readonly</option>
+                    <option value="admin">{t('users.role.admin')}</option>
+                    <option value="editor">{t('users.role.editor')}</option>
+                    <option value="readonly">{t('users.role.readonly')}</option>
                   </select>
                   <button className="btn btn-ghost btn-danger" onClick={() => remove(u.id)} disabled={busy === u.id}>
                     <Trash2 size={13}/>
@@ -192,51 +193,51 @@ function CreateForm({ onCancel, onCreated }) {
 
   const submit = async () => {
     setErr(null);
-    if (!email.includes('@')) { setErr('Email looks invalid.'); return; }
-    if (password.length < 10)  { setErr('Password must be at least 10 characters.'); return; }
+    if (!email.includes('@')) { setErr(t('users.err_email')); return; }
+    if (password.length < 10)  { setErr(t('users.err_password')); return; }
     setBusy(true);
     try {
       await api.users.create(email.trim(), name.trim() || null, password, role);
       onCreated();
-    } catch (e) { setErr(e.message || 'Failed to create user.'); setBusy(false); }
+    } catch (e) { setErr(e.message || t('users.err_create')); setBusy(false); }
   };
 
   return (
     <div className="card" style={{ padding: 20, marginBottom: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>New user</h3>
+        <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>{t('users.new')}</h3>
         <button className="btn btn-ghost" onClick={onCancel} disabled={busy}><X size={14}/></button>
       </div>
       {err && <div className="banner-err">{err}</div>}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
         <div>
-          <label style={{ fontSize: 12, color: 'var(--text-2)', display: 'block', marginBottom: 4 }}>Email</label>
+          <label style={{ fontSize: 12, color: 'var(--text-2)', display: 'block', marginBottom: 4 }}>{t('users.email')}</label>
           <input className="input" value={email} onChange={e => setEmail(e.target.value)} placeholder="alice@example.com"/>
         </div>
         <div>
-          <label style={{ fontSize: 12, color: 'var(--text-2)', display: 'block', marginBottom: 4 }}>Name (optional)</label>
+          <label style={{ fontSize: 12, color: 'var(--text-2)', display: 'block', marginBottom: 4 }}>{t('users.name_optional')}</label>
           <input className="input" value={name} onChange={e => setName(e.target.value)} placeholder="Alice"/>
         </div>
       </div>
       <div style={{ marginBottom: 10 }}>
-        <label style={{ fontSize: 12, color: 'var(--text-2)', display: 'block', marginBottom: 4 }}>Initial password</label>
-        <input className="input" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="At least 10 characters"/>
-        <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>Share this securely; the user can change it after first login.</div>
+        <label style={{ fontSize: 12, color: 'var(--text-2)', display: 'block', marginBottom: 4 }}>{t('users.initial_password')}</label>
+        <input className="input" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder={t('users.password_placeholder')}/>
+        <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>{t('users.password_hint')}</div>
       </div>
       <div style={{ marginBottom: 14 }}>
-        <label style={{ fontSize: 12, color: 'var(--text-2)', display: 'block', marginBottom: 4 }}>Role</label>
+        <label style={{ fontSize: 12, color: 'var(--text-2)', display: 'block', marginBottom: 4 }}>{t('users.role_label')}</label>
         <select className="select" value={role} onChange={e => setRole(e.target.value)} style={{ width: '100%' }}>
-          <option value="admin">admin — full access incl. user management & settings</option>
-          <option value="editor">editor — monitors, incidents, status pages, notifications</option>
-          <option value="readonly">readonly — view only, no changes</option>
+          <option value="admin">{t('users.role_opt.admin')}</option>
+          <option value="editor">{t('users.role_opt.editor')}</option>
+          <option value="readonly">{t('users.role_opt.readonly')}</option>
         </select>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-        <button className="btn btn-ghost" onClick={onCancel} disabled={busy}>Cancel</button>
+        <button className="btn btn-ghost" onClick={onCancel} disabled={busy}>{t('common.cancel')}</button>
         <button className="btn btn-accent" onClick={submit} disabled={busy}>
-          {busy ? <><Loader2 size={13}/> Creating…</> : <><Plus size={13}/> Create user</>}
+          {busy ? <><Loader2 size={13}/> {t('users.creating')}</> : <><Plus size={13}/> {t('users.create')}</>}
         </button>
       </div>
     </div>

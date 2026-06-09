@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { api, useApi, offsetDateTimeArrayToDate, formatRelative } from '../lib/api.js';
 import { canWrite } from '../lib/roles.js';
+import { t } from '../lib/i18n.js';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -68,7 +69,7 @@ export default function StatusPageBuilder({ user } = {}) {
   const reload = () => window.location.reload();
 
   const remove = async (id) => {
-    if (!confirm('Delete this status page? Public URL will stop responding.')) return;
+    if (!confirm(t('statuspage.delete_confirm'))) return;
     setBusy(id); setErr(null);
     try {
       await api.statusPages.remove(id);
@@ -97,21 +98,21 @@ export default function StatusPageBuilder({ user } = {}) {
 
       <div style={{ maxWidth: 980, margin: '0 auto', padding: '32px 32px 64px' }}>
         <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}>
-          <ChevronLeft size={14}/> Dashboard
+          <ChevronLeft size={14}/> {t('common.dashboard')}
         </a>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 22 }}>
           <div>
             <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 4px', letterSpacing: '-.02em' }}>
-              Status pages
+              {t('statuspage.title')}
             </h1>
             <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 0 }}>
-              Public, no-login views of selected monitors. Share the URL with customers or post it in your README.
+              {t('statuspage.subtitle')}
             </p>
           </div>
           {writable && (
             <button className="btn btn-accent" onClick={() => setEditing('new')}>
-              <Plus size={14}/> New status page
+              <Plus size={14}/> {t('statuspage.new')}
             </button>
           )}
         </div>
@@ -125,16 +126,16 @@ export default function StatusPageBuilder({ user } = {}) {
         <div className="card" style={{ overflow: 'hidden' }}>
           {pagesState.loading ? (
             <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-3)' }}>
-              <Loader2 size={16}/> Loading…
+              <Loader2 size={16}/> {t('common.loading')}
             </div>
           ) : pages.length === 0 ? (
             <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-3)' }}>
               <Globe size={28} style={{ marginBottom: 10, opacity: .5 }}/>
               <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-2)', marginBottom: 4 }}>
-                No status pages yet
+                {t('statuspage.empty.title')}
               </div>
               <div style={{ fontSize: 12.5 }}>
-                Create one to expose a curated, no-auth view of your monitors.
+                {t('statuspage.empty.cta')}
               </div>
             </div>
           ) : pages.map(p => (
@@ -151,7 +152,7 @@ export default function StatusPageBuilder({ user } = {}) {
                 // A custom domain is also unique, so leave it blank on clone;
                 // the logo carries over since it's just branding.
                 slug: '',
-                title: `${p.title} (copy)`,
+                title: `${p.title} ${t('statuspage.copy_suffix')}`,
                 description: p.description,
                 theme: p.theme,
                 custom_domain: '',
@@ -180,14 +181,14 @@ function PageRow({ page, busy, onEdit, onClone, onDelete, writable }) {
           {url} <ExternalLink size={11}/>
         </a>
         <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 4 }}>
-          {page.monitor_ids.length} monitor{page.monitor_ids.length === 1 ? '' : 's'} attached
+          {page.monitor_ids.length === 1 ? t('statuspage.monitors_attached_one', { n: page.monitor_ids.length }) : t('statuspage.monitors_attached', { n: page.monitor_ids.length })}
           {page.description && ` · ${page.description}`}
         </div>
       </div>
       {writable ? (
         <>
-          <button className="btn btn-ghost" onClick={onEdit} disabled={busy}>Edit</button>
-          <button className="btn btn-ghost" onClick={onClone} disabled={busy} title="Clone — start a new page seeded from this one"><Copy size={13}/></button>
+          <button className="btn btn-ghost" onClick={onEdit} disabled={busy}>{t('common.edit')}</button>
+          <button className="btn btn-ghost" onClick={onClone} disabled={busy} title={t('statuspage.clone_title')}><Copy size={13}/></button>
           <button className="btn btn-ghost btn-danger" onClick={onDelete} disabled={busy}><Trash2 size={13}/></button>
         </>
       ) : (<><span/><span/><span/></>)}
@@ -217,12 +218,12 @@ function Editor({ page, monitors, writable, onCancel, onSaved }) {
     e.target.value = ''; // allow re-picking the same file later
     if (!file) return;
     if (file.size > MAX_LOGO_BYTES) {
-      setErr('Logo must be 512 KB or smaller. Try a smaller image.');
+      setErr(t('statuspage.err_logo_size'));
       return;
     }
     const reader = new FileReader();
     reader.onload = () => { setLogoUrl(reader.result); setErr(null); };
-    reader.onerror = () => setErr('Could not read that image. Try another file.');
+    reader.onerror = () => setErr(t('statuspage.err_logo_read'));
     reader.readAsDataURL(file);
   };
 
@@ -238,9 +239,9 @@ function Editor({ page, monitors, writable, onCancel, onSaved }) {
 
   const save = async () => {
     setErr(null);
-    if (!title.trim())             { setErr('Title is required.'); return; }
+    if (!title.trim())             { setErr(t('statuspage.err_title')); return; }
     if (isNew && !/^[a-z0-9-]{2,40}$/.test(slug)) {
-      setErr('Slug must be 2–40 chars of lowercase letters, digits, or dashes.');
+      setErr(t('statuspage.err_slug'));
       return;
     }
     setSaving(true);
@@ -268,7 +269,7 @@ function Editor({ page, monitors, writable, onCancel, onSaved }) {
       }
       onSaved();
     } catch (e) {
-      setErr(e.message || 'Failed to save.');
+      setErr(e.message || t('statuspage.err_save'));
       setSaving(false);
     }
   };
@@ -278,11 +279,11 @@ function Editor({ page, monitors, writable, onCancel, onSaved }) {
       <style>{css}</style>
       <div style={{ maxWidth: 720, margin: '0 auto', padding: '32px 32px 64px' }}>
         <button className="btn btn-ghost" onClick={onCancel} style={{ marginBottom: 18 }}>
-          <ChevronLeft size={14}/> Back
+          <ChevronLeft size={14}/> {t('statuspage.back')}
         </button>
 
         <h1 style={{ fontSize: 24, fontWeight: 600, margin: '0 0 22px', letterSpacing: '-.02em' }}>
-          {isNew ? 'New status page' : `Edit · ${page.title}`}
+          {isNew ? t('statuspage.new') : t('statuspage.edit_title', { name: page.title })}
         </h1>
 
         {err && (
@@ -293,7 +294,7 @@ function Editor({ page, monitors, writable, onCancel, onSaved }) {
 
         <div className="card" style={{ padding: 22, marginBottom: 18 }}>
           <div className="field">
-            <label className="field-label">Slug{!isNew && ' (immutable)'}</label>
+            <label className="field-label">{t('statuspage.slug')}{!isNew && ` ${t('statuspage.slug_immutable')}`}</label>
             <input
               className="input mono"
               value={slug}
@@ -302,23 +303,23 @@ function Editor({ page, monitors, writable, onCancel, onSaved }) {
               disabled={!isNew}
             />
             <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 4 }}>
-              Lowercase, digits, dashes. 2–40 chars.
-              {slug && ` Page will be served at ${window.location.origin}/#/s/${slug}`}
+              {t('statuspage.slug_hint')}
+              {slug && ` ${t('statuspage.slug_served_at', { url: `${window.location.origin}/#/s/${slug}` })}`}
             </div>
           </div>
 
           <div className="field">
-            <label className="field-label">Title</label>
+            <label className="field-label">{t('statuspage.field_title')}</label>
             <input className="input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Acme Corp Status"/>
           </div>
 
           <div className="field">
-            <label className="field-label">Description (optional)</label>
+            <label className="field-label">{t('statuspage.description')}</label>
             <textarea className="textarea" rows={2} value={description} onChange={e => setDescription(e.target.value)} placeholder="Live status of acme.com services"/>
           </div>
 
           <div className="field">
-            <label className="field-label">Custom domain (optional)</label>
+            <label className="field-label">{t('statuspage.custom_domain')}</label>
             <input
               className="input mono"
               value={customDomain}
@@ -326,17 +327,17 @@ function Editor({ page, monitors, writable, onCancel, onSaved }) {
               placeholder="status.example.com"
             />
             <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 4 }}>
-              Point this hostname at the Rampart host with a CNAME record, then terminate it on your reverse proxy. Rampart stores the name for branding; routing stays with your proxy.
+              {t('statuspage.custom_domain_hint')}
             </div>
           </div>
 
           <div className="field">
-            <label className="field-label">Logo (optional)</label>
+            <label className="field-label">{t('statuspage.logo')}</label>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               {logoUrl ? (
                 <img
                   src={logoUrl}
-                  alt="Logo preview"
+                  alt={t('statuspage.logo_preview_alt')}
                   style={{ height: 40, maxWidth: 140, objectFit: 'contain', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface-2)', padding: 4 }}
                 />
               ) : (
@@ -348,29 +349,29 @@ function Editor({ page, monitors, writable, onCancel, onSaved }) {
                 </div>
               )}
               <label className="btn" style={{ cursor: 'pointer' }}>
-                <Upload size={13}/> {logoUrl ? 'Replace' : 'Upload'}
+                <Upload size={13}/> {logoUrl ? t('statuspage.logo_replace') : t('statuspage.logo_upload')}
                 <input type="file" accept="image/*" onChange={onLogoPick} style={{ display: 'none' }}/>
               </label>
               {logoUrl && (
                 <button type="button" className="btn btn-ghost btn-danger" onClick={() => setLogoUrl('')}>
-                  <X size={13}/> Remove
+                  <X size={13}/> {t('statuspage.logo_remove')}
                 </button>
               )}
             </div>
             <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 6 }}>
-              PNG, SVG, or JPG up to 512 KB. Shown to the left of the title on the public page.
+              {t('statuspage.logo_hint')}
             </div>
           </div>
         </div>
 
         <div className="card" style={{ padding: 22 }}>
           <div className="field-label" style={{ marginBottom: 10 }}>
-            Monitors ({picked.size} selected)
+            {t('statuspage.monitors_selected', { n: picked.size })}
           </div>
           <div style={{ maxHeight: 320, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8, padding: 4 }}>
             {monitors.length === 0 ? (
               <div style={{ padding: 12, fontSize: 12, color: 'var(--text-3)' }}>
-                No monitors yet. Create one first.
+                {t('statuspage.no_monitors')}
               </div>
             ) : monitors.map(m => (
               <label key={m.id} style={{
@@ -387,9 +388,9 @@ function Editor({ page, monitors, writable, onCancel, onSaved }) {
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
-          <button className="btn btn-ghost" onClick={onCancel} disabled={saving}>Cancel</button>
+          <button className="btn btn-ghost" onClick={onCancel} disabled={saving}>{t('common.cancel')}</button>
           <button className="btn btn-accent" onClick={save} disabled={saving}>
-            {saving ? <><Loader2 size={13}/> Saving…</> : <><Save size={13}/> Save</>}
+            {saving ? <><Loader2 size={13}/> {t('common.saving')}</> : <><Save size={13}/> {t('common.save')}</>}
           </button>
         </div>
 
@@ -417,7 +418,7 @@ function SubscribersPanel({ pageId }) {
   const [busy, setBusy] = useState(null);
   const reload = () => window.location.reload();
   const remove = async (id) => {
-    if (!confirm('Remove this subscriber? They will no longer get incident emails.')) return;
+    if (!confirm(t('statuspage.subscriber_remove_confirm'))) return;
     setBusy(id);
     try { await api.subscribers.remove(id); reload(); }
     finally { setBusy(null); }
@@ -425,20 +426,20 @@ function SubscribersPanel({ pageId }) {
   const subs = list.data || [];
   return (
     <div className="card" style={{ padding: 22 }}>
-      <h3 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 4px' }}>Subscribers</h3>
+      <h3 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 4px' }}>{t('statuspage.subscribers')}</h3>
       <p style={{ fontSize: 12, color: 'var(--text-3)', margin: '0 0 14px' }}>
-        Emails entered through the public page. Configure SMTP at <a href="#/settings/smtp" style={{ color: 'var(--accent)' }}>Settings → SMTP</a> for delivery to work.
+        {t('statuspage.subscribers_hint_pre')} <a href="#/settings/smtp" style={{ color: 'var(--accent)' }}>{t('statuspage.subscribers_smtp_link')}</a> {t('statuspage.subscribers_hint_post')}
       </p>
       {subs.length === 0 ? (
         <div style={{ padding: 14, fontSize: 12.5, color: 'var(--text-3)', textAlign: 'center' }}>
-          No subscribers yet.
+          {t('statuspage.no_subscribers')}
         </div>
       ) : subs.map(s => (
         <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', alignItems: 'center', gap: 12, padding: '8px 0', borderTop: '1px solid var(--border)' }}>
           <div>
             <div style={{ fontSize: 12.5 }}>{s.destination}</div>
             <div style={{ fontSize: 10.5, color: 'var(--text-3)' }}>
-              {s.channel} · {s.confirmed ? 'confirmed' : 'pending'}
+              {s.channel} · {s.confirmed ? t('statuspage.confirmed') : t('statuspage.pending')}
             </div>
           </div>
           <button className="btn btn-ghost btn-danger" onClick={() => remove(s.id)} disabled={busy === s.id} style={{ padding: '3px 8px', fontSize: 11 }}>
@@ -465,23 +466,23 @@ function IngestTokensPanel({ pageId }) {
 
   const generate = async () => {
     const l = label.trim();
-    if (!l) { setErr('Give the token a label so you can tell it apart later.'); return; }
+    if (!l) { setErr(t('statuspage.ingest.err_label')); return; }
     setBusy('new'); setErr(null);
     try {
       const created = await api.ingestTokens.create(pageId, l);
       setTokens([created, ...rows]);
       setLabel('');
-    } catch (e) { setErr(e.message || 'Failed to generate token.'); }
+    } catch (e) { setErr(e.message || t('statuspage.ingest.err_generate')); }
     finally { setBusy(null); }
   };
 
   const revoke = async (id) => {
-    if (!confirm('Revoke this token? Any Alertmanager receiver using it will start getting 404s.')) return;
+    if (!confirm(t('statuspage.ingest.revoke_confirm'))) return;
     setBusy(id); setErr(null);
     try {
       await api.ingestTokens.remove(id);
-      setTokens(rows.filter(t => t.id !== id));
-    } catch (e) { setErr(e.message || 'Failed to revoke token.'); }
+      setTokens(rows.filter(tok => tok.id !== id));
+    } catch (e) { setErr(e.message || t('statuspage.ingest.err_revoke')); }
     finally { setBusy(null); }
   };
 
@@ -489,9 +490,9 @@ function IngestTokensPanel({ pageId }) {
 
   return (
     <div className="card" style={{ padding: 22 }}>
-      <h3 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 4px' }}>Alertmanager / webhook ingest</h3>
+      <h3 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 4px' }}>{t('statuspage.ingest.title')}</h3>
       <p style={{ fontSize: 12, color: 'var(--text-3)', margin: '0 0 14px' }}>
-        Point a Prometheus Alertmanager receiver's webhook_config url here; firing alerts open incidents on this page, resolved alerts close them. See docs/INGEST.md.
+        {t('statuspage.ingest.subtitle')}
       </p>
 
       {err && <div style={{ background: 'var(--down-soft)', color: '#b91c1c', padding: '8px 12px', borderRadius: 6, fontSize: 12, marginBottom: 10 }}>{err}</div>}
@@ -499,52 +500,52 @@ function IngestTokensPanel({ pageId }) {
       <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
         <input
           className="input"
-          placeholder="Token label (e.g. alertmanager-prod)"
+          placeholder={t('statuspage.ingest.label_placeholder')}
           value={label}
           onChange={e => setLabel(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') generate(); }}
           style={{ fontSize: 12 }}
         />
         <button className="btn btn-accent" onClick={generate} disabled={busy === 'new'} style={{ padding: '5px 10px', fontSize: 12, whiteSpace: 'nowrap' }}>
-          <Plus size={12}/> {busy === 'new' ? 'Generating…' : 'Generate token'}
+          <Plus size={12}/> {busy === 'new' ? t('statuspage.ingest.generating') : t('statuspage.ingest.generate')}
         </button>
       </div>
 
       {rows.length === 0 ? (
         <div style={{ padding: 16, fontSize: 12.5, color: 'var(--text-3)', textAlign: 'center' }}>
-          No ingest tokens yet — generate one to receive Alertmanager webhooks.
+          {t('statuspage.ingest.empty')}
         </div>
-      ) : rows.map(t => {
-        const webhookUrl = `${window.location.origin}/v1/public/ingest/alertmanager/${t.token}`;
+      ) : rows.map(tok => {
+        const webhookUrl = `${window.location.origin}/v1/public/ingest/alertmanager/${tok.token}`;
         return (
-          <div key={t.id} style={{ padding: 12, marginBottom: 10, border: '1px solid var(--border)', borderRadius: 8 }}>
+          <div key={tok.id} style={{ padding: 12, marginBottom: 10, border: '1px solid var(--border)', borderRadius: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>{t.label}</span>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>{tok.label}</span>
               <span style={{ fontSize: 10.5, color: 'var(--text-3)' }}>
-                created {new Date(Array.isArray(t.created_at) ? offsetDateTimeArrayToDate(t.created_at) : t.created_at).toLocaleDateString()}
+                {t('statuspage.ingest.created', { when: new Date(Array.isArray(tok.created_at) ? offsetDateTimeArrayToDate(tok.created_at) : tok.created_at).toLocaleDateString() })}
                 {' · '}
-                {t.last_used_at ? `last used ${formatRelative(t.last_used_at)}` : 'never used'}
+                {tok.last_used_at ? t('statuspage.ingest.last_used', { when: formatRelative(tok.last_used_at) }) : t('statuspage.ingest.never_used')}
               </span>
-              <button className="btn btn-ghost btn-danger" onClick={() => revoke(t.id)} disabled={busy === t.id} style={{ marginLeft: 'auto', padding: '3px 8px', fontSize: 11 }}>
-                <Trash2 size={11}/> Revoke
+              <button className="btn btn-ghost btn-danger" onClick={() => revoke(tok.id)} disabled={busy === tok.id} style={{ marginLeft: 'auto', padding: '3px 8px', fontSize: 11 }}>
+                <Trash2 size={11}/> {t('statuspage.ingest.revoke')}
               </button>
             </div>
 
             <div className="field" style={{ marginBottom: 8 }}>
-              <label className="field-label" style={{ marginBottom: 4 }}>Token</label>
+              <label className="field-label" style={{ marginBottom: 4 }}>{t('statuspage.ingest.token')}</label>
               <div style={{ display: 'flex', gap: 6 }}>
-                <input className="input mono" readOnly value={t.token} style={{ fontSize: 11.5 }} onFocus={e => e.target.select()}/>
-                <button className="btn btn-ghost" onClick={() => copy(t.token)} title="Copy token" style={{ padding: '5px 10px' }}>
+                <input className="input mono" readOnly value={tok.token} style={{ fontSize: 11.5 }} onFocus={e => e.target.select()}/>
+                <button className="btn btn-ghost" onClick={() => copy(tok.token)} title={t('statuspage.ingest.copy_token')} style={{ padding: '5px 10px' }}>
                   <Copy size={13}/>
                 </button>
               </div>
             </div>
 
             <div className="field" style={{ marginBottom: 0 }}>
-              <label className="field-label" style={{ marginBottom: 4 }}>Alertmanager webhook URL</label>
+              <label className="field-label" style={{ marginBottom: 4 }}>{t('statuspage.ingest.webhook_url')}</label>
               <div style={{ display: 'flex', gap: 6 }}>
                 <input className="input mono" readOnly value={webhookUrl} style={{ fontSize: 11.5 }} onFocus={e => e.target.select()}/>
-                <button className="btn btn-ghost" onClick={() => copy(webhookUrl)} title="Copy webhook URL" style={{ padding: '5px 10px' }}>
+                <button className="btn btn-ghost" onClick={() => copy(webhookUrl)} title={t('statuspage.ingest.copy_webhook')} style={{ padding: '5px 10px' }}>
                   <Copy size={13}/>
                 </button>
               </div>
@@ -564,7 +565,7 @@ function IncidentsPanel({ pageId }) {
 
   const reload = () => window.location.reload();
   const remove = async (id) => {
-    if (!confirm('Delete this incident? Updates posted to it will be removed too.')) return;
+    if (!confirm(t('statuspage.incident.delete_confirm'))) return;
     setBusy(id);
     try { await api.incidents.remove(id); reload(); }
     catch (e) { setErr(e.message); }
@@ -582,9 +583,9 @@ function IncidentsPanel({ pageId }) {
   return (
     <div className="card" style={{ padding: 22 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>Incidents</h3>
+        <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>{t('statuspage.incident.title')}</h3>
         <button className="btn btn-accent" onClick={() => setShowNew(true)} style={{ padding: '5px 10px', fontSize: 12 }}>
-          <Plus size={12}/> Post
+          <Plus size={12}/> {t('statuspage.incident.post')}
         </button>
       </div>
       {err && <div style={{ background: 'var(--down-soft)', color: '#b91c1c', padding: '8px 12px', borderRadius: 6, fontSize: 12, marginBottom: 10 }}>{err}</div>}
@@ -593,7 +594,7 @@ function IncidentsPanel({ pageId }) {
 
       {incidents.length === 0 ? (
         <div style={{ padding: 16, fontSize: 12.5, color: 'var(--text-3)', textAlign: 'center' }}>
-          No incidents yet — the page banner stays clean.
+          {t('statuspage.incident.empty')}
         </div>
       ) : incidents.map(i => (
         <IncidentRow key={i.id} incident={i} busy={busy === i.id} onResolve={() => resolve(i.id)} onDelete={() => remove(i.id)} onPostUpdate={reload}/>
@@ -612,34 +613,34 @@ function NewIncidentForm({ pageId, onCancel, onCreated }) {
 
   const submit = async () => {
     setErr(null);
-    if (!title.trim() || !content.trim()) { setErr('Title and content are required.'); return; }
+    if (!title.trim() || !content.trim()) { setErr(t('statuspage.incident.err_required')); return; }
     setBusy(true);
     try {
       await api.incidents.create(pageId, { title: title.trim(), content: content.trim(), style, pinned });
       onCreated();
-    } catch (e) { setErr(e.message || 'Failed to post incident.'); setBusy(false); }
+    } catch (e) { setErr(e.message || t('statuspage.incident.err_post')); setBusy(false); }
   };
 
   return (
     <div style={{ padding: 12, marginBottom: 12, border: '1px solid var(--border)', borderRadius: 8 }}>
       {err && <div style={{ background: 'var(--down-soft)', color: '#b91c1c', padding: '6px 10px', borderRadius: 6, fontSize: 12, marginBottom: 8 }}>{err}</div>}
-      <input className="input" placeholder="Title" value={title} onChange={e => setTitle(e.target.value)} style={{ marginBottom: 8 }}/>
-      <textarea className="textarea" rows={2} placeholder="What's going on?" value={content} onChange={e => setContent(e.target.value)} style={{ marginBottom: 8 }}/>
+      <input className="input" placeholder={t('statuspage.incident.title_placeholder')} value={title} onChange={e => setTitle(e.target.value)} style={{ marginBottom: 8 }}/>
+      <textarea className="textarea" rows={2} placeholder={t('statuspage.incident.content_placeholder')} value={content} onChange={e => setContent(e.target.value)} style={{ marginBottom: 8 }}/>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 10 }}>
         <select className="input" value={style} onChange={e => setStyle(e.target.value)} style={{ width: 140 }}>
-          <option value="info">info</option>
-          <option value="warning">warning</option>
-          <option value="danger">danger</option>
-          <option value="primary">primary</option>
-          <option value="success">success</option>
+          <option value="info">{t('statuspage.incident.style.info')}</option>
+          <option value="warning">{t('statuspage.incident.style.warning')}</option>
+          <option value="danger">{t('statuspage.incident.style.danger')}</option>
+          <option value="primary">{t('statuspage.incident.style.primary')}</option>
+          <option value="success">{t('statuspage.incident.style.success')}</option>
         </select>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-          <input type="checkbox" checked={pinned} onChange={e => setPinned(e.target.checked)}/> Pin to top
+          <input type="checkbox" checked={pinned} onChange={e => setPinned(e.target.checked)}/> {t('statuspage.incident.pin_top')}
         </label>
       </div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
-        <button className="btn btn-ghost" onClick={onCancel} disabled={busy}>Cancel</button>
-        <button className="btn btn-accent" onClick={submit} disabled={busy}>{busy ? 'Posting…' : 'Post incident'}</button>
+        <button className="btn btn-ghost" onClick={onCancel} disabled={busy}>{t('common.cancel')}</button>
+        <button className="btn btn-accent" onClick={submit} disabled={busy}>{busy ? t('statuspage.incident.posting') : t('statuspage.incident.post_incident')}</button>
       </div>
     </div>
   );
@@ -662,15 +663,15 @@ function IncidentRow({ incident, busy, onResolve, onDelete, onPostUpdate }) {
   const [pinned, setPinned] = useState(!!incident.pinned);
   const [saving, setSaving] = useState(false);
   const saveEdit = async () => {
-    const t = title.trim(), c = content.trim();
-    if (!t) { setEditing(false); setTitle(incident.title); return; }
-    const unchanged = t === incident.title
+    const newTitle = title.trim(), c = content.trim();
+    if (!newTitle) { setEditing(false); setTitle(incident.title); return; }
+    const unchanged = newTitle === incident.title
                    && c === incident.content
                    && pinned === !!incident.pinned;
     if (unchanged) { setEditing(false); return; }
     setSaving(true);
     try {
-      await api.incidents.update(incident.id, { title: t, content: c, pinned });
+      await api.incidents.update(incident.id, { title: newTitle, content: c, pinned });
       onPostUpdate();
       setEditing(false);
     }
@@ -698,11 +699,11 @@ function IncidentRow({ incident, busy, onResolve, onDelete, onPostUpdate }) {
           <>
             <span style={{ fontSize: 13.5, fontWeight: 600 }}>{incident.title}</span>
             <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)' }}>{incident.style}</span>
-            {!incident.active && <span style={{ fontSize: 10.5, color: 'var(--accent-2)', background: 'var(--accent-soft)', padding: '1px 6px', borderRadius: 999 }}>resolved</span>}
-            {incident.pinned && incident.active && <span style={{ fontSize: 10.5, color: 'var(--text-3)' }}>pinned</span>}
+            {!incident.active && <span style={{ fontSize: 10.5, color: 'var(--accent-2)', background: 'var(--accent-soft)', padding: '1px 6px', borderRadius: 999 }}>{t('statuspage.incident.resolved')}</span>}
+            {incident.pinned && incident.active && <span style={{ fontSize: 10.5, color: 'var(--text-3)' }}>{t('statuspage.incident.pinned')}</span>}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
-              {incident.active && <button className="btn btn-ghost" onClick={() => setEditing(true)} disabled={busy} style={{ padding: '3px 8px', fontSize: 11 }} title="Edit title + content"><Pencil size={11}/></button>}
-              {incident.active && <button className="btn btn-ghost" onClick={onResolve} disabled={busy} style={{ padding: '3px 8px', fontSize: 11 }}>Resolve</button>}
+              {incident.active && <button className="btn btn-ghost" onClick={() => setEditing(true)} disabled={busy} style={{ padding: '3px 8px', fontSize: 11 }} title={t('statuspage.incident.edit_title')}><Pencil size={11}/></button>}
+              {incident.active && <button className="btn btn-ghost" onClick={onResolve} disabled={busy} style={{ padding: '3px 8px', fontSize: 11 }}>{t('statuspage.incident.resolve')}</button>}
               <button className="btn btn-ghost btn-danger" onClick={onDelete} disabled={busy} style={{ padding: '3px 8px', fontSize: 11 }}><Trash2 size={11}/></button>
             </div>
           </>
@@ -714,7 +715,7 @@ function IncidentRow({ incident, busy, onResolve, onDelete, onPostUpdate }) {
             rows={3} style={{ fontSize: 12.5, marginBottom: 8, width: '100%' }}/>
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, marginBottom: 8, color: 'var(--text-2)' }}>
             <input type="checkbox" checked={pinned} onChange={e => setPinned(e.target.checked)}/>
-            Pin to top of active incidents
+            {t('statuspage.incident.pin_active')}
           </label>
         </>
       ) : (
@@ -730,8 +731,8 @@ function IncidentRow({ incident, busy, onResolve, onDelete, onPostUpdate }) {
 
       {incident.active && (
         <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-          <input className="input" placeholder="Post a running update…" value={msg} onChange={e => setMsg(e.target.value)} style={{ fontSize: 12 }}/>
-          <button className="btn btn-accent" onClick={post} disabled={posting || !msg.trim()} style={{ padding: '5px 10px', fontSize: 12 }}>Post</button>
+          <input className="input" placeholder={t('statuspage.incident.update_placeholder')} value={msg} onChange={e => setMsg(e.target.value)} style={{ fontSize: 12 }}/>
+          <button className="btn btn-accent" onClick={post} disabled={posting || !msg.trim()} style={{ padding: '5px 10px', fontSize: 12 }}>{t('statuspage.incident.post')}</button>
         </div>
       )}
     </div>

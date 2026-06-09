@@ -3,6 +3,7 @@ import {
   ChevronLeft, Plus, Trash2, Server, AlertCircle, Loader2, X, Pause, Play,
 } from 'lucide-react';
 import { api, useApi, formatRelative, offsetDateTimeArrayToDate } from '../lib/api.js';
+import { t } from '../lib/i18n.js';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -55,7 +56,7 @@ const css = `
   .pill-paused   { background: var(--surface-2);   color: var(--text-2); }
 `;
 
-const tsToDate = (t) => (Array.isArray(t) ? offsetDateTimeArrayToDate(t) : new Date(t));
+const tsToDate = (ts) => (Array.isArray(ts) ? offsetDateTimeArrayToDate(ts) : new Date(ts));
 
 export default function Proxies() {
   const proxiesState = useApi(() => api.proxies.list(), [], { pollMs: 30_000 });
@@ -66,7 +67,7 @@ export default function Proxies() {
   const reload = () => window.location.reload();
 
   const remove = async (id) => {
-    if (!confirm('Delete this proxy? Any monitor using it will fall back to direct connection.')) return;
+    if (!confirm(t('proxies.delete_confirm'))) return;
     setBusy(id); setErr(null);
     try { await api.proxies.remove(id); reload(); }
     catch (e) { setErr(e.message); }
@@ -87,18 +88,18 @@ export default function Proxies() {
       <style>{css}</style>
       <div style={{ maxWidth: 920, margin: '0 auto', padding: '32px 32px 64px' }}>
         <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}>
-          <ChevronLeft size={14}/> Dashboard
+          <ChevronLeft size={14}/> {t('common.dashboard')}
         </a>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 22 }}>
           <div>
-            <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 4px', letterSpacing: '-.02em' }}>Proxies</h1>
+            <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 4px', letterSpacing: '-.02em' }}>{t('proxies.title')}</h1>
             <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 0 }}>
-              Forward HTTP-family probes through an upstream proxy. Useful behind corporate firewalls or to monitor private endpoints.
+              {t('proxies.subtitle')}
             </p>
           </div>
           <button className="btn btn-accent" onClick={() => setCreating(true)}>
-            <Plus size={14}/> New proxy
+            <Plus size={14}/> {t('proxies.new')}
           </button>
         </div>
 
@@ -114,8 +115,8 @@ export default function Proxies() {
           ) : proxies.length === 0 ? (
             <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-3)' }}>
               <Server size={28} style={{ marginBottom: 10, opacity: .5 }}/>
-              <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-2)', marginBottom: 4 }}>No proxies yet</div>
-              <div style={{ fontSize: 12.5 }}>Create one and pick it on the next HTTP monitor.</div>
+              <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-2)', marginBottom: 4 }}>{t('proxies.empty.title')}</div>
+              <div style={{ fontSize: 12.5 }}>{t('proxies.empty.cta')}</div>
             </div>
           ) : proxies.map(p => (
             <div className="row" key={p.id}>
@@ -124,15 +125,15 @@ export default function Proxies() {
                   <span className="mono" style={{ fontSize: 13, fontWeight: 600 }}>
                     {p.protocol}://{p.host}:{p.port}
                   </span>
-                  <span className={`pill pill-${p.active ? 'active' : 'paused'}`}>{p.active ? 'active' : 'paused'}</span>
+                  <span className={`pill pill-${p.active ? 'active' : 'paused'}`}>{p.active ? t('proxies.state.active') : t('proxies.state.paused')}</span>
                 </div>
                 <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
-                  {p.auth ? `auth as ${p.username || '(no username)'}` : 'no auth'}
-                  {' · created '}{formatRelative(tsToDate(p.created_at))}
+                  {p.auth ? t('proxies.auth_as', { user: p.username || t('proxies.no_username') }) : t('proxies.no_auth')}
+                  {' · '}{t('proxies.created', { when: formatRelative(tsToDate(p.created_at)) })}
                 </div>
               </div>
               <button className="btn btn-ghost" onClick={() => togglePause(p)} disabled={busy === p.id}>
-                {p.active ? <><Pause size={13}/> Pause</> : <><Play size={13}/> Resume</>}
+                {p.active ? <><Pause size={13}/> {t('common.pause')}</> : <><Play size={13}/> {t('common.resume')}</>}
               </button>
               <button className="btn btn-ghost btn-danger" onClick={() => remove(p.id)} disabled={busy === p.id}>
                 <Trash2 size={13}/>
@@ -157,10 +158,10 @@ function CreateForm({ onCancel, onCreated }) {
 
   const submit = async () => {
     setErr(null);
-    if (!host.trim()) { setErr('Host is required.'); return; }
+    if (!host.trim()) { setErr(t('proxies.err_host')); return; }
     const portNum = parseInt(port, 10);
     if (!Number.isFinite(portNum) || portNum < 1 || portNum > 65535) {
-      setErr('Port must be 1–65535.');
+      setErr(t('proxies.err_port'));
       return;
     }
     setBusy(true);
@@ -174,20 +175,20 @@ function CreateForm({ onCancel, onCreated }) {
         active: true,
       });
       onCreated();
-    } catch (e) { setErr(e.message || 'Failed to create proxy.'); setBusy(false); }
+    } catch (e) { setErr(e.message || t('proxies.err_create')); setBusy(false); }
   };
 
   return (
     <div className="card" style={{ padding: 20, marginBottom: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-        <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>New proxy</h3>
+        <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>{t('proxies.new')}</h3>
         <button className="btn btn-ghost" onClick={onCancel} disabled={busy}><X size={14}/></button>
       </div>
       {err && <div className="banner-err">{err}</div>}
 
       <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 100px', gap: 12, marginBottom: 12 }}>
         <div>
-          <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-2)', display: 'block', marginBottom: 6 }}>Protocol</label>
+          <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-2)', display: 'block', marginBottom: 6 }}>{t('proxies.protocol')}</label>
           <select className="select" value={protocol} onChange={e => setProtocol(e.target.value)}>
             <option value="http">http</option>
             <option value="https">https</option>
@@ -197,30 +198,30 @@ function CreateForm({ onCancel, onCreated }) {
           </select>
         </div>
         <div>
-          <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-2)', display: 'block', marginBottom: 6 }}>Host</label>
+          <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-2)', display: 'block', marginBottom: 6 }}>{t('proxies.host')}</label>
           <input className="input mono" value={host} onChange={e => setHost(e.target.value)} placeholder="proxy.internal"/>
         </div>
         <div>
-          <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-2)', display: 'block', marginBottom: 6 }}>Port</label>
+          <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-2)', display: 'block', marginBottom: 6 }}>{t('proxies.port')}</label>
           <input className="input mono" value={port} onChange={e => setPort(e.target.value)}/>
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
         <div>
-          <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-2)', display: 'block', marginBottom: 6 }}>Username (optional)</label>
+          <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-2)', display: 'block', marginBottom: 6 }}>{t('proxies.username_optional')}</label>
           <input className="input" value={username} onChange={e => setUsername(e.target.value)}/>
         </div>
         <div>
-          <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-2)', display: 'block', marginBottom: 6 }}>Password (optional)</label>
+          <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-2)', display: 'block', marginBottom: 6 }}>{t('proxies.password_optional')}</label>
           <input className="input" type="password" value={password} onChange={e => setPassword(e.target.value)}/>
         </div>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-        <button className="btn btn-ghost" onClick={onCancel} disabled={busy}>Cancel</button>
+        <button className="btn btn-ghost" onClick={onCancel} disabled={busy}>{t('common.cancel')}</button>
         <button className="btn btn-accent" onClick={submit} disabled={busy}>
-          {busy ? <><Loader2 size={13}/> Creating…</> : <><Plus size={13}/> Create proxy</>}
+          {busy ? <><Loader2 size={13}/> {t('proxies.creating')}</> : <><Plus size={13}/> {t('proxies.create')}</>}
         </button>
       </div>
     </div>
