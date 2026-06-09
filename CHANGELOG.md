@@ -17,37 +17,83 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+---
+
+## [0.4.0] — 2026-06-09
+
+The "API-grade" release — 15 commits since v0.3.0. Locks down API-key
+access with real scopes, machine-describes the REST surface with a
+drift-guarded OpenAPI spec, makes alert ingestion fully generic,
+hardens the notify path, and adds retry-backoff + incident templates +
+dashboard view sharing.
+
 ### Added
 
-- **Subscriber self-manage page.** Token-based public page at
-  `#/manage/{token}` (no login) where an email subscriber can list their
-  subscriptions and unsubscribe per-page or from all pages. Backed by
-  `GET /v1/public/subscribers/manage/{token}` +
-  `POST .../unsubscribe-all` + `POST .../unsubscribe/{slug}`.
-- **"Maintenance now" quick action.** A canWrite-gated button on the
-  monitor detail page creates a one-shot maintenance window (1h / 4h /
-  24h) starting now and attached to that monitor, via the existing
-  maintenance-create API.
-- **HTTP protocol-version assertion.** Optional per-monitor
-  `config.expected_http_version` (`http1` / `http2` / `http3`, stored in
-  the freeform config JSONB) fails the HTTP probe Down when the
-  negotiated version doesn't match ("expected HTTP/2, got HTTP/1.1").
-  `http3` is accepted but documented as needing the reqwest http3
-  feature. Wizard gains an "Expected HTTP version" select.
-- **OpenAPI 3.1 spec.** Hand-curated `docs/openapi.yaml` (61 paths, 14
-  tags, 42 schemas read from the core/db structs) served at
-  `GET /openapi.yaml` + `/openapi.json`. `docs/API.md` documents
-  rendering it (`npx @redocly/cli preview-docs`). No in-app Swagger-UI
-  (CSP is `default-src 'self'`).
-- **Saved dashboard views + per-user preferences.** `users.prefs` JSONB
-  (migration `0054`) with `GET`/`PUT /v1/me/prefs` (session, self-scoped).
-  The dashboard gains a "Views" dropdown to save/apply/delete named
-  tag+folder+search filter combinations plus a default folder, persisted
-  server-side with a localStorage fallback when logged out.
+#### Access + API surface
+
+- **Per-API-key scope enforcement.** Keys now carry a `scope`
+  (`read` / `write` / `admin`, migration `0057`) that maps onto the RBAC
+  roles — a request authenticated by an API key gets that scope's
+  effective role, so the existing route guards 403 a `read` key on
+  mutations and a non-`admin` key on admin routes. Existing keys
+  backfilled to `admin` (no silent downgrade of live keys). Scope picker
+  + pill in the ApiKeys view.
+- **OpenAPI 3.1 spec + drift guard.** Hand-curated `docs/openapi.yaml`
+  served at `GET /openapi.yaml` + `/openapi.json`; a CI check
+  (`scripts/check_openapi.py`) diffs every registered route against the
+  spec and fails when one is undocumented (114 routes = 114 documented).
+- **Subscriber self-manage page** at `#/manage/{token}` (no login) —
+  list subscriptions, unsubscribe per-page or all.
+
+#### Ingestion + notifications
+
+- **Generic JSON-path webhook receiver** at
+  `/v1/public/ingest/generic/{token}` — maps an arbitrary inbound JSON
+  body to an incident via operator-configured RFC-6901 pointers
+  (migration `0056`), beyond the 5 named vendors.
+- **Per-incident Atom/RSS feeds** —
+  `/v1/public/status-pages/{slug}/incidents/{id}/feed.{atom,rss}` for a
+  single incident's update thread, linked from each incident card.
+- **Digest buffer persisted to the DB** (migration `0055`) — coalesced
+  flapping alerts now survive a restart instead of living only in
+  process memory.
+
+#### Monitors + status pages
+
+- **Per-monitor retry backoff** — optional `config.retry_backoff`
+  (`fixed` / `linear` / `exponential`, base + cap) sleeps between retry
+  attempts; default behaviour unchanged. Wizard control + 6 unit tests.
+- **Incident-template library** (migration `0059`) — reusable canned
+  incident updates ("Investigating / Identified / Monitoring /
+  Resolved") with a "Use template" picker + manage panel in the
+  status-page builder.
+- **"Maintenance now" quick action** — one-click 1h/4h/24h maintenance
+  window on the monitor detail page.
+- **HTTP protocol-version assertion** — optional
+  `config.expected_http_version` fails the HTTP probe when the
+  negotiated version (1.1/2/3) doesn't match.
+- **Clone a monitor into a chosen folder/group** (target-group picker on
+  the clone action).
+
+#### Dashboard
+
+- **Saved views + per-user preferences** (`users.prefs` JSONB, migration
+  `0054`; `GET`/`PUT /v1/me/prefs`) — save/apply/delete named
+  tag+folder+search filter combos + a default folder.
+- **Shareable saved views** — export a view as a base64 token /
+  `#/?view=<b64>` deep link, import to apply.
+
+### Migrations
+
+- `0054`–`0059` (user prefs, digest buffer, ingest-token mapping,
+  api-key scope, incident dedup carried from 0.3, incident templates).
+  All additive.
 
 ### Notes
 
-- 6 commits since `v0.3.0` (27fa937). Migration `0054` is additive.
+- 15 commits since `v0.3.0` (27fa937). No breaking API changes. Existing
+  API keys are backfilled to `admin` scope so nothing they could do
+  before breaks; operators should re-scope keys down to least-privilege.
 
 ---
 
