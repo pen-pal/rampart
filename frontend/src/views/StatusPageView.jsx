@@ -431,7 +431,14 @@ function avgUptime(monitors) {
   return have.reduce((s, m) => s + m.uptime_90d, 0) / have.length;
 }
 
-export default function StatusPageView({ slug }) {
+// Renders the public status page. Two entry points:
+//   - `slug`         the #/s/:slug hash route (loads by slug)
+//   - `byDomainHost` host-header routing (loads by the page's custom domain)
+// When `byDomainHost` is set, the initial fetch + 30s poll go through the
+// by-domain endpoint. The resolved slug from that payload still flows down to
+// the day-latency / subscribe children so those keep working on a custom
+// domain just like on the hash route.
+export default function StatusPageView({ slug, byDomainHost }) {
   const [data,    setData]    = useState(null);
   const [error,   setError]   = useState(null);
   const [loading, setLoading] = useState(true);
@@ -440,7 +447,9 @@ export default function StatusPageView({ slug }) {
     let cancelled = false;
     const load = async () => {
       try {
-        const r = await api.statusPages.publicView(slug);
+        const r = byDomainHost
+          ? await api.statusPages.byDomain(byDomainHost)
+          : await api.statusPages.publicView(slug);
         if (!cancelled) { setData(r); setError(null); setLoading(false); }
       } catch (e) {
         if (!cancelled) { setError(e); setLoading(false); }
@@ -450,7 +459,12 @@ export default function StatusPageView({ slug }) {
     // Light polling so the page updates without a manual refresh.
     const t = setInterval(load, 30_000);
     return () => { cancelled = true; clearInterval(t); };
-  }, [slug]);
+  }, [slug, byDomainHost]);
+
+  // The slug threaded to child components (day-latency, subscribe, feeds).
+  // On the by-domain path the prop slug is undefined, so fall back to the
+  // slug the API resolved from the domain.
+  const effectiveSlug = slug || data?.slug;
 
   if (loading) {
     return (
@@ -471,7 +485,7 @@ export default function StatusPageView({ slug }) {
           <AlertCircle size={36} color="var(--text-3)" style={{ marginBottom: 14 }}/>
           <h1 style={{ fontSize: 24, fontWeight: 600, margin: '0 0 8px' }}>Page not found</h1>
           <p style={{ fontSize: 14, color: 'var(--text-2)', margin: 0 }}>
-            No status page is published at <code style={{ background: 'var(--surface-2)', padding: '2px 6px', borderRadius: 4 }}>/{slug}</code>.
+            No status page is published at <code style={{ background: 'var(--surface-2)', padding: '2px 6px', borderRadius: 4 }}>{byDomainHost ? byDomainHost : `/${slug}`}</code>.
           </p>
         </div>
       </div>
@@ -555,7 +569,7 @@ export default function StatusPageView({ slug }) {
               key={i}
               monitor={m}
               monitorIdx={i}
-              slug={slug}
+              slug={effectiveSlug}
               activeIncidents={incidents}
               incidentHistory={data.incident_history || []}
             />
@@ -597,7 +611,7 @@ export default function StatusPageView({ slug }) {
 
         {/* ── Subscribe ────────────────────────────────────────── */}
         <div className="section-h"><Bell size={13}/> Subscribe to updates</div>
-        <SubscribeBox slug={slug}/>
+        <SubscribeBox slug={effectiveSlug}/>
 
         {/* ── Footer ───────────────────────────────────────────── */}
         <div className="footer">

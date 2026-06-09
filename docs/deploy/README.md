@@ -102,6 +102,34 @@ rampart.example.com {
 }
 ```
 
+## Status-page custom domains
+
+A status page can be served at its own hostname (e.g. `status.acme.com`) instead of `https://rampart.example.com/#/s/acme`. Routing is by **Host header**: when a request arrives whose `Host` matches a page's `custom_domain`, Rampart serves that page's public status view at the apex (`/`) in place of the dashboard SPA shell.
+
+How it works end to end:
+
+1. **Operator sets the domain on the page.** In the status-page builder, set the page's `custom_domain` to the bare hostname (`status.acme.com` — lowercase letters, digits, dots, and hyphens; no scheme, no path). The value is unique across pages.
+2. **Operator points DNS at the Rampart host.** CNAME `status.acme.com` → the Rampart host (the same box your reverse proxy fronts). If the reverse proxy terminates TLS, add `status.acme.com` to its certificate (e.g. Caddy's automatic-HTTPS site block, or an nginx `server_name` + cert).
+3. **Rampart routes on the Host header.** On boot the frontend reads its own `window.location.hostname` and probes `GET /v1/public/status-pages/by-domain/{host}`. If a page claims that host, the public status view renders at `/`; if not (404), the request falls through to the normal dashboard / login flow. localhost and your dashboard hostname are unaffected — the probe only short-circuits when it actually resolves a page.
+
+Caddy example serving both the dashboard and a custom-domain status page from one Rampart instance:
+
+```caddy
+rampart.example.com {
+    reverse_proxy 127.0.0.1:3000 {
+        flush_interval -1
+    }
+}
+
+status.acme.com {
+    reverse_proxy 127.0.0.1:3000 {
+        flush_interval -1
+    }
+}
+```
+
+Both site blocks proxy to the same Rampart process; the Host header (`$host`, preserved by `reverse_proxy` and by the nginx fragment above) is what selects the status page. No per-domain Rampart config is needed beyond setting `custom_domain` on the page.
+
 ## What this directory does NOT cover
 
 - **Kubernetes** — Rampart is single-tenant and stateful. Helm chart contributions welcome (see CONTRIBUTING.md `In Scope`).

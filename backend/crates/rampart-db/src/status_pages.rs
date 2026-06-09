@@ -114,6 +114,30 @@ pub async fn get_by_slug(pool: &DbPool, slug: &str) -> DbResult<StatusPage> {
     hydrate(pool, row).await
 }
 
+/// Resolve a status page by its configured `custom_domain` (the Host
+/// header value). Returns `None` when no page claims the host — callers
+/// (host-header routing) fall through to the normal dashboard flow rather
+/// than treating a miss as an error. The partial UNIQUE index on
+/// `custom_domain` guarantees at most one row matches.
+pub async fn find_by_custom_domain(pool: &DbPool, host: &str) -> DbResult<Option<StatusPage>> {
+    let row = sqlx::query_as!(
+        PageRow,
+        r#"
+        SELECT id, slug, title, description, theme, custom_domain, logo_url, created_at
+        FROM status_pages
+        WHERE custom_domain = $1
+        "#,
+        host,
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    match row {
+        Some(row) => Ok(Some(hydrate(pool, row).await?)),
+        None => Ok(None),
+    }
+}
+
 async fn hydrate(pool: &DbPool, row: PageRow) -> DbResult<StatusPage> {
     let id = row.id;
     let mut page: StatusPage = row.into();

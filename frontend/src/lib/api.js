@@ -92,6 +92,10 @@ export const api = {
     /// 404 when the monitor has no SLO target set — callers should
     /// only invoke this after checking `monitor.slo_target_pct`.
     errorBudget: (id)  => request(`/v1/monitors/${id}/slo/error-budget`),
+    /// SLO error-budget burn-down: one point per day across the configured
+    /// window. Same 404 contract as `errorBudget` — only call after
+    /// confirming `monitor.slo_target_pct` is set.
+    sloBurndown: (id)  => request(`/v1/monitors/${id}/slo/burndown`),
   },
   health: {
     live:  () => request('/healthz'),
@@ -199,6 +203,11 @@ export const api = {
     update:     (id, patch)         => request(`/v1/status-pages/${id}`, { method: 'PATCH', body: patch }),
     remove:     (id)                => request(`/v1/status-pages/${id}`, { method: 'DELETE' }),
     publicView: (slug)              => request(`/v1/public/status-pages/${slug}`),
+    // Resolve a public page by the request's Host header (custom domain).
+    // Backs the host-header routing probe in App.jsx: returns the same
+    // PublicStatusPage payload as `publicView`, or 404s when the host has no
+    // page (the caller falls through to the dashboard on any error).
+    byDomain:   (host)              => request(`/v1/public/status-pages/by-domain/${encodeURIComponent(host)}`),
     // Per-hour latency for one UTC calendar day, scoped to the monitor at
     // `monitorIdx` on the public page. `isoDate` is `YYYY-MM-DD`.
     dayLatency: (slug, monitorIdx, isoDate) =>
