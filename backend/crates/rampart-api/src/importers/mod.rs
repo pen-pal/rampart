@@ -9,14 +9,17 @@
 //! standing up a DB.
 
 pub mod betterstack;
+pub mod cachet;
 pub mod cronitor;
 pub mod datadog;
+pub mod gatus;
 pub mod healthchecks;
 pub mod pingdom;
 pub mod rapidspike;
 pub mod site24x7;
 pub mod statuscake;
 pub mod updown;
+pub mod uptimecom;
 pub mod uptimerobot;
 
 use rampart_core::monitor::NewMonitor;
