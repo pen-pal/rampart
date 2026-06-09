@@ -14,7 +14,7 @@ pub struct RetentionConfig {
     pub audit_log: i32,
 }
 fn default_hb() -> i32 {
-    90
+    365
 }
 fn default_audit() -> i32 {
     365
@@ -23,7 +23,7 @@ fn default_audit() -> i32 {
 impl Default for RetentionConfig {
     fn default() -> Self {
         Self {
-            heartbeats: 90,
+            heartbeats: 365,
             audit_log: 365,
         }
     }

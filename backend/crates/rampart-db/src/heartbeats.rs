@@ -292,6 +292,89 @@ fn status_str(s: MonitorStatus) -> &'static str {
     }
 }
 
+/// One monthly uptime bucket — the chips rendered under the daily
+/// strip on the public status page. `year_month` is the first day of
+/// the month so the UI can format it however it wants; `uptime_pct`
+/// is null when no heartbeats were recorded that month.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct MonthlyUptime {
+    pub year_month: time::Date,
+    pub uptime_pct: Option<f32>,
+}
+
+/// Per-month uptime for the trailing `months` months, oldest first.
+/// Today's month is the final element; a month with zero heartbeats
+/// recorded gets `uptime_pct = None` so the UI can render a "no data"
+/// chip instead of a misleading 0%.
+///
+/// Single GROUP BY query + a dense-pivot pass mirroring `daily_status`.
+/// Powers the "Jun 99.97% · Jul 100% · …" summary row every modern
+/// status page (Stripe, GitHub, Cloudflare, Anthropic) ships under
+/// the daily strip.
+pub async fn monthly_uptime(
+    pool: &DbPool,
+    monitor: MonitorId,
+    months: i32,
+) -> DbResult<Vec<MonthlyUptime>> {
+    // Look back `months` calendar months. Over-collect by a few days
+    // (`months * 32`) so a January 31 -> February 28 boundary doesn't
+    // accidentally drop January's bucket.
+    let since = OffsetDateTime::now_utc() - time::Duration::days((months as i64) * 32);
+    let rows = sqlx::query!(
+        r#"
+        SELECT
+            (date_trunc('month', ts AT TIME ZONE 'UTC'))::date AS "month!",
+            COUNT(*)                              AS "total!",
+            COUNT(*) FILTER (WHERE status = 'up') AS "up!"
+        FROM heartbeats
+        WHERE monitor_id = $1 AND ts >= $2
+        GROUP BY 1
+        ORDER BY 1
+        "#,
+        monitor.0,
+        since,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    // Dense `months`-length output, oldest first. Today's month sits at
+    // the last index.
+    let now = OffsetDateTime::now_utc().date();
+    let current_month_first =
+        time::Date::from_calendar_date(now.year(), now.month(), 1).unwrap_or(now);
+    let mut targets = Vec::with_capacity(months as usize);
+    let mut y = current_month_first.year();
+    let mut m_u8 = current_month_first.month() as u8;
+    for _ in 0..months {
+        let mth = time::Month::try_from(m_u8).unwrap_or(time::Month::January);
+        targets.push(time::Date::from_calendar_date(y, mth, 1).unwrap_or(current_month_first));
+        if m_u8 == 1 {
+            m_u8 = 12;
+            y -= 1;
+        } else {
+            m_u8 -= 1;
+        }
+    }
+    targets.reverse();
+
+    let mut out: Vec<MonthlyUptime> = targets
+        .into_iter()
+        .map(|d| MonthlyUptime {
+            year_month: d,
+            uptime_pct: None,
+        })
+        .collect();
+
+    for r in rows {
+        if let Some(idx) = out.iter().position(|m| m.year_month == r.month) {
+            if r.total > 0 {
+                out[idx].uptime_pct = Some(r.up as f32 / r.total as f32 * 100.0);
+            }
+        }
+    }
+    Ok(out)
+}
+
 /// One row of per-monitor rollup stats over the last `window_seconds`.
 /// Monitors with no heartbeats in the window are absent from the result.
 #[derive(Debug, Clone)]

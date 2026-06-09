@@ -116,6 +116,34 @@ const css = `
     letter-spacing: .04em;
   }
 
+  /* ── Monthly uptime chip row ──────────────────────────────────
+     12 chips under each component's daily strip — the
+     "Jun 99.97% · Jul 100% · …" summary every modern status page
+     ships. Chip colour reflects an SLA threshold:
+        ≥99.9% green, ≥99%   amber, <99% red, no-data grey. */
+  .month-row {
+    display: grid; grid-template-columns: repeat(12, 1fr);
+    gap: 4px; margin-top: 12px;
+  }
+  .month-chip {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 6px 4px; border-radius: 6px;
+    border: 1px solid var(--border);
+    color: var(--text-3);
+    cursor: default;
+    transition: transform .12s;
+  }
+  .month-chip:hover { transform: translateY(-1px); }
+  .month-chip-mo  { font-size: 9px; opacity: .8; margin-bottom: 2px; text-transform: uppercase; letter-spacing: .04em; font-weight: 500; }
+  .month-chip-pct { font-size: 10.5px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
+  .month-chip-good  { background: var(--up-soft);   color: #047857; border-color: var(--up); }
+  .month-chip-okay  { background: var(--warn-soft); color: #92400e; border-color: var(--warn); }
+  .month-chip-bad   { background: var(--down-soft); color: #b91c1c; border-color: var(--down); }
+  .month-chip-none  { background: var(--surface-2); color: var(--text-3); }
+  .public.dark .month-chip-good { color: #6ee7b7; }
+  .public.dark .month-chip-okay { color: #fde68a; }
+  .public.dark .month-chip-bad  { color: #fca5a5; }
+
   /* ── Badges ───────────────────────────────────────────────────── */
   .badge {
     display: inline-flex; align-items: center; gap: 6px;
@@ -269,6 +297,8 @@ const css = `
   @media (max-width: 640px) {
     .kpis { grid-template-columns: repeat(2, 1fr); }
     .hero { padding: 22px 20px; font-size: 18px; }
+    .month-row { grid-template-columns: repeat(6, 1fr); }
+    .month-row > :nth-child(-n+6) { display: none; }
   }
 `;
 
@@ -503,10 +533,58 @@ function Component({ monitor }) {
           </span>
           <span>today</span>
         </div>
+        {(monitor.monthly_uptime_12mo || []).length > 0 && (
+          <MonthRow months={monitor.monthly_uptime_12mo}/>
+        )}
       </div>
       <span className={`badge badge-${statusKey}`}>
         {statusIcon(status)} {STATUS_LABEL[status] || status}
       </span>
+    </div>
+  );
+}
+
+function MonthRow({ months }) {
+  return (
+    <div className="month-row">
+      {months.map((m, i) => <MonthChip key={i} point={m}/>)}
+    </div>
+  );
+}
+
+const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function MonthChip({ point }) {
+  // year_month from the backend is a `time::Date` which serde renders as
+  // [yyyy, ordinal-day]. Handle both that array shape and a plain ISO
+  // date string defensively.
+  const ym = point.year_month;
+  let label = '?';
+  if (Array.isArray(ym) && ym.length >= 2) {
+    // [year, day_of_year] — convert ordinal → month.
+    const d = new Date(Date.UTC(ym[0], 0, ym[1]));
+    label = MONTH_SHORT[d.getUTCMonth()];
+  } else if (typeof ym === 'string') {
+    const d = new Date(ym);
+    if (!isNaN(d.getTime())) label = MONTH_SHORT[d.getUTCMonth()];
+  }
+
+  const pct = point.uptime_pct;
+  let cls = 'month-chip month-chip-none';
+  let pctStr = '—';
+  if (pct != null) {
+    pctStr = pct >= 99.995 ? '100%' : `${pct.toFixed(2)}%`;
+    if (pct >= 99.9)      cls = 'month-chip month-chip-good';
+    else if (pct >= 99.0) cls = 'month-chip month-chip-okay';
+    else                  cls = 'month-chip month-chip-bad';
+  }
+  const title = pct == null
+    ? `${label} — no data yet`
+    : `${label} — ${pct.toFixed(3)}% uptime`;
+  return (
+    <div className={cls} title={title}>
+      <span className="month-chip-mo">{label}</span>
+      <span className="month-chip-pct">{pctStr}</span>
     </div>
   );
 }
