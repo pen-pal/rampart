@@ -7,16 +7,30 @@ metadata:
   name: {{ $fullName }}
   labels:
     {{- include "rampart.labels" . | nindent 4 }}
-  {{- with .Values.ingress.annotations }}
+  {{- if or .Values.ingress.annotations .Values.ingress.certManager.enabled }}
   annotations:
+    {{- with .Values.ingress.annotations }}
     {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if .Values.ingress.certManager.enabled }}
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.certManager.clusterIssuer | quote }}
+    {{- end }}
   {{- end }}
 spec:
   {{- with .Values.ingress.className }}
   ingressClassName: {{ . }}
   {{- end }}
-  {{- if .Values.ingress.tls }}
+  {{- if or .Values.ingress.tls .Values.ingress.certManager.enabled }}
   tls:
+    {{- if .Values.ingress.certManager.enabled }}
+    {{- /* Auto-generate a TLS entry per host so cert-manager provisions a cert
+           for the dashboard host AND every status-page custom domain. */}}
+    {{- range .Values.ingress.hosts }}
+    - hosts:
+        - {{ .host | quote }}
+      secretName: {{ printf "%s-tls-%s" $fullName .host | replace "." "-" }}
+    {{- end }}
+    {{- end }}
     {{- range .Values.ingress.tls }}
     - hosts:
         {{- range .hosts }}

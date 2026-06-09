@@ -50,10 +50,24 @@ ingress:
       paths:
         - path: /
           pathType: Prefix
+  # cert-manager integration. When enabled, the Ingress is annotated with
+  # cert-manager.io/cluster-issuer and a TLS block is emitted per host so
+  # cert-manager provisions certs for the dashboard host AND any status-page
+  # custom domains listed below. Rampart itself never does ACME — TLS is the
+  # ingress controller's job (see docs/deploy/README.md "TLS for custom domains").
+  certManager:
+    enabled: false
+    clusterIssuer: letsencrypt-prod
+  # Explicit TLS config. Used as-is when certManager.enabled=false. When
+  # certManager.enabled=true, a tls entry is auto-generated per ingress host
+  # (so you don't need to maintain this list by hand), but any entries you set
+  # here are still emitted too.
+  # Each entry may list multiple hosts under one secret.
   tls: []
   # - secretName: rampart-tls
   #   hosts:
   #     - rampart.example.com
+  #     - status.acme.com
 
 # Embedded Postgres — DISABLED BY DEFAULT.
 # This is intended for local evaluation / dev only.

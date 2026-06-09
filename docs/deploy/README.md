@@ -130,6 +130,95 @@ status.acme.com {
 
 Both site blocks proxy to the same Rampart process; the Host header (`$host`, preserved by `reverse_proxy` and by the nginx fragment above) is what selects the status page. No per-domain Rampart config is needed beyond setting `custom_domain` on the page.
 
+### TLS for custom domains
+
+**Rampart itself never does ACME.** The binary terminates plain HTTP behind the proxy (see [Reverse proxy](#reverse-proxy) above) — issuing and renewing certificates is entirely the reverse proxy's (or ingress controller's) job. Whatever you put in front of Rampart owns TLS for both the dashboard hostname and every status-page custom domain.
+
+How you get a cert depends on your deployment shape:
+
+#### Caddy — automatic ACME per host (zero config)
+
+Caddy provisions and renews a Let's Encrypt certificate automatically for every hostname that has a site block. The dual-site Caddyfile above already does this: because `status.acme.com { ... }` is its own site address, Caddy requests a cert for it on first request (HTTP-01 / TLS-ALPN-01 against ports 80/443) and renews it in the background.
+
+To onboard a new custom domain, the operator only:
+
+1. Sets `custom_domain` on the status page.
+2. Points the customer's DNS (CNAME `status.acme.com` → the Rampart host).
+3. Adds a one-line site block for the hostname:
+
+   ```caddy
+   status.acme.com {
+       reverse_proxy 127.0.0.1:3000 {
+           flush_interval -1
+       }
+   }
+   ```
+
+No certificate files to manage — Caddy handles issuance and renewal. (Caddy stores certs under its data dir; persist that volume so renewals survive restarts.)
+
+For a SaaS-style deploy that onboards arbitrary tenant domains without editing the Caddyfile per domain, use Caddy's **On-Demand TLS** so certs are obtained lazily on first TLS handshake. Gate it with the `ask` endpoint so Caddy only issues for hostnames Rampart actually recognizes (the same `by-domain` probe used for routing makes a natural allow-check):
+
+```caddy
+{
+    on_demand_tls {
+        ask http://127.0.0.1:3000/v1/public/status-pages/by-domain
+    }
+}
+
+https:// {
+    tls {
+        on_demand
+    }
+    reverse_proxy 127.0.0.1:3000 {
+        flush_interval -1
+    }
+}
+```
+
+#### nginx + certbot — explicit per-host certs
+
+With nginx you provision certs explicitly. certbot's nginx plugin will obtain the cert and edit the server block in place:
+
+```bash
+# One cert per custom domain (HTTP-01; nginx must already answer on :80 for the host)
+sudo certbot --nginx -d status.acme.com
+
+# Renewal is installed as a systemd timer / cron by the certbot package:
+sudo certbot renew --dry-run
+```
+
+The resulting server block proxies to Rampart exactly like the dashboard host — the Host header still selects the page:
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name status.acme.com;
+
+    ssl_certificate     /etc/letsencrypt/live/status.acme.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/status.acme.com/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_read_timeout 1d;
+    }
+}
+```
+
+#### Wildcard vs. per-host — choosing a strategy
+
+| Deployment shape | TLS strategy |
+| :--------------- | :----------- |
+| **Single operator, a handful of known domains** | Just add each hostname to your existing setup: a new Caddy site block, or `certbot --nginx -d status.acme.com` appended to the existing cert. Per-host certs are simplest and need no DNS provider integration. |
+| **SaaS-style multi-tenant, arbitrary customer domains** | You cannot enumerate hostnames ahead of time, so per-host site blocks don't scale. Use **on-demand TLS** (Caddy, gated by the `ask` allow-check above) so certs are issued lazily on first hit, or a **wildcard cert** (`*.status.acme.com`) if every tenant lives under a subdomain you control. Wildcards need DNS-01 validation (and a DNS-provider API token) but cover any subdomain with a single cert; they do **not** cover fully custom apex domains like `status.bigcorp.com` — those still need on-demand or per-host issuance. |
+
+Whichever you pick, Rampart's role is unchanged: it serves plain HTTP and routes on the Host header. The proxy is the only component that touches certificates.
+
 ## What this directory does NOT cover
 
 - **Kubernetes** — Rampart is single-tenant and stateful. Helm chart contributions welcome (see CONTRIBUTING.md `In Scope`).
