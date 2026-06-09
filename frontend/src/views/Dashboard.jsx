@@ -7,14 +7,14 @@ import {
   Search, Plus, Bell, ChevronDown, ChevronRight, Activity,
   AlertCircle, Pause, MoreHorizontal, Calendar,
   Tag, ArrowUpRight, Wrench, Zap, Globe, Server,
-  Database, Radio, Lock, Hash, Sun, Moon, Monitor,
+  Database, Radio, Lock, Hash,
   Menu, Folder, Tag as TagIcon, Calendar as CalIcon, Network, Key, ScrollText, Users as UsersIcon, Mail, Database as DbIcon, Settings,
 } from 'lucide-react';
 import {
   api, useApi, formatRelative, offsetDateTimeArrayToDate, statusToClass,
 } from '../lib/api.js';
-import { getTheme, setTheme } from '../lib/theme.js';
 import { useHeartbeatStream, useDebouncedTick } from '../lib/sse.js';
+import { ThemeToggle } from '../components/ThemeToggle.jsx';
 
 // ──────────────────────────────────────────────────────────────────────────
 // DESIGN SYSTEM v2 — friendly, modern, operator-focused
@@ -1045,19 +1045,6 @@ function NavMenu() {
   );
 }
 
-// Cycles light → dark → system. Icon reflects the *current* preference,
-// not the resolved theme — picking "system" is its own intent.
-function ThemeToggle() {
-  const [pref, setPref] = useState(getTheme());
-  const next = pref === 'light' ? 'dark' : pref === 'dark' ? 'system' : 'light';
-  const Icon = pref === 'dark' ? Moon : pref === 'system' ? Monitor : Sun;
-  const label = pref === 'dark' ? 'Dark · click for System'
-              : pref === 'system' ? 'System · click for Light'
-              : 'Light · click for Dark';
-  return (
-    <button className="btn btn-ghost" title={label}
-      onClick={() => { setTheme(next); setPref(next); }}>
-      <Icon size={14}/>
-    </button>
-  );
-}
+// `ThemeToggle` lives in src/components/ThemeToggle.jsx so every view can
+// reach it. The dashboard header imports the inline variant; App.jsx
+// mounts a FloatingThemeToggle for views without their own chrome.
