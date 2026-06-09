@@ -1,4 +1,4 @@
-# Inbound Alert Ingestion (Alertmanager / Grafana / Datadog)
+# Inbound Alert Ingestion (Alertmanager / Grafana / Datadog / PagerDuty / Opsgenie)
 
 Rampart can accept alerts pushed from external monitoring systems and turn
 them into status-page incidents. The supported sources are:
@@ -6,11 +6,14 @@ them into status-page incidents. The supported sources are:
 - **Prometheus Alertmanager** — `POST /v1/public/ingest/alertmanager/{token}`
 - **Grafana** (unified alerting) — `POST /v1/public/ingest/grafana/{token}`
 - **Datadog** (webhook integration) — `POST /v1/public/ingest/datadog/{token}`
+- **PagerDuty** (webhook v3) — `POST /v1/public/ingest/pagerduty/{token}`
+- **Opsgenie** (webhook integration) — `POST /v1/public/ingest/opsgenie/{token}`
 
-All three share the same token auth, the same status-page resolution, and
+They all share the same token auth, the same status-page resolution, and
 the same create-or-resolve incident core; they differ only in how their
 vendor payload is parsed. The Alertmanager receiver is documented first and
-in full; the Grafana and Datadog sections below only cover what differs.
+in full; the Grafana, Datadog, PagerDuty and Opsgenie sections below only
+cover what differs.
 
 The flow:
 
@@ -301,4 +304,116 @@ Mapping:
 given monitor alert, so resolution is exact. An event with neither an
 `alert_id` nor a `title` is a no-op. Returns `202 Accepted` with the same
 `{ "created": N, "resolved": M }` summary; an unknown token returns
+`404 Not Found`.
+
+---
+
+## 7. PagerDuty (webhook v3)
+
+PagerDuty posts a single event per webhook (V3 webhook subscription / Events
+API v2 shape). Rampart reads the `event` envelope: `event.event_type`
+plus `event.data.status` decide create vs. resolve, and `event.data` carries
+the incident.
+
+The receiver lives at:
+
+```
+POST /v1/public/ingest/pagerduty/{token}
+```
+
+In PagerDuty (Integrations → Generic Webhooks (v3), or a webhook subscription),
+point the **URL** at the full ingest URL:
+
+```
+https://rampart.example.com/v1/public/ingest/pagerduty/ing_X0a9...40chars...
+```
+
+PagerDuty sends a payload of the form:
+
+```json
+{
+  "event": {
+    "event_type": "incident.triggered",
+    "data": {
+      "id": "PXXXXXX",
+      "title": "High error rate on api-gateway",
+      "status": "triggered",
+      "urgency": "high",
+      "html_url": "https://acme.pagerduty.com/incidents/PXXXXXX"
+    }
+  }
+}
+```
+
+Mapping:
+
+| PagerDuty field | Incident mapping |
+|-----------------|------------------|
+| `event.event_type: "incident.triggered"` (or `data.status: "triggered"`) | Create an incident (stamped with the dedup key). |
+| `event.event_type: "incident.resolved"` (or `data.status: "resolved"`) | Resolve the active incident with the matching `dedup_key`. |
+| `event.event_type: "incident.acknowledged"` (or any other event) | No-op — `202 Accepted` with `created:0 resolved:0`. |
+| `data.id` | Incident **dedup key** (falls back to `title` if absent). |
+| `data.title` | Incident **title** (falls back to the dedup key if empty). |
+| `data.html_url` | Folded into the incident **content** as a short line. |
+| `data.urgency` | Incident **style**: `high` → `danger`, anything else (`low`) → `warning`. |
+
+`data.id` is stable across the triggered and resolved events for a given
+incident, so resolution is exact. An acknowledgement (or any non-trigger,
+non-resolve event) is intentionally a no-op so an ack never opens a second
+incident. An event with neither an `id` nor a `title` is a no-op. Returns
+`202 Accepted` with the same `{ "created": N, "resolved": M }` summary; an
+unknown token returns `404 Not Found`.
+
+---
+
+## 8. Opsgenie
+
+Opsgenie posts a single event per webhook. The top-level `action` drives
+create/resolve; the `alert` block carries the alert Rampart maps.
+
+The receiver lives at:
+
+```
+POST /v1/public/ingest/opsgenie/{token}
+```
+
+In Opsgenie (Settings → Integrations → Webhook), point the **Webhook URL** at
+the full ingest URL:
+
+```
+https://rampart.example.com/v1/public/ingest/opsgenie/ing_X0a9...40chars...
+```
+
+Opsgenie sends a payload of the form:
+
+```json
+{
+  "action": "Create",
+  "alert": {
+    "alertId": "a1b2c3d4-...-...",
+    "tinyId": "42",
+    "message": "High error rate on api-gateway",
+    "description": "The API error rate has exceeded 5% for 5 minutes.",
+    "priority": "P1"
+  }
+}
+```
+
+Mapping:
+
+| Opsgenie field | Incident mapping |
+|----------------|------------------|
+| `action: "Create"` | Create an incident (stamped with the dedup key). |
+| `action: "Close"` | Resolve the active incident with the matching `dedup_key`. |
+| `action: "AckAlert"` (or any other action) | No-op — `202 Accepted` with `created:0 resolved:0`. |
+| `alert.alertId` | Incident **dedup key** (falls back to `tinyId`, then `message`, if absent). |
+| `alert.message` | Incident **title** (falls back to the dedup key if empty). |
+| `alert.description` | Incident **content**. |
+| `alert.priority` | Incident **style**: `P1`/`P2` → `danger`, `P3` → `warning`, anything else (`P4`/`P5`) → `info`. |
+
+`alert.alertId` is stable across the `Create` and `Close` actions for a given
+alert, so resolution is exact. Any action other than `Create` / `Close`
+(e.g. `AckAlert`, `AddNote`) is intentionally a no-op. An alert with no
+`alertId`, `tinyId`, or `message` is a no-op. Returns `202 Accepted` with the
+same `{ "created": N, "resolved": M }` summary; an unknown token returns
 `404 Not Found`.
