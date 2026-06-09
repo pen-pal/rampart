@@ -10,6 +10,7 @@ pub mod api_keys;
 pub mod audit;
 pub mod digest_buffer;
 pub mod heartbeats;
+pub mod incident_templates;
 pub mod incidents;
 pub mod ingest_tokens;
 pub mod maintenance;

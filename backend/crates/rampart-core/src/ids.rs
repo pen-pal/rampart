@@ -75,6 +75,7 @@ id!(StatusPageComponentId);
 id!(StatusPageSubscriberId);
 id!(IncidentId);
 id!(IncidentUpdateId);
+id!(IncidentTemplateId);
 id!(ApiKeyId);
 id!(ProxyId);
 id!(BadgeId);
