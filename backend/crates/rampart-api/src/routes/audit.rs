@@ -2,11 +2,12 @@
 
 use crate::error::ApiError;
 use crate::state::AppState;
+use axum::body::Body;
 use axum::extract::{Query, State};
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
-use rampart_db::audit::{AuditEntry, AuditFilter};
+use rampart_db::audit::{AuditEntry, AuditFilter, ExportFilter, ExportRow};
 use serde::Deserialize;
 use std::str::FromStr;
 use time::OffsetDateTime;
@@ -16,6 +17,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list))
         .route("/csv", get(list_csv))
+        .route("/export.csv", get(export_csv))
 }
 
 #[derive(Deserialize)]
@@ -125,6 +127,119 @@ async fn list_csv(
         ],
         body,
     ))
+}
+
+/// Query params accepted by the streaming export. Only the time window is
+/// honoured (the same `from`/`to` the list route takes) — an export is a
+/// full window dump, not a filtered slice.
+#[derive(Deserialize)]
+struct ExportQuery {
+    #[serde(default, with = "time::serde::rfc3339::option")]
+    from: Option<OffsetDateTime>,
+    #[serde(default, with = "time::serde::rfc3339::option")]
+    to: Option<OffsetDateTime>,
+}
+
+/// Number of rows pulled per DB round-trip. The export streams these pages
+/// back-to-back, so this bounds peak memory — never the whole table — while
+/// staying large enough that round-trip overhead is negligible.
+const EXPORT_BATCH: i64 = 1_000;
+
+/// Streaming CSV export of the audit log (admin-only — gated by the
+/// `admin_only` layer the audit router is nested under).
+///
+/// Unlike [`list_csv`], which materialises up to 50k rows in a `String`,
+/// this keyset-paginates the table and writes each page straight onto an
+/// axum streaming body. Peak memory stays flat (~one [`EXPORT_BATCH`] page)
+/// no matter how large the log grows, so it is safe to dump an arbitrarily
+/// long window.
+async fn export_csv(
+    State(s): State<AppState>,
+    Query(q): Query<ExportQuery>,
+) -> Result<Response, ApiError> {
+    let pool = s.pool().clone();
+    let filter = ExportFilter {
+        from: q.from,
+        to: q.to,
+    };
+
+    // State carried across `try_unfold` iterations: the keyset cursor and a
+    // one-shot flag for the header line. `None` cursor on the first call
+    // means "from the newest row"; thereafter it is the last id we emitted.
+    struct Cursor {
+        before_id: Option<i64>,
+        header_sent: bool,
+        done: bool,
+    }
+    let init = Cursor {
+        before_id: None,
+        header_sent: false,
+        done: false,
+    };
+
+    let stream = futures::stream::try_unfold(init, move |mut cur| {
+        let pool = pool.clone();
+        async move {
+            if cur.done {
+                return Ok::<_, ApiError>(None);
+            }
+
+            let rows =
+                rampart_db::audit::export_batch(&pool, cur.before_id, EXPORT_BATCH, filter).await?;
+
+            let mut chunk = String::new();
+            if !cur.header_sent {
+                chunk.push_str("ts,actor,action,resource_kind,resource_id,ip_addr,user_agent\n");
+                cur.header_sent = true;
+            }
+            for r in &rows {
+                write_export_row(&mut chunk, r);
+            }
+
+            // Short page (fewer than we asked for) means the table is
+            // exhausted; emit this final chunk and stop next round.
+            if (rows.len() as i64) < EXPORT_BATCH {
+                cur.done = true;
+            } else if let Some(last) = rows.last() {
+                cur.before_id = Some(last.id);
+            } else {
+                cur.done = true;
+            }
+
+            Ok(Some((axum::body::Bytes::from(chunk), cur)))
+        }
+    });
+
+    Ok((
+        [
+            ("content-type", "text/csv; charset=utf-8"),
+            (
+                "content-disposition",
+                "attachment; filename=\"rampart-audit.csv\"",
+            ),
+        ],
+        Body::from_stream(stream),
+    )
+        .into_response())
+}
+
+/// Append one CSV record for an [`ExportRow`] to `out`.
+fn write_export_row(out: &mut String, r: &ExportRow) {
+    let fmt = time::format_description::well_known::Rfc3339;
+    out.push_str(&r.ts.format(&fmt).unwrap_or_default());
+    out.push(',');
+    out.push_str(&csv_escape(&r.actor));
+    out.push(',');
+    out.push_str(&csv_escape(&r.action));
+    out.push(',');
+    out.push_str(&csv_escape(&r.resource_kind));
+    out.push(',');
+    out.push_str(&r.resource_id.map(|i| i.to_string()).unwrap_or_default());
+    out.push(',');
+    out.push_str(&csv_escape(r.ip_addr.as_deref().unwrap_or("")));
+    out.push(',');
+    out.push_str(&csv_escape(r.user_agent.as_deref().unwrap_or("")));
+    out.push('\n');
 }
 
 /// Minimal CSV escape: double embedded quotes and wrap if the field
