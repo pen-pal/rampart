@@ -769,7 +769,7 @@ export default function StatusPageView({ slug, byDomainHost }) {
           <>
             <div className="section-h"><Bell size={13}/> {t('statuspage.public.section.active_incidents')}</div>
             <div>
-              {incidents.map((inc, i) => <Incident key={i} incident={inc}/>)}
+              {incidents.map((inc, i) => <Incident key={i} incident={inc} slug={effectiveSlug}/>)}
             </div>
           </>
         )}
@@ -779,7 +779,7 @@ export default function StatusPageView({ slug, byDomainHost }) {
           <>
             <div className="section-h"><History size={13}/> {t('statuspage.public.section.incident_history')}</div>
             <div>
-              {(view.incident_history || []).map((inc, i) => <ResolvedIncident key={i} incident={inc}/>)}
+              {(view.incident_history || []).map((inc, i) => <ResolvedIncident key={i} incident={inc} slug={effectiveSlug}/>)}
             </div>
           </>
         )}
@@ -1428,7 +1428,26 @@ function duration(start, end) {
   return rh === 0 ? t(d === 1 ? 'statuspage.public.duration.day' : 'statuspage.public.duration.days', { n: d }) : t('statuspage.public.duration.dh', { d, h: rh });
 }
 
-function ResolvedIncident({ incident }) {
+// Small RSS icon linking to the per-incident Atom feed
+// (`/v1/public/status-pages/:slug/incidents/:id/feed.atom`). Subscribing
+// to it tracks just this one incident's update thread. Rendered only when
+// both the slug and the incident id are known; the public projection may
+// omit the id, in which case the link is silently skipped.
+function IncidentFeedLink({ slug, incidentId, color }) {
+  if (!slug || !incidentId) return null;
+  return (
+    <a
+      href={`/v1/public/status-pages/${slug}/incidents/${incidentId}/feed.atom`}
+      title={t('statuspage.public.incident.feed_title')}
+      aria-label={t('statuspage.public.incident.feed_title')}
+      style={{ color: color || 'var(--text-3)', display: 'inline-flex', alignItems: 'center', opacity: .75 }}
+    >
+      <Rss size={13}/>
+    </a>
+  );
+}
+
+function ResolvedIncident({ incident, slug }) {
   const created = toDate(incident.created_at);
   const resolved = toDate(incident.resolved_at);
   const [bg, fg] = STYLE_TO_BG[incident.style] || STYLE_TO_BG.success;
@@ -1446,6 +1465,7 @@ function ResolvedIncident({ incident }) {
           <span style={{ fontSize: 11, color: fg, fontWeight: 500, background: bg, padding: '2px 8px', borderRadius: 999 }}>
             {t('statuspage.public.incident.resolved')}
           </span>
+          <IncidentFeedLink slug={slug} incidentId={incident.id}/>
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 6 }}>
           {t('statuspage.public.incident.lasted', { date: created.toLocaleDateString(getLocale()), duration: duration(created, resolved) })}
@@ -1456,7 +1476,7 @@ function ResolvedIncident({ incident }) {
   );
 }
 
-function Incident({ incident }) {
+function Incident({ incident, slug }) {
   const [bg, fg] = STYLE_TO_BG[incident.style] || STYLE_TO_BG.warning;
   return (
     <div style={{
@@ -1469,6 +1489,7 @@ function Incident({ incident }) {
         <span style={{ fontSize: 11, opacity: .75 }}>
           {t('statuspage.public.incident.posted', { when: relative(toDate(incident.created_at)) })}
         </span>
+        <IncidentFeedLink slug={slug} incidentId={incident.id} color={fg}/>
       </div>
       <div style={{ fontSize: 13.5, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{incident.content}</div>
       {(incident.updates || []).length > 0 && (
