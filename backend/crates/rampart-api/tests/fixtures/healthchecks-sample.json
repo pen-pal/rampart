@@ -1,0 +1,54 @@
+{
+  "checks": [
+    {
+      "uuid": "aaaa-1111",
+      "name": "Nightly DB backup",
+      "slug": "nightly-db-backup",
+      "tags": "backup db",
+      "kind": "cron",
+      "schedule": "0 2 * * *",
+      "tz": "UTC",
+      "timeout": 86400,
+      "grace": 300,
+      "n_pings": 42,
+      "status": "up"
+    },
+    {
+      "uuid": "bbbb-2222",
+      "name": "Heartbeat: ingest worker",
+      "slug": "heartbeat-ingest",
+      "tags": "worker",
+      "kind": "simple",
+      "timeout": 300,
+      "grace": 60,
+      "n_pings": 12000,
+      "status": "up"
+    },
+    {
+      "uuid": "cccc-3333",
+      "name": "Hourly sync job",
+      "slug": "hourly-sync",
+      "tags": "cron sync",
+      "kind": "oncalendar",
+      "schedule": "hourly",
+      "tz": "Europe/London",
+      "timeout": 3600,
+      "grace": 120,
+      "n_pings": 8000,
+      "status": "up"
+    },
+    {
+      "uuid": "dddd-4444",
+      "name": "Daily metrics digest",
+      "slug": "metrics-digest",
+      "tags": "metrics",
+      "kind": "cron",
+      "schedule": "0 9 * * *",
+      "tz": "UTC",
+      "timeout": 86400,
+      "grace": 600,
+      "n_pings": 100,
+      "status": "up"
+    }
+  ]
+}

@@ -30,10 +30,13 @@ rampart-import <format> <path-to-file> [--dry-run] [--skip-existing]
 
 | Format     | Source                                              |
 | ---------- | --------------------------------------------------- |
-| `site24x7`    | Site24x7 `GET /api/monitors` JSON dump (see below). |
-| `pingdom`     | Pingdom `GET /api/3.1/checks` JSON dump (see below). |
-| `datadog`     | Datadog `GET /api/v1/synthetics/tests` JSON dump (see below). |
-| `uptimerobot` | UptimeRobot `POST /v2/getMonitors` JSON dump (see below). |
+| `site24x7`     | Site24x7 `GET /api/monitors` JSON dump (see below). |
+| `pingdom`      | Pingdom `GET /api/3.1/checks` JSON dump (see below). |
+| `datadog`      | Datadog `GET /api/v1/synthetics/tests` JSON dump (see below). |
+| `uptimerobot`  | UptimeRobot `POST /v2/getMonitors` JSON dump (see below). |
+| `betterstack`  | BetterStack `GET /api/v2/monitors` JSON dump (see below). |
+| `healthchecks` | Healthchecks.io `GET /api/v3/checks/` JSON dump (see below). |
+| `cronitor`     | Cronitor `GET /api/monitors` JSON dump (see below). |
 
 More formats are welcome — see `CONTRIBUTING.md`. The dispatch in
 `crates/rampart-api/src/bin/import.rs` is a single `match` on the
@@ -467,5 +470,322 @@ DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
 # Idempotent re-run: same source, skip rows whose name already exists.
 DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
   ./target/release/rampart-import uptimerobot uptimerobot-export.json \
+  --skip-existing
+```
+
+---
+
+## BetterStack
+
+### Getting the export
+
+BetterStack (formerly Better Uptime) has no portal-side "export"
+button. You pull the dump yourself via their REST API, which uses a
+team-scoped bearer token:
+
+```bash
+# 1. In the BetterStack dashboard: `Settings -> API tokens`. Read-only
+#    tokens work — the importer only needs to enumerate monitors.
+# 2. Hit the list-monitors endpoint. The response is JSON:API-shaped
+#    ({"data":[{"id":"…","attributes":{...}}, …]}) — the importer reads
+#    `data` and pulls the actual monitor shape out of each entry's
+#    `attributes` object.
+curl -s 'https://uptime.betterstack.com/api/v2/monitors' \
+     -H 'Authorization: Bearer <TEAM_API_TOKEN>' \
+     > betterstack-export.json
+```
+
+> **Note:** the upstream docs (https://betterstack.com/docs/uptime/api/list-all-monitors/)
+> describe the listing endpoint as paginated; if you have more than one
+> page of monitors, fetch each page (`?page=2`, `?page=3`, …) and merge
+> their `data` arrays into a single `{"data":[…]}` object before
+> running the importer.
+
+### Type → MonitorKind mapping
+
+The importer normalises each BetterStack `monitor_type` constant to
+lowercase before lookup.
+
+| BetterStack `monitor_type` | Rampart `MonitorKind`                                       |
+| -------------------------- | ----------------------------------------------------------- |
+| `status`                   | `Http`                                                      |
+| `keyword`                  | `Keyword` (substring carried as `config["keyword"]`)        |
+| `keyword_absence`          | `Keyword` — see "Caveats" below                             |
+| `ping`                     | `Ping`                                                      |
+| `tcp`                      | `Tcp`                                                       |
+| `udp`                      | `Tcp` (closest match — see "Caveats" below)                 |
+| `dns`                      | `Dns`                                                       |
+| `smtp`                     | `Smtp`                                                      |
+| `pop`                      | `Pop3`                                                      |
+| `imap`                     | `Imap`                                                      |
+| `playwright`               | `Browser` — see Site24x7 section for the Browser caveat     |
+
+### Field translation
+
+| BetterStack field                          | Rampart `NewMonitor` field                                              |
+| ------------------------------------------ | ----------------------------------------------------------------------- |
+| `pronounceable_name`                       | `name` (required)                                                       |
+| `url`                                      | `url`                                                                   |
+| `port`                                     | `port` (`i32`)                                                          |
+| `request_method`                           | `http_method` (uppercased; default `GET`)                               |
+| `request_headers`                          | `http_headers` (passed through verbatim; null / empty array dropped)    |
+| `request_body`                             | `http_body` (empty string dropped)                                      |
+| `expected_status_codes`                    | `accepted_statuses` (defaults to `200..226` family when absent)         |
+| `required_keyword`                         | `config["keyword"]` (kept for both `keyword` and `keyword_absence`)     |
+| `check_frequency` (seconds)                | `interval_seconds` (clamped to `10..=86400`; default `60`)              |
+| `request_timeout` (seconds)                | `timeout_seconds` (clamped to `1..=600`; default `16`)                  |
+| `follow_redirects`                         | `follow_redirect`                                                       |
+| `verify_ssl` (`false`)                     | `ignore_tls = true`                                                     |
+
+Everything else on the source object is dropped, including: BetterStack
+team / escalation policy assignments, on-call schedules, regions,
+maintenance windows, response-time SLO thresholds, alert routing, and
+metadata. Rampart's equivalents (where they exist) have different
+semantics — port them by hand after the import.
+
+### Caveats
+
+- **`keyword_absence`**: BetterStack's keyword-absence probe asserts a
+  substring is **not** present in the response body. Rampart's
+  `Keyword` probe only asserts *presence* today; the importer stores
+  the substring in `config["keyword"]` and adds
+  `config["keyword_absence"] = true` so a future probe revision can
+  pick up the inversion. The current runtime treats the monitor as a
+  regular presence-keyword check, so the imported monitor's
+  Up/Down semantics will be **inverted** relative to BetterStack until
+  the operator flips `upside_down=true` by hand (or until Rampart
+  ships first-class keyword-absence support).
+- **`udp`**: BetterStack has a UDP probe; Rampart does not. The
+  importer maps `udp` onto `Tcp` and emits a `tracing::warn!` line so
+  the operator can spot the gap and decide whether to keep the (now
+  transport-mismatched) imported monitor.
+- **`playwright`**: BetterStack's Playwright monitor runs a scripted
+  browser flow; Rampart's `Browser` probe needs an external headless
+  service URL (see `MonitorKind::Browser`) which the BetterStack export
+  does not carry. Set `config.renderer_url` on the imported monitor
+  after the run.
+
+### Types that are skipped
+
+Anything not in the mapping table is reported as `skip: unsupported
+betterstack monitor` and ends up in the run's summary block — most
+likely a future / undocumented `monitor_type`.
+
+### Example
+
+```bash
+# Dry-run first — no DB writes; just prints the per-kind breakdown +
+# the list of skipped entries so you can decide whether to hand-port
+# them before re-running for real.
+./target/release/rampart-import betterstack betterstack-export.json --dry-run
+
+# Real import. Insert every mapped row.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import betterstack betterstack-export.json
+
+# Idempotent re-run: same source, skip rows whose name already exists.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import betterstack betterstack-export.json \
+  --skip-existing
+```
+
+---
+
+## Healthchecks.io
+
+### Getting the export
+
+Healthchecks.io has no portal-side "export" button. You pull the dump
+yourself via their REST API, which uses a project-scoped read-only API
+key:
+
+```bash
+# 1. In Healthchecks: `Project Settings -> API Access`. Read-only keys
+#    work — the importer only enumerates checks.
+# 2. Hit the list-checks endpoint. The response is the
+#    {"checks":[...]} shape the importer expects directly.
+curl -s 'https://healthchecks.io/api/v3/checks/' \
+     -H 'X-Api-Key: <READ_ONLY_API_KEY>' \
+     > healthchecks-export.json
+```
+
+> **Note:** Healthchecks.io's free / self-hosted instances expose the
+> same endpoint at `https://YOUR-HOST/api/v3/checks/` — only the host
+> needs swapping.
+
+### Type → MonitorKind mapping
+
+Healthchecks.io is **heartbeat-only**: the entire product is shaped
+around "ping me every N seconds / on this cron / on this calendar
+expression and alert when you don't hear from me". There is no probe
+kind discrimination — every check maps onto Rampart's `Push` probe.
+The Healthchecks `kind` field (`simple` / `cron` / `oncalendar`)
+selects how the *schedule* is expressed, not the probe family.
+
+| Healthchecks `kind` | Rampart `MonitorKind` |
+| ------------------- | --------------------- |
+| `simple`            | `Push`                |
+| `cron`              | `Push`                |
+| `oncalendar`        | `Push`                |
+
+### Field translation
+
+| Healthchecks field         | Rampart `NewMonitor` field                                                       |
+| -------------------------- | -------------------------------------------------------------------------------- |
+| `name`                     | `name` (required — falls back to `slug` then `healthchecks-<uuid>` when absent)  |
+| `uuid`                     | `config["healthchecks_uuid"]`                                                    |
+| `kind`                     | `config["healthchecks_kind"]`                                                    |
+| `schedule`                 | `config["schedule"]` (cron / oncalendar expression; absent for `simple`)         |
+| `tz`                       | `config["tz"]`                                                                   |
+| `timeout` (seconds)        | `interval_seconds` (clamped to `10..=86400`; default `60`)                       |
+| `grace` (seconds)          | `timeout_seconds` (clamped to `1..=600`; default `16`)                           |
+
+Everything else on the source object is dropped, including: tags,
+channels (alert integrations), per-ping metadata, last-ping timestamp,
+n_pings, and status. Rampart's equivalents (where they exist) have
+different semantics — port them by hand after the import.
+
+Healthchecks's `timeout` is the *expected cadence the ping arrives on*
+(i.e. "I should hear from this thing every N seconds") — exactly what
+Rampart's `Push.interval_seconds` means. The `grace` field is how long
+Healthchecks waits before flipping to down after the next expected ping
+doesn't arrive; that maps onto Rampart's `timeout_seconds`.
+
+### Types that are skipped
+
+Nothing — every Healthchecks check maps onto `Push`. The skipped-list
+ends up empty in practice; the importer still threads `SkippedMonitor`
+for symmetry with the other importers + so a future Healthchecks API
+revision adding non-heartbeat kinds can be surfaced without a structural
+change.
+
+The only skip case is a missing `name` / `slug` / `uuid` — we need
+*something* to put in `Monitor.name`, and Healthchecks normally
+guarantees at least one of those is present.
+
+### Caveats
+
+- **Cron and oncalendar schedules**: Rampart's `Push.interval_seconds`
+  is a per-second cadence; cron / oncalendar expressions don't
+  translate to a single number. The importer keeps the original
+  expression in `config["schedule"]` so the operator can re-create the
+  scheduling shape (or hand-port to a cron-shaped Push when Rampart
+  grows one), but the imported monitor's `interval_seconds` defaults
+  to the Healthchecks `timeout` field (which is always present and is
+  the next-expected-by deadline).
+
+### Example
+
+```bash
+# Dry-run first — no DB writes; just prints the per-kind breakdown.
+./target/release/rampart-import healthchecks healthchecks-export.json --dry-run
+
+# Real import. Insert every mapped row.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import healthchecks healthchecks-export.json
+
+# Idempotent re-run: same source, skip rows whose name already exists.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import healthchecks healthchecks-export.json \
+  --skip-existing
+```
+
+---
+
+## Cronitor
+
+### Getting the export
+
+Cronitor has no portal-side "export" button. You pull the dump yourself
+via their REST API, which uses an API key minted under the Cronitor
+dashboard's **Settings -> API Keys**:
+
+```bash
+# 1. Mint a read-only API key under Cronitor `Settings -> API Keys`.
+# 2. Hit the list-monitors endpoint. The response is the
+#    {"monitors":[...]} shape the importer expects directly.
+curl -s 'https://cronitor.io/api/monitors' \
+     -u '<API_KEY>:' \
+     > cronitor-export.json
+```
+
+> **Note:** Cronitor's API authenticates with HTTP Basic — the API key
+> goes in the username slot, the password slot is empty (hence the
+> trailing colon on `-u`). The list endpoint is paginated; if you have
+> more than one page of monitors fetch each page and merge their
+> `monitors` arrays into the single `{"monitors":[…]}` object the
+> importer expects.
+
+### Type → MonitorKind mapping
+
+The importer normalises each Cronitor `type` constant to lowercase
+before lookup.
+
+| Cronitor `type` | Rampart `MonitorKind` |
+| --------------- | --------------------- |
+| `heartbeat`     | `Push`                |
+| `job`           | `Push`                |
+| `check`         | `Http`                |
+| `uptime`        | `Http`                |
+
+### Field translation
+
+| Cronitor field                | Rampart `NewMonitor` field                                                     |
+| ----------------------------- | ------------------------------------------------------------------------------ |
+| `name`                        | `name` (required)                                                              |
+| `code`                        | `config["cronitor_code"]` (for cross-reference back to the source dashboard)   |
+| `request.url`                 | `url` (check / uptime only — blanked for heartbeat / job)                      |
+| `request.method`              | `http_method` (uppercased; default `GET`)                                      |
+| `request.body`                | `http_body`                                                                    |
+| `request.headers`             | `http_headers` (verbatim; null / empty dropped)                                |
+| `schedule`                    | `interval_seconds` when it parses to `every N {seconds,minutes,hours,days}`; otherwise stashed in `config["schedule"]` and `interval_seconds` falls back to `60` |
+| `assertions`                  | `config["assertions"]` (verbatim — operator hand-ports the runtime semantics)  |
+
+Everything else on the source object is dropped, including: Cronitor
+notify lists (alert routing), region selection, group memberships,
+tags, and rate / latency thresholds. Rampart's equivalents (where they
+exist) have different semantics — port them by hand after the import.
+
+### Caveats
+
+- **Cron expressions** ("0 * * * *") and **calendar shorthand**
+  ("hourly", "daily") in the `schedule` field don't translate to
+  Rampart's per-second `interval_seconds`. The importer keeps the
+  original string in `config["schedule"]` and falls back to a 60-second
+  interval so the imported monitor still ticks; operators can rebuild
+  the cron-shaped scheduling by hand post-import.
+- **`assertions`** are preserved verbatim in `config["assertions"]` but
+  the Rampart probe runtime does not interpret them today. Treat the
+  imported HTTP monitor as "is the endpoint up + 2xx" and re-create the
+  assertion semantics (response body checks, latency thresholds, etc.)
+  by hand if you need them.
+- **Heartbeat vs. job**: Cronitor distinguishes "ping at cadence"
+  (heartbeat) from "ping at cron-attached cadence" (job). Rampart's
+  `Push` probe doesn't make the distinction; the type is preserved in
+  `config["cronitor_code"]` for operator reference, and the imported
+  monitor behaves as a generic Push regardless of which family it came
+  from.
+
+### Types that are skipped
+
+Anything not in the mapping table is reported as `skip: unsupported
+cronitor monitor type` and ends up in the run's summary block — most
+likely a future / undocumented `type`.
+
+### Example
+
+```bash
+# Dry-run first — no DB writes; just prints the per-kind breakdown +
+# the list of skipped entries so you can decide whether to hand-port
+# them before re-running for real.
+./target/release/rampart-import cronitor cronitor-export.json --dry-run
+
+# Real import. Insert every mapped row.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import cronitor cronitor-export.json
+
+# Idempotent re-run: same source, skip rows whose name already exists.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import cronitor cronitor-export.json \
   --skip-existing
 ```

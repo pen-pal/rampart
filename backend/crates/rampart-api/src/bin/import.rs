@@ -7,8 +7,9 @@
 //! ```
 //!
 //! Supported formats today: `site24x7`, `pingdom`, `datadog`,
-//! `uptimerobot`. Adding a new format means dropping a sibling module
-//! under `rampart_api::importers::` and a match arm in `run()` below.
+//! `uptimerobot`, `betterstack`, `healthchecks`, `cronitor`. Adding a
+//! new format means dropping a sibling module under
+//! `rampart_api::importers::` and a match arm in `run()` below.
 //!
 //! Argument parsing is hand-rolled (no `clap`) so this bin doesn't
 //! drag a new dep into the workspace — matches the existing
@@ -18,7 +19,9 @@ use std::env;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use rampart_api::importers::{datadog, pingdom, site24x7, uptimerobot, ImportPlan};
+use rampart_api::importers::{
+    betterstack, cronitor, datadog, healthchecks, pingdom, site24x7, uptimerobot, ImportPlan,
+};
 use rampart_db::monitors;
 use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
@@ -27,10 +30,13 @@ const USAGE: &str = "\
 usage: rampart-import <format> <path-to-file> [--dry-run] [--skip-existing]
 
 formats:
-  site24x7      Site24x7    `GET /api/monitors` JSON dump
-  pingdom       Pingdom     `GET /api/3.1/checks` JSON dump
-  datadog       Datadog     `GET /api/v1/synthetics/tests` JSON dump
-  uptimerobot   UptimeRobot `POST /v2/getMonitors` JSON dump
+  site24x7      Site24x7      `GET /api/monitors` JSON dump
+  pingdom       Pingdom       `GET /api/3.1/checks` JSON dump
+  datadog       Datadog       `GET /api/v1/synthetics/tests` JSON dump
+  uptimerobot   UptimeRobot   `POST /v2/getMonitors` JSON dump
+  betterstack   BetterStack   `GET /api/v2/monitors` JSON dump
+  healthchecks  Healthchecks  `GET /api/v3/checks/` JSON dump
+  cronitor      Cronitor      `GET /api/monitors` JSON dump
 
 flags:
   --dry-run         parse + map; print summary; do NOT insert
@@ -113,9 +119,12 @@ async fn run(args: Args) -> anyhow::Result<ExitCode> {
         "pingdom" => pingdom::parse_and_map(&raw)?,
         "datadog" => datadog::parse_and_map(&raw)?,
         "uptimerobot" => uptimerobot::parse_and_map(&raw)?,
+        "betterstack" => betterstack::parse_and_map(&raw)?,
+        "healthchecks" => healthchecks::parse_and_map(&raw)?,
+        "cronitor" => cronitor::parse_and_map(&raw)?,
         other => {
             anyhow::bail!(
-                "unsupported format `{other}` — supported: site24x7, pingdom, datadog, uptimerobot. {USAGE}",
+                "unsupported format `{other}` — supported: site24x7, pingdom, datadog, uptimerobot, betterstack, healthchecks, cronitor. {USAGE}",
                 USAGE = "Use --help for the full list."
             );
         }

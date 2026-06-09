@@ -8,7 +8,10 @@
 //! Vec<MappedMonitor>` so the parser + mapping is unit-testable without
 //! standing up a DB.
 
+pub mod betterstack;
+pub mod cronitor;
 pub mod datadog;
+pub mod healthchecks;
 pub mod pingdom;
 pub mod site24x7;
 pub mod uptimerobot;
