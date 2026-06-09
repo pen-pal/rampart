@@ -18,7 +18,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CheckCircle2, AlertCircle, AlertTriangle, Calendar, Loader2,
-  Activity, Bell, Wrench, Shield, Mail, Rss, Link2, Check, X, History,
+  Activity, Bell, Wrench, Shield, Mail, Rss, Link2, Check, X, History, Lock,
 } from 'lucide-react';
 import { api, offsetDateTimeArrayToDate } from '../lib/api.js';
 import { t, getLocale } from '../lib/i18n.js';
@@ -507,6 +507,19 @@ const css = `
   }
 `;
 
+// Minimal sanitizer for operator-authored custom CSS before it goes into a
+// <style> tag. The CSS is operator-authored (trusted-ish), so this isn't
+// full XSS hardening — the one MANDATORY job is stripping any `</style>` or
+// `<script` (case-insensitive) so the operator can't close the style
+// context and inject markup/script after it. Everything else passes through
+// verbatim so legitimate overrides keep working.
+function sanitizeCustomCss(raw) {
+  if (!raw) return '';
+  return String(raw)
+    .replace(/<\/style/gi, '')
+    .replace(/<script/gi, '');
+}
+
 // Status → localized badge label. A function (not a const map) so the
 // lookup happens at render time against the active locale.
 function statusLabel(status) {
@@ -567,6 +580,11 @@ export default function StatusPageView({ slug, byDomainHost }) {
     return () => clearInterval(id);
   }, []);
 
+  // Once a private page is unlocked we hold its full payload here so the
+  // 30s poll (which only ever sees the locked stub for a private page)
+  // can't clobber it back to the prompt. The unlock handler seeds this.
+  const [unlocked, setUnlocked] = useState(null);
+
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
@@ -574,6 +592,8 @@ export default function StatusPageView({ slug, byDomainHost }) {
         const r = byDomainHost
           ? await api.statusPages.byDomain(byDomainHost)
           : await api.statusPages.publicView(slug);
+        // A private+locked stub must not overwrite an already-unlocked
+        // payload held in `unlocked`; the locked path renders the prompt.
         if (!cancelled) { setData(r); setError(null); setLoading(false); }
       } catch (e) {
         if (!cancelled) { setError(e); setLoading(false); }
@@ -616,9 +636,26 @@ export default function StatusPageView({ slug, byDomainHost }) {
     );
   }
 
-  const themeClass = data.theme === 'dark' ? 'public dark' : 'public';
-  const monitors = data.monitors || [];
-  const incidents = data.incidents || [];
+  // Prefer an unlocked full payload over the (possibly locked) polled stub.
+  // A private page whose password hasn't been proven arrives as a locked
+  // stub (`private: true`, no monitors/incidents); render the prompt until
+  // the visitor unlocks it, then render from the unlocked payload.
+  const view = unlocked || data;
+  if (view.private && !unlocked) {
+    return (
+      <LockPrompt
+        slug={effectiveSlug}
+        title={view.title}
+        themeClass={view.theme === 'dark' ? 'public dark' : 'public'}
+        onUnlocked={setUnlocked}
+      />
+    );
+  }
+
+  const themeClass = view.theme === 'dark' ? 'public dark' : 'public';
+  const customCss = sanitizeCustomCss(view.custom_css);
+  const monitors = view.monitors || [];
+  const incidents = view.incidents || [];
   const hasIncidents = incidents.length > 0;
 
   let status = overall(monitors);
@@ -639,24 +676,28 @@ export default function StatusPageView({ slug, byDomainHost }) {
   return (
     <div className={themeClass}>
       <style>{css}</style>
+      {/* Operator-authored custom CSS, injected AFTER the built-in stylesheet
+          so its rules win. Sanitized to strip any </style> / <script close-out
+          so the operator can't break out of the style context. */}
+      {customCss && <style>{customCss}</style>}
 
       <div style={{ maxWidth: 880, margin: '0 auto', padding: '40px 24px 24px' }}>
 
         {/* ── Brand row ──────────────────────────────────────────── */}
         <div className="brand-row">
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            {data.logo_url && (
+            {view.logo_url && (
               <img
-                src={data.logo_url}
+                src={view.logo_url}
                 alt=""
                 className="brand-logo"
                 style={{ maxHeight: 40, maxWidth: 160, objectFit: 'contain', flexShrink: 0 }}
               />
             )}
             <div>
-              <h1>{data.title}</h1>
-              {data.description && (
-                <p style={{ fontSize: 13.5, color: 'var(--text-3)', margin: '4px 0 0' }}>{data.description}</p>
+              <h1>{view.title}</h1>
+              {view.description && (
+                <p style={{ fontSize: 13.5, color: 'var(--text-3)', margin: '4px 0 0' }}>{view.description}</p>
               )}
             </div>
           </div>
@@ -677,16 +718,16 @@ export default function StatusPageView({ slug, byDomainHost }) {
           <Kpi icon={<Activity size={12}/>} label={t('statuspage.public.kpi.components')} value={String(monitors.length)} sub={t('statuspage.public.kpi.components_sub', { up: upCount, degraded: warnCount, down: downCount })}/>
           <Kpi icon={<Shield size={12}/>}   label={t('statuspage.public.kpi.uptime_90d')}  value={overallUptime == null ? '—' : `${overallUptime.toFixed(2)}%`} sub={t('statuspage.public.kpi.uptime_90d_sub')}/>
           <Kpi icon={<Bell size={12}/>}     label={t('statuspage.public.kpi.active_incidents')} value={String(incidents.length)} sub={incidents.length ? t('statuspage.public.kpi.incidents_see_below') : t('statuspage.public.kpi.incidents_none')}/>
-          <Kpi icon={<Calendar size={12}/>} label={t('statuspage.public.kpi.last_update')}   value={data.generated_at ? relative(toDate(data.generated_at)) : '—'} sub={t('statuspage.public.kpi.last_update_sub')}/>
+          <Kpi icon={<Calendar size={12}/>} label={t('statuspage.public.kpi.last_update')}   value={view.generated_at ? relative(toDate(view.generated_at)) : '—'} sub={t('statuspage.public.kpi.last_update_sub')}/>
         </div>
 
         {/* ── Scheduled-maintenance banner (above components — planned
              work is context the visitor should see before scanning the
              component list; distinct --maint styling keeps it from
              reading as an outage). ── */}
-        {(data.maintenance || []).length > 0 && (
+        {(view.maintenance || []).length > 0 && (
           <div className="maint-block">
-            {(data.maintenance || []).map((m, i) => <MaintenanceBanner key={i} entry={m}/>)}
+            {(view.maintenance || []).map((m, i) => <MaintenanceBanner key={i} entry={m}/>)}
           </div>
         )}
 
@@ -705,7 +746,7 @@ export default function StatusPageView({ slug, byDomainHost }) {
               monitorIdx={i}
               slug={effectiveSlug}
               activeIncidents={incidents}
-              incidentHistory={data.incident_history || []}
+              incidentHistory={view.incident_history || []}
             />
           ))}
         </div>
@@ -734,11 +775,11 @@ export default function StatusPageView({ slug, byDomainHost }) {
         )}
 
         {/* ── Incident history ────────────────────────────────── */}
-        {(data.incident_history || []).length > 0 && (
+        {(view.incident_history || []).length > 0 && (
           <>
             <div className="section-h"><History size={13}/> {t('statuspage.public.section.incident_history')}</div>
             <div>
-              {(data.incident_history || []).map((inc, i) => <ResolvedIncident key={i} incident={inc}/>)}
+              {(view.incident_history || []).map((inc, i) => <ResolvedIncident key={i} incident={inc}/>)}
             </div>
           </>
         )}
@@ -750,8 +791,88 @@ export default function StatusPageView({ slug, byDomainHost }) {
         {/* ── Footer ───────────────────────────────────────────── */}
         <div className="footer">
           <span>{t('statuspage.public.footer.powered_by')} <a href="https://github.com/pen-pal/rampart" target="_blank" rel="noreferrer">Rampart</a></span>
-          <span>{t('statuspage.public.footer.last_updated', { when: data.generated_at ? relative(toDate(data.generated_at)) : '—' })}</span>
+          <span>{t('statuspage.public.footer.last_updated', { when: view.generated_at ? relative(toDate(view.generated_at)) : '—' })}</span>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Password prompt for a private (locked) status page. Submits the candidate
+// to `POST /v1/public/status-pages/:slug/unlock` via a direct fetch — NOT
+// the shared api wrapper, which auto-redirects to the login page on a 401.
+// Here a 401 just means "wrong password" and stays on the prompt. On success
+// the full PublicStatusPage payload is handed back up via `onUnlocked` and
+// the parent re-renders the real page from it.
+function LockPrompt({ slug, title, themeClass, onUnlocked }) {
+  const [password, setPassword] = useState('');
+  const [state, setState] = useState('idle'); // idle | sending | err
+  const [err, setErr] = useState(null);
+  const inputRef = useRef(null);
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!password) return;
+    setState('sending'); setErr(null);
+    try {
+      const resp = await fetch(`/v1/public/status-pages/${slug}/unlock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ password }),
+      });
+      if (resp.status === 401) {
+        setErr(t('statuspage.public.lock.err_wrong'));
+        setState('err');
+        return;
+      }
+      if (!resp.ok) {
+        setErr(t('statuspage.public.lock.err_failed'));
+        setState('err');
+        return;
+      }
+      const payload = await resp.json();
+      onUnlocked(payload);
+    } catch {
+      setErr(t('statuspage.public.lock.err_failed'));
+      setState('err');
+    }
+  };
+
+  return (
+    <div className={themeClass}>
+      <style>{css}</style>
+      <div style={{ maxWidth: 420, margin: '0 auto', padding: '120px 24px', textAlign: 'center' }}>
+        <div style={{
+          width: 56, height: 56, borderRadius: '50%', margin: '0 auto 18px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'var(--surface-2)', color: 'var(--text-2)',
+        }}>
+          <Lock size={24}/>
+        </div>
+        <h1 style={{ fontSize: 22, fontWeight: 600, margin: '0 0 6px' }}>{title || t('statuspage.public.lock.title')}</h1>
+        <p style={{ fontSize: 14, color: 'var(--text-2)', margin: '0 0 22px' }}>
+          {t('statuspage.public.lock.body')}
+        </p>
+        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <input
+            ref={inputRef}
+            className="sub-input"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            placeholder={t('statuspage.public.lock.placeholder')}
+            style={{ minWidth: 0 }}
+          />
+          <button className="sub-btn" type="submit" disabled={state === 'sending' || !password}>
+            {state === 'sending' ? t('statuspage.public.lock.unlocking') : t('statuspage.public.lock.submit')}
+          </button>
+        </form>
+        {state === 'err' && err && (
+          <div style={{ fontSize: 12.5, color: 'var(--down)', marginTop: 12, fontWeight: 500 }}>{err}</div>
+        )}
       </div>
     </div>
   );

@@ -1,10 +1,13 @@
 //! Status-page repository.
 //!
-//! The status_pages table from migration 0001 carries a lot of room
-//! for growth (theme, custom_css, custom_domain, password_hash, …).
-//! v1 only uses a handful of columns; the rest are NULL for now.
+//! The status_pages table carries branding (custom_domain, logo_url),
+//! a per-page custom_css override, and an optional Argon2 password_hash
+//! that flips the page private. The hash never leaves the db on a read
+//! path — projections expose only a derived `private` boolean.
 
 use crate::{heartbeats, DbError, DbPool, DbResult};
+use argon2::password_hash::{rand_core::OsRng, SaltString};
+use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use rampart_core::status_page::{
     MonthlyUptimePoint, NewStatusPage, PublicIncident, PublicIncidentUpdate,
     PublicResolvedIncident, PublicStatusMonitor, PublicStatusPage, StatusPage, UpdateStatusPage,
@@ -12,6 +15,18 @@ use rampart_core::status_page::{
 use rampart_core::{MonitorId, StatusPageId};
 use time::OffsetDateTime;
 use uuid::Uuid;
+
+/// Hash a plaintext status-page password with Argon2id + a random salt,
+/// returning the PHC string we store in `status_pages.password_hash`.
+/// Mirrors the user-auth hashing in `rampart-api::auth`; kept here so the
+/// db layer owns the plaintext→hash transition the API hands it.
+fn hash_page_password(plaintext: &str) -> DbResult<String> {
+    let salt = SaltString::generate(&mut OsRng);
+    Argon2::default()
+        .hash_password(plaintext.as_bytes(), &salt)
+        .map(|h| h.to_string())
+        .map_err(|e| DbError::Conflict(format!("could not hash password: {e}")))
+}
 
 struct PageRow {
     id: Uuid,
@@ -21,6 +36,11 @@ struct PageRow {
     theme: String,
     custom_domain: Option<String>,
     logo_url: Option<String>,
+    custom_css: Option<String>,
+    /// `password_hash IS NOT NULL` — the row is private. We deliberately
+    /// SELECT the derived boolean rather than the hash so the secret never
+    /// leaves the database into application memory on read paths.
+    private: bool,
     created_at: OffsetDateTime,
 }
 
@@ -34,6 +54,8 @@ impl From<PageRow> for StatusPage {
             theme: r.theme,
             custom_domain: r.custom_domain,
             logo_url: r.logo_url,
+            custom_css: r.custom_css,
+            private: r.private,
             // The existing schema has no `updated_at`. The API response
             // re-uses `created_at` until a future migration adds one.
             created_at: r.created_at,
@@ -47,7 +69,8 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<StatusPage>> {
     let rows = sqlx::query_as!(
         PageRow,
         r#"
-        SELECT id, slug, title, description, theme, custom_domain, logo_url, created_at
+        SELECT id, slug, title, description, theme, custom_domain, logo_url, custom_css,
+               (password_hash IS NOT NULL) AS "private!", created_at
         FROM status_pages
         ORDER BY created_at DESC
         "#,
@@ -84,7 +107,8 @@ pub async fn get(pool: &DbPool, id: StatusPageId) -> DbResult<StatusPage> {
     let row = sqlx::query_as!(
         PageRow,
         r#"
-        SELECT id, slug, title, description, theme, custom_domain, logo_url, created_at
+        SELECT id, slug, title, description, theme, custom_domain, logo_url, custom_css,
+               (password_hash IS NOT NULL) AS "private!", created_at
         FROM status_pages
         WHERE id = $1
         "#,
@@ -101,7 +125,8 @@ pub async fn get_by_slug(pool: &DbPool, slug: &str) -> DbResult<StatusPage> {
     let row = sqlx::query_as!(
         PageRow,
         r#"
-        SELECT id, slug, title, description, theme, custom_domain, logo_url, created_at
+        SELECT id, slug, title, description, theme, custom_domain, logo_url, custom_css,
+               (password_hash IS NOT NULL) AS "private!", created_at
         FROM status_pages
         WHERE slug = $1
         "#,
@@ -123,7 +148,8 @@ pub async fn find_by_custom_domain(pool: &DbPool, host: &str) -> DbResult<Option
     let row = sqlx::query_as!(
         PageRow,
         r#"
-        SELECT id, slug, title, description, theme, custom_domain, logo_url, created_at
+        SELECT id, slug, title, description, theme, custom_domain, logo_url, custom_css,
+               (password_hash IS NOT NULL) AS "private!", created_at
         FROM status_pages
         WHERE custom_domain = $1
         "#,
@@ -160,12 +186,19 @@ async fn hydrate(pool: &DbPool, row: PageRow) -> DbResult<StatusPage> {
 
 pub async fn create(pool: &DbPool, input: NewStatusPage) -> DbResult<StatusPage> {
     let id = StatusPageId::new();
+    // Hash the plaintext password (if any) before opening the tx so a hash
+    // failure aborts cleanly without a dangling transaction.
+    let password_hash = match input.password.as_deref() {
+        Some(pw) if !pw.is_empty() => Some(hash_page_password(pw)?),
+        _ => None,
+    };
     let mut tx = pool.begin().await?;
 
     sqlx::query!(
         r#"
-        INSERT INTO status_pages (id, slug, title, description, theme, custom_domain, logo_url)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        INSERT INTO status_pages
+            (id, slug, title, description, theme, custom_domain, logo_url, custom_css, password_hash)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         "#,
         id.0,
         input.slug,
@@ -174,6 +207,8 @@ pub async fn create(pool: &DbPool, input: NewStatusPage) -> DbResult<StatusPage>
         input.theme,
         input.custom_domain,
         input.logo_url,
+        input.custom_css,
+        password_hash,
     )
     .execute(&mut *tx)
     .await
@@ -245,6 +280,31 @@ pub async fn update(
         sqlx::query!(
             "UPDATE status_pages SET logo_url = $1 WHERE id = $2",
             logo.as_deref(),
+            id.0,
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
+    if let Some(css) = patch.custom_css.as_ref() {
+        sqlx::query!(
+            "UPDATE status_pages SET custom_css = $1 WHERE id = $2",
+            css.as_deref(),
+            id.0,
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
+    // Password: `Some(Some(pw))` sets (hash → private), `Some(None)` clears
+    // (→ public), `None` leaves it untouched. An empty string is treated as
+    // a clear so the builder can blank the field to remove protection.
+    if let Some(pw_opt) = patch.password.as_ref() {
+        let new_hash = match pw_opt.as_deref() {
+            Some(pw) if !pw.is_empty() => Some(hash_page_password(pw)?),
+            _ => None,
+        };
+        sqlx::query!(
+            "UPDATE status_pages SET password_hash = $1 WHERE id = $2",
+            new_hash,
             id.0,
         )
         .execute(&mut *tx)
@@ -374,12 +434,34 @@ pub async fn public_view(pool: &DbPool, slug: &str) -> DbResult<PublicStatusPage
         theme: page.theme,
         custom_domain: page.custom_domain,
         logo_url: page.logo_url,
+        custom_css: page.custom_css,
+        private: page.private,
         generated_at: OffsetDateTime::now_utc(),
         monitors,
         incidents,
         incident_history,
         maintenance,
     })
+}
+
+/// Verify a candidate password against a page's stored Argon2 hash.
+/// Returns `false` for a missing page, a public page (no hash), or a
+/// mismatch — the caller treats all three the same ("not unlocked"). Never
+/// short-circuits on length, so it doesn't leak timing about the hash.
+pub async fn verify_page_password(pool: &DbPool, slug: &str, candidate: &str) -> DbResult<bool> {
+    let row = sqlx::query!(
+        "SELECT password_hash FROM status_pages WHERE slug = $1",
+        slug,
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    let Some(hash) = row.and_then(|r| r.password_hash) else {
+        return Ok(false);
+    };
+    Ok(PasswordHash::new(&hash)
+        .and_then(|h| Argon2::default().verify_password(candidate.as_bytes(), &h))
+        .is_ok())
 }
 
 /// Convert unique / CHECK Postgres errors into a friendlier

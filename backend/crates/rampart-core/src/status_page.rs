@@ -30,6 +30,15 @@ pub struct StatusPage {
     /// image. Rendered to the left of the title on the public page.
     #[serde(default)]
     pub logo_url: Option<String>,
+    /// Operator-authored CSS injected after the built-in stylesheet on the
+    /// public page. NULL when unset.
+    #[serde(default)]
+    pub custom_css: Option<String>,
+    /// Read-only flag: `true` when a `password_hash` is set on the row (the
+    /// page is private). The hash itself is never serialized. Set by the db
+    /// layer from `password_hash IS NOT NULL`.
+    #[serde(default)]
+    pub private: bool,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
     /// Monitors shown on this page, in display order. Populated by
@@ -64,6 +73,16 @@ pub struct NewStatusPage {
     #[serde(default)]
     pub logo_url: Option<String>,
 
+    /// Optional per-page custom CSS. Capped at 64 KB at the API edge.
+    #[serde(default)]
+    pub custom_css: Option<String>,
+
+    /// Write-only plaintext password. When `Some`, the db layer hashes it
+    /// with Argon2id and the page becomes private. Never serialized back
+    /// out (this struct is `Deserialize`-only).
+    #[serde(default)]
+    pub password: Option<String>,
+
     #[serde(default)]
     pub monitor_ids: Vec<MonitorId>,
 }
@@ -88,6 +107,18 @@ pub struct UpdateStatusPage {
     /// Same triple-state semantics as `custom_domain`.
     #[serde(default)]
     pub logo_url: Option<Option<String>>,
+
+    /// Per-page custom CSS. Same triple-state semantics as `custom_domain`:
+    /// `Some(Some(css))` sets it, `Some(None)` clears it, `None` leaves it.
+    #[serde(default)]
+    pub custom_css: Option<Option<String>>,
+
+    /// Write-only plaintext password. `Some(Some(pw))` sets/changes the
+    /// password (db layer hashes it → page becomes private), `Some(None)`
+    /// clears it (page becomes public again), `None` leaves it unchanged.
+    /// Never serialized back out.
+    #[serde(default)]
+    pub password: Option<Option<String>>,
 
     /// When present, REPLACES the attached set. When absent, leaves it alone.
     #[serde(default)]
@@ -115,6 +146,16 @@ pub struct PublicStatusPage {
     /// the page title.
     #[serde(default)]
     pub logo_url: Option<String>,
+    /// Operator-authored CSS, injected after the built-in stylesheet on the
+    /// public page. NULL when unset.
+    #[serde(default)]
+    pub custom_css: Option<String>,
+    /// `true` when the page is password-protected. When the visitor hasn't
+    /// proven the password yet, the rest of the payload is a locked stub:
+    /// only `slug`/`title`/`private` carry real values, everything else is
+    /// empty. The frontend keys off this flag to render a password prompt.
+    #[serde(default)]
+    pub private: bool,
     pub generated_at: OffsetDateTime,
     pub monitors: Vec<PublicStatusMonitor>,
     /// Active incidents (active = TRUE), most-recent first, each
@@ -132,6 +173,30 @@ pub struct PublicStatusPage {
     /// monitor shown on this page. Empty when nothing is scheduled.
     #[serde(default)]
     pub maintenance: Vec<PublicMaintenance>,
+}
+
+impl PublicStatusPage {
+    /// Locked stub for a private page whose password hasn't been proven.
+    /// Carries only the slug + title so the frontend can render a branded
+    /// password prompt; everything that could leak component / incident
+    /// detail is empty.
+    pub fn locked(slug: String, title: String) -> Self {
+        PublicStatusPage {
+            slug,
+            title,
+            description: None,
+            theme: default_theme(),
+            custom_domain: None,
+            logo_url: None,
+            custom_css: None,
+            private: true,
+            generated_at: OffsetDateTime::now_utc(),
+            monitors: Vec::new(),
+            incidents: Vec::new(),
+            incident_history: Vec::new(),
+            maintenance: Vec::new(),
+        }
+    }
 }
 
 /// Public projection of a maintenance window. Carries just enough for
