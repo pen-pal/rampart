@@ -13,7 +13,10 @@ pub mod cronitor;
 pub mod datadog;
 pub mod healthchecks;
 pub mod pingdom;
+pub mod rapidspike;
 pub mod site24x7;
+pub mod statuscake;
+pub mod updown;
 pub mod uptimerobot;
 
 use rampart_core::monitor::NewMonitor;

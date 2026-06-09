@@ -1,0 +1,42 @@
+[
+  {
+    "token": "abc123",
+    "url": "https://api.example.com/health",
+    "alias": "Acme API",
+    "period": 60,
+    "published": true,
+    "http_verb": "GET",
+    "string_match": "",
+    "mute_until": null
+  },
+  {
+    "token": "def456",
+    "url": "https://app.example.com",
+    "alias": "Acme app keyword",
+    "period": 120,
+    "published": true,
+    "http_verb": "GET",
+    "string_match": "Welcome",
+    "mute_until": null
+  },
+  {
+    "token": "ghi789",
+    "url": "https://www.example.com",
+    "alias": "",
+    "period": 300,
+    "published": false,
+    "http_verb": "HEAD",
+    "string_match": "",
+    "mute_until": null
+  },
+  {
+    "token": "jkl012",
+    "url": "https://post.example.com/probe",
+    "alias": "Acme POST probe",
+    "period": 600,
+    "published": true,
+    "http_verb": "POST",
+    "string_match": "",
+    "mute_until": null
+  }
+]

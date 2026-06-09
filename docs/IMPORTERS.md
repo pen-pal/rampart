@@ -37,6 +37,9 @@ rampart-import <format> <path-to-file> [--dry-run] [--skip-existing]
 | `betterstack`  | BetterStack `GET /api/v2/monitors` JSON dump (see below). |
 | `healthchecks` | Healthchecks.io `GET /api/v3/checks/` JSON dump (see below). |
 | `cronitor`     | Cronitor `GET /api/monitors` JSON dump (see below). |
+| `statuscake`   | StatusCake `GET /v1/uptime` JSON dump (see below). |
+| `rapidspike`   | RapidSpike `GET /v1/status-monitors` JSON dump (see below). |
+| `updown`       | Updown.io `GET /api/checks` JSON dump (see below). |
 
 More formats are welcome — see `CONTRIBUTING.md`. The dispatch in
 `crates/rampart-api/src/bin/import.rs` is a single `match` on the
@@ -787,5 +790,245 @@ DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
 # Idempotent re-run: same source, skip rows whose name already exists.
 DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
   ./target/release/rampart-import cronitor cronitor-export.json \
+  --skip-existing
+```
+
+---
+
+## StatusCake
+
+### Getting the export
+
+StatusCake has no portal-side "export" button. You pull the dump
+yourself via their REST API, which uses a long-lived bearer token
+minted under the StatusCake dashboard's **API Keys** section:
+
+```bash
+# 1. Mint a read-only API key in the StatusCake dashboard.
+# 2. Hit the uptime-tests endpoint. The response wraps the array in a
+#    {"data":[…]} envelope — the importer reads `data` and ignores the
+#    rest of the envelope. If you have more than one page of tests,
+#    fetch each page and merge their `data` arrays into the single
+#    `{"data":[…]}` object the importer expects.
+curl -s 'https://api.statuscake.com/v1/uptime' \
+     -H 'Authorization: Bearer <API_TOKEN>' \
+     > statuscake-export.json
+```
+
+> **Note:** the upstream docs (https://www.statuscake.com/api/v1/) describe
+> the listing endpoint as paginated. Default page size is small; pass
+> `?limit=…` to inflate it or merge multiple pages by hand.
+
+### Type → MonitorKind mapping
+
+The importer normalises each StatusCake `test_type` constant to
+uppercase before lookup so case differences across the docs don't
+matter.
+
+| StatusCake `test_type` | Rampart `MonitorKind` |
+| ---------------------- | --------------------- |
+| `HTTP`                 | `Http`                |
+| `PING`                 | `Ping`                |
+| `TCP`                  | `Tcp`                 |
+| `DNS`                  | `Dns`                 |
+| `SMTP`                 | `Smtp`                |
+| `SSH`                  | `Ssh`                 |
+
+### Field translation
+
+| StatusCake field             | Rampart `NewMonitor` field                                  |
+| ---------------------------- | ----------------------------------------------------------- |
+| `name`                       | `name` (required)                                           |
+| `website_url`                | `url`                                                       |
+| `check_rate` (seconds)       | `interval_seconds` (clamped to `10..=86400`; default `60`)  |
+| `timeout` (seconds)          | `timeout_seconds` (clamped to `1..=600`; default `16`)      |
+
+Everything else on the source object is dropped, including: StatusCake
+contact groups, tags, region selection, custom HTTP headers, request
+body, and confirmation server count. Rampart's equivalents (where they
+exist) have different semantics — port them by hand after the import.
+
+### Types that are skipped
+
+Anything not in the mapping table is reported as `skip: unsupported
+statuscake monitor` and ends up in the run's summary block — most
+likely a future / undocumented `test_type`.
+
+### Example
+
+```bash
+# Dry-run first — no DB writes; just prints the per-kind breakdown.
+./target/release/rampart-import statuscake statuscake-export.json --dry-run
+
+# Real import. Insert every mapped row.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import statuscake statuscake-export.json
+
+# Idempotent re-run: same source, skip rows whose name already exists.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import statuscake statuscake-export.json \
+  --skip-existing
+```
+
+---
+
+## RapidSpike
+
+### Getting the export
+
+RapidSpike has no portal-side "export" button. You pull the dump
+yourself via their REST API, which uses an API-key + secret pair
+minted under the RapidSpike dashboard's **Settings -> API Access**:
+
+```bash
+# 1. Mint a read-only API key + secret in the RapidSpike dashboard.
+# 2. Hit the status-monitors endpoint. The response wraps the array in
+#    an {"items":[…]} envelope — the importer reads `items` and ignores
+#    the rest of the envelope. If you have more than one page of
+#    monitors, fetch each page and merge their `items` arrays into the
+#    single `{"items":[…]}` object the importer expects.
+curl -s 'https://api.rapidspike.com/v1/status-monitors' \
+     -H 'Authorization: Bearer <API_KEY>:<API_SECRET>' \
+     > rapidspike-export.json
+```
+
+> **Note:** the upstream docs
+> (https://docs.rapidspike.com/reference/get_status-monitors)
+> describe the listing endpoint as paginated; merge pages into a single
+> object before running the importer.
+
+### Type → MonitorKind mapping
+
+The importer normalises each RapidSpike `monitor_type` constant to
+lowercase before lookup.
+
+| RapidSpike `monitor_type` | Rampart `MonitorKind` |
+| ------------------------- | --------------------- |
+| `http_check`              | `Http`                |
+| `tcp_check`               | `Tcp`                 |
+| `dns_check`               | `Dns`                 |
+| `ping_check`              | `Ping`                |
+
+### Field translation
+
+| RapidSpike field             | Rampart `NewMonitor` field                                  |
+| ---------------------------- | ----------------------------------------------------------- |
+| `name`                       | `name` (required)                                           |
+| `url`                        | `url`                                                       |
+| `check_interval` (seconds)   | `interval_seconds` (clamped to `10..=86400`; default `60`)  |
+| `timeout_seconds` (seconds)  | `timeout_seconds` (clamped to `1..=600`; default `16`)      |
+
+Everything else on the source object is dropped, including: RapidSpike
+notification groups, regions, tags, browser-rendered checks,
+performance-budget thresholds, and SSL-certificate-expiry monitors.
+Rampart's equivalents (where they exist) have different semantics —
+port them by hand after the import.
+
+### Types that are skipped
+
+Anything not in the mapping table is reported as `skip: unsupported
+rapidspike monitor` and ends up in the run's summary block. Common
+examples:
+
+- `browser_check` — RapidSpike's scripted browser flow. Rampart's
+  `Browser` probe needs an external headless service URL which the
+  RapidSpike export does not carry; port by hand.
+- `transaction_check` / multi-step checks — Rampart does not model
+  multi-step flows; port by hand or split into individual probes.
+
+### Example
+
+```bash
+# Dry-run first — no DB writes; just prints the per-kind breakdown.
+./target/release/rampart-import rapidspike rapidspike-export.json --dry-run
+
+# Real import. Insert every mapped row.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import rapidspike rapidspike-export.json
+
+# Idempotent re-run: same source, skip rows whose name already exists.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import rapidspike rapidspike-export.json \
+  --skip-existing
+```
+
+---
+
+## Updown.io
+
+### Getting the export
+
+Updown.io has no portal-side "export" button. You pull the dump
+yourself via their REST API, which is API-key-only (header- or query-
+shaped):
+
+```bash
+# 1. Mint a read-only API key in the Updown dashboard
+#    (Settings -> API).
+# 2. Hit the list-checks endpoint. The response is a **bare JSON array
+#    at the top level** — not the {"data":[…]} envelope the other
+#    importers use — so save it directly; no merging glue needed.
+curl -s 'https://updown.io/api/checks?api-key=<API_KEY>' \
+     > updown-export.json
+```
+
+> **Note:** Updown.io's listing endpoint is not paginated by default;
+> the full account fits in a single response. If you have a very large
+> install, the response is still a single bare JSON array — concat the
+> arrays if you've split it into multiple files for any reason.
+
+### Type → MonitorKind mapping
+
+Updown.io is **HTTP-only**: the entire product is shaped around
+"GET / POST / HEAD this URL every N seconds and alert if it stops
+responding (or stops containing this substring)". Every check maps
+onto Rampart's `Http` probe — or `Keyword` when the check has a
+`string_match` configured.
+
+| Updown.io shape              | Rampart `MonitorKind`                                       |
+| ---------------------------- | ----------------------------------------------------------- |
+| any check, no `string_match` | `Http`                                                      |
+| any check, `string_match` set | `Keyword` (substring carried as `config["keyword"]`)       |
+
+### Field translation
+
+| Updown.io field          | Rampart `NewMonitor` field                                                       |
+| ------------------------ | -------------------------------------------------------------------------------- |
+| `alias`                  | `name` (falls back to `url` when `alias` is empty)                               |
+| `url`                    | `url`                                                                            |
+| `period` (seconds)       | `interval_seconds` (clamped to `10..=86400`; default `60`)                       |
+| `http_verb`              | `http_method` (uppercased; default `GET`)                                        |
+| `string_match`           | `config["keyword"]` (and flips `Http` → `Keyword` when present and non-empty)    |
+
+Everything else on the source object is dropped, including: Updown
+notification channels, custom request headers, basic-auth credentials,
+mute-until windows, the `published` flag (used for the public status
+page on Updown's side), probe-location filters, and SSL certificate
+expiry reminders. Rampart's equivalents (where they exist) have
+different semantics — port them by hand after the import.
+
+`timeout_seconds` defaults to 16s (Rampart's `NewMonitor` default) —
+Updown.io doesn't expose a per-check timeout field on the listing
+endpoint, so we don't try to translate it.
+
+### Types that are skipped
+
+The only skip case is a check missing both `alias` and `url` — we need
+*something* to put in `Monitor.name` *and* a URL to probe. In practice
+every Updown check has at least one of the two.
+
+### Example
+
+```bash
+# Dry-run first — no DB writes; just prints the per-kind breakdown.
+./target/release/rampart-import updown updown-export.json --dry-run
+
+# Real import. Insert every mapped row.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import updown updown-export.json
+
+# Idempotent re-run: same source, skip rows whose name already exists.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import updown updown-export.json \
   --skip-existing
 ```
