@@ -32,6 +32,7 @@ pub fn router() -> Router<AppState> {
         .route("/{id}/heartbeats", get(heartbeats))
         .route("/{id}/heartbeats.csv", get(heartbeats_csv))
         .route("/{id}/reliability", get(reliability))
+        .route("/{id}/slo/error-budget", get(slo_error_budget))
         .route("/{id}/pause", post(pause))
         .route("/{id}/resume", post(resume))
         .route("/{id}/clone", post(clone_one))
@@ -517,9 +518,10 @@ fn default_hb_limit() -> i64 {
 }
 
 /// Reliability rollup — MTBF / MTTR + downtime event count over the
-/// trailing 30 days. The window is fixed (not query-tunable) so the
-/// dashboard widget always renders the same period; if we later want
-/// 7/30/90d toggles we can add a `?window_days=` knob.
+/// trailing `window_days` (7 / 30 / 90). Defaults to 30 when the
+/// `?window_days=` query param is omitted so older clients (and the
+/// shipped widget before the toggle landed) keep their current
+/// behaviour.
 #[derive(Debug, Serialize)]
 pub struct ReliabilityDto {
     pub window_days: i64,
@@ -528,21 +530,57 @@ pub struct ReliabilityDto {
     pub downtime_events: i64,
 }
 
-const RELIABILITY_WINDOW_DAYS: i64 = 30;
+const RELIABILITY_WINDOW_DAYS_DEFAULT: i64 = 30;
+/// Whitelisted window sizes. Anything else returns 400. We keep this a
+/// tight set because each option is a deliberate dashboard preset and
+/// because broader / unbounded values would let a caller force a
+/// full-history walk on monitors with years of heartbeats.
+const RELIABILITY_WINDOW_DAYS_ALLOWED: &[i64] = &[7, 30, 90];
+
+#[derive(Debug, Deserialize)]
+pub struct ReliabilityQuery {
+    /// Trailing window in days. Allowed: 7, 30, 90. Defaults to 30.
+    pub window_days: Option<i64>,
+}
 
 async fn reliability(
     State(state): State<AppState>,
     Path(id): Path<String>,
+    Query(q): Query<ReliabilityQuery>,
 ) -> Result<Json<ReliabilityDto>, ApiError> {
     let monitor_id = parse_monitor_id(&id)?;
-    let window_secs = RELIABILITY_WINDOW_DAYS * 86_400;
+    let window_days = q.window_days.unwrap_or(RELIABILITY_WINDOW_DAYS_DEFAULT);
+    if !RELIABILITY_WINDOW_DAYS_ALLOWED.contains(&window_days) {
+        return Err(ApiError::BadRequest(
+            "window_days must be one of 7, 30, 90".into(),
+        ));
+    }
+    let window_secs = window_days * 86_400;
     let r = rampart_db::heartbeats::mtbf_mttr(state.pool(), monitor_id, window_secs).await?;
     Ok(Json(ReliabilityDto {
-        window_days: RELIABILITY_WINDOW_DAYS,
+        window_days,
         mtbf_secs: r.mtbf_secs,
         mttr_secs: r.mttr_secs,
         downtime_events: r.downtime_events,
     }))
+}
+
+/// SLO error-budget for the monitor's configured window. Returns 404
+/// when either `slo_target_pct` or `slo_window_days` is unset — the
+/// frontend reads the monitor row first to decide whether to render
+/// the fuel gauge, so an unconfigured monitor never reaches this
+/// endpoint in normal use.
+async fn slo_error_budget(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<rampart_db::heartbeats::ErrorBudget>, ApiError> {
+    let monitor_id = parse_monitor_id(&id)?;
+    let monitor = rampart_db::monitors::get(state.pool(), monitor_id).await?;
+    let target = monitor.slo_target_pct.ok_or(ApiError::NotFound)?;
+    let window_days = monitor.slo_window_days.ok_or(ApiError::NotFound)?;
+    let budget =
+        rampart_db::heartbeats::error_budget(state.pool(), monitor_id, window_days, target).await?;
+    Ok(Json(budget))
 }
 
 async fn heartbeats(
