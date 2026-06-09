@@ -58,14 +58,50 @@ const VIEW_LABEL = {
   'login':         'Login',
 };
 
+// Whether the current hash is the "bare" entry (empty or #/) — the only
+// state where a custom-domain host should short-circuit to its status page.
+// Any explicit in-app route (#/login, #/monitor, #/s/:slug, …) is left alone
+// so deep links and the dashboard keep working on a custom domain too.
+function isBareHash() {
+  const h = window.location.hash;
+  return h === '' || h === '#' || h === '#/';
+}
+
 export default function App() {
   const [route,   setRoute]   = useState(() => parseRoute(window.location.hash));
   const [authState, setAuthState] = useState({ loading: true, user: null, needsSetup: false });
+  // Host-header routing probe. `pending` while we ask the by-domain endpoint
+  // whether this hostname maps to a published status page; `host` is set only
+  // once a page actually resolves, at which point we render the public view in
+  // place of the dashboard shell. Any error (incl. 404) clears `pending` and
+  // falls through to the normal dashboard/login flow.
+  const [domainProbe, setDomainProbe] = useState({ pending: isBareHash(), host: null });
 
   useEffect(() => {
     const onChange = () => setRoute(parseRoute(window.location.hash));
     window.addEventListener('hashchange', onChange);
     return () => window.removeEventListener('hashchange', onChange);
+  }, []);
+
+  // One-shot host-header probe on boot: if the visitor landed on the bare
+  // hash, ask whether this hostname is a status-page custom domain. We only
+  // short-circuit when it resolves; a 404 / network error falls through
+  // silently so localhost and the normal dashboard are never disrupted.
+  useEffect(() => {
+    let cancelled = false;
+    if (!isBareHash()) { setDomainProbe({ pending: false, host: null }); return undefined; }
+    (async () => {
+      try {
+        const host = window.location.hostname;
+        const page = await api.statusPages.byDomain(host);
+        if (cancelled) return;
+        if (page) setDomainProbe({ pending: false, host });
+        else      setDomainProbe({ pending: false, host: null });
+      } catch {
+        if (!cancelled) setDomainProbe({ pending: false, host: null });
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   // One-shot auth check on mount. Re-run when the route changes back to
@@ -88,6 +124,25 @@ export default function App() {
     })();
     return () => { cancelled = true; };
   }, [route.view]);
+
+  // Host-header routing. While the boot probe is in flight (bare hash only),
+  // hold the render so we don't flash the dashboard/login before learning this
+  // host is a status-page custom domain. Once resolved, render the public view
+  // directly — bypassing the auth gate exactly like the #/s/:slug path.
+  if (domainProbe.pending) {
+    return <ViewFallback />;
+  }
+  if (domainProbe.host && isBareHash()) {
+    return (
+      <>
+        <Suspense fallback={<ViewFallback />}>
+          <StatusPageView byDomainHost={domainProbe.host} />
+        </Suspense>
+        <FloatingThemeToggle />
+        <FloatingLocalePicker />
+      </>
+    );
+  }
 
   // Gate: if not logged in (and not needing setup) and the user isn't already on
   // the login route, redirect there. We let /#/login render freely either way.
