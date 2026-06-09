@@ -6,10 +6,22 @@
 //! { "expect": "ready" }   // substring required in the first text frame
 //! ```
 //!
-//! `monitor.url` carries the `ws://host:port/path` or `wss://...` target.
-//! `monitor.timeout_seconds` caps the whole probe (connect + handshake +
-//! optional read). The probe explicitly closes the connection on the way
-//! out so the server doesn't see a half-open socket.
+//! `monitor.url` carries the `ws://host:port/path` or `wss://host:port/path`
+//! target. `wss://` URIs negotiate TLS through `tokio-tungstenite`'s
+//! built-in `MaybeTlsStream`: the workspace enables the
+//! `rustls-tls-webpki-roots` feature, so the connector switches on URL
+//! scheme — `ws://` stays plain TCP, `wss://` wraps the socket in a
+//! rustls `TlsStream` seeded with the `webpki-roots` trust anchors. The
+//! crypto provider is the workspace-shared `ring` `CryptoProvider`
+//! installed at startup in `rampart_api::main` via
+//! `rustls::crypto::ring::default_provider().install_default()`, which
+//! keeps the entire workspace on a single C-free crypto stack (see
+//! docs/DEPENDENCIES.md). No per-probe `Connector` wiring is needed.
+//!
+//! `monitor.timeout_seconds` caps the whole probe (connect + TLS
+//! handshake + WebSocket handshake + optional read). The probe
+//! explicitly closes the connection on the way out so the server
+//! doesn't see a half-open socket.
 
 use crate::{ms_i32, Probe};
 use async_trait::async_trait;
@@ -129,5 +141,38 @@ fn down(monitor: &Monitor, ts: OffsetDateTime, started: Instant, msg: &str) -> H
         msg: Some(msg.into()),
         retries: 0,
         important: false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+
+    /// Sanity check that `wss://` URIs parse through the same
+    /// `IntoClientRequest` path that `tokio_tungstenite::connect_async`
+    /// uses internally. If the workspace ever drops the
+    /// `rustls-tls-webpki-roots` feature, the *runtime* probe would
+    /// fail with `TlsFeatureNotEnabled` — this test only proves URL
+    /// parsing + scheme acceptance, no network I/O.
+    #[test]
+    fn wss_url_parses_as_client_request() {
+        let req = "wss://echo.websocket.org/"
+            .into_client_request()
+            .expect("wss:// URL should parse into a client request");
+        assert_eq!(req.uri().scheme_str(), Some("wss"));
+        assert_eq!(req.uri().host(), Some("echo.websocket.org"));
+    }
+
+    /// Mirror of the above for the plaintext scheme, so a future
+    /// refactor that accidentally narrows the accepted scheme set
+    /// trips a test rather than a production probe.
+    #[test]
+    fn ws_url_parses_as_client_request() {
+        let req = "ws://example.com:8080/socket"
+            .into_client_request()
+            .expect("ws:// URL should parse into a client request");
+        assert_eq!(req.uri().scheme_str(), Some("ws"));
+        assert_eq!(req.uri().host(), Some("example.com"));
+        assert_eq!(req.uri().port_u16(), Some(8080));
     }
 }
