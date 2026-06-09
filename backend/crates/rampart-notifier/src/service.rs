@@ -21,10 +21,8 @@ use crate::{channels, template, Event, EventKind};
 use rampart_core::ids::NotificationId;
 use rampart_core::ChannelKind;
 use rampart_db::DbPool;
-use std::collections::HashMap;
-use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::mpsc;
 use tracing::{info, warn};
 
 const CHANNEL_BUFFER: usize = 1024;
@@ -34,29 +32,18 @@ const CHANNEL_BUFFER: usize = 1024;
 /// flushes on a given wake; this is just the resolution of the timer.
 const DIGEST_FLUSH_TICK: Duration = Duration::from_secs(1);
 
-/// One channel's coalescing buffer. Holds the channel's dispatch metadata
-/// (refreshed on every enqueue so config edits take effect) plus the
-/// events accumulated since the last flush and the instant we started
-/// accumulating them.
-///
-/// NOTE: this buffer lives entirely in process memory — it is NOT
-/// persisted. A restart drops whatever is currently buffered. That's an
-/// accepted trade-off: the coalescing window is measured in seconds, so
-/// at worst a crash loses a few seconds of alerts that would have been
-/// merged into one message anyway.
+/// Channel dispatch metadata + the events drained for one flush. Built at
+/// flush time from the persisted `digest_buffer` rows (the source of
+/// truth) joined with the channel's current config, so it always reflects
+/// the latest config edit and survives a restart.
 struct ChannelDigest {
     kind: ChannelKind,
     config: serde_json::Value,
     name: String,
     template_id: Option<rampart_core::ids::NotificationTemplateId>,
     window_secs: i32,
-    /// When the first event in the current batch landed — flush fires once
-    /// `window_secs` have elapsed since this instant.
-    first_enqueued: tokio::time::Instant,
     events: Vec<Event>,
 }
-
-type DigestMap = Arc<Mutex<HashMap<NotificationId, ChannelDigest>>>;
 
 #[derive(Clone)]
 pub struct NotifierHandle(mpsc::Sender<Event>);
@@ -86,30 +73,26 @@ impl NotifierService {
     pub async fn run(mut self) {
         info!("notifier service started");
 
-        // Per-channel coalescing buffers, shared between the dispatch path
-        // (which enqueues) and the flush task (which drains). In-memory,
-        // lost on restart — see ChannelDigest docs.
-        let digests: DigestMap = Arc::new(Mutex::new(HashMap::new()));
-
         // Background flush task: every tick, drain any channel whose window
-        // has elapsed and send its combined message.
+        // has elapsed and send its combined message. The buffer is backed
+        // by the `digest_buffer` table, so on startup this task naturally
+        // picks up any rows left by a previous process — pending coalesced
+        // alerts survive a restart.
         let flush_pool = self.pool.clone();
-        let flush_digests = digests.clone();
         tokio::spawn(async move {
             let mut tick = tokio::time::interval(DIGEST_FLUSH_TICK);
             loop {
                 tick.tick().await;
-                flush_due_digests(&flush_pool, &flush_digests).await;
+                flush_due_digests(&flush_pool).await;
             }
         });
 
         while let Some(event) = self.rx.recv().await {
             let pool = self.pool.clone();
-            let digests = digests.clone();
             // Dispatch on a child task so a slow channel can't block the
             // next event. The child handles its own logging.
             tokio::spawn(async move {
-                if let Err(e) = dispatch_one(&pool, event, &digests).await {
+                if let Err(e) = dispatch_one(&pool, event).await {
                     warn!(error = %e, "notifier dispatch failed");
                 }
             });
@@ -118,7 +101,7 @@ impl NotifierService {
     }
 }
 
-async fn dispatch_one(pool: &DbPool, event: Event, digests: &DigestMap) -> anyhow::Result<()> {
+async fn dispatch_one(pool: &DbPool, event: Event) -> anyhow::Result<()> {
     // Dependency suppression. If this monitor depends on any other
     // monitor whose current_status is Down/Pending, the failure here is
     // almost certainly downstream of *that* root cause. Suppress the
@@ -173,7 +156,7 @@ async fn dispatch_one(pool: &DbPool, event: Event, digests: &DigestMap) -> anyho
         // always go out immediately — a user clicking "send test" expects
         // an instant message, not one merged into a future digest.
         if row.digest_window_secs > 0 && !matches!(event.kind, EventKind::Test) {
-            enqueue_digest(digests, &row, event.clone()).await;
+            enqueue_digest(pool, row.id, &event).await;
             info!(
                 channel = %row.name, kind = ?row.kind,
                 window = row.digest_window_secs,
@@ -244,79 +227,123 @@ async fn dispatch_one(pool: &DbPool, event: Event, digests: &DigestMap) -> anyho
     Ok(())
 }
 
-/// Append `event` to a channel's in-memory digest buffer, creating the
-/// buffer (and stamping its window start) on the first event. The channel
-/// dispatch metadata is refreshed every enqueue so a config edit mid-window
-/// takes effect on the next flush.
-async fn enqueue_digest(
-    digests: &DigestMap,
-    row: &rampart_db::notifications::Notification,
-    event: Event,
-) {
-    let mut map = digests.lock().await;
-    let entry = map.entry(row.id).or_insert_with(|| ChannelDigest {
-        kind: row.kind,
-        config: row.config.clone(),
-        name: row.name.clone(),
-        template_id: row.template_id,
-        window_secs: row.digest_window_secs,
-        first_enqueued: tokio::time::Instant::now(),
-        events: Vec::new(),
-    });
-    // Refresh metadata in case the channel was edited after the buffer was
-    // opened (config / template / window). Keep first_enqueued so the
-    // window still fires on schedule rather than sliding forever.
-    entry.kind = row.kind;
-    entry.config = row.config.clone();
-    entry.name = row.name.clone();
-    entry.template_id = row.template_id;
-    entry.window_secs = row.digest_window_secs;
-    entry.events.push(event);
+/// Persist `event` to the channel's durable digest buffer. The DB is the
+/// source of truth — once this returns the event survives a restart and
+/// will be flushed by the background task once the channel's window
+/// elapses. A serialization failure is logged and dropped (the event
+/// can't be persisted, and we'd rather not stall the dispatch path).
+async fn enqueue_digest(pool: &DbPool, id: NotificationId, event: &Event) {
+    let json = match serde_json::to_value(event) {
+        Ok(v) => v,
+        Err(e) => {
+            warn!(channel = %id.0, error = %e, "digest event serialize failed; dropping");
+            return;
+        }
+    };
+    if let Err(e) = rampart_db::digest_buffer::enqueue(pool, id, &json).await {
+        warn!(channel = %id.0, error = %e, "digest enqueue failed; dropping");
+    }
 }
 
 /// Drain every channel whose digest window has elapsed and dispatch one
-/// combined message per channel. Channels still inside their window are
-/// left untouched. Called on the flush tick.
-async fn flush_due_digests(pool: &DbPool, digests: &DigestMap) {
-    // Pull out the due buffers under the lock, then release it before doing
-    // any network I/O so the dispatch path can keep enqueueing.
-    let due: Vec<(NotificationId, ChannelDigest)> = {
-        let mut map = digests.lock().await;
-        let now = tokio::time::Instant::now();
-        let due_ids: Vec<NotificationId> = map
-            .iter()
-            .filter(|(_, d)| {
-                !d.events.is_empty()
-                    && now.duration_since(d.first_enqueued).as_secs() >= d.window_secs as u64
-            })
-            .map(|(id, _)| *id)
-            .collect();
-        due_ids
-            .into_iter()
-            .filter_map(|id| map.remove(&id).map(|d| (id, d)))
-            .collect()
+/// combined message per channel. The set of due channels (those whose
+/// oldest buffered event has aged past their `digest_window_secs`) comes
+/// from the DB, so a restart resumes any rows left by a prior process.
+/// Channels still inside their window are left untouched. Called on the
+/// flush tick.
+async fn flush_due_digests(pool: &DbPool) {
+    let now = time::OffsetDateTime::now_utc();
+    let due = match rampart_db::digest_buffer::drain_due(pool, now).await {
+        Ok(d) => d,
+        Err(e) => {
+            warn!(error = %e, "digest drain_due failed");
+            return;
+        }
     };
 
-    for (id, digest) in due {
-        let count = digest.events.len();
-        let (subject, body) = render_digest(pool, &digest).await;
-        // The combined message represents the whole window; use the most
-        // recent event as the dispatch `event` so channels that read
-        // structured fields (e.g. Web Push title) see current state.
-        let repr = digest.events.last().expect("non-empty by filter above");
-        match channels::dispatch(digest.kind, &digest.config, &subject, &body, repr, pool, id).await
-        {
-            Ok(()) => {
-                info!(channel = %digest.name, kind = ?digest.kind, count, "digest sent");
-                if let Err(e) = rampart_db::notifications::mark_fired(pool, id).await {
-                    warn!(channel = %digest.name, error = %e, "mark_fired failed");
-                }
-            }
+    for channel in due {
+        if let Err(e) = flush_channel(pool, channel.notification_id).await {
+            warn!(channel = %channel.notification_id.0, error = %e, "digest flush failed");
+        }
+    }
+}
+
+/// Flush one due channel: load its buffered rows + current config, render
+/// the combined message, dispatch, then delete exactly the rows that were
+/// drained (events enqueued after this snapshot roll into the next window).
+async fn flush_channel(pool: &DbPool, id: NotificationId) -> anyhow::Result<()> {
+    let rows = rampart_db::digest_buffer::take_for_channel(pool, id).await?;
+    if rows.is_empty() {
+        return Ok(());
+    }
+
+    // Deserialize the persisted events, tracking the row ids so we delete
+    // precisely what we drained. Rows that fail to deserialize are dropped
+    // (and removed) rather than wedging the channel forever.
+    let mut drained_ids = Vec::with_capacity(rows.len());
+    let mut events = Vec::with_capacity(rows.len());
+    for r in rows {
+        drained_ids.push(r.id);
+        match serde_json::from_value::<Event>(r.event_json) {
+            Ok(ev) => events.push(ev),
             Err(e) => {
-                warn!(channel = %digest.name, kind = ?digest.kind, error = %e, "digest send failed")
+                warn!(channel = %id.0, error = %e, "buffered event deserialize failed; dropping")
             }
         }
     }
+
+    // Look up the channel's current config (source of truth for kind /
+    // config / template / window — reflects any edit made mid-window). If
+    // the channel was deleted the FK cascade already cleared the buffer,
+    // so a NotFound here means there's nothing left to do.
+    let chan = match rampart_db::notifications::get(pool, id).await {
+        Ok(c) => c,
+        Err(rampart_db::DbError::NotFound) => {
+            rampart_db::digest_buffer::delete_by_ids(pool, &drained_ids).await?;
+            return Ok(());
+        }
+        Err(e) => return Err(e.into()),
+    };
+
+    if events.is_empty() {
+        // Everything failed to deserialize — just clear the dead rows.
+        rampart_db::digest_buffer::delete_by_ids(pool, &drained_ids).await?;
+        return Ok(());
+    }
+
+    let digest = ChannelDigest {
+        kind: chan.kind,
+        config: chan.config,
+        name: chan.name,
+        template_id: chan.template_id,
+        window_secs: chan.digest_window_secs,
+        events,
+    };
+
+    let count = digest.events.len();
+    let (subject, body) = render_digest(pool, &digest).await;
+    // The combined message represents the whole window; use the most
+    // recent event as the dispatch `event` so channels that read
+    // structured fields (e.g. Web Push title) see current state.
+    let repr = digest
+        .events
+        .last()
+        .expect("non-empty: events checked above");
+    match channels::dispatch(digest.kind, &digest.config, &subject, &body, repr, pool, id).await {
+        Ok(()) => {
+            info!(channel = %digest.name, kind = ?digest.kind, count, "digest sent");
+            if let Err(e) = rampart_db::notifications::mark_fired(pool, id).await {
+                warn!(channel = %digest.name, error = %e, "mark_fired failed");
+            }
+            // Only delete the drained rows once the send succeeded — a
+            // failed dispatch leaves them buffered for the next tick.
+            rampart_db::digest_buffer::delete_by_ids(pool, &drained_ids).await?;
+        }
+        Err(e) => {
+            warn!(channel = %digest.name, kind = ?digest.kind, error = %e, "digest send failed");
+        }
+    }
+    Ok(())
 }
 
 /// Render the combined subject + body for a channel's buffered events.
