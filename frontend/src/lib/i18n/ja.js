@@ -28,6 +28,21 @@ const ja = {
   'dashboard.loading':               '読み込み中…',
   'dashboard.loading_monitors':      'モニターを読み込み中…',
 
+  // ── dashboard: bulk-action toolbar (machine-draft) ───────────────
+  'dashboard.bulk.edit':             '編集',
+  'dashboard.bulk.edit_title':       '{n} 件のモニターを一括編集',
+  'dashboard.bulk.interval_label':   '間隔（秒）',
+  'dashboard.bulk.interval_ph':      '変更しない場合は空欄',
+  'dashboard.bulk.timeout_label':    'タイムアウト（秒）',
+  'dashboard.bulk.timeout_ph':       '変更しない場合は空欄',
+  'dashboard.bulk.add_tags_label':   'タグを追加',
+  'dashboard.bulk.remove_tags_label':'タグを削除',
+  'dashboard.bulk.no_tags':          '利用可能なタグがありません',
+  'dashboard.bulk.apply':            '適用',
+  'dashboard.bulk.cancel':           'キャンセル',
+  'dashboard.bulk.edit_empty':       '変更する間隔、タイムアウト、またはタグを指定してください。',
+  'dashboard.bulk.edit_failed':      '一括編集に失敗しました: {msg}',
+
   // ── common ───────────────────────────────────────────────────────
   'common.cancel':                   'キャンセル',
   'common.save':                     '保存',

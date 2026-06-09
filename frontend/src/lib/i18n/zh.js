@@ -29,6 +29,21 @@ const zh = {
   'dashboard.loading':               '加载中…',
   'dashboard.loading_monitors':      '正在加载监控项…',
 
+  // ── dashboard: bulk-action toolbar (machine-draft) ───────────────
+  'dashboard.bulk.edit':             '编辑',
+  'dashboard.bulk.edit_title':       '批量编辑 {n} 个监控项',
+  'dashboard.bulk.interval_label':   '间隔（秒）',
+  'dashboard.bulk.interval_ph':      '留空则保持不变',
+  'dashboard.bulk.timeout_label':    '超时（秒）',
+  'dashboard.bulk.timeout_ph':       '留空则保持不变',
+  'dashboard.bulk.add_tags_label':   '添加标签',
+  'dashboard.bulk.remove_tags_label':'移除标签',
+  'dashboard.bulk.no_tags':          '没有可用标签',
+  'dashboard.bulk.apply':            '应用',
+  'dashboard.bulk.cancel':           '取消',
+  'dashboard.bulk.edit_empty':       '请设置间隔、超时或选择要更改的标签。',
+  'dashboard.bulk.edit_failed':      '批量编辑失败：{msg}',
+
   // ── common ───────────────────────────────────────────────────────
   'common.cancel':                   '取消',
   'common.save':                     '保存',
