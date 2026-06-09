@@ -1,0 +1,32 @@
+{
+  "items": [
+    {
+      "name": "Acme HTTP",
+      "url": "https://api.example.com/health",
+      "monitor_type": "http_check",
+      "check_interval": 60,
+      "timeout_seconds": 15
+    },
+    {
+      "name": "Acme DB",
+      "url": "db.internal.example.com",
+      "monitor_type": "tcp_check",
+      "check_interval": 120,
+      "timeout_seconds": 10
+    },
+    {
+      "name": "Acme DNS",
+      "url": "example.com",
+      "monitor_type": "dns_check",
+      "check_interval": 300,
+      "timeout_seconds": 10
+    },
+    {
+      "name": "Acme Ping",
+      "url": "10.0.0.1",
+      "monitor_type": "ping_check",
+      "check_interval": 300,
+      "timeout_seconds": 10
+    }
+  ]
+}

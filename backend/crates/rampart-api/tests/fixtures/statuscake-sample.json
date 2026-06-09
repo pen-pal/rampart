@@ -1,0 +1,54 @@
+{
+  "data": [
+    {
+      "id": "100001",
+      "name": "Acme API HTTP",
+      "website_url": "https://api.example.com/health",
+      "test_type": "HTTP",
+      "check_rate": 60,
+      "timeout": 15,
+      "contact_groups": [],
+      "tags": ["prod"]
+    },
+    {
+      "id": "100002",
+      "name": "Acme ping",
+      "website_url": "10.0.0.1",
+      "test_type": "PING",
+      "check_rate": 300,
+      "timeout": 10,
+      "contact_groups": [],
+      "tags": []
+    },
+    {
+      "id": "100003",
+      "name": "Acme DB tcp",
+      "website_url": "db.internal.example.com",
+      "test_type": "TCP",
+      "check_rate": 120,
+      "timeout": 12,
+      "contact_groups": [],
+      "tags": ["db"]
+    },
+    {
+      "id": "100004",
+      "name": "Acme DNS",
+      "website_url": "example.com",
+      "test_type": "DNS",
+      "check_rate": 300,
+      "timeout": 10,
+      "contact_groups": [],
+      "tags": []
+    },
+    {
+      "id": "100005",
+      "name": "Acme SMTP relay",
+      "website_url": "smtp.internal.example.com",
+      "test_type": "SMTP",
+      "check_rate": 600,
+      "timeout": 20,
+      "contact_groups": [],
+      "tags": ["mail"]
+    }
+  ]
+}

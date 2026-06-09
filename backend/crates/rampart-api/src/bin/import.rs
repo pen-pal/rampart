@@ -7,9 +7,10 @@
 //! ```
 //!
 //! Supported formats today: `site24x7`, `pingdom`, `datadog`,
-//! `uptimerobot`, `betterstack`, `healthchecks`, `cronitor`. Adding a
-//! new format means dropping a sibling module under
-//! `rampart_api::importers::` and a match arm in `run()` below.
+//! `uptimerobot`, `betterstack`, `healthchecks`, `cronitor`,
+//! `statuscake`, `rapidspike`, `updown`. Adding a new format means
+//! dropping a sibling module under `rampart_api::importers::` and a
+//! match arm in `run()` below.
 //!
 //! Argument parsing is hand-rolled (no `clap`) so this bin doesn't
 //! drag a new dep into the workspace — matches the existing
@@ -20,7 +21,8 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use rampart_api::importers::{
-    betterstack, cronitor, datadog, healthchecks, pingdom, site24x7, uptimerobot, ImportPlan,
+    betterstack, cronitor, datadog, healthchecks, pingdom, rapidspike, site24x7, statuscake,
+    updown, uptimerobot, ImportPlan,
 };
 use rampart_db::monitors;
 use tracing::{error, info, warn};
@@ -37,6 +39,9 @@ formats:
   betterstack   BetterStack   `GET /api/v2/monitors` JSON dump
   healthchecks  Healthchecks  `GET /api/v3/checks/` JSON dump
   cronitor      Cronitor      `GET /api/monitors` JSON dump
+  statuscake    StatusCake    `GET /v1/uptime` JSON dump
+  rapidspike    RapidSpike    `GET /v1/status-monitors` JSON dump
+  updown        Updown.io     `GET /api/checks` JSON dump
 
 flags:
   --dry-run         parse + map; print summary; do NOT insert
@@ -122,9 +127,12 @@ async fn run(args: Args) -> anyhow::Result<ExitCode> {
         "betterstack" => betterstack::parse_and_map(&raw)?,
         "healthchecks" => healthchecks::parse_and_map(&raw)?,
         "cronitor" => cronitor::parse_and_map(&raw)?,
+        "statuscake" => statuscake::parse_and_map(&raw)?,
+        "rapidspike" => rapidspike::parse_and_map(&raw)?,
+        "updown" => updown::parse_and_map(&raw)?,
         other => {
             anyhow::bail!(
-                "unsupported format `{other}` — supported: site24x7, pingdom, datadog, uptimerobot, betterstack, healthchecks, cronitor. {USAGE}",
+                "unsupported format `{other}` — supported: site24x7, pingdom, datadog, uptimerobot, betterstack, healthchecks, cronitor, statuscake, rapidspike, updown. {USAGE}",
                 USAGE = "Use --help for the full list."
             );
         }
