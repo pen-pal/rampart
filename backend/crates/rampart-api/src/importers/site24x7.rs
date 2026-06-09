@@ -34,24 +34,13 @@
 
 use serde::Deserialize;
 use serde_json::Value;
-use thiserror::Error;
 use tracing::warn;
 
 use rampart_core::monitor::NewMonitor;
 use rampart_core::MonitorKind;
 
+pub use super::ImportError;
 use super::{ImportPlan, MappedMonitor, SkippedMonitor};
-
-#[derive(Debug, Error)]
-pub enum ImportError {
-    #[error("failed to parse site24x7 export: {0}")]
-    Parse(#[from] serde_json::Error),
-
-    #[error(
-        "no `monitors` array found at the top level of the export — expected `{{\"monitors\": [...]}}`"
-    )]
-    NoMonitors,
-}
 
 /// The minimal shape of the top-level Site24x7 export. Real exports
 /// carry dozens more fields per monitor; we deserialise into

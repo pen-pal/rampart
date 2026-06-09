@@ -1,0 +1,54 @@
+{
+  "checks": [
+    {
+      "id": 1001,
+      "name": "Acme HTTPS health",
+      "type": "http",
+      "hostname": "api.example.com",
+      "resolution": 1,
+      "ipv6": false,
+      "verify_certificate": true,
+      "encryption": true,
+      "port": 443,
+      "url": "/health",
+      "http_method": "GET"
+    },
+    {
+      "id": 1002,
+      "name": "Acme HTTPS w/ keyword",
+      "type": "http",
+      "hostname": "app.example.com",
+      "resolution": 5,
+      "ipv6": false,
+      "verify_certificate": false,
+      "encryption": true,
+      "port": 443,
+      "url": "/",
+      "http_method": "GET",
+      "should_contain": "Welcome to Acme"
+    },
+    {
+      "id": 1003,
+      "name": "Acme primary DB port",
+      "type": "tcp",
+      "hostname": "db.internal.example.com",
+      "resolution": 5,
+      "ipv6": false,
+      "port": 5432
+    },
+    {
+      "id": 1004,
+      "name": "Edge router ping",
+      "type": "ping",
+      "hostname": "10.0.0.1",
+      "resolution": 1,
+      "ipv6": false
+    },
+    {
+      "id": 1005,
+      "name": "Marketing checkout flow",
+      "type": "transaction",
+      "resolution": 5
+    }
+  ]
+}

@@ -8,10 +8,28 @@
 //! Vec<MappedMonitor>` so the parser + mapping is unit-testable without
 //! standing up a DB.
 
+pub mod datadog;
+pub mod pingdom;
 pub mod site24x7;
+pub mod uptimerobot;
 
 use rampart_core::monitor::NewMonitor;
 use rampart_core::MonitorKind;
+use thiserror::Error;
+
+/// Shared error type for every importer's `parse_and_map` entry point.
+/// Lives here (not in any single importer module) so a second / third /
+/// Nth format can return the same variants without restating them. The
+/// CLI in `src/bin/import.rs` only ever sees this enum, so the dispatch
+/// arm doesn't need to know which importer produced the error.
+#[derive(Debug, Error)]
+pub enum ImportError {
+    #[error("failed to parse export: {0}")]
+    Parse(#[from] serde_json::Error),
+
+    #[error("export had no monitors array at the top level — pointed at the wrong file?")]
+    NoMonitors,
+}
 
 /// One Site24x7 (or other source) monitor that successfully mapped
 /// onto a Rampart `NewMonitor`. The source-side `display_name` is
