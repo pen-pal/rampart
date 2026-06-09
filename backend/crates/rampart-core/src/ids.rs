@@ -78,3 +78,4 @@ id!(IncidentUpdateId);
 id!(ApiKeyId);
 id!(ProxyId);
 id!(BadgeId);
+id!(IngestTokenId);

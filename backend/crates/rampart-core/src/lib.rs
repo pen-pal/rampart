@@ -13,6 +13,7 @@ pub mod error;
 pub mod heartbeat;
 pub mod ids;
 pub mod incident;
+pub mod ingest_token;
 pub mod maintenance;
 pub mod monitor;
 pub mod monitor_group;
@@ -28,11 +29,12 @@ pub use api_key::{ApiKey, IssuedApiKey, NewApiKey};
 pub use error::{CoreError, Result};
 pub use heartbeat::Heartbeat;
 pub use ids::{
-    ApiKeyId, BadgeId, IncidentId, IncidentUpdateId, MaintenanceId, MonitorGroupId, MonitorId,
-    NotificationId, NotificationTemplateId, ProxyId, SessionId, StatusPageComponentId,
+    ApiKeyId, BadgeId, IncidentId, IncidentUpdateId, IngestTokenId, MaintenanceId, MonitorGroupId,
+    MonitorId, NotificationId, NotificationTemplateId, ProxyId, SessionId, StatusPageComponentId,
     StatusPageGroupId, StatusPageId, StatusPageSubscriberId, TagId, UserId,
 };
 pub use incident::{Incident, IncidentStyle, IncidentUpdate};
+pub use ingest_token::{IngestToken, NewIngestToken};
 pub use maintenance::{MaintenanceWindow, NewMaintenanceWindow};
 pub use monitor::{Monitor, MonitorKind, MonitorStatus, NewMonitor, UpdateMonitor};
 pub use monitor_group::{MonitorGroup, NewMonitorGroup, UpdateMonitorGroup};
