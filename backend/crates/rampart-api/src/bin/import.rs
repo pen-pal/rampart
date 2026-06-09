@@ -9,7 +9,8 @@
 //! Supported formats today: `site24x7`, `pingdom`, `datadog`,
 //! `uptimerobot`, `betterstack`, `healthchecks`, `cronitor`,
 //! `statuscake`, `rapidspike`, `updown`, `cachet`, `gatus`,
-//! `uptimecom`. Adding a new format means dropping a sibling module
+//! `uptimecom`, `hetrixtools`, `freshping`, `checkly`. Adding a new
+//! format means dropping a sibling module
 //! under `rampart_api::importers::` and a match arm in `run()` below.
 //!
 //! Argument parsing is hand-rolled (no `clap`) so this bin doesn't
@@ -21,8 +22,8 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use rampart_api::importers::{
-    betterstack, cachet, cronitor, datadog, gatus, healthchecks, pingdom, rapidspike, site24x7,
-    statuscake, updown, uptimecom, uptimerobot, ImportPlan,
+    betterstack, cachet, checkly, cronitor, datadog, freshping, gatus, healthchecks, hetrixtools,
+    pingdom, rapidspike, site24x7, statuscake, updown, uptimecom, uptimerobot, ImportPlan,
 };
 use rampart_db::monitors;
 use tracing::{error, info, warn};
@@ -45,6 +46,9 @@ formats:
   cachet        Cachet        `GET /api/v1/components` JSON dump
   gatus         Gatus         `GET /api/v1/endpoints/statuses` JSON dump
   uptimecom     Uptime.com    `GET /api/v1/checks/` JSON dump
+  hetrixtools   HetrixTools   `GET /v1/uptime-monitors` JSON dump
+  freshping     Freshping     check export JSON dump
+  checkly       Checkly       `GET /v1/checks` JSON dump
 
 flags:
   --dry-run         parse + map; print summary; do NOT insert
@@ -136,9 +140,12 @@ async fn run(args: Args) -> anyhow::Result<ExitCode> {
         "cachet" => cachet::parse_and_map(&raw)?,
         "gatus" => gatus::parse_and_map(&raw)?,
         "uptimecom" => uptimecom::parse_and_map(&raw)?,
+        "hetrixtools" => hetrixtools::parse_and_map(&raw)?,
+        "freshping" => freshping::parse_and_map(&raw)?,
+        "checkly" => checkly::parse_and_map(&raw)?,
         other => {
             anyhow::bail!(
-                "unsupported format `{other}` — supported: site24x7, pingdom, datadog, uptimerobot, betterstack, healthchecks, cronitor, statuscake, rapidspike, updown, cachet, gatus, uptimecom. {USAGE}",
+                "unsupported format `{other}` — supported: site24x7, pingdom, datadog, uptimerobot, betterstack, healthchecks, cronitor, statuscake, rapidspike, updown, cachet, gatus, uptimecom, hetrixtools, freshping, checkly. {USAGE}",
                 USAGE = "Use --help for the full list."
             );
         }
