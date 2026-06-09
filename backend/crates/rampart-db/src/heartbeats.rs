@@ -701,6 +701,114 @@ pub async fn error_budget(
     })
 }
 
+/// One day's slice of the SLO error-budget burn-down. The frontend
+/// plots `budget_remaining_pct` over `day` to show the budget depleting
+/// across the window (a descending line from 100% toward 0%).
+///
+/// * `day` — the UTC calendar day this point summarises.
+/// * `cumulative_down_secs` — total down-segment seconds from the start
+///   of the window through the end of this day.
+/// * `budget_remaining_secs` — `max(0, allowed_total - cumulative)`.
+/// * `budget_remaining_pct` — `(remaining / allowed) * 100`, clamped to
+///   `>= 0`; `100.0` when `allowed` is zero (a 100% SLO has no budget but
+///   must still serialise as a finite number).
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct BurndownPoint {
+    pub day: time::Date,
+    pub cumulative_down_secs: i64,
+    pub budget_remaining_secs: i64,
+    pub budget_remaining_pct: f64,
+}
+
+/// Day-by-day SLO error-budget burn-down over the trailing `window_days`
+/// against `target_pct`. Returns one [`BurndownPoint`] per day in the
+/// window, oldest first.
+///
+/// Down-seconds per day are derived the same way as [`error_budget`]:
+/// walk the heartbeat history in ascending-ts order and attribute each
+/// `(prev, curr)` segment's duration to `prev`'s day when `prev` is
+/// `down`. The per-day buckets are then accumulated so each point's
+/// `cumulative_down_secs` is the running total through that day, and the
+/// remaining budget (`allowed_total - cumulative`) is reported alongside.
+///
+/// `allowed_total = (100 - target_pct) / 100 * window_days * 86_400` — the
+/// same allowance [`error_budget`] reports as `allowed_downtime_secs`, so
+/// the final burn-down point lines up with the point-in-time fuel gauge.
+pub async fn error_budget_burndown(
+    pool: &DbPool,
+    monitor: MonitorId,
+    window_days: i32,
+    target_pct: f64,
+) -> DbResult<Vec<BurndownPoint>> {
+    let window_seconds = (window_days as i64) * 86_400;
+    let allowed_raw = ((100.0 - target_pct) / 100.0) * window_seconds as f64;
+    let allowed = allowed_raw.round().max(0.0) as i64;
+
+    let since = OffsetDateTime::now_utc() - time::Duration::seconds(window_seconds);
+    let rows = sqlx::query!(
+        r#"
+        SELECT
+            ts,
+            status AS "status: MonitorStatus"
+        FROM heartbeats
+        WHERE monitor_id = $1 AND ts >= $2
+        ORDER BY ts ASC
+        "#,
+        monitor.0,
+        since,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    // Bucket down-segment seconds by the UTC calendar day the segment
+    // started in. A segment is `prev.ts → curr.ts` attributed to
+    // `prev.status`; only the `down` bucket matters here.
+    use std::collections::BTreeMap;
+    let mut per_day: BTreeMap<time::Date, i64> = BTreeMap::new();
+    for win in rows.windows(2) {
+        let prev = &win[0];
+        let curr = &win[1];
+        if matches!(prev.status, MonitorStatus::Down) {
+            let dur = (curr.ts - prev.ts).whole_seconds().max(0);
+            *per_day
+                .entry(prev.ts.to_offset(time::UtcOffset::UTC).date())
+                .or_insert(0) += dur;
+        }
+    }
+
+    // Emit one dense point per day across the window, oldest first, with a
+    // running cumulative total. `since.date()` is the oldest day; today is
+    // the last point. The number of days spanned is `(today - first_day)`
+    // inclusive of both ends.
+    let first_day = since.date();
+    let today = OffsetDateTime::now_utc().date();
+    let span = (today - first_day).whole_days().max(0);
+    let mut out: Vec<BurndownPoint> = Vec::with_capacity(span as usize + 1);
+    let mut cumulative: i64 = 0;
+    let mut day = first_day;
+    for _ in 0..=span {
+        cumulative += per_day.get(&day).copied().unwrap_or(0);
+        let remaining = (allowed - cumulative).max(0);
+        let remaining_pct = if allowed > 0 {
+            ((remaining as f64 / allowed as f64) * 100.0).max(0.0)
+        } else {
+            100.0
+        };
+        out.push(BurndownPoint {
+            day,
+            cumulative_down_secs: cumulative,
+            budget_remaining_secs: remaining,
+            budget_remaining_pct: remaining_pct,
+        });
+        match day.next_day() {
+            Some(d) => day = d,
+            None => break,
+        }
+    }
+
+    Ok(out)
+}
+
 /// Last `per_monitor` heartbeats for every monitor, oldest-first within each
 /// monitor. One query for the dashboard history bars.
 pub async fn recent_per_monitor(pool: &DbPool, per_monitor: i64) -> DbResult<Vec<Heartbeat>> {

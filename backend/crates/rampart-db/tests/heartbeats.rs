@@ -190,7 +190,7 @@ mod tests {
 
     use super::{hb, http_monitor};
     use rampart_core::MonitorStatus;
-    use rampart_db::heartbeats::{error_budget, insert_many, mtbf_mttr};
+    use rampart_db::heartbeats::{error_budget, error_budget_burndown, insert_many, mtbf_mttr};
     use rampart_db::monitors;
     use sqlx::PgPool;
 
@@ -380,6 +380,82 @@ mod tests {
             (b.remaining_pct - 100.0).abs() < 1e-9,
             "100% target with no downtime → 100% remaining, got {}",
             b.remaining_pct
+        );
+    }
+
+    // ── SLO error-budget burn-down tests ──────────────────────────────────
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn burndown_empty_history_full_budget_every_day(pool: PgPool) {
+        // No heartbeats → budget never depletes: every point sits at full
+        // budget (100% remaining, 0 cumulative down). One point per day in
+        // the window, oldest first.
+        let m = monitors::create(&pool, http_monitor("bd-empty"))
+            .await
+            .unwrap();
+        let pts = error_budget_burndown(&pool, m.id, 30, 99.9).await.unwrap();
+        // 30-day window spanning [today-30d, today] inclusive → 31 points.
+        assert_eq!(pts.len(), 31, "one dense point per day across the window");
+        // Oldest first: days strictly increasing.
+        for w in pts.windows(2) {
+            assert!(w[0].day < w[1].day, "points must be oldest-first by day");
+        }
+        for p in &pts {
+            assert_eq!(p.cumulative_down_secs, 0);
+            assert_eq!(p.budget_remaining_secs, 2_592);
+            assert!(
+                (p.budget_remaining_pct - 100.0).abs() < 1e-9,
+                "no downtime → 100% remaining every day, got {}",
+                p.budget_remaining_pct
+            );
+        }
+    }
+
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn burndown_down_segment_depletes_monotonically(pool: PgPool) {
+        // A single down segment depletes budget; from that point on the
+        // remaining budget never recovers. Remaining-% is monotonically
+        // non-increasing across the whole series, and the final cumulative
+        // matches `error_budget`'s used-seconds for the same window.
+        let m = monitors::create(&pool, http_monitor("bd-down"))
+            .await
+            .unwrap();
+        let hbs = vec![
+            hb(m.id, MonitorStatus::Up, 50, 1000),
+            hb(m.id, MonitorStatus::Down, 0, 800), // 800→600 = 200s down
+            hb(m.id, MonitorStatus::Up, 50, 600),
+            hb(m.id, MonitorStatus::Up, 50, 0),
+        ];
+        insert_many(&pool, &hbs).await.unwrap();
+
+        let pts = error_budget_burndown(&pool, m.id, 30, 99.0).await.unwrap();
+        assert!(!pts.is_empty());
+
+        // Monotonically non-increasing remaining-% and non-decreasing
+        // cumulative down-seconds.
+        for w in pts.windows(2) {
+            assert!(
+                w[1].budget_remaining_pct <= w[0].budget_remaining_pct + 1e-9,
+                "remaining-% must never increase: {} → {}",
+                w[0].budget_remaining_pct,
+                w[1].budget_remaining_pct
+            );
+            assert!(
+                w[1].cumulative_down_secs >= w[0].cumulative_down_secs,
+                "cumulative down-seconds must never decrease"
+            );
+        }
+
+        // The down segment lands today, so the final point carries all 200s
+        // and lines up with the point-in-time fuel gauge.
+        let last = pts.last().unwrap();
+        assert_eq!(last.cumulative_down_secs, 200);
+        let eb = error_budget(&pool, m.id, 30, 99.0).await.unwrap();
+        assert_eq!(last.budget_remaining_secs, eb.remaining_downtime_secs);
+        assert!(
+            (last.budget_remaining_pct - eb.remaining_pct).abs() < 1e-6,
+            "final burn-down point must match error_budget: {} vs {}",
+            last.budget_remaining_pct,
+            eb.remaining_pct
         );
     }
 }
