@@ -1,0 +1,39 @@
+{
+  "monitors": [
+    {
+      "name": "Marketing site",
+      "url": "https://www.example.com",
+      "type": "http",
+      "port": 0,
+      "interval": 1
+    },
+    {
+      "name": "API gateway",
+      "url": "https://api.example.com/health",
+      "type": "http",
+      "port": 0,
+      "interval": 5
+    },
+    {
+      "name": "Edge router",
+      "url": "10.0.0.1",
+      "type": "ping",
+      "port": 0,
+      "interval": 1
+    },
+    {
+      "name": "Primary database",
+      "url": "db.example.com",
+      "type": "tcp",
+      "port": 5432,
+      "interval": 2
+    },
+    {
+      "name": "Checkout flow",
+      "url": "https://shop.example.com",
+      "type": "transaction",
+      "port": 0,
+      "interval": 5
+    }
+  ]
+}

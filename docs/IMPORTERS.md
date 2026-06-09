@@ -46,6 +46,9 @@ rampart-import <format> <path-to-file> [--dry-run] [--skip-existing]
 | `hetrixtools`  | HetrixTools `GET /v1/uptime-monitors` JSON dump (see below). |
 | `freshping`    | Freshping (Freshworks) check export JSON dump (see below). |
 | `checkly`      | Checkly `GET /v1/checks` JSON dump (see below). |
+| `statusgator`  | StatusGator services export JSON dump (see below). |
+| `pingometer`   | Pingometer monitors export JSON dump (see below). |
+| `csv`          | Rampart-native generic CSV — header row required (see below). |
 
 More formats are welcome — see `CONTRIBUTING.md`. The dispatch in
 `crates/rampart-api/src/bin/import.rs` is a single `match` on the
@@ -1452,5 +1455,208 @@ DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
 # Idempotent re-run: same source, skip rows whose name already exists.
 DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
   ./target/release/rampart-import checkly checkly-export.json \
+  --skip-existing
+```
+
+---
+
+## StatusGator
+
+> StatusGator is itself a status-page **aggregator** — it watches the
+> public status pages of other SaaS products and rolls their state up
+> into one dashboard. Its export is therefore a flat list of *services*
+> (the upstream products it watches), each carrying a status-page URL
+> and/or a product home-page URL.
+
+### Getting the export
+
+Pull your watched-services roster via the StatusGator API with a token
+minted under your account settings:
+
+```bash
+# StatusGator returns a {"services":[…]} envelope; capture it to disk.
+curl -s 'https://api.statusgator.com/v1/services' \
+     -H 'Authorization: Bearer <API_KEY>' \
+     > statusgator-export.json
+```
+
+> Upstream reference: https://statusgator.com
+
+### Type → MonitorKind mapping
+
+StatusGator only tracks web-reachable products, so there is no
+probe-family fan-out — every service maps to a single `Http` monitor.
+
+| StatusGator service | Rampart `MonitorKind` |
+| ------------------- | --------------------- |
+| (any)               | `Http`                |
+
+### Field translation
+
+| StatusGator field | Rampart `NewMonitor` field                                |
+| ----------------- | --------------------------------------------------------- |
+| `name`            | `name` (required)                                         |
+| `url`             | `url` (preferred)                                         |
+| `home_page_url`   | `url` (fallback when `url` is absent/empty)               |
+| (none)            | `interval_seconds` defaults to `300` (export carries none) |
+
+### Types that are skipped
+
+A service with neither a usable `url` nor `home_page_url` is reported as
+`skip: unsupported statusgator service` — StatusGator can track
+manual-only entries with no probe target. Services missing `name` are
+also skipped.
+
+### Example
+
+```bash
+# Dry-run first — no DB writes; just prints the per-kind breakdown.
+./target/release/rampart-import statusgator statusgator-export.json --dry-run
+
+# Real import. Insert every mapped row.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import statusgator statusgator-export.json
+
+# Idempotent re-run: same source, skip rows whose name already exists.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import statusgator statusgator-export.json \
+  --skip-existing
+```
+
+---
+
+## Pingometer
+
+> Pingometer ships each monitor with a `type` constant and a cadence in
+> whole **minutes** under `interval`.
+
+### Getting the export
+
+Pull the monitor roster via the Pingometer API and save the
+`{"monitors":[…]}` envelope to disk:
+
+```bash
+curl -s 'https://api.pingometer.com/v1/monitors' \
+     -H 'Authorization: Bearer <API_KEY>' \
+     > pingometer-export.json
+```
+
+### Type → MonitorKind mapping
+
+Each monitor carries a `type` constant. The importer matches it
+case-insensitively.
+
+| Pingometer `type` | Rampart `MonitorKind` |
+| ----------------- | --------------------- |
+| `http`            | `Http`                |
+| `ping`            | `Ping`                |
+| `tcp`             | `Tcp`                 |
+
+### Field translation
+
+| Pingometer field | Rampart `NewMonitor` field                                     |
+| ---------------- | -------------------------------------------------------------- |
+| `name`           | `name` (required)                                              |
+| `url`            | `url` (`http`); `hostname` (`ping`/`tcp`)                      |
+| `port`           | `port` (i32; `tcp`; dropped when `0` / absent)                 |
+| `interval` (min) | `interval_seconds` = `interval * 60`, floored to `60`          |
+
+### Types that are skipped
+
+Anything not in the mapping table (e.g. Pingometer's `transaction`
+multi-step checks) is reported as `skip: unsupported pingometer
+monitor`. Monitors missing `name` are also skipped.
+
+### Example
+
+```bash
+# Dry-run first — no DB writes; just prints the per-kind breakdown.
+./target/release/rampart-import pingometer pingometer-export.json --dry-run
+
+# Real import. Insert every mapped row.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import pingometer pingometer-export.json
+
+# Idempotent re-run: same source, skip rows whose name already exists.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import pingometer pingometer-export.json \
+  --skip-existing
+```
+
+---
+
+## Generic CSV
+
+> Unlike the per-SaaS importers, the `csv` format reads a
+> **Rampart-native CSV** — a flat table you can hand-author in a
+> spreadsheet, or generate from whatever inventory system you already
+> run, when no dedicated importer exists. It is the
+> lowest-common-denominator on-ramp.
+>
+> The input is **CSV text, not JSON**: the CLI dispatch reads the file
+> and hands its raw text to a separate `parse_csv_and_map` entry point.
+
+### Columns
+
+A **header row is required**. Recognised columns:
+
+```text
+name,kind,url,hostname,port,interval_seconds,timeout_seconds
+```
+
+| Column             | Required?                          | Notes                                                          |
+| ------------------ | ---------------------------------- | -------------------------------------------------------------- |
+| `name`             | always                             | The monitor display name.                                      |
+| `kind`             | always                             | A Rampart `MonitorKind` string in `snake_case` (`http`, `tcp`, `ping`, `dns`, …). |
+| `url`              | for `http`-family kinds            | Full probe URL.                                                |
+| `hostname`         | for `tcp` + every non-URL kind     | Host to probe.                                                 |
+| `port`             | for `tcp`                          | Integer port.                                                  |
+| `interval_seconds` | optional (defaults to `60`)        | Already seconds — no minute conversion.                        |
+| `timeout_seconds`  | optional (defaults to `16`)        | Already seconds.                                               |
+
+**Required fields per kind**
+
+| kind family                                   | required beyond `name` + `kind` |
+| --------------------------------------------- | ------------------------------- |
+| `http`, `keyword`, `json_query`, `tls`, `grpc`, `websocket`, `doh`, `rdap`, `domain`, `browser` | `url` |
+| `tcp`                                         | `hostname` + `port`             |
+| everything else (network/service/db/banner)   | `hostname`                      |
+
+Quoted fields (`"web, primary"`) with embedded commas are handled
+correctly — the importer uses the pure-Rust `csv` crate (no C deps).
+
+### Rows that are skipped
+
+- A row whose `kind` is **not** a known Rampart `MonitorKind` is reported
+  as `skip: unmappable csv row` with reason `unknown kind \`…\``.
+- A row missing a field its kind requires (e.g. an `http` row with no
+  `url`, or a `tcp` row with no `port`) is skipped with reason
+  `missing required field …`.
+- A row missing `name` is skipped.
+
+Skips are per-row — one bad row never fails the whole file.
+
+### Example
+
+```csv
+name,kind,url,hostname,port,interval_seconds,timeout_seconds
+Marketing site,http,https://www.example.com,,,60,16
+Primary database,tcp,,db.example.com,5432,120,10
+Edge router,ping,,10.0.0.1,,60,16
+Public resolver,dns,,example.com,,300,16
+```
+
+```bash
+# Dry-run first — no DB writes; just prints the per-kind breakdown +
+# the list of skipped rows.
+./target/release/rampart-import csv inventory.csv --dry-run
+
+# Real import. Insert every mapped row.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import csv inventory.csv
+
+# Idempotent re-run: same source, skip rows whose name already exists.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import csv inventory.csv \
   --skip-existing
 ```

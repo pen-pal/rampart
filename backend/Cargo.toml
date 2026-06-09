@@ -72,6 +72,9 @@ sqlx = { version = "0.9", features = [
 # serialization
 serde      = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Generic CSV bulk-import format (`rampart-import csv`). Pure-Rust, no
+# C deps (no aws-lc-rs / openssl / cmake) — safe to add to the tree.
+csv        = "1"
 
 # observability
 tracing            = "0.1"
