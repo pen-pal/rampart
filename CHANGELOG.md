@@ -17,6 +17,38 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **Subscriber self-manage page.** Token-based public page at
+  `#/manage/{token}` (no login) where an email subscriber can list their
+  subscriptions and unsubscribe per-page or from all pages. Backed by
+  `GET /v1/public/subscribers/manage/{token}` +
+  `POST .../unsubscribe-all` + `POST .../unsubscribe/{slug}`.
+- **"Maintenance now" quick action.** A canWrite-gated button on the
+  monitor detail page creates a one-shot maintenance window (1h / 4h /
+  24h) starting now and attached to that monitor, via the existing
+  maintenance-create API.
+- **HTTP protocol-version assertion.** Optional per-monitor
+  `config.expected_http_version` (`http1` / `http2` / `http3`, stored in
+  the freeform config JSONB) fails the HTTP probe Down when the
+  negotiated version doesn't match ("expected HTTP/2, got HTTP/1.1").
+  `http3` is accepted but documented as needing the reqwest http3
+  feature. Wizard gains an "Expected HTTP version" select.
+- **OpenAPI 3.1 spec.** Hand-curated `docs/openapi.yaml` (61 paths, 14
+  tags, 42 schemas read from the core/db structs) served at
+  `GET /openapi.yaml` + `/openapi.json`. `docs/API.md` documents
+  rendering it (`npx @redocly/cli preview-docs`). No in-app Swagger-UI
+  (CSP is `default-src 'self'`).
+- **Saved dashboard views + per-user preferences.** `users.prefs` JSONB
+  (migration `0054`) with `GET`/`PUT /v1/me/prefs` (session, self-scoped).
+  The dashboard gains a "Views" dropdown to save/apply/delete named
+  tag+folder+search filter combinations plus a default folder, persisted
+  server-side with a localStorage fallback when logged out.
+
+### Notes
+
+- 6 commits since `v0.3.0` (27fa937). Migration `0054` is additive.
+
 ---
 
 ## [0.3.0] — 2026-06-09
