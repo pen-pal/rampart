@@ -46,6 +46,11 @@ jobs:
         run: mkdir -p ../frontend/dist && touch ../frontend/dist/index.html
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
+      # Static guard: docs/openapi.yaml must document every REST route the
+      # router registers. Catches "added a route, forgot the spec". No build
+      # or DB needed — it greps the route source and diffs against the spec.
+      - name: OpenAPI spec drift check
+        run: bash ../scripts/check-openapi.sh
 
   backend-test:
     name: backend · cargo test --workspace
