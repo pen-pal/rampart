@@ -158,6 +158,13 @@ cargo deny check           # advisories (RUSTSEC) + license policy + bans + sour
 ```
 *Policy lives in [`backend/deny.toml`](backend/deny.toml). The project is AGPL-3.0, so new dependencies must be on the allow-list. If `cargo deny` rejects a transitive crate with a legitimate license, add it to the allow-list in the same PR.*
 
+**OpenAPI Spec Drift (`scripts/check-openapi.sh`)**
+[`docs/openapi.yaml`](docs/openapi.yaml) is hand-curated and served verbatim at `/openapi.yaml` + `/openapi.json`. CI guards it against drift: a static check derives the set of route paths the axum router registers (from `backend/crates/rampart-api/src/routes/`) and fails if any registered route is missing a `paths:` entry in the spec. It runs in the `backend-lint` job — no build or database needed. Reproduce locally:
+```bash
+bash scripts/check-openapi.sh   # exit 0 = every route is documented
+```
+If you add a route, add a matching `paths:` entry (path-level coverage is enough — the check doesn't enforce request/response field accuracy). For a genuinely-internal route that should stay undocumented, add it to the `ALLOWLIST` in [`scripts/check_openapi.py`](scripts/check_openapi.py).
+
 ### Frontend (Unit)
 ~32 tests using Vitest.
 
