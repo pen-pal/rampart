@@ -6,6 +6,7 @@ import {
   Bell, Clock, Code, Activity,
 } from 'lucide-react';
 import { api, useApi } from '../lib/api.js';
+import { t } from '../lib/i18n.js';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -348,7 +349,7 @@ export default function NewMonitorWizard() {
     });
   };
 
-  const meta   = types.find(t => t.id === type);
+  const meta   = types.find(tp => tp.id === type);
   const fields = fieldsFor(type);
 
   const onPickType = (newType) => {
@@ -413,9 +414,9 @@ export default function NewMonitorWizard() {
 
   const submit = async () => {
     setErr(null);
-    if (!name.trim()) { setErr('Please give the monitor a name.'); return; }
-    if (fields.url      && !url.trim())      { setErr('Please enter a URL.'); return; }
-    if (fields.hostname && !hostname.trim()) { setErr('Please enter a hostname.'); return; }
+    if (!name.trim()) { setErr(t('wizard.err_name')); return; }
+    if (fields.url      && !url.trim())      { setErr(t('wizard.err_url')); return; }
+    if (fields.hostname && !hostname.trim()) { setErr(t('wizard.err_hostname')); return; }
     setSubmitting(true);
     try {
       const created = await api.monitors.create(buildPayload());
@@ -436,7 +437,7 @@ export default function NewMonitorWizard() {
 
       window.location.hash = `#/monitor/${created.id}`;
     } catch (e) {
-      setErr(e.message || 'Failed to create monitor.');
+      setErr(e.message || t('wizard.err_create'));
       setSubmitting(false);
     }
   };
@@ -455,15 +456,15 @@ export default function NewMonitorWizard() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <ChevronLeft size={16} color="var(--text-2)" style={{ cursor: 'pointer' }} onClick={cancel}/>
-          <a href="#/" style={{ fontSize: 14, color: 'var(--text-3)', textDecoration: 'none' }}>Monitors /</a>
-          <span style={{ fontSize: 14, fontWeight: 500 }}>New monitor</span>
+          <a href="#/" style={{ fontSize: 14, color: 'var(--text-3)', textDecoration: 'none' }}>{t('wizard.breadcrumb')}</a>
+          <span style={{ fontSize: 14, fontWeight: 500 }}>{t('wizard.new_monitor')}</span>
         </div>
 
         <div className="steps" style={{ marginLeft: 'auto' }}>
           {[
-            { n: 1, label: 'Type' },
-            { n: 2, label: 'Configure' },
-            { n: 3, label: 'Schedule' },
+            { n: 1, label: t('wizard.step.type') },
+            { n: 2, label: t('wizard.step.configure') },
+            { n: 3, label: t('wizard.step.schedule') },
           ].map((s, i, arr) => (
             <React.Fragment key={s.n}>
               <div className={`step ${step === s.n ? 'active' : step > s.n ? 'done' : ''}`}>
@@ -477,7 +478,7 @@ export default function NewMonitorWizard() {
           ))}
         </div>
 
-        <button className="btn" onClick={cancel}><X size={13}/> Cancel</button>
+        <button className="btn" onClick={cancel}><X size={13}/> {t('common.cancel')}</button>
       </header>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', minHeight: 'calc(100vh - 65px)' }}>
@@ -488,26 +489,26 @@ export default function NewMonitorWizard() {
           {step === 1 && (
             <>
               <div style={{ marginBottom: 28 }}>
-                <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em', margin: '0 0 8px' }}>Step 1 · Pick a check type</p>
-                <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 8px', letterSpacing: '-.02em' }}>What do you want to monitor?</h1>
+                <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em', margin: '0 0 8px' }}>{t('wizard.step1.eyebrow')}</p>
+                <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 8px', letterSpacing: '-.02em' }}>{t('wizard.step1.title')}</h1>
                 <p style={{ fontSize: 14, color: 'var(--text-2)', margin: 0 }}>
-                  38 types in the catalog — all ship today. HTTP family, the SQL family, Memcached, Cassandra/ScyllaDB, NTP, WebSocket, NATS, LDAP, AMQP, DNS/DoH/TLS/domain/RDAP, SNMP, mDNS, SSDP/UPnP, gRPC, MQTT, Kafka, Docker, Steam, RADIUS, headless-browser, and banner checks (SSH/SMTP/IMAP/FTP/POP3). Pick a kind to get started.
+                  {t('wizard.step1.blurb')}
                 </p>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-                {types.map(t => {
-                  const Icon = t.icon;
+                {types.map(tp => {
+                  const Icon = tp.icon;
                   return (
-                    <div key={t.id} className={`type-card ${type === t.id ? 'active' : ''}`} onClick={() => onPickType(t.id)}>
-                      {t.badge && <span className={`badge badge-${t.badge}`}>{t.badge}</span>}
-                      {!t.badge && t.stub && <span className="badge badge-stub">stub</span>}
-                      <Icon size={18} color={type === t.id ? 'var(--accent-2)' : 'var(--text-2)'} strokeWidth={1.75}/>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', marginTop: 4 }}>{t.name}</div>
-                      <div style={{ fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.4 }}>{t.desc}</div>
-                      {t.example && (
+                    <div key={tp.id} className={`type-card ${type === tp.id ? 'active' : ''}`} onClick={() => onPickType(tp.id)}>
+                      {tp.badge && <span className={`badge badge-${tp.badge}`}>{tp.badge}</span>}
+                      {!tp.badge && tp.stub && <span className="badge badge-stub">stub</span>}
+                      <Icon size={18} color={type === tp.id ? 'var(--accent-2)' : 'var(--text-2)'} strokeWidth={1.75}/>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', marginTop: 4 }}>{tp.name}</div>
+                      <div style={{ fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.4 }}>{tp.desc}</div>
+                      {tp.example && (
                         <div style={{ fontSize: 11, color: 'var(--text-2)', lineHeight: 1.45, marginTop: 6, fontStyle: 'italic', borderTop: '1px solid var(--border)', paddingTop: 6 }}>
-                          {t.example}
+                          {tp.example}
                         </div>
                       )}
                     </div>
@@ -521,8 +522,8 @@ export default function NewMonitorWizard() {
           {step === 2 && (
             <>
               <div style={{ marginBottom: 28 }}>
-                <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em', margin: '0 0 8px' }}>Step 2 · Configuration</p>
-                <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 8px', letterSpacing: '-.02em' }}>Tell us what to check.</h1>
+                <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em', margin: '0 0 8px' }}>{t('wizard.step2.eyebrow')}</p>
+                <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 8px', letterSpacing: '-.02em' }}>{t('wizard.step2.title')}</h1>
                 <p style={{ fontSize: 14, color: 'var(--text-2)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
                   <meta.icon size={14} color="var(--text-3)"/> {meta.name} · {meta.desc}
                 </p>
@@ -533,27 +534,27 @@ export default function NewMonitorWizard() {
                     borderRadius: 8, fontSize: 13, color: 'var(--text-2)',
                     display: 'flex', alignItems: 'center', gap: 8,
                   }}>
-                    <span style={{ fontWeight: 600, color: 'var(--accent-2)', textTransform: 'uppercase', letterSpacing: '.05em', fontSize: 10 }}>Example</span>
+                    <span style={{ fontWeight: 600, color: 'var(--accent-2)', textTransform: 'uppercase', letterSpacing: '.05em', fontSize: 10 }}>{t('wizard.example')}</span>
                     <span>{meta.example}</span>
                   </div>
                 )}
                 {meta.stub && (
                   <div className="banner banner-warn" style={{ marginTop: 14 }}>
-                    The <span className="mono">{type}</span> probe runner isn't implemented yet — heartbeats will record as "Down · not yet implemented" until it ships.
+                    {t('wizard.stub_warning', { kind: type })}
                   </div>
                 )}
               </div>
 
               <div style={{ maxWidth: 580 }}>
                 <div className="field">
-                  <label className="field-label">Display name</label>
+                  <label className="field-label">{t('wizard.field.display_name')}</label>
                   <input className="input" value={name} onChange={e => setName(e.target.value)} placeholder="api.example.com"/>
-                  <div className="field-hint">A short label shown across the UI.</div>
+                  <div className="field-hint">{t('wizard.field.display_name_hint')}</div>
                 </div>
 
                 {fields.url && (
                   <div className="field">
-                    <label className="field-label">URL</label>
+                    <label className="field-label">{t('wizard.field.url')}</label>
                     <input className="input mono" value={url} onChange={e => setUrl(e.target.value)} placeholder={meta.placeholder?.url || 'https://example.com/health'}/>
                   </div>
                 )}
@@ -561,14 +562,14 @@ export default function NewMonitorWizard() {
                 {fields.method && (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>
                     <div className="field">
-                      <label className="field-label">HTTP method</label>
+                      <label className="field-label">{t('wizard.field.http_method')}</label>
                       <select className="select" value={method} onChange={e => setMethod(e.target.value)}>
                         <option>GET</option><option>POST</option><option>PUT</option>
                         <option>PATCH</option><option>DELETE</option><option>HEAD</option>
                       </select>
                     </div>
                     <div className="field">
-                      <label className="field-label">Accepted status codes</label>
+                      <label className="field-label">{t('wizard.field.accepted_statuses')}</label>
                       <input className="input mono" value={statuses} onChange={e => setStatuses(e.target.value)} placeholder="200, 201, 204"/>
                     </div>
                   </div>
@@ -577,13 +578,13 @@ export default function NewMonitorWizard() {
                 {fields.hostname && (
                   <div style={{ display: 'grid', gridTemplateColumns: fields.port ? '2fr 1fr' : '1fr', gap: 12 }}>
                     <div className="field">
-                      <label className="field-label">Hostname</label>
+                      <label className="field-label">{t('wizard.field.hostname')}</label>
                       <input className="input mono" value={hostname} onChange={e => setHostname(e.target.value)}
                         placeholder={meta.placeholder?.hostname || (type === 'ping' ? '8.8.8.8 or example.com' : 'db.internal')}/>
                     </div>
                     {fields.port && (
                       <div className="field">
-                        <label className="field-label">Port</label>
+                        <label className="field-label">{t('wizard.field.port')}</label>
                         <input className="input mono" value={port} onChange={e => setPort(e.target.value)}
                           placeholder={meta.placeholder?.port || String(defaultPort(type) ?? 443)}/>
                       </div>
@@ -593,39 +594,39 @@ export default function NewMonitorWizard() {
 
                 {fields.keyword && (
                   <div className="field">
-                    <label className="field-label">Keyword to require in body</label>
+                    <label className="field-label">{t('wizard.field.keyword')}</label>
                     <input className="input mono" value={keyword} onChange={e => setKeyword(e.target.value)}
                       placeholder={meta.placeholder?.keyword || 'operational'}/>
-                    <div className="field-hint">Heartbeat is up only if the response body contains this string.</div>
+                    <div className="field-hint">{t('wizard.field.keyword_hint')}</div>
                   </div>
                 )}
 
                 {fields.dns && (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="field">
-                      <label className="field-label">Record type</label>
+                      <label className="field-label">{t('wizard.field.record_type')}</label>
                       <select className="select" value={dnsRecordType} onChange={e => setDnsRecordType(e.target.value)}>
-                        {DNS_RECORD_TYPES.map(t => <option key={t}>{t}</option>)}
+                        {DNS_RECORD_TYPES.map(rt => <option key={rt}>{rt}</option>)}
                       </select>
                     </div>
                     <div className="field">
-                      <label className="field-label">Resolver (optional)</label>
+                      <label className="field-label">{t('wizard.field.resolver')}</label>
                       <input className="input mono" value={dnsResolver} onChange={e => setDnsResolver(e.target.value)}
                         placeholder="1.1.1.1"/>
-                      <div className="field-hint">IP of an alternate resolver. Leaves /etc/resolv.conf default when blank.</div>
+                      <div className="field-hint">{t('wizard.field.resolver_hint')}</div>
                     </div>
                     <div className="field" style={{ gridColumn: '1 / -1' }}>
-                      <label className="field-label">Expected (optional)</label>
+                      <label className="field-label">{t('wizard.field.dns_expected')}</label>
                       <input className="input mono" value={dnsExpected} onChange={e => setDnsExpected(e.target.value)}
                         placeholder="93.184.216.34"/>
-                      <div className="field-hint">Substring that must appear in any answer for the heartbeat to count as up.</div>
+                      <div className="field-hint">{t('wizard.field.dns_expected_hint')}</div>
                     </div>
                   </div>
                 )}
 
                 {fields.banner && (
                   <div className="field">
-                    <label className="field-label">Banner prefix to require (optional)</label>
+                    <label className="field-label">{t('wizard.field.banner')}</label>
                     <input className="input mono" value={bannerExpect} onChange={e => setBannerExpect(e.target.value)}
                       placeholder={
                         type === 'ssh' ? 'SSH-' :
@@ -635,25 +636,22 @@ export default function NewMonitorWizard() {
                         type === 'ftp' ? '220' : ''
                       }/>
                     <div className="field-hint">
-                      Leave blank for the well-known greeting prefix
-                      ({type === 'ssh' ? '"SSH-"' :
+                      {t('wizard.field.banner_hint', { prefix:
+                        type === 'ssh' ? '"SSH-"' :
                         type === 'smtp' || type === 'ftp' ? '"220"' :
                         type === 'imap' ? '"* OK"' :
-                        type === 'pop3' ? '"+OK"' : 'protocol default'}).
-                      Override only when probing a non-standard server.
+                        type === 'pop3' ? '"+OK"' : t('wizard.field.banner_protocol_default') })}
                     </div>
                   </div>
                 )}
 
                 {fields.renderer && (
                   <div className="field">
-                    <label className="field-label">Renderer URL</label>
+                    <label className="field-label">{t('wizard.field.renderer')}</label>
                     <input className="input mono" value={rendererUrl} onChange={e => setRendererUrl(e.target.value)}
                       placeholder="http://browserless:3000/content"/>
                     <div className="field-hint">
-                      External headless service that returns rendered HTML for the target URL.
-                      Run <code>browserless/chrome</code> alongside Rampart, then point this here.
-                      Rampart ships no Chromium binary by design — keeps the image lean.
+                      {t('wizard.field.renderer_hint')}
                     </div>
                   </div>
                 )}
@@ -661,13 +659,13 @@ export default function NewMonitorWizard() {
                 {fields.jsonPath && (
                   <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
                     <div className="field">
-                      <label className="field-label">JSON path</label>
+                      <label className="field-label">{t('wizard.field.json_path')}</label>
                       <input className="input mono" value={jsonPath} onChange={e => setJsonPath(e.target.value)}
                         placeholder={meta.placeholder?.jsonPath || 'status.healthy'}/>
-                      <div className="field-hint">Dotted path into the JSON response.</div>
+                      <div className="field-hint">{t('wizard.field.json_path_hint')}</div>
                     </div>
                     <div className="field">
-                      <label className="field-label">Expected value</label>
+                      <label className="field-label">{t('wizard.field.json_expected')}</label>
                       <input className="input mono" value={jsonExpected} onChange={e => setJsonExpected(e.target.value)}
                         placeholder={meta.placeholder?.jsonExpected || 'true'}/>
                     </div>
@@ -681,62 +679,62 @@ export default function NewMonitorWizard() {
           {step === 3 && (
             <>
               <div style={{ marginBottom: 28 }}>
-                <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em', margin: '0 0 8px' }}>Step 3 · Schedule & alerting</p>
-                <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 8px', letterSpacing: '-.02em' }}>How often, who to tell.</h1>
+                <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em', margin: '0 0 8px' }}>{t('wizard.step3.eyebrow')}</p>
+                <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 8px', letterSpacing: '-.02em' }}>{t('wizard.step3.title')}</h1>
               </div>
 
               <div style={{ maxWidth: 580 }}>
                 <div className="form-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div className="field">
-                    <label className="field-label"><Clock size={12}/> Check interval</label>
+                    <label className="field-label"><Clock size={12}/> {t('wizard.field.interval')}</label>
                     <select className="select" value={intervalSec} onChange={e => setIntervalSec(e.target.value)}>
-                      <option value="10">Every 10 seconds</option>
-                      <option value="30">Every 30 seconds</option>
-                      <option value="60">Every 1 minute</option>
-                      <option value="300">Every 5 minutes</option>
-                      <option value="1800">Every 30 minutes</option>
-                      <option value="3600">Every hour</option>
+                      <option value="10">{t('wizard.interval.10s')}</option>
+                      <option value="30">{t('wizard.interval.30s')}</option>
+                      <option value="60">{t('wizard.interval.1m')}</option>
+                      <option value="300">{t('wizard.interval.5m')}</option>
+                      <option value="1800">{t('wizard.interval.30m')}</option>
+                      <option value="3600">{t('wizard.interval.1h')}</option>
                     </select>
                   </div>
                   <div className="field">
-                    <label className="field-label">Timeout</label>
+                    <label className="field-label">{t('wizard.field.timeout')}</label>
                     <select className="select" value={timeoutSec} onChange={e => setTimeoutSec(e.target.value)}>
-                      <option value="5">5 seconds</option>
-                      <option value="10">10 seconds</option>
-                      <option value="16">16 seconds</option>
-                      <option value="30">30 seconds</option>
-                      <option value="60">60 seconds</option>
+                      <option value="5">{t('wizard.timeout.5s')}</option>
+                      <option value="10">{t('wizard.timeout.10s')}</option>
+                      <option value="16">{t('wizard.timeout.16s')}</option>
+                      <option value="30">{t('wizard.timeout.30s')}</option>
+                      <option value="60">{t('wizard.timeout.60s')}</option>
                     </select>
                   </div>
                 </div>
 
                 <div className="field">
-                  <label className="field-label">Retries before marking down</label>
+                  <label className="field-label">{t('wizard.field.retries')}</label>
                   <input className="input mono" type="number" min="0" value={retries} onChange={e => setRetries(e.target.value)}/>
-                  <div className="field-hint">0 = mark down on first failed check.</div>
+                  <div className="field-hint">{t('wizard.field.retries_hint')}</div>
                 </div>
 
                 <div className="field">
-                  <label className="field-label"><Bell size={12}/> Notifications</label>
+                  <label className="field-label"><Bell size={12}/> {t('wizard.field.notifications')}</label>
 
                   {channelsState.loading && (
-                    <div style={{ fontSize: 12, color: 'var(--text-3)' }}>Loading channels…</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-3)' }}>{t('wizard.loading_channels')}</div>
                   )}
 
                   {!channelsState.loading && channels.length === 0 && (
                     <div className="banner banner-warn" style={{ marginBottom: 0 }}>
-                      No notification channels configured yet.{' '}
+                      {t('wizard.no_channels')}{' '}
                       <a href="#/notifications" target="_blank" rel="noreferrer" style={{ color: '#92400e', fontWeight: 500 }}>
-                        Add one in Notifications →
+                        {t('wizard.add_channel_link')}
                       </a>
-                      {' '}then come back here. (The monitor can be created without channels — it'll record heartbeats but won't alert anyone.)
+                      {' '}{t('wizard.no_channels_suffix')}
                     </div>
                   )}
 
                   {!channelsState.loading && channels.length > 0 && (
                     <>
                       <div className="field-hint" style={{ marginTop: 0, marginBottom: 8 }}>
-                        Pick which channels should be pinged when this monitor's status flips. You can also attach more later from the monitor detail page.
+                        {t('wizard.channels_hint')}
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {channels.map(c => {
@@ -760,21 +758,21 @@ export default function NewMonitorWizard() {
                       </div>
                       <a href="#/notifications" target="_blank" rel="noreferrer"
                         style={{ display: 'inline-block', marginTop: 8, fontSize: 12, color: 'var(--accent)' }}>
-                        + Add a new channel
+                        {t('wizard.add_new_channel')}
                       </a>
                     </>
                   )}
                 </div>
 
                 <div className="field">
-                  <label className="field-label">Advanced options</label>
+                  <label className="field-label">{t('wizard.field.advanced')}</label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 14px', border: '1px solid var(--border)', borderRadius: 8 }}>
                       <div className={`toggle ${upsideDown ? 'on' : ''}`} onClick={() => setUpsideDown(v => !v)}/>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>Upside down mode</div>
+                        <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>{t('wizard.upside_down')}</div>
                         <div className="field-hint" style={{ marginTop: 2 }}>
-                          Inverts pass/fail — the monitor is "up" when the check fails. Useful for honeypots.
+                          {t('wizard.upside_down_hint')}
                         </div>
                       </div>
                     </div>
@@ -782,22 +780,22 @@ export default function NewMonitorWizard() {
                       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 14px', border: '1px solid var(--border)', borderRadius: 8 }}>
                         <div className={`toggle ${followRedir ? 'on' : ''}`} onClick={() => setFollowRedir(v => !v)}/>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>Follow redirects</div>
-                          <div className="field-hint" style={{ marginTop: 2 }}>Follow up to 5 HTTP 3xx redirects before deciding.</div>
+                          <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>{t('wizard.follow_redirects')}</div>
+                          <div className="field-hint" style={{ marginTop: 2 }}>{t('wizard.follow_redirects_hint')}</div>
                         </div>
                       </div>
                     )}
                     {['http', 'keyword', 'json_query'].includes(type) && proxies.length > 0 && (
                       <div style={{ padding: '12px 14px', border: '1px solid var(--border)', borderRadius: 8 }}>
-                        <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500, marginBottom: 6 }}>Proxy</div>
+                        <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500, marginBottom: 6 }}>{t('wizard.proxy')}</div>
                         <select className="input" value={proxyId} onChange={e => setProxyId(e.target.value)}>
-                          <option value="">No proxy — direct connection</option>
+                          <option value="">{t('wizard.proxy_none')}</option>
                           {proxies.filter(p => p.active).map(p => (
                             <option key={p.id} value={p.id}>{p.protocol}://{p.host}:{p.port}</option>
                           ))}
                         </select>
                         <div className="field-hint" style={{ marginTop: 4 }}>
-                          Route this probe through one of your configured proxies. Manage them in <a href="#/proxies" style={{ color: 'var(--accent)' }}>Proxies</a>.
+                          {t('wizard.proxy_hint')} <a href="#/proxies" style={{ color: 'var(--accent)' }}>{t('proxies.title')}</a>.
                         </div>
                       </div>
                     )}
@@ -818,15 +816,15 @@ export default function NewMonitorWizard() {
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 36, paddingTop: 24, borderTop: '1px solid var(--border)' }}>
             <button className="btn" disabled={submitting}
               onClick={() => (step === 1 ? cancel() : setStep(s => s - 1))}>
-              <ChevronLeft size={13}/> Back
+              <ChevronLeft size={13}/> {t('wizard.back')}
             </button>
             {step < 3 ? (
               <button className="btn btn-accent" onClick={() => setStep(s => s + 1)} disabled={submitting}>
-                Continue <ChevronRight size={13}/>
+                {t('wizard.continue')} <ChevronRight size={13}/>
               </button>
             ) : (
               <button className="btn btn-accent" onClick={submit} disabled={submitting}>
-                <Check size={13}/> {submitting ? 'Creating…' : 'Create monitor'}
+                <Check size={13}/> {submitting ? t('wizard.creating') : t('wizard.create_monitor')}
               </button>
             )}
           </div>
@@ -835,15 +833,15 @@ export default function NewMonitorWizard() {
         {/* PREVIEW SIDE */}
         <aside style={{ padding: '32px 24px', background: 'var(--surface)', display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div>
-            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em', margin: '0 0 12px' }}>Live preview</p>
+            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em', margin: '0 0 12px' }}>{t('wizard.live_preview')}</p>
             <div className="card" style={{ padding: '16px 18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--up)', boxShadow: '0 0 0 3px var(--up-soft)' }}/>
                 <meta.icon size={14} color="var(--text-2)"/>
-                <span style={{ fontSize: 14, fontWeight: 500 }}>{name.trim() || 'untitled'}</span>
+                <span style={{ fontSize: 14, fontWeight: 500 }}>{name.trim() || t('wizard.untitled')}</span>
               </div>
               <div style={{ fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.6 }}>
-                <div>{meta.name} · every {intervalSec}s · timeout {timeoutSec}s</div>
+                <div>{meta.name} · {t('wizard.preview_schedule', { interval: intervalSec, timeout: timeoutSec })}</div>
                 {fields.url      && url      && <div className="mono" style={{ color: 'var(--text-2)', wordBreak: 'break-all', marginTop: 4 }}>{url}</div>}
                 {fields.hostname && hostname && <div className="mono" style={{ color: 'var(--text-2)', wordBreak: 'break-all', marginTop: 4 }}>{hostname}{port ? `:${port}` : ''}</div>}
               </div>
@@ -852,7 +850,7 @@ export default function NewMonitorWizard() {
 
           <div style={{ marginTop: 'auto' }}>
             <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Code size={11}/> Equivalent API call
+              <Code size={11}/> {t('wizard.api_call')}
             </p>
             <pre className="mono" style={{
               padding: '12px 14px', background: 'var(--surface-2)',

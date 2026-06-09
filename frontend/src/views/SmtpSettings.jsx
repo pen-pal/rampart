@@ -3,6 +3,7 @@ import {
   ChevronLeft, Save, Loader2, AlertCircle, Mail,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
+import { t } from '../lib/i18n.js';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -72,7 +73,7 @@ export default function SmtpSettings() {
 
   const save = async () => {
     setErr(null); setOk(false);
-    if (!cfg.host || !cfg.from) { setErr('Host and From address are required.'); return; }
+    if (!cfg.host || !cfg.from) { setErr(t('settings.smtp.err_required')); return; }
     setBusy(true);
     try {
       await api.smtp.put({
@@ -82,7 +83,7 @@ export default function SmtpSettings() {
         password: cfg.password || null,
       });
       setOk(true);
-    } catch (e) { setErr(e.message || 'Save failed.'); }
+    } catch (e) { setErr(e.message || t('settings.smtp.err_save')); }
     finally { setBusy(false); }
   };
 
@@ -91,14 +92,14 @@ export default function SmtpSettings() {
       <style>{css}</style>
       <div style={{ maxWidth: 640, margin: '0 auto', padding: '32px 32px 64px' }}>
         <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}>
-          <ChevronLeft size={14}/> Dashboard
+          <ChevronLeft size={14}/> {t('common.dashboard')}
         </a>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
           <Mail size={20}/>
-          <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0, letterSpacing: '-.02em' }}>SMTP settings</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0, letterSpacing: '-.02em' }}>{t('settings.smtp.title')}</h1>
         </div>
         <p style={{ fontSize: 13, color: 'var(--text-2)', margin: '0 0 22px' }}>
-          Outgoing email for status-page subscribers. Per-monitor email notifications use their own per-channel config.
+          {t('settings.smtp.subtitle')}
         </p>
 
         {load ? (
@@ -106,43 +107,43 @@ export default function SmtpSettings() {
         ) : (
           <div className="card" style={{ padding: 22 }}>
             {err && <div className="banner-err"><AlertCircle size={14} style={{ verticalAlign: '-2px', marginRight: 6 }}/>{err}</div>}
-            {ok  && <div className="banner-ok">SMTP saved.</div>}
+            {ok  && <div className="banner-ok">{t('settings.smtp.saved')}</div>}
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px', gap: 10 }}>
               <div className="field">
-                <label className="field-label">Host</label>
+                <label className="field-label">{t('settings.smtp.host')}</label>
                 <input className="input" value={cfg.host} onChange={e => setCfg({ ...cfg, host: e.target.value })} placeholder="smtp.example.com"/>
               </div>
               <div className="field">
-                <label className="field-label">Port</label>
+                <label className="field-label">{t('settings.smtp.port')}</label>
                 <input className="input mono" value={cfg.port} onChange={e => setCfg({ ...cfg, port: e.target.value })}/>
               </div>
             </div>
             <div className="field">
-              <label className="field-label">Encryption</label>
+              <label className="field-label">{t('settings.smtp.encryption')}</label>
               <select className="select" value={cfg.encryption} onChange={e => setCfg({ ...cfg, encryption: e.target.value })}>
-                <option value="starttls">STARTTLS · port 587</option>
-                <option value="tls">TLS · port 465</option>
-                <option value="plain">none · port 25 (insecure)</option>
+                <option value="starttls">{t('settings.smtp.enc_starttls')}</option>
+                <option value="tls">{t('settings.smtp.enc_tls')}</option>
+                <option value="plain">{t('settings.smtp.enc_plain')}</option>
               </select>
             </div>
             <div className="form-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <div className="field">
-                <label className="field-label">Username</label>
+                <label className="field-label">{t('settings.smtp.username')}</label>
                 <input className="input" value={cfg.username} onChange={e => setCfg({ ...cfg, username: e.target.value })}/>
               </div>
               <div className="field">
-                <label className="field-label">Password</label>
-                <input className="input" type="password" value={cfg.password} onChange={e => setCfg({ ...cfg, password: e.target.value })} placeholder="(redacted on read)"/>
+                <label className="field-label">{t('settings.smtp.password')}</label>
+                <input className="input" type="password" value={cfg.password} onChange={e => setCfg({ ...cfg, password: e.target.value })} placeholder={t('settings.smtp.password_placeholder')}/>
               </div>
             </div>
             <div className="field">
-              <label className="field-label">From</label>
+              <label className="field-label">{t('settings.smtp.from')}</label>
               <input className="input" value={cfg.from} onChange={e => setCfg({ ...cfg, from: e.target.value })} placeholder='"Rampart" &lt;status@example.com&gt;'/>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button className="btn btn-accent" onClick={save} disabled={busy}>
-                {busy ? <><Loader2 size={13}/> Saving…</> : <><Save size={13}/> Save</>}
+                {busy ? <><Loader2 size={13}/> {t('common.saving')}</> : <><Save size={13}/> {t('common.save')}</>}
               </button>
             </div>
           </div>

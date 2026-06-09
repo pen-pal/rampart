@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { LogIn, UserPlus, Loader2 } from 'lucide-react';
 import { api, useApi } from '../lib/api.js';
+import { t } from '../lib/i18n.js';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -101,14 +102,14 @@ export default function Login() {
     e?.preventDefault?.();
     setErr(null);
     if (!email.trim() || !password) {
-      setErr('Email and password are required.');
+      setErr(t('login.err_required'));
       return;
     }
     setBusy(true);
     try {
       if (needsSetup) {
         if (password.length < 10) {
-          setErr('Pick a password at least 10 characters long.');
+          setErr(t('login.err_password_length'));
           setBusy(false);
           return;
         }
@@ -127,9 +128,9 @@ export default function Login() {
       }
     } catch (e2) {
       setErr(
-        e2.status === 401 ? 'Wrong email or password.'
-        : e2.status === 409 ? 'Registration is closed — a user already exists. Try logging in.'
-        : (e2.message || 'Something went wrong.')
+        e2.status === 401 ? t('login.err_wrong_credentials')
+        : e2.status === 409 ? t('login.err_registration_closed')
+        : (e2.message || t('login.err_generic'))
       );
       setBusy(false);
     }
@@ -138,7 +139,7 @@ export default function Login() {
   const submitTotp = async (e) => {
     e?.preventDefault?.();
     setErr(null);
-    if (!totpCode.trim()) { setErr('Enter the 6-digit code or a recovery code.'); return; }
+    if (!totpCode.trim()) { setErr(t('login.err_totp_required')); return; }
     setBusy(true);
     try {
       await api.auth.totpVerify(challengeToken, totpCode.trim());
@@ -151,9 +152,9 @@ export default function Login() {
           const parsed = JSON.parse(e2.message);
           if (parsed?.challenge_token) setChallengeToken(parsed.challenge_token);
         } catch { /* fall through */ }
-        setErr('Invalid code. Try again or use a recovery code.');
+        setErr(t('login.err_invalid_code'));
       } else {
-        setErr(e2.message || 'Something went wrong.');
+        setErr(e2.message || t('login.err_generic'));
       }
       setBusy(false);
     }
@@ -179,10 +180,10 @@ export default function Login() {
           <div>
             <div style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-.01em' }}>Rampart</div>
             <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>
-              {meState.loading ? 'Loading…'
-                : challengeToken ? 'Two-factor verification'
-                : needsSetup ? 'Create your admin account'
-                : 'Sign in'}
+              {meState.loading ? t('common.loading')
+                : challengeToken ? t('login.subtitle_totp')
+                : needsSetup ? t('login.subtitle_setup')
+                : t('login.subtitle_signin')}
             </div>
           </div>
         </div>
@@ -192,29 +193,29 @@ export default function Login() {
         {challengeToken ? (
           <form onSubmit={submitTotp}>
             <div className="field">
-              <label className="field-label" htmlFor="auth-totp">Code</label>
+              <label className="field-label" htmlFor="auth-totp">{t('login.totp_code')}</label>
               <input id="auth-totp" className="input" type="text" inputMode="numeric"
                 autoComplete="one-time-code" autoFocus maxLength={11}
                 value={totpCode} onChange={e => setTotpCode(e.target.value)}
-                placeholder="6-digit code or recovery code"/>
+                placeholder={t('login.totp_placeholder')}/>
               <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 6 }}>
-                Open your authenticator app and enter the current 6-digit code, or use one of the recovery codes saved during setup.
+                {t('login.totp_hint')}
               </div>
             </div>
             <button className="btn-primary" type="submit" disabled={busy}>
-              {busy ? <><Loader2 size={14} className="spin"/> Verifying…</> : <><LogIn size={14}/> Verify</>}
+              {busy ? <><Loader2 size={14} className="spin"/> {t('login.verifying')}</> : <><LogIn size={14}/> {t('login.verify')}</>}
             </button>
             <button type="button" onClick={cancelTotp} style={{
               marginTop: 10, background: 'transparent', border: 'none',
               color: 'var(--text-3)', fontSize: 12, cursor: 'pointer',
             }}>
-              ← Back to email + password
+              {t('login.back_to_password')}
             </button>
           </form>
         ) : (
         <form onSubmit={submit}>
           <div className="field">
-            <label className="field-label" htmlFor="auth-email">Email</label>
+            <label className="field-label" htmlFor="auth-email">{t('login.email')}</label>
             <input id="auth-email" className="input" type="email" autoComplete="email"
               value={email} onChange={e => setEmail(e.target.value)}
               placeholder="you@example.com" autoFocus/>
@@ -223,34 +224,34 @@ export default function Login() {
           {needsSetup && (
             <div className="field">
               <label className="field-label" htmlFor="auth-name">
-                Name <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span>
+                {t('login.name')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· {t('common.optional')}</span>
               </label>
               <input id="auth-name" className="input" type="text" autoComplete="name"
                 value={name} onChange={e => setName(e.target.value)}
-                placeholder="Your name"/>
+                placeholder={t('login.name_placeholder')}/>
             </div>
           )}
 
           <div className="field">
-            <label className="field-label" htmlFor="auth-password">Password</label>
+            <label className="field-label" htmlFor="auth-password">{t('login.password')}</label>
             <input id="auth-password" className="input" type="password"
               autoComplete={needsSetup ? 'new-password' : 'current-password'}
               value={password} onChange={e => setPassword(e.target.value)}
-              placeholder={needsSetup ? 'At least 10 characters' : ''}/>
+              placeholder={needsSetup ? t('login.password_placeholder_setup') : ''}/>
           </div>
 
           <button className="btn-primary" type="submit" disabled={busy || meState.loading}>
-            {busy ? <><Loader2 size={14} className="spin"/> Working…</>
-              : needsSetup ? <><UserPlus size={14}/> Create admin account</>
-              : <><LogIn size={14}/> Sign in</>}
+            {busy ? <><Loader2 size={14} className="spin"/> {t('login.working')}</>
+              : needsSetup ? <><UserPlus size={14}/> {t('login.create_admin')}</>
+              : <><LogIn size={14}/> {t('login.sign_in')}</>}
           </button>
         </form>
         )}
 
         <div className="hint">
           {needsSetup
-            ? 'The first user becomes the admin. Subsequent users can be added later — registration locks itself after this signup.'
-            : 'Sessions last 14 days. Use any modern browser; cookies are required.'}
+            ? t('login.hint_setup')
+            : t('login.hint_signin')}
         </div>
       </div>
 

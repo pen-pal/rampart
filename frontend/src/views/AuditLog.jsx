@@ -29,6 +29,7 @@ function csvHref(kind, action, actor, from, to) {
   return `/v1/audit-log/csv${tail ? `?${tail}` : ''}`;
 }
 import { api, useApi, formatRelative, offsetDateTimeArrayToDate } from '../lib/api.js';
+import { t } from '../lib/i18n.js';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -70,7 +71,7 @@ const css = `
   .banner-err { background: var(--down-soft); color: #b91c1c; border: 1px solid #fecaca; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; }
 `;
 
-const tsToDate = (t) => (Array.isArray(t) ? offsetDateTimeArrayToDate(t) : new Date(t));
+const tsToDate = (ts) => (Array.isArray(ts) ? offsetDateTimeArrayToDate(ts) : new Date(ts));
 
 const KIND_OPTIONS = [
   '', 'monitor', 'user', 'api_key', 'status_page',
@@ -106,7 +107,7 @@ export default function AuditLog() {
       if (before == null) setEntries(rows);
       else                setEntries(prev => [...prev, ...rows]);
       if (rows.length < 100) setDone(true);
-    } catch (e) { setErr(e.message || 'Failed to load audit log.'); }
+    } catch (e) { setErr(e.message || t('audit.err_load')); }
     finally { setLoading(false); }
   };
 
@@ -115,8 +116,8 @@ export default function AuditLog() {
   // need the debounce but share the effect for symmetry — 250ms gap
   // after the last change before the load fires.
   useEffect(() => {
-    const t = setTimeout(() => { setDone(false); load(null); }, 250);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => { setDone(false); load(null); }, 250);
+    return () => clearTimeout(timer);
     /* eslint-disable-next-line */
   }, [kind, action, actor, from, to]);
 
@@ -125,52 +126,52 @@ export default function AuditLog() {
       <style>{css}</style>
       <div style={{ maxWidth: 1000, margin: '0 auto', padding: '32px 32px 64px' }}>
         <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}>
-          <ChevronLeft size={14}/> Dashboard
+          <ChevronLeft size={14}/> {t('common.dashboard')}
         </a>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 22 }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <ScrollText size={20}/>
-              <h1 style={{ fontSize: 28, fontWeight: 600, margin: 0, letterSpacing: '-.02em' }}>Audit log</h1>
+              <h1 style={{ fontSize: 28, fontWeight: 600, margin: 0, letterSpacing: '-.02em' }}>{t('audit.title')}</h1>
             </div>
             <p style={{ fontSize: 13, color: 'var(--text-2)', margin: '4px 0 0' }}>
-              Append-only record of mutating actions. Admin-only.
+              {t('audit.subtitle')}
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <input className="input" style={{ width: 200 }} value={action}
               onChange={e => setAction(e.target.value)}
-              placeholder="action prefix e.g. monitor."/>
+              placeholder={t('audit.action_placeholder')}/>
             <select className="select" value={kind} onChange={e => setKind(e.target.value)}
-              title="Filter by resource kind">
-              <option value="">All kinds</option>
+              title={t('audit.filter_kind')}>
+              <option value="">{t('audit.all_kinds')}</option>
               {KIND_OPTIONS.filter(Boolean).map(k => <option key={k} value={k}>{k}</option>)}
             </select>
             <select className="select" value={actor} onChange={e => setActor(e.target.value)}
-              title="Filter by actor — which admin account performed the action"
+              title={t('audit.filter_actor')}
               style={{ maxWidth: 200 }}>
-              <option value="">All actors</option>
+              <option value="">{t('audit.all_actors')}</option>
               {(usersState.data || []).map(u =>
                 <option key={u.id} value={u.id}>{u.name || u.email}</option>
               )}
             </select>
             <input className="input" type="datetime-local" value={from}
               onChange={e => setFrom(e.target.value)}
-              title="From (inclusive) — only entries on or after this time"/>
+              title={t('audit.from_hint')}/>
             <input className="input" type="datetime-local" value={to}
               onChange={e => setTo(e.target.value)}
-              title="To (inclusive) — only entries on or before this time"/>
+              title={t('audit.to_hint')}/>
             {(kind || action || actor || from || to) && (
               <button className="btn btn-ghost"
                 onClick={() => { setKind(''); setAction(''); setActor(''); setFrom(''); setTo(''); }}
-                title="Clear all filters">
-                Clear
+                title={t('audit.clear_filters')}>
+                {t('common.clear')}
               </button>
             )}
             <a className="btn" download
               href={csvHref(kind, action, actor, from, to)}
-              title="Download up to 50,000 entries matching the current filters as CSV">
+              title={t('audit.csv_hint')}>
               <Download size={13}/> CSV
             </a>
           </div>
@@ -186,11 +187,11 @@ export default function AuditLog() {
             textTransform: 'uppercase', letterSpacing: '.04em',
             background: 'var(--surface-2)', borderBottom: '1px solid var(--border)'
           }}>
-            <span>When</span><span>Actor</span><span>Action</span><span>Resource</span><span>Payload</span>
+            <span>{t('audit.col.when')}</span><span>{t('audit.col.actor')}</span><span>{t('audit.col.action')}</span><span>{t('audit.col.resource')}</span><span>{t('audit.col.payload')}</span>
           </div>
           {entries.length === 0 && !loading ? (
             <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
-              No audit entries yet.
+              {t('audit.empty')}
             </div>
           ) : entries.map(e => (
             <Row key={e.id} entry={e} usersById={usersById}/>
@@ -201,7 +202,7 @@ export default function AuditLog() {
         {!done && entries.length > 0 && (
           <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
             <button className="btn" onClick={() => load(entries[entries.length - 1].id)} disabled={loading}>
-              <ChevronDown size={13}/> Load more
+              <ChevronDown size={13}/> {t('audit.load_more')}
             </button>
           </div>
         )}
@@ -220,7 +221,7 @@ function Row({ entry, usersById }) {
       ? `API key · ${String(entry.actor_api_key_id).slice(0, 6)}`
       : entry.actor_user_id
         ? String(entry.actor_user_id).slice(0, 8)
-        : 'system';
+        : t('audit.actor_system');
   return (
     <div style={{
       display: 'grid', gridTemplateColumns: '140px 130px 1fr 1fr 1fr',
@@ -243,7 +244,7 @@ function Row({ entry, usersById }) {
       <code
         className="mono"
         onClick={() => hasPayload && setOpen(o => !o)}
-        title={hasPayload ? (open ? 'Click to collapse' : 'Click to expand') : undefined}
+        title={hasPayload ? (open ? t('audit.collapse') : t('audit.expand')) : undefined}
         style={{
           fontSize: 11, color: 'var(--text-3)',
           cursor: hasPayload ? 'pointer' : 'default',

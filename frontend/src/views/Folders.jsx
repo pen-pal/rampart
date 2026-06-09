@@ -4,6 +4,7 @@ import {
   Tag as TagIcon, Bell, Pencil, Check, Activity, CornerDownRight,
 } from 'lucide-react';
 import { api, useApi } from '../lib/api.js';
+import { t } from '../lib/i18n.js';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -54,7 +55,7 @@ export default function Folders() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
 
-  const tagsById     = new Map((tags.data || []).map(t => [t.id, t]));
+  const tagsById     = new Map((tags.data || []).map(tag => [tag.id, tag]));
   const channelsById = new Map((channelsApi.data || []).map(c => [c.id, c]));
 
   // Group folders by parent so we can render a tree. Insertion order follows
@@ -117,7 +118,7 @@ export default function Folders() {
   };
 
   const onRemove = async (id, name) => {
-    if (!confirm(`Delete folder "${name}"? Monitors and sub-folders are kept (moved to the root).`)) return;
+    if (!confirm(t('folders.delete_confirm', { name }))) return;
     setErr(null);
     try {
       await api.monitorGroups.remove(id);
@@ -141,16 +142,13 @@ export default function Folders() {
     <div className="rampart">
       <style>{css}</style>
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '32px 32px 64px' }}>
-        <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}><ChevronLeft size={14}/> Dashboard</a>
+        <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}><ChevronLeft size={14}/> {t('common.dashboard')}</a>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
           <FolderTree size={20}/>
-          <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0, letterSpacing: '-.02em' }}>Folders</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0, letterSpacing: '-.02em' }}>{t('folders.title')}</h1>
         </div>
         <p style={{ fontSize: 13, color: 'var(--text-2)', margin: '4px 0 22px' }}>
-          Group monitors into folders, and nest folders inside folders. Add monitors directly to a folder below.
-          Tag a folder and a channel with the same tag and the channel auto-routes to every monitor in the folder;
-          attach a channel to a folder to cover all its monitors. Tags and attached channels propagate down through
-          nested sub-folders, so a tag on a top-level folder covers everything beneath it.
+          {t('folders.subtitle')}
         </p>
 
         {err && <div className="banner-err" style={{ marginBottom: 16 }}><AlertCircle size={14} style={{ verticalAlign: '-2px', marginRight: 6 }}/>{err}</div>}
@@ -158,9 +156,9 @@ export default function Folders() {
         {/* Create */}
         <div className="card" style={{ padding: 16, marginBottom: 20, display: 'flex', gap: 8, alignItems: 'center' }}>
           <input className="input" value={newName} onChange={e => setNewName(e.target.value)}
-            placeholder="New folder name…" onKeyDown={e => e.key === 'Enter' && createFolder()}/>
+            placeholder={t('folders.new_placeholder')} onKeyDown={e => e.key === 'Enter' && createFolder()}/>
           <button className="btn btn-accent" onClick={createFolder} disabled={busy} style={{ flexShrink: 0 }}>
-            {busy ? <Loader2 size={13} className="spin"/> : <Plus size={13}/>} Create folder
+            {busy ? <Loader2 size={13} className="spin"/> : <Plus size={13}/>} {t('folders.create')}
           </button>
         </div>
 
@@ -168,7 +166,7 @@ export default function Folders() {
         {!loading && groups.length === 0 && (
           <div className="card" style={{ padding: 32, textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
             <Folder size={20} style={{ opacity: .4, marginBottom: 8 }}/>
-            <div>No folders yet. Create one above.</div>
+            <div>{t('folders.empty')}</div>
           </div>
         )}
 
@@ -214,7 +212,7 @@ function FolderCard({
   useEffect(() => {
     let live = true;
     Promise.all([api.monitorGroups.tags(group.id), api.monitorGroups.channels(group.id)])
-      .then(([t, c]) => { if (live) { setTagIds(t); setChanIds(c); } })
+      .then(([tagRes, chanRes]) => { if (live) { setTagIds(tagRes); setChanIds(chanRes); } })
       .catch(() => { if (live) { setTagIds([]); setChanIds([]); } });
     return () => { live = false; };
   }, [group.id]);
@@ -245,7 +243,7 @@ function FolderCard({
     catch { /* err surfaced by parent */ } finally { setBusy(false); }
   };
 
-  const availTags  = allTags.filter(t => !(tagIds || []).includes(t.id));
+  const availTags  = allTags.filter(tag => !(tagIds || []).includes(tag.id));
   const availChans = allChannels.filter(c => !(chanIds || []).includes(c.id));
 
   const dot = (s) => ({ up: 'var(--up)', down: 'var(--down)', warn: '#f59e0b', maintenance: '#6366f1' }[s] || 'var(--text-3)');
@@ -266,17 +264,17 @@ function FolderCard({
         ) : (
           <>
             <span style={{ fontSize: 15, fontWeight: 600 }}>{group.name}</span>
-            <button className="btn btn-ghost" style={{ padding: '4px 6px' }} title="Rename" onClick={() => setEditing(true)}><Pencil size={12}/></button>
+            <button className="btn btn-ghost" style={{ padding: '4px 6px' }} title={t('folders.rename')} onClick={() => setEditing(true)}><Pencil size={12}/></button>
           </>
         )}
-        <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>{members.length} monitor{members.length === 1 ? '' : 's'}</span>
+        <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>{members.length === 1 ? t('folders.monitor_count_one', { n: members.length }) : t('folders.monitor_count', { n: members.length })}</span>
 
         <label style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--text-3)' }}>
-          In
+          {t('folders.in')}
           <select className="select" style={{ width: 'auto', padding: '4px 8px', fontSize: 12 }}
             value={group.parent_id || ''} disabled={busy}
             onChange={e => onReparent(group.id, e.target.value || null)}>
-            <option value="">Root</option>
+            <option value="">{t('folders.root')}</option>
             {parentOptions.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
           </select>
         </label>
@@ -287,21 +285,21 @@ function FolderCard({
 
       {/* Monitors in this folder */}
       <div style={{ marginBottom: 14 }}>
-        <div className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 7 }}><Activity size={11}/> Monitors</div>
+        <div className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 7 }}><Activity size={11}/> {t('folders.monitors')}</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-          {members.length === 0 && <span style={{ fontSize: 12, color: 'var(--text-3)' }}>None yet. </span>}
+          {members.length === 0 && <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{t('folders.none_yet')} </span>}
           {members.map(m => (
             <span key={m.id} className="chip chip-mon">
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: dot(m.current_status), flexShrink: 0 }}/>
               {m.name}
-              <button title="Remove from folder" onClick={() => onMonitorMove(m.id, null)}><X size={9}/></button>
+              <button title={t('folders.remove_from_folder')} onClick={() => onMonitorMove(m.id, null)}><X size={9}/></button>
             </span>
           ))}
           {outsiders.length > 0 && (
             <select className="select" style={{ width: 'auto', padding: '4px 8px', fontSize: 12 }}
               value="" onChange={e => e.target.value && onMonitorMove(e.target.value, group.id)}>
-              <option value="">+ add monitor…</option>
-              {outsiders.map(m => <option key={m.id} value={m.id}>{m.name}{m.group_id ? ' (move here)' : ''}</option>)}
+              <option value="">{t('folders.add_monitor')}</option>
+              {outsiders.map(m => <option key={m.id} value={m.id}>{m.name}{m.group_id ? ` ${t('folders.move_here')}` : ''}</option>)}
             </select>
           )}
         </div>
@@ -309,20 +307,20 @@ function FolderCard({
 
       {/* Tags */}
       <div style={{ marginBottom: 14 }}>
-        <div className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 7 }}><TagIcon size={11}/> Tags</div>
+        <div className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 7 }}><TagIcon size={11}/> {t('folders.tags')}</div>
         {tagIds === null ? <span style={{ fontSize: 12, color: 'var(--text-3)' }}>…</span> : (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-            {tagIds.length === 0 && <span style={{ fontSize: 12, color: 'var(--text-3)' }}>No tags. </span>}
+            {tagIds.length === 0 && <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{t('folders.no_tags')} </span>}
             {tagIds.map(id => {
-              const t = tagsById.get(id);
-              return <span key={id} className="chip" style={{ background: t?.color || '#888' }}>{t?.name || id.slice(0,8)}
+              const tag = tagsById.get(id);
+              return <span key={id} className="chip" style={{ background: tag?.color || '#888' }}>{tag?.name || id.slice(0,8)}
                 <button disabled={busy} onClick={() => toggleTag(id)}><X size={9}/></button></span>;
             })}
             {availTags.length > 0 && (
               <select className="select" style={{ width: 'auto', padding: '4px 8px', fontSize: 12 }} disabled={busy}
                 value="" onChange={e => e.target.value && toggleTag(e.target.value)}>
-                <option value="">+ tag…</option>
-                {availTags.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                <option value="">{t('folders.add_tag')}</option>
+                {availTags.map(tag => <option key={tag.id} value={tag.id}>{tag.name}</option>)}
               </select>
             )}
           </div>
@@ -331,10 +329,10 @@ function FolderCard({
 
       {/* Folder-level channels */}
       <div>
-        <div className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 7 }}><Bell size={11}/> Channels (apply to all monitors in this folder)</div>
+        <div className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 7 }}><Bell size={11}/> {t('folders.channels')}</div>
         {chanIds === null ? <span style={{ fontSize: 12, color: 'var(--text-3)' }}>…</span> : (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-            {chanIds.length === 0 && <span style={{ fontSize: 12, color: 'var(--text-3)' }}>None. </span>}
+            {chanIds.length === 0 && <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{t('folders.none')} </span>}
             {chanIds.map(id => {
               const c = channelsById.get(id);
               return <span key={id} className="chip" style={{ background: 'var(--accent-2)' }}>{c?.name || id.slice(0,8)}
@@ -343,7 +341,7 @@ function FolderCard({
             {availChans.length > 0 && (
               <select className="select" style={{ width: 'auto', padding: '4px 8px', fontSize: 12 }} disabled={busy}
                 value="" onChange={e => e.target.value && toggleChannel(e.target.value)}>
-                <option value="">+ channel…</option>
+                <option value="">{t('folders.add_channel')}</option>
                 {availChans.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             )}
