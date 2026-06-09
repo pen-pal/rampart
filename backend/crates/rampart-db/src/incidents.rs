@@ -20,6 +20,10 @@ pub struct NewIncident {
     pub style: IncidentStyle,
     #[serde(default = "default_pinned")]
     pub pinned: bool,
+    /// Stable de-duplication key for webhook-driven ingest. `None` for
+    /// manually authored incidents.
+    #[serde(default)]
+    pub dedup_key: Option<String>,
 }
 
 fn default_style() -> IncidentStyle {
@@ -39,12 +43,12 @@ pub async fn create(
     let row = sqlx::query!(
         r#"
         INSERT INTO incidents
-            (id, status_page_id, title, content, style, pinned, created_by)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+            (id, status_page_id, title, content, style, pinned, created_by, dedup_key)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING
             id, status_page_id, title, content,
             style AS "style: IncidentStyle",
-            pinned, active, resolved_at, created_at, created_by
+            pinned, active, resolved_at, created_at, created_by, dedup_key
         "#,
         id.0,
         page.0,
@@ -53,6 +57,7 @@ pub async fn create(
         input.style as IncidentStyle,
         input.pinned,
         author.map(|u| u.0),
+        input.dedup_key,
     )
     .fetch_one(pool)
     .await?;
@@ -68,7 +73,52 @@ pub async fn create(
         resolved_at: row.resolved_at,
         created_at: row.created_at,
         created_by: row.created_by.map(UserId::from_uuid),
+        dedup_key: row.dedup_key,
     })
+}
+
+/// Find the active incident on `page` whose `dedup_key` matches `key`.
+///
+/// Webhook ingest uses this to resolve a firing incident exactly: the
+/// vendor "resolved/recovered" payload carries the same stable key it sent
+/// on firing, so we match on that instead of the fragile title. The partial
+/// unique index on (status_page_id, dedup_key) WHERE active guarantees at
+/// most one row here.
+pub async fn find_active_by_dedup_key(
+    pool: &DbPool,
+    page: StatusPageId,
+    key: &str,
+) -> DbResult<Option<Incident>> {
+    let row = sqlx::query!(
+        r#"
+        SELECT
+            id, status_page_id, title, content,
+            style AS "style: IncidentStyle",
+            pinned, active, resolved_at, created_at, created_by, dedup_key
+        FROM incidents
+        WHERE status_page_id = $1 AND active AND dedup_key = $2
+        ORDER BY created_at DESC
+        LIMIT 1
+        "#,
+        page.0,
+        key,
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row.map(|r| Incident {
+        id: IncidentId::from_uuid(r.id),
+        status_page_id: StatusPageId::from_uuid(r.status_page_id),
+        title: r.title,
+        content: r.content,
+        style: r.style,
+        pinned: r.pinned,
+        active: r.active,
+        resolved_at: r.resolved_at,
+        created_at: r.created_at,
+        created_by: r.created_by.map(UserId::from_uuid),
+        dedup_key: r.dedup_key,
+    }))
 }
 
 pub async fn list_active(pool: &DbPool, page: StatusPageId) -> DbResult<Vec<Incident>> {
@@ -77,7 +127,7 @@ pub async fn list_active(pool: &DbPool, page: StatusPageId) -> DbResult<Vec<Inci
         SELECT
             id, status_page_id, title, content,
             style AS "style: IncidentStyle",
-            pinned, active, resolved_at, created_at, created_by
+            pinned, active, resolved_at, created_at, created_by, dedup_key
         FROM incidents
         WHERE status_page_id = $1 AND active
         ORDER BY pinned DESC, created_at DESC
@@ -100,6 +150,7 @@ pub async fn list_active(pool: &DbPool, page: StatusPageId) -> DbResult<Vec<Inci
             resolved_at: r.resolved_at,
             created_at: r.created_at,
             created_by: r.created_by.map(UserId::from_uuid),
+            dedup_key: r.dedup_key,
         })
         .collect())
 }
@@ -120,7 +171,7 @@ pub async fn list_resolved_history(
         SELECT
             id, status_page_id, title, content,
             style AS "style: IncidentStyle",
-            pinned, active, resolved_at, created_at, created_by
+            pinned, active, resolved_at, created_at, created_by, dedup_key
         FROM incidents
         WHERE status_page_id = $1 AND NOT active
         ORDER BY COALESCE(resolved_at, created_at) DESC
@@ -145,6 +196,7 @@ pub async fn list_resolved_history(
             resolved_at: r.resolved_at,
             created_at: r.created_at,
             created_by: r.created_by.map(UserId::from_uuid),
+            dedup_key: r.dedup_key,
         })
         .collect())
 }
@@ -175,7 +227,7 @@ pub async fn list_all(pool: &DbPool, page: StatusPageId) -> DbResult<Vec<Inciden
         SELECT
             id, status_page_id, title, content,
             style AS "style: IncidentStyle",
-            pinned, active, resolved_at, created_at, created_by
+            pinned, active, resolved_at, created_at, created_by, dedup_key
         FROM incidents
         WHERE status_page_id = $1
         ORDER BY active DESC, pinned DESC, created_at DESC
@@ -198,6 +250,7 @@ pub async fn list_all(pool: &DbPool, page: StatusPageId) -> DbResult<Vec<Inciden
             resolved_at: r.resolved_at,
             created_at: r.created_at,
             created_by: r.created_by.map(UserId::from_uuid),
+            dedup_key: r.dedup_key,
         })
         .collect())
 }
@@ -249,7 +302,7 @@ pub async fn get(pool: &DbPool, id: IncidentId) -> DbResult<Incident> {
         r#"
         SELECT id, status_page_id, title, content,
                style AS "style: IncidentStyle",
-               pinned, active, resolved_at, created_at, created_by
+               pinned, active, resolved_at, created_at, created_by, dedup_key
         FROM incidents WHERE id = $1
         "#,
         id.0,
@@ -269,6 +322,7 @@ pub async fn get(pool: &DbPool, id: IncidentId) -> DbResult<Incident> {
         resolved_at: row.resolved_at,
         created_at: row.created_at,
         created_by: row.created_by.map(UserId::from_uuid),
+        dedup_key: row.dedup_key,
     })
 }
 

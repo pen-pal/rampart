@@ -32,6 +32,11 @@ pub struct Incident {
     pub resolved_at: Option<OffsetDateTime>,
     pub created_at: OffsetDateTime,
     pub created_by: Option<UserId>,
+    /// Stable vendor-supplied key used by webhook ingest to match a
+    /// "resolved" payload back to the incident it opened. `None` for
+    /// manually created incidents.
+    #[serde(default)]
+    pub dedup_key: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
