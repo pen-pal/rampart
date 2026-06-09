@@ -65,6 +65,20 @@ const es = {
   'dashboard.bulk.edit_empty':       'Define un intervalo, un tiempo de espera o elige etiquetas para cambiar.',
   'dashboard.bulk.edit_failed':      'La edición en lote falló: {msg}',
 
+  // ── dashboard: vistas de filtro guardadas + carpeta predeterminada ──
+  'dashboard.views.menu':            'Vistas',
+  'dashboard.views.none':            'Aún no hay vistas guardadas',
+  'dashboard.views.save_current':    'Guardar vista actual…',
+  'dashboard.views.save_prompt':     'Nombra esta vista',
+  'dashboard.views.save_failed':     'No se pudo guardar la vista: {msg}',
+  'dashboard.views.delete':          'Eliminar vista',
+  'dashboard.views.delete_confirm':  '¿Eliminar la vista guardada «{name}»?',
+  'dashboard.views.applied':         'Vista «{name}» aplicada',
+  'dashboard.views.default_folder':  'Abrir aquí de forma predeterminada',
+  'dashboard.views.default_cleared': 'Carpeta predeterminada eliminada',
+  'dashboard.views.is_default':      'Carpeta predeterminada',
+  'dashboard.views.signed_out':      'Inicia sesión para guardar vistas en todos tus dispositivos',
+
   // ── common ───────────────────────────────────────────────────────
   'common.cancel':                   'Cancelar',
   'common.save':                     'Guardar',
@@ -204,6 +218,20 @@ const es = {
   'monitor.action.clone_title':      'Duplicar con la misma configuración (sin historial)',
   'monitor.action.csv':              'CSV',
   'monitor.action.csv_title':        'Descargar los últimos 30 días de latidos como CSV',
+
+  // ── detalle del monitor: acción rápida de mantenimiento ──────────
+  'monitor.maint_now.button':        'Mantenimiento ahora',
+  'monitor.maint_now.title':         'Iniciar ahora una ventana de mantenimiento puntual para este monitor',
+  'monitor.maint_now.heading':       'Iniciar mantenimiento para',
+  'monitor.maint_now.window_name':   'Mantenimiento manual',
+  'monitor.maint_now.dur_1h':        '1 hora',
+  'monitor.maint_now.dur_4h':        '4 horas',
+  'monitor.maint_now.dur_24h':       '24 horas',
+  'monitor.maint_now.start':         'Iniciar',
+  'monitor.maint_now.creating':      'Iniciando…',
+  'monitor.maint_now.cancel':        'Cancelar',
+  'monitor.maint_now.active':        'Mantenimiento activo hasta las {until}.',
+  'monitor.maint_now.error':         'No se pudo iniciar el mantenimiento: {error}',
   'monitor.tab.overview':            'Resumen',
   'monitor.tab.heartbeats':          'Latidos',
   'monitor.tab.config':              'Configuración',
@@ -424,6 +452,9 @@ const es = {
   'wizard.field.url':                'URL',
   'wizard.field.http_method':        'Método HTTP',
   'wizard.field.accepted_statuses':  'Códigos de estado aceptados',
+  'wizard.field.expected_http_version':      'Versión HTTP esperada',
+  'wizard.field.expected_http_version_any':  'Cualquiera',
+  'wizard.field.expected_http_version_hint': 'El latido falla si el servidor negocia una versión diferente. HTTP/3 requiere la función de compilación http3.',
   'wizard.field.hostname':           'Nombre de host',
   'wizard.field.port':               'Puerto',
   'wizard.field.keyword':            'Palabra clave requerida en el cuerpo',
@@ -865,6 +896,20 @@ const es = {
   'import.skip_missing_name':        'falta el nombre',
   'import.skip_unknown_kind':        'tipo desconocido `{kind}`',
   'import.skip_missing_field':       'falta el campo obligatorio `{field}`',
+
+  // ── página de autogestión del suscriptor (#/manage/{token}) ──────
+  'subscribe.manage.title':            'Gestiona tus suscripciones',
+  'subscribe.manage.loading':          'Cargando…',
+  'subscribe.manage.invalid':          'Este enlace de gestión no es válido o ha caducado.',
+  'subscribe.manage.email_label':      'Suscripciones de',
+  'subscribe.manage.subscribed_on':    'Suscrito el {date}',
+  'subscribe.manage.unsubscribe':      'Cancelar suscripción',
+  'subscribe.manage.unsubscribing':    'Cancelando…',
+  'subscribe.manage.unsubscribe_all':  'Cancelar todas',
+  'subscribe.manage.confirm_all':      '¿Cancelar la suscripción de este correo en todas las páginas de estado?',
+  'subscribe.manage.none':             'No estás suscrito a ninguna página de estado.',
+  'subscribe.manage.done':             'Se ha cancelado tu suscripción.',
+  'subscribe.manage.err_failed':       'Algo salió mal. Inténtalo de nuevo.',
 };
 
 export default es;

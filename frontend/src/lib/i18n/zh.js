@@ -44,6 +44,20 @@ const zh = {
   'dashboard.bulk.edit_empty':       '请设置间隔、超时或选择要更改的标签。',
   'dashboard.bulk.edit_failed':      '批量编辑失败：{msg}',
 
+  // ── 仪表板：已保存的筛选视图 + 默认文件夹（机器翻译草稿）──
+  'dashboard.views.menu':            '视图',
+  'dashboard.views.none':            '尚无已保存的视图',
+  'dashboard.views.save_current':    '保存当前视图…',
+  'dashboard.views.save_prompt':     '为此视图命名',
+  'dashboard.views.save_failed':     '无法保存视图：{msg}',
+  'dashboard.views.delete':          '删除视图',
+  'dashboard.views.delete_confirm':  '删除已保存的视图“{name}”？',
+  'dashboard.views.applied':         '已应用视图“{name}”',
+  'dashboard.views.default_folder':  '默认在此处打开',
+  'dashboard.views.default_cleared': '已清除默认文件夹',
+  'dashboard.views.is_default':      '默认文件夹',
+  'dashboard.views.signed_out':      '登录后可在多设备间保存视图',
+
   // ── common ───────────────────────────────────────────────────────
   'common.cancel':                   '取消',
   'common.save':                     '保存',
@@ -88,6 +102,20 @@ const zh = {
   'monitor.notif_test.none':         '此监控未关联任何通道。',
   'monitor.notif_test.error':        '测试失败：{error}',
   'monitor.action.csv':              'CSV',
+
+  // ── 监控详情：维护快捷操作 ──────────────────────────────
+  'monitor.maint_now.button':        '立即维护',
+  'monitor.maint_now.title':         '立即为此监控启动一次性维护窗口',
+  'monitor.maint_now.heading':       '启动维护：',
+  'monitor.maint_now.window_name':   '手动维护',
+  'monitor.maint_now.dur_1h':        '1 小时',
+  'monitor.maint_now.dur_4h':        '4 小时',
+  'monitor.maint_now.dur_24h':       '24 小时',
+  'monitor.maint_now.start':         '启动',
+  'monitor.maint_now.creating':      '正在启动…',
+  'monitor.maint_now.cancel':        '取消',
+  'monitor.maint_now.active':        '维护已激活，直至 {until}。',
+  'monitor.maint_now.error':         '无法启动维护：{error}',
   'monitor.tab.overview':            '概览',
   'monitor.tab.heartbeats':          '心跳',
   'monitor.tab.config':              '配置',
@@ -132,6 +160,9 @@ const zh = {
   'wizard.step2.title':              '告诉我们要检查什么。',
   'wizard.field.display_name':       '显示名称',
   'wizard.field.url':                'URL',
+  'wizard.field.expected_http_version':      '预期 HTTP 版本',
+  'wizard.field.expected_http_version_any':  '任意',
+  'wizard.field.expected_http_version_hint': '如果服务器协商出不同的版本，心跳将判定为离线。HTTP/3 需要 http3 构建特性。',
   'wizard.field.hostname':           '主机名',
   'wizard.field.port':               '端口',
   'wizard.field.notifications':      '通知',
@@ -397,6 +428,20 @@ const zh = {
   'import.skip_missing_name':        '缺少名称',
   'import.skip_unknown_kind':        '未知类型 `{kind}`',
   'import.skip_missing_field':       '缺少必填字段 `{field}`',
+
+  // ── 订阅者自助管理页（#/manage/{token}） ─────────────────────────
+  'subscribe.manage.title':            '管理你的订阅',
+  'subscribe.manage.loading':          '加载中…',
+  'subscribe.manage.invalid':          '此管理链接无效或已过期。',
+  'subscribe.manage.email_label':      '订阅邮箱',
+  'subscribe.manage.subscribed_on':    '订阅于 {date}',
+  'subscribe.manage.unsubscribe':      '取消订阅',
+  'subscribe.manage.unsubscribing':    '正在取消…',
+  'subscribe.manage.unsubscribe_all':  '取消全部订阅',
+  'subscribe.manage.confirm_all':      '要将此邮箱从所有状态页取消订阅吗？',
+  'subscribe.manage.none':             '你尚未订阅任何状态页。',
+  'subscribe.manage.done':             '已取消订阅。',
+  'subscribe.manage.err_failed':       '出现错误，请重试。',
 };
 
 export default zh;

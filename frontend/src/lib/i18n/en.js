@@ -77,6 +77,20 @@ const en = {
   'dashboard.bulk.edit_empty':       'Set an interval, a timeout, or pick tags to change.',
   'dashboard.bulk.edit_failed':      'Bulk-edit failed: {msg}',
 
+  // ── dashboard: saved filter views + default folder ───────────────
+  'dashboard.views.menu':            'Views',
+  'dashboard.views.none':            'No saved views yet',
+  'dashboard.views.save_current':    'Save current view…',
+  'dashboard.views.save_prompt':     'Name this view',
+  'dashboard.views.save_failed':     'Could not save view: {msg}',
+  'dashboard.views.delete':          'Delete view',
+  'dashboard.views.delete_confirm':  'Delete the saved view “{name}”?',
+  'dashboard.views.applied':         'Applied view “{name}”',
+  'dashboard.views.default_folder':  'Open here by default',
+  'dashboard.views.default_cleared': 'Default folder cleared',
+  'dashboard.views.is_default':      'Default folder',
+  'dashboard.views.signed_out':      'Sign in to save views across devices',
+
   // ── common ───────────────────────────────────────────────────────
   'common.cancel':                   'Cancel',
   'common.save':                     'Save',
@@ -230,6 +244,20 @@ const en = {
   'monitor.action.clone_title':      'Duplicate with the same config (no history)',
   'monitor.action.csv':              'CSV',
   'monitor.action.csv_title':        'Download last 30 days of heartbeats as CSV',
+
+  // ── monitor detail: maintenance-now quick action ─────────────────
+  'monitor.maint_now.button':        'Maintenance now',
+  'monitor.maint_now.title':         'Start a one-off maintenance window for this monitor right now',
+  'monitor.maint_now.heading':       'Start maintenance for',
+  'monitor.maint_now.window_name':   'Manual maintenance',
+  'monitor.maint_now.dur_1h':        '1 hour',
+  'monitor.maint_now.dur_4h':        '4 hours',
+  'monitor.maint_now.dur_24h':       '24 hours',
+  'monitor.maint_now.start':         'Start',
+  'monitor.maint_now.creating':      'Starting…',
+  'monitor.maint_now.cancel':        'Cancel',
+  'monitor.maint_now.active':        'Maintenance active until {until}.',
+  'monitor.maint_now.error':         'Could not start maintenance: {error}',
 
   // ── monitor detail: tabs ─────────────────────────────────────────
   'monitor.tab.overview':            'Overview',
@@ -479,6 +507,9 @@ const en = {
   'wizard.field.url':                'URL',
   'wizard.field.http_method':        'HTTP method',
   'wizard.field.accepted_statuses':  'Accepted status codes',
+  'wizard.field.expected_http_version':      'Expected HTTP version',
+  'wizard.field.expected_http_version_any':  'Any',
+  'wizard.field.expected_http_version_hint': 'Heartbeat is down if the server negotiates a different version. HTTP/3 requires the http3 build feature.',
   'wizard.field.hostname':           'Hostname',
   'wizard.field.port':               'Port',
   'wizard.field.keyword':            'Keyword to require in body',
@@ -946,6 +977,20 @@ const en = {
   'import.skip_missing_name':        'missing name',
   'import.skip_unknown_kind':        'unknown kind `{kind}`',
   'import.skip_missing_field':       'missing required field `{field}`',
+
+  // ── subscriber self-manage page (#/manage/{token}) ───────────────
+  'subscribe.manage.title':            'Manage your subscriptions',
+  'subscribe.manage.loading':          'Loading…',
+  'subscribe.manage.invalid':          'This management link is invalid or has expired.',
+  'subscribe.manage.email_label':      'Subscriptions for',
+  'subscribe.manage.subscribed_on':    'Subscribed {date}',
+  'subscribe.manage.unsubscribe':      'Unsubscribe',
+  'subscribe.manage.unsubscribing':    'Unsubscribing…',
+  'subscribe.manage.unsubscribe_all':  'Unsubscribe from all',
+  'subscribe.manage.confirm_all':      'Unsubscribe this email from every status page?',
+  'subscribe.manage.none':             'You are not subscribed to any status pages.',
+  'subscribe.manage.done':             'You have been unsubscribed.',
+  'subscribe.manage.err_failed':       'Something went wrong. Please try again.',
 };
 
 export default en;
