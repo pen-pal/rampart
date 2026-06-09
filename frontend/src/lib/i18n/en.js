@@ -380,6 +380,7 @@ const en = {
   'statuspage.ingest.revoke':        'Revoke',
   'statuspage.ingest.token':         'Token',
   'statuspage.ingest.webhook_url':   'Alertmanager webhook URL',
+  'statuspage.ingest.webhook_urls':  'Webhook URLs ({n} vendors)',
   'statuspage.ingest.copy_token':    'Copy token',
   'statuspage.ingest.copy_webhook':  'Copy webhook URL',
   'statuspage.ingest.err_label':     'Give the token a label so you can tell it apart later.',
@@ -691,6 +692,7 @@ const en = {
   'audit.to_hint':                   'To (inclusive) — only entries on or before this time',
   'audit.clear_filters':             'Clear all filters',
   'audit.csv_hint':                  'Download up to 50,000 entries matching the current filters as CSV',
+  'audit.export_csv':                'Export CSV',
   'audit.col.when':                  'When',
   'audit.col.actor':                 'Actor',
   'audit.col.action':                'Action',
@@ -739,6 +741,21 @@ const en = {
   'statuspage.public.section.incident_history': 'Incident history',
   'statuspage.public.section.subscribe':        'Subscribe to updates',
   'statuspage.public.empty.components':         'No components attached to this page yet.',
+
+  // scheduled-maintenance banner
+  'statuspage.public.maint.heading':     'Scheduled maintenance',
+  'statuspage.public.maint.active':      'Active now',
+  'statuspage.public.maint.starts_in':   'Starts in',
+  'statuspage.public.maint.win.today':   'Today {start}–{end} UTC',
+  'statuspage.public.maint.win.range':   '{start}–{end} UTC',
+  'statuspage.public.maint.win.from':    'From {start} UTC',
+  'statuspage.public.maint.starts.now':       'now',
+  'statuspage.public.maint.starts.minutes':   '{n} minutes',
+  'statuspage.public.maint.starts.minute':    '{n} minute',
+  'statuspage.public.maint.starts.hours':     '{n} hours',
+  'statuspage.public.maint.starts.hour':      '{n} hour',
+  'statuspage.public.maint.starts.days':      '{n} days',
+  'statuspage.public.maint.starts.day':       '{n} day',
 
   // legend
   'statuspage.public.legend.operational':   'Operational',
@@ -854,6 +871,26 @@ const en = {
 
   // ── locale picker ────────────────────────────────────────────────
   'locale.picker.label':             'Language',
+
+  // ── import monitors from CSV ─────────────────────────────────────
+  'import.link':                     'Import CSV',
+  'import.link_title':               'Bulk-import monitors from a CSV file',
+  'import.title':                    'Import monitors from CSV',
+  'import.subtitle':                 'Bulk-create monitors from a Rampart-native CSV — paste the rows or pick a .csv file, then import.',
+  'import.columns_title':            'Expected columns',
+  'import.columns_hint':             'A header row is required. Recognised columns: name, kind, url, hostname, port, interval_seconds, timeout_seconds. name and kind are required on every row; url / hostname / port depend on the kind.',
+  'import.file_label':               'Choose a .csv file',
+  'import.or':                       'or',
+  'import.paste_label':              'Paste CSV',
+  'import.paste_placeholder':        'name,kind,url,hostname,port,interval_seconds,timeout_seconds\nweb,http,https://example.com,,,60,16',
+  'import.import':                   'Import',
+  'import.importing':                'Importing…',
+  'import.err_empty':                'Provide some CSV — pick a file or paste rows above.',
+  'import.err_file_read':            'Could not read that file.',
+  'import.err_failed':               'Import failed.',
+  'import.result_created':           'Created {n} monitors.',
+  'import.result_skipped':           'Skipped {n} rows:',
+  'import.result_none':              'No rows were skipped.',
 };
 
 export default en;

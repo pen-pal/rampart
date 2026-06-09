@@ -338,6 +338,7 @@ const fr = {
   'statuspage.ingest.revoke':        'Révoquer',
   'statuspage.ingest.token':         'Jeton',
   'statuspage.ingest.webhook_url':   'URL du webhook Alertmanager',
+  'statuspage.ingest.webhook_urls':  'URLs de webhook ({n} fournisseurs)',
   'statuspage.ingest.copy_token':    'Copier le jeton',
   'statuspage.ingest.copy_webhook':  'Copier l’URL du webhook',
   'statuspage.ingest.err_label':     'Donnez un libellé au jeton pour le distinguer plus tard.',
@@ -645,6 +646,7 @@ const fr = {
   'audit.to_hint':                   'À (inclus) — seulement les entrées jusqu’à cette heure',
   'audit.clear_filters':             'Effacer tous les filtres',
   'audit.csv_hint':                  'Télécharger jusqu’à 50 000 entrées correspondant aux filtres actuels en CSV',
+  'audit.export_csv':                'Exporter en CSV',
   'audit.col.when':                  'Quand',
   'audit.col.actor':                 'Acteur',
   'audit.col.action':                'Action',
@@ -690,6 +692,20 @@ const fr = {
   'statuspage.public.section.incident_history': 'Historique des incidents',
   'statuspage.public.section.subscribe':        'S’abonner aux mises à jour',
   'statuspage.public.empty.components':         'Aucun composant associé à cette page pour le moment.',
+
+  'statuspage.public.maint.heading':     'Maintenance planifiée',
+  'statuspage.public.maint.active':      'En cours',
+  'statuspage.public.maint.starts_in':   'Commence dans',
+  'statuspage.public.maint.win.today':   "Aujourd'hui {start}–{end} UTC",
+  'statuspage.public.maint.win.range':   '{start}–{end} UTC',
+  'statuspage.public.maint.win.from':    'À partir de {start} UTC',
+  'statuspage.public.maint.starts.now':       'maintenant',
+  'statuspage.public.maint.starts.minutes':   '{n} minutes',
+  'statuspage.public.maint.starts.minute':    '{n} minute',
+  'statuspage.public.maint.starts.hours':     '{n} heures',
+  'statuspage.public.maint.starts.hour':      '{n} heure',
+  'statuspage.public.maint.starts.days':      '{n} jours',
+  'statuspage.public.maint.starts.day':       '{n} jour',
 
   'statuspage.public.legend.operational':   'Opérationnel',
   'statuspage.public.legend.degraded':      'Dégradé',
@@ -790,6 +806,26 @@ const fr = {
 
   // ── locale picker ────────────────────────────────────────────────
   'locale.picker.label':             'Langue',
+
+  // ── importer des moniteurs depuis un CSV ─────────────────────────
+  'import.link':                     'Importer CSV',
+  'import.link_title':               'Importer des moniteurs en masse depuis un fichier CSV',
+  'import.title':                    'Importer des moniteurs depuis un CSV',
+  'import.subtitle':                 "Créez des moniteurs en masse à partir d'un CSV natif Rampart : collez les lignes ou choisissez un fichier .csv, puis importez.",
+  'import.columns_title':            'Colonnes attendues',
+  'import.columns_hint':             "Une ligne d'en-tête est requise. Colonnes reconnues : name, kind, url, hostname, port, interval_seconds, timeout_seconds. name et kind sont requis sur chaque ligne ; url / hostname / port dépendent du type.",
+  'import.file_label':               'Choisir un fichier .csv',
+  'import.or':                       'ou',
+  'import.paste_label':              'Coller le CSV',
+  'import.paste_placeholder':        'name,kind,url,hostname,port,interval_seconds,timeout_seconds\nweb,http,https://example.com,,,60,16',
+  'import.import':                   'Importer',
+  'import.importing':                'Importation…',
+  'import.err_empty':                'Fournissez du CSV : choisissez un fichier ou collez des lignes ci-dessus.',
+  'import.err_file_read':            'Impossible de lire ce fichier.',
+  'import.err_failed':               "Échec de l'importation.",
+  'import.result_created':           '{n} moniteurs créés.',
+  'import.result_skipped':           '{n} lignes ignorées :',
+  'import.result_none':              'Aucune ligne ignorée.',
 };
 
 export default fr;
