@@ -6,13 +6,21 @@
 //! - JsonQuery   — `accepted_statuses` AND `config.json_path` returns a
 //!   value equal to `config.expected_value` (simplest form — full JSONPath
 //!   comes later)
+//!
+//! All three kinds additionally honor an optional `config.expected_http_version`
+//! assertion (`"http1"` | `"http2"` | `"http3"`). When set, the negotiated
+//! protocol version of the response must match or the heartbeat is forced
+//! Down. NOTE: `"http3"` requires reqwest's `http3` feature, which is not
+//! enabled in the current build — a monitor configured for `"http3"` will
+//! therefore never match a response (responses negotiate HTTP/1.1 or HTTP/2)
+//! and will report Down until that feature is compiled in.
 
 use crate::{ms_i32, Probe};
 use async_trait::async_trait;
 use once_cell::sync::OnceCell;
 use rampart_core::proxy::Proxy;
 use rampart_core::{Heartbeat, Monitor, MonitorKind, MonitorStatus};
-use reqwest::{Client, ClientBuilder, Method};
+use reqwest::{Client, ClientBuilder, Method, Version};
 use std::str::FromStr;
 use std::time::{Duration, Instant};
 use time::OffsetDateTime;
@@ -137,6 +145,10 @@ impl HttpProbe {
                 let status_code = resp.status().as_u16() as i32;
                 let status_matches = monitor.accepted_statuses.contains(&status_code);
 
+                // Optional negotiated-HTTP-version assertion. Computed before
+                // the body is consumed (Response::version() borrows resp).
+                let version_check = http_version_matches(resp.version(), &monitor.config);
+
                 // For keyword/json_query monitors we need the body.
                 let needs_body =
                     matches!(monitor.kind, MonitorKind::Keyword | MonitorKind::JsonQuery);
@@ -173,10 +185,12 @@ impl HttpProbe {
                     _ => true,
                 };
 
+                let version_ok = version_check.is_ok();
+
                 // upside_down inverts the pass/fail decision (useful for
                 // monitoring services that should be down, like a
                 // honeypot or staging instance).
-                let raw_ok = status_matches && body_ok;
+                let raw_ok = status_matches && body_ok && version_ok;
                 let ok = if monitor.upside_down { !raw_ok } else { raw_ok };
 
                 Heartbeat {
@@ -191,6 +205,11 @@ impl HttpProbe {
                     status_code: Some(status_code),
                     msg: if ok {
                         None
+                    } else if let Err(version_msg) = &version_check {
+                        // A version mismatch is the most specific failure —
+                        // surface its clear message ("expected HTTP/2, got
+                        // HTTP/1.1") rather than the generic match summary.
+                        Some(version_msg.clone())
                     } else {
                         Some(format!(
                             "status_match={status_matches} body_match={body_ok}"
@@ -264,10 +283,128 @@ fn json_path_matches(body: &str, config: &serde_json::Value) -> bool {
     node == expected
 }
 
+/// Human-readable label for a negotiated HTTP version, used in failure
+/// messages (e.g. "expected HTTP/2, got HTTP/1.1").
+fn version_label(v: Version) -> &'static str {
+    match v {
+        Version::HTTP_09 => "HTTP/0.9",
+        Version::HTTP_10 => "HTTP/1.0",
+        Version::HTTP_11 => "HTTP/1.1",
+        Version::HTTP_2 => "HTTP/2",
+        Version::HTTP_3 => "HTTP/3",
+        _ => "unknown",
+    }
+}
+
+/// Map a config token (`"http1"` | `"http2"` | `"http3"`) to a canonical
+/// display label plus the set of reqwest `Version`s it accepts. `http1`
+/// accepts any 1.x version (0.9/1.0/1.1) since operators asserting "HTTP/1"
+/// generally care about the major line, not the minor revision.
+fn expected_versions(token: &str) -> Option<(&'static str, &'static [Version])> {
+    match token.trim().to_ascii_lowercase().as_str() {
+        "http1" => Some((
+            "HTTP/1.1",
+            &[Version::HTTP_09, Version::HTTP_10, Version::HTTP_11],
+        )),
+        "http2" => Some(("HTTP/2", &[Version::HTTP_2])),
+        "http3" => Some(("HTTP/3", &[Version::HTTP_3])),
+        _ => None,
+    }
+}
+
+/// Check the negotiated response version against `config.expected_http_version`.
+///
+/// - `Ok(())` when no assertion is configured, when the token is unknown
+///   (treated as "no assertion" — invalid config should not silently fail a
+///   monitor), or when the negotiated version satisfies the assertion.
+/// - `Err(msg)` with a clear "expected X, got Y" message on mismatch.
+fn http_version_matches(actual: Version, config: &serde_json::Value) -> Result<(), String> {
+    let token = match config.get("expected_http_version").and_then(|v| v.as_str()) {
+        Some(t) if !t.trim().is_empty() => t,
+        _ => return Ok(()), // unset → no assertion
+    };
+
+    let (want, accepted) = match expected_versions(token) {
+        Some(a) => a,
+        None => return Ok(()), // unknown token → don't penalize the monitor
+    };
+
+    if accepted.contains(&actual) {
+        Ok(())
+    } else {
+        Err(format!("expected {want}, got {}", version_label(actual)))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn http_version_unset_always_matches() {
+        assert!(http_version_matches(Version::HTTP_11, &json!({})).is_ok());
+        assert!(http_version_matches(Version::HTTP_2, &serde_json::Value::Null).is_ok());
+    }
+
+    #[test]
+    fn http_version_empty_string_treated_as_unset() {
+        let cfg = json!({"expected_http_version": ""});
+        assert!(http_version_matches(Version::HTTP_11, &cfg).is_ok());
+        let cfg = json!({"expected_http_version": "   "});
+        assert!(http_version_matches(Version::HTTP_2, &cfg).is_ok());
+    }
+
+    #[test]
+    fn http_version_http2_matches_http2() {
+        let cfg = json!({"expected_http_version": "http2"});
+        assert!(http_version_matches(Version::HTTP_2, &cfg).is_ok());
+    }
+
+    #[test]
+    fn http_version_http2_rejects_http11() {
+        let cfg = json!({"expected_http_version": "http2"});
+        let err = http_version_matches(Version::HTTP_11, &cfg).unwrap_err();
+        assert_eq!(err, "expected HTTP/2, got HTTP/1.1");
+    }
+
+    #[test]
+    fn http_version_http1_accepts_any_1x() {
+        let cfg = json!({"expected_http_version": "http1"});
+        assert!(http_version_matches(Version::HTTP_11, &cfg).is_ok());
+        assert!(http_version_matches(Version::HTTP_10, &cfg).is_ok());
+        assert!(http_version_matches(Version::HTTP_09, &cfg).is_ok());
+    }
+
+    #[test]
+    fn http_version_http1_rejects_http2() {
+        let cfg = json!({"expected_http_version": "http1"});
+        let err = http_version_matches(Version::HTTP_2, &cfg).unwrap_err();
+        assert_eq!(err, "expected HTTP/1.1, got HTTP/2");
+    }
+
+    #[test]
+    fn http_version_token_is_case_insensitive() {
+        let cfg = json!({"expected_http_version": "HTTP2"});
+        assert!(http_version_matches(Version::HTTP_2, &cfg).is_ok());
+    }
+
+    #[test]
+    fn http_version_unknown_token_does_not_fail() {
+        // Garbage config should not silently take a monitor down.
+        let cfg = json!({"expected_http_version": "http9000"});
+        assert!(http_version_matches(Version::HTTP_11, &cfg).is_ok());
+    }
+
+    #[test]
+    fn http_version_http3_rejects_http2_under_current_build() {
+        // http3 is documented as requiring the reqwest http3 feature; with
+        // the current build a response can only be HTTP/1.1 or HTTP/2, so a
+        // http3 assertion fails. This locks in that documented behavior.
+        let cfg = json!({"expected_http_version": "http3"});
+        let err = http_version_matches(Version::HTTP_2, &cfg).unwrap_err();
+        assert_eq!(err, "expected HTTP/3, got HTTP/2");
+    }
 
     #[test]
     fn json_path_matches_top_level_value() {
