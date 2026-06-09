@@ -129,8 +129,9 @@ export const api = {
   },
   users: {
     list:           ()                                    => request('/v1/users'),
-    create:         (email, name, password, isAdmin)      => request('/v1/users', { method: 'POST', body: { email, name, password, is_admin: !!isAdmin } }),
+    create:         (email, name, password, role)         => request('/v1/users', { method: 'POST', body: { email, name, password, role } }),
     setAdmin:       (id, isAdmin)                         => request(`/v1/users/${id}/admin`, { method: 'POST', body: { is_admin: !!isAdmin } }),
+    setRole:        (id, role)                            => request(`/v1/users/${id}/role`, { method: 'PATCH', body: { role } }),
     remove:         (id)                                  => request(`/v1/users/${id}`, { method: 'DELETE' }),
     changePassword: (current, next)                       => request('/v1/users/me/password', { method: 'POST', body: { current_password: current, new_password: next } }),
   },

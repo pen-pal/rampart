@@ -10,6 +10,7 @@ import {
 import {
   api, useApi, formatRelative, offsetDateTimeArrayToDate, statusToClass,
 } from '../lib/api.js';
+import { canWrite } from '../lib/roles.js';
 import { t } from '../lib/i18n.js';
 
 // ── shared design system (matches dashboard v2) ───────────────────────────
@@ -275,7 +276,10 @@ const KIND_LABEL = {
 };
 
 // ── main ──────────────────────────────────────────────────────────────────
-export default function MonitorDetail({ monitorId }) {
+export default function MonitorDetail({ monitorId, user }) {
+  // Readonly users can view everything (incl. CSV export) but get no
+  // test / pause / edit / clone / delete affordances.
+  const writable = canWrite(user);
   const [tab, setTab] = useState('overview');
   const [logFilter, setLogFilter] = useState('all');
   const [acting, setActing] = useState(false);
@@ -505,21 +509,23 @@ export default function MonitorDetail({ monitorId }) {
           </div>
 
           <div style={{ display: 'flex', gap: 6 }}>
-            {monitor.kind !== 'push' && (
+            {writable && monitor.kind !== 'push' && (
               <button className="btn" onClick={doTestNow} disabled={acting || testing}
                 title={t('monitor.action.test_now_title')}>
                 {testing ? <><Loader2 size={13} className="spin"/> {t('monitor.action.testing')}</> : <><Zap size={13}/> {t('monitor.action.test_now')}</>}
               </button>
             )}
-            <button className="btn" onClick={doPauseResume} disabled={acting}>
-              {monitor.active ? <><Pause size={13}/> {t('common.pause')}</> : <><Play size={13}/> {t('common.resume')}</>}
-            </button>
-            <button className="btn" onClick={() => setEditing(true)} disabled={acting}><Edit3 size={13}/> {t('common.edit')}</button>
-            <button className="btn" onClick={doClone} disabled={acting} title={t('monitor.action.clone_title')}><Copy size={13}/> {t('common.clone')}</button>
+            {writable && (
+              <button className="btn" onClick={doPauseResume} disabled={acting}>
+                {monitor.active ? <><Pause size={13}/> {t('common.pause')}</> : <><Play size={13}/> {t('common.resume')}</>}
+              </button>
+            )}
+            {writable && <button className="btn" onClick={() => setEditing(true)} disabled={acting}><Edit3 size={13}/> {t('common.edit')}</button>}
+            {writable && <button className="btn" onClick={doClone} disabled={acting} title={t('monitor.action.clone_title')}><Copy size={13}/> {t('common.clone')}</button>}
             <a className="btn" href={`/v1/monitors/${monitor.id}/heartbeats.csv`} title={t('monitor.action.csv_title')} download>
               <Download size={13}/> {t('monitor.action.csv')}
             </a>
-            <button className="btn btn-danger" onClick={doDelete} disabled={acting}><Trash2 size={13}/> {t('common.delete')}</button>
+            {writable && <button className="btn btn-danger" onClick={doDelete} disabled={acting}><Trash2 size={13}/> {t('common.delete')}</button>}
           </div>
         </div>
 

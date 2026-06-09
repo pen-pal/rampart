@@ -4,6 +4,7 @@ import {
   Pause, Play, X, Pencil, Check,
 } from 'lucide-react';
 import { api, useApi, formatRelative, offsetDateTimeArrayToDate } from '../lib/api.js';
+import { canWrite } from '../lib/roles.js';
 import { t } from '../lib/i18n.js';
 
 const css = `
@@ -115,7 +116,8 @@ function describeRecurrence(r) {
   return 'Once';
 }
 
-export default function Maintenance() {
+export default function Maintenance({ user } = {}) {
+  const writable = canWrite(user);
   const windowsState = useApi(() => api.maintenance.list(), [], { pollMs: 30_000 });
   const monitorsState = useApi(() => api.monitors.list(), []);
 
@@ -189,9 +191,11 @@ export default function Maintenance() {
               {t('maintenance.subtitle')}
             </p>
           </div>
-          <button className="btn btn-accent" onClick={() => setShowForm(true)}>
-            <Plus size={14}/> {t('maintenance.new_window')}
-          </button>
+          {writable && (
+            <button className="btn btn-accent" onClick={() => setShowForm(true)}>
+              <Plus size={14}/> {t('maintenance.new_window')}
+            </button>
+          )}
         </div>
 
         {err && (
@@ -227,6 +231,7 @@ export default function Maintenance() {
               w={w}
               monitorsById={monitorsById}
               busy={busy === w.id}
+              writable={writable}
               onTogglePause={() => togglePause(w)}
               onRename={name => rename(w, name)}
               onEdit={() => setEditingWindow(w)}
@@ -239,7 +244,7 @@ export default function Maintenance() {
   );
 }
 
-function WindowRow({ w, monitorsById, busy, onTogglePause, onRename, onEdit, onDelete }) {
+function WindowRow({ w, monitorsById, busy, onTogglePause, onRename, onEdit, onDelete, writable }) {
   const state = windowState(w);
   const startDate = offsetDateTimeArrayToDate(w.start_at);
   const endDate   = offsetDateTimeArrayToDate(w.end_at);
@@ -272,9 +277,11 @@ function WindowRow({ w, monitorsById, busy, onTogglePause, onRename, onEdit, onD
           ) : (
             <>
               <span style={{ fontSize: 13.5, fontWeight: 600 }}>{w.name}</span>
-              <button className="btn btn-ghost" style={{ padding: '2px 5px' }} title={t('maintenance.row.rename')} onClick={() => setEditing(true)}>
-                <Pencil size={11}/>
-              </button>
+              {writable && (
+                <button className="btn btn-ghost" style={{ padding: '2px 5px' }} title={t('maintenance.row.rename')} onClick={() => setEditing(true)}>
+                  <Pencil size={11}/>
+                </button>
+              )}
             </>
           )}
           <span className={`pill pill-${state}`}>{t(`maintenance.state.${state}`)}</span>
@@ -293,16 +300,20 @@ function WindowRow({ w, monitorsById, busy, onTogglePause, onRename, onEdit, onD
                 .join(' · ')}
         </div>
       </div>
-      <button className="btn btn-ghost" onClick={onEdit} disabled={busy} title={t('maintenance.row.edit_title')}>
-        <Pencil size={13}/> {t('common.edit')}
-      </button>
-      <button className="btn btn-ghost" onClick={onTogglePause} disabled={busy} title={w.active ? t('common.pause') : t('common.resume')}>
-        {w.active ? <Pause size={13}/> : <Play size={13}/>}
-        {w.active ? t('common.pause') : t('common.resume')}
-      </button>
-      <button className="btn btn-ghost btn-danger" onClick={onDelete} disabled={busy}>
-        <Trash2 size={13}/>
-      </button>
+      {writable ? (
+        <>
+          <button className="btn btn-ghost" onClick={onEdit} disabled={busy} title={t('maintenance.row.edit_title')}>
+            <Pencil size={13}/> {t('common.edit')}
+          </button>
+          <button className="btn btn-ghost" onClick={onTogglePause} disabled={busy} title={w.active ? t('common.pause') : t('common.resume')}>
+            {w.active ? <Pause size={13}/> : <Play size={13}/>}
+            {w.active ? t('common.pause') : t('common.resume')}
+          </button>
+          <button className="btn btn-ghost btn-danger" onClick={onDelete} disabled={busy}>
+            <Trash2 size={13}/>
+          </button>
+        </>
+      ) : (<><span/><span/><span/></>)}
       <span/>
     </div>
   );

@@ -23,10 +23,20 @@ pub fn public_router() -> Router<AppState> {
         .route("/subscribe/unsubscribe/{token}", get(unsubscribe))
 }
 
+/// Status-page subscriber management — editors may manage these (they're
+/// part of running a status page), so this router carries no admin gate.
+/// The readonly method-guard on the protected tree still blocks readonly
+/// users from the mutating verbs here.
 pub fn admin_router() -> Router<AppState> {
     Router::new()
         .route("/status-pages/{id}/subscribers", get(list))
         .route("/subscribers/{id}", axum::routing::delete(delete_one))
+}
+
+/// SMTP + retention settings — admin-only. Mounted separately so the
+/// caller can layer `require_admin` over just these.
+pub fn settings_router() -> Router<AppState> {
+    Router::new()
         .route("/settings/smtp", get(smtp_get).put(smtp_put))
         .route("/settings/retention", get(retention_get).put(retention_put))
 }

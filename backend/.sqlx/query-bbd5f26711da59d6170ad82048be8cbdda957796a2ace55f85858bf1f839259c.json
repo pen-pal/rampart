@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, email::text AS \"email!\", name, is_admin,\n               created_at, last_login_at, totp_enabled\n        FROM users\n        ORDER BY created_at ASC\n        ",
+  "query": "\n        SELECT id, email::text AS \"email!\", name, is_admin, role AS \"role: Role\",\n               created_at, last_login_at, totp_enabled\n        FROM users\n        ORDER BY created_at ASC\n        ",
   "describe": {
     "columns": [
       {
@@ -44,6 +44,28 @@
       },
       {
         "ordinal": 4,
+        "name": "role: Role",
+        "type_info": {
+          "Custom": {
+            "name": "user_role",
+            "kind": {
+              "Enum": [
+                "admin",
+                "editor",
+                "readonly"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "role"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -54,7 +76,7 @@
         }
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "last_login_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -65,7 +87,7 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "totp_enabled",
         "type_info": "Bool",
         "origin": {
@@ -85,9 +107,10 @@
       true,
       false,
       false,
+      false,
       true,
       false
     ]
   },
-  "hash": "ed021c7be6060200506e98efe87be685afa48b498d7470f83cc94708403a20e3"
+  "hash": "bbd5f26711da59d6170ad82048be8cbdda957796a2ace55f85858bf1f839259c"
 }

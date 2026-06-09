@@ -49,8 +49,24 @@ const css = `
   .banner-err { background: var(--down-soft); color: #b91c1c; border: 1px solid #fecaca; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
   .pill { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; padding: 2px 8px; border-radius: 999px; font-weight: 500; }
   .pill-admin { background: var(--accent-soft); color: var(--accent-2); }
+  .pill-editor { background: #e0e7ff; color: #4338ca; }
+  .pill-readonly { background: var(--surface-2); color: var(--text-2); }
   .pill-user  { background: var(--surface-2);   color: var(--text-2); }
+  .select {
+    padding: 6px 10px; border-radius: 8px; font-size: 12.5px; cursor: pointer;
+    background: var(--surface); border: 1px solid var(--border); color: var(--text);
+    font-family: inherit; outline: none;
+  }
+  .select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .select:disabled { opacity: .55; cursor: not-allowed; }
 `;
+
+const ROLE_LABEL = { admin: 'admin', editor: 'editor', readonly: 'readonly' };
+function roleOf(u) {
+  // `role` is authoritative; fall back to the legacy is_admin shim for any
+  // row that predates the migration backfill.
+  return u.role || (u.is_admin ? 'admin' : 'editor');
+}
 
 const tsToDate = (t) => (Array.isArray(t) ? offsetDateTimeArrayToDate(t) : new Date(t));
 
@@ -74,11 +90,11 @@ export default function Users() {
     catch (e) { setErr(e.message); }
     finally { setBusy(null); }
   };
-  const toggleAdmin = async (u) => {
+  const changeRole = async (u, role) => {
+    if (role === roleOf(u)) return;
     setBusy(u.id); setErr(null);
-    try { await api.users.setAdmin(u.id, !u.is_admin); reload(); }
-    catch (e) { setErr(e.message); }
-    finally { setBusy(null); }
+    try { await api.users.setRole(u.id, role); reload(); }
+    catch (e) { setErr(e.message); setBusy(null); }
   };
 
   // Non-admins shouldn't even land here; if /v1/users returns 403 we show
@@ -128,8 +144,8 @@ export default function Users() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
                   <span style={{ fontSize: 13.5, fontWeight: 600 }}>{u.name || u.email}</span>
-                  <span className={`pill pill-${u.is_admin ? 'admin' : 'user'}`}>
-                    {u.is_admin ? <><ShieldCheck size={10}/> admin</> : 'user'}
+                  <span className={`pill pill-${roleOf(u)}`}>
+                    {roleOf(u) === 'admin' ? <><ShieldCheck size={10}/> admin</> : ROLE_LABEL[roleOf(u)]}
                   </span>
                   {u.totp_enabled && <span className="pill pill-admin" title="Two-factor enabled"><Shield size={10}/> 2FA</span>}
                   {me?.id === u.id && <span className="pill pill-user">you</span>}
@@ -141,9 +157,17 @@ export default function Users() {
               </div>
               {me?.is_admin && me?.id !== u.id ? (
                 <>
-                  <button className="btn btn-ghost" onClick={() => toggleAdmin(u)} disabled={busy === u.id}>
-                    {u.is_admin ? 'Demote' : 'Promote'}
-                  </button>
+                  <select
+                    className="select"
+                    value={roleOf(u)}
+                    disabled={busy === u.id}
+                    onChange={e => changeRole(u, e.target.value)}
+                    aria-label="Role"
+                  >
+                    <option value="admin">admin</option>
+                    <option value="editor">editor</option>
+                    <option value="readonly">readonly</option>
+                  </select>
                   <button className="btn btn-ghost btn-danger" onClick={() => remove(u.id)} disabled={busy === u.id}>
                     <Trash2 size={13}/>
                   </button>
@@ -162,7 +186,7 @@ function CreateForm({ onCancel, onCreated }) {
   const [email,    setEmail]    = useState('');
   const [name,     setName]     = useState('');
   const [password, setPassword] = useState('');
-  const [isAdmin,  setIsAdmin]  = useState(false);
+  const [role,     setRole]     = useState('editor');
   const [busy,     setBusy]     = useState(false);
   const [err,      setErr]      = useState(null);
 
@@ -172,7 +196,7 @@ function CreateForm({ onCancel, onCreated }) {
     if (password.length < 10)  { setErr('Password must be at least 10 characters.'); return; }
     setBusy(true);
     try {
-      await api.users.create(email.trim(), name.trim() || null, password, isAdmin);
+      await api.users.create(email.trim(), name.trim() || null, password, role);
       onCreated();
     } catch (e) { setErr(e.message || 'Failed to create user.'); setBusy(false); }
   };
@@ -200,10 +224,14 @@ function CreateForm({ onCancel, onCreated }) {
         <input className="input" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="At least 10 characters"/>
         <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>Share this securely; the user can change it after first login.</div>
       </div>
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, fontSize: 12.5 }}>
-        <input type="checkbox" checked={isAdmin} onChange={e => setIsAdmin(e.target.checked)}/>
-        Grant admin
-      </label>
+      <div style={{ marginBottom: 14 }}>
+        <label style={{ fontSize: 12, color: 'var(--text-2)', display: 'block', marginBottom: 4 }}>Role</label>
+        <select className="select" value={role} onChange={e => setRole(e.target.value)} style={{ width: '100%' }}>
+          <option value="admin">admin — full access incl. user management & settings</option>
+          <option value="editor">editor — monitors, incidents, status pages, notifications</option>
+          <option value="readonly">readonly — view only, no changes</option>
+        </select>
+      </div>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
         <button className="btn btn-ghost" onClick={onCancel} disabled={busy}>Cancel</button>

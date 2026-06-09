@@ -6,6 +6,7 @@ import {
   ChevronDown, Check, Copy,
 } from 'lucide-react';
 import { api, useApi } from '../lib/api.js';
+import { canWrite } from '../lib/roles.js';
 import { t } from '../lib/i18n.js';
 
 const css = `
@@ -2365,7 +2366,8 @@ function ConfigForm({ kind, config, setConfig }) {
   return null;
 }
 
-export default function Notifications() {
+export default function Notifications({ user } = {}) {
+  const writable  = canWrite(user);
   const list      = useApi(() => api.notifications.list(), [], { pollMs: 0 });
   const templates = useApi(() => api.templates.list(),      [], { pollMs: 0 });
   const allTags   = useApi(() => api.tags.list(),           [], { pollMs: 0 });
@@ -2547,7 +2549,7 @@ export default function Notifications() {
         <span style={{ fontSize: 14, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}>
           <Bell size={15}/> {t('notifications.title')}
         </span>
-        {tab === 'channels' && (
+        {tab === 'channels' && writable && (
           showAdd ? (
             <button className="btn" style={{ marginLeft: 'auto' }}
               onClick={() => { setShowAdd(false); resetForm(); }}>
@@ -2626,15 +2628,19 @@ export default function Notifications() {
                 </div>
                 <div style={{ gridColumn: '3', display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
                   {c.kind === 'webpush' && <EnablePushButton notificationId={c.id}/>}
-                  <button className={`btn ${editingThis ? 'btn-accent' : ''}`} onClick={() => startEdit(c)} title={t('notifications.channel.edit_title')}>
-                    <Edit3 size={12}/> {editingThis ? t('common.close') : t('common.edit')}
-                  </button>
-                  <button className="btn" onClick={() => sendTest(c.id)} title={t('notifications.channel.test_title')}>
-                    <Send size={12}/> {t('common.test')}
-                  </button>
-                  <button className="btn btn-danger" onClick={() => removeOne(c.id)} title={t('notifications.channel.delete_title')}>
-                    <Trash2 size={12}/>
-                  </button>
+                  {writable && (
+                    <>
+                      <button className={`btn ${editingThis ? 'btn-accent' : ''}`} onClick={() => startEdit(c)} title={t('notifications.channel.edit_title')}>
+                        <Edit3 size={12}/> {editingThis ? t('common.close') : t('common.edit')}
+                      </button>
+                      <button className="btn" onClick={() => sendTest(c.id)} title={t('notifications.channel.test_title')}>
+                        <Send size={12}/> {t('common.test')}
+                      </button>
+                      <button className="btn btn-danger" onClick={() => removeOne(c.id)} title={t('notifications.channel.delete_title')}>
+                        <Trash2 size={12}/>
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
               {editingThis && (

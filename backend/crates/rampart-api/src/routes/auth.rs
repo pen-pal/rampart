@@ -85,7 +85,7 @@ async fn register(
             email: input.email,
             name: input.name,
             password_hash: hash,
-            is_admin: true, // the first user becomes admin
+            role: rampart_core::Role::Admin, // the first user becomes admin
         },
     )
     .await?;
