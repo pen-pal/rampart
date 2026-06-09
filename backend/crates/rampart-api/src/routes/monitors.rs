@@ -25,6 +25,7 @@ pub fn router() -> Router<AppState> {
     // matches them before treating the segment as an id.
     Router::new()
         .route("/", get(list).post(create))
+        .route("/import-csv", post(import_csv))
         .route("/bulk", post(bulk))
         .route("/summary", get(summary))
         .route("/history", get(history_all))
@@ -72,6 +73,76 @@ async fn create(
     )
     .await;
     Ok((StatusCode::CREATED, Json(monitor)))
+}
+
+/// One row that couldn't be turned into a monitor — either skipped by the
+/// CSV mapper (unknown kind / missing required field) or rejected by the DB
+/// insert. `row` is the source name when known so the operator can find it.
+#[derive(Serialize)]
+struct ImportSkip {
+    row: String,
+    reason: String,
+}
+
+#[derive(Serialize)]
+struct ImportResult {
+    created: usize,
+    skipped: Vec<ImportSkip>,
+}
+
+/// Bulk-import monitors from a Rampart-native CSV posted as the raw request
+/// body (`text/csv` or `text/plain`). Mirrors the `rampart-import csv` CLI
+/// path: parse + map via [`csv_import::parse_csv_and_map`], then create each
+/// mapped monitor through the same `rampart_db::monitors::create` the API
+/// `POST /monitors` uses. Rows the mapper couldn't translate, plus any that
+/// fail the insert, come back in `skipped` rather than aborting the batch.
+/// The 2 MiB global request-body limit caps the upload size.
+async fn import_csv(
+    State(state): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
+    body: String,
+) -> Result<Json<ImportResult>, ApiError> {
+    let plan = crate::importers::csv_import::parse_csv_and_map(&body)
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+
+    let pool = state.pool();
+    let mut created = 0usize;
+    let mut skipped: Vec<ImportSkip> = plan
+        .skipped
+        .into_iter()
+        .map(|s| ImportSkip {
+            row: s.source_name,
+            reason: s.reason,
+        })
+        .collect();
+
+    for m in plan.mapped {
+        let name = m.new_monitor.name.clone();
+        match rampart_db::monitors::create(pool, m.new_monitor).await {
+            Ok(_) => created += 1,
+            Err(e) => skipped.push(ImportSkip {
+                row: name,
+                reason: e.to_string(),
+            }),
+        }
+    }
+
+    if created > 0 {
+        state.poke_scheduler();
+    }
+    crate::audit::record(
+        pool,
+        &user,
+        &headers,
+        "monitor.import_csv",
+        "monitor",
+        None,
+        Some(serde_json::json!({ "created": created, "skipped": skipped.len() })),
+    )
+    .await;
+
+    Ok(Json(ImportResult { created, skipped }))
 }
 
 async fn get_one(

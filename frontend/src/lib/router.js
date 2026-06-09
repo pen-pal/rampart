@@ -19,6 +19,7 @@ export function parseRoute(hash) {
   if (h.startsWith('#/monitor/'))   return { view: 'monitor',       id: h.slice('#/monitor/'.length) };
   if (h === '#/monitor')            return { view: 'monitor',       id: null };
   if (h === '#/new-monitor')        return { view: 'new-monitor',   id: null };
+  if (h === '#/import')             return { view: 'import',        id: null };
   if (h === '#/status-page')        return { view: 'status-page',   id: null };
   if (h === '#/notifications')      return { view: 'notifications', id: null };
   if (h === '#/maintenance')        return { view: 'maintenance',   id: null };

@@ -8,7 +8,7 @@ import {
   AlertCircle, Pause, MoreHorizontal, Calendar,
   Tag, ArrowUpRight, Wrench, Zap, Globe, Server,
   Database, Radio, Lock, Hash,
-  Menu, Folder, Tag as TagIcon, Calendar as CalIcon, Network, Key, ScrollText, Users as UsersIcon, Mail, Database as DbIcon, Settings,
+  Menu, Folder, Tag as TagIcon, Calendar as CalIcon, Network, Key, ScrollText, Users as UsersIcon, Mail, Database as DbIcon, Settings, Upload,
 } from 'lucide-react';
 import {
   api, useApi, formatRelative, offsetDateTimeArrayToDate, statusToClass,
@@ -479,6 +479,7 @@ export default function Dashboard({ user, onLogout } = {}) {
             <Bell size={14}/>
           </a>
           <button className="btn" onClick={goToStatusPage}><Wrench size={13}/> {t("dashboard.status_page")}</button>
+          {writable && <a className="btn btn-ghost" href="#/import" style={{ textDecoration: 'none' }} title={t("import.link_title")}><Upload size={13}/> {t("import.link")}</a>}
           {writable && <button className="btn btn-accent" onClick={goToNewMonitor}><Plus size={13} strokeWidth={2.4}/> {t("dashboard.add_monitor")}</button>}
           {user && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
