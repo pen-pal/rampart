@@ -6,7 +6,8 @@ use crate::{DbError, DbPool, DbResult};
 use rampart_core::maintenance::{
     MaintenanceWindow, NewMaintenanceWindow, Recurrence, UpdateMaintenanceWindow,
 };
-use rampart_core::{MaintenanceId, MonitorId};
+use rampart_core::status_page::PublicMaintenance;
+use rampart_core::{MaintenanceId, MonitorId, StatusPageId};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -267,4 +268,72 @@ pub async fn is_in_active_window(pool: &DbPool, monitor: MonitorId) -> DbResult<
         }
     }
     Ok(false)
+}
+
+/// Active + upcoming maintenance for a status page's public banner.
+///
+/// Returns the public projection of every `active` window whose monitor
+/// set intersects `page`'s monitors and which is EITHER live right now OR
+/// has its next occurrence start within `now ..= now + 7 days`. Recurrence
+/// is evaluated in Rust (same rationale as `is_in_active_window` — the row
+/// count is small). Active windows sort first; within each group, by the
+/// occurrence start. `ends_at` is `None` for recurring windows since they
+/// have no single end instant.
+pub async fn public_for_status_page(
+    pool: &DbPool,
+    page: StatusPageId,
+) -> DbResult<Vec<PublicMaintenance>> {
+    // DISTINCT so a window attached to several of the page's monitors
+    // only surfaces once. The inner join through both edge tables limits
+    // us to windows whose monitor set intersects this page's.
+    let rows = sqlx::query!(
+        r#"
+        SELECT DISTINCT w.id, w.name, w.description, w.start_at, w.end_at, w.recurrence
+        FROM maintenance_windows w
+        JOIN maintenance_window_monitors mwm ON mwm.window_id = w.id
+        JOIN status_page_monitors spm ON spm.monitor_id = mwm.monitor_id
+        WHERE spm.page_id = $1
+          AND w.active
+        "#,
+        page.0,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let now = OffsetDateTime::now_utc();
+    let horizon = now.saturating_add(time::Duration::days(7));
+
+    let mut out: Vec<(bool, OffsetDateTime, PublicMaintenance)> = Vec::new();
+    for r in rows {
+        let rec: Recurrence = serde_json::from_value(r.recurrence).unwrap_or(Recurrence::None);
+        let active = rec.contains(r.start_at, r.end_at, now);
+        // Resolve the occurrence start we want to surface: the live one
+        // if active, otherwise the next upcoming start.
+        let starts_at = match rec.next_start(r.start_at, r.end_at, now) {
+            Some(s) => s,
+            None => continue,
+        };
+        // Keep only live windows or ones starting inside the 7-day horizon.
+        if !active && starts_at > horizon {
+            continue;
+        }
+        // A single-shot window has a concrete end; recurring windows
+        // repeat, so we don't pin a single end instant for them.
+        let ends_at = matches!(rec, Recurrence::None).then_some(r.end_at);
+        out.push((
+            active,
+            starts_at,
+            PublicMaintenance {
+                title: r.name,
+                description: r.description,
+                starts_at,
+                ends_at,
+                active,
+            },
+        ));
+    }
+
+    // Active first, then by soonest start.
+    out.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
+    Ok(out.into_iter().map(|(_, _, m)| m).collect())
 }

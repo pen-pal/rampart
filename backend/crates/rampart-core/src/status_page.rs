@@ -126,6 +126,26 @@ pub struct PublicStatusPage {
     /// having to dig the data out of the audit log.
     #[serde(default)]
     pub incident_history: Vec<PublicResolvedIncident>,
+    /// Scheduled-maintenance windows surfaced as a banner above the
+    /// components list. Carries windows that are currently active OR
+    /// start within the next 7 days AND are attached to at least one
+    /// monitor shown on this page. Empty when nothing is scheduled.
+    #[serde(default)]
+    pub maintenance: Vec<PublicMaintenance>,
+}
+
+/// Public projection of a maintenance window. Carries just enough for
+/// the public banner: the operator-authored title/description plus the
+/// resolved occurrence window and whether it's live right now. The
+/// `ends_at` is optional because a recurring window has no single end.
+#[derive(Debug, Clone, Serialize)]
+pub struct PublicMaintenance {
+    pub title: String,
+    pub description: Option<String>,
+    pub starts_at: OffsetDateTime,
+    pub ends_at: Option<OffsetDateTime>,
+    /// True when `now` sits inside the window (per its recurrence rule).
+    pub active: bool,
 }
 
 /// Slimmed projection used for the public history pane. Carries the
