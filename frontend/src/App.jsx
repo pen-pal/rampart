@@ -9,6 +9,7 @@ const ImportMonitors    = lazy(() => import('./views/ImportMonitors.jsx'));
 const Login             = lazy(() => import('./views/Login.jsx'));
 const Notifications     = lazy(() => import('./views/Notifications.jsx'));
 const Maintenance       = lazy(() => import('./views/Maintenance.jsx'));
+const DependencyGraph   = lazy(() => import('./views/DependencyGraph.jsx'));
 const ApiKeys           = lazy(() => import('./views/ApiKeys.jsx'));
 const Proxies           = lazy(() => import('./views/Proxies.jsx'));
 const Security          = lazy(() => import('./views/Security.jsx'));
@@ -49,6 +50,7 @@ const VIEW_LABEL = {
   'notifications': 'Notifications',
   'tags':          'Tags',
   'maintenance':   'Maintenance',
+  'dependencies':  'Dependencies',
   'api-keys':      'API keys',
   'proxies':       'Proxies',
   'security':      'Security',
@@ -192,6 +194,7 @@ export default function App() {
     case 'status-page':   view = <StatusPageBuilder user={user} />; break;
     case 'notifications': view = <Notifications user={user} />; break;
     case 'maintenance':   view = <Maintenance user={user} />; break;
+    case 'dependencies':  view = <DependencyGraph />; break;
     case 'api-keys':      view = <ApiKeys />; break;
     case 'proxies':       view = <Proxies />; break;
     case 'security':      view = <Security />; break;
@@ -240,6 +243,7 @@ function ViewSwitcher({ current, user }) {
     { hash: '#/monitor',       view: 'monitor'       },
     { hash: '#/notifications', view: 'notifications' },
     { hash: '#/maintenance',   view: 'maintenance'   },
+    { hash: '#/dependencies',  view: 'dependencies'  },
     { hash: '#/api-keys',      view: 'api-keys',     adminOnly: true },
     { hash: '#/proxies',       view: 'proxies',      adminOnly: true },
     { hash: '#/security',      view: 'security',     adminOnly: true },
