@@ -12,7 +12,8 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::{Json, Router};
-use rampart_core::ids::StatusPageId;
+use rampart_core::ids::{IncidentId, StatusPageId};
+use rampart_core::incident::{Incident, IncidentUpdate};
 use rampart_core::status_page::{NewStatusPage, PublicStatusPage, StatusPage, UpdateStatusPage};
 use rampart_db::users::User;
 use serde::{Deserialize, Serialize};
@@ -33,6 +34,14 @@ pub fn public_router() -> Router<AppState> {
         .route("/{slug}/unlock", axum::routing::post(public_unlock))
         .route("/{slug}/feed.atom", get(public_feed_atom))
         .route("/{slug}/feed.rss", get(public_feed_rss))
+        .route(
+            "/{slug}/incidents/{incident_id}/feed.atom",
+            get(public_incident_feed_atom),
+        )
+        .route(
+            "/{slug}/incidents/{incident_id}/feed.rss",
+            get(public_incident_feed_rss),
+        )
         .route("/{slug}/day-latency", get(public_day_latency))
 }
 
@@ -390,6 +399,68 @@ async fn public_feed_rss(
     ))
 }
 
+/// Resolve a `(slug, incident_id)` pair to a concrete incident plus its
+/// running updates, enforcing that the incident actually belongs to the
+/// named page. A private page (or one whose incident lives elsewhere)
+/// 404s — the per-incident feed is only meaningful for an incident the
+/// caller could already see on that page. Updates come back oldest-first
+/// (the `list_updates` ordering), which the renderers then walk newest-
+/// first for the entry/item ordering.
+async fn resolve_incident(
+    s: &AppState,
+    slug: &str,
+    incident_id: &str,
+) -> Result<(StatusPage, Incident, Vec<IncidentUpdate>), ApiError> {
+    let page = rampart_db::status_pages::get_by_slug(s.pool(), slug).await?;
+    if page.private {
+        return Err(ApiError::NotFound);
+    }
+    let inc_id = Uuid::from_str(incident_id)
+        .map(IncidentId::from_uuid)
+        .map_err(|_| ApiError::BadRequest("invalid incident id".into()))?;
+    let incident = rampart_db::incidents::get(s.pool(), inc_id).await?;
+    // The incident must live on this page — otherwise a caller could read
+    // any incident's thread through any page's slug.
+    if incident.status_page_id != page.id {
+        return Err(ApiError::NotFound);
+    }
+    let updates = rampart_db::incidents::list_updates(s.pool(), inc_id).await?;
+    Ok((page, incident, updates))
+}
+
+/// Atom 1.0 feed scoped to a single incident's update thread. Where the
+/// page-level feed emits one entry per incident, this emits one entry per
+/// running post: the oldest entry is the incident's initial content, then
+/// one entry per `IncidentUpdate`. Entries are newest-first so a reader
+/// surfaces the latest post at the top of the thread.
+async fn public_incident_feed_atom(
+    State(s): State<AppState>,
+    Path((slug, incident_id)): Path<(String, String)>,
+) -> Result<impl IntoResponse, ApiError> {
+    let (page, incident, updates) = resolve_incident(&s, &slug, &incident_id).await?;
+    let xml = render_incident_atom_feed(&page, &incident, &updates);
+    Ok((
+        StatusCode::OK,
+        [("content-type", "application/atom+xml; charset=utf-8")],
+        xml,
+    ))
+}
+
+/// RSS 2.0 companion to the per-incident Atom feed — same projection,
+/// different envelope.
+async fn public_incident_feed_rss(
+    State(s): State<AppState>,
+    Path((slug, incident_id)): Path<(String, String)>,
+) -> Result<impl IntoResponse, ApiError> {
+    let (page, incident, updates) = resolve_incident(&s, &slug, &incident_id).await?;
+    let xml = render_incident_rss_feed(&page, &incident, &updates);
+    Ok((
+        StatusCode::OK,
+        [("content-type", "application/rss+xml; charset=utf-8")],
+        xml,
+    ))
+}
+
 /// XML-text escape: only the five characters the XML spec requires —
 /// `&`, `<`, `>`, `"`, `'`. The feed templates wrap user-provided text
 /// (incident title + content + update messages) in element bodies, so
@@ -599,6 +670,137 @@ fn render_rss_feed(page: &PublicStatusPage) -> String {
         );
         let _ = writeln!(out, "    </item>");
     }
+
+    let _ = writeln!(out, "  </channel>");
+    let _ = writeln!(out, "</rss>");
+    out
+}
+
+/// Atom 1.0 feed for one incident's thread. The feed title/id is the
+/// incident itself; entries are the running posts newest-first — every
+/// `IncidentUpdate` plus, as the oldest entry, the incident's initial
+/// content. `feed.updated` tracks the most recent post (latest update, or
+/// the incident creation when there are no updates yet).
+fn render_incident_atom_feed(
+    page: &StatusPage,
+    inc: &Incident,
+    updates: &[IncidentUpdate],
+) -> String {
+    use std::fmt::Write;
+    let mut out = String::with_capacity(2048);
+    let last_ts = updates
+        .iter()
+        .map(|u| u.posted_at)
+        .max()
+        .unwrap_or(inc.created_at);
+    let _ = writeln!(out, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+    let _ = writeln!(out, "<feed xmlns=\"http://www.w3.org/2005/Atom\">");
+    let _ = writeln!(out, "  <title>{}</title>", xml_escape(&inc.title));
+    let _ = writeln!(
+        out,
+        "  <id>urn:rampart:status-page:{}:incident:{}</id>",
+        xml_escape(&page.slug),
+        inc.id.0
+    );
+    let _ = writeln!(out, "  <updated>{}</updated>", rfc3339(last_ts));
+
+    // Running updates newest-first.
+    for u in updates.iter().rev() {
+        let _ = writeln!(out, "  <entry>");
+        let _ = writeln!(out, "    <title>{}</title>", xml_escape(&inc.title));
+        let _ = writeln!(
+            out,
+            "    <id>urn:rampart:incident:{}:update:{}</id>",
+            inc.id.0, u.id.0
+        );
+        let _ = writeln!(out, "    <published>{}</published>", rfc3339(u.posted_at));
+        let _ = writeln!(out, "    <updated>{}</updated>", rfc3339(u.posted_at));
+        let _ = writeln!(
+            out,
+            "    <content type=\"text\">{}</content>",
+            xml_escape(&u.message)
+        );
+        let _ = writeln!(out, "  </entry>");
+    }
+
+    // The original incident content as the oldest entry.
+    let _ = writeln!(out, "  <entry>");
+    let _ = writeln!(out, "    <title>{}</title>", xml_escape(&inc.title));
+    let _ = writeln!(out, "    <id>urn:rampart:incident:{}:opened</id>", inc.id.0);
+    let _ = writeln!(
+        out,
+        "    <published>{}</published>",
+        rfc3339(inc.created_at)
+    );
+    let _ = writeln!(out, "    <updated>{}</updated>", rfc3339(inc.created_at));
+    let _ = writeln!(
+        out,
+        "    <content type=\"text\">{}</content>",
+        xml_escape(&inc.content)
+    );
+    let _ = writeln!(out, "  </entry>");
+
+    let _ = writeln!(out, "</feed>");
+    out
+}
+
+/// RSS 2.0 feed for one incident's thread — same projection as
+/// [`render_incident_atom_feed`], newest-first items.
+fn render_incident_rss_feed(
+    page: &StatusPage,
+    inc: &Incident,
+    updates: &[IncidentUpdate],
+) -> String {
+    use std::fmt::Write;
+    let mut out = String::with_capacity(2048);
+    let last_ts = updates
+        .iter()
+        .map(|u| u.posted_at)
+        .max()
+        .unwrap_or(inc.created_at);
+    let _ = writeln!(out, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+    let _ = writeln!(out, "<rss version=\"2.0\">");
+    let _ = writeln!(out, "  <channel>");
+    let _ = writeln!(out, "    <title>{}</title>", xml_escape(&inc.title));
+    let _ = writeln!(
+        out,
+        "    <description>{}</description>",
+        xml_escape(&inc.content)
+    );
+    let _ = writeln!(out, "    <link>{}</link>", xml_escape(&page.slug));
+    let _ = writeln!(out, "    <pubDate>{}</pubDate>", rfc822(last_ts));
+
+    for u in updates.iter().rev() {
+        let _ = writeln!(out, "    <item>");
+        let _ = writeln!(out, "      <title>{}</title>", xml_escape(&inc.title));
+        let _ = writeln!(
+            out,
+            "      <description>{}</description>",
+            xml_escape(&u.message)
+        );
+        let _ = writeln!(out, "      <pubDate>{}</pubDate>", rfc822(u.posted_at));
+        let _ = writeln!(
+            out,
+            "      <guid isPermaLink=\"false\">urn:rampart:incident:{}:update:{}</guid>",
+            inc.id.0, u.id.0
+        );
+        let _ = writeln!(out, "    </item>");
+    }
+
+    let _ = writeln!(out, "    <item>");
+    let _ = writeln!(out, "      <title>{}</title>", xml_escape(&inc.title));
+    let _ = writeln!(
+        out,
+        "      <description>{}</description>",
+        xml_escape(&inc.content)
+    );
+    let _ = writeln!(out, "      <pubDate>{}</pubDate>", rfc822(inc.created_at));
+    let _ = writeln!(
+        out,
+        "      <guid isPermaLink=\"false\">urn:rampart:incident:{}:opened</guid>",
+        inc.id.0
+    );
+    let _ = writeln!(out, "    </item>");
 
     let _ = writeln!(out, "  </channel>");
     let _ = writeln!(out, "</rss>");
