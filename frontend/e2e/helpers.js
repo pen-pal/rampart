@@ -1,5 +1,7 @@
 // Tiny e2e helpers — keep the spec files readable.
 
+import { request as pwRequest } from '@playwright/test';
+
 const ADMIN_EMAIL    = 'e2e-admin@example.com';
 const ADMIN_NAME     = 'E2E Admin';
 const ADMIN_PASSWORD = 'correct-horse-battery-staple';
@@ -74,15 +76,47 @@ export function uniq(prefix, browserName) {
 }
 
 /**
- * Hit the JSON API directly (with the same cookie jar the page uses).
+ * Hit the JSON API directly. Accepts either a Playwright `page` (uses the
+ * page's cookie jar) or a standalone `APIRequestContext` (e.g. one returned
+ * by `loginAs`). Throws on a non-2xx response.
  * Useful for setting up state without driving the UI.
  */
-export async function api(page, method, path, body) {
-  const res = await page.request[method.toLowerCase()](path, body !== undefined ? { data: body } : undefined);
+export async function api(pageOrCtx, method, path, body) {
+  const ctx = pageOrCtx.request ?? pageOrCtx;
+  const res = await ctx[method.toLowerCase()](path, body !== undefined ? { data: body } : undefined);
   if (!res.ok()) {
     const text = await res.text();
     throw new Error(`${method} ${path} failed: ${res.status()} ${text}`);
   }
   // 204s won't have a body.
   return res.status() === 204 ? null : await res.json();
+}
+
+/**
+ * Like `api`, but never throws on HTTP status — returns the raw Playwright
+ * `APIResponse` so callers can assert on `.status()` (including 401/403).
+ * Accepts a `page` or a standalone `APIRequestContext`.
+ */
+export async function rawApi(pageOrCtx, method, path, body) {
+  const ctx = pageOrCtx.request ?? pageOrCtx;
+  return ctx[method.toLowerCase()](path, body !== undefined ? { data: body } : undefined);
+}
+
+/**
+ * Log in as an arbitrary user and return a standalone `APIRequestContext`
+ * whose cookie jar holds that user's session. Hand the returned context to
+ * `api()` / `rawApi()` to make calls authenticated as that user, fully
+ * isolated from the admin `page`'s session.
+ *
+ * Caller is responsible for `await ctx.dispose()` when done.
+ */
+export async function loginAs(email, password, baseURL) {
+  const ctx = await pwRequest.newContext({ baseURL });
+  const res = await ctx.post('/v1/auth/login', { data: { email, password } });
+  if (!res.ok()) {
+    const text = await res.text();
+    await ctx.dispose();
+    throw new Error(`login as ${email} failed: ${res.status()} ${text}`);
+  }
+  return ctx;
 }
