@@ -188,6 +188,7 @@ const ja = {
   'audit.col.payload':               'ペイロード',
   'audit.empty':                     '監査エントリはまだありません。',
   'audit.load_more':                 'さらに読み込む',
+  'audit.export_csv':                'CSV エクスポート',
   'audit.actor_system':              'システム',
 
   // ── status page: public (MACHINE-DRAFT) ──────────────────────────
@@ -223,6 +224,20 @@ const ja = {
   'statuspage.public.section.incident_history': 'インシデント履歴',
   'statuspage.public.section.subscribe':        '更新を購読',
   'statuspage.public.empty.components':         'このページにはまだコンポーネントが関連付けられていません。',
+
+  'statuspage.public.maint.heading':     '予定メンテナンス',
+  'statuspage.public.maint.active':      '実施中',
+  'statuspage.public.maint.starts_in':   '開始まで',
+  'statuspage.public.maint.win.today':   '本日 {start}–{end} UTC',
+  'statuspage.public.maint.win.range':   '{start}–{end} UTC',
+  'statuspage.public.maint.win.from':    '{start} UTC から',
+  'statuspage.public.maint.starts.now':       'まもなく',
+  'statuspage.public.maint.starts.minutes':   '{n} 分',
+  'statuspage.public.maint.starts.minute':    '{n} 分',
+  'statuspage.public.maint.starts.hours':     '{n} 時間',
+  'statuspage.public.maint.starts.hour':      '{n} 時間',
+  'statuspage.public.maint.starts.days':      '{n} 日',
+  'statuspage.public.maint.starts.day':       '{n} 日',
 
   'statuspage.public.legend.operational':   '正常',
   'statuspage.public.legend.degraded':      '低下',
@@ -323,6 +338,27 @@ const ja = {
 
   // ── locale picker ────────────────────────────────────────────────
   'locale.picker.label':             '言語',
+
+  // ── CSV からモニターをインポート（機械翻訳ドラフト）─────────────
+  'statuspage.ingest.webhook_urls':  'Webhook URL（{n} ベンダー）',
+  'import.link':                     'CSV をインポート',
+  'import.link_title':               'CSV ファイルからモニターを一括インポート',
+  'import.title':                    'CSV からモニターをインポート',
+  'import.subtitle':                 'Rampart ネイティブの CSV からモニターを一括作成します。行を貼り付けるか .csv ファイルを選択してインポートしてください。',
+  'import.columns_title':            '想定される列',
+  'import.columns_hint':             'ヘッダー行が必要です。認識される列: name, kind, url, hostname, port, interval_seconds, timeout_seconds。name と kind は各行で必須です。url / hostname / port は種類によって異なります。',
+  'import.file_label':               '.csv ファイルを選択',
+  'import.or':                       'または',
+  'import.paste_label':              'CSV を貼り付け',
+  'import.paste_placeholder':        'name,kind,url,hostname,port,interval_seconds,timeout_seconds\nweb,http,https://example.com,,,60,16',
+  'import.import':                   'インポート',
+  'import.importing':                'インポート中…',
+  'import.err_empty':                'CSV を入力してください。ファイルを選択するか上に行を貼り付けてください。',
+  'import.err_file_read':            'そのファイルを読み取れませんでした。',
+  'import.err_failed':               'インポートに失敗しました。',
+  'import.result_created':           '{n} 件のモニターを作成しました。',
+  'import.result_skipped':           '{n} 行をスキップしました:',
+  'import.result_none':              'スキップされた行はありません。',
 };
 
 export default ja;

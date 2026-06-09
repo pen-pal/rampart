@@ -189,6 +189,7 @@ const zh = {
   'audit.col.payload':               '载荷',
   'audit.empty':                     '还没有审计条目。',
   'audit.load_more':                 '加载更多',
+  'audit.export_csv':                '导出 CSV',
   'audit.actor_system':              '系统',
 
   // ── status page: public (MACHINE-DRAFT) ──────────────────────────
@@ -224,6 +225,20 @@ const zh = {
   'statuspage.public.section.incident_history': '事件历史',
   'statuspage.public.section.subscribe':        '订阅更新',
   'statuspage.public.empty.components':         '此页面尚未关联任何组件。',
+
+  'statuspage.public.maint.heading':     '计划维护',
+  'statuspage.public.maint.active':      '正在进行',
+  'statuspage.public.maint.starts_in':   '开始于',
+  'statuspage.public.maint.win.today':   '今天 {start}–{end} UTC',
+  'statuspage.public.maint.win.range':   '{start}–{end} UTC',
+  'statuspage.public.maint.win.from':    '自 {start} UTC 起',
+  'statuspage.public.maint.starts.now':       '即将',
+  'statuspage.public.maint.starts.minutes':   '{n} 分钟',
+  'statuspage.public.maint.starts.minute':    '{n} 分钟',
+  'statuspage.public.maint.starts.hours':     '{n} 小时',
+  'statuspage.public.maint.starts.hour':      '{n} 小时',
+  'statuspage.public.maint.starts.days':      '{n} 天',
+  'statuspage.public.maint.starts.day':       '{n} 天',
 
   'statuspage.public.legend.operational':   '正常',
   'statuspage.public.legend.degraded':      '降级',
@@ -324,6 +339,27 @@ const zh = {
 
   // ── locale picker ────────────────────────────────────────────────
   'locale.picker.label':             '语言',
+
+  // ── 从 CSV 导入监控器（机器翻译草稿）─────────────────────────────
+  'statuspage.ingest.webhook_urls':  'Webhook URL（{n} 个供应商）',
+  'import.link':                     '导入 CSV',
+  'import.link_title':               '从 CSV 文件批量导入监控器',
+  'import.title':                    '从 CSV 导入监控器',
+  'import.subtitle':                 '从 Rampart 原生 CSV 批量创建监控器：粘贴行或选择 .csv 文件，然后导入。',
+  'import.columns_title':            '预期的列',
+  'import.columns_hint':             '需要标题行。识别的列：name、kind、url、hostname、port、interval_seconds、timeout_seconds。每行都必须包含 name 和 kind；url / hostname / port 取决于类型。',
+  'import.file_label':               '选择 .csv 文件',
+  'import.or':                       '或',
+  'import.paste_label':              '粘贴 CSV',
+  'import.paste_placeholder':        'name,kind,url,hostname,port,interval_seconds,timeout_seconds\nweb,http,https://example.com,,,60,16',
+  'import.import':                   '导入',
+  'import.importing':                '正在导入…',
+  'import.err_empty':                '请提供 CSV：选择文件或在上方粘贴行。',
+  'import.err_file_read':            '无法读取该文件。',
+  'import.err_failed':               '导入失败。',
+  'import.result_created':           '已创建 {n} 个监控器。',
+  'import.result_skipped':           '已跳过 {n} 行：',
+  'import.result_none':              '没有跳过任何行。',
 };
 
 export default zh;
