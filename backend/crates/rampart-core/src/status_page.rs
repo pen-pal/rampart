@@ -84,6 +84,25 @@ pub struct PublicStatusPage {
     /// Active incidents (active = TRUE), most-recent first, each
     /// carrying its running updates oldest-first.
     pub incidents: Vec<PublicIncident>,
+    /// Resolved incidents, newest-first, capped at 30. Powers the
+    /// "Incident history" section on the public page so visitors can
+    /// see what's happened over the past month without an operator
+    /// having to dig the data out of the audit log.
+    #[serde(default)]
+    pub incident_history: Vec<PublicResolvedIncident>,
+}
+
+/// Slimmed projection used for the public history pane. Carries the
+/// resolved-at timestamp + duration so a visitor can see at a glance
+/// "this took 47 minutes to fix" without the API exposing every field
+/// on the underlying incident row.
+#[derive(Debug, Clone, Serialize)]
+pub struct PublicResolvedIncident {
+    pub title: String,
+    pub content: String,
+    pub style: IncidentStyle,
+    pub created_at: OffsetDateTime,
+    pub resolved_at: OffsetDateTime,
 }
 
 #[derive(Debug, Clone, Serialize)]

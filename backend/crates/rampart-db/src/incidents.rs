@@ -104,6 +104,51 @@ pub async fn list_active(pool: &DbPool, page: StatusPageId) -> DbResult<Vec<Inci
         .collect())
 }
 
+/// Resolved incidents for the public history pane, newest-first. Capped
+/// at `limit` so a long-lived page can't dump its full history into one
+/// page response. The public-view shape only needs the title / content /
+/// style / created_at / resolved_at fields, but we share the full
+/// `Incident` type with `list_active` to keep the row mapping in one
+/// place; the caller projects what it needs.
+pub async fn list_resolved_history(
+    pool: &DbPool,
+    page: StatusPageId,
+    limit: i64,
+) -> DbResult<Vec<Incident>> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT
+            id, status_page_id, title, content,
+            style AS "style: IncidentStyle",
+            pinned, active, resolved_at, created_at, created_by
+        FROM incidents
+        WHERE status_page_id = $1 AND NOT active
+        ORDER BY COALESCE(resolved_at, created_at) DESC
+        LIMIT $2
+        "#,
+        page.0,
+        limit,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|r| Incident {
+            id: IncidentId::from_uuid(r.id),
+            status_page_id: StatusPageId::from_uuid(r.status_page_id),
+            title: r.title,
+            content: r.content,
+            style: r.style,
+            pinned: r.pinned,
+            active: r.active,
+            resolved_at: r.resolved_at,
+            created_at: r.created_at,
+            created_by: r.created_by.map(UserId::from_uuid),
+        })
+        .collect())
+}
+
 pub async fn resolve(pool: &DbPool, id: IncidentId, now: OffsetDateTime) -> DbResult<()> {
     let result = sqlx::query!(
         r#"
