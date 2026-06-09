@@ -1,0 +1,6 @@
+name,kind,url,hostname,port,interval_seconds,timeout_seconds
+Marketing site,http,https://www.example.com,,,60,16
+Primary database,tcp,,db.example.com,5432,120,10
+Edge router,ping,,10.0.0.1,,60,16
+Public resolver,dns,,example.com,,300,16
+Legacy thing,frobnicate,,legacy.example.com,,60,16
