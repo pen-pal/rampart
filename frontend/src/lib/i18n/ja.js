@@ -64,6 +64,13 @@ const ja = {
 
   // ── monitor detail (tabs + action buttons) ───────────────────────
   'monitor.action.test_now':         '今すぐテスト',
+  'monitor.action.test_notifications':       '通知をテスト',
+  'monitor.action.test_notifications_title': 'このモニターに紐づくすべてのチャネルにテスト通知を送信します',
+  'monitor.action.test_notifications_dismiss': 'クリックで閉じる',
+  'monitor.notif_test.ok':           '{sent} 件のチャネルにテストを送信しました。',
+  'monitor.notif_test.partial':      '{sent} 件のチャネルに送信、{failed} 件が失敗しました。',
+  'monitor.notif_test.none':         'このモニターに紐づくチャネルがありません。',
+  'monitor.notif_test.error':        'テストに失敗しました: {error}',
   'monitor.action.csv':              'CSV',
   'monitor.tab.overview':            '概要',
   'monitor.tab.heartbeats':          'ハートビート',
@@ -228,6 +235,7 @@ const ja = {
   'statuspage.public.maint.heading':     '予定メンテナンス',
   'statuspage.public.maint.active':      '実施中',
   'statuspage.public.maint.starts_in':   '開始まで',
+  'statuspage.public.maint.ends_in':     '終了まで',
   'statuspage.public.maint.win.today':   '本日 {start}–{end} UTC',
   'statuspage.public.maint.win.range':   '{start}–{end} UTC',
   'statuspage.public.maint.win.from':    '{start} UTC から',
@@ -359,6 +367,20 @@ const ja = {
   'import.result_created':           '{n} 件のモニターを作成しました。',
   'import.result_skipped':           '{n} 行をスキップしました:',
   'import.result_none':              'スキップされた行はありません。',
+  'import.err_header':               '少なくとも name と kind の列を含むヘッダー行が必要です。',
+  'import.preview_title':            'プレビュー',
+  'import.preview_summary':          '作成 {create} 件 · スキップ {skip} 件',
+  'import.preview_note':             'プレビューはベストエフォートのチェックです。最終的な判断はサーバーが行います。',
+  'import.col_row':                  '行',
+  'import.col_name':                 '名前',
+  'import.col_kind':                 '種類',
+  'import.col_status':               'ステータス',
+  'import.col_detail':               '詳細',
+  'import.badge_create':             '作成されます',
+  'import.badge_skip':               'スキップされます',
+  'import.skip_missing_name':        '名前がありません',
+  'import.skip_unknown_kind':        '不明な種類 `{kind}`',
+  'import.skip_missing_field':       '必須フィールドがありません `{field}`',
 };
 
 export default ja;

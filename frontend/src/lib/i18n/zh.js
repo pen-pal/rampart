@@ -65,6 +65,13 @@ const zh = {
 
   // ── monitor detail (tabs + action buttons) ───────────────────────
   'monitor.action.test_now':         '立即测试',
+  'monitor.action.test_notifications':       '测试通知',
+  'monitor.action.test_notifications_title': '向关联到此监控的每个通道发送测试通知',
+  'monitor.action.test_notifications_dismiss': '点击关闭',
+  'monitor.notif_test.ok':           '已向 {sent} 个通道发送测试。',
+  'monitor.notif_test.partial':      '已向 {sent} 个通道发送；{failed} 个失败。',
+  'monitor.notif_test.none':         '此监控未关联任何通道。',
+  'monitor.notif_test.error':        '测试失败：{error}',
   'monitor.action.csv':              'CSV',
   'monitor.tab.overview':            '概览',
   'monitor.tab.heartbeats':          '心跳',
@@ -229,6 +236,7 @@ const zh = {
   'statuspage.public.maint.heading':     '计划维护',
   'statuspage.public.maint.active':      '正在进行',
   'statuspage.public.maint.starts_in':   '开始于',
+  'statuspage.public.maint.ends_in':     '结束于',
   'statuspage.public.maint.win.today':   '今天 {start}–{end} UTC',
   'statuspage.public.maint.win.range':   '{start}–{end} UTC',
   'statuspage.public.maint.win.from':    '自 {start} UTC 起',
@@ -360,6 +368,20 @@ const zh = {
   'import.result_created':           '已创建 {n} 个监控器。',
   'import.result_skipped':           '已跳过 {n} 行：',
   'import.result_none':              '没有跳过任何行。',
+  'import.err_header':               '需要至少包含 name 和 kind 列的标题行。',
+  'import.preview_title':            '预览',
+  'import.preview_summary':          '将创建 {create} 个 · 将跳过 {skip} 个',
+  'import.preview_note':             '预览只是尽力而为的检查；最终以服务器为准。',
+  'import.col_row':                  '行',
+  'import.col_name':                 '名称',
+  'import.col_kind':                 '类型',
+  'import.col_status':               '状态',
+  'import.col_detail':               '详情',
+  'import.badge_create':             '将创建',
+  'import.badge_skip':               '将跳过',
+  'import.skip_missing_name':        '缺少名称',
+  'import.skip_unknown_kind':        '未知类型 `{kind}`',
+  'import.skip_missing_field':       '缺少必填字段 `{field}`',
 };
 
 export default zh;
