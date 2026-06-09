@@ -48,6 +48,43 @@ function relative(date) {
   return date.toLocaleDateString(getLocale());
 }
 
+// Two-digit UTC HH:MM for a maintenance window edge.
+function utcHm(date) {
+  const hh = String(date.getUTCHours()).padStart(2, '0');
+  const mm = String(date.getUTCMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
+// Human window string for a maintenance entry. "Today 02:00–04:00 UTC"
+// when it starts today and has a concrete end; "02:00–04:00 UTC" / "From
+// 02:00 UTC" otherwise (recurring windows carry no single end).
+function maintWindow(m) {
+  const start = toDate(m.starts_at);
+  const end = m.ends_at != null ? toDate(m.ends_at) : null;
+  const s = utcHm(start);
+  const startsToday = start.getTime() - Date.now() < 86_400_000
+    && start.toISOString().slice(0, 10) === new Date().toISOString().slice(0, 10);
+  if (end) {
+    const e = utcHm(end);
+    return startsToday
+      ? t('statuspage.public.maint.win.today', { start: s, end: e })
+      : t('statuspage.public.maint.win.range', { start: s, end: e });
+  }
+  return t('statuspage.public.maint.win.from', { start: s });
+}
+
+// Coarse "starts in {x}" countdown for an upcoming maintenance window.
+function maintStartsIn(m) {
+  const ms = toDate(m.starts_at).getTime() - Date.now();
+  if (ms <= 0) return t('statuspage.public.maint.starts.now');
+  const mins = Math.round(ms / 60000);
+  if (mins < 60) return t(mins === 1 ? 'statuspage.public.maint.starts.minute' : 'statuspage.public.maint.starts.minutes', { n: mins });
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return t(hours === 1 ? 'statuspage.public.maint.starts.hour' : 'statuspage.public.maint.starts.hours', { n: hours });
+  const days = Math.round(hours / 24);
+  return t(days === 1 ? 'statuspage.public.maint.starts.day' : 'statuspage.public.maint.starts.days', { n: days });
+}
+
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
@@ -341,6 +378,50 @@ const css = `
   .sub-btn:hover:not([disabled]) { background: var(--accent-2); }
   .sub-btn[disabled] { opacity: .6; cursor: not-allowed; }
 
+  /* ── Scheduled-maintenance banner ─────────────────────────────────
+     Distinct from incident cards: keyed off the --maint colour token so
+     planned work reads as "informational, not an outage". Active windows
+     get the filled treatment; upcoming ones a softer outlined card. */
+  .maint-block { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
+  .maint-card {
+    border-radius: 12px; padding: 16px 20px;
+    border: 1px solid var(--maint);
+    background: var(--maint-soft); color: #4338ca;
+    display: grid; grid-template-columns: auto 1fr auto; gap: 14px;
+    align-items: start;
+  }
+  .maint-card.upcoming {
+    background: var(--surface);
+    border-style: dashed;
+    color: var(--text);
+  }
+  .public.dark .maint-card { color: #c7d2fe; }
+  .public.dark .maint-card.upcoming { color: var(--text); }
+  .maint-icon {
+    width: 34px; height: 34px; border-radius: 9px;
+    background: rgba(255,255,255,.5);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--maint); flex-shrink: 0;
+  }
+  .public.dark .maint-icon { background: rgba(0,0,0,.25); }
+  .maint-card.upcoming .maint-icon { background: var(--maint-soft); }
+  .maint-head {
+    font-size: 10.5px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .06em; opacity: .85; margin-bottom: 3px;
+  }
+  .maint-title { font-size: 14.5px; font-weight: 600; letter-spacing: -.01em; }
+  .maint-desc { font-size: 12.5px; opacity: .85; margin-top: 4px; line-height: 1.45; white-space: pre-wrap; }
+  .maint-when {
+    font-size: 11.5px; font-weight: 600; white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 999px;
+    background: rgba(255,255,255,.45);
+    align-self: center;
+  }
+  .public.dark .maint-when { background: rgba(0,0,0,.25); }
+  .maint-card.upcoming .maint-when { background: var(--maint-soft); color: #4338ca; }
+  .public.dark .maint-card.upcoming .maint-when { color: #c7d2fe; }
+
   /* ── Section header ───────────────────────────────────────────── */
   .section-h {
     font-size: 12px; font-weight: 600; color: var(--text-2);
@@ -562,6 +643,16 @@ export default function StatusPageView({ slug, byDomainHost }) {
           <Kpi icon={<Calendar size={12}/>} label={t('statuspage.public.kpi.last_update')}   value={data.generated_at ? relative(toDate(data.generated_at)) : '—'} sub={t('statuspage.public.kpi.last_update_sub')}/>
         </div>
 
+        {/* ── Scheduled-maintenance banner (above components — planned
+             work is context the visitor should see before scanning the
+             component list; distinct --maint styling keeps it from
+             reading as an outage). ── */}
+        {(data.maintenance || []).length > 0 && (
+          <div className="maint-block">
+            {(data.maintenance || []).map((m, i) => <MaintenanceBanner key={i} entry={m}/>)}
+          </div>
+        )}
+
         {/* ── Components (always above incidents — components are the
              primary signal; incident threads sit below as context) ── */}
         <div className="section-h"><Activity size={13}/> {t('statuspage.public.section.components')}</div>
@@ -635,6 +726,29 @@ function Kpi({ icon, label, value, sub }) {
       <div className="kpi-label">{icon} {label}</div>
       <div className="kpi-value">{value}</div>
       {sub && <div className="kpi-sub">{sub}</div>}
+    </div>
+  );
+}
+
+// One scheduled-maintenance banner card. Active windows render filled
+// with an "Active now" pill; upcoming ones use a softer dashed card with
+// a "Starts in {x}" pill. Title/description are operator-authored data —
+// only the chrome (heading + pills + window string) is localized.
+function MaintenanceBanner({ entry }) {
+  return (
+    <div className={`maint-card ${entry.active ? 'active' : 'upcoming'}`}>
+      <div className="maint-icon"><Wrench size={17}/></div>
+      <div>
+        <div className="maint-head">{t('statuspage.public.maint.heading')}</div>
+        <div className="maint-title">{entry.title}</div>
+        {entry.description && <div className="maint-desc">{entry.description}</div>}
+        <div className="maint-desc" style={{ opacity: .95, fontWeight: 500, marginTop: 6 }}>{maintWindow(entry)}</div>
+      </div>
+      <span className="maint-when">
+        {entry.active
+          ? <>{statusIcon('maintenance', 12)} {t('statuspage.public.maint.active')}</>
+          : <>{t('statuspage.public.maint.starts_in')} {maintStartsIn(entry)}</>}
+      </span>
     </div>
   );
 }

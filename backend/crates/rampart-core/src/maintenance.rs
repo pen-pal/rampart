@@ -87,6 +87,61 @@ impl Recurrence {
     }
 }
 
+impl Recurrence {
+    /// The start instant of the next occurrence at or after `now`, given
+    /// the template's `start_at` / `end_at`. Returns `None` when the rule
+    /// has no further occurrence (e.g. a single-shot already in the past,
+    /// or a recurrence whose `until` has elapsed).
+    ///
+    /// For `Daily`/`Weekly` we scan forward day by day from `max(now,
+    /// start_at)`, capped so a pathological rule can't loop unbounded —
+    /// the public banner only cares about a 7-day horizon, and a year of
+    /// look-ahead is plenty for any realistic schedule.
+    pub fn next_start(
+        &self,
+        start_at: OffsetDateTime,
+        end_at: OffsetDateTime,
+        now: OffsetDateTime,
+    ) -> Option<OffsetDateTime> {
+        // Already inside an occurrence → "next" is this one's start-of-day.
+        if self.contains(start_at, end_at, now) {
+            // Active window: report the template's start time so callers
+            // can render it; activeness is signalled separately.
+            return Some(start_at);
+        }
+        match self {
+            Recurrence::None => (start_at > now).then_some(start_at),
+            Recurrence::Daily { until } | Recurrence::Weekly { until, .. } => {
+                let tod = start_at.time();
+                let mut day = if now <= start_at { start_at } else { now };
+                // Walk forward at most ~366 days looking for the next
+                // qualifying occurrence start.
+                for _ in 0..366 {
+                    let candidate = day.replace_time(tod);
+                    if candidate >= now && candidate >= start_at {
+                        if let Some(u) = until {
+                            if candidate > *u {
+                                return None;
+                            }
+                        }
+                        let weekday_ok = match self {
+                            Recurrence::Weekly { weekdays, .. } => {
+                                weekdays.contains(&candidate.weekday().number_days_from_sunday())
+                            }
+                            _ => true,
+                        };
+                        if weekday_ok {
+                            return Some(candidate);
+                        }
+                    }
+                    day = day.saturating_add(time::Duration::days(1));
+                }
+                None
+            }
+        }
+    }
+}
+
 fn in_time_of_day_window(
     start_at: OffsetDateTime,
     end_at: OffsetDateTime,
