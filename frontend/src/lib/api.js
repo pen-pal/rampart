@@ -78,6 +78,10 @@ export const api = {
     testNow: (id)         => request(`/v1/monitors/${id}/test-now`, { method: 'POST' }),
     testNotifications: (id) => request(`/v1/monitors/${id}/test-notifications`, { method: 'POST' }),
     bulk:    (monitorIds, action) => request('/v1/monitors/bulk', { method: 'POST', body: { monitor_ids: monitorIds, ...action } }),
+    /// Bulk-edit interval / timeout / tags across many monitors in one call.
+    /// `payload` shape: { ids: [uuid], interval_seconds?, timeout_seconds?,
+    /// add_tag_ids?: [uuid], remove_tag_ids?: [uuid] }. Returns { updated }.
+    bulkEdit: (payload) => request('/v1/monitors/bulk-edit', { method: 'POST', body: payload }),
     /// Bulk-import monitors from a Rampart-native CSV. POSTs the raw CSV
     /// text (not JSON) to `/v1/monitors/import-csv`; the backend parses +
     /// maps it and returns `{ created, skipped: [{ row, reason }] }`.
@@ -129,7 +133,7 @@ export const api = {
   notifications: {
     list:        ()                                  => request('/v1/notifications'),
     get:         (id)                                => request(`/v1/notifications/${id}`),
-    create:      (kind, name, config, templateId, cooldownSeconds = 0) => request('/v1/notifications', { method: 'POST', body: { kind, name, config, active: true, template_id: templateId || null, cooldown_seconds: Number(cooldownSeconds) || 0 } }),
+    create:      (kind, name, config, templateId, cooldownSeconds = 0, digestWindowSecs = 0) => request('/v1/notifications', { method: 'POST', body: { kind, name, config, active: true, template_id: templateId || null, cooldown_seconds: Number(cooldownSeconds) || 0, digest_window_secs: Number(digestWindowSecs) || 0 } }),
     update:      (id, patch)                         => request(`/v1/notifications/${id}`, { method: 'PATCH', body: patch }),
     remove:      (id)                                => request(`/v1/notifications/${id}`, { method: 'DELETE' }),
     test:        (id)                                => request(`/v1/notifications/${id}/test`, { method: 'POST' }),
