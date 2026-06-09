@@ -178,6 +178,11 @@ async fn metrics(State(state): State<AppState>) -> impl IntoResponse {
         }
     }
 
+    // ── HTTP request counter + latency histogram ───────────────────
+    // Lives in AppState; populated by the `record_http_metrics`
+    // middleware layered above the router in `lib.rs::build_router`.
+    body.push_str(&state.http_metrics().render());
+
     (
         StatusCode::OK,
         [("content-type", "text/plain; version=0.0.4")],
