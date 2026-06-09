@@ -39,6 +39,11 @@ jobs:
         with: { components: "rustfmt, clippy" }
       - uses: Swatinem/rust-cache@v2
         with: { workspaces: backend }
+      # rampart-api embeds frontend/dist/ via rust-embed; the derive macro
+      # errors at compile time if the folder is absent. This job doesn't
+      # build the SPA, so stub an empty bundle just to satisfy the macro.
+      - name: Stub embedded frontend bundle
+        run: mkdir -p ../frontend/dist && touch ../frontend/dist/index.html
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
 
@@ -71,6 +76,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with: { workspaces: backend }
+      # rampart-api embeds frontend/dist/ via rust-embed; the derive macro
+      # errors at compile time if the folder is absent. This job doesn't
+      # build the SPA, so stub an empty bundle just to satisfy the macro.
+      - name: Stub embedded frontend bundle
+        run: mkdir -p ../frontend/dist && touch ../frontend/dist/index.html
       - name: Install sqlx-cli
         run: cargo install sqlx-cli --no-default-features --features rustls,postgres --locked
       - name: Apply migrations to base DB
