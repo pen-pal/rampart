@@ -16,9 +16,14 @@ export class ApiError extends Error {
   }
 }
 
-async function request(path, { method = 'GET', body, signal } = {}) {
+async function request(path, { method = 'GET', body, rawBody, contentType, signal } = {}) {
   const opts = { method, signal, headers: {}, credentials: 'same-origin' };
-  if (body !== undefined) {
+  if (rawBody !== undefined) {
+    // Non-JSON payload (e.g. a raw CSV upload) — send the string verbatim
+    // under the caller's content-type rather than JSON-encoding it.
+    opts.headers['Content-Type'] = contentType || 'text/plain';
+    opts.body = rawBody;
+  } else if (body !== undefined) {
     opts.headers['Content-Type'] = 'application/json';
     opts.body = JSON.stringify(body);
   }
@@ -72,6 +77,10 @@ export const api = {
     regeneratePushToken: (id) => request(`/v1/monitors/${id}/regenerate-push-token`, { method: 'POST' }),
     testNow: (id)         => request(`/v1/monitors/${id}/test-now`, { method: 'POST' }),
     bulk:    (monitorIds, action) => request('/v1/monitors/bulk', { method: 'POST', body: { monitor_ids: monitorIds, ...action } }),
+    /// Bulk-import monitors from a Rampart-native CSV. POSTs the raw CSV
+    /// text (not JSON) to `/v1/monitors/import-csv`; the backend parses +
+    /// maps it and returns `{ created, skipped: [{ row, reason }] }`.
+    importCsv: (csvText) => request('/v1/monitors/import-csv', { method: 'POST', rawBody: csvText, contentType: 'text/csv' }),
     summary: (windowSec)  => request(`/v1/monitors/summary?window=${windowSec ?? 86400}`),
     history: (per)        => request(`/v1/monitors/history?per=${per ?? 60}`),
     heartbeats: (id, limit, before) => {

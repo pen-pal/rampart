@@ -5,6 +5,7 @@ const Dashboard         = lazy(() => import('./views/Dashboard.jsx'));
 const MonitorDetail     = lazy(() => import('./views/MonitorDetail.jsx'));
 const StatusPageBuilder = lazy(() => import('./views/StatusPageBuilder.jsx'));
 const NewMonitorWizard  = lazy(() => import('./views/NewMonitorWizard.jsx'));
+const ImportMonitors    = lazy(() => import('./views/ImportMonitors.jsx'));
 const Login             = lazy(() => import('./views/Login.jsx'));
 const Notifications     = lazy(() => import('./views/Notifications.jsx'));
 const Maintenance       = lazy(() => import('./views/Maintenance.jsx'));
@@ -42,6 +43,7 @@ const VIEW_LABEL = {
   'dashboard':     'Dashboard',
   'monitor':       'Monitor',
   'new-monitor':   'New monitor',
+  'import':        'Import CSV',
   'status-page':   'Status pages',
   'notifications': 'Notifications',
   'tags':          'Tags',
@@ -184,6 +186,7 @@ export default function App() {
     case 'login':         view = <Login />; break;
     case 'monitor':       view = <MonitorDetail monitorId={route.id} user={user} />; break;
     case 'new-monitor':   view = <NewMonitorWizard />; break;
+    case 'import':        view = <ImportMonitors user={user} />; break;
     case 'status-page':   view = <StatusPageBuilder user={user} />; break;
     case 'notifications': view = <Notifications user={user} />; break;
     case 'maintenance':   view = <Maintenance user={user} />; break;
@@ -245,6 +248,7 @@ function ViewSwitcher({ current, user }) {
     { hash: '#/audit',         view: 'audit',        adminOnly: true },
     { hash: '#/status-page',   view: 'status-page'   },
     { hash: '#/new-monitor',   view: 'new-monitor'   },
+    { hash: '#/import',        view: 'import'        },
   ];
   const links = allLinks.filter(l => admin || !l.adminOnly);
   return (
