@@ -7,6 +7,7 @@
 pub mod audit;
 pub mod auth;
 pub mod error;
+pub mod http_metrics;
 pub mod importers;
 pub mod routes;
 pub mod smtp;
@@ -153,6 +154,13 @@ pub fn build_router(state: AppState) -> Router {
         auth::require_session,
     ));
 
+    // HTTP request metrics middleware. Layered AFTER the router so the
+    // counter sees the final response status (route-not-found → 404 is
+    // counted as 4xx; an auth-gate rejection → 401 is counted as 4xx).
+    // The state passed here is the metrics handle itself, not the full
+    // AppState — keeps the middleware allocation-free per request.
+    let metrics_handle = state.http_metrics().clone();
+
     Router::new()
         .merge(routes::health::router())
         // /push/:token is intentionally public — the token IS the auth.
@@ -161,6 +169,10 @@ pub fn build_router(state: AppState) -> Router {
         .nest("/v1", routes::v1_public().merge(protected_v1))
         .with_state(state)
         .fallback(static_assets::handler)
+        .layer(axum::middleware::from_fn_with_state(
+            metrics_handle,
+            http_metrics::record_http_metrics,
+        ))
         .layer(middleware)
 }
 

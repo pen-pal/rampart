@@ -1,5 +1,6 @@
 //! Shared application state.
 
+use crate::http_metrics::HttpMetrics;
 use rampart_core::heartbeat::Heartbeat;
 use rampart_core::UserId;
 use rampart_db::DbPool;
@@ -27,6 +28,11 @@ struct Inner {
     /// is tiny (one entry per logged-in user, briefly) and persisting
     /// it adds nothing.
     totp_challenges: Mutex<HashMap<Uuid, TotpChallenge>>,
+    /// In-process HTTP request counters + latency histogram, read by
+    /// the `/metrics` Prometheus endpoint. One shared instance per
+    /// AppState; the middleware in `lib.rs::build_router` calls
+    /// `observe()` on every served request.
+    http_metrics: Arc<HttpMetrics>,
 }
 
 pub struct TotpChallenge {
@@ -41,6 +47,7 @@ impl AppState {
             scheduler_reload,
             scheduler: None,
             totp_challenges: Mutex::new(HashMap::new()),
+            http_metrics: Arc::new(HttpMetrics::new()),
         }))
     }
 
@@ -54,7 +61,12 @@ impl AppState {
             scheduler_reload,
             scheduler: Some(scheduler),
             totp_challenges: Mutex::new(HashMap::new()),
+            http_metrics: Arc::new(HttpMetrics::new()),
         }))
+    }
+
+    pub fn http_metrics(&self) -> &Arc<HttpMetrics> {
+        &self.0.http_metrics
     }
 
     pub fn pool(&self) -> &DbPool {
