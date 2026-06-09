@@ -2073,11 +2073,11 @@ paths:
   /v1/monitors/presets/{id}:
     parameters:
       - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
-    patch:
+    get:
       tags: [Monitors]
-      summary: Update a monitor preset
+      summary: Get a monitor preset
       responses:
-        '200': { description: Updated. }
+        '200': { description: Preset. }
     delete:
       tags: [Monitors]
       summary: Delete a monitor preset
