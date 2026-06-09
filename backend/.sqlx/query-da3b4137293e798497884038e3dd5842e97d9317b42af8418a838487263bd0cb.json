@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, slug, title, description, theme, custom_domain, logo_url, created_at\n        FROM status_pages\n        WHERE id = $1\n        ",
+  "query": "\n        SELECT id, slug, title, description, theme, custom_domain, logo_url, custom_css,\n               (password_hash IS NOT NULL) AS \"private!\", created_at\n        FROM status_pages\n        WHERE id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -82,6 +82,23 @@
       },
       {
         "ordinal": 7,
+        "name": "custom_css",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "status_pages",
+            "name": "custom_css"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "private!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 9,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -105,8 +122,10 @@
       false,
       true,
       true,
+      true,
+      null,
       false
     ]
   },
-  "hash": "3da85cdd65de2a646738a251cabb4edfcc977aff958fe4ab16a0d7ad3d238797"
+  "hash": "da3b4137293e798497884038e3dd5842e97d9317b42af8418a838487263bd0cb"
 }
