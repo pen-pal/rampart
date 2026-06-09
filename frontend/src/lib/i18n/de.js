@@ -65,6 +65,20 @@ const de = {
   'dashboard.bulk.edit_empty':       'Lege ein Intervall, ein Zeitlimit fest oder wähle zu ändernde Tags.',
   'dashboard.bulk.edit_failed':      'Sammelbearbeitung fehlgeschlagen: {msg}',
 
+  // ── Dashboard: gespeicherte Filteransichten + Standardordner ──────
+  'dashboard.views.menu':            'Ansichten',
+  'dashboard.views.none':            'Noch keine gespeicherten Ansichten',
+  'dashboard.views.save_current':    'Aktuelle Ansicht speichern…',
+  'dashboard.views.save_prompt':     'Diese Ansicht benennen',
+  'dashboard.views.save_failed':     'Ansicht konnte nicht gespeichert werden: {msg}',
+  'dashboard.views.delete':          'Ansicht löschen',
+  'dashboard.views.delete_confirm':  'Gespeicherte Ansicht „{name}“ löschen?',
+  'dashboard.views.applied':         'Ansicht „{name}“ angewendet',
+  'dashboard.views.default_folder':  'Standardmäßig hier öffnen',
+  'dashboard.views.default_cleared': 'Standardordner entfernt',
+  'dashboard.views.is_default':      'Standardordner',
+  'dashboard.views.signed_out':      'Melde dich an, um Ansichten geräteübergreifend zu speichern',
+
   // ── common ───────────────────────────────────────────────────────
   'common.cancel':                   'Abbrechen',
   'common.save':                     'Speichern',
@@ -204,6 +218,20 @@ const de = {
   'monitor.action.clone_title':      'Mit derselben Konfiguration duplizieren (ohne Verlauf)',
   'monitor.action.csv':              'CSV',
   'monitor.action.csv_title':        'Die letzten 30 Tage an Heartbeats als CSV herunterladen',
+
+  // ── Monitordetail: Wartungs-Schnellaktion ────────────────────────
+  'monitor.maint_now.button':        'Wartung jetzt',
+  'monitor.maint_now.title':         'Jetzt ein einmaliges Wartungsfenster für diesen Monitor starten',
+  'monitor.maint_now.heading':       'Wartung starten für',
+  'monitor.maint_now.window_name':   'Manuelle Wartung',
+  'monitor.maint_now.dur_1h':        '1 Stunde',
+  'monitor.maint_now.dur_4h':        '4 Stunden',
+  'monitor.maint_now.dur_24h':       '24 Stunden',
+  'monitor.maint_now.start':         'Starten',
+  'monitor.maint_now.creating':      'Wird gestartet…',
+  'monitor.maint_now.cancel':        'Abbrechen',
+  'monitor.maint_now.active':        'Wartung aktiv bis {until}.',
+  'monitor.maint_now.error':         'Wartung konnte nicht gestartet werden: {error}',
   'monitor.tab.overview':            'Übersicht',
   'monitor.tab.heartbeats':          'Heartbeats',
   'monitor.tab.config':              'Konfiguration',
@@ -424,6 +452,9 @@ const de = {
   'wizard.field.url':                'URL',
   'wizard.field.http_method':        'HTTP-Methode',
   'wizard.field.accepted_statuses':  'Akzeptierte Statuscodes',
+  'wizard.field.expected_http_version':      'Erwartete HTTP-Version',
+  'wizard.field.expected_http_version_any':  'Beliebig',
+  'wizard.field.expected_http_version_hint': 'Der Heartbeat schlägt fehl, wenn der Server eine andere Version aushandelt. HTTP/3 erfordert das http3-Build-Feature.',
   'wizard.field.hostname':           'Hostname',
   'wizard.field.port':               'Port',
   'wizard.field.keyword':            'Im Text erforderliches Schlüsselwort',
@@ -865,6 +896,20 @@ const de = {
   'import.skip_missing_name':        'Name fehlt',
   'import.skip_unknown_kind':        'unbekannter Typ `{kind}`',
   'import.skip_missing_field':       'Pflichtfeld fehlt `{field}`',
+
+  // ── Selbstverwaltungsseite für Abonnenten (#/manage/{token}) ─────
+  'subscribe.manage.title':            'Abonnements verwalten',
+  'subscribe.manage.loading':          'Wird geladen…',
+  'subscribe.manage.invalid':          'Dieser Verwaltungslink ist ungültig oder abgelaufen.',
+  'subscribe.manage.email_label':      'Abonnements für',
+  'subscribe.manage.subscribed_on':    'Abonniert am {date}',
+  'subscribe.manage.unsubscribe':      'Abbestellen',
+  'subscribe.manage.unsubscribing':    'Wird abbestellt…',
+  'subscribe.manage.unsubscribe_all':  'Alle abbestellen',
+  'subscribe.manage.confirm_all':      'Diese E-Mail von allen Statusseiten abbestellen?',
+  'subscribe.manage.none':             'Sie haben keine Statusseiten abonniert.',
+  'subscribe.manage.done':             'Sie wurden abgemeldet.',
+  'subscribe.manage.err_failed':       'Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.',
 };
 
 export default de;

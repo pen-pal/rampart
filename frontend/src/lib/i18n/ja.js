@@ -43,6 +43,20 @@ const ja = {
   'dashboard.bulk.edit_empty':       '変更する間隔、タイムアウト、またはタグを指定してください。',
   'dashboard.bulk.edit_failed':      '一括編集に失敗しました: {msg}',
 
+  // ── ダッシュボード: 保存したフィルタビュー + 既定フォルダ（機械翻訳の下書き）──
+  'dashboard.views.menu':            'ビュー',
+  'dashboard.views.none':            '保存されたビューはまだありません',
+  'dashboard.views.save_current':    '現在のビューを保存…',
+  'dashboard.views.save_prompt':     'このビューに名前を付ける',
+  'dashboard.views.save_failed':     'ビューを保存できませんでした: {msg}',
+  'dashboard.views.delete':          'ビューを削除',
+  'dashboard.views.delete_confirm':  '保存したビュー「{name}」を削除しますか？',
+  'dashboard.views.applied':         'ビュー「{name}」を適用しました',
+  'dashboard.views.default_folder':  '既定でここを開く',
+  'dashboard.views.default_cleared': '既定フォルダを解除しました',
+  'dashboard.views.is_default':      '既定フォルダ',
+  'dashboard.views.signed_out':      'サインインすると、デバイス間でビューを保存できます',
+
   // ── common ───────────────────────────────────────────────────────
   'common.cancel':                   'キャンセル',
   'common.save':                     '保存',
@@ -87,6 +101,20 @@ const ja = {
   'monitor.notif_test.none':         'このモニターに紐づくチャネルがありません。',
   'monitor.notif_test.error':        'テストに失敗しました: {error}',
   'monitor.action.csv':              'CSV',
+
+  // ── モニター詳細: メンテナンスのクイック操作 ──────────────
+  'monitor.maint_now.button':        '今すぐメンテナンス',
+  'monitor.maint_now.title':         'このモニターの単発メンテナンスウィンドウを今すぐ開始します',
+  'monitor.maint_now.heading':       'メンテナンスを開始:',
+  'monitor.maint_now.window_name':   '手動メンテナンス',
+  'monitor.maint_now.dur_1h':        '1時間',
+  'monitor.maint_now.dur_4h':        '4時間',
+  'monitor.maint_now.dur_24h':       '24時間',
+  'monitor.maint_now.start':         '開始',
+  'monitor.maint_now.creating':      '開始中…',
+  'monitor.maint_now.cancel':        'キャンセル',
+  'monitor.maint_now.active':        '{until} までメンテナンス中です。',
+  'monitor.maint_now.error':         'メンテナンスを開始できませんでした: {error}',
   'monitor.tab.overview':            '概要',
   'monitor.tab.heartbeats':          'ハートビート',
   'monitor.tab.config':              '設定',
@@ -131,6 +159,9 @@ const ja = {
   'wizard.step2.title':              '何をチェックするか教えてください。',
   'wizard.field.display_name':       '表示名',
   'wizard.field.url':                'URL',
+  'wizard.field.expected_http_version':      '想定 HTTP バージョン',
+  'wizard.field.expected_http_version_any':  '任意',
+  'wizard.field.expected_http_version_hint': 'サーバーが別のバージョンをネゴシエートした場合、ハートビートはダウンになります。HTTP/3 には http3 ビルド機能が必要です。',
   'wizard.field.hostname':           'ホスト名',
   'wizard.field.port':               'ポート',
   'wizard.field.notifications':      '通知',
@@ -396,6 +427,20 @@ const ja = {
   'import.skip_missing_name':        '名前がありません',
   'import.skip_unknown_kind':        '不明な種類 `{kind}`',
   'import.skip_missing_field':       '必須フィールドがありません `{field}`',
+
+  // ── 購読者セルフ管理ページ（#/manage/{token}） ──────────────────
+  'subscribe.manage.title':            '購読の管理',
+  'subscribe.manage.loading':          '読み込み中…',
+  'subscribe.manage.invalid':          'この管理リンクは無効か、有効期限が切れています。',
+  'subscribe.manage.email_label':      '購読中のアドレス',
+  'subscribe.manage.subscribed_on':    '{date} に購読',
+  'subscribe.manage.unsubscribe':      '購読を解除',
+  'subscribe.manage.unsubscribing':    '解除しています…',
+  'subscribe.manage.unsubscribe_all':  'すべて解除',
+  'subscribe.manage.confirm_all':      'このメールをすべてのステータスページから解除しますか？',
+  'subscribe.manage.none':             'どのステータスページも購読していません。',
+  'subscribe.manage.done':             '購読を解除しました。',
+  'subscribe.manage.err_failed':       'エラーが発生しました。もう一度お試しください。',
 };
 
 export default ja;
