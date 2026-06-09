@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT p.slug AS status_page_slug,\n               p.title AS status_page_title,\n               s.subscribed_at\n        FROM status_page_subscribers s\n        JOIN status_pages p ON p.id = s.status_page_id\n        WHERE s.channel = 'email' AND lower(s.destination) = lower($1)\n        ORDER BY s.subscribed_at DESC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "status_page_slug",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "status_pages",
+            "name": "slug"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "status_page_title",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "status_pages",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "subscribed_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "status_page_subscribers",
+            "name": "subscribed_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "5772c57ca90efab712a3849793c4bde7d172137377d481666ca3af2f41f70412"
+}
