@@ -1,0 +1,45 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            (date_trunc('day', ts AT TIME ZONE 'UTC'))::date AS \"day!\",\n            BOOL_OR(status = 'down')        AS \"any_down!\",\n            BOOL_OR(status = 'warn')        AS \"any_warn!\",\n            BOOL_OR(status != 'maintenance') AS \"any_real!\"\n        FROM heartbeats\n        WHERE monitor_id = $1 AND ts >= $2\n        GROUP BY 1\n        ORDER BY 1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "day!",
+        "type_info": "Date",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "any_down!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "any_warn!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "any_real!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "1d7dca3eab7baca8092c4a8ee50f1b2821a6e7233c0886d64199b67fab582c32"
+}

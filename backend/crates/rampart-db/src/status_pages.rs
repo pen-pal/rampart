@@ -249,10 +249,19 @@ pub async fn public_view(pool: &DbPool, slug: &str) -> DbResult<PublicStatusPage
         let uptime = heartbeats::uptime_pct(pool, *mid, 90 * 86400)
             .await?
             .map(|v| v as f32);
+        let avg_lat = heartbeats::avg_latency_ms(pool, *mid, 86_400)
+            .await?
+            .map(|v| v as f32);
+        let daily = heartbeats::daily_status(pool, *mid, 90).await?;
+        // Vec<u8> of ASCII chars → String. Each byte is one of
+        // 'u'/'d'/'w'/'m'/'n' as documented on PublicStatusMonitor.
+        let daily_str = String::from_utf8(daily).unwrap_or_default();
         monitors.push(PublicStatusMonitor {
             name: m.name,
             current_status: m.current_status,
             uptime_90d: uptime,
+            avg_latency_ms_24h: avg_lat,
+            daily_status_90d: daily_str,
         });
     }
 

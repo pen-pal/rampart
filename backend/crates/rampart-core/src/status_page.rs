@@ -109,6 +109,21 @@ pub struct PublicStatusMonitor {
     /// Uptime percentage over the last 90 days, [0.0, 100.0]. Null if
     /// no heartbeats have been recorded yet.
     pub uptime_90d: Option<f32>,
+    /// Average response latency in milliseconds over the trailing 24
+    /// hours for `up` heartbeats only. Null if no recent successful
+    /// heartbeats. Used by the public status page to render the
+    /// "Avg 142 ms" hint next to each component.
+    pub avg_latency_ms_24h: Option<f32>,
+    /// 90-day daily uptime strip, oldest day first. Each char encodes
+    /// one day:
+    ///   'u' all up
+    ///   'd' any down
+    ///   'w' any warn (no down)
+    ///   'm' only maintenance heartbeats
+    ///   'n' no data
+    /// Always exactly 90 characters. Rendered as the dense per-monitor
+    /// timeline bar on the public status page.
+    pub daily_status_90d: String,
 }
 
 // Compile the slug regex once. We mirror the Postgres CHECK constraint

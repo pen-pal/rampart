@@ -226,6 +226,65 @@ pub async fn avg_latency_ms(
     Ok(row.avg)
 }
 
+/// Per-day uptime buckets for the trailing N days. Returns a vector of
+/// length `days`, oldest first. Each entry is `(date_offset_days_ago,
+/// status_char)` where status_char is:
+///   'u' — at least one heartbeat that day, all were up
+///   'd' — at least one heartbeat that day, any was down
+///   'w' — at least one heartbeat that day, any was warn (and none down)
+///   'm' — only maintenance heartbeats that day
+///   'n' — no heartbeats at all that day (no data)
+///
+/// Powers the per-monitor 90-day timeline strip on public status pages.
+/// Single query with GROUP BY date_trunc — cheap enough to call once
+/// per monitor on every public-view scrape.
+pub async fn daily_status(
+    pool: &DbPool,
+    monitor: MonitorId,
+    days: i32,
+) -> DbResult<Vec<u8>> {
+    let since = OffsetDateTime::now_utc() - time::Duration::days(days as i64);
+    let rows = sqlx::query!(
+        r#"
+        SELECT
+            (date_trunc('day', ts AT TIME ZONE 'UTC'))::date AS "day!",
+            BOOL_OR(status = 'down')        AS "any_down!",
+            BOOL_OR(status = 'warn')        AS "any_warn!",
+            BOOL_OR(status != 'maintenance') AS "any_real!"
+        FROM heartbeats
+        WHERE monitor_id = $1 AND ts >= $2
+        GROUP BY 1
+        ORDER BY 1
+        "#,
+        monitor.0,
+        since,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    // Pivot the sparse query result into a dense `days`-length vector,
+    // oldest day first. Today's bucket is the final element.
+    let today = OffsetDateTime::now_utc().date();
+    let mut out = vec![b'n'; days as usize];
+    for r in rows {
+        let delta = (today - r.day).whole_days();
+        if delta < 0 || delta >= days as i64 {
+            continue;
+        }
+        let idx = (days as i64 - 1 - delta) as usize;
+        out[idx] = if r.any_down {
+            b'd'
+        } else if r.any_warn {
+            b'w'
+        } else if !r.any_real {
+            b'm'
+        } else {
+            b'u'
+        };
+    }
+    Ok(out)
+}
+
 fn status_str(s: MonitorStatus) -> &'static str {
     match s {
         MonitorStatus::Up => "up",
