@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT n.id, n.kind AS \"kind: ChannelKind\", n.name, n.config, n.active,\n               n.template_id, n.created_at, n.cooldown_seconds, n.digest_window_secs, n.last_fired_at\n        FROM notifications n\n        JOIN monitor_notifications mn ON mn.notification_id = n.id\n        WHERE mn.monitor_id = $1 AND n.active\n        ",
+  "query": "\n        SELECT id, kind AS \"kind: ChannelKind\", name, config, active,\n               template_id, created_at, cooldown_seconds, digest_window_secs,\n               quiet_hours_start, quiet_hours_end, rate_limit_per_hour, last_fired_at\n        FROM notifications\n        ORDER BY created_at DESC\n        ",
   "describe": {
     "columns": [
       {
@@ -241,6 +241,39 @@
       },
       {
         "ordinal": 9,
+        "name": "quiet_hours_start",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "notifications",
+            "name": "quiet_hours_start"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "quiet_hours_end",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "notifications",
+            "name": "quiet_hours_end"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "rate_limit_per_hour",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "notifications",
+            "name": "rate_limit_per_hour"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
         "name": "last_fired_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -252,9 +285,7 @@
       }
     ],
     "parameters": {
-      "Left": [
-        "Uuid"
-      ]
+      "Left": []
     },
     "nullable": [
       false,
@@ -266,8 +297,11 @@
       false,
       false,
       false,
+      true,
+      true,
+      false,
       true
     ]
   },
-  "hash": "4d64bc6bfba387594b1d9781543557350337228ca52552f103ce5b4a60a56bc5"
+  "hash": "a490614055e39cbef39f132f482200956d272060b293294c3d7ad6b7faf6d516"
 }

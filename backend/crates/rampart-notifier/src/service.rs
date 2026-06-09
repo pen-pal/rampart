@@ -21,11 +21,61 @@ use crate::{channels, template, Event, EventKind};
 use rampart_core::ids::NotificationId;
 use rampart_core::ChannelKind;
 use rampart_db::DbPool;
-use std::time::Duration;
+use std::collections::{HashMap, VecDeque};
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 const CHANNEL_BUFFER: usize = 1024;
+
+/// Rolling 1-hour per-channel send timestamps, used to enforce
+/// `rate_limit_per_hour`. In-memory only (resets on restart) — the rate
+/// limit is a soft throttle to stop a flapping monitor from hammering an
+/// expensive channel, not a durable quota. Keyed by channel id; each
+/// entry is the deque of send instants inside the trailing hour.
+static RATE_WINDOW: OnceLock<Mutex<HashMap<NotificationId, VecDeque<Instant>>>> = OnceLock::new();
+
+fn rate_window() -> &'static Mutex<HashMap<NotificationId, VecDeque<Instant>>> {
+    RATE_WINDOW.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Returns true if the current UTC hour falls inside the half-open
+/// quiet-hours window `[start, end)`. Supports wrap-around (start > end,
+/// e.g. 22..6). `start == end` is an empty window (never quiet).
+fn in_quiet_hours(hour: i16, start: i16, end: i16) -> bool {
+    if start == end {
+        false
+    } else if start < end {
+        hour >= start && hour < end
+    } else {
+        // wrap-around midnight: quiet if at-or-after start OR before end.
+        hour >= start || hour < end
+    }
+}
+
+/// Record a send for `id` and return true if it's allowed under
+/// `rate_limit_per_hour`. Limit 0 = unlimited (always allowed, nothing
+/// tracked). Otherwise prunes entries older than one hour, and if the
+/// window is already full returns false WITHOUT recording (so a blocked
+/// attempt doesn't extend the window); a permitted send is recorded.
+fn rate_limit_allows(id: NotificationId, limit: i32) -> bool {
+    if limit <= 0 {
+        return true;
+    }
+    let now = Instant::now();
+    let hour = Duration::from_secs(3600);
+    let mut map = rate_window().lock().expect("rate window mutex poisoned");
+    let dq = map.entry(id).or_default();
+    while dq.front().is_some_and(|t| now.duration_since(*t) >= hour) {
+        dq.pop_front();
+    }
+    if dq.len() >= limit as usize {
+        return false;
+    }
+    dq.push_back(now);
+    true
+}
 
 /// How often the digest flush task wakes to drain due channel buffers.
 /// Each channel's own `digest_window_secs` gates whether it actually
@@ -150,6 +200,32 @@ async fn dispatch_one(pool: &DbPool, event: Event) -> anyhow::Result<()> {
     // task) so the dispatched task is cheap and self-contained.
     let mut handles = Vec::with_capacity(rows.len());
     for row in rows {
+        // Quiet hours + rate limit. Both are skipped for user-initiated
+        // Test events (a "send test" click must always go out). Applied
+        // before the digest branch so a suppressed event is neither sent
+        // nor buffered — keeps the contract simple: during quiet hours /
+        // once over the rate cap, the channel is silent.
+        if !matches!(event.kind, EventKind::Test) {
+            if let (Some(start), Some(end)) = (row.quiet_hours_start, row.quiet_hours_end) {
+                let hour = time::OffsetDateTime::now_utc().hour() as i16;
+                if in_quiet_hours(hour, start, end) {
+                    debug!(
+                        channel = %row.name, kind = ?row.kind, hour, start, end,
+                        "notification suppressed: inside quiet hours",
+                    );
+                    continue;
+                }
+            }
+            if !rate_limit_allows(row.id, row.rate_limit_per_hour) {
+                debug!(
+                    channel = %row.name, kind = ?row.kind,
+                    limit = row.rate_limit_per_hour,
+                    "notification suppressed: rate limit exceeded",
+                );
+                continue;
+            }
+        }
+
         // Digest / coalescing: when the channel has a window configured,
         // buffer the raw event in-memory instead of sending now. The flush
         // task renders one combined message per window. `Test` events
@@ -464,6 +540,46 @@ async fn fan_out_maintenance_subscribers(pool: &DbPool, event: &Event) {
             warn!(recipient = %addr, error = %e, "maintenance subscriber email failed");
         }
     }
+}
+
+/// Send a pre-rendered email to a set of recipients via the system SMTP
+/// config (settings key `"smtp"`), reusing the exact transport path the
+/// maintenance-subscriber fan-out uses. Returns the number of recipients
+/// successfully sent to; per-recipient failures are logged, never bubbled.
+/// No-ops (returns 0) when no SMTP is configured or the config is invalid —
+/// same fail-soft contract as the subscriber fan-out. Used by the
+/// scheduler's weekly uptime-report check.
+pub async fn send_system_email(
+    pool: &DbPool,
+    recipients: &[String],
+    subject: &str,
+    body: &str,
+) -> usize {
+    if recipients.is_empty() {
+        return 0;
+    }
+    let cfg = match rampart_db::settings::get(pool, "smtp").await {
+        Ok(Some(v)) => match serde_json::from_value::<SubscriberSmtp>(v) {
+            Ok(c) => c,
+            Err(e) => {
+                warn!(error = %e, "smtp config parse failed; skipping report email");
+                return 0;
+            }
+        },
+        Ok(None) => return 0,
+        Err(e) => {
+            warn!(error = %e, "smtp config load failed; skipping report email");
+            return 0;
+        }
+    };
+    let mut sent = 0usize;
+    for addr in recipients {
+        match send_subscriber_email(&cfg, addr, subject, body).await {
+            Ok(()) => sent += 1,
+            Err(e) => warn!(recipient = %addr, error = %e, "report email failed"),
+        }
+    }
+    sent
 }
 
 async fn send_subscriber_email(

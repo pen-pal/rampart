@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT COALESCE(MAX(position) + 1, 0) AS \"pos!\"\n        FROM status_page_sections\n        WHERE status_page_id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "pos!",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "51dae0e1202d217d3cfd2100c892a43f8238bbdf7abaa72ba8ca8ad83a2f3caa"
+}

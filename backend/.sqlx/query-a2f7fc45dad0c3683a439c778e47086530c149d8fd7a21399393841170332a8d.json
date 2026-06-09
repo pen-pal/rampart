@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO notifications (id, kind, name, config, active, template_id, cooldown_seconds, digest_window_secs)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)\n        RETURNING id, kind AS \"kind: ChannelKind\", name, config, active,\n                  template_id, created_at, cooldown_seconds, digest_window_secs, last_fired_at\n        ",
+  "query": "\n        SELECT id, kind AS \"kind: ChannelKind\", name, config, active,\n               template_id, created_at, cooldown_seconds, digest_window_secs,\n               quiet_hours_start, quiet_hours_end, rate_limit_per_hour, last_fired_at\n        FROM notifications\n        WHERE id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -241,6 +241,39 @@
       },
       {
         "ordinal": 9,
+        "name": "quiet_hours_start",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "notifications",
+            "name": "quiet_hours_start"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "quiet_hours_end",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "notifications",
+            "name": "quiet_hours_end"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "rate_limit_per_hour",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "notifications",
+            "name": "rate_limit_per_hour"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
         "name": "last_fired_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -253,151 +286,7 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid",
-        {
-          "Custom": {
-            "name": "channel_kind",
-            "kind": {
-              "Enum": [
-                "slack",
-                "discord",
-                "telegram",
-                "email",
-                "webhook",
-                "pagerduty",
-                "sms_twilio",
-                "teams",
-                "gotify",
-                "pushover",
-                "ntfy",
-                "mattermost",
-                "matrix",
-                "signal",
-                "rocket_chat",
-                "google_chat",
-                "zulip",
-                "line",
-                "lark",
-                "wecom",
-                "dingtalk",
-                "feishu",
-                "custom",
-                "apprise",
-                "bark",
-                "pushbullet",
-                "sendgrid",
-                "resend",
-                "brevo",
-                "opsgenie",
-                "pagertree",
-                "squadcast",
-                "goalert",
-                "alerta",
-                "alertnow",
-                "signl4",
-                "heii_oncall",
-                "serverchan",
-                "pushplus",
-                "pushdeer",
-                "aliyun_sms",
-                "mastodon",
-                "pumble",
-                "bitrix24",
-                "stackfield",
-                "splunk",
-                "grafana_oncall",
-                "home_assistant",
-                "clicksend",
-                "sms_46elks",
-                "callmebot",
-                "telnyx",
-                "notifery",
-                "whatsapp_waha",
-                "threema",
-                "bale",
-                "pushy",
-                "zoho_cliq",
-                "sms_manager",
-                "sms_eagle",
-                "octopush",
-                "whatsapp_whapi",
-                "whatsapp_360",
-                "whatsapp_evolution",
-                "flock",
-                "serwersms",
-                "smsplanet",
-                "smsc",
-                "cellsynt",
-                "sevenio",
-                "gtxmessaging",
-                "onesender",
-                "promosms",
-                "smspartner",
-                "sms_ir",
-                "freemobile",
-                "flashduty",
-                "teltonika",
-                "kook",
-                "nostr",
-                "onebot",
-                "onechat",
-                "max_messenger",
-                "halo_psa",
-                "jira_sm",
-                "spug_push",
-                "wpush",
-                "vk",
-                "yzj",
-                "google_sheets",
-                "gorush",
-                "fluxer",
-                "splash",
-                "messagebird",
-                "plivo",
-                "vonage",
-                "bandwidth",
-                "webex",
-                "pushcut",
-                "smsglobal",
-                "alertops",
-                "mailgun",
-                "mailjet",
-                "postmark",
-                "mandrill",
-                "sparkpost",
-                "spike_sh",
-                "zenduty",
-                "ringcentral",
-                "ilert",
-                "linear",
-                "clickup",
-                "trello",
-                "github_issue",
-                "gitlab_issue",
-                "asana",
-                "notion",
-                "sentry",
-                "rollbar",
-                "honeybadger",
-                "healthchecks_io",
-                "betterstack",
-                "statuspage_io",
-                "datadog",
-                "newrelic",
-                "aws_sns",
-                "azure_servicebus",
-                "gcp_pubsub",
-                "webpush"
-              ]
-            }
-          }
-        },
-        "Text",
-        "Jsonb",
-        "Bool",
-        "Uuid",
-        "Int4",
-        "Int4"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -410,8 +299,11 @@
       false,
       false,
       false,
+      true,
+      true,
+      false,
       true
     ]
   },
-  "hash": "278049f98fab7e00c3e048206738cf8c59cb2af889692ed7b60aba97fd67e3ec"
+  "hash": "a2f7fc45dad0c3683a439c778e47086530c149d8fd7a21399393841170332a8d"
 }

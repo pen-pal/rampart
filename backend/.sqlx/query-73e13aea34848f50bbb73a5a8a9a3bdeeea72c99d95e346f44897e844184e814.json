@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, kind AS \"kind: ChannelKind\", name, config, active,\n               template_id, created_at, cooldown_seconds, digest_window_secs, last_fired_at\n        FROM notifications\n        ORDER BY created_at DESC\n        ",
+  "query": "\n        WITH RECURSIVE mon AS (\n            SELECT id, group_id FROM monitors WHERE id = $1\n        ),\n        -- The monitor's direct folder plus every folder up the parent chain.\n        -- `UNION` (not UNION ALL) terminates on any data-level cycle, but the\n        -- application-level cycle guard at write time should prevent those.\n        ancestors AS (\n            SELECT group_id AS gid FROM mon WHERE group_id IS NOT NULL\n            UNION\n            SELECT mg.parent_id AS gid\n            FROM monitor_groups mg\n            JOIN ancestors a ON mg.id = a.gid\n            WHERE mg.parent_id IS NOT NULL\n        ),\n        -- Tags on the monitor + tags on every ancestor folder.\n        eff_tags AS (\n            SELECT tag_id FROM monitor_tags WHERE monitor_id = $1\n            UNION\n            SELECT gt.tag_id\n            FROM group_tags gt\n            WHERE gt.group_id IN (SELECT gid FROM ancestors)\n        ),\n        candidates AS (\n            -- explicitly attached\n            SELECT notification_id AS id FROM monitor_notifications WHERE monitor_id = $1\n            UNION\n            -- tag-matched: channel shares any effective tag\n            SELECT nt.notification_id AS id\n            FROM notification_tags nt\n            WHERE nt.tag_id IN (SELECT tag_id FROM eff_tags)\n            UNION\n            -- attached to any ancestor folder\n            SELECT gn.notification_id AS id\n            FROM group_notifications gn\n            WHERE gn.group_id IN (SELECT gid FROM ancestors)\n        )\n        SELECT n.id, n.kind AS \"kind: ChannelKind\", n.name, n.config, n.active,\n               n.template_id, n.created_at, n.cooldown_seconds, n.digest_window_secs,\n               n.quiet_hours_start, n.quiet_hours_end, n.rate_limit_per_hour, n.last_fired_at\n        FROM notifications n\n        JOIN candidates c ON c.id = n.id\n        WHERE n.active\n          AND n.id NOT IN (\n              SELECT notification_id FROM monitor_notification_excludes WHERE monitor_id = $1\n          )\n        ",
   "describe": {
     "columns": [
       {
@@ -241,6 +241,39 @@
       },
       {
         "ordinal": 9,
+        "name": "quiet_hours_start",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "notifications",
+            "name": "quiet_hours_start"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "quiet_hours_end",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "notifications",
+            "name": "quiet_hours_end"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "rate_limit_per_hour",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "notifications",
+            "name": "rate_limit_per_hour"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
         "name": "last_fired_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -252,7 +285,9 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid"
+      ]
     },
     "nullable": [
       false,
@@ -264,8 +299,11 @@
       false,
       false,
       false,
+      true,
+      true,
+      false,
       true
     ]
   },
-  "hash": "ad7736bf671dd46df036002a98e029af53b09e68f54f4f8f6416964943cad927"
+  "hash": "73e13aea34848f50bbb73a5a8a9a3bdeeea72c99d95e346f44897e844184e814"
 }

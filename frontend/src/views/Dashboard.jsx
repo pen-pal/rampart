@@ -455,6 +455,24 @@ export default function Dashboard({ user, onLogout } = {}) {
       setBulkBusy(false);
     }
   };
+  // Pause/resume every monitor carrying a tag — used by the tag-filter
+  // chips' "pause all / resume all" actions. Confirmed first since it can
+  // touch monitors that aren't currently on screen (the tag may apply to
+  // more than the filtered/visible set).
+  const runBulkByTag = async (tagId, tagName, action) => {
+    if (bulkBusy) return;
+    const verb = action === 'pause' ? t('dashboard.bulk_tag.pause') : t('dashboard.bulk_tag.resume');
+    if (!confirm(t('dashboard.bulk_tag.confirm', { verb, tag: tagName }))) return;
+    setBulkBusy(true);
+    try {
+      await api.monitors.bulkByTag(tagId, action);
+      window.location.reload();
+    } catch (e) {
+      alert(t('dashboard.bulk_tag.failed', { msg: e.message }));
+      setBulkBusy(false);
+    }
+  };
+
   const [query, setQuery] = useState('');
   // tag IDs to require — persisted to localStorage so the chosen filter
   // survives reloads (operators often filter to "prod" and want it sticky).
@@ -1055,19 +1073,37 @@ export default function Dashboard({ user, onLogout } = {}) {
               {tagsInUse.length > 0 && (
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                   <Tag size={11} color="var(--text-3)"/>
-                  {tagsInUse.map(t => {
-                    const on = tagFilter.has(t.id);
+                  {tagsInUse.map(tg => {
+                    const on = tagFilter.has(tg.id);
                     return (
-                      <button key={t.id} onClick={() => toggleTagFilter(t.id)} style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 5,
-                        padding: '3px 9px', borderRadius: 999,
-                        fontSize: 11, fontWeight: 500, cursor: 'pointer',
-                        background: on ? t.color : 'var(--surface-2)',
-                        color:      on ? '#fff'   : 'var(--text-2)',
-                        border: `1px solid ${on ? t.color : 'var(--border)'}`,
-                      }}>
-                        {t.name}
-                      </button>
+                      <span key={tg.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                        <button onClick={() => toggleTagFilter(tg.id)} style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 5,
+                          padding: '3px 9px', borderRadius: writable ? '999px 0 0 999px' : 999,
+                          fontSize: 11, fontWeight: 500, cursor: 'pointer',
+                          background: on ? tg.color : 'var(--surface-2)',
+                          color:      on ? '#fff'   : 'var(--text-2)',
+                          border: `1px solid ${on ? tg.color : 'var(--border)'}`,
+                        }}>
+                          {tg.name}
+                        </button>
+                        {writable && (
+                          <>
+                            <button className="btn btn-ghost" disabled={bulkBusy}
+                              title={t('dashboard.bulk_tag.pause_title', { tag: tg.name })}
+                              onClick={() => runBulkByTag(tg.id, tg.name, 'pause')}
+                              style={{ padding: '3px 5px', borderRadius: 0 }}>
+                              <Pause size={11}/>
+                            </button>
+                            <button className="btn btn-ghost" disabled={bulkBusy}
+                              title={t('dashboard.bulk_tag.resume_title', { tag: tg.name })}
+                              onClick={() => runBulkByTag(tg.id, tg.name, 'resume')}
+                              style={{ padding: '3px 5px', borderRadius: '0 999px 999px 0' }}>
+                              <Activity size={11}/>
+                            </button>
+                          </>
+                        )}
+                      </span>
                     );
                   })}
                   {tagFilter.size > 0 && (

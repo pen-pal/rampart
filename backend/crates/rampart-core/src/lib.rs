@@ -17,9 +17,11 @@ pub mod ingest_token;
 pub mod maintenance;
 pub mod monitor;
 pub mod monitor_group;
+pub mod monitor_preset;
 pub mod notification;
 pub mod proxy;
 pub mod role;
+pub mod scheduled_report;
 pub mod status_page;
 pub mod tag;
 
@@ -31,9 +33,9 @@ pub use error::{CoreError, Result};
 pub use heartbeat::Heartbeat;
 pub use ids::{
     ApiKeyId, BadgeId, IncidentId, IncidentTemplateId, IncidentUpdateId, IngestTokenId,
-    MaintenanceId, MonitorGroupId, MonitorId, NotificationId, NotificationTemplateId, ProxyId,
-    SessionId, StatusPageComponentId, StatusPageGroupId, StatusPageId, StatusPageSubscriberId,
-    TagId, UserId,
+    MaintenanceId, MonitorGroupId, MonitorId, MonitorPresetId, NotificationId,
+    NotificationTemplateId, ProxyId, ScheduledReportId, SessionId, StatusPageComponentId,
+    StatusPageGroupId, StatusPageId, StatusPageSectionId, StatusPageSubscriberId, TagId, UserId,
 };
 pub use incident::{Incident, IncidentStyle, IncidentTemplate, IncidentUpdate};
 pub use ingest_token::{IngestToken, NewIngestToken};
@@ -42,11 +44,14 @@ pub use monitor::{
     BackoffStrategy, Monitor, MonitorKind, MonitorStatus, NewMonitor, RetryBackoff, UpdateMonitor,
 };
 pub use monitor_group::{MonitorGroup, NewMonitorGroup, UpdateMonitorGroup};
+pub use monitor_preset::{MonitorPreset, MonitorPresetKind, NewMonitorPreset};
 pub use notification::{ChannelKind, MonitorNotification, Notification, NotificationTemplate};
 pub use proxy::{NewProxy, Proxy, ProxyProtocol};
 pub use role::Role;
+pub use scheduled_report::ScheduledReport;
 pub use status_page::{
-    NewStatusPage, PublicIncident, PublicIncidentUpdate, PublicMaintenance, PublicStatusMonitor,
-    PublicStatusPage, StatusPage, UpdateStatusPage,
+    MonitorAssignment, NewStatusPage, NewStatusPageSection, PublicIncident, PublicIncidentUpdate,
+    PublicMaintenance, PublicSection, PublicStatusMonitor, PublicStatusPage, StatusPage,
+    StatusPageSection, UpdateStatusPage, UpdateStatusPageSection,
 };
 pub use tag::{NewTag, Tag, TagBrief};

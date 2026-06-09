@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE notifications\n        SET name = $2, config = $3, active = $4, template_id = $5, cooldown_seconds = $6,\n            digest_window_secs = $7\n        WHERE id = $1\n        RETURNING id, kind AS \"kind: ChannelKind\", name, config, active,\n                  template_id, created_at, cooldown_seconds, digest_window_secs, last_fired_at\n        ",
+  "query": "\n        SELECT n.id, n.kind AS \"kind: ChannelKind\", n.name, n.config, n.active,\n               n.template_id, n.created_at, n.cooldown_seconds, n.digest_window_secs,\n               n.quiet_hours_start, n.quiet_hours_end, n.rate_limit_per_hour, n.last_fired_at\n        FROM notifications n\n        JOIN monitor_notifications mn ON mn.notification_id = n.id\n        WHERE mn.monitor_id = $1 AND n.active\n        ",
   "describe": {
     "columns": [
       {
@@ -241,6 +241,39 @@
       },
       {
         "ordinal": 9,
+        "name": "quiet_hours_start",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "notifications",
+            "name": "quiet_hours_start"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "quiet_hours_end",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "notifications",
+            "name": "quiet_hours_end"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "rate_limit_per_hour",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "notifications",
+            "name": "rate_limit_per_hour"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
         "name": "last_fired_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -253,13 +286,7 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid",
-        "Text",
-        "Jsonb",
-        "Bool",
-        "Uuid",
-        "Int4",
-        "Int4"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -272,8 +299,11 @@
       false,
       false,
       false,
+      true,
+      true,
+      false,
       true
     ]
   },
-  "hash": "b0944229deb3689e88a946c52f96d7b42d4a5da98cc1df0444e0e7890444b1a4"
+  "hash": "6a9d0b35cb49b960623ab6f745689fe546a81e06b349cdc0116d57335f327701"
 }

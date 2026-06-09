@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, kind AS \"kind: ChannelKind\", name, config, active,\n               template_id, created_at, cooldown_seconds, digest_window_secs, last_fired_at\n        FROM notifications\n        WHERE id = $1\n        ",
+  "query": "\n        UPDATE notifications\n        SET name = $2, config = $3, active = $4, template_id = $5, cooldown_seconds = $6,\n            digest_window_secs = $7, quiet_hours_start = $8, quiet_hours_end = $9,\n            rate_limit_per_hour = $10\n        WHERE id = $1\n        RETURNING id, kind AS \"kind: ChannelKind\", name, config, active,\n                  template_id, created_at, cooldown_seconds, digest_window_secs,\n                  quiet_hours_start, quiet_hours_end, rate_limit_per_hour, last_fired_at\n        ",
   "describe": {
     "columns": [
       {
@@ -241,6 +241,39 @@
       },
       {
         "ordinal": 9,
+        "name": "quiet_hours_start",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "notifications",
+            "name": "quiet_hours_start"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "quiet_hours_end",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "notifications",
+            "name": "quiet_hours_end"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "rate_limit_per_hour",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "notifications",
+            "name": "rate_limit_per_hour"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
         "name": "last_fired_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -253,7 +286,16 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Uuid",
+        "Text",
+        "Jsonb",
+        "Bool",
+        "Uuid",
+        "Int4",
+        "Int4",
+        "Int2",
+        "Int2",
+        "Int4"
       ]
     },
     "nullable": [
@@ -266,8 +308,11 @@
       false,
       false,
       false,
+      true,
+      true,
+      false,
       true
     ]
   },
-  "hash": "ea365561b50cfa3fac2584b1c331e680a2e17eccb8bb68f561a7356d7ecba3d0"
+  "hash": "c4ee2f1fe8e215a6b970935a1c51835cd97d0fb0c9a103b7f68176e2fb96309f"
 }

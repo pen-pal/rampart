@@ -25,6 +25,7 @@ pub mod prefs;
 pub mod proxies;
 pub mod push;
 pub mod routing;
+pub mod scheduled_reports;
 pub mod status_pages;
 pub mod stream;
 pub mod subscribers;
@@ -142,6 +143,8 @@ pub fn v1_protected() -> Router<AppState> {
         .nest("/api-keys", api_keys::router())
         // /v1/proxies — list/create/delete/active
         .nest("/proxies", proxies::router())
+        // /v1/scheduled-reports — weekly uptime report CRUD (admin)
+        .nest("/scheduled-reports", scheduled_reports::router())
         // /v1/status-pages/:id/ingest-tokens list+create (admin-managed)
         .nest("/status-pages", ingest::page_router())
         // /v1/ingest-tokens/:id revoke

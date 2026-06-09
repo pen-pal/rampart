@@ -25,6 +25,18 @@ pub struct Notification {
     /// 0..=3600 on write.
     #[serde(default)]
     pub digest_window_secs: i32,
+    /// Quiet-hours window in UTC, half-open `[start, end)`. Both must be
+    /// `Some` for the check to apply; a non-Test send whose current UTC
+    /// hour falls inside the window is dropped. Wrap-around (start > end)
+    /// is supported. Clamped to 0..=23 on write.
+    #[serde(default)]
+    pub quiet_hours_start: Option<i16>,
+    #[serde(default)]
+    pub quiet_hours_end: Option<i16>,
+    /// Max non-Test sends per rolling hour. 0 = unlimited (legacy).
+    /// Enforced in-memory by the notifier. Clamped to >= 0 on write.
+    #[serde(default)]
+    pub rate_limit_per_hour: i32,
     #[serde(default)]
     pub last_fired_at: Option<OffsetDateTime>,
     /// Routing tags attached to this channel. Hydrated by the DB layer on
@@ -53,6 +65,15 @@ pub struct NewNotification {
     /// message every N seconds. Clamped to 0..=3600 on insert.
     #[serde(default)]
     pub digest_window_secs: i32,
+    /// Quiet-hours window in UTC `[start, end)`. Both must be set for the
+    /// check to apply. Clamped to 0..=23 on insert.
+    #[serde(default)]
+    pub quiet_hours_start: Option<i16>,
+    #[serde(default)]
+    pub quiet_hours_end: Option<i16>,
+    /// 0 = unlimited (legacy). > 0 = max non-Test sends per rolling hour.
+    #[serde(default)]
+    pub rate_limit_per_hour: i32,
 }
 fn default_enabled() -> bool {
     true
@@ -62,6 +83,17 @@ fn default_enabled() -> bool {
 /// DB CHECK constraint so a bad value is corrected rather than rejected.
 fn clamp_digest_window(v: i32) -> i32 {
     v.clamp(0, 3600)
+}
+
+/// Clamp a quiet-hours hour into the 0..=23 range. `None` stays `None`.
+/// Mirrors the DB CHECK so a bad value is corrected rather than rejected.
+fn clamp_hour(v: Option<i16>) -> Option<i16> {
+    v.map(|h| h.clamp(0, 23))
+}
+
+/// Clamp a rate limit to be non-negative. Mirrors the DB CHECK.
+fn clamp_rate(v: i32) -> i32 {
+    v.max(0)
 }
 
 #[derive(Debug, Deserialize)]
@@ -83,6 +115,14 @@ pub struct UpdateNotification {
     pub cooldown_seconds: Option<i32>,
     #[serde(default)]
     pub digest_window_secs: Option<i32>,
+    /// Outer Option = present in payload; inner Option = explicit null
+    /// (clear the quiet-hours bound). Absent leaves the column unchanged.
+    #[serde(default, deserialize_with = "double_option")]
+    pub quiet_hours_start: Option<Option<i16>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub quiet_hours_end: Option<Option<i16>>,
+    #[serde(default)]
+    pub rate_limit_per_hour: Option<i32>,
 }
 
 /// Wraps the deserialized value in an outer `Some` so the caller can
@@ -100,7 +140,8 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<Notification>> {
     let rows = sqlx::query!(
         r#"
         SELECT id, kind AS "kind: ChannelKind", name, config, active,
-               template_id, created_at, cooldown_seconds, digest_window_secs, last_fired_at
+               template_id, created_at, cooldown_seconds, digest_window_secs,
+               quiet_hours_start, quiet_hours_end, rate_limit_per_hour, last_fired_at
         FROM notifications
         ORDER BY created_at DESC
         "#,
@@ -119,6 +160,9 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<Notification>> {
             created_at: r.created_at,
             cooldown_seconds: r.cooldown_seconds,
             digest_window_secs: r.digest_window_secs,
+            quiet_hours_start: r.quiet_hours_start,
+            quiet_hours_end: r.quiet_hours_end,
+            rate_limit_per_hour: r.rate_limit_per_hour,
             last_fired_at: r.last_fired_at,
             tags: Vec::new(),
         })
@@ -137,7 +181,8 @@ pub async fn get(pool: &DbPool, id: NotificationId) -> DbResult<Notification> {
     let row = sqlx::query!(
         r#"
         SELECT id, kind AS "kind: ChannelKind", name, config, active,
-               template_id, created_at, cooldown_seconds, digest_window_secs, last_fired_at
+               template_id, created_at, cooldown_seconds, digest_window_secs,
+               quiet_hours_start, quiet_hours_end, rate_limit_per_hour, last_fired_at
         FROM notifications
         WHERE id = $1
         "#,
@@ -158,6 +203,9 @@ pub async fn get(pool: &DbPool, id: NotificationId) -> DbResult<Notification> {
         created_at: row.created_at,
         cooldown_seconds: row.cooldown_seconds,
         digest_window_secs: row.digest_window_secs,
+        quiet_hours_start: row.quiet_hours_start,
+        quiet_hours_end: row.quiet_hours_end,
+        rate_limit_per_hour: row.rate_limit_per_hour,
         last_fired_at: row.last_fired_at,
         tags: tag_map.remove(&nid).unwrap_or_default(),
     })
@@ -167,10 +215,12 @@ pub async fn create(pool: &DbPool, input: NewNotification) -> DbResult<Notificat
     let id = Uuid::now_v7();
     let row = sqlx::query!(
         r#"
-        INSERT INTO notifications (id, kind, name, config, active, template_id, cooldown_seconds, digest_window_secs)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO notifications (id, kind, name, config, active, template_id, cooldown_seconds, digest_window_secs,
+                                   quiet_hours_start, quiet_hours_end, rate_limit_per_hour)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING id, kind AS "kind: ChannelKind", name, config, active,
-                  template_id, created_at, cooldown_seconds, digest_window_secs, last_fired_at
+                  template_id, created_at, cooldown_seconds, digest_window_secs,
+                  quiet_hours_start, quiet_hours_end, rate_limit_per_hour, last_fired_at
         "#,
         id,
         input.kind as ChannelKind,
@@ -180,6 +230,9 @@ pub async fn create(pool: &DbPool, input: NewNotification) -> DbResult<Notificat
         input.template_id.map(|t| t.0),
         input.cooldown_seconds,
         clamp_digest_window(input.digest_window_secs),
+        clamp_hour(input.quiet_hours_start),
+        clamp_hour(input.quiet_hours_end),
+        clamp_rate(input.rate_limit_per_hour),
     )
     .fetch_one(pool)
     .await?;
@@ -193,6 +246,9 @@ pub async fn create(pool: &DbPool, input: NewNotification) -> DbResult<Notificat
         created_at: row.created_at,
         cooldown_seconds: row.cooldown_seconds,
         digest_window_secs: row.digest_window_secs,
+        quiet_hours_start: row.quiet_hours_start,
+        quiet_hours_end: row.quiet_hours_end,
+        rate_limit_per_hour: row.rate_limit_per_hour,
         last_fired_at: row.last_fired_at,
         tags: Vec::new(),
     })
@@ -217,15 +273,27 @@ pub async fn update(
         Some(None) => None,
         Some(Some(t)) => Some(t.0),
     };
+    // quiet-hours: same absent / explicit-null / set semantics.
+    let new_quiet_start = clamp_hour(match input.quiet_hours_start {
+        None => cur.quiet_hours_start,
+        Some(v) => v,
+    });
+    let new_quiet_end = clamp_hour(match input.quiet_hours_end {
+        None => cur.quiet_hours_end,
+        Some(v) => v,
+    });
+    let new_rate = clamp_rate(input.rate_limit_per_hour.unwrap_or(cur.rate_limit_per_hour));
 
     let row = sqlx::query!(
         r#"
         UPDATE notifications
         SET name = $2, config = $3, active = $4, template_id = $5, cooldown_seconds = $6,
-            digest_window_secs = $7
+            digest_window_secs = $7, quiet_hours_start = $8, quiet_hours_end = $9,
+            rate_limit_per_hour = $10
         WHERE id = $1
         RETURNING id, kind AS "kind: ChannelKind", name, config, active,
-                  template_id, created_at, cooldown_seconds, digest_window_secs, last_fired_at
+                  template_id, created_at, cooldown_seconds, digest_window_secs,
+                  quiet_hours_start, quiet_hours_end, rate_limit_per_hour, last_fired_at
         "#,
         id.0,
         new_name,
@@ -234,6 +302,9 @@ pub async fn update(
         new_template_id,
         new_cooldown,
         new_digest,
+        new_quiet_start,
+        new_quiet_end,
+        new_rate,
     )
     .fetch_one(pool)
     .await?;
@@ -247,6 +318,9 @@ pub async fn update(
         created_at: row.created_at,
         cooldown_seconds: row.cooldown_seconds,
         digest_window_secs: row.digest_window_secs,
+        quiet_hours_start: row.quiet_hours_start,
+        quiet_hours_end: row.quiet_hours_end,
+        rate_limit_per_hour: row.rate_limit_per_hour,
         last_fired_at: row.last_fired_at,
         tags: Vec::new(),
     })
@@ -321,7 +395,8 @@ pub async fn for_monitor(pool: &DbPool, monitor: MonitorId) -> DbResult<Vec<Noti
     let rows = sqlx::query!(
         r#"
         SELECT n.id, n.kind AS "kind: ChannelKind", n.name, n.config, n.active,
-               n.template_id, n.created_at, n.cooldown_seconds, n.digest_window_secs, n.last_fired_at
+               n.template_id, n.created_at, n.cooldown_seconds, n.digest_window_secs,
+               n.quiet_hours_start, n.quiet_hours_end, n.rate_limit_per_hour, n.last_fired_at
         FROM notifications n
         JOIN monitor_notifications mn ON mn.notification_id = n.id
         WHERE mn.monitor_id = $1 AND n.active
@@ -342,6 +417,9 @@ pub async fn for_monitor(pool: &DbPool, monitor: MonitorId) -> DbResult<Vec<Noti
             created_at: r.created_at,
             cooldown_seconds: r.cooldown_seconds,
             digest_window_secs: r.digest_window_secs,
+            quiet_hours_start: r.quiet_hours_start,
+            quiet_hours_end: r.quiet_hours_end,
+            rate_limit_per_hour: r.rate_limit_per_hour,
             last_fired_at: r.last_fired_at,
             tags: Vec::new(),
         })

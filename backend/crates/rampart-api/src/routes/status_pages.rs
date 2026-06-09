@@ -12,9 +12,12 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::{Json, Router};
-use rampart_core::ids::{IncidentId, StatusPageId};
+use rampart_core::ids::{IncidentId, MonitorId, StatusPageId, StatusPageSectionId};
 use rampart_core::incident::{Incident, IncidentUpdate};
-use rampart_core::status_page::{NewStatusPage, PublicStatusPage, StatusPage, UpdateStatusPage};
+use rampart_core::status_page::{
+    AssignSectionReq, NewStatusPage, NewStatusPageSection, PublicStatusPage, StatusPage,
+    StatusPageSection, UpdateStatusPage, UpdateStatusPageSection,
+};
 use rampart_db::users::User;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -25,6 +28,17 @@ pub fn admin_router() -> Router<AppState> {
     Router::new()
         .route("/", get(list).post(create))
         .route("/{id}", get(get_one).patch(update).delete(remove))
+        // Component sections (sub-section grouping).
+        .route("/{id}/sections", get(list_sections).post(create_section))
+        .route(
+            "/{id}/sections/{section_id}",
+            axum::routing::patch(update_section).delete(delete_section),
+        )
+        // Assign (or clear, via section_id: null) a monitor's section.
+        .route(
+            "/{id}/monitors/{monitor_id}/section",
+            axum::routing::put(assign_monitor_section),
+        )
 }
 
 pub fn public_router() -> Router<AppState> {
@@ -211,6 +225,76 @@ async fn remove(
         None,
     )
     .await;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+fn parse_section(id: &str) -> Result<StatusPageSectionId, ApiError> {
+    Uuid::from_str(id)
+        .map(StatusPageSectionId::from_uuid)
+        .map_err(|_| ApiError::BadRequest("invalid section id".into()))
+}
+
+fn parse_monitor(id: &str) -> Result<MonitorId, ApiError> {
+    Uuid::from_str(id)
+        .map(MonitorId::from_uuid)
+        .map_err(|_| ApiError::BadRequest("invalid monitor id".into()))
+}
+
+async fn list_sections(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<Vec<StatusPageSection>>, ApiError> {
+    Ok(Json(
+        rampart_db::status_pages::list_sections(s.pool(), parse(&id)?).await?,
+    ))
+}
+
+async fn create_section(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+    Json(input): Json<NewStatusPageSection>,
+) -> Result<(StatusCode, Json<StatusPageSection>), ApiError> {
+    input
+        .validate()
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    let section = rampart_db::status_pages::create_section(s.pool(), parse(&id)?, input).await?;
+    Ok((StatusCode::CREATED, Json(section)))
+}
+
+async fn update_section(
+    State(s): State<AppState>,
+    Path((_id, section_id)): Path<(String, String)>,
+    Json(input): Json<UpdateStatusPageSection>,
+) -> Result<Json<StatusPageSection>, ApiError> {
+    input
+        .validate()
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    Ok(Json(
+        rampart_db::status_pages::update_section(s.pool(), parse_section(&section_id)?, input)
+            .await?,
+    ))
+}
+
+async fn delete_section(
+    State(s): State<AppState>,
+    Path((_id, section_id)): Path<(String, String)>,
+) -> Result<StatusCode, ApiError> {
+    rampart_db::status_pages::delete_section(s.pool(), parse_section(&section_id)?).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn assign_monitor_section(
+    State(s): State<AppState>,
+    Path((id, monitor_id)): Path<(String, String)>,
+    Json(req): Json<AssignSectionReq>,
+) -> Result<StatusCode, ApiError> {
+    rampart_db::status_pages::assign_monitor_section(
+        s.pool(),
+        parse(&id)?,
+        parse_monitor(&monitor_id)?,
+        req.section_id,
+    )
+    .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
