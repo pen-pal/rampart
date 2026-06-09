@@ -32,7 +32,7 @@ The core feature set is shipped (38 probe kinds, 130 notification channels, stat
 
 - **Additional probe kinds** — anything in the spirit of the existing 29. LDAP, AMQP/RabbitMQ, NATS, Cassandra, SNMP v1 GET, mDNS / SSDP, DNS-over-HTTPS, Whois/RDAP HTTP, etc.
 - **Additional notification channels** — drop a new adapter into `rampart-notifier/src/channels/` following the pattern of the existing 128 native channels.
-- **Importers** — bring monitors in from JSON / CSV / SQLite exports of other self-hosted dashboards. One-shot tools, not background sync.
+- **Importers** — one-shot tools that ingest JSON / CSV / SQLite exports from other self-hosted dashboards. See [`docs/IMPORTERS.md`](docs/IMPORTERS.md) for the supported list, the mapping tables, and how to add a new format. Not background sync.
 - **UI polish + bug-fixes** — see open issues tagged [`good-first-issue`](https://github.com/pen-pal/rampart/labels/good-first-issue) and [`help-wanted`](https://github.com/pen-pal/rampart/labels/help-wanted).
 - **Docs** — production deployment recipes, Helm charts, Terraform modules, language-specific push-monitor client snippets.
 

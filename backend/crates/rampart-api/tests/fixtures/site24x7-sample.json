@@ -1,0 +1,47 @@
+{
+  "monitors": [
+    {
+      "monitor_id": "111111000000000001",
+      "display_name": "Acme HTTP",
+      "type": "URL",
+      "website": "https://api.example.com/health",
+      "check_frequency": "60",
+      "timeout": "10",
+      "http_method": "G"
+    },
+    {
+      "monitor_id": "111111000000000002",
+      "display_name": "Acme HTTP w/ keyword",
+      "type": "URL",
+      "website": "https://app.example.com",
+      "check_frequency": "120",
+      "timeout": "10",
+      "http_method": "G",
+      "matching_keyword": { "value": "OK", "severity": 2 }
+    },
+    {
+      "monitor_id": "111111000000000003",
+      "display_name": "Acme primary DB",
+      "type": "POSTGRES",
+      "host_name": "db.internal.example.com",
+      "port": 5432,
+      "check_frequency": "300",
+      "timeout": 15,
+      "retries": 2
+    },
+    {
+      "monitor_id": "111111000000000004",
+      "display_name": "Edge router ping",
+      "type": "PING",
+      "host_name": "10.0.0.1",
+      "check_frequency": "60"
+    },
+    {
+      "monitor_id": "111111000000000005",
+      "display_name": "Marketing site (browser-rendered)",
+      "type": "REALBROWSER",
+      "website": "https://www.example.com",
+      "check_frequency": "300"
+    }
+  ]
+}

@@ -13,6 +13,13 @@ path = "src/lib.rs"
 name = "rampart-api"
 path = "src/main.rs"
 
+[[bin]]
+# One-shot importer CLI — reads a JSON / CSV export from another
+# self-hosted dashboard and inserts mapped monitors via
+# `rampart_db::monitors::create`. See `docs/IMPORTERS.md`.
+name = "rampart-import"
+path = "src/bin/import.rs"
+
 [dependencies]
 rampart-core      = { path = "../rampart-core" }
 rampart-db        = { path = "../rampart-db" }
