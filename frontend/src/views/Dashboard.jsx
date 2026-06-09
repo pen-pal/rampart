@@ -266,6 +266,7 @@ export default function Dashboard({ user, onLogout } = {}) {
   const monitorsState = useApi(() => api.monitors.list(),         [liveTick], { pollMs: 30_000 });
   const groupsState   = useApi(() => api.monitorGroups.list(),     [],         { pollMs: 60_000 });
   const channelsState = useApi(() => api.notifications.list(),     [],         { pollMs: 60_000 });
+  const tagsState     = useApi(() => api.tags.list(),              [],         { pollMs: 60_000 });
   const [windowSec, setWindowSec] = useState(86400); // 1h | 24h | 7d | 30d
   // small helper so the summary-card label stays in sync with the picker.
   // eslint-disable-next-line no-inner-declarations
@@ -339,6 +340,8 @@ export default function Dashboard({ user, onLogout } = {}) {
   // Bulk-selection state for the activity table.
   const [selected, setSelected] = useState(() => new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  // Inline bulk-edit form: null when closed, else the working form state.
+  const [bulkEdit, setBulkEdit] = useState(null);
   const toggleSelect = (id) => setSelected(prev => {
     const next = new Set(prev);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -354,6 +357,32 @@ export default function Dashboard({ user, onLogout } = {}) {
       window.location.reload();
     } catch (e) {
       alert(`Bulk action failed: ${e.message}`);
+      setBulkBusy(false);
+    }
+  };
+  const runBulkEdit = async () => {
+    if (selected.size === 0 || bulkBusy || !bulkEdit) return;
+    const payload = { ids: Array.from(selected) };
+    const interval = bulkEdit.interval.trim();
+    const timeout = bulkEdit.timeout.trim();
+    if (interval !== '') payload.interval_seconds = Number(interval);
+    if (timeout !== '') payload.timeout_seconds = Number(timeout);
+    if (bulkEdit.addTags.size > 0) payload.add_tag_ids = Array.from(bulkEdit.addTags);
+    if (bulkEdit.removeTags.size > 0) payload.remove_tag_ids = Array.from(bulkEdit.removeTags);
+    // Nothing to do — guard so we don't fire a no-op request.
+    if (payload.interval_seconds === undefined && payload.timeout_seconds === undefined
+        && !payload.add_tag_ids && !payload.remove_tag_ids) {
+      alert(t("dashboard.bulk.edit_empty"));
+      return;
+    }
+    setBulkBusy(true);
+    try {
+      await api.monitors.bulkEdit(payload);
+      setBulkEdit(null);
+      setSelected(new Set());
+      window.location.reload();
+    } catch (e) {
+      alert(t("dashboard.bulk.edit_failed", { msg: e.message }));
       setBulkBusy(false);
     }
   };
@@ -875,11 +904,114 @@ export default function Dashboard({ user, onLogout } = {}) {
                     ))}
                   </optgroup>
                 </select>
+                {writable && (
+                  <button className="btn" disabled={bulkBusy}
+                    onClick={() => setBulkEdit(prev => prev
+                      ? null
+                      : { interval: '', timeout: '', addTags: new Set(), removeTags: new Set() })}>
+                    <Settings size={12}/> {t("dashboard.bulk.edit")}
+                  </button>
+                )}
                 <button className="btn btn-danger" disabled={bulkBusy}
                   onClick={() => runBulk({ action: 'delete' }, t("dashboard.bulk.delete_confirm", { n: selected.size }))}>
                   <AlertCircle size={12}/> {t("dashboard.bulk.delete")}
                 </button>
-                <button className="btn btn-ghost" disabled={bulkBusy} onClick={() => setSelected(new Set())} style={{ marginLeft: 'auto' }}>{t("dashboard.bulk.clear")}</button>
+                <button className="btn btn-ghost" disabled={bulkBusy} onClick={() => { setSelected(new Set()); setBulkEdit(null); }} style={{ marginLeft: 'auto' }}>{t("dashboard.bulk.clear")}</button>
+
+                {writable && bulkEdit && (
+                  <div style={{
+                    flexBasis: '100%', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end',
+                    gap: 14, marginTop: 6, paddingTop: 10, borderTop: '1px solid var(--border)',
+                  }}>
+                    <strong style={{ flexBasis: '100%', marginBottom: 2 }}>
+                      {t("dashboard.bulk.edit_title", { n: selected.size })}
+                    </strong>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <span style={{ color: 'var(--text-3)' }}>{t("dashboard.bulk.interval_label")}</span>
+                      <input className="input" type="number" min="10" max="86400"
+                        style={{ width: 150, padding: '4px 8px', fontSize: 12 }}
+                        placeholder={t("dashboard.bulk.interval_ph")} disabled={bulkBusy}
+                        value={bulkEdit.interval}
+                        onChange={e => setBulkEdit(s => ({ ...s, interval: e.target.value }))}/>
+                    </label>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <span style={{ color: 'var(--text-3)' }}>{t("dashboard.bulk.timeout_label")}</span>
+                      <input className="input" type="number" min="1" max="600"
+                        style={{ width: 150, padding: '4px 8px', fontSize: 12 }}
+                        placeholder={t("dashboard.bulk.timeout_ph")} disabled={bulkBusy}
+                        value={bulkEdit.timeout}
+                        onChange={e => setBulkEdit(s => ({ ...s, timeout: e.target.value }))}/>
+                    </label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <span style={{ color: 'var(--text-3)' }}>{t("dashboard.bulk.add_tags_label")}</span>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, maxWidth: 320 }}>
+                        {(tagsState.data || []).length === 0
+                          ? <span style={{ color: 'var(--text-3)' }}>{t("dashboard.bulk.no_tags")}</span>
+                          : (tagsState.data || []).map(tag => {
+                              const on = bulkEdit.addTags.has(tag.id);
+                              return (
+                                <button key={`add-${tag.id}`} type="button" disabled={bulkBusy}
+                                  style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                                    padding: '3px 9px', borderRadius: 999,
+                                    fontSize: 11, fontWeight: 500, cursor: 'pointer',
+                                    background: on ? (tag.color || 'var(--accent)') : 'var(--surface-2)',
+                                    color:      on ? '#fff' : 'var(--text-2)',
+                                    border: `1px solid ${on ? (tag.color || 'var(--accent)') : 'var(--border)'}`,
+                                  }}
+                                  onClick={() => setBulkEdit(s => {
+                                    const addTags = new Set(s.addTags);
+                                    const removeTags = new Set(s.removeTags);
+                                    if (addTags.has(tag.id)) addTags.delete(tag.id);
+                                    else { addTags.add(tag.id); removeTags.delete(tag.id); }
+                                    return { ...s, addTags, removeTags };
+                                  })}>
+                                  {on ? '✓ ' : '+ '}{tag.name}
+                                </button>
+                              );
+                            })}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <span style={{ color: 'var(--text-3)' }}>{t("dashboard.bulk.remove_tags_label")}</span>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, maxWidth: 320 }}>
+                        {(tagsState.data || []).length === 0
+                          ? <span style={{ color: 'var(--text-3)' }}>{t("dashboard.bulk.no_tags")}</span>
+                          : (tagsState.data || []).map(tag => {
+                              const on = bulkEdit.removeTags.has(tag.id);
+                              return (
+                                <button key={`rm-${tag.id}`} type="button" disabled={bulkBusy}
+                                  style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                                    padding: '3px 9px', borderRadius: 999,
+                                    fontSize: 11, fontWeight: 500, cursor: 'pointer',
+                                    background: on ? 'var(--down-soft)' : 'var(--surface-2)',
+                                    color:      on ? '#b91c1c' : 'var(--text-2)',
+                                    border: `1px solid ${on ? '#b91c1c' : 'var(--border)'}`,
+                                  }}
+                                  onClick={() => setBulkEdit(s => {
+                                    const addTags = new Set(s.addTags);
+                                    const removeTags = new Set(s.removeTags);
+                                    if (removeTags.has(tag.id)) removeTags.delete(tag.id);
+                                    else { removeTags.add(tag.id); addTags.delete(tag.id); }
+                                    return { ...s, addTags, removeTags };
+                                  })}>
+                                  {on ? '✕ ' : '− '}{tag.name}
+                                </button>
+                              );
+                            })}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+                      <button className="btn btn-accent" disabled={bulkBusy} onClick={runBulkEdit}>
+                        {t("dashboard.bulk.apply")}
+                      </button>
+                      <button className="btn btn-ghost" disabled={bulkBusy} onClick={() => setBulkEdit(null)}>
+                        {t("dashboard.bulk.cancel")}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

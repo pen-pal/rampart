@@ -3472,6 +3472,7 @@ dependencies = [
 name = "rampart-db"
 version = "0.2.0"
 dependencies = [
+ "argon2",
  "hex",
  "rampart-core",
  "rand 0.8.6",
