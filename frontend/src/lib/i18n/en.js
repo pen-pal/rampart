@@ -571,6 +571,13 @@ const en = {
   'apikeys.revoke':                  'Revoke',
   'apikeys.revoke_confirm':          'Revoke this API key? Any clients using it will fail with 401.',
   'apikeys.name':                    'Name',
+  'apikeys.scope':                   'Scope',
+  'apikeys.scope_read':              'Read',
+  'apikeys.scope_write':             'Write',
+  'apikeys.scope_admin':             'Admin',
+  'apikeys.scope_hint_read':         'Read-only: GET requests only. Cannot create, update or delete.',
+  'apikeys.scope_hint_write':        'Read + write: full monitoring CRUD, like an editor. No admin surfaces.',
+  'apikeys.scope_hint_admin':        'Full access: everything, including users, settings and API keys.',
   'apikeys.expires_optional':        'Expires (optional)',
   'apikeys.expires_hint':            'Leave blank for a non-expiring key.',
   'apikeys.creating':                'Creating…',
@@ -915,6 +922,7 @@ const en = {
   'statuspage.public.incident.resolved': 'Resolved',
   'statuspage.public.incident.lasted':   '{date} · lasted {duration}',
   'statuspage.public.incident.posted':   'posted {when}',
+  'statuspage.public.incident.feed_title': 'Subscribe to this incident (Atom feed)',
 
   // relative time
   'statuspage.public.rel.just_now':  'just now',
