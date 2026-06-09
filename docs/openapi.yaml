@@ -1392,6 +1392,620 @@ paths:
         '200': { description: Recorded. }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  # ─────────────────────────── Monitors (extended) ───────────────────────────
+  # Path-level coverage filled in to keep scripts/check-openapi.sh green.
+  # These mirror handlers in routes/monitors.rs, routing.rs, notifications.rs,
+  # tags.rs and monitor_groups.rs; request/response bodies are summarised, not
+  # fully enumerated (see the source for the canonical contract).
+  /v1/monitors/summary:
+    get:
+      tags: [Monitors]
+      summary: Aggregate status summary across all monitors
+      responses:
+        '200': { description: Summary counts + per-monitor latest state. }
+  /v1/monitors/history:
+    get:
+      tags: [Monitors]
+      summary: Recent heartbeat history across all monitors
+      responses:
+        '200': { description: Combined recent history. }
+  /v1/monitors/bulk:
+    post:
+      tags: [Monitors]
+      summary: Bulk-create monitors
+      description: Editor or admin.
+      responses:
+        '200': { description: Created monitors. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /v1/monitors/{id}/heartbeats.csv:
+    parameters:
+      - $ref: '#/components/parameters/MonitorId'
+    get:
+      tags: [Monitors]
+      summary: Heartbeat history as CSV
+      responses:
+        '200':
+          description: CSV export.
+          content:
+            text/csv: {}
+  /v1/monitors/{id}/pause:
+    parameters:
+      - $ref: '#/components/parameters/MonitorId'
+    post:
+      tags: [Monitors]
+      summary: Pause a monitor
+      responses:
+        '204': { description: Paused. }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/monitors/{id}/resume:
+    parameters:
+      - $ref: '#/components/parameters/MonitorId'
+    post:
+      tags: [Monitors]
+      summary: Resume a paused monitor
+      responses:
+        '204': { description: Resumed. }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/monitors/{id}/clone:
+    parameters:
+      - $ref: '#/components/parameters/MonitorId'
+    post:
+      tags: [Monitors]
+      summary: Clone a monitor
+      responses:
+        '201':
+          description: The cloned monitor.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Monitor' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/monitors/{id}/test-now:
+    parameters:
+      - $ref: '#/components/parameters/MonitorId'
+    post:
+      tags: [Monitors]
+      summary: Run a probe immediately
+      responses:
+        '200': { description: Probe result. }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/monitors/{id}/regenerate-push-token:
+    parameters:
+      - $ref: '#/components/parameters/MonitorId'
+    post:
+      tags: [Monitors]
+      summary: Regenerate a push monitor's secret token
+      responses:
+        '200': { description: New token. }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/monitors/{id}/notifications:
+    parameters:
+      - $ref: '#/components/parameters/MonitorId'
+    get:
+      tags: [Notifications]
+      summary: List notification channels attached to a monitor
+      responses:
+        '200': { description: Attached channel ids. }
+  /v1/monitors/{id}/notifications/{nid}:
+    parameters:
+      - $ref: '#/components/parameters/MonitorId'
+      - name: nid
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Notifications]
+      summary: Attach a notification channel to a monitor
+      responses:
+        '204': { description: Attached. }
+    delete:
+      tags: [Notifications]
+      summary: Detach a notification channel from a monitor
+      responses:
+        '204': { description: Detached. }
+  /v1/monitors/{id}/tags:
+    parameters:
+      - $ref: '#/components/parameters/MonitorId'
+    get:
+      tags: [Tags]
+      summary: List a monitor's tags
+      responses:
+        '200': { description: Tag ids. }
+  /v1/monitors/{id}/dependencies:
+    parameters:
+      - $ref: '#/components/parameters/MonitorId'
+    get:
+      tags: [Folders]
+      summary: List a monitor's dependencies
+      responses:
+        '200': { description: Dependency monitor ids. }
+  /v1/monitors/{id}/dependencies/{parent_id}:
+    parameters:
+      - $ref: '#/components/parameters/MonitorId'
+      - name: parent_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Folders]
+      summary: Add a dependency edge
+      responses:
+        '204': { description: Added. }
+    delete:
+      tags: [Folders]
+      summary: Remove a dependency edge
+      responses:
+        '204': { description: Removed. }
+  /v1/monitors/{id}/effective-channels:
+    parameters:
+      - $ref: '#/components/parameters/MonitorId'
+    get:
+      tags: [Notifications]
+      summary: Resolved notification channels that will fire for this monitor
+      responses:
+        '200': { description: Effective channel ids. }
+  /v1/monitors/{id}/excludes:
+    parameters:
+      - $ref: '#/components/parameters/MonitorId'
+    get:
+      tags: [Notifications]
+      summary: List per-monitor channel excludes
+      responses:
+        '200': { description: Excluded channel ids. }
+  /v1/monitors/{id}/excludes/{notif_id}:
+    parameters:
+      - $ref: '#/components/parameters/MonitorId'
+      - name: notif_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Notifications]
+      summary: Exclude a channel for a monitor
+      responses:
+        '204': { description: Excluded. }
+    delete:
+      tags: [Notifications]
+      summary: Remove a channel exclude
+      responses:
+        '204': { description: Removed. }
+
+  # ─────────────────────────── Tags / Notifications (extended) ───────────────
+  /v1/tags/usage:
+    get:
+      tags: [Tags]
+      summary: Tag usage counts
+      responses:
+        '200': { description: Per-tag usage counts. }
+  /v1/notifications/counts:
+    get:
+      tags: [Notifications]
+      summary: Notification channel counts
+      responses:
+        '200': { description: Channel counts by kind. }
+  /v1/notifications/{id}/tags:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Notifications]
+      summary: List tags on a notification channel
+      responses:
+        '200': { description: Tag ids. }
+  /v1/notifications/{id}/tags/{tag_id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: tag_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Notifications]
+      summary: Tag a notification channel
+      responses:
+        '204': { description: Tagged. }
+    delete:
+      tags: [Notifications]
+      summary: Untag a notification channel
+      responses:
+        '204': { description: Untagged. }
+  /v1/notification-templates/preview:
+    post:
+      tags: [Notifications]
+      summary: Render a template against sample data
+      responses:
+        '200': { description: Rendered preview. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  # ─────────────────────────── Folders (extended: tags + channels) ───────────
+  /v1/monitor-groups/{id}/tags:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Folders]
+      summary: List a folder's tags
+      responses:
+        '200': { description: Tag ids. }
+  /v1/monitor-groups/{id}/tags/{tag_id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: tag_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Folders]
+      summary: Tag a folder
+      responses:
+        '204': { description: Tagged. }
+    delete:
+      tags: [Folders]
+      summary: Untag a folder
+      responses:
+        '204': { description: Untagged. }
+  /v1/monitor-groups/{id}/channels:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Folders]
+      summary: List a folder's notification channels
+      responses:
+        '200': { description: Channel ids. }
+  /v1/monitor-groups/{id}/channels/{notif_id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: notif_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Folders]
+      summary: Attach a channel to a folder
+      responses:
+        '204': { description: Attached. }
+    delete:
+      tags: [Folders]
+      summary: Detach a channel from a folder
+      responses:
+        '204': { description: Detached. }
+
+  # ─────────────────────────── Maintenance (extended) ───────────────────────
+  /v1/maintenance-windows/{id}/active:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Maintenance]
+      summary: Toggle a maintenance window active/inactive
+      responses:
+        '204': { description: Updated. }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ─────────────────────────── 2FA (TOTP) ───────────────────────────────────
+  /v1/auth/2fa/verify:
+    post:
+      tags: [Auth]
+      summary: Verify a TOTP code during login
+      description: Public step of the two-factor login flow. Rate-limited per IP.
+      security: []
+      responses:
+        '200': { description: Verified; session established. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /v1/auth/2fa/setup:
+    post:
+      tags: [Auth]
+      summary: Begin TOTP enrolment
+      description: Self-service. Returns the secret + provisioning URI.
+      responses:
+        '200': { description: Enrolment secret + otpauth URI. }
+  /v1/auth/2fa/enable:
+    post:
+      tags: [Auth]
+      summary: Enable TOTP after confirming a code
+      description: Self-service.
+      responses:
+        '204': { description: Enabled. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /v1/auth/2fa/disable:
+    post:
+      tags: [Auth]
+      summary: Disable TOTP for the current user
+      description: Self-service.
+      responses:
+        '204': { description: Disabled. }
+
+  # ─────────────────────────── Web push (self-service) ──────────────────────
+  /v1/webpush/vapid-key:
+    get:
+      tags: [Auth]
+      summary: Fetch the server VAPID public key
+      responses:
+        '200': { description: VAPID public key. }
+  /v1/webpush/subscriptions:
+    post:
+      tags: [Auth]
+      summary: Register a browser push subscription
+      description: Self-service.
+      responses:
+        '204': { description: Subscribed. }
+    delete:
+      tags: [Auth]
+      summary: Remove a browser push subscription
+      description: Self-service.
+      responses:
+        '204': { description: Unsubscribed. }
+
+  # ─────────────────────────── Dashboard prefs (self-service) ───────────────
+  /v1/me/prefs:
+    get:
+      tags: [Auth]
+      summary: Get the caller's dashboard preferences
+      responses:
+        '200': { description: Saved views + default folder. }
+    put:
+      tags: [Auth]
+      summary: Replace the caller's dashboard preferences
+      responses:
+        '204': { description: Saved. }
+
+  # ─────────────────────────── Real-time stream ─────────────────────────────
+  /v1/stream/heartbeats:
+    get:
+      tags: [Monitors]
+      summary: Server-Sent Events stream of live heartbeats
+      responses:
+        '200':
+          description: An SSE stream.
+          content:
+            text/event-stream: {}
+
+  # ─────────────────────────── Audit (extended) ─────────────────────────────
+  /v1/audit-log/csv:
+    get:
+      tags: [Audit]
+      summary: Audit log as CSV (inline)
+      description: Admin only.
+      responses:
+        '200':
+          description: CSV body.
+          content:
+            text/csv: {}
+
+  # ─────────────────────────── Users (extended) ─────────────────────────────
+  /v1/users/{id}/admin:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Users]
+      summary: Grant or revoke admin on a user
+      description: Admin only. Legacy alias for role assignment.
+      responses:
+        '204': { description: Updated. }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ─────────────────────────── Settings (admin) ─────────────────────────────
+  /v1/settings/smtp:
+    get:
+      tags: [Ingest]
+      summary: Get SMTP settings
+      description: Admin only.
+      responses:
+        '200': { description: SMTP configuration. }
+    put:
+      tags: [Ingest]
+      summary: Update SMTP settings
+      description: Admin only.
+      responses:
+        '204': { description: Saved. }
+  /v1/settings/retention:
+    get:
+      tags: [Ingest]
+      summary: Get data-retention settings
+      description: Admin only.
+      responses:
+        '200': { description: Retention configuration. }
+    put:
+      tags: [Ingest]
+      summary: Update data-retention settings
+      description: Admin only.
+      responses:
+        '204': { description: Saved. }
+
+  # ─────────────────────────── Ingest tokens (extended) ─────────────────────
+  /v1/ingest-tokens/{id}/mapping:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [Ingest]
+      summary: Set or clear an ingest token's generic JSON mapping
+      description: Admin only. A null mapping clears it.
+      responses:
+        '204': { description: Saved. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /v1/public/ingest/generic/{token}:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [Ingest]
+      summary: Generic operator-mapped JSON receiver
+      description: Public — the token IS the auth. Requires a configured mapping.
+      security: []
+      responses:
+        '202': { description: Accepted. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  # ─────────────────────────── Subscribers (admin + public) ─────────────────
+  /v1/status-pages/{id}/subscribers:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Status Pages]
+      summary: List subscribers for a status page
+      description: Editor or admin.
+      responses:
+        '200': { description: Subscribers. }
+  /v1/subscribers/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [Status Pages]
+      summary: Delete a subscriber
+      description: Editor or admin.
+      responses:
+        '204': { description: Deleted. }
+  /v1/public/status-pages/{slug}/subscribe:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [Status Pages]
+      summary: Subscribe to a status page
+      description: Public. Sends a confirmation email.
+      security: []
+      responses:
+        '202': { description: Confirmation email sent. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /v1/public/subscribe/unsubscribe/{token}:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Status Pages]
+      summary: One-click unsubscribe
+      security: []
+      responses:
+        '200': { description: Unsubscribed (HTML confirmation). }
+  /v1/public/subscribers/manage/{token}:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Status Pages]
+      summary: Subscriber self-management page
+      security: []
+      responses:
+        '200': { description: Management page (HTML). }
+  /v1/public/subscribers/manage/{token}/unsubscribe-all:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [Status Pages]
+      summary: Unsubscribe from all status pages
+      security: []
+      responses:
+        '200': { description: Unsubscribed from all. }
+  /v1/public/subscribers/manage/{token}/unsubscribe/{slug}:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema: { type: string }
+      - name: slug
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [Status Pages]
+      summary: Unsubscribe from a single status page
+      security: []
+      responses:
+        '200': { description: Unsubscribed from the page. }
+
+  # ─────────────────────────── Status page feeds (extended) ─────────────────
+  /v1/public/status-pages/{slug}/day-latency:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Status Pages]
+      summary: Per-day latency series for a public status page
+      security: []
+      responses:
+        '200': { description: Latency buckets. }
+  /v1/public/status-pages/{slug}/incidents/{incident_id}/feed.atom:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema: { type: string }
+      - name: incident_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Status Pages]
+      summary: Atom feed for a single incident
+      security: []
+      responses:
+        '200':
+          description: Atom feed.
+          content:
+            application/atom+xml: {}
+  /v1/public/status-pages/{slug}/incidents/{incident_id}/feed.rss:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema: { type: string }
+      - name: incident_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Status Pages]
+      summary: RSS feed for a single incident
+      security: []
+      responses:
+        '200':
+          description: RSS feed.
+          content:
+            application/rss+xml: {}
+
 components:
   securitySchemes:
     sessionCookie:
