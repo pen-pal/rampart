@@ -17,64 +17,127 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+---
+
+## [0.3.0] — 2026-06-09
+
+The "operate it like a SaaS" release — 53 commits since v0.2.0. Adds
+role-based access control, doubles the importer catalog, turns the
+status page into a brandable multi-tenant surface, ships inbound
+alert ingestion from five vendors, a full SLO suite, internationalised
+the entire UI, and hardens CI.
+
 ### Added
 
-#### SLO + reliability analytics (batch 3)
+#### Access control
 
-- **SLO breach + recovery notifications.** Closes the loop left open by the SLO schema work below. New `EventKind::SloBreached` / `EventKind::SloRecovered` in `rampart-notifier`; the scheduler's `writer_loop` checks each monitor's rolling SLO uptime after every heartbeat-batch flush and emits a breach (or recovery) alert through the normal notification channels. De-duplicated via a single `slo_breached_at` column (migration `0045_slo_breach_dedup.sql`) so a flapping monitor pages once, not per-batch. New `{{ slo_target_pct }}` / `{{ slo_current_pct }}` template placeholders + purpose-built default subject/body per event kind. The two new kinds appear in the template-editor dropdown.
-- **MTBF / MTTR window picker.** `GET /v1/monitors/{id}/reliability` now accepts `?window_days=7|30|90` (whitelist — anything else 400s; defaults to 30). The Reliability card gains a 7d / 30d / 90d segmented control that re-fetches on change.
-- **SLO error budget.** New `GET /v1/monitors/{id}/slo/error-budget` returns allowed / used / remaining downtime seconds + remaining %. MonitorDetail renders a horizontal fuel-gauge bar under the SLO card — green (remaining) / red (used) with a "47 min remaining of 144 min budget" label, threshold-coloured (green ≥50% / amber ≥10% / red <10%). 4 new unit tests.
-- **Public status-page day-latency drilldown.** The click-day popover on the 90-day strip now shows a CSS-only 24-bar per-hour latency mini-chart (new `GET /v1/public/status-pages/{slug}/day-latency` endpoint backed by `day_hourly_latency`). Rendered for operational/degraded days; per-bar hover tooltip "03:00 — 142ms (47 samples)"; no-data hours muted grey.
+- **RBAC — admin / editor / readonly.** Replaces the binary `is_admin`
+  flag (kept one release as a rollback shim) with a `role` enum
+  (migration `0048`). `editor` gets all monitor/incident/maintenance/
+  status-page/notification CRUD; `readonly` is GET-only everywhere;
+  `admin` keeps users/settings/security/api-keys/proxies/audit. Enforced
+  by `require_admin` + a method-based `require_write_or_readonly_get`
+  middleware; the frontend mirrors the classification (hidden admin nav
+  + `canWrite`-gated write buttons) and the Users view gains a role
+  picker. Backed by unit tests + a cross-browser RBAC e2e spec.
 
-#### Importers (3 new — catalog now 10 providers)
+#### Importers (catalog 7 → 18 + generic CSV)
 
-- **StatusCake importer.** Maps `test_type` (HTTP / PING / TCP / DNS / SMTP / SSH) onto Rampart kinds.
-- **RapidSpike importer.** Maps `monitor_type` (http_check / tcp_check / dns_check / ping_check).
-- **Updown.io importer.** Bare-array export; every check is HTTP, promotes to Keyword when `string_match` is set.
+- **11 new SaaS importers** under `rampart-import`: Cachet, Gatus,
+  Uptime.com, HetrixTools, Freshping, Checkly, StatusGator, Pingometer
+  (+ BetterStack, Healthchecks.io, Cronitor, StatusCake, RapidSpike,
+  Updown.io already counted). Each: a `parse_and_map` module, a fixture,
+  two integration tests, and a docs/IMPORTERS.md section.
+- **Generic CSV import** — both a `rampart-import csv <file>` CLI path
+  and an in-app **upload widget** (`POST /v1/monitors/import-csv` +
+  `#/import` view with a client-side validation preview table).
 
-#### Frontend
+#### Inbound alert ingestion
 
-- **i18n Dashboard wiring + locale picker.** Builds on the i18n scaffolding — ~37 Dashboard strings now route through `t(…)`; `en.js` expanded to 49 keys; `es` / `fr` / `de` carry real translations for 11 high-traffic keys (with English fallback); a floating Globe-icon locale picker (beside the theme toggle) cycles all 6 SUPPORTED locales. `ja` / `zh` await native-speaker review.
+- **Token-authed webhook receivers for 5 vendors** — Alertmanager,
+  Grafana, Datadog, PagerDuty, Opsgenie — at
+  `/v1/public/ingest/{vendor}/{token}`. Firing alerts open status-page
+  incidents, resolved alerts close them, **fingerprint-deduplicated**
+  (migration `0049`) so a repeated firing can't stack duplicates. Token
+  management lives in the status-page builder (lists all 5 vendor URLs
+  per token). Documented in `docs/INGEST.md`.
+
+#### SLO + reliability suite
+
+- **Per-monitor SLO targets** (`slo_target_pct` / `slo_window_days`,
+  migration `0044`) with an Overview SLO card.
+- **SLO breach + recovery notifications** (`EventKind::SloBreached` /
+  `SloRecovered`, single-column dedup, migration `0045`).
+- **Error budget** point-in-time fuel gauge + **burn-down chart** with a
+  7/30/90-day window picker.
+- **MTBF / MTTR** widget with a 7/30/90-day window picker.
+
+#### Status page — brandable, private, observable
+
+- **Custom domain** with Host-header routing + **logo upload** +
+  **per-page custom CSS** (sanitised) + **password-protected private
+  pages** (Argon2 + `/unlock`).
+- **90-day daily uptime strip** with a click-day drilldown popover (per-
+  hour latency mini-chart), **12-month uptime summary chips**, a **hero
+  status banner**, a **KPI row**, **incident history**, a **scheduled-
+  maintenance banner** with a live countdown, and **Atom + RSS feeds**.
+- **TLS guidance** (Caddy / certbot) + **cert-manager Helm support** for
+  custom domains.
+
+#### Notifications
+
+- **Maintenance start/end notifications** to attached channels + status-
+  page email subscribers (migration `0050`).
+- **Per-channel digest window** — coalesce flapping alerts into one
+  message every N seconds (migration `0053`).
+- **Per-monitor "test all attached channels"** action.
+
+#### Observability + ops
+
+- **`/metrics`** HTTP request counter + latency histogram (from v0.2 era,
+  extended).
+- **Audit-log streaming CSV export** (keyset-paginated, time-range
+  filtered).
+- **1-year heartbeat retention** default (migration `0043`).
+- **Helm chart** at `charts/rampart/` (Deployment + Service + Ingress +
+  cert-manager + optional embedded Postgres).
+
+#### Internationalisation
+
+- **Full UI i18n** — an in-house `t()` runtime + 6 locales (en source;
+  es/fr/de full; ja/zh machine-draft pending native review) wired
+  through every admin view + the public status page, with a floating
+  locale picker.
 
 #### Probes
 
-- **NATS-over-TLS confirmed shipping.** Re-verification found the `tls://` path already works via the ring connector (was mis-described as blocked in an earlier commit message). Cassandra-over-TLS re-verified against scylla 1.6.0 + `main` — still upstream-blocked (no ring-only feature), documented in `docs/SECURITY-DEBT.md`.
+- **AMQPS** (RabbitMQ over TLS) + confirmed **NATS-over-TLS**.
 
-_(Earlier post-v0.2.0 work — the monitor-reliability schema, the first
-3 importers in this cycle, and AMQPS — is listed below; the SLO batch
-above completes the SLO surface those introduced.)_
+### Fixed
 
-#### Monitor reliability
+- Monitor edit modal, Notifications channels layout, global theme toggle,
+  dashboard dead buttons, wizard Back button, dark-mode polish on the
+  newer cards, and clear-via-`null` on `UpdateStatusPage` triple-state
+  fields.
 
-- **MTBF / MTTR widget.** New `GET /v1/monitors/{id}/reliability` returns Mean Time Between Failures + Mean Time To Recovery + downtime-event count over the trailing 30 days. Computed by `rampart_db::heartbeats::mtbf_mttr` which walks heartbeats ASC, sums up/down segment durations, and counts up→down / down→up transitions. Frontend renders a Reliability card on the monitor Overview tab — three figures, formatted as "47h 23m" / "4m 12s", with `?`-tooltip help per metric. 4 new unit tests under `rampart-db/tests/heartbeats.rs`.
-- **Per-monitor SLO targets.** `Monitor` gains `slo_target_pct` (90.000 — 100.000) + `slo_window_days` (1 — 90) via migration `0044_monitor_slo.sql`. Edit modal exposes the two inputs; Overview tab renders an SLO card next to uptime with current% / target% / status pill (green when current ≥ target, amber within 0.1 pp, red below). `current_slo_uptime_pct` helper in `rampart-db::heartbeats` returns the rolling-window uptime in the same shape as the existing `uptime_pct` helper. _(Notifier dispatch — `EventKind::SloBreached` / `SloRecovered` — has since landed; see the SLO batch at the top of this section.)_
+### CI / tooling
 
-#### Importers (BetterStack / Healthchecks / Cronitor — took the catalog to 7)
+- Pre-commit hook (gitleaks + trufflehog + shellcheck + `cargo fmt`).
+- Fixed the rust-embed `frontend/dist` build failure in the backend +
+  e2e CI jobs.
+- E2e matrix grew to **52 flows × 5 browsers**.
 
-- **BetterStack importer.** Maps BetterStack `monitor_type` (status / keyword / keyword_absence / ping / tcp / udp / dns / smtp / pop / imap / playwright) onto Rampart `MonitorKind`. `pronounceable_name` → `Monitor.name`; `check_frequency` (s) → `interval_seconds`; `verify_ssl=false` → `ignore_tls=true`; `keyword_absence` documented as imperfect (negated keyword).
-- **Healthchecks.io importer.** Every check maps to `MonitorKind::Push` (Healthchecks is heartbeat-only). UUID stashed in `config.healthchecks_uuid` for reference; `timeout` → `interval_seconds`; `grace` → `timeout_seconds`.
-- **Cronitor importer.** Maps `type` (heartbeat / job → Push; check / uptime → Http). `schedule` → `interval_seconds` when it parses as "every N seconds/minutes"; falls back to 60.
+### Migrations
 
-#### Probes
-
-- **AMQPS** (RabbitMQ-over-TLS) — the AMQP probe now detects `amqps://` URIs and negotiates TLS via the workspace ring `CryptoProvider`. Lapin's `default-features = false` swapped for explicit `rustls--ring` + `rustls-webpki-roots-certs` so we get TLS without `aws-lc-rs` / `cmake` / `openssl`.
-- **NATS-TLS / Cassandra-TLS deferred.** Both upstream crates (`async-nats`, `scylla`) pull `aws-lc-rs` by default with no ring-only escape hatch yet. Probes now reject `tls: true` with a clear error pointing at `docs/SECURITY-DEBT.md` instead of silently running in plaintext. Tracked in `docs/SECURITY-DEBT.md` "Pending TLS gaps" for retry on upstream movement.
-
-#### Public status page
-
-- **Click-day drilldown popover.** Each cell in the 90-day daily-status strip is now interactive (cursor pointer + focus ring + tabIndex + role=button + aria-label). Click / Enter / Space opens a 280px popover anchored under the cell showing the full UTC date ("Mon, March 17 2026"), a status pill colour-keyed to the variant, and any active or resolved incidents whose `[created_at, resolved_at]` window overlaps the day. Esc / click-outside / × closes. Backend-free — uses the existing `incidents` + `incident_history` arrays.
-
-#### Operator deployment
-
-- **Helm chart at `charts/rampart/`.** Chart v0.1.0 wrapping appVersion v0.2.0. Deployment + Service + optional Ingress + optional embedded-Postgres StatefulSet (off by default — production should externalise) + Secret + ConfigMap + standard `_helpers.tpl`. `values.yaml` covers image / replicas / resources / security context / service / ingress / postgres / externalDatabase. `helm lint` clean; `helm template` renders a valid manifest stack.
-
-#### Frontend
-
-- **i18n scaffolding.** New `frontend/src/lib/i18n.js` runtime exporting `t(key, vars?)` + `setLocale` / `getLocale` + a 6-locale `SUPPORTED` list (`en`, `es`, `fr`, `de`, `ja`, `zh`). Dictionaries are flat objects keyed by dotted-namespace strings. Only `en` carries actual translations in this commit; the other five re-export `en` so a partially-translated locale renders cleanly. **Dashboard `t(…)` wiring + locale picker on the floating ThemeToggle are the follow-up — scaffolding only landed here.**
+- `0043`–`0053` (retention, SLO, SLO-dedup, status-page branding,
+  ingest tokens, user roles, incident dedup, maintenance-notified,
+  status-page password, custom CSS, channel digest).
 
 ### Notes
 
-- 6 commits since `v0.2.0` (5fa9c1d). Includes pre-commit-hook fix excluding `charts/*/templates/*.yaml` from `check-yaml` (Helm Go-template directives don't parse as YAML).
+- 53 commits since `v0.2.0` (5fa9c1d). No breaking API changes; all
+  migrations are additive + idempotent. `is_admin` retained one release
+  as an RBAC rollback shim.
 
 ---
 
