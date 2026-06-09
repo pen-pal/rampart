@@ -1,0 +1,51 @@
+# systemd unit for Rampart.
+#
+# Drop into /etc/systemd/system/rampart.service then:
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now rampart
+#   sudo journalctl -u rampart -f
+#
+# Assumes:
+#   - The compose stack lives at /opt/rampart (clone or symlink)
+#   - Docker engine + the `docker compose` v2 plugin are installed
+#   - The Rampart container image is either built locally (compose up
+#     --build) or pulled from ghcr.io/pen-pal/rampart:<tag>
+#
+# If you bind Rampart directly to the host without docker, replace the
+# ExecStart line with the path to the rampart-api binary and set the
+# DATABASE_URL env var via EnvironmentFile=/etc/rampart.env.
+
+[Unit]
+Description=Rampart self-hosted uptime monitor
+Documentation=https://github.com/pen-pal/rampart
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/rampart
+# Bring the compose stack up. `--wait` blocks until the healthchecks
+# defined in compose.yaml report healthy, so systemd sees the unit as
+# truly active rather than just "process started".
+ExecStart=/usr/bin/docker compose up -d --wait
+ExecStop=/usr/bin/docker compose down
+# Pulls + replaces the container without dropping Postgres state.
+ExecReload=/usr/bin/docker compose pull && /usr/bin/docker compose up -d --wait
+
+# Don't restart in a tight loop on the SAME failure — wait for an
+# operator to investigate. If you'd rather have aggressive recovery,
+# switch RestartSec to 30s + Restart to on-failure.
+Restart=no
+
+# Hardening — the docker compose call itself runs from this unit, so
+# protect the unit-side surface. The container runtime applies its
+# own hardening from compose.yaml.
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/rampart
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
