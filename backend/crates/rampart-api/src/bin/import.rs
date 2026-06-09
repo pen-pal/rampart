@@ -6,9 +6,9 @@
 //! rampart-import <format> <path-to-file> [--dry-run] [--skip-existing]
 //! ```
 //!
-//! Only `site24x7` is supported today. Adding a new format means
-//! dropping a sibling module under `rampart_api::importers::` and a
-//! match arm in `run()` below.
+//! Supported formats today: `site24x7`, `pingdom`, `datadog`,
+//! `uptimerobot`. Adding a new format means dropping a sibling module
+//! under `rampart_api::importers::` and a match arm in `run()` below.
 //!
 //! Argument parsing is hand-rolled (no `clap`) so this bin doesn't
 //! drag a new dep into the workspace — matches the existing
@@ -18,7 +18,7 @@ use std::env;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use rampart_api::importers::{site24x7, ImportPlan};
+use rampart_api::importers::{datadog, pingdom, site24x7, uptimerobot, ImportPlan};
 use rampart_db::monitors;
 use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
@@ -27,7 +27,10 @@ const USAGE: &str = "\
 usage: rampart-import <format> <path-to-file> [--dry-run] [--skip-existing]
 
 formats:
-  site24x7      Site24x7 `GET /api/monitors` JSON dump
+  site24x7      Site24x7    `GET /api/monitors` JSON dump
+  pingdom       Pingdom     `GET /api/3.1/checks` JSON dump
+  datadog       Datadog     `GET /api/v1/synthetics/tests` JSON dump
+  uptimerobot   UptimeRobot `POST /v2/getMonitors` JSON dump
 
 flags:
   --dry-run         parse + map; print summary; do NOT insert
@@ -107,9 +110,12 @@ async fn run(args: Args) -> anyhow::Result<ExitCode> {
 
     let plan: ImportPlan = match args.format.as_str() {
         "site24x7" => site24x7::parse_and_map(&raw)?,
+        "pingdom" => pingdom::parse_and_map(&raw)?,
+        "datadog" => datadog::parse_and_map(&raw)?,
+        "uptimerobot" => uptimerobot::parse_and_map(&raw)?,
         other => {
             anyhow::bail!(
-                "unsupported format `{other}` — supported: site24x7. {USAGE}",
+                "unsupported format `{other}` — supported: site24x7, pingdom, datadog, uptimerobot. {USAGE}",
                 USAGE = "Use --help for the full list."
             );
         }

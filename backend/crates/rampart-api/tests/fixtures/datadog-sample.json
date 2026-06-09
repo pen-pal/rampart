@@ -1,0 +1,98 @@
+{
+  "tests": [
+    {
+      "public_id": "abc-def-001",
+      "name": "Acme HTTP",
+      "type": "api",
+      "subtype": "http",
+      "config": {
+        "request": {
+          "url": "https://api.example.com/health",
+          "method": "GET",
+          "timeout": 10
+        },
+        "assertions": [
+          {"type": "statusCode", "operator": "is", "target": 200}
+        ]
+      },
+      "options": {
+        "tick_every": 60,
+        "retry": {"count": 0}
+      }
+    },
+    {
+      "public_id": "abc-def-002",
+      "name": "Acme HTTP w/ keyword",
+      "type": "api",
+      "subtype": "http",
+      "config": {
+        "request": {
+          "url": "https://app.example.com",
+          "method": "GET",
+          "timeout": 10
+        },
+        "assertions": [
+          {"type": "statusCode", "operator": "is", "target": 200},
+          {"type": "body", "operator": "contains", "target": "OK"}
+        ]
+      },
+      "options": {
+        "tick_every": 120,
+        "retry": {"count": 1}
+      }
+    },
+    {
+      "public_id": "abc-def-003",
+      "name": "Acme primary DB",
+      "type": "api",
+      "subtype": "tcp",
+      "config": {
+        "request": {
+          "host": "db.internal.example.com",
+          "port": 5432,
+          "timeout": 15
+        },
+        "assertions": [
+          {"type": "connection", "operator": "is", "target": "established"}
+        ]
+      },
+      "options": {
+        "tick_every": 300,
+        "retry": {"count": 2}
+      }
+    },
+    {
+      "public_id": "abc-def-004",
+      "name": "Edge router ping",
+      "type": "api",
+      "subtype": "icmp",
+      "config": {
+        "request": {
+          "host": "10.0.0.1"
+        },
+        "assertions": [
+          {"type": "packetLossPercentage", "operator": "lessThan", "target": 10}
+        ]
+      },
+      "options": {
+        "tick_every": 60
+      }
+    },
+    {
+      "public_id": "abc-def-005",
+      "name": "Marketing checkout flow",
+      "type": "api",
+      "subtype": "multi",
+      "config": {
+        "request": {},
+        "steps": [
+          {"name": "load home", "subtype": "http", "request": {"url": "https://www.example.com"}},
+          {"name": "click checkout", "subtype": "http", "request": {"url": "https://www.example.com/cart"}}
+        ]
+      },
+      "options": {
+        "tick_every": 300
+      }
+    }
+  ]
+}
