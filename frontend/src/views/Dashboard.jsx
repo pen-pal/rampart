@@ -15,6 +15,7 @@ import {
 } from '../lib/api.js';
 import { useHeartbeatStream, useDebouncedTick } from '../lib/sse.js';
 import { ThemeToggle } from '../components/ThemeToggle.jsx';
+import { t } from '../lib/i18n.js';
 
 // ──────────────────────────────────────────────────────────────────────────
 // DESIGN SYSTEM v2 — friendly, modern, operator-focused
@@ -455,7 +456,7 @@ export default function Dashboard({ user, onLogout } = {}) {
 
         <div style={{ position: 'relative', flex: 1, maxWidth: 420 }}>
           <Search size={14} color="var(--text-3)" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }}/>
-          <input className="search" placeholder="Search monitors…" value={query} onChange={e => setQuery(e.target.value)}/>
+          <input className="search" placeholder={t("dashboard.search_placeholder")} value={query} onChange={e => setQuery(e.target.value)}/>
           <span className="kbd" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)' }}>⌘K</span>
         </div>
 
@@ -472,8 +473,8 @@ export default function Dashboard({ user, onLogout } = {}) {
           <a className="btn btn-ghost" title="Notification channels" href="#/notifications" style={{ textDecoration: 'none' }}>
             <Bell size={14}/>
           </a>
-          <button className="btn" onClick={goToStatusPage}><Wrench size={13}/> Status page</button>
-          <button className="btn btn-accent" onClick={goToNewMonitor}><Plus size={13} strokeWidth={2.4}/> Add monitor</button>
+          <button className="btn" onClick={goToStatusPage}><Wrench size={13}/> {t("dashboard.status_page")}</button>
+          <button className="btn btn-accent" onClick={goToNewMonitor}><Plus size={13} strokeWidth={2.4}/> {t("dashboard.add_monitor")}</button>
           {user && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div title={user.email} style={{
@@ -484,8 +485,8 @@ export default function Dashboard({ user, onLogout } = {}) {
               }}>
                 {(user.name || user.email || '?').charAt(0)}
               </div>
-              <button className="btn btn-ghost" onClick={onLogout} title="Sign out" style={{ fontSize: 12 }}>
-                Sign out
+              <button className="btn btn-ghost" onClick={onLogout} title={t("dashboard.sign_out")} style={{ fontSize: 12 }}>
+                {t("dashboard.sign_out")}
               </button>
             </div>
           )}
@@ -505,16 +506,16 @@ export default function Dashboard({ user, onLogout } = {}) {
           <div className="card" style={{ padding: 14, marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em' }}>
-                Status · {windowLabel(windowSec)}
+                {t("dashboard.kpi.eyebrow", { window: windowLabel(windowSec) })}
               </span>
-              <span className="mono tabular" style={{ fontSize: 11, color: 'var(--text-3)' }}>{monitors.length} total</span>
+              <span className="mono tabular" style={{ fontSize: 11, color: 'var(--text-3)' }}>{t("dashboard.kpi.total", { n: monitors.length })}</span>
             </div>
             <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
               {[
-                { label: 'up',     v: upCount,     color: 'var(--up)' },
-                { label: 'warn',   v: warnCount,   color: 'var(--warn)' },
-                { label: 'down',   v: downCount,   color: 'var(--down)' },
-                { label: 'paused', v: pausedCount, color: 'var(--paused)' },
+                { label: t("dashboard.kpi.up"),     v: upCount,     color: 'var(--up)' },
+                { label: t("dashboard.kpi.warn"),   v: warnCount,   color: 'var(--warn)' },
+                { label: t("dashboard.kpi.down"),   v: downCount,   color: 'var(--down)' },
+                { label: t("dashboard.kpi.paused"), v: pausedCount, color: 'var(--paused)' },
               ].map(s => (
                 <div key={s.label} style={{ textAlign: 'center' }}>
                   <div className="tabular" style={{ fontSize: 22, fontWeight: 600, color: s.color, lineHeight: 1 }}>{s.v}</div>
@@ -597,15 +598,15 @@ export default function Dashboard({ user, onLogout } = {}) {
             });
           })() : !monitorsState.loading && (
             <div className="empty" style={{ paddingTop: 32 }}>
-              No monitors yet.<br/>
+              {t("dashboard.empty.title")}<br/>
               <button className="btn btn-accent" onClick={goToNewMonitor} style={{ marginTop: 12 }}>
-                <Plus size={13}/> Create the first one
+                <Plus size={13}/> {t("dashboard.empty.create_first")}
               </button>
             </div>
           )}
 
           {monitorsState.loading && monitors.length === 0 && (
-            <div className="empty">Loading monitors…</div>
+            <div className="empty">{t("dashboard.loading_monitors")}</div>
           )}
         </aside>
 
@@ -628,7 +629,7 @@ export default function Dashboard({ user, onLogout } = {}) {
                 <h1 style={{ fontSize: 26, fontWeight: 600, margin: 0, letterSpacing: '-.02em', color: (anyDown || anyWarn) ? heroColor : 'var(--text)' }}>{heroTitle}</h1>
               </div>
               <p style={{ fontSize: 14, color: 'var(--text-2)', margin: '0 0 0 20px' }}>
-                {monitors.length === 0 && <>Create your first monitor to start receiving heartbeats.</>}
+                {monitors.length === 0 && <>{t("dashboard.hero.first_monitor")}</>}
                 {monitors.length > 0 && anyDown && <>{downCount} unreachable{warnCount > 0 ? `, ${warnCount} degraded` : ''} — auto-refreshing every 10s</>}
                 {monitors.length > 0 && !anyDown && anyWarn && <>{warnCount} degraded — auto-refreshing every 10s</>}
                 {monitors.length > 0 && !anyDown && !anyWarn && <>{monitors.length} monitor{monitors.length > 1 ? 's' : ''} healthy — auto-refreshing every 10s</>}
@@ -652,7 +653,7 @@ export default function Dashboard({ user, onLogout } = {}) {
           <div className="card" style={{ padding: '20px 22px', marginBottom: 20 }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 18 }}>
               <div>
-                <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Response time</h3>
+                <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{t("dashboard.response_time")}</h3>
                 <p style={{ fontSize: 12, color: 'var(--text-3)', margin: '4px 0 0' }}>
                   {trend.series.length > 0 ? `Top ${trend.series.length} monitor${trend.series.length > 1 ? 's' : ''} · most recent samples` : 'No samples yet'}
                 </p>
@@ -691,7 +692,7 @@ export default function Dashboard({ user, onLogout } = {}) {
                 </ResponsiveContainer>
               ) : (
                 <div className="empty" style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  No heartbeats yet — create a monitor to see latency trends.
+                  {t("dashboard.empty.samples")}
                 </div>
               )}
             </div>
@@ -702,16 +703,16 @@ export default function Dashboard({ user, onLogout } = {}) {
             <div className="card" style={{ padding: '18px 20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                 <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <AlertCircle size={14} color="var(--down)"/> Recent incidents
+                  <AlertCircle size={14} color="var(--down)"/> {t("dashboard.recent_incidents")}
                 </h3>
                 <button className="btn btn-ghost" style={{ padding: '4px 8px' }}
                         onClick={() => { window.location.hash = '#/status-page'; }}
                         title="Manage incidents on the status-page builder">
-                  View all <ArrowUpRight size={11}/>
+                  {t("dashboard.view_all")} <ArrowUpRight size={11}/>
                 </button>
               </div>
               {recentIncidents.length === 0 ? (
-                <div className="empty">No incidents recorded yet.</div>
+                <div className="empty">{t("dashboard.empty.incidents")}</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {recentIncidents.map(i => (
@@ -741,7 +742,7 @@ export default function Dashboard({ user, onLogout } = {}) {
             <div className="card" style={{ padding: '18px 20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                 <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Wrench size={14} color="var(--maint)"/> Maintenance
+                  <Wrench size={14} color="var(--maint)"/> {t("dashboard.maintenance")}
                 </h3>
                 <button className="btn btn-ghost" style={{ padding: '4px 8px' }}
                         onClick={() => { window.location.hash = '#/maintenance'; }}
@@ -750,7 +751,7 @@ export default function Dashboard({ user, onLogout } = {}) {
                 </button>
               </div>
               {upcomingMaint.length === 0 ? (
-                <div className="empty">No upcoming maintenance scheduled.</div>
+                <div className="empty">{t("dashboard.empty.maintenance")}</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {upcomingMaint.map(m => (
@@ -771,7 +772,7 @@ export default function Dashboard({ user, onLogout } = {}) {
           {/* all monitors table with inline uptime history */}
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <div style={{ padding: '16px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', gap: 10, flexWrap: 'wrap' }}>
-              <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>All monitors</h3>
+              <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{t("dashboard.all_monitors")}</h3>
               {tagsInUse.length > 0 && (
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                   <Tag size={11} color="var(--text-3)"/>
@@ -792,7 +793,7 @@ export default function Dashboard({ user, onLogout } = {}) {
                   })}
                   {tagFilter.size > 0 && (
                     <button className="btn btn-ghost" onClick={() => setTagFilter(new Set())} style={{ padding: '2px 7px', fontSize: 11 }}>
-                      Clear
+                      {t("common.clear")}
                     </button>
                   )}
                 </div>
@@ -805,9 +806,9 @@ export default function Dashboard({ user, onLogout } = {}) {
                 padding: '10px 22px', background: 'var(--accent-soft)',
                 borderBottom: '1px solid var(--border)', fontSize: 12.5,
               }}>
-                <strong>{selected.size} selected</strong>
-                <button className="btn" disabled={bulkBusy} onClick={() => runBulk({ action: 'pause' })}><Pause size={12}/> Pause</button>
-                <button className="btn" disabled={bulkBusy} onClick={() => runBulk({ action: 'resume' })}><Activity size={12}/> Resume</button>
+                <strong>{t("dashboard.bulk.selected", { n: selected.size })}</strong>
+                <button className="btn" disabled={bulkBusy} onClick={() => runBulk({ action: 'pause' })}><Pause size={12}/> {t("dashboard.bulk.pause")}</button>
+                <button className="btn" disabled={bulkBusy} onClick={() => runBulk({ action: 'resume' })}><Activity size={12}/> {t("dashboard.bulk.resume")}</button>
                 <select className="select" style={{ width: 'auto', padding: '4px 8px', fontSize: 12 }} disabled={bulkBusy}
                   value="__placeholder__"
                   onChange={e => {
@@ -815,7 +816,7 @@ export default function Dashboard({ user, onLogout } = {}) {
                     if (v === '__placeholder__') return;
                     runBulk({ action: 'set_group', group_id: v === '__ungroup__' ? null : v });
                   }}>
-                  <option value="__placeholder__">Move to group…</option>
+                  <option value="__placeholder__">{t("dashboard.bulk.move_to_group")}</option>
                   {(() => {
                     // Render the folder tree as flat <option>s, prefixing
                     // depth with "── " so nested folders are visible in
@@ -841,7 +842,7 @@ export default function Dashboard({ user, onLogout } = {}) {
                     walk('__root__', 0);
                     return out;
                   })()}
-                  <option value="__ungroup__">Ungrouped</option>
+                  <option value="__ungroup__">{t("dashboard.bulk.ungrouped")}</option>
                 </select>
                 <select className="select" style={{ width: 'auto', padding: '4px 8px', fontSize: 12 }} disabled={bulkBusy}
                   value="__placeholder__"
@@ -854,23 +855,23 @@ export default function Dashboard({ user, onLogout } = {}) {
                       runBulk({ action: 'attach_channel', notification_id: v });
                     }
                   }}>
-                  <option value="__placeholder__">Channel…</option>
-                  <optgroup label="Attach">
+                  <option value="__placeholder__">{t("dashboard.bulk.channel")}</option>
+                  <optgroup label={t("dashboard.bulk.attach")}>
                     {(channelsState.data || []).map(c => (
                       <option key={`a-${c.id}`} value={c.id}>{c.name}</option>
                     ))}
                   </optgroup>
-                  <optgroup label="Detach">
+                  <optgroup label={t("dashboard.bulk.detach")}>
                     {(channelsState.data || []).map(c => (
                       <option key={`d-${c.id}`} value={`detach:${c.id}`}>{c.name}</option>
                     ))}
                   </optgroup>
                 </select>
                 <button className="btn btn-danger" disabled={bulkBusy}
-                  onClick={() => runBulk({ action: 'delete' }, `Delete ${selected.size} monitor(s) and all their heartbeats? This cannot be undone.`)}>
-                  <AlertCircle size={12}/> Delete
+                  onClick={() => runBulk({ action: 'delete' }, t("dashboard.bulk.delete_confirm", { n: selected.size }))}>
+                  <AlertCircle size={12}/> {t("dashboard.bulk.delete")}
                 </button>
-                <button className="btn btn-ghost" disabled={bulkBusy} onClick={() => setSelected(new Set())} style={{ marginLeft: 'auto' }}>Clear</button>
+                <button className="btn btn-ghost" disabled={bulkBusy} onClick={() => setSelected(new Set())} style={{ marginLeft: 'auto' }}>{t("dashboard.bulk.clear")}</button>
               </div>
             )}
 
@@ -883,27 +884,27 @@ export default function Dashboard({ user, onLogout } = {}) {
               background: 'var(--surface-2)', borderBottom: '1px solid var(--border)'
             }}>
               <span/>
-              <span>Monitor</span>
-              <span>Type</span>
-              <span style={{ textAlign: 'right' }}>p50</span>
-              <span>Last 60 checks</span>
-              <span style={{ textAlign: 'right' }}>Uptime</span>
+              <span>{t("dashboard.table.monitor")}</span>
+              <span>{t("dashboard.table.type")}</span>
+              <span style={{ textAlign: 'right' }}>{t("dashboard.table.p50")}</span>
+              <span>{t("dashboard.table.last_checks")}</span>
+              <span style={{ textAlign: 'right' }}>{t("dashboard.table.uptime")}</span>
             </div>
 
             {monitors.length === 0 ? (
               <div className="empty" style={{ padding: '40px 18px' }}>
-                {monitorsState.loading ? 'Loading…' : (
+                {monitorsState.loading ? t("dashboard.loading") : (
                   <>
-                    No monitors yet.{' '}
+                    {t("dashboard.empty.title")}{' '}
                     <a href="#/new-monitor" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 500 }}>
-                      Create the first one →
+                      {t("dashboard.empty.create_first")} →
                     </a>
                   </>
                 )}
               </div>
             ) : filtered.length === 0 ? (
               <div className="empty" style={{ padding: '40px 18px' }}>
-                No monitors match the current filter.
+                {t("dashboard.no_match")}
               </div>
             ) : filtered.map(m => {
               const hist = heartbeatsToCells(historyById.get(m.id), m.current_status === 'paused');
@@ -1026,7 +1027,7 @@ function NavMenu() {
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      <button className="btn btn-ghost" title="Menu" onClick={() => setOpen(o => !o)}>
+      <button className="btn btn-ghost" title={t("dashboard.nav.title")} onClick={() => setOpen(o => !o)}>
         <Menu size={15}/>
       </button>
       {open && (

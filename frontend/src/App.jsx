@@ -20,7 +20,7 @@ const AuditLog          = lazy(() => import('./views/AuditLog.jsx'));
 const StatusPageView    = lazy(() => import('./views/StatusPageView.jsx'));
 import { api } from './lib/api.js';
 import { parseRoute } from './lib/router.js';
-import { FloatingThemeToggle } from './components/ThemeToggle.jsx';
+import { FloatingThemeToggle, FloatingLocalePicker } from './components/ThemeToggle.jsx';
 
 // Minimal centered fallback shown while a lazy view chunk is downloading.
 // Uses existing theme CSS vars so it adapts to light/dark automatically.
@@ -141,6 +141,7 @@ export default function App() {
         {view}
       </Suspense>
       {showThemeToggle && <FloatingThemeToggle />}
+      {showThemeToggle && <FloatingLocalePicker />}
       {route.view !== 'login' && route.view !== 'public-status' && <ViewSwitcher current={route.view} />}
     </>
   );
