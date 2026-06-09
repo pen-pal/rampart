@@ -8,6 +8,19 @@
 #   docker compose pull         # if using a pre-built image
 #   docker compose up -d build  # build locally from this tree
 #   docker compose logs -f rampart
+#
+# Production-grade defaults:
+#   - Resource limits prevent a runaway process from starving the host.
+#   - `restart: unless-stopped` keeps the stack up across docker daemon
+#     restarts without fighting `docker compose stop`.
+#   - Healthchecks gate startup ordering AND let an orchestrator
+#     replace the container when /healthz stops answering.
+#   - tmpfs on /tmp prevents temp files from inflating the rootfs.
+#   - read_only rootfs + `security_opt: no-new-privileges` shrink the
+#     blast radius of a hypothetical RCE.
+#   - Postgres data volume is named so it survives `docker compose down`
+#     and is the only stateful surface — back it up; see
+#     `docs/deploy/backup-postgres.sh`.
 
 services:
   postgres:
@@ -24,12 +37,29 @@ services:
       interval: 5s
       timeout:  3s
       retries:  5
+      start_period: 20s
+    # Cap Postgres so a runaway query plan can't OOM the whole host.
+    # Tune up for fleets > a few hundred monitors.
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus:   "1.0"
+        reservations:
+          memory: 256M
+    security_opt:
+      - no-new-privileges:true
+    # Postgres needs /var/run/postgresql writable; everything else can
+    # stay read-only.
+    tmpfs:
+      - /tmp
+      - /run
 
   rampart:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ghcr.io/rampart-io/rampart:latest
+    image: ghcr.io/pen-pal/rampart:latest
     restart: unless-stopped
     depends_on:
       postgres:
@@ -37,12 +67,48 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-rampart}:${POSTGRES_PASSWORD:-rampart}@postgres:5432/${POSTGRES_DB:-rampart}
       BIND_ADDR:    0.0.0.0:3000
-      RUST_LOG:     rampart=info,tower_http=warn,info
+      RUST_LOG:     ${RUST_LOG:-rampart=info,tower_http=warn,info}
+      # JSON-structured logs play better with log aggregators
+      # (Loki / Datadog / Splunk). Set to anything else for the
+      # human-readable formatter (default in dev).
+      RAMPART_LOG_FORMAT: ${RAMPART_LOG_FORMAT:-json}
     ports:
       - "${RAMPART_PORT:-3000}:3000"
     # ICMP / ping monitor needs raw sockets on Linux.
     cap_add:
       - NET_RAW
+    # Drop every capability the binary doesn't need beyond the one
+    # added above. NET_BIND_SERVICE only if you change BIND_ADDR to
+    # bind a port < 1024.
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    # The binary writes to /tmp (sqlx batch buffers, tracing
+    # rotation, etc.). Everything else is read-only.
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      # /readyz returns 200 only when the DB is reachable, so it
+      # gates the orchestrator on the actual fix-this state rather
+      # than just "the process is running".
+      test:     ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/readyz"]
+      interval: 10s
+      timeout:  3s
+      retries:  3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus:   "1.0"
+        reservations:
+          memory: 128M
+    # Allow systemd / docker to send SIGTERM and wait politely for
+    # graceful shutdown (main.rs has a signal handler).
+    stop_signal: SIGTERM
+    stop_grace_period: 30s
 
 volumes:
   rampart_pg:
