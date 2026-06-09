@@ -69,7 +69,7 @@ We built Rampart because we were tired of choosing between bloated SaaS tools an
 ## ✨ Features at a Glance
 
 ### 🔍 38 Probe Kinds
-Every probe supports per-monitor intervals, timeouts, retries, and re-alerts. 
+Every probe supports per-monitor intervals, timeouts, retries, and re-alerts.
 
 | Category | Supported Kinds |
 | :--- | :--- |
@@ -305,7 +305,7 @@ CodeQL + Dependabot + cargo-deny + cargo-audit run on every push. Accepted-with-
 
 ## ⚖️ License
 
-[**AGPL-3.0-or-later**](LICENSE). 
+[**AGPL-3.0-or-later**](LICENSE).
 
 Modifications you serve over the network must be shared back. Run it on your own hardware, fork it, hack on it — the only thing you can't do is run a closed-source SaaS of it without releasing your changes.
 
@@ -377,7 +377,7 @@ Rampart is feature-complete for 95% of uptime monitoring use cases, but we are a
 
 ## 🤝 Contributing & Community
 
-We love contributions! Whether it's fixing a typo, adding a new probe kind, or improving the UI, your help is welcome. 
+We love contributions! Whether it's fixing a typo, adding a new probe kind, or improving the UI, your help is welcome.
 
 Please read [**CONTRIBUTING.md**](CONTRIBUTING.md) for guidelines on how to set up your dev environment, our coding standards, and how to add new probes or notification channels.
 
