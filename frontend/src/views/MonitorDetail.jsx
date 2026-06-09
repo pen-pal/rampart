@@ -307,6 +307,17 @@ export default function MonitorDetail({ monitorId, user }) {
   const [testingNotifs, setTestingNotifs] = useState(false);
   // null = no result panel. Otherwise { sent: number, failed: number }.
   const [notifResult, setNotifResult] = useState(null);
+  // "Maintenance now" quick action. `maintPickerOpen` toggles the tiny
+  // duration popover; `maintDuration` is the chosen length in seconds
+  // (default 1h); `maintBusy` guards the in-flight create; `maintActive`
+  // holds { until: Date } after a window is created so we can show a
+  // confirmation banner with the active end time; `maintError` surfaces
+  // a failed create.
+  const [maintPickerOpen, setMaintPickerOpen] = useState(false);
+  const [maintDuration, setMaintDuration]     = useState(3600);
+  const [maintBusy, setMaintBusy]             = useState(false);
+  const [maintActive, setMaintActive]         = useState(null);
+  const [maintError, setMaintError]           = useState(null);
 
   const monitorState   = useApi(() => monitorId ? api.monitors.get(monitorId)         : Promise.resolve(null), [monitorId], { pollMs: 15_000 });
   // 2000 = the backend's hard cap on this endpoint. We poll the newest
@@ -318,7 +329,13 @@ export default function MonitorDetail({ monitorId, user }) {
   const [allLoaded,       setAllLoaded]         = useState(false);
   // Reset accumulated older pages when the user navigates to a different
   // monitor — otherwise old monitor's history bleeds into the next view.
-  useEffect(() => { setOlderHeartbeats([]); setAllLoaded(false); }, [monitorId]);
+  useEffect(() => {
+    setOlderHeartbeats([]); setAllLoaded(false);
+    // Clear the maintenance quick-action UI so a window started on one
+    // monitor doesn't bleed its banner/picker into the next view.
+    setMaintPickerOpen(false); setMaintActive(null); setMaintError(null);
+    setMaintDuration(3600);
+  }, [monitorId]);
   const summaryState   = useApi(() => api.monitors.summary(86400),       [], { pollMs: 15_000 });
   const summaryState30 = useApi(() => api.monitors.summary(2_592_000),   [], { pollMs: 60_000 });
   // MTBF / MTTR over a user-selected trailing window (7 / 30 / 90 days).
@@ -456,6 +473,31 @@ export default function MonitorDetail({ monitorId, user }) {
       setNotifResult({ error: e.message });
     } finally { setTestingNotifs(false); }
   };
+  // Start a one-shot maintenance window covering [now, now+duration) for
+  // THIS monitor only. Reuses the existing maintenance-create endpoint —
+  // recurrence defaults to "none" so the window is single-shot, and we
+  // attach just this monitor via monitor_ids. The picker closes on
+  // success and a confirmation banner shows the active end time.
+  const doMaintenanceNow = async () => {
+    if (!monitor || maintBusy) return;
+    setMaintBusy(true);
+    setMaintError(null);
+    const start = new Date();
+    const end   = new Date(start.getTime() + maintDuration * 1000);
+    try {
+      await api.maintenance.create({
+        name:        t('monitor.maint_now.window_name'),
+        start_at:    start.toISOString(),
+        end_at:      end.toISOString(),
+        monitor_ids: [monitor.id],
+        recurrence:  { kind: 'none' },
+      });
+      setMaintActive({ until: end });
+      setMaintPickerOpen(false);
+    } catch (e) {
+      setMaintError(e.message);
+    } finally { setMaintBusy(false); }
+  };
 
   // ── missing-id / loading / not-found ──────────────────────────────────
   if (!monitorId) {
@@ -576,6 +618,50 @@ export default function MonitorDetail({ monitorId, user }) {
               </button>
             )}
             {writable && (
+              <div style={{ position: 'relative' }}>
+                <button className="btn" onClick={() => { setMaintError(null); setMaintPickerOpen(o => !o); }}
+                  disabled={acting || maintBusy} title={t('monitor.maint_now.title')}>
+                  <Calendar size={13}/> {t('monitor.maint_now.button')}
+                </button>
+                {maintPickerOpen && (
+                  <div className="card" style={{
+                    position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 20,
+                    width: 220, padding: 12, boxShadow: '0 8px 24px rgba(0,0,0,.12)',
+                  }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-2)', marginBottom: 8 }}>
+                      {t('monitor.maint_now.heading')} <strong style={{ color: 'var(--text)' }}>{monitor.name}</strong>
+                    </div>
+                    <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+                      {[[3600, 'dur_1h'], [14400, 'dur_4h'], [86400, 'dur_24h']].map(([secs, key]) => (
+                        <button key={secs} type="button"
+                          className={`btn${maintDuration === secs ? ' btn-prim' : ''}`}
+                          style={{ flex: 1, justifyContent: 'center', padding: '6px 4px', fontSize: 12 }}
+                          onClick={() => setMaintDuration(secs)}>
+                          {t(`monitor.maint_now.${key}`)}
+                        </button>
+                      ))}
+                    </div>
+                    {maintError && (
+                      <div style={{ fontSize: 11, color: 'var(--down)', marginBottom: 8 }}>
+                        {t('monitor.maint_now.error', { error: maintError })}
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="btn btn-accent" style={{ flex: 1, justifyContent: 'center' }}
+                        onClick={doMaintenanceNow} disabled={maintBusy}>
+                        {maintBusy
+                          ? <><Loader2 size={13} className="spin"/> {t('monitor.maint_now.creating')}</>
+                          : t('monitor.maint_now.start')}
+                      </button>
+                      <button className="btn" onClick={() => setMaintPickerOpen(false)} disabled={maintBusy}>
+                        {t('monitor.maint_now.cancel')}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            {writable && (
               <button className="btn" onClick={doPauseResume} disabled={acting}>
                 {monitor.active ? <><Pause size={13}/> {t('common.pause')}</> : <><Play size={13}/> {t('common.resume')}</>}
               </button>
@@ -608,6 +694,23 @@ export default function MonitorDetail({ monitorId, user }) {
                 : notifResult.failed > 0
                   ? t('monitor.notif_test.partial', { sent: notifResult.sent, failed: notifResult.failed })
                   : t('monitor.notif_test.ok', { sent: notifResult.sent })}
+          </div>
+        )}
+
+        {maintActive && (
+          <div
+            role="status"
+            onClick={() => setMaintActive(null)}
+            style={{
+              marginBottom: 12, padding: '8px 12px', borderRadius: 8, cursor: 'pointer',
+              fontSize: 13, border: '1px solid var(--maint)',
+              background: 'var(--maint-soft)', color: 'var(--maint-text)',
+              display: 'flex', alignItems: 'center', gap: 8,
+            }}
+            title={t('monitor.action.test_notifications_dismiss')}
+          >
+            <Calendar size={14}/>
+            {t('monitor.maint_now.active', { until: maintActive.until.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) })}
           </div>
         )}
 
