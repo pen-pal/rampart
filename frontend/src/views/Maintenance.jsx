@@ -4,6 +4,7 @@ import {
   Pause, Play, X, Pencil, Check,
 } from 'lucide-react';
 import { api, useApi, formatRelative, offsetDateTimeArrayToDate } from '../lib/api.js';
+import { t } from '../lib/i18n.js';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -176,20 +177,20 @@ export default function Maintenance() {
 
       <div style={{ maxWidth: 980, margin: '0 auto', padding: '32px 32px 64px' }}>
         <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}>
-          <ChevronLeft size={14}/> Dashboard
+          <ChevronLeft size={14}/> {t('common.dashboard')}
         </a>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 22 }}>
           <div>
             <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 4px', letterSpacing: '-.02em' }}>
-              Maintenance windows
+              {t('maintenance.title')}
             </h1>
             <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 0 }}>
-              Suppress checks + alerts during planned downtime. Heartbeats inside a window are recorded as "in maintenance".
+              {t('maintenance.subtitle')}
             </p>
           </div>
           <button className="btn btn-accent" onClick={() => setShowForm(true)}>
-            <Plus size={14}/> New window
+            <Plus size={14}/> {t('maintenance.new_window')}
           </button>
         </div>
 
@@ -212,13 +213,13 @@ export default function Maintenance() {
         <div className="card" style={{ overflow: 'hidden' }}>
           {windowsState.loading ? (
             <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-3)' }}>
-              <Loader2 size={16} className="spin"/> Loading…
+              <Loader2 size={16} className="spin"/> {t('common.loading')}
             </div>
           ) : windows.length === 0 ? (
             <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-3)' }}>
               <Calendar size={28} style={{ marginBottom: 10, opacity: .5 }}/>
-              <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-2)', marginBottom: 4 }}>No maintenance windows yet</div>
-              <div style={{ fontSize: 12.5 }}>Create one to suppress alerts during planned downtime.</div>
+              <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-2)', marginBottom: 4 }}>{t('maintenance.empty.title')}</div>
+              <div style={{ fontSize: 12.5 }}>{t('maintenance.empty.cta')}</div>
             </div>
           ) : windows.map(w => (
             <WindowRow
@@ -271,12 +272,12 @@ function WindowRow({ w, monitorsById, busy, onTogglePause, onRename, onEdit, onD
           ) : (
             <>
               <span style={{ fontSize: 13.5, fontWeight: 600 }}>{w.name}</span>
-              <button className="btn btn-ghost" style={{ padding: '2px 5px' }} title="Rename" onClick={() => setEditing(true)}>
+              <button className="btn btn-ghost" style={{ padding: '2px 5px' }} title={t('maintenance.row.rename')} onClick={() => setEditing(true)}>
                 <Pencil size={11}/>
               </button>
             </>
           )}
-          <span className={`pill pill-${state}`}>{state}</span>
+          <span className={`pill pill-${state}`}>{t(`maintenance.state.${state}`)}</span>
         </div>
         <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginBottom: 4 }}>
           {fmt(startDate)} → {fmt(endDate)}
@@ -286,18 +287,18 @@ function WindowRow({ w, monitorsById, busy, onTogglePause, onRename, onEdit, onD
         </div>
         <div style={{ fontSize: 11.5, color: 'var(--text-2)' }}>
           {w.monitor_ids.length === 0
-            ? <em style={{ color: 'var(--text-3)' }}>no monitors attached</em>
+            ? <em style={{ color: 'var(--text-3)' }}>{t('maintenance.row.no_monitors')}</em>
             : w.monitor_ids
                 .map(id => monitorsById[id]?.name || id.slice(0, 8))
                 .join(' · ')}
         </div>
       </div>
-      <button className="btn btn-ghost" onClick={onEdit} disabled={busy} title="Edit schedule + recurrence">
-        <Pencil size={13}/> Edit
+      <button className="btn btn-ghost" onClick={onEdit} disabled={busy} title={t('maintenance.row.edit_title')}>
+        <Pencil size={13}/> {t('common.edit')}
       </button>
-      <button className="btn btn-ghost" onClick={onTogglePause} disabled={busy} title={w.active ? 'Pause' : 'Resume'}>
+      <button className="btn btn-ghost" onClick={onTogglePause} disabled={busy} title={w.active ? t('common.pause') : t('common.resume')}>
         {w.active ? <Pause size={13}/> : <Play size={13}/>}
-        {w.active ? 'Pause' : 'Resume'}
+        {w.active ? t('common.pause') : t('common.resume')}
       </button>
       <button className="btn btn-ghost btn-danger" onClick={onDelete} disabled={busy}>
         <Trash2 size={13}/>
@@ -401,7 +402,7 @@ function MaintenanceForm({ monitors, existing, onCancel, onSaved }) {
   return (
     <div className="card" style={{ padding: 20, marginBottom: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-        <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>{existing ? `Edit · ${existing.name}` : 'New maintenance window'}</h3>
+        <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>{existing ? t('maintenance.form.title_edit', { name: existing.name }) : t('maintenance.form.title_new')}</h3>
         <button className="btn btn-ghost" onClick={onCancel} disabled={submitting}><X size={14}/></button>
       </div>
 
@@ -412,42 +413,41 @@ function MaintenanceForm({ monitors, existing, onCancel, onSaved }) {
       )}
 
       <div className="field">
-        <label className="field-label">Name</label>
-        <input className="input" value={name} onChange={e => setName(e.target.value)} placeholder="Friday DB upgrade"/>
+        <label className="field-label">{t('maintenance.form.name')}</label>
+        <input className="input" value={name} onChange={e => setName(e.target.value)} placeholder={t('maintenance.form.name_placeholder')}/>
       </div>
 
       <div className="field">
-        <label className="field-label">Description (optional)</label>
-        <textarea className="textarea" value={desc} onChange={e => setDesc(e.target.value)} rows={2} placeholder="Postgres 17 in-place upgrade — expect ~15min downtime"/>
+        <label className="field-label">{t('maintenance.form.description')}</label>
+        <textarea className="textarea" value={desc} onChange={e => setDesc(e.target.value)} rows={2} placeholder={t('maintenance.form.description_placeholder')}/>
       </div>
 
       <div className="form-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
         <div className="field" style={{ marginBottom: 0 }}>
-          <label className="field-label">Start</label>
+          <label className="field-label">{t('maintenance.form.start')}</label>
           <input type="datetime-local" className="input" value={start} onChange={e => setStart(e.target.value)}/>
         </div>
         <div className="field" style={{ marginBottom: 0 }}>
-          <label className="field-label">End</label>
+          <label className="field-label">{t('maintenance.form.end')}</label>
           <input type="datetime-local" className="input" value={end} onChange={e => setEnd(e.target.value)}/>
         </div>
       </div>
 
       <div className="field">
-        <label className="field-label">Repeats</label>
+        <label className="field-label">{t('maintenance.form.repeats')}</label>
         <select className="input" value={recurKind} onChange={e => setRecurKind(e.target.value)}>
-          <option value="none">Once · single-shot</option>
-          <option value="daily">Daily · same time every day</option>
-          <option value="weekly">Weekly · pick weekdays</option>
+          <option value="none">{t('maintenance.form.repeat.none')}</option>
+          <option value="daily">{t('maintenance.form.repeat.daily')}</option>
+          <option value="weekly">{t('maintenance.form.repeat.weekly')}</option>
         </select>
         <div className="field-hint" style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 6 }}>
-          The Start / End times above define the time-of-day window when repeating.
-          Date portion only matters for the first occurrence.
+          {t('maintenance.form.repeats_hint')}
         </div>
       </div>
 
       {recurKind === 'weekly' && (
         <div className="field">
-          <label className="field-label">Weekdays</label>
+          <label className="field-label">{t('maintenance.form.weekdays')}</label>
           <div style={{ display: 'flex', gap: 6 }}>
             {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d, i) => (
               <button key={d} type="button"
@@ -472,10 +472,10 @@ function MaintenanceForm({ monitors, existing, onCancel, onSaved }) {
 
       {recurKind !== 'none' && (
         <div className="field">
-          <label className="field-label">Repeat until (optional)</label>
+          <label className="field-label">{t('maintenance.form.repeat_until')}</label>
           <input type="datetime-local" className="input" value={until} onChange={e => setUntil(e.target.value)}/>
           <div className="field-hint" style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 6 }}>
-            Leave blank to repeat indefinitely.
+            {t('maintenance.form.repeat_until_hint')}
           </div>
         </div>
       )}
@@ -486,19 +486,19 @@ function MaintenanceForm({ monitors, existing, onCancel, onSaved }) {
           without thinking the form will rewrite them. */}
       {existing ? (
         <div className="field">
-          <label className="field-label">Monitors ({(existing.monitor_ids || []).length})</label>
+          <label className="field-label">{t('maintenance.form.monitors_count', { n: (existing.monitor_ids || []).length })}</label>
           <div style={{ fontSize: 12, color: 'var(--text-3)', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 8 }}>
             {(existing.monitor_ids || []).length === 0
-              ? 'No monitors attached. Use the dashboard or this window\'s detail to attach.'
-              : 'Attachments are managed separately — this form only edits the schedule + recurrence.'}
+              ? t('maintenance.form.monitors_none_attached')
+              : t('maintenance.form.monitors_managed')}
           </div>
         </div>
       ) : (
         <div className="field">
-          <label className="field-label">Monitors ({picked.size} selected)</label>
+          <label className="field-label">{t('maintenance.form.monitors_selected', { n: picked.size })}</label>
           <div style={{ maxHeight: 200, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8, padding: 4 }}>
             {monitors.length === 0 ? (
-              <div style={{ padding: 12, fontSize: 12, color: 'var(--text-3)' }}>No monitors yet — create one first.</div>
+              <div style={{ padding: 12, fontSize: 12, color: 'var(--text-3)' }}>{t('maintenance.form.no_monitors')}</div>
             ) : monitors.map(m => (
               <label key={m.id} style={{
                 display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
@@ -515,13 +515,13 @@ function MaintenanceForm({ monitors, existing, onCancel, onSaved }) {
       )}
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
-        <button className="btn btn-ghost" onClick={onCancel} disabled={submitting}>Cancel</button>
+        <button className="btn btn-ghost" onClick={onCancel} disabled={submitting}>{t('common.cancel')}</button>
         <button className="btn btn-accent" onClick={submit} disabled={submitting}>
           {submitting
-            ? <><Loader2 size={13} className="spin"/> {existing ? 'Saving…' : 'Creating…'}</>
+            ? <><Loader2 size={13} className="spin"/> {existing ? t('common.saving') : t('maintenance.form.creating')}</>
             : existing
-              ? <><Check size={13}/> Save changes</>
-              : <><Plus size={13}/> Create window</>}
+              ? <><Check size={13}/> {t('maintenance.form.save_changes')}</>
+              : <><Plus size={13}/> {t('maintenance.form.create_window')}</>}
         </button>
       </div>
     </div>
