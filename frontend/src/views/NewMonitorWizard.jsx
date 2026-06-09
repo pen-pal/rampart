@@ -311,6 +311,7 @@ export default function NewMonitorWizard() {
   const [url, setUrl]   = useState('https://');
   const [method, setMethod] = useState('GET');
   const [statuses, setStatuses] = useState('200, 201, 204');
+  const [expectedHttpVersion, setExpectedHttpVersion] = useState('');
   const [hostname, setHostname] = useState('');
   const [port, setPort] = useState('');
   const [keyword, setKeyword] = useState('');
@@ -381,6 +382,11 @@ export default function NewMonitorWizard() {
     }
     if (fields.banner && bannerExpect.trim()) {
       config.expect = bannerExpect.trim();
+    }
+    // Optional negotiated-HTTP-version assertion (http1/http2/http3). Stored
+    // in the freeform config JSONB; the rampart-checker HTTP probe reads it.
+    if (fields.httpExtras && expectedHttpVersion) {
+      config.expected_http_version = expectedHttpVersion;
     }
 
     const payload = {
@@ -572,6 +578,20 @@ export default function NewMonitorWizard() {
                       <label className="field-label">{t('wizard.field.accepted_statuses')}</label>
                       <input className="input mono" value={statuses} onChange={e => setStatuses(e.target.value)} placeholder="200, 201, 204"/>
                     </div>
+                  </div>
+                )}
+
+                {fields.httpExtras && (
+                  <div className="field">
+                    <label className="field-label">{t('wizard.field.expected_http_version')}</label>
+                    <select className="select" value={expectedHttpVersion}
+                      onChange={e => setExpectedHttpVersion(e.target.value)}>
+                      <option value="">{t('wizard.field.expected_http_version_any')}</option>
+                      <option value="http1">HTTP/1.1</option>
+                      <option value="http2">HTTP/2</option>
+                      <option value="http3">HTTP/3</option>
+                    </select>
+                    <div className="field-hint">{t('wizard.field.expected_http_version_hint')}</div>
                   </div>
                 )}
 
