@@ -17,6 +17,40 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+#### Monitor reliability
+
+- **MTBF / MTTR widget.** New `GET /v1/monitors/{id}/reliability` returns Mean Time Between Failures + Mean Time To Recovery + downtime-event count over the trailing 30 days. Computed by `rampart_db::heartbeats::mtbf_mttr` which walks heartbeats ASC, sums up/down segment durations, and counts up→down / down→up transitions. Frontend renders a Reliability card on the monitor Overview tab — three figures, formatted as "47h 23m" / "4m 12s", with `?`-tooltip help per metric. 4 new unit tests under `rampart-db/tests/heartbeats.rs`.
+- **Per-monitor SLO targets.** `Monitor` gains `slo_target_pct` (90.000 — 100.000) + `slo_window_days` (1 — 90) via migration `0044_monitor_slo.sql`. Edit modal exposes the two inputs; Overview tab renders an SLO card next to uptime with current% / target% / status pill (green when current ≥ target, amber within 0.1 pp, red below). `current_slo_uptime_pct` helper in `rampart-db::heartbeats` returns the rolling-window uptime in the same shape as the existing `uptime_pct` helper. **Notifier dispatch (`EventKind::SloBreached` / `SloRecovered`) is the follow-up — schema + helper + UI shipped here, alerts wire-up tracked in CONTRIBUTING's "Known gaps".**
+
+#### Importers (3 new — catalog now 7 providers)
+
+- **BetterStack importer.** Maps BetterStack `monitor_type` (status / keyword / keyword_absence / ping / tcp / udp / dns / smtp / pop / imap / playwright) onto Rampart `MonitorKind`. `pronounceable_name` → `Monitor.name`; `check_frequency` (s) → `interval_seconds`; `verify_ssl=false` → `ignore_tls=true`; `keyword_absence` documented as imperfect (negated keyword).
+- **Healthchecks.io importer.** Every check maps to `MonitorKind::Push` (Healthchecks is heartbeat-only). UUID stashed in `config.healthchecks_uuid` for reference; `timeout` → `interval_seconds`; `grace` → `timeout_seconds`.
+- **Cronitor importer.** Maps `type` (heartbeat / job → Push; check / uptime → Http). `schedule` → `interval_seconds` when it parses as "every N seconds/minutes"; falls back to 60.
+
+#### Probes
+
+- **AMQPS** (RabbitMQ-over-TLS) — the AMQP probe now detects `amqps://` URIs and negotiates TLS via the workspace ring `CryptoProvider`. Lapin's `default-features = false` swapped for explicit `rustls--ring` + `rustls-webpki-roots-certs` so we get TLS without `aws-lc-rs` / `cmake` / `openssl`.
+- **NATS-TLS / Cassandra-TLS deferred.** Both upstream crates (`async-nats`, `scylla`) pull `aws-lc-rs` by default with no ring-only escape hatch yet. Probes now reject `tls: true` with a clear error pointing at `docs/SECURITY-DEBT.md` instead of silently running in plaintext. Tracked in `docs/SECURITY-DEBT.md` "Pending TLS gaps" for retry on upstream movement.
+
+#### Public status page
+
+- **Click-day drilldown popover.** Each cell in the 90-day daily-status strip is now interactive (cursor pointer + focus ring + tabIndex + role=button + aria-label). Click / Enter / Space opens a 280px popover anchored under the cell showing the full UTC date ("Mon, March 17 2026"), a status pill colour-keyed to the variant, and any active or resolved incidents whose `[created_at, resolved_at]` window overlaps the day. Esc / click-outside / × closes. Backend-free — uses the existing `incidents` + `incident_history` arrays.
+
+#### Operator deployment
+
+- **Helm chart at `charts/rampart/`.** Chart v0.1.0 wrapping appVersion v0.2.0. Deployment + Service + optional Ingress + optional embedded-Postgres StatefulSet (off by default — production should externalise) + Secret + ConfigMap + standard `_helpers.tpl`. `values.yaml` covers image / replicas / resources / security context / service / ingress / postgres / externalDatabase. `helm lint` clean; `helm template` renders a valid manifest stack.
+
+#### Frontend
+
+- **i18n scaffolding.** New `frontend/src/lib/i18n.js` runtime exporting `t(key, vars?)` + `setLocale` / `getLocale` + a 6-locale `SUPPORTED` list (`en`, `es`, `fr`, `de`, `ja`, `zh`). Dictionaries are flat objects keyed by dotted-namespace strings. Only `en` carries actual translations in this commit; the other five re-export `en` so a partially-translated locale renders cleanly. **Dashboard `t(…)` wiring + locale picker on the floating ThemeToggle are the follow-up — scaffolding only landed here.**
+
+### Notes
+
+- 6 commits since `v0.2.0` (5fa9c1d). Includes pre-commit-hook fix excluding `charts/*/templates/*.yaml` from `check-yaml` (Helm Go-template directives don't parse as YAML).
+
 ---
 
 ## [0.2.0] — 2026-06-09
