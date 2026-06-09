@@ -40,6 +40,9 @@ rampart-import <format> <path-to-file> [--dry-run] [--skip-existing]
 | `statuscake`   | StatusCake `GET /v1/uptime` JSON dump (see below). |
 | `rapidspike`   | RapidSpike `GET /v1/status-monitors` JSON dump (see below). |
 | `updown`       | Updown.io `GET /api/checks` JSON dump (see below). |
+| `cachet`       | Cachet `GET /api/v1/components` JSON dump (see below). |
+| `gatus`        | Gatus `GET /api/v1/endpoints/statuses` JSON dump (see below). |
+| `uptimecom`    | Uptime.com `GET /api/v1/checks/` JSON dump (see below). |
 
 More formats are welcome — see `CONTRIBUTING.md`. The dispatch in
 `crates/rampart-api/src/bin/import.rs` is a single `match` on the
@@ -1030,5 +1033,222 @@ DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
 # Idempotent re-run: same source, skip rows whose name already exists.
 DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
   ./target/release/rampart-import updown updown-export.json \
+  --skip-existing
+```
+
+---
+
+## Cachet
+
+### Getting the export
+
+Cachet is a status-page system, not a prober: its **components** are
+the abstract service entries you list on the status page. There is no
+portal-side "export" button — you pull the components roster yourself
+via the v1 API, authenticating with a token minted under your Cachet
+dashboard's **Settings -> API**:
+
+```bash
+# Cachet wraps the component list in a {"data":[…]} envelope. Paginated
+# instances: fetch each page and merge the `data` arrays into one
+# {"data":[…]} object before running the importer.
+curl -s 'https://status.example.com/api/v1/components' \
+     -H 'X-Cachet-Token: <API_TOKEN>' \
+     > cachet-export.json
+```
+
+> Upstream reference: https://docs.cachethq.io/reference/
+
+### Type → MonitorKind mapping
+
+A Cachet component carries a `status` integer (`1`=operational ..
+`4`=major outage) and an optional `link` URL. There's only one
+probeable shape — a component whose `link` is an `http(s)://` URL:
+
+| Cachet component `link`         | Rampart `MonitorKind` |
+| ------------------------------- | --------------------- |
+| `http://…` / `https://…`        | `Http`                |
+
+### Field translation
+
+| Cachet field      | Rampart `NewMonitor` field                                  |
+| ----------------- | ----------------------------------------------------------- |
+| `name`            | `name` (required)                                           |
+| `link`            | `url`                                                       |
+| (no interval)     | `interval_seconds` = `60` (Cachet exports carry no cadence) |
+
+`timeout_seconds` defaults to 16s (Rampart's `NewMonitor` default);
+Cachet components carry no per-check timeout.
+
+### Types that are skipped
+
+A component is skipped (reported as `skip: unsupported cachet
+component`) when it has no probe target:
+
+- **Empty / missing `link`** — Cachet components can be manual-only:
+  operators flip the status by hand and there's nothing to probe.
+- **Non-http(s) `link`** (e.g. an `ftp://` URL) — Rampart's `Http`
+  probe needs an http(s) target; port these by hand.
+
+### Example
+
+```bash
+# Dry-run first — no DB writes; just prints the per-kind breakdown.
+./target/release/rampart-import cachet cachet-export.json --dry-run
+
+# Real import. Insert every mapped row.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import cachet cachet-export.json
+
+# Idempotent re-run: same source, skip rows whose name already exists.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import cachet cachet-export.json \
+  --skip-existing
+```
+
+---
+
+## Gatus
+
+### Getting the export
+
+Gatus is configured via a YAML file, but it exposes the live endpoint
+roster as JSON. Pull the status endpoint (no auth by default; add your
+own header if you put Gatus behind a proxy):
+
+```bash
+# The status endpoint returns a bare JSON array of endpoint objects.
+curl -s 'https://gatus.example.com/api/v1/endpoints/statuses' \
+     > gatus-export.json
+```
+
+> Upstream reference: https://github.com/TwiN/gatus
+
+### Type → MonitorKind mapping
+
+Each Gatus endpoint carries a `url` whose **scheme** selects the probe
+family. The importer lowercases the scheme before lookup.
+
+| Gatus `url` scheme         | Rampart `MonitorKind` |
+| -------------------------- | --------------------- |
+| `http://` / `https://`     | `Http`                |
+| `tcp://host:port`          | `Tcp`                 |
+| `icmp://host`              | `Ping`                |
+| `dns://…`                  | `Dns`                 |
+| `starttls://` / `tls://`   | `Tls`                 |
+
+### Field translation
+
+| Gatus field            | Rampart `NewMonitor` field                                            |
+| ---------------------- | --------------------------------------------------------------------- |
+| `name`                 | `name`, prefixed `group/name` when `group` is present                 |
+| `group`                | folded into `name`                                                    |
+| `url` (`http`/`https`) | `url` (kept verbatim)                                                 |
+| `url` (`tcp://`)       | `hostname` + `port` (scheme stripped, host/port split)                |
+| `url` (other kinds)    | `hostname` (scheme stripped)                                          |
+| (no interval)          | `interval_seconds` = `60` (the status export carries no cadence)      |
+
+`timeout_seconds` defaults to 16s; Gatus' per-endpoint timeout lives in
+the YAML config, not the status export.
+
+### Types that are skipped
+
+- **Endpoints with an unrecognised `url` scheme** (a scheme Gatus may
+  add later) are reported as `skip: unsupported gatus endpoint`.
+- **Endpoints missing `name` or `url`** — both are required to produce
+  a probeable monitor.
+
+### Example
+
+```bash
+# Dry-run first — no DB writes; just prints the per-kind breakdown.
+./target/release/rampart-import gatus gatus-export.json --dry-run
+
+# Real import. Insert every mapped row.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import gatus gatus-export.json
+
+# Idempotent re-run: same source, skip rows whose name already exists.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import gatus gatus-export.json \
+  --skip-existing
+```
+
+---
+
+## Uptime.com
+
+> **Not** updown.io — Uptime.com is a separate commercial product. Its
+> API wraps the check roster in a `{"results":[…]}` envelope and
+> prefixes its monitor-config fields with `msp_`.
+
+### Getting the export
+
+Uptime.com has no portal-side "export" button; pull the check roster
+via the v1 API with a token minted under your Uptime.com account's
+**Settings -> API Tokens**:
+
+```bash
+# Uptime.com wraps the list in a {"results":[…]} envelope and paginates
+# via `next`/`previous` links. Merge each page's `results` array into a
+# single {"results":[…]} object before running the importer.
+curl -s 'https://uptime.com/api/v1/checks/' \
+     -H 'Authorization: Token <API_TOKEN>' \
+     > uptimecom-export.json
+```
+
+> Upstream reference: https://uptime.com/api/
+
+### Type → MonitorKind mapping
+
+Each check carries a `check_type` constant. The importer matches it
+case-insensitively.
+
+| Uptime.com `check_type` | Rampart `MonitorKind` |
+| ----------------------- | --------------------- |
+| `HTTP`                  | `Http`                |
+| `ICMP`                  | `Ping`                |
+| `TCP`                   | `Tcp`                 |
+| `DNS`                   | `Dns`                 |
+| `SSL`                   | `Tls`                 |
+| `SMTP`                  | `Smtp`                |
+
+### Field translation
+
+| Uptime.com field         | Rampart `NewMonitor` field                                     |
+| ------------------------ | -------------------------------------------------------------- |
+| `name`                   | `name` (required)                                              |
+| `msp_address`            | `url` for `HTTP`; `hostname` for every other kind              |
+| `msp_port`               | `port` (i32; dropped when `0` / absent)                        |
+| `msp_interval` (minutes) | `interval_seconds` = `msp_interval * 60`, floored to `60`      |
+
+`timeout_seconds` defaults to 16s; Uptime.com's per-check timeout is not
+modelled on the listing endpoint.
+
+### Types that are skipped
+
+Anything not in the mapping table is reported as `skip: unsupported
+uptime.com check`. Common examples:
+
+- `TRANSACTION` — Uptime.com's multi-step scripted flow. Rampart does
+  not model multi-step flows; port by hand or split into probes.
+- `API` / `GROUP` / `MALWARE` / `BLACKLIST` and other higher-level
+  check families — no direct Rampart equivalent.
+
+Checks missing `name` are also skipped.
+
+### Example
+
+```bash
+# Dry-run first — no DB writes; just prints the per-kind breakdown.
+./target/release/rampart-import uptimecom uptimecom-export.json --dry-run
+
+# Real import. Insert every mapped row.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import uptimecom uptimecom-export.json
+
+# Idempotent re-run: same source, skip rows whose name already exists.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import uptimecom uptimecom-export.json \
   --skip-existing
 ```
