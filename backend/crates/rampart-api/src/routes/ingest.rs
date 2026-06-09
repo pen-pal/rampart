@@ -6,10 +6,12 @@
 //!   POST /v1/public/ingest/alertmanager/{token}  (Prometheus Alertmanager)
 //!   POST /v1/public/ingest/grafana/{token}        (Grafana unified alerting)
 //!   POST /v1/public/ingest/datadog/{token}        (Datadog webhook)
+//!   POST /v1/public/ingest/pagerduty/{token}      (PagerDuty webhook v3)
+//!   POST /v1/public/ingest/opsgenie/{token}       (Opsgenie webhook)
 //!   Each accepts that vendor's webhook payload and turns the contained
 //!   alert(s) into status-page incidents (firing → create, resolved →
 //!   resolve the matching open incident). The token in the URL IS the auth
-//!   — there is no session. All three normalize their payload into the same
+//!   — there is no session. They all normalize their payload into the same
 //!   `NormalizedAlert` shape and funnel through `apply_alert`, so the
 //!   create-or-resolve logic lives in exactly one place.
 //!
@@ -47,6 +49,8 @@ pub fn public_router() -> Router<AppState> {
         .route("/ingest/alertmanager/{token}", post(alertmanager))
         .route("/ingest/grafana/{token}", post(grafana))
         .route("/ingest/datadog/{token}", post(datadog))
+        .route("/ingest/pagerduty/{token}", post(pagerduty))
+        .route("/ingest/opsgenie/{token}", post(opsgenie))
 }
 
 /// Page-scoped token management. Merged into the `/v1/status-pages` admin nest.
@@ -388,6 +392,220 @@ async fn datadog(
         title,
         content: payload.body,
         style: datadog_style(&payload.alert_type),
+        dedup_key,
+    };
+    ingest_batch(&s, page, vec![alert]).await
+}
+
+// ---- public: PagerDuty (Events API v2 / webhook v3) ----------------------
+
+/// PagerDuty's v3 webhook envelope. We only read the fields we map; the
+/// `event.data` block carries the incident, and `event.event_type` /
+/// `data.status` tell us whether to create or resolve.
+#[derive(Debug, Deserialize)]
+struct PagerDutyPayload {
+    #[serde(default)]
+    event: PagerDutyEvent,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct PagerDutyEvent {
+    #[serde(default)]
+    event_type: String,
+    #[serde(default)]
+    data: PagerDutyData,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct PagerDutyData {
+    #[serde(default)]
+    id: String,
+    #[serde(default)]
+    title: String,
+    #[serde(default)]
+    status: String,
+    #[serde(default)]
+    urgency: String,
+    #[serde(default)]
+    html_url: String,
+}
+
+fn pagerduty_style(urgency: &str) -> IncidentStyle {
+    match urgency.to_ascii_lowercase().as_str() {
+        "high" => IncidentStyle::Danger,
+        _ => IncidentStyle::Warning,
+    }
+}
+
+async fn pagerduty(
+    State(s): State<AppState>,
+    Path(token): Path<String>,
+    Json(payload): Json<PagerDutyPayload>,
+) -> Result<(StatusCode, Json<IngestSummary>), ApiError> {
+    let page = page_for_token(&s, &token).await?;
+    let data = payload.event.data;
+
+    // dedup_key = incident id; fall back to title so a payload missing the
+    // id still dedups loosely. Skip an event with neither.
+    let title = data.title.trim();
+    let dedup_key = if !data.id.trim().is_empty() {
+        data.id.trim().to_string()
+    } else if !title.is_empty() {
+        title.to_string()
+    } else {
+        return Ok((
+            StatusCode::ACCEPTED,
+            Json(IngestSummary {
+                created: 0,
+                resolved: 0,
+            }),
+        ));
+    };
+
+    // A resolved event (either `incident.resolved` or `status: "resolved"`)
+    // resolves; `incident.acknowledged` and any other non-resolve action are
+    // a no-op rather than opening a fresh incident, so an ack doesn't fan out
+    // a duplicate. Only an explicit trigger creates.
+    let event_type = data.status.trim();
+    let is_resolved = payload
+        .event
+        .event_type
+        .eq_ignore_ascii_case("incident.resolved")
+        || event_type.eq_ignore_ascii_case("resolved");
+    let is_triggered = payload
+        .event
+        .event_type
+        .eq_ignore_ascii_case("incident.triggered")
+        || event_type.eq_ignore_ascii_case("triggered");
+    let action = if is_resolved {
+        AlertAction::Resolve
+    } else if is_triggered {
+        AlertAction::Create
+    } else {
+        // e.g. incident.acknowledged — no-op.
+        return Ok((
+            StatusCode::ACCEPTED,
+            Json(IngestSummary {
+                created: 0,
+                resolved: 0,
+            }),
+        ));
+    };
+
+    // Title is required for a create; fall back to the dedup_key so the
+    // incident is never titleless.
+    let title = if title.is_empty() {
+        dedup_key.clone()
+    } else {
+        title.to_string()
+    };
+
+    let content = if data.html_url.trim().is_empty() {
+        "PagerDuty incident".to_string()
+    } else {
+        format!("PagerDuty incident — {}", data.html_url.trim())
+    };
+
+    let alert = NormalizedAlert {
+        action,
+        title,
+        content,
+        style: pagerduty_style(&data.urgency),
+        dedup_key,
+    };
+    ingest_batch(&s, page, vec![alert]).await
+}
+
+// ---- public: Opsgenie ----------------------------------------------------
+
+/// Opsgenie's webhook body. The top-level `action` drives create/resolve;
+/// the `alert` block carries the alert we map.
+#[derive(Debug, Deserialize)]
+struct OpsgeniePayload {
+    #[serde(default)]
+    action: String,
+    #[serde(default)]
+    alert: OpsgenieAlert,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct OpsgenieAlert {
+    #[serde(default, rename = "alertId")]
+    alert_id: String,
+    #[serde(default)]
+    message: String,
+    #[serde(default)]
+    description: String,
+    #[serde(default)]
+    priority: String,
+    #[serde(default, rename = "tinyId")]
+    tiny_id: String,
+}
+
+fn opsgenie_style(priority: &str) -> IncidentStyle {
+    match priority.to_ascii_uppercase().as_str() {
+        "P1" | "P2" => IncidentStyle::Danger,
+        "P3" => IncidentStyle::Warning,
+        _ => IncidentStyle::Info,
+    }
+}
+
+async fn opsgenie(
+    State(s): State<AppState>,
+    Path(token): Path<String>,
+    Json(payload): Json<OpsgeniePayload>,
+) -> Result<(StatusCode, Json<IngestSummary>), ApiError> {
+    let page = page_for_token(&s, &token).await?;
+
+    // Only Create / Close map to incident actions; AckAlert and the rest are
+    // a deliberate no-op (202 with created:0 resolved:0).
+    let action = if payload.action.eq_ignore_ascii_case("Create") {
+        AlertAction::Create
+    } else if payload.action.eq_ignore_ascii_case("Close") {
+        AlertAction::Resolve
+    } else {
+        return Ok((
+            StatusCode::ACCEPTED,
+            Json(IngestSummary {
+                created: 0,
+                resolved: 0,
+            }),
+        ));
+    };
+
+    let alert = payload.alert;
+    let message = alert.message.trim();
+    // dedup_key = alertId; fall back to tinyId then message so a payload
+    // missing the id still dedups loosely. Skip an alert with none.
+    let dedup_key = if !alert.alert_id.trim().is_empty() {
+        alert.alert_id.trim().to_string()
+    } else if !alert.tiny_id.trim().is_empty() {
+        alert.tiny_id.trim().to_string()
+    } else if !message.is_empty() {
+        message.to_string()
+    } else {
+        return Ok((
+            StatusCode::ACCEPTED,
+            Json(IngestSummary {
+                created: 0,
+                resolved: 0,
+            }),
+        ));
+    };
+
+    // Title is required for a create; fall back to the dedup_key so the
+    // incident is never titleless.
+    let title = if message.is_empty() {
+        dedup_key.clone()
+    } else {
+        message.to_string()
+    };
+
+    let alert = NormalizedAlert {
+        action,
+        title,
+        content: alert.description,
+        style: opsgenie_style(&alert.priority),
         dedup_key,
     };
     ingest_batch(&s, page, vec![alert]).await
