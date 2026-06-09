@@ -164,6 +164,9 @@ pub fn build_router(state: AppState) -> Router {
 
     Router::new()
         .merge(routes::health::router())
+        // OpenAPI spec — public, root-level (not under /v1). Served as raw
+        // YAML + a JSON rendering so a client generator can fetch either.
+        .merge(routes::public_root())
         // /push/:token is intentionally public — the token IS the auth.
         // Sits outside /v1 to keep external cron snippets short.
         .nest("/push", routes::push::router())

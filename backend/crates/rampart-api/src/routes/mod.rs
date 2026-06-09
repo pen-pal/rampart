@@ -19,6 +19,8 @@ pub mod maintenance;
 pub mod monitor_groups;
 pub mod monitors;
 pub mod notifications;
+pub mod openapi;
+pub mod prefs;
 pub mod proxies;
 pub mod push;
 pub mod routing;
@@ -33,6 +35,14 @@ pub mod webpush;
 
 use crate::state::AppState;
 use axum::Router;
+
+/// Public, root-level routes that aren't versioned under `/v1`. Today this
+/// is only the OpenAPI spec (`/openapi.yaml`, `/openapi.json`) — the spec
+/// describes the whole surface, isn't sensitive, and is convenient to fetch
+/// from a fixed top-level path that a client generator can hard-code.
+pub fn public_root() -> Router<AppState> {
+    openapi::router()
+}
 
 pub fn v1_public(state: &AppState) -> Router<AppState> {
     // Per-IP rate limit on the auth surface only. Cap = 10 attempts /
@@ -141,7 +151,9 @@ pub fn v1_protected() -> Router<AppState> {
         // /v1/auth/2fa/* — the caller securing their own account.
         .nest("/auth/2fa", totp::router())
         // /v1/webpush — the caller's own browser push subscription.
-        .nest("/webpush", webpush::router());
+        .nest("/webpush", webpush::router())
+        // /v1/me/prefs — the caller's own dashboard views + default folder.
+        .nest("/me", prefs::router());
 
     Router::new()
         .merge(editor_or_read)
