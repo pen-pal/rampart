@@ -259,6 +259,28 @@ pub async fn delete(pool: &DbPool, id: UserId) -> DbResult<()> {
     Ok(())
 }
 
+/// Fetch the caller's opaque UI-preferences blob. New users (and rows that
+/// predate the column's default kicking in) read back as an empty object.
+pub async fn get_prefs(pool: &DbPool, id: UserId) -> DbResult<serde_json::Value> {
+    let row = sqlx::query!(r#"SELECT prefs AS "prefs!" FROM users WHERE id = $1"#, id.0)
+        .fetch_optional(pool)
+        .await?
+        .ok_or(DbError::NotFound)?;
+    Ok(row.prefs)
+}
+
+/// Overwrite the caller's preferences blob wholesale. The frontend always
+/// PUTs the full document, so a replace (not a merge) is the right semantics.
+pub async fn set_prefs(pool: &DbPool, id: UserId, prefs: &serde_json::Value) -> DbResult<()> {
+    let result = sqlx::query!("UPDATE users SET prefs = $1 WHERE id = $2", prefs, id.0)
+        .execute(pool)
+        .await?;
+    if result.rows_affected() == 0 {
+        return Err(DbError::NotFound);
+    }
+    Ok(())
+}
+
 pub async fn set_password(pool: &DbPool, id: UserId, hash: &str) -> DbResult<()> {
     let result = sqlx::query!(
         "UPDATE users SET password_hash = $1 WHERE id = $2",

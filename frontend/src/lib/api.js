@@ -158,6 +158,15 @@ export const api = {
     remove:         (id)                                  => request(`/v1/users/${id}`, { method: 'DELETE' }),
     changePassword: (current, next)                       => request('/v1/users/me/password', { method: 'POST', body: { current_password: current, new_password: next } }),
   },
+  // ─── self-service preferences ──────────────────────────────────────────
+  // Per-user UI prefs (saved dashboard views + default folder). The blob is
+  // opaque to the backend; the dashboard owns its shape. getPrefs returns the
+  // stored object ({} when never set); setPrefs PUTs the full document and
+  // echoes it back.
+  me: {
+    getPrefs: ()      => request('/v1/me/prefs'),
+    setPrefs: (prefs) => request('/v1/me/prefs', { method: 'PUT', body: { prefs } }),
+  },
   proxies: {
     list:      ()                  => request('/v1/proxies'),
     create:    (input)             => request('/v1/proxies', { method: 'POST', body: input }),

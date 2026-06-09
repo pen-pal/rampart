@@ -9,6 +9,7 @@ import {
   Tag, ArrowUpRight, Wrench, Zap, Globe, Server,
   Database, Radio, Lock, Hash,
   Menu, Folder, Tag as TagIcon, Calendar as CalIcon, Network, Key, ScrollText, Users as UsersIcon, Mail, Database as DbIcon, Settings, Upload,
+  Bookmark, Star, Check, Trash2, X,
 } from 'lucide-react';
 import {
   api, useApi, formatRelative, offsetDateTimeArrayToDate, statusToClass,
@@ -423,9 +424,100 @@ export default function Dashboard({ user, onLogout } = {}) {
     return true;
   };
 
+  // ── saved views + default folder (server-backed per-user prefs) ──────────
+  // When signed in we round-trip a single opaque blob through /v1/me/prefs:
+  //   { saved_views: [{ id, name, tags: [id], folder: id|null, search }],
+  //     default_folder_id: id|null }
+  // The blob is the source of truth; we mirror it into React state so the
+  // dropdown re-renders. Signed-out users keep the old localStorage-only
+  // behaviour (tagFilter + openGroups already persist there), so this layer
+  // is purely additive and degrades cleanly.
+  const loggedIn = !!user;
+  // `folderFilter` scopes the visible monitors to one folder (null = all).
+  // It's part of what a view captures and what the default folder restores.
+  const [folderFilter, setFolderFilter] = useState(null);
+  const [savedViews, setSavedViews] = useState([]);
+  const [defaultFolderId, setDefaultFolderId] = useState(null);
+  // Guard so we only seed from prefs once, and don't echo that seed back as a
+  // write (which would race the initial GET).
+  const prefsLoaded = useRef(false);
+
+  useEffect(() => {
+    if (!loggedIn) { prefsLoaded.current = true; return; }
+    let cancelled = false;
+    api.me.getPrefs()
+      .then(p => {
+        if (cancelled) return;
+        const views = Array.isArray(p?.saved_views) ? p.saved_views : [];
+        setSavedViews(views);
+        const def = p?.default_folder_id ?? null;
+        setDefaultFolderId(def);
+        // Open to the default folder on load (only if nothing's been picked).
+        if (def) setFolderFilter(prev => prev ?? def);
+      })
+      .catch(() => { /* fall back to localStorage-only behaviour */ })
+      .finally(() => { if (!cancelled) prefsLoaded.current = true; });
+    return () => { cancelled = true; };
+  }, [loggedIn]);
+
+  // Persist the views + default folder back to the server. Best-effort: a
+  // failed write surfaces via the returned promise so callers can alert.
+  const persistPrefs = async (next) => {
+    const payload = {
+      saved_views: next.savedViews ?? savedViews,
+      default_folder_id: next.defaultFolderId !== undefined ? next.defaultFolderId : defaultFolderId,
+    };
+    if (!loggedIn) return; // signed-out: nothing server-side to persist
+    await api.me.setPrefs(payload);
+  };
+
+  const saveCurrentView = async () => {
+    const name = (prompt(t("dashboard.views.save_prompt")) || '').trim();
+    if (!name) return;
+    const view = {
+      id: (crypto?.randomUUID?.() || String(Date.now())),
+      name,
+      tags: [...tagFilter],
+      folder: folderFilter,
+      search: query,
+    };
+    const next = [...savedViews, view];
+    setSavedViews(next);
+    try { await persistPrefs({ savedViews: next }); }
+    catch (e) { alert(t("dashboard.views.save_failed", { msg: e.message })); }
+  };
+
+  const applyView = (view) => {
+    setTagFilter(new Set(view.tags || []));
+    try { localStorage.setItem('rampart_tag_filter', JSON.stringify(view.tags || [])); } catch { /* ignore quota */ }
+    setFolderFilter(view.folder ?? null);
+    setQuery(view.search || '');
+  };
+
+  const deleteView = async (view) => {
+    if (!confirm(t("dashboard.views.delete_confirm", { name: view.name }))) return;
+    const next = savedViews.filter(v => v.id !== view.id);
+    setSavedViews(next);
+    try { await persistPrefs({ savedViews: next }); } catch { /* keep optimistic state */ }
+  };
+
+  // Toggle a folder as the dashboard's default landing folder. Clicking the
+  // current default clears it.
+  const toggleDefaultFolder = async (folderId) => {
+    const next = defaultFolderId === folderId ? null : folderId;
+    setDefaultFolderId(next);
+    try { await persistPrefs({ defaultFolderId: next }); } catch { /* keep optimistic state */ }
+  };
+
+  const matchesFolderFilter = (m) => {
+    if (!folderFilter) return true;
+    return m.group_id === folderFilter;
+  };
+
   const filtered = monitors
     .filter(m => m.name.toLowerCase().includes(query.toLowerCase()))
-    .filter(matchesTagFilter);
+    .filter(matchesTagFilter)
+    .filter(matchesFolderFilter);
 
   const counts = monitors.reduce((acc, m) => {
     const k = m.current_status === 'maintenance' ? 'maint' : m.current_status;
@@ -507,6 +599,13 @@ export default function Dashboard({ user, onLogout } = {}) {
           <a className="btn btn-ghost" title="Notification channels" href="#/notifications" style={{ textDecoration: 'none' }}>
             <Bell size={14}/>
           </a>
+          <ViewsMenu
+            loggedIn={loggedIn}
+            views={savedViews}
+            onSave={saveCurrentView}
+            onApply={applyView}
+            onDelete={deleteView}
+          />
           <button className="btn" onClick={goToStatusPage}><Wrench size={13}/> {t("dashboard.status_page")}</button>
           {writable && <a className="btn btn-ghost" href="#/import" style={{ textDecoration: 'none' }} title={t("import.link_title")}><Upload size={13}/> {t("import.link")}</a>}
           {writable && <button className="btn btn-accent" onClick={goToNewMonitor}><Plus size={13} strokeWidth={2.4}/> {t("dashboard.add_monitor")}</button>}
@@ -617,7 +716,19 @@ export default function Dashboard({ user, onLogout } = {}) {
                   <div className="group-head" style={{ paddingLeft: 12 + (b.depth || 0) * 14 }} onClick={() => toggleGroup(b.key)}>
                     {open ? <ChevronDown size={11}/> : <ChevronRight size={11}/>}
                     <span>{b.name}</span>
-                    <span style={{ marginLeft: 'auto', color: 'var(--text-3)', fontWeight: 500 }}>{b.rows.length}</span>
+                    {loggedIn && b.key !== 'ungrouped' && (
+                      <button
+                        title={defaultFolderId === b.key ? t("dashboard.views.is_default") : t("dashboard.views.default_folder")}
+                        onClick={(e) => { e.stopPropagation(); toggleDefaultFolder(b.key); }}
+                        style={{
+                          marginLeft: 'auto', background: 'transparent', border: 'none',
+                          cursor: 'pointer', padding: 2, display: 'inline-flex', alignItems: 'center',
+                          color: defaultFolderId === b.key ? 'var(--warn)' : 'var(--text-3)',
+                        }}>
+                        <Star size={11} fill={defaultFolderId === b.key ? 'var(--warn)' : 'none'}/>
+                      </button>
+                    )}
+                    <span style={{ marginLeft: (loggedIn && b.key !== 'ungrouped') ? 8 : 'auto', color: 'var(--text-3)', fontWeight: 500 }}>{b.rows.length}</span>
                   </div>
                   {open && b.rows.map(m => (
                     <MonitorRow
@@ -810,6 +921,19 @@ export default function Dashboard({ user, onLogout } = {}) {
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <div style={{ padding: '16px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', gap: 10, flexWrap: 'wrap' }}>
               <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{t("dashboard.all_monitors")}</h3>
+              {folderFilter && (
+                <button onClick={() => setFolderFilter(null)} title={t("common.clear")}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    padding: '3px 9px', borderRadius: 999, fontSize: 11, fontWeight: 500,
+                    cursor: 'pointer', background: 'var(--accent-soft)', color: 'var(--accent-2)',
+                    border: '1px solid var(--accent)',
+                  }}>
+                  <Folder size={11}/>
+                  {(groupsState.data || []).find(g => g.id === folderFilter)?.name || 'Folder'}
+                  <X size={11}/>
+                </button>
+              )}
               {tagsInUse.length > 0 && (
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                   <Tag size={11} color="var(--text-3)"/>
