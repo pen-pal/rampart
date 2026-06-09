@@ -21,6 +21,7 @@ import {
   Activity, Bell, Wrench, Shield, Mail, Rss, Link2, Check, X, History,
 } from 'lucide-react';
 import { api, offsetDateTimeArrayToDate } from '../lib/api.js';
+import { t, getLocale } from '../lib/i18n.js';
 
 // Timestamps from the API are `time::OffsetDateTime` → serde renders them
 // as a numeric array, which `new Date()` can't parse ("Invalid Date").
@@ -35,16 +36,16 @@ function relative(date) {
   const now = Date.now();
   const ms = now - date.getTime();
   const s = Math.round(ms / 1000);
-  if (s < 5)        return 'just now';
-  if (s < 60)       return `${s} seconds ago`;
+  if (s < 5)        return t('statuspage.public.rel.just_now');
+  if (s < 60)       return t('statuspage.public.rel.seconds', { n: s });
   const m = Math.round(s / 60);
-  if (m < 60)       return `${m} minute${m === 1 ? '' : 's'} ago`;
+  if (m < 60)       return t(m === 1 ? 'statuspage.public.rel.minute' : 'statuspage.public.rel.minutes', { n: m });
   const h = Math.round(m / 60);
-  if (h < 24)       return `${h} hour${h === 1 ? '' : 's'} ago`;
+  if (h < 24)       return t(h === 1 ? 'statuspage.public.rel.hour' : 'statuspage.public.rel.hours', { n: h });
   const d = Math.round(h / 24);
-  if (d === 1)      return 'yesterday';
-  if (d < 30)       return `${d} days ago`;
-  return date.toLocaleDateString();
+  if (d === 1)      return t('statuspage.public.rel.yesterday');
+  if (d < 30)       return t('statuspage.public.rel.days', { n: d });
+  return date.toLocaleDateString(getLocale());
 }
 
 const css = `
@@ -399,14 +400,19 @@ const css = `
   }
 `;
 
-const STATUS_LABEL = {
-  up:          'Operational',
-  down:        'Down',
-  warn:        'Degraded',
-  paused:      'Paused',
-  pending:     'Pending',
-  maintenance: 'Maintenance',
-};
+// Status → localized badge label. A function (not a const map) so the
+// lookup happens at render time against the active locale.
+function statusLabel(status) {
+  const key = {
+    up:          'statuspage.public.status.up',
+    down:        'statuspage.public.status.down',
+    warn:        'statuspage.public.status.degraded',
+    paused:      'statuspage.public.status.paused',
+    pending:     'statuspage.public.status.pending',
+    maintenance: 'statuspage.public.status.maintenance',
+  }[status];
+  return key ? t(key) : status;
+}
 
 function statusIcon(status, size = 14) {
   if (status === 'down')        return <AlertCircle  size={size}/>;
@@ -483,9 +489,9 @@ export default function StatusPageView({ slug, byDomainHost }) {
         <style>{css}</style>
         <div style={{ maxWidth: 560, margin: '0 auto', padding: '120px 24px', textAlign: 'center' }}>
           <AlertCircle size={36} color="var(--text-3)" style={{ marginBottom: 14 }}/>
-          <h1 style={{ fontSize: 24, fontWeight: 600, margin: '0 0 8px' }}>Page not found</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 600, margin: '0 0 8px' }}>{t('statuspage.public.not_found.title')}</h1>
           <p style={{ fontSize: 14, color: 'var(--text-2)', margin: 0 }}>
-            No status page is published at <code style={{ background: 'var(--surface-2)', padding: '2px 6px', borderRadius: 4 }}>{byDomainHost ? byDomainHost : `/${slug}`}</code>.
+            {t('statuspage.public.not_found.body_pre')} <code style={{ background: 'var(--surface-2)', padding: '2px 6px', borderRadius: 4 }}>{byDomainHost ? byDomainHost : `/${slug}`}</code>{t('statuspage.public.not_found.body_post')}
           </p>
         </div>
       </div>
@@ -501,10 +507,10 @@ export default function StatusPageView({ slug, byDomainHost }) {
   if (status === 'up' && hasIncidents) status = 'warn';
 
   const hero = {
-    up:          { title: 'All Systems Operational', sub: 'Every component is reporting healthy.', cls: 'hero-up' },
-    warn:        { title: hasIncidents ? 'Active Incident' : 'Partial Service Degradation', sub: hasIncidents ? 'See details below.' : 'One or more components are degraded.', cls: 'hero-warn' },
-    down:        { title: 'Service Disruption', sub: 'One or more components are down. Engineers are looking into it.', cls: 'hero-down' },
-    maintenance: { title: 'Scheduled Maintenance', sub: 'A planned maintenance window is in effect.', cls: 'hero-maint' },
+    up:          { title: t('statuspage.public.hero.up.title'),   sub: t('statuspage.public.hero.up.sub'),   cls: 'hero-up' },
+    warn:        { title: hasIncidents ? t('statuspage.public.hero.incident.title') : t('statuspage.public.hero.degraded.title'), sub: hasIncidents ? t('statuspage.public.hero.incident.sub') : t('statuspage.public.hero.degraded.sub'), cls: 'hero-warn' },
+    down:        { title: t('statuspage.public.hero.down.title'), sub: t('statuspage.public.hero.down.sub'), cls: 'hero-down' },
+    maintenance: { title: t('statuspage.public.hero.maint.title'), sub: t('statuspage.public.hero.maint.sub'), cls: 'hero-maint' },
   }[status];
 
   const downCount = monitors.filter(m => m.current_status === 'down').length;
@@ -536,7 +542,7 @@ export default function StatusPageView({ slug, byDomainHost }) {
               )}
             </div>
           </div>
-          <div className="live-dot">live · auto-refresh 30s</div>
+          <div className="live-dot">{t('statuspage.public.live_refresh')}</div>
         </div>
 
         {/* ── Hero status banner ─────────────────────────────────── */}
@@ -550,19 +556,19 @@ export default function StatusPageView({ slug, byDomainHost }) {
 
         {/* ── KPIs ───────────────────────────────────────────────── */}
         <div className="kpis" style={{ marginTop: 18 }}>
-          <Kpi icon={<Activity size={12}/>} label="Components" value={String(monitors.length)} sub={`${upCount} up · ${warnCount} degraded · ${downCount} down`}/>
-          <Kpi icon={<Shield size={12}/>}   label="90d uptime"  value={overallUptime == null ? '—' : `${overallUptime.toFixed(2)}%`} sub="across all components"/>
-          <Kpi icon={<Bell size={12}/>}     label="Active incidents" value={String(incidents.length)} sub={incidents.length ? 'see below' : 'none right now'}/>
-          <Kpi icon={<Calendar size={12}/>} label="Last update"   value={data.generated_at ? relative(toDate(data.generated_at)) : '—'} sub="refreshes every 30s"/>
+          <Kpi icon={<Activity size={12}/>} label={t('statuspage.public.kpi.components')} value={String(monitors.length)} sub={t('statuspage.public.kpi.components_sub', { up: upCount, degraded: warnCount, down: downCount })}/>
+          <Kpi icon={<Shield size={12}/>}   label={t('statuspage.public.kpi.uptime_90d')}  value={overallUptime == null ? '—' : `${overallUptime.toFixed(2)}%`} sub={t('statuspage.public.kpi.uptime_90d_sub')}/>
+          <Kpi icon={<Bell size={12}/>}     label={t('statuspage.public.kpi.active_incidents')} value={String(incidents.length)} sub={incidents.length ? t('statuspage.public.kpi.incidents_see_below') : t('statuspage.public.kpi.incidents_none')}/>
+          <Kpi icon={<Calendar size={12}/>} label={t('statuspage.public.kpi.last_update')}   value={data.generated_at ? relative(toDate(data.generated_at)) : '—'} sub={t('statuspage.public.kpi.last_update_sub')}/>
         </div>
 
         {/* ── Components (always above incidents — components are the
              primary signal; incident threads sit below as context) ── */}
-        <div className="section-h"><Activity size={13}/> Components</div>
+        <div className="section-h"><Activity size={13}/> {t('statuspage.public.section.components')}</div>
         <div className="card" style={{ overflow: 'hidden' }}>
           {monitors.length === 0 ? (
             <div style={{ padding: 36, textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
-              No components attached to this page yet.
+              {t('statuspage.public.empty.components')}
             </div>
           ) : monitors.map((m, i) => (
             <Component
@@ -578,11 +584,11 @@ export default function StatusPageView({ slug, byDomainHost }) {
 
         {/* ── Legend ───────────────────────────────────────────── */}
         <div className="legend">
-          <span><span className="legend-dot" style={{ background: 'var(--up)' }}/> Operational</span>
-          <span><span className="legend-dot" style={{ background: 'var(--warn)' }}/> Degraded</span>
-          <span><span className="legend-dot" style={{ background: 'var(--down)' }}/> Down</span>
-          <span><span className="legend-dot" style={{ background: 'var(--maint)' }}/> Maintenance</span>
-          <span><span className="legend-dot" style={{ background: 'var(--none)' }}/> No data</span>
+          <span><span className="legend-dot" style={{ background: 'var(--up)' }}/> {t('statuspage.public.legend.operational')}</span>
+          <span><span className="legend-dot" style={{ background: 'var(--warn)' }}/> {t('statuspage.public.legend.degraded')}</span>
+          <span><span className="legend-dot" style={{ background: 'var(--down)' }}/> {t('statuspage.public.legend.down')}</span>
+          <span><span className="legend-dot" style={{ background: 'var(--maint)' }}/> {t('statuspage.public.legend.maintenance')}</span>
+          <span><span className="legend-dot" style={{ background: 'var(--none)' }}/> {t('statuspage.public.legend.no_data')}</span>
         </div>
 
         {/* ── Active incidents (below components — components are the
@@ -592,7 +598,7 @@ export default function StatusPageView({ slug, byDomainHost }) {
              never floats incidents above the components list). ── */}
         {hasIncidents && (
           <>
-            <div className="section-h"><Bell size={13}/> Active incidents</div>
+            <div className="section-h"><Bell size={13}/> {t('statuspage.public.section.active_incidents')}</div>
             <div>
               {incidents.map((inc, i) => <Incident key={i} incident={inc}/>)}
             </div>
@@ -602,7 +608,7 @@ export default function StatusPageView({ slug, byDomainHost }) {
         {/* ── Incident history ────────────────────────────────── */}
         {(data.incident_history || []).length > 0 && (
           <>
-            <div className="section-h"><History size={13}/> Incident history</div>
+            <div className="section-h"><History size={13}/> {t('statuspage.public.section.incident_history')}</div>
             <div>
               {(data.incident_history || []).map((inc, i) => <ResolvedIncident key={i} incident={inc}/>)}
             </div>
@@ -610,13 +616,13 @@ export default function StatusPageView({ slug, byDomainHost }) {
         )}
 
         {/* ── Subscribe ────────────────────────────────────────── */}
-        <div className="section-h"><Bell size={13}/> Subscribe to updates</div>
+        <div className="section-h"><Bell size={13}/> {t('statuspage.public.section.subscribe')}</div>
         <SubscribeBox slug={effectiveSlug}/>
 
         {/* ── Footer ───────────────────────────────────────────── */}
         <div className="footer">
-          <span>Powered by <a href="https://github.com/pen-pal/rampart" target="_blank" rel="noreferrer">Rampart</a></span>
-          <span>Last updated {data.generated_at ? relative(toDate(data.generated_at)) : '—'}</span>
+          <span>{t('statuspage.public.footer.powered_by')} <a href="https://github.com/pen-pal/rampart" target="_blank" rel="noreferrer">Rampart</a></span>
+          <span>{t('statuspage.public.footer.last_updated', { when: data.generated_at ? relative(toDate(data.generated_at)) : '—' })}</span>
         </div>
       </div>
     </div>
@@ -666,7 +672,7 @@ function Component({ monitor, monitorIdx, slug, activeIncidents = [], incidentHi
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 2 }}>
           <span style={{ fontSize: 15, fontWeight: 500 }}>{monitor.name}</span>
         </div>
-        <div className="strip" ref={stripRef} title="Click a day for details">
+        <div className="strip" ref={stripRef} title={t('statuspage.public.strip.click_hint')}>
           {strip.split('').map((c, i) => {
             const daysAgo = 90 - 1 - i;
             return (
@@ -700,23 +706,23 @@ function Component({ monitor, monitorIdx, slug, activeIncidents = [], incidentHi
           />
         )}
         <div className="strip-axis">
-          <span>90 days ago</span>
+          <span>{t('statuspage.public.strip.days_ago_90')}</span>
           <span>
             {monitor.uptime_90d == null
-              ? 'no data yet'
-              : `${monitor.uptime_90d.toFixed(2)}% uptime`}
+              ? t('statuspage.public.strip.no_data')
+              : t('statuspage.public.strip.uptime', { pct: monitor.uptime_90d.toFixed(2) })}
             {monitor.avg_latency_ms_24h != null && (
-              <> · avg {Math.round(monitor.avg_latency_ms_24h)} ms</>
+              <> {t('statuspage.public.strip.avg_latency', { ms: Math.round(monitor.avg_latency_ms_24h) })}</>
             )}
           </span>
-          <span>today</span>
+          <span>{t('statuspage.public.strip.today')}</span>
         </div>
         {(monitor.monthly_uptime_12mo || []).length > 0 && (
           <MonthRow months={monitor.monthly_uptime_12mo}/>
         )}
       </div>
       <span className={`badge badge-${statusKey}`}>
-        {statusIcon(status)} {STATUS_LABEL[status] || status}
+        {statusIcon(status)} {statusLabel(status)}
       </span>
     </div>
   );
@@ -757,8 +763,8 @@ function MonthChip({ point }) {
     else                  cls = 'month-chip month-chip-bad';
   }
   const title = pct == null
-    ? `${label} — no data yet`
-    : `${label} — ${pct.toFixed(3)}% uptime`;
+    ? t('statuspage.public.month.no_data', { month: label })
+    : t('statuspage.public.month.uptime', { month: label, pct: pct.toFixed(3) });
   return (
     <div className={cls} title={title}>
       <span className="month-chip-mo">{label}</span>
@@ -784,13 +790,20 @@ function incidentTouchesDay(inc, dayStart, dayEnd) {
   return created < dayEnd.getTime() && resolved >= dayStart.getTime();
 }
 
-const DAY_STATUS = {
-  u: { label: 'Operational',  cls: 'u' },
-  d: { label: 'Down',         cls: 'd' },
-  w: { label: 'Degraded',     cls: 'w' },
-  m: { label: 'Maintenance',  cls: 'm' },
-  n: { label: 'No data',      cls: 'n' },
-};
+// Day-status char → { localized label, css class }. A function (not a
+// const map) so labels resolve against the active locale at render time.
+const DAY_STATUS_CLS = { u: 'u', d: 'd', w: 'w', m: 'm', n: 'n' };
+function dayStatus(c) {
+  const cls = DAY_STATUS_CLS[c] || 'n';
+  const label = {
+    u: t('statuspage.public.day.operational'),
+    d: t('statuspage.public.day.down'),
+    w: t('statuspage.public.day.degraded'),
+    m: t('statuspage.public.day.maintenance'),
+    n: t('statuspage.public.day.no_data'),
+  }[cls];
+  return { label, cls };
+}
 
 function DayPopover({ cellIndex, statusChar, slug, monitorIdx, activeIncidents, incidentHistory, onClose }) {
   const closeRef = useRef(null);
@@ -798,7 +811,7 @@ function DayPopover({ cellIndex, statusChar, slug, monitorIdx, activeIncidents, 
   const daysAgo = 90 - 1 - cellIndex;
   const dayStart = dayStartUtc(daysAgo);
   const dayEnd = new Date(dayStart.getTime() + 86_400_000);
-  const meta = DAY_STATUS[statusChar] || DAY_STATUS.n;
+  const meta = dayStatus(statusChar);
   const all = [...activeIncidents, ...incidentHistory];
   const touching = all.filter(inc => incidentTouchesDay(inc, dayStart, dayEnd));
 
@@ -829,7 +842,7 @@ function DayPopover({ cellIndex, statusChar, slug, monitorIdx, activeIncidents, 
     cellIndex > 77 ? 'translateX(-100%)' :
     'translateX(-50%)';
 
-  const dateLabel = dayStart.toLocaleDateString(undefined, {
+  const dateLabel = dayStart.toLocaleDateString(getLocale(), {
     weekday: 'short', month: 'long', day: 'numeric', year: 'numeric',
     timeZone: 'UTC',
   });
@@ -837,24 +850,24 @@ function DayPopover({ cellIndex, statusChar, slug, monitorIdx, activeIncidents, 
   return (
     <div className="day-pop" style={{ top: 'calc(100% + 4px)', left: `${pct}%`, transform }}
          onClick={e => e.stopPropagation()}>
-      <button ref={closeRef} className="day-pop-x" aria-label="Close" onClick={onClose}>×</button>
+      <button ref={closeRef} className="day-pop-x" aria-label={t('statuspage.public.close')} onClick={onClose}>×</button>
       <div className="day-pop-date">{dateLabel}</div>
       <span className={`day-pop-pill ${meta.cls}`}>{meta.label}</span>
       {showLatency && <HourlyLatencyChart latency={latency}/>}
       {!showLatency && statusChar === 'u' && (
         <div style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
-          All checks passed on this date.
+          {t('statuspage.public.day.all_passed')}
         </div>
       )}
       {touching.length > 0 && (
         <div className="day-pop-inc">
-          <div className="day-pop-inc-title">Incidents on this date</div>
+          <div className="day-pop-inc-title">{t('statuspage.public.day.incidents_on_date')}</div>
           <ul>
             {touching.map((inc, i) => (
               <li key={i}>
                 <strong>{inc.title}</strong>
                 {inc.resolved_at != null && (
-                  <span style={{ color: 'var(--text-3)' }}> · resolved</span>
+                  <span style={{ color: 'var(--text-3)' }}> {t('statuspage.public.day.resolved_suffix')}</span>
                 )}
               </li>
             ))}
@@ -872,10 +885,10 @@ function HourlyLatencyChart({ latency }) {
   if (latency.state === 'loading' || latency.state === 'idle') {
     return (
       <div className="day-pop-lat">
-        <div className="day-pop-lat-title">Hourly latency</div>
+        <div className="day-pop-lat-title">{t('statuspage.public.latency.title')}</div>
         <div className="day-pop-lat-state">
           <Loader2 size={14} style={{ animation: 'spin 1s linear infinite', verticalAlign: 'middle' }}/>
-          <span style={{ marginLeft: 6 }}>Loading…</span>
+          <span style={{ marginLeft: 6 }}>{t('statuspage.public.latency.loading')}</span>
         </div>
       </div>
     );
@@ -883,8 +896,8 @@ function HourlyLatencyChart({ latency }) {
   if (latency.state === 'err') {
     return (
       <div className="day-pop-lat">
-        <div className="day-pop-lat-title">Hourly latency</div>
-        <div className="day-pop-lat-state err">Couldn't load latency.</div>
+        <div className="day-pop-lat-title">{t('statuspage.public.latency.title')}</div>
+        <div className="day-pop-lat-state err">{t('statuspage.public.latency.error')}</div>
       </div>
     );
   }
@@ -897,8 +910,8 @@ function HourlyLatencyChart({ latency }) {
   if (valid.length === 0) {
     return (
       <div className="day-pop-lat">
-        <div className="day-pop-lat-title">Hourly latency</div>
-        <div className="day-pop-lat-state">No latency samples recorded.</div>
+        <div className="day-pop-lat-title">{t('statuspage.public.latency.title')}</div>
+        <div className="day-pop-lat-state">{t('statuspage.public.latency.no_samples')}</div>
       </div>
     );
   }
@@ -907,8 +920,8 @@ function HourlyLatencyChart({ latency }) {
   return (
     <div className="day-pop-lat">
       <div className="day-pop-lat-title">
-        <span>Hourly latency</span>
-        <span className="day-pop-lat-max">peak {Math.round(maxMs)} ms</span>
+        <span>{t('statuspage.public.latency.title')}</span>
+        <span className="day-pop-lat-max">{t('statuspage.public.latency.peak', { ms: Math.round(maxMs) })}</span>
       </div>
       <div className="day-pop-lat-chart">
         {dense.map((h) => {
@@ -918,8 +931,8 @@ function HourlyLatencyChart({ latency }) {
               <div
                 key={h.hour}
                 className="empty"
-                title={`${hh}:00 — no data`}
-                aria-label={`${hh}:00 no data`}
+                title={t('statuspage.public.latency.hour_no_data', { hh })}
+                aria-label={t('statuspage.public.latency.hour_no_data', { hh })}
               />
             );
           }
@@ -931,8 +944,8 @@ function HourlyLatencyChart({ latency }) {
             <div
               key={h.hour}
               style={{ height: `${Math.max(pct, 5)}%` }}
-              title={`${hh}:00 — ${ms}ms (${h.samples} sample${h.samples === 1 ? '' : 's'})`}
-              aria-label={`${hh}:00 ${ms} milliseconds, ${h.samples} samples`}
+              title={t(h.samples === 1 ? 'statuspage.public.latency.hour_ms_one' : 'statuspage.public.latency.hour_ms', { hh, ms, n: h.samples })}
+              aria-label={t('statuspage.public.latency.hour_ms_aria', { hh, ms, n: h.samples })}
             />
           );
         })}
@@ -946,15 +959,15 @@ function HourlyLatencyChart({ latency }) {
 
 function cellTitle(c, daysAgo) {
   const label = {
-    u: 'Operational',
-    d: 'Down',
-    w: 'Degraded',
-    m: 'Maintenance',
-    n: 'No data',
-  }[c] || 'Unknown';
-  if (daysAgo === 0)         return `${label} · today`;
-  if (daysAgo === 1)         return `${label} · yesterday`;
-  return `${label} · ${daysAgo} days ago`;
+    u: t('statuspage.public.day.operational'),
+    d: t('statuspage.public.day.down'),
+    w: t('statuspage.public.day.degraded'),
+    m: t('statuspage.public.day.maintenance'),
+    n: t('statuspage.public.day.no_data'),
+  }[c] || t('statuspage.public.day.unknown');
+  if (daysAgo === 0)         return t('statuspage.public.cell.today', { label });
+  if (daysAgo === 1)         return t('statuspage.public.cell.yesterday', { label });
+  return t('statuspage.public.cell.days_ago', { label, n: daysAgo });
 }
 
 function SubscribeBox({ slug }) {
@@ -962,10 +975,10 @@ function SubscribeBox({ slug }) {
   const [tab, setTab] = useState('email');
 
   const tabs = [
-    { id: 'email',   label: 'Email',   icon: Mail },
-    { id: 'rss',     label: 'RSS',     icon: Rss },
-    { id: 'atom',    label: 'Atom',    icon: Rss },
-    { id: 'webhook', label: 'Webhook', icon: Link2 },
+    { id: 'email',   label: t('statuspage.public.subscribe.email_tab'),   icon: Mail },
+    { id: 'rss',     label: t('statuspage.public.subscribe.rss_tab'),     icon: Rss },
+    { id: 'atom',    label: t('statuspage.public.subscribe.atom_tab'),    icon: Rss },
+    { id: 'webhook', label: t('statuspage.public.subscribe.webhook_tab'), icon: Link2 },
   ];
 
   return (
@@ -1012,13 +1025,13 @@ function EmailTab({ slug }) {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!email.includes('@')) { setErr('Enter a valid email.'); setState('err'); return; }
+    if (!email.includes('@')) { setErr(t('statuspage.public.subscribe.err_email')); setState('err'); return; }
     setState('sending'); setErr(null);
     try {
       await api.subscribers.subscribe(slug, email.trim());
       setState('ok');
     } catch (e2) {
-      setErr(e2.message || 'Subscribe failed.');
+      setErr(e2.message || t('statuspage.public.subscribe.err_failed'));
       setState('err');
     }
   };
@@ -1030,7 +1043,7 @@ function EmailTab({ slug }) {
         padding: '14px 18px', borderRadius: 9, fontSize: 13.5, fontWeight: 500,
         display: 'flex', alignItems: 'center', gap: 10,
       }}>
-        <Check size={16}/> Subscribed. We'll email you on every incident posted.
+        <Check size={16}/> {t('statuspage.public.subscribe.success')}
       </div>
     );
   }
@@ -1038,15 +1051,15 @@ function EmailTab({ slug }) {
   return (
     <>
       <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5 }}>
-        Get notified by email when an incident is posted and again on every update + when it's resolved.
+        {t('statuspage.public.subscribe.email_blurb')}
       </p>
       <form onSubmit={submit} style={{ display: 'flex', gap: 8 }}>
         <input className="sub-input" type="email" value={email}
           onChange={e => setEmail(e.target.value)}
-          placeholder="you@example.com"
+          placeholder={t('statuspage.public.subscribe.email_placeholder')}
           required/>
         <button className="sub-btn" type="submit" disabled={state === 'sending'}>
-          {state === 'sending' ? 'Subscribing…' : 'Subscribe'}
+          {state === 'sending' ? t('statuspage.public.subscribe.subscribing') : t('statuspage.public.subscribe.subscribe')}
         </button>
       </form>
       {state === 'err' && err && (
@@ -1076,7 +1089,7 @@ function CopyButton({ value }) {
   };
   return (
     <button onClick={copy} className="sub-btn" type="button" style={{ padding: '8px 12px' }}>
-      {copied ? <><Check size={13}/> Copied</> : <><Link2 size={13}/> Copy</>}
+      {copied ? <><Check size={13}/> {t('statuspage.public.copy.copied')}</> : <><Link2 size={13}/> {t('statuspage.public.copy.copy')}</>}
     </button>
   );
 }
@@ -1089,7 +1102,7 @@ function FeedTab({ slug, kind }) {
   return (
     <>
       <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5 }}>
-        Drop this {label} feed into any reader (Feedly, NetNewsWire, Reeder, Slack's <code style={{ background: 'var(--surface-2)', padding: '1px 5px', borderRadius: 4 }}>/feed</code>, etc.) to get a new entry per incident + a refresh on every update.
+        {t('statuspage.public.feed.blurb_pre', { format: label })}<code style={{ background: 'var(--surface-2)', padding: '1px 5px', borderRadius: 4 }}>/feed</code>{t('statuspage.public.feed.blurb_post')}
       </p>
       <div style={{ display: 'flex', gap: 8 }}>
         <input className="sub-input" readOnly value={url}
@@ -1097,7 +1110,7 @@ function FeedTab({ slug, kind }) {
           style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12.5 }}/>
         <CopyButton value={url}/>
         <a className="sub-btn" href={url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <Rss size={13}/> Open
+          <Rss size={13}/> {t('statuspage.public.feed.open')}
         </a>
       </div>
     </>
@@ -1108,10 +1121,10 @@ function WebhookTab() {
   return (
     <>
       <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5 }}>
-        Webhook subscriptions are configured on the operator side from <strong>Notifications → Channels</strong> inside the Rampart admin. Drop a Slack / Discord / Microsoft Teams / Generic Webhook there and tag it for this status page.
+        {t('statuspage.public.webhook.blurb_pre')}<strong>{t('statuspage.public.webhook.path')}</strong>{t('statuspage.public.webhook.blurb_post')}
       </p>
       <p style={{ margin: 0, fontSize: 12, color: 'var(--text-3)' }}>
-        If you don't run the Rampart instance hosting this page, ask the operator to wire your endpoint as a notification channel.
+        {t('statuspage.public.webhook.note')}
       </p>
     </>
   );
@@ -1129,14 +1142,14 @@ const STYLE_TO_BG = {
 function duration(start, end) {
   const ms = end.getTime() - start.getTime();
   const m = Math.round(ms / 60000);
-  if (m < 1)    return 'under a minute';
-  if (m < 60)   return `${m} minute${m === 1 ? '' : 's'}`;
+  if (m < 1)    return t('statuspage.public.duration.under_minute');
+  if (m < 60)   return t(m === 1 ? 'statuspage.public.duration.minute' : 'statuspage.public.duration.minutes', { n: m });
   const h = Math.floor(m / 60);
   const rm = m % 60;
-  if (h < 24)   return rm === 0 ? `${h} hour${h === 1 ? '' : 's'}` : `${h}h ${rm}m`;
+  if (h < 24)   return rm === 0 ? t(h === 1 ? 'statuspage.public.duration.hour' : 'statuspage.public.duration.hours', { n: h }) : t('statuspage.public.duration.hm', { h, m: rm });
   const d = Math.floor(h / 24);
   const rh = h % 24;
-  return rh === 0 ? `${d} day${d === 1 ? '' : 's'}` : `${d}d ${rh}h`;
+  return rh === 0 ? t(d === 1 ? 'statuspage.public.duration.day' : 'statuspage.public.duration.days', { n: d }) : t('statuspage.public.duration.dh', { d, h: rh });
 }
 
 function ResolvedIncident({ incident }) {
@@ -1155,11 +1168,11 @@ function ResolvedIncident({ incident }) {
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 4 }}>
           <strong style={{ fontSize: 14 }}>{incident.title}</strong>
           <span style={{ fontSize: 11, color: fg, fontWeight: 500, background: bg, padding: '2px 8px', borderRadius: 999 }}>
-            Resolved
+            {t('statuspage.public.incident.resolved')}
           </span>
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 6 }}>
-          {created.toLocaleDateString()} · lasted {duration(created, resolved)}
+          {t('statuspage.public.incident.lasted', { date: created.toLocaleDateString(getLocale()), duration: duration(created, resolved) })}
         </div>
         <div style={{ fontSize: 13, color: 'var(--text-2)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{incident.content}</div>
       </div>
@@ -1178,7 +1191,7 @@ function Incident({ incident }) {
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
         <strong style={{ fontSize: 15 }}>{incident.title}</strong>
         <span style={{ fontSize: 11, opacity: .75 }}>
-          posted {relative(toDate(incident.created_at))}
+          {t('statuspage.public.incident.posted', { when: relative(toDate(incident.created_at)) })}
         </span>
       </div>
       <div style={{ fontSize: 13.5, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{incident.content}</div>
