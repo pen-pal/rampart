@@ -79,10 +79,19 @@ export const api = {
       if (before) qs.set('before', before);
       return request(`/v1/monitors/${id}/heartbeats?${qs.toString()}`);
     },
-    /// Trailing-30d MTBF / MTTR + downtime event count. Backend computes
-    /// the window so all monitors render the same period regardless of
-    /// how much history the client has lazy-loaded.
-    reliability: (id)  => request(`/v1/monitors/${id}/reliability`),
+    /// MTBF / MTTR + downtime event count over a trailing window.
+    /// `windowDays` is one of 7 / 30 / 90; omitting it lets the backend
+    /// default to 30 (preserves the pre-toggle behaviour). Backend
+    /// computes everything from server-side heartbeat history so the
+    /// figures don't depend on what the client has lazy-loaded.
+    reliability: (id, windowDays) => {
+      const qs = windowDays ? `?window_days=${windowDays}` : '';
+      return request(`/v1/monitors/${id}/reliability${qs}`);
+    },
+    /// SLO error-budget over the monitor's configured window. Returns
+    /// 404 when the monitor has no SLO target set — callers should
+    /// only invoke this after checking `monitor.slo_target_pct`.
+    errorBudget: (id)  => request(`/v1/monitors/${id}/slo/error-budget`),
   },
   health: {
     live:  () => request('/healthz'),
@@ -189,6 +198,10 @@ export const api = {
     update:     (id, patch)         => request(`/v1/status-pages/${id}`, { method: 'PATCH', body: patch }),
     remove:     (id)                => request(`/v1/status-pages/${id}`, { method: 'DELETE' }),
     publicView: (slug)              => request(`/v1/public/status-pages/${slug}`),
+    // Per-hour latency for one UTC calendar day, scoped to the monitor at
+    // `monitorIdx` on the public page. `isoDate` is `YYYY-MM-DD`.
+    dayLatency: (slug, monitorIdx, isoDate) =>
+      request(`/v1/public/status-pages/${slug}/day-latency?monitor_idx=${encodeURIComponent(monitorIdx)}&date=${encodeURIComponent(isoDate)}`),
   },
   webpush: {
     vapidKey:    ()                          => request('/v1/webpush/vapid-key'),

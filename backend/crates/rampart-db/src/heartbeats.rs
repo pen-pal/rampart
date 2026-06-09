@@ -318,6 +318,55 @@ pub async fn daily_status(pool: &DbPool, monitor: MonitorId, days: i32) -> DbRes
     Ok(out)
 }
 
+/// Per-hour average latency for a single UTC calendar day. Returns a
+/// sparse `(hour, avg_latency_ms, samples)` tuple per hour that recorded
+/// at least one `status = 'up'` heartbeat. Hours with no successful
+/// samples are absent from the result — the caller renders them as
+/// no-data buckets.
+///
+/// Powers the per-day latency mini-chart on the public status page's
+/// day-drilldown popover. Single GROUP BY query — cheap enough to call
+/// on every popover open.
+pub async fn day_hourly_latency(
+    pool: &DbPool,
+    monitor: MonitorId,
+    day: time::Date,
+) -> DbResult<Vec<(i32, Option<f32>, i32)>> {
+    // Build the [day_start, day_end) UTC half-open window. `with_hms`
+    // at (0,0,0) can never fail — those are always valid components.
+    let day_start = day
+        .with_hms(0, 0, 0)
+        .expect("00:00:00 is always a valid time-of-day")
+        .assume_utc();
+    let day_end = day_start + time::Duration::hours(24);
+
+    let rows = sqlx::query!(
+        r#"
+        SELECT
+            EXTRACT(HOUR FROM date_trunc('hour', ts AT TIME ZONE 'UTC'))::int AS "hour!",
+            AVG(latency_ms)::float4   AS avg_latency_ms,
+            COUNT(*)::int             AS "samples!"
+        FROM heartbeats
+        WHERE monitor_id = $1
+          AND ts >= $2
+          AND ts <  $3
+          AND status = 'up'
+        GROUP BY 1
+        ORDER BY 1
+        "#,
+        monitor.0,
+        day_start,
+        day_end,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|r| (r.hour, r.avg_latency_ms, r.samples))
+        .collect())
+}
+
 fn status_str(s: MonitorStatus) -> &'static str {
     match s {
         MonitorStatus::Up => "up",
@@ -563,6 +612,92 @@ pub async fn mtbf_mttr(
         mtbf_secs,
         mttr_secs,
         downtime_events: failures,
+    })
+}
+
+/// SLO error-budget rollup for a single monitor over the configured
+/// window. The "fuel gauge" surface on the Overview tab: shows the
+/// operator how much downtime they have left to burn this window before
+/// the SLO is breached.
+///
+/// * `allowed_downtime_secs` = `(100 - target_pct) / 100 * window_seconds`
+/// * `used_downtime_secs`    = sum of heartbeat-derived down-segment
+///   durations in the window (same walk as [`mtbf_mttr`])
+/// * `remaining_downtime_secs` = `max(0, allowed - used)`
+/// * `remaining_pct` = `(remaining / allowed) * 100`, or `100.0` when
+///   `allowed` is zero (a 100% SLO leaves no budget — but the field
+///   must still serialise as a finite number rather than NaN).
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ErrorBudget {
+    pub window_days: i32,
+    pub target_pct: f64,
+    pub allowed_downtime_secs: i64,
+    pub used_downtime_secs: i64,
+    pub remaining_downtime_secs: i64,
+    pub remaining_pct: f64,
+}
+
+/// Compute the SLO error-budget for a monitor over `window_days` against
+/// `target_pct`. Walks the heartbeat history in ascending-ts order (the
+/// same approach used by [`mtbf_mttr`]) so down-segment durations come
+/// from the timeline between consecutive heartbeats, not from a naive
+/// `down_count * interval` approximation.
+pub async fn error_budget(
+    pool: &DbPool,
+    monitor: MonitorId,
+    window_days: i32,
+    target_pct: f64,
+) -> DbResult<ErrorBudget> {
+    let window_seconds = (window_days as i64) * 86_400;
+    let allowed_raw = ((100.0 - target_pct) / 100.0) * window_seconds as f64;
+    let allowed = allowed_raw.round().max(0.0) as i64;
+
+    let since = OffsetDateTime::now_utc() - time::Duration::seconds(window_seconds);
+    let rows = sqlx::query!(
+        r#"
+        SELECT
+            ts,
+            status AS "status: MonitorStatus"
+        FROM heartbeats
+        WHERE monitor_id = $1 AND ts >= $2
+        ORDER BY ts ASC
+        "#,
+        monitor.0,
+        since,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    // Sum down-segment durations the same way `mtbf_mttr` does: each
+    // (prev, curr) pair contributes `curr.ts - prev.ts` to prev.status's
+    // bucket. Only the `down` bucket matters here.
+    let mut used: i64 = 0;
+    for win in rows.windows(2) {
+        let prev = &win[0];
+        let curr = &win[1];
+        if matches!(prev.status, MonitorStatus::Down) {
+            let dur = (curr.ts - prev.ts).whole_seconds().max(0);
+            used += dur;
+        }
+    }
+
+    let remaining = (allowed - used).max(0);
+    // A 100% SLO has no budget by definition; report 100 so the frontend
+    // can render a full bar instead of NaN. Otherwise (remaining /
+    // allowed) is a finite ratio.
+    let remaining_pct = if allowed > 0 {
+        (remaining as f64 / allowed as f64) * 100.0
+    } else {
+        100.0
+    };
+
+    Ok(ErrorBudget {
+        window_days,
+        target_pct,
+        allowed_downtime_secs: allowed,
+        used_downtime_secs: used,
+        remaining_downtime_secs: remaining,
+        remaining_pct,
     })
 }
 
