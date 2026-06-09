@@ -143,6 +143,20 @@ pub struct PublicStatusMonitor {
     /// Always exactly 90 characters. Rendered as the dense per-monitor
     /// timeline bar on the public status page.
     pub daily_status_90d: String,
+    /// 12-month uptime summary, oldest month first; today's month sits
+    /// at the final index. Each chip rendered under the daily strip as
+    /// "Jul 99.97%" / "Aug 100%" / etc. `uptime_pct` is None when no
+    /// heartbeats were recorded that month so the UI can show a quiet
+    /// "no data" chip instead of a misleading 0%.
+    #[serde(default)]
+    pub monthly_uptime_12mo: Vec<MonthlyUptimePoint>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MonthlyUptimePoint {
+    /// First day of the month, UTC.
+    pub year_month: time::Date,
+    pub uptime_pct: Option<f32>,
 }
 
 // Compile the slug regex once. We mirror the Postgres CHECK constraint

@@ -6,8 +6,8 @@
 
 use crate::{heartbeats, DbError, DbPool, DbResult};
 use rampart_core::status_page::{
-    NewStatusPage, PublicIncident, PublicIncidentUpdate, PublicResolvedIncident,
-    PublicStatusMonitor, PublicStatusPage, StatusPage, UpdateStatusPage,
+    MonthlyUptimePoint, NewStatusPage, PublicIncident, PublicIncidentUpdate,
+    PublicResolvedIncident, PublicStatusMonitor, PublicStatusPage, StatusPage, UpdateStatusPage,
 };
 use rampart_core::{MonitorId, StatusPageId};
 use time::OffsetDateTime;
@@ -256,12 +256,21 @@ pub async fn public_view(pool: &DbPool, slug: &str) -> DbResult<PublicStatusPage
         // Vec<u8> of ASCII chars → String. Each byte is one of
         // 'u'/'d'/'w'/'m'/'n' as documented on PublicStatusMonitor.
         let daily_str = String::from_utf8(daily).unwrap_or_default();
+        let monthly = heartbeats::monthly_uptime(pool, *mid, 12).await?;
+        let monthly_points: Vec<MonthlyUptimePoint> = monthly
+            .into_iter()
+            .map(|p| MonthlyUptimePoint {
+                year_month: p.year_month,
+                uptime_pct: p.uptime_pct,
+            })
+            .collect();
         monitors.push(PublicStatusMonitor {
             name: m.name,
             current_status: m.current_status,
             uptime_90d: uptime,
             avg_latency_ms_24h: avg_lat,
             daily_status_90d: daily_str,
+            monthly_uptime_12mo: monthly_points,
         });
     }
 
