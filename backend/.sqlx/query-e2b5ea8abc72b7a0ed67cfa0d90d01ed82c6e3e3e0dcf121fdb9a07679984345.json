@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO incidents\n            (id, status_page_id, title, content, style, pinned, created_by)\n        VALUES ($1, $2, $3, $4, $5, $6, $7)\n        RETURNING\n            id, status_page_id, title, content,\n            style AS \"style: IncidentStyle\",\n            pinned, active, resolved_at, created_at, created_by\n        ",
+  "query": "\n        SELECT\n            id, status_page_id, title, content,\n            style AS \"style: IncidentStyle\",\n            pinned, active, resolved_at, created_at, created_by, dedup_key\n        FROM incidents\n        WHERE status_page_id = $1\n        ORDER BY active DESC, pinned DESC, created_at DESC\n        ",
   "describe": {
     "columns": [
       {
@@ -125,29 +125,21 @@
             "name": "created_by"
           }
         }
+      },
+      {
+        "ordinal": 10,
+        "name": "dedup_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "incidents",
+            "name": "dedup_key"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid",
-        "Uuid",
-        "Text",
-        "Text",
-        {
-          "Custom": {
-            "name": "incident_style",
-            "kind": {
-              "Enum": [
-                "info",
-                "warning",
-                "danger",
-                "primary",
-                "success"
-              ]
-            }
-          }
-        },
-        "Bool",
         "Uuid"
       ]
     },
@@ -161,8 +153,9 @@
       false,
       true,
       false,
+      true,
       true
     ]
   },
-  "hash": "3d6c7e229c3035685bb1bff37377e77a3d606d097960913148d369b37d3897d5"
+  "hash": "e2b5ea8abc72b7a0ed67cfa0d90d01ed82c6e3e3e0dcf121fdb9a07679984345"
 }

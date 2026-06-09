@@ -1,8 +1,16 @@
-# Inbound Alert Ingestion (Prometheus Alertmanager)
+# Inbound Alert Ingestion (Alertmanager / Grafana / Datadog)
 
 Rampart can accept alerts pushed from external monitoring systems and turn
-them into status-page incidents. The first supported source is
-**Prometheus Alertmanager**, via its native webhook receiver.
+them into status-page incidents. The supported sources are:
+
+- **Prometheus Alertmanager** — `POST /v1/public/ingest/alertmanager/{token}`
+- **Grafana** (unified alerting) — `POST /v1/public/ingest/grafana/{token}`
+- **Datadog** (webhook integration) — `POST /v1/public/ingest/datadog/{token}`
+
+All three share the same token auth, the same status-page resolution, and
+the same create-or-resolve incident core; they differ only in how their
+vendor payload is parsed. The Alertmanager receiver is documented first and
+in full; the Grafana and Datadog sections below only cover what differs.
 
 The flow:
 
@@ -153,23 +161,33 @@ Each entry in `alerts` is processed independently:
 
 | Alertmanager field | Incident mapping |
 |--------------------|------------------|
-| `status: "firing"` | Create a new incident on the token's status page. |
-| `status: "resolved"` | Resolve the most recent **active** incident on the page whose title matches the dedup key. |
-| `labels.alertname` | Incident **title** (also the dedup key for resolution). Falls back to `annotations.summary` if absent. |
+| `status: "firing"` | Create a new incident on the token's status page (stamped with the dedup key). |
+| `status: "resolved"` | Resolve the **active** incident on the page whose `dedup_key` matches. |
+| `fingerprint` | Incident **dedup key** — the stable handle used to match a resolve back to its firing. Falls back to `alertname` (then title) when absent. |
+| `labels.alertname` | Incident **title**. Falls back to `annotations.summary` if absent. |
 | `annotations.description` | Incident **content** (falls back to `annotations.summary`, then empty). |
 | `labels.severity` | Incident **style**: `critical` → `danger`, `warning` → `warning`, anything else → `info`. |
 
 ### Resolution / deduplication
 
-Resolution matches on the incident **title**, which is set from
-`alertname`. When a `resolved` alert arrives, Rampart finds the newest
-active incident on that page with the same title and marks it resolved. So
-keep `alertname` stable between the firing and resolved payloads (which
-Alertmanager does by default).
+Resolution matches on a stable **dedup key**, not the title. On firing,
+Rampart stores the alert's `fingerprint` (Alertmanager >= 0.22 sends one) as
+the incident's `dedup_key`. When the matching `resolved` alert arrives — it
+carries the same `fingerprint` — Rampart finds the active incident on that
+page with that exact key and marks it resolved. This is robust even when two
+distinct alerts share a title.
 
-If no matching active incident exists (already resolved, or never created),
-the resolved alert is a no-op and is simply not counted in the response
-`resolved` total.
+If the sender omits `fingerprint`, Rampart falls back to using the
+`alertname` (then the title) as the dedup key, which dedups loosely.
+
+A partial unique index keeps at most one **active** incident per
+`(status_page_id, dedup_key)`: a duplicate firing for an already-open
+incident is treated as already-reported and is **not** counted in the
+response `created` total (no second incident is opened).
+
+If no matching active incident exists on a resolve (already resolved, or
+never created), the resolved alert is a no-op and is not counted in the
+response `resolved` total.
 
 ### Notes
 
@@ -181,3 +199,106 @@ the resolved alert is a no-op and is simply not counted in the response
   incidents are written directly via the DB layer and currently do **not**
   trigger subscriber emails. This keeps a noisy alert source from blasting
   the subscriber list. Revisit if you want ingest-driven notifications.
+
+---
+
+## 5. Grafana (unified alerting)
+
+Grafana's unified-alerting webhook contact point posts a body that is
+intentionally Alertmanager-shaped, so Rampart reuses the exact same parser.
+
+The receiver lives at:
+
+```
+POST /v1/public/ingest/grafana/{token}
+```
+
+Configure a **Webhook** contact point in Grafana (Alerting → Contact points)
+with the full ingest URL:
+
+```
+https://rampart.example.com/v1/public/ingest/grafana/ing_X0a9...40chars...
+```
+
+Grafana sends a payload of the form:
+
+```json
+{
+  "status": "firing",
+  "alerts": [
+    {
+      "status": "firing",
+      "labels": { "alertname": "HighErrorRate", "severity": "critical" },
+      "annotations": {
+        "summary": "Error rate above 5%",
+        "description": "The API error rate has exceeded 5% for 5 minutes."
+      },
+      "fingerprint": "a1b2c3d4e5f6"
+    }
+  ]
+}
+```
+
+Mapping is identical to Alertmanager:
+
+| Grafana field | Incident mapping |
+|---------------|------------------|
+| `alerts[].status: "firing"` | Create an incident (stamped with the dedup key). |
+| `alerts[].status: "resolved"` | Resolve the active incident with the matching `dedup_key`. |
+| `alerts[].fingerprint` | Incident **dedup key** (falls back to `alertname`/title if absent). |
+| `alerts[].labels.alertname` | Incident **title** (falls back to `annotations.summary`). |
+| `alerts[].annotations.description` | Incident **content** (falls back to `summary`, then empty). |
+| `alerts[].labels.severity` | Incident **style** (`critical`→`danger`, `warning`→`warning`, else `info`). |
+
+Grafana stamps each alert with a stable `fingerprint` across the firing and
+resolved notifications, so resolution is exact. Returns `202 Accepted` with
+the same `{ "created": N, "resolved": M }` summary; an unknown token returns
+`404 Not Found`.
+
+---
+
+## 6. Datadog
+
+Datadog posts a single event per webhook. The body is operator-templated;
+Rampart assumes the **documented default** template (the `$EVENT_*`
+variables), so configure your Datadog webhook integration to emit:
+
+```json
+{
+  "alert_type": "$EVENT_TYPE",
+  "title": "$EVENT_TITLE",
+  "body": "$TEXT_ONLY_MSG",
+  "alert_id": "$ALERT_ID",
+  "alert_transition": "$ALERT_TRANSITION"
+}
+```
+
+The receiver lives at:
+
+```
+POST /v1/public/ingest/datadog/{token}
+```
+
+In Datadog (Integrations → Webhooks), add a webhook whose **URL** is the full
+ingest URL and whose **Payload** is the JSON template above:
+
+```
+https://rampart.example.com/v1/public/ingest/datadog/ing_X0a9...40chars...
+```
+
+Mapping:
+
+| Datadog field | Incident mapping |
+|---------------|------------------|
+| `alert_transition: "Triggered"` (or anything not `Recovered`) | Create an incident. |
+| `alert_transition: "Recovered"` | Resolve the active incident with the matching `dedup_key`. |
+| `alert_id` | Incident **dedup key** (falls back to `title` if absent). |
+| `title` | Incident **title** (falls back to the dedup key if empty). |
+| `body` | Incident **content**. |
+| `alert_type` | Incident **style**: `error`→`danger`, `warning`→`warning`, anything else (`success`/`info`)→`info`. |
+
+`alert_id` is stable across the `Triggered` and `Recovered` transitions for a
+given monitor alert, so resolution is exact. An event with neither an
+`alert_id` nor a `title` is a no-op. Returns `202 Accepted` with the same
+`{ "created": N, "resolved": M }` summary; an unknown token returns
+`404 Not Found`.

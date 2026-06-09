@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            id, status_page_id, title, content,\n            style AS \"style: IncidentStyle\",\n            pinned, active, resolved_at, created_at, created_by\n        FROM incidents\n        WHERE status_page_id = $1\n        ORDER BY active DESC, pinned DESC, created_at DESC\n        ",
+  "query": "\n        SELECT\n            id, status_page_id, title, content,\n            style AS \"style: IncidentStyle\",\n            pinned, active, resolved_at, created_at, created_by, dedup_key\n        FROM incidents\n        WHERE status_page_id = $1 AND active AND dedup_key = $2\n        ORDER BY created_at DESC\n        LIMIT 1\n        ",
   "describe": {
     "columns": [
       {
@@ -125,11 +125,23 @@
             "name": "created_by"
           }
         }
+      },
+      {
+        "ordinal": 10,
+        "name": "dedup_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "incidents",
+            "name": "dedup_key"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Uuid",
+        "Text"
       ]
     },
     "nullable": [
@@ -142,8 +154,9 @@
       false,
       true,
       false,
+      true,
       true
     ]
   },
-  "hash": "dc9e9cfe56bd3c3cf6e3e36e1fd60fdd6d8e445df400228cfd85d9a524778792"
+  "hash": "d972982ad111ff1076420a64333c8036ebd9ac1b3c09118f5423e052e060c85e"
 }
