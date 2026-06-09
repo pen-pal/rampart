@@ -43,6 +43,12 @@ struct MonitorRow {
     cert_subject: Option<String>,
     cert_checked_at: Option<OffsetDateTime>,
     group_id: Option<Uuid>,
+    // SLO settings. Both NULL when no SLO is configured for this monitor.
+    // Stored as f64 / i32 here so the row maps cleanly onto Monitor without
+    // needing a numeric crate round-trip; the underlying column is
+    // NUMERIC(5,3) so the SELECTs cast to float8 (see queries below).
+    slo_target_pct: Option<f64>,
+    slo_window_days: Option<i32>,
 }
 
 impl From<MonitorRow> for Monitor {
@@ -79,6 +85,8 @@ impl From<MonitorRow> for Monitor {
             cert_subject: r.cert_subject,
             cert_checked_at: r.cert_checked_at,
             group_id: r.group_id.map(MonitorGroupId::from_uuid),
+            slo_target_pct: r.slo_target_pct,
+            slo_window_days: r.slo_window_days,
         }
     }
 }
@@ -105,14 +113,16 @@ pub async fn create(pool: &DbPool, input: NewMonitor) -> DbResult<Monitor> {
             timeout_seconds, resend_interval_sec, upside_down,
             http_method, http_body, http_headers,
             accepted_statuses, follow_redirect, ignore_tls, proxy_id,
-            push_token, group_id
+            push_token, group_id,
+            slo_target_pct, slo_window_days
         ) VALUES (
             $1, $2, $3, $4, $5, $6, $7,
             $8, $9, $10,
             $11, $12, $13,
             $14, $15, $16,
             $17, $18, $19, $20,
-            $21, $22
+            $21, $22,
+            $23::float8::numeric, $24
         )
         RETURNING
             id, name,
@@ -127,7 +137,9 @@ pub async fn create(pool: &DbPool, input: NewMonitor) -> DbResult<Monitor> {
             current_status AS "current_status: MonitorStatus",
             created_at, updated_at,
             cert_days_left, cert_subject, cert_checked_at,
-            group_id
+            group_id,
+            slo_target_pct::float8 AS "slo_target_pct?",
+            slo_window_days
         "#,
         id.0,
         input.name,
@@ -151,6 +163,8 @@ pub async fn create(pool: &DbPool, input: NewMonitor) -> DbResult<Monitor> {
         proxy_uuid,
         push_token,
         input.group_id.map(|g| g.0),
+        input.slo_target_pct,
+        input.slo_window_days,
     )
     .fetch_one(pool)
     .await?;
@@ -270,7 +284,9 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<Monitor>> {
             current_status AS "current_status: MonitorStatus",
             created_at, updated_at,
             cert_days_left, cert_subject, cert_checked_at,
-            group_id
+            group_id,
+            slo_target_pct::float8 AS "slo_target_pct?",
+            slo_window_days
         FROM monitors
         ORDER BY created_at DESC
         "#,
@@ -306,7 +322,9 @@ pub async fn get(pool: &DbPool, id: MonitorId) -> DbResult<Monitor> {
             current_status AS "current_status: MonitorStatus",
             created_at, updated_at,
             cert_days_left, cert_subject, cert_checked_at,
-            group_id
+            group_id,
+            slo_target_pct::float8 AS "slo_target_pct?",
+            slo_window_days
         FROM monitors
         WHERE id = $1
         "#,
@@ -386,6 +404,29 @@ pub async fn update(pool: &DbPool, id: MonitorId, patch: UpdateMonitor) -> DbRes
         sqlx::query!(
             r#"UPDATE monitors SET group_id = $1 WHERE id = $2"#,
             g.map(|x| x.0),
+            id.0,
+        )
+        .execute(pool)
+        .await?;
+    }
+
+    // SLO target + window: same Option<Option<…>> story. Send `null` to
+    // clear; omit to leave alone. The DB CHECK constraint enforces the
+    // 90.0–100.0 / 1–90 ranges, so a bad value surfaces as a DbError
+    // even if the route layer's validation slips.
+    if let Some(t) = patch.slo_target_pct {
+        sqlx::query!(
+            r#"UPDATE monitors SET slo_target_pct = $1::float8::numeric WHERE id = $2"#,
+            t,
+            id.0,
+        )
+        .execute(pool)
+        .await?;
+    }
+    if let Some(w) = patch.slo_window_days {
+        sqlx::query!(
+            r#"UPDATE monitors SET slo_window_days = $1 WHERE id = $2"#,
+            w,
             id.0,
         )
         .execute(pool)

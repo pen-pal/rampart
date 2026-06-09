@@ -1,0 +1,55 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            ts,\n            status AS \"status: MonitorStatus\"\n        FROM heartbeats\n        WHERE monitor_id = $1 AND ts >= $2\n        ORDER BY ts ASC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "ts",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "heartbeats",
+            "name": "ts"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "status: MonitorStatus",
+        "type_info": {
+          "Custom": {
+            "name": "monitor_status",
+            "kind": {
+              "Enum": [
+                "up",
+                "down",
+                "warn",
+                "paused",
+                "pending",
+                "maintenance"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "heartbeats",
+            "name": "status"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "0401bf717a22c1c6b4b797fa5a64997d85f52c4247581d311ba55152b067ab5a"
+}

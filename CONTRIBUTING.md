@@ -36,6 +36,10 @@ The core feature set is shipped (38 probe kinds, 130 notification channels, stat
 - **UI polish + bug-fixes** — see open issues tagged [`good-first-issue`](https://github.com/pen-pal/rampart/labels/good-first-issue) and [`help-wanted`](https://github.com/pen-pal/rampart/labels/help-wanted).
 - **Docs** — production deployment recipes, Helm charts, Terraform modules, language-specific push-monitor client snippets.
 
+### 🚧 Known gaps
+
+- **SLO breach notifications.** Schema (`slo_target_pct` / `slo_window_days` on `monitors`), the rolling-window helper (`rampart_db::heartbeats::current_slo_uptime_pct`), and the Edit-modal + Overview-tab UI fields shipped in migration `0044`. Wiring the per-heartbeat breach detector into `rampart-notifier` (new `EventKind::SloBreached` / `EventKind::SloRecovered`, default templates per channel, de-duplication so a single breach pages once) is still TODO. Until then, operators see the SLO card go red on the dashboard but receive no push / email / Slack alert for the breach. Pick this up if you want to close the loop — keep it a single check, not a full error-budget calculator.
+
 ---
 
 ## 📂 Project Layout

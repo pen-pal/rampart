@@ -197,6 +197,16 @@ pub struct Monitor {
     /// Optional cosmetic group. NULL → default bucket.
     #[serde(default)]
     pub group_id: Option<MonitorGroupId>,
+    /// Optional per-monitor SLO target. `90.000` .. `100.000` when set,
+    /// expressed as a percentage. NULL means "no SLO configured" — the
+    /// frontend hides the SLO card and the breach detector short-circuits.
+    #[serde(default)]
+    pub slo_target_pct: Option<f64>,
+    /// Rolling SLO window in days. Defaults to 30 at the DB layer; we
+    /// keep this `Option` here so the field reads consistently with
+    /// `slo_target_pct` (both either set or unset together).
+    #[serde(default)]
+    pub slo_window_days: Option<i32>,
 }
 
 /// Payload accepted when creating a monitor. Kind/url/hostname validation
@@ -263,6 +273,18 @@ pub struct NewMonitor {
 
     #[serde(default)]
     pub group_id: Option<MonitorGroupId>,
+
+    /// Optional SLO target percent (90.0 — 100.0 inclusive).
+    #[validate(range(min = 90.0, max = 100.0))]
+    #[serde(default)]
+    pub slo_target_pct: Option<f64>,
+
+    /// Optional SLO window in days (1 — 90 inclusive). DB-side default
+    /// is 30, so callers can leave this unset and still get a sensible
+    /// default once an SLO target is supplied.
+    #[validate(range(min = 1, max = 90))]
+    #[serde(default)]
+    pub slo_window_days: Option<i32>,
 }
 
 /// Partial update payload for PATCH /v1/monitors/:id. Every field is
@@ -313,6 +335,21 @@ pub struct UpdateMonitor {
     /// then PATCH again — but the double-option pattern is the cleanest.
     #[serde(default, deserialize_with = "deserialize_optional_group_id")]
     pub group_id: Option<Option<MonitorGroupId>>,
+
+    /// Update the SLO target. Sending `null` clears the SLO; omitting
+    /// the field leaves it unchanged. Uses the same Option<Option<…>>
+    /// pattern as `group_id` so callers can distinguish "no change"
+    /// from "explicitly clear". The 90.0 — 100.0 range is enforced by
+    /// the DB CHECK constraint; the route layer validates ahead of the
+    /// DB hit so the operator gets a friendlier error message.
+    #[serde(default, deserialize_with = "deserialize_optional_f64")]
+    pub slo_target_pct: Option<Option<f64>>,
+
+    /// Update the SLO window in days. Like `slo_target_pct` above —
+    /// `null` clears, omitted leaves untouched. Range (1 — 90) checked
+    /// at the DB layer; route layer validates ahead.
+    #[serde(default, deserialize_with = "deserialize_optional_i32")]
+    pub slo_window_days: Option<Option<i32>>,
 }
 
 fn deserialize_optional_group_id<'de, D>(de: D) -> Result<Option<Option<MonitorGroupId>>, D::Error>
@@ -320,6 +357,22 @@ where
     D: serde::Deserializer<'de>,
 {
     let v: Option<MonitorGroupId> = Option::deserialize(de)?;
+    Ok(Some(v))
+}
+
+fn deserialize_optional_f64<'de, D>(de: D) -> Result<Option<Option<f64>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let v: Option<f64> = Option::deserialize(de)?;
+    Ok(Some(v))
+}
+
+fn deserialize_optional_i32<'de, D>(de: D) -> Result<Option<Option<i32>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let v: Option<i32> = Option::deserialize(de)?;
     Ok(Some(v))
 }
 

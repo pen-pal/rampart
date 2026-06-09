@@ -43,6 +43,8 @@ pub fn sample_monitor() -> Monitor {
         cert_subject: None,
         cert_checked_at: None,
         group_id: None,
+        slo_target_pct: None,
+        slo_window_days: None,
     }
 }
 

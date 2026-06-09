@@ -232,6 +232,8 @@ async fn send_test(
         cert_subject: None,
         cert_checked_at: None,
         group_id: None,
+        slo_target_pct: None,
+        slo_window_days: None,
     };
     let test_hb = rampart_core::Heartbeat {
         monitor_id: test_monitor.id,

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            id, name,\n            kind   AS \"kind: MonitorKind\",\n            url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, last_push_at,\n            active,\n            current_status AS \"current_status: MonitorStatus\",\n            created_at, updated_at,\n            cert_days_left, cert_subject, cert_checked_at,\n            group_id\n        FROM monitors\n        WHERE id = $1\n        ",
+  "query": "\n        SELECT\n            id, name,\n            kind   AS \"kind: MonitorKind\",\n            url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, last_push_at,\n            active,\n            current_status AS \"current_status: MonitorStatus\",\n            created_at, updated_at,\n            cert_days_left, cert_subject, cert_checked_at,\n            group_id,\n            slo_target_pct::float8 AS \"slo_target_pct?\",\n            slo_window_days\n        FROM monitors\n        WHERE id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -392,6 +392,23 @@
             "name": "group_id"
           }
         }
+      },
+      {
+        "ordinal": 30,
+        "name": "slo_target_pct?",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 31,
+        "name": "slo_window_days",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "slo_window_days"
+          }
+        }
       }
     ],
     "parameters": {
@@ -429,8 +446,10 @@
       true,
       true,
       true,
+      true,
+      null,
       true
     ]
   },
-  "hash": "48c03aac61e58beda0e9ca572c53faa96f9e2eb7cd7d7baf0ede6f588eb9da3d"
+  "hash": "484d1b0c2ed99f0b98ea2fd688c2be0b8e7849cbeafd61a70593d37b94b8b7eb"
 }

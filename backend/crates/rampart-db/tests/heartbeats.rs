@@ -29,6 +29,8 @@ fn http_monitor(name: &str) -> NewMonitor {
         ignore_tls: false,
         proxy_id: None,
         group_id: None,
+        slo_target_pct: None,
+        slo_window_days: None,
     }
 }
 
@@ -178,6 +180,102 @@ async fn recent_per_monitor_groups_correctly(pool: PgPool) {
     let b_count = all.iter().filter(|h| h.monitor_id == b.id).count();
     assert_eq!(a_count, 2);
     assert_eq!(b_count, 1);
+}
+
+mod tests {
+    //! MTBF / MTTR rollup tests. Kept in their own module so the
+    //! `heartbeats::tests::mtbf*` cargo-test filter matches just these
+    //! cases without dragging in every other heartbeat integration test.
+
+    use super::{hb, http_monitor};
+    use rampart_core::MonitorStatus;
+    use rampart_db::heartbeats::{insert_many, mtbf_mttr};
+    use rampart_db::monitors;
+    use sqlx::PgPool;
+
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn mtbf_empty_history(pool: PgPool) {
+        let m = monitors::create(&pool, http_monitor("mtbf-empty"))
+            .await
+            .unwrap();
+        let r = mtbf_mttr(&pool, m.id, 86_400).await.unwrap();
+        assert_eq!(r.downtime_events, 0);
+        assert!(r.mtbf_secs.is_none());
+        assert!(r.mttr_secs.is_none());
+    }
+
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn mtbf_no_failures_when_always_up(pool: PgPool) {
+        let m = monitors::create(&pool, http_monitor("mtbf-allup"))
+            .await
+            .unwrap();
+        let hbs: Vec<_> = (0..5)
+            .map(|i| hb(m.id, MonitorStatus::Up, 50, (5 - i) * 60))
+            .collect();
+        insert_many(&pool, &hbs).await.unwrap();
+        let r = mtbf_mttr(&pool, m.id, 86_400).await.unwrap();
+        assert_eq!(r.downtime_events, 0);
+        assert!(r.mtbf_secs.is_none(), "no failures → MTBF undefined");
+        assert!(r.mttr_secs.is_none(), "no recoveries → MTTR undefined");
+    }
+
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn mtbf_basic_failure_and_recovery(pool: PgPool) {
+        // Timeline (oldest → newest), in seconds-ago at insert time:
+        //   400s-ago  up
+        //   300s-ago  up    (segment 400→300 = 100s up)
+        //   200s-ago  down  (segment 300→200 = 100s up, transition up→down)
+        //   100s-ago  up    (segment 200→100 = 100s down, transition down→up)
+        //     0s-ago  up    (segment 100→0   = 100s up)
+        //
+        // total_up_secs   = 100 + 100 + 100 = 300 → MTBF = 300 / 1 failure  = 300
+        // total_down_secs = 100               → MTTR = 100 / 1 recovery   = 100
+        let m = monitors::create(&pool, http_monitor("mtbf-basic"))
+            .await
+            .unwrap();
+        let hbs = vec![
+            hb(m.id, MonitorStatus::Up, 50, 400),
+            hb(m.id, MonitorStatus::Up, 50, 300),
+            hb(m.id, MonitorStatus::Down, 0, 200),
+            hb(m.id, MonitorStatus::Up, 50, 100),
+            hb(m.id, MonitorStatus::Up, 50, 0),
+        ];
+        insert_many(&pool, &hbs).await.unwrap();
+
+        let r = mtbf_mttr(&pool, m.id, 86_400).await.unwrap();
+        assert_eq!(r.downtime_events, 1, "one up→down transition");
+        assert_eq!(r.mtbf_secs, Some(300));
+        assert_eq!(r.mttr_secs, Some(100));
+    }
+
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn mtbf_window_excludes_older_heartbeats(pool: PgPool) {
+        // One failure inside the 1h window, one ancient failure outside
+        // it. Only the in-window one should contribute.
+        let m = monitors::create(&pool, http_monitor("mtbf-window"))
+            .await
+            .unwrap();
+        let hbs = vec![
+            // Outside (~2h ago): up→down→up. Should be excluded.
+            hb(m.id, MonitorStatus::Up, 50, 8000),
+            hb(m.id, MonitorStatus::Down, 0, 7900),
+            hb(m.id, MonitorStatus::Up, 50, 7800),
+            // Inside (last 1h): up→down→up.
+            hb(m.id, MonitorStatus::Up, 50, 2400),
+            hb(m.id, MonitorStatus::Up, 50, 2100),
+            hb(m.id, MonitorStatus::Down, 0, 1800),
+            hb(m.id, MonitorStatus::Up, 50, 1500),
+        ];
+        insert_many(&pool, &hbs).await.unwrap();
+
+        let r = mtbf_mttr(&pool, m.id, 3600).await.unwrap();
+        assert_eq!(
+            r.downtime_events, 1,
+            "only the in-window failure should be counted"
+        );
+        assert!(r.mtbf_secs.is_some());
+        assert!(r.mttr_secs.is_some());
+    }
 }
 
 #[sqlx::test(migrations = "../../migrations")]

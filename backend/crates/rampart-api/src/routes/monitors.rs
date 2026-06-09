@@ -31,6 +31,7 @@ pub fn router() -> Router<AppState> {
         .route("/{id}", get(get_one).patch(update).delete(delete_one))
         .route("/{id}/heartbeats", get(heartbeats))
         .route("/{id}/heartbeats.csv", get(heartbeats_csv))
+        .route("/{id}/reliability", get(reliability))
         .route("/{id}/pause", post(pause))
         .route("/{id}/resume", post(resume))
         .route("/{id}/clone", post(clone_one))
@@ -338,6 +339,8 @@ async fn clone_one(
         ignore_tls: src.ignore_tls,
         proxy_id: src.proxy_id,
         group_id: src.group_id,
+        slo_target_pct: src.slo_target_pct,
+        slo_window_days: src.slo_window_days,
     };
     let cloned = rampart_db::monitors::create(state.pool(), copy).await?;
     state.poke_scheduler();
@@ -511,6 +514,35 @@ pub struct HeartbeatsQuery {
 }
 fn default_hb_limit() -> i64 {
     100
+}
+
+/// Reliability rollup — MTBF / MTTR + downtime event count over the
+/// trailing 30 days. The window is fixed (not query-tunable) so the
+/// dashboard widget always renders the same period; if we later want
+/// 7/30/90d toggles we can add a `?window_days=` knob.
+#[derive(Debug, Serialize)]
+pub struct ReliabilityDto {
+    pub window_days: i64,
+    pub mtbf_secs: Option<i64>,
+    pub mttr_secs: Option<i64>,
+    pub downtime_events: i64,
+}
+
+const RELIABILITY_WINDOW_DAYS: i64 = 30;
+
+async fn reliability(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<ReliabilityDto>, ApiError> {
+    let monitor_id = parse_monitor_id(&id)?;
+    let window_secs = RELIABILITY_WINDOW_DAYS * 86_400;
+    let r = rampart_db::heartbeats::mtbf_mttr(state.pool(), monitor_id, window_secs).await?;
+    Ok(Json(ReliabilityDto {
+        window_days: RELIABILITY_WINDOW_DAYS,
+        mtbf_secs: r.mtbf_secs,
+        mttr_secs: r.mttr_secs,
+        downtime_events: r.downtime_events,
+    }))
 }
 
 async fn heartbeats(
