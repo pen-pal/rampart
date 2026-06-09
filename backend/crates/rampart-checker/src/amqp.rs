@@ -7,10 +7,19 @@
 //! exchange. A clean close means the broker is reachable AND accepting
 //! the credentials AND the requested vhost exists.
 //!
-//! `monitor.url` carries the target as `amqp://user:pass@host:port/vhost`.
-//! `amqps://` (TLS) is deferred — the probe relies on lapin's default
-//! plain transport today; a future pass will wire our existing rustls
-//! ClientConfig through `lapin::Connect::connect_with_config`.
+//! `monitor.url` carries the target as `amqp://user:pass@host:port/vhost`
+//! for plaintext or `amqps://…` for TLS. lapin parses the URL scheme via
+//! `amq-protocol-uri`'s `AMQPScheme::{AMQP, AMQPS}` and decides at
+//! connect-time whether to wrap the socket in TLS — no per-probe
+//! connector wiring is needed. The workspace pins lapin to the
+//! `rustls--ring` + `rustls-webpki-roots-certs` feature pair, so the
+//! `amqps://` path links rustls against the ring `CryptoProvider`
+//! `rampart_api::main` installs at startup and verifies against the
+//! Mozilla webpki trust anchors — same crypto stack as the
+//! `websocket.rs` `wss://` path. The `rustls` (and `rustls-native-certs`)
+//! aliases are deliberately left disabled because their transitive
+//! `rustls--aws_lc_rs` would drag `aws-lc-rs` + `cmake` into the build
+//! graph (see docs/DEPENDENCIES.md).
 //!
 //! `monitor.timeout_seconds` caps the whole connect-plus-close window.
 //! No probe-side config knobs — everything the broker needs is encoded
@@ -52,7 +61,8 @@ impl Probe for AmqpProbe {
                     monitor,
                     ts,
                     started,
-                    "amqp monitor requires url (e.g. amqp://user:pass@host:5672/vhost)",
+                    "amqp monitor requires url (e.g. amqp://user:pass@host:5672/vhost \
+                     or amqps://… for TLS)",
                 )
             }
         };
@@ -100,5 +110,39 @@ fn down(monitor: &Monitor, ts: OffsetDateTime, started: Instant, msg: &str) -> H
         msg: Some(msg.into()),
         retries: 0,
         important: false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use lapin::uri::{AMQPScheme, AMQPUri};
+    use std::str::FromStr;
+
+    /// `amqps://` URIs must parse to `AMQPScheme::AMQPS`. If the
+    /// workspace ever drops the `rustls--ring` /
+    /// `rustls-webpki-roots-certs` feature pair on `lapin`, the
+    /// *runtime* probe would fail with a TLS error on connect, but the
+    /// parser itself still recognises the scheme — so this test catches
+    /// a refactor that accidentally narrows the accepted URL set
+    /// (e.g. an early-reject path), not the missing feature flag.
+    #[test]
+    fn amqps_uri_parses_with_tls_scheme() {
+        let uri = AMQPUri::from_str("amqps://user:pass@broker.example.com:5671/%2f")
+            .expect("amqps:// URL should parse into an AMQPUri");
+        assert!(matches!(uri.scheme, AMQPScheme::AMQPS));
+        assert_eq!(uri.authority.host, "broker.example.com");
+        assert_eq!(uri.authority.port, 5671);
+    }
+
+    /// Mirror of the above for the plaintext scheme — a future refactor
+    /// that drops `amqp://` support in favour of TLS-only would trip a
+    /// test rather than silently regress against existing monitors.
+    #[test]
+    fn amqp_uri_parses_with_plaintext_scheme() {
+        let uri = AMQPUri::from_str("amqp://guest:guest@localhost:5672/")
+            .expect("amqp:// URL should parse into an AMQPUri");
+        assert!(matches!(uri.scheme, AMQPScheme::AMQP));
+        assert_eq!(uri.authority.host, "localhost");
+        assert_eq!(uri.authority.port, 5672);
     }
 }

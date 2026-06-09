@@ -47,3 +47,23 @@ reverted, do not re-try without the upstream change landing first:
 When this lands, do the bump, re-test the MQTT probe against a live
 broker, and remove the matching entries from the `ignore` list in
 `deny.toml`.
+
+## Pending TLS gaps
+
+Probes whose plaintext path works end-to-end but whose TLS path is
+deferred because enabling it would drag a non-pure-Rust crypto provider
+into the build graph. Each row records the **attempt date**, what
+broke, and the **fix that has to land upstream** before we can try
+again. The probe code rejects a `tls: true` request with a clear error
+pointing back here, so an operator who tries to flip the toggle gets a
+heartbeat that explains the gap rather than a probe that silently runs
+in plaintext.
+
+| Probe | Upstream crate | What was tried | Why it failed | Unblocked when |
+|-------|----------------|----------------|---------------|-----------------|
+| `cassandra` (`scylla`) | [`scylla`](https://crates.io/crates/scylla) | Enabled `scylla = { default-features = false, features = ["rustls-023"] }` together with a `monitor.config.tls = true` field. | `scylla 1.6.0` declares `tokio-rustls = "0.26"` without `default-features = false`; Cargo's feature unification then activates `aws_lc_rs` on the workspace's shared `rustls v0.23`, dragging `aws-lc-rs` + `cmake` (build-dep) into the graph. Reverted before commit — `cargo tree -i aws-lc-rs` still has to return "did not match any packages". Re-attempted 2026-06-09. | Either (a) `scylla` adds `default-features = false` to its `tokio-rustls` dep so the workspace's `ring`-only choice wins, or (b) `scylla` exposes a `SessionBuilder` setter that accepts a caller-provided `rustls::ClientConfig` so we can sidestep the optional dep entirely. |
+
+When either of those lands, follow the same workflow as the
+"Planned upgrade pass" section: enable the feature, run the probe
+against a live cluster, drop the rejection branch in
+`cassandra.rs`, and remove this row.
