@@ -107,7 +107,9 @@ or Supabase.
 | `ingress.className` | string | `nginx` | Ingress class |
 | `ingress.annotations` | object | `{}` | Ingress annotations |
 | `ingress.hosts` | list | `[{host: rampart.example.com, paths: [{path: /, pathType: Prefix}]}]` | Ingress hosts |
-| `ingress.tls` | list | `[]` | TLS configuration |
+| `ingress.certManager.enabled` | bool | `false` | Annotate the Ingress for cert-manager + auto-emit a TLS block per host |
+| `ingress.certManager.clusterIssuer` | string | `letsencrypt-prod` | ClusterIssuer used for `cert-manager.io/cluster-issuer` |
+| `ingress.tls` | list | `[]` | Explicit TLS config; each entry may list multiple hosts under one secret |
 | `postgres.embedded` | bool | `false` | Enable embedded Postgres StatefulSet (evaluation only) |
 | `postgres.image` | string | `postgres:16-alpine` | Embedded Postgres image |
 | `postgres.storageSize` | string | `10Gi` | PVC size for embedded Postgres |
@@ -130,6 +132,67 @@ or Supabase.
 | `nodeSelector` | object | `{}` | Node selector |
 | `tolerations` | list | `[]` | Tolerations |
 | `affinity` | object | `{}` | Affinity rules |
+
+## TLS with cert-manager
+
+Rampart serves plain HTTP and **never does ACME itself** — TLS is the ingress
+controller's job (see `docs/deploy/README.md`, "TLS for custom domains"). On
+Kubernetes, the chart integrates with
+[cert-manager](https://cert-manager.io/): set `ingress.certManager.enabled=true`
+and the chart will
+
+- annotate the Ingress with `cert-manager.io/cluster-issuer`, and
+- emit a `tls:` entry **per ingress host** so cert-manager provisions (and
+  renews) a certificate for the dashboard host *and* every status-page custom
+  domain you list under `ingress.hosts`.
+
+The per-host secret name is derived as `<release>-tls-<host>` (dots replaced
+with hyphens), so you don't have to maintain the `ingress.tls` list by hand.
+Any explicit `ingress.tls` entries you do set are still emitted in addition.
+
+Prerequisite: cert-manager is installed in the cluster and a `ClusterIssuer`
+named by `ingress.certManager.clusterIssuer` exists (default
+`letsencrypt-prod`).
+
+Example enabling it for two hosts — the dashboard and a status-page custom
+domain:
+
+```bash
+helm install rampart ./charts/rampart \
+  --namespace rampart --create-namespace \
+  --set externalDatabase.url=postgres://user:pass@db.internal:5432/rampart \
+  --set ingress.enabled=true \
+  --set ingress.certManager.enabled=true \
+  --set ingress.certManager.clusterIssuer=letsencrypt-prod \
+  --set 'ingress.hosts[0].host=rampart.example.com' \
+  --set 'ingress.hosts[0].paths[0].path=/' \
+  --set 'ingress.hosts[0].paths[0].pathType=Prefix' \
+  --set 'ingress.hosts[1].host=status.acme.com' \
+  --set 'ingress.hosts[1].paths[0].path=/' \
+  --set 'ingress.hosts[1].paths[0].pathType=Prefix'
+```
+
+Or via a values file:
+
+```yaml
+ingress:
+  enabled: true
+  className: nginx
+  certManager:
+    enabled: true
+    clusterIssuer: letsencrypt-prod
+  hosts:
+    - host: rampart.example.com
+      paths:
+        - { path: /, pathType: Prefix }
+    - host: status.acme.com   # status page custom_domain
+      paths:
+        - { path: /, pathType: Prefix }
+```
+
+cert-manager will issue two certificates: `rampart-tls-rampart-example-com`
+and `rampart-tls-status-acme-com`. As you onboard further custom domains, add
+them under `ingress.hosts` and cert-manager provisions a cert for each.
 
 ## Troubleshooting
 
