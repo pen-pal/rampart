@@ -10,6 +10,7 @@ import {
 import {
   api, useApi, formatRelative, offsetDateTimeArrayToDate, statusToClass,
 } from '../lib/api.js';
+import { t } from '../lib/i18n.js';
 
 // ── shared design system (matches dashboard v2) ───────────────────────────
 const css = `
@@ -506,26 +507,26 @@ export default function MonitorDetail({ monitorId }) {
           <div style={{ display: 'flex', gap: 6 }}>
             {monitor.kind !== 'push' && (
               <button className="btn" onClick={doTestNow} disabled={acting || testing}
-                title="Run the probe right now, without waiting for the next scheduled tick">
-                {testing ? <><Loader2 size={13} className="spin"/> Testing…</> : <><Zap size={13}/> Test now</>}
+                title={t('monitor.action.test_now_title')}>
+                {testing ? <><Loader2 size={13} className="spin"/> {t('monitor.action.testing')}</> : <><Zap size={13}/> {t('monitor.action.test_now')}</>}
               </button>
             )}
             <button className="btn" onClick={doPauseResume} disabled={acting}>
-              {monitor.active ? <><Pause size={13}/> Pause</> : <><Play size={13}/> Resume</>}
+              {monitor.active ? <><Pause size={13}/> {t('common.pause')}</> : <><Play size={13}/> {t('common.resume')}</>}
             </button>
-            <button className="btn" onClick={() => setEditing(true)} disabled={acting}><Edit3 size={13}/> Edit</button>
-            <button className="btn" onClick={doClone} disabled={acting} title="Duplicate with the same config (no history)"><Copy size={13}/> Clone</button>
-            <a className="btn" href={`/v1/monitors/${monitor.id}/heartbeats.csv`} title="Download last 30 days of heartbeats as CSV" download>
-              <Download size={13}/> CSV
+            <button className="btn" onClick={() => setEditing(true)} disabled={acting}><Edit3 size={13}/> {t('common.edit')}</button>
+            <button className="btn" onClick={doClone} disabled={acting} title={t('monitor.action.clone_title')}><Copy size={13}/> {t('common.clone')}</button>
+            <a className="btn" href={`/v1/monitors/${monitor.id}/heartbeats.csv`} title={t('monitor.action.csv_title')} download>
+              <Download size={13}/> {t('monitor.action.csv')}
             </a>
-            <button className="btn btn-danger" onClick={doDelete} disabled={acting}><Trash2 size={13}/> Delete</button>
+            <button className="btn btn-danger" onClick={doDelete} disabled={acting}><Trash2 size={13}/> {t('common.delete')}</button>
           </div>
         </div>
 
         <div className="tabs" style={{ marginBottom: -1 }}>
-          {['overview', 'heartbeats', 'config'].map(t => (
-            <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
-              {t.charAt(0).toUpperCase() + t.slice(1)}
+          {['overview', 'heartbeats', 'config'].map(tabKey => (
+            <button key={tabKey} className={tab === tabKey ? 'active' : ''} onClick={() => setTab(tabKey)}>
+              {t(`monitor.tab.${tabKey}`)}
             </button>
           ))}
         </div>
@@ -535,29 +536,29 @@ export default function MonitorDetail({ monitorId }) {
         {/* KPI row */}
         <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
           <Kpi
-            label="Uptime · 24h"
+            label={t('monitor.kpi.uptime_24h')}
             value={uptime24h != null ? uptime24h.toFixed(2) : '—'}
             suffix={uptime24h != null ? '%' : null}
-            sub={summary24h ? `${summary24h.up}/${summary24h.total} checks ok` : 'no data yet'}
+            sub={summary24h ? t('monitor.kpi.checks_ok', { up: summary24h.up, total: summary24h.total }) : t('monitor.kpi.no_data')}
             color={uptime24h != null && uptime24h < 99 ? 'var(--down)' : uptime24h != null && uptime24h < 99.9 ? 'var(--warn)' : 'var(--up)'}
           />
           <Kpi
-            label="Uptime · 30d"
+            label={t('monitor.kpi.uptime_30d')}
             value={uptime30d != null ? uptime30d.toFixed(2) : '—'}
             suffix={uptime30d != null ? '%' : null}
-            sub={summary30d ? `${summary30d.up}/${summary30d.total} checks ok` : 'no data yet'}
+            sub={summary30d ? t('monitor.kpi.checks_ok', { up: summary30d.up, total: summary30d.total }) : t('monitor.kpi.no_data')}
           />
           <Kpi
-            label="Avg response"
+            label={t('monitor.kpi.avg_response')}
             value={avgLatency24h != null ? Math.round(avgLatency24h) : '—'}
             suffix={avgLatency24h != null ? 'ms' : null}
-            sub="successful checks · 24h"
+            sub={t('monitor.kpi.successful_24h')}
           />
           <Kpi
-            label="Interval"
+            label={t('monitor.kpi.interval')}
             value={monitor.interval_seconds}
             suffix="s"
-            sub={`timeout ${monitor.timeout_seconds}s`}
+            sub={t('monitor.kpi.timeout', { n: monitor.timeout_seconds })}
           />
         </div>
 
@@ -613,9 +614,9 @@ export default function MonitorDetail({ monitorId }) {
         {/* 90-day uptime strip */}
         <div className="card" style={{ padding: '20px 22px', marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>90-day uptime</h3>
+            <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{t('monitor.card.90d_uptime')}</h3>
             <span className="tabular mono" style={{ fontSize: 12, color: 'var(--text-2)' }}>
-              {incidentCount > 0 ? `${incidentCount} day${incidentCount === 1 ? '' : 's'} with downtime` : 'No recorded downtime'}
+              {incidentCount > 0 ? `${incidentCount} day${incidentCount === 1 ? '' : 's'} with downtime` : t('monitor.empty.no_recorded_downtime')}
             </span>
           </div>
           <div className="uptime-bar">
@@ -642,7 +643,7 @@ export default function MonitorDetail({ monitorId }) {
         <div className="card" style={{ padding: '20px 22px', marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 18 }}>
             <div>
-              <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Response time</h3>
+              <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{t('monitor.card.response_time')}</h3>
               <p style={{ fontSize: 12, color: 'var(--text-3)', margin: '4px 0 0' }}>
                 {heartbeats.length > 0 ? `${heartbeats.length} samples · binned to ${responseData.length} points` : 'No samples yet'}
               </p>
@@ -676,7 +677,7 @@ export default function MonitorDetail({ monitorId }) {
               </ResponsiveContainer>
             ) : (
               <div className="empty" style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                No samples yet — wait for the next probe.
+                {t('monitor.empty.no_samples')}
               </div>
             )}
           </div>
@@ -687,11 +688,11 @@ export default function MonitorDetail({ monitorId }) {
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <div style={{ padding: '16px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
               <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Activity size={14} color="var(--text-2)"/> Recent heartbeats
+                <Activity size={14} color="var(--text-2)"/> {t('monitor.card.recent_heartbeats')}
               </h3>
               <div className="tabs">
-                <button className={logFilter === 'all'  ? 'active' : ''} onClick={() => setLogFilter('all')}>All</button>
-                <button className={logFilter === 'fail' ? 'active' : ''} onClick={() => setLogFilter('fail')}>Failures</button>
+                <button className={logFilter === 'all'  ? 'active' : ''} onClick={() => setLogFilter('all')}>{t('monitor.filter.all')}</button>
+                <button className={logFilter === 'fail' ? 'active' : ''} onClick={() => setLogFilter('fail')}>{t('monitor.filter.failures')}</button>
               </div>
             </div>
             <div style={{
@@ -700,10 +701,10 @@ export default function MonitorDetail({ monitorId }) {
               color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em',
               background: 'var(--surface-2)', borderBottom: '1px solid var(--border)'
             }}>
-              <span>Time</span><span>Status</span><span style={{ textAlign: 'right' }}>Latency</span><span>Message</span><span style={{ textAlign: 'right' }}>Code</span>
+              <span>{t('monitor.col.time')}</span><span>{t('monitor.col.status')}</span><span style={{ textAlign: 'right' }}>{t('monitor.col.latency')}</span><span>{t('monitor.col.message')}</span><span style={{ textAlign: 'right' }}>{t('monitor.col.code')}</span>
             </div>
             {filteredLog.length === 0 ? (
-              <div className="empty">{heartbeatState.loading ? 'Loading…' : 'No heartbeats match this filter.'}</div>
+              <div className="empty">{heartbeatState.loading ? t('common.loading') : t('monitor.empty.no_match')}</div>
             ) : filteredLog.map((h, i) => {
               const date = h.ts instanceof Array ? offsetDateTimeArrayToDate(h.ts) : new Date(h.ts);
               const t = date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -726,20 +727,20 @@ export default function MonitorDetail({ monitorId }) {
               {!allLoaded && heartbeats.length > 0 && (
                 <button className="btn" style={{ padding: '4px 10px', fontSize: 11 }}
                   onClick={loadMore} disabled={loadingMore}>
-                  {loadingMore ? <><Loader2 size={11} className="spin"/> Loading…</> : <>Load older</>}
+                  {loadingMore ? <><Loader2 size={11} className="spin"/> {t('common.loading')}</> : <>{t('monitor.load_older')}</>}
                 </button>
               )}
-              {allLoaded && <span style={{ fontStyle: 'italic' }}>all history loaded</span>}
+              {allLoaded && <span style={{ fontStyle: 'italic' }}>{t('monitor.all_loaded')}</span>}
             </div>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div className="card" style={{ padding: '18px 20px' }}>
               <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <AlertCircle size={14} color="var(--down)"/> Recent downtime
+                <AlertCircle size={14} color="var(--down)"/> {t('monitor.card.recent_downtime')}
               </h3>
               {downtime.length === 0 ? (
-                <div className="empty" style={{ padding: 0 }}>No downtime in loaded history.</div>
+                <div className="empty" style={{ padding: 0 }}>{t('monitor.empty.no_downtime')}</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {downtime.map((d, i) => (
@@ -768,14 +769,14 @@ export default function MonitorDetail({ monitorId }) {
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <div style={{ padding: '16px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
               <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Activity size={14} color="var(--text-2)"/> Heartbeats
+                <Activity size={14} color="var(--text-2)"/> {t('monitor.card.heartbeats')}
                 <span style={{ fontSize: 11, color: 'var(--text-3)', fontWeight: 400, marginLeft: 6 }}>
                   · {heartbeats.length} loaded
                 </span>
               </h3>
               <div className="tabs">
-                <button className={logFilter === 'all'  ? 'active' : ''} onClick={() => setLogFilter('all')}>All</button>
-                <button className={logFilter === 'fail' ? 'active' : ''} onClick={() => setLogFilter('fail')}>Failures</button>
+                <button className={logFilter === 'all'  ? 'active' : ''} onClick={() => setLogFilter('all')}>{t('monitor.filter.all')}</button>
+                <button className={logFilter === 'fail' ? 'active' : ''} onClick={() => setLogFilter('fail')}>{t('monitor.filter.failures')}</button>
               </div>
             </div>
             <div style={{
@@ -784,10 +785,10 @@ export default function MonitorDetail({ monitorId }) {
               color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em',
               background: 'var(--surface-2)', borderBottom: '1px solid var(--border)'
             }}>
-              <span>Time</span><span>Status</span><span style={{ textAlign: 'right' }}>Latency</span><span>Message</span><span style={{ textAlign: 'right' }}>Code</span>
+              <span>{t('monitor.col.time')}</span><span>{t('monitor.col.status')}</span><span style={{ textAlign: 'right' }}>{t('monitor.col.latency')}</span><span>{t('monitor.col.message')}</span><span style={{ textAlign: 'right' }}>{t('monitor.col.code')}</span>
             </div>
             {(logFilter === 'all' ? heartbeats : heartbeats.filter(h => h.status !== 'up')).length === 0 ? (
-              <div className="empty">{heartbeatState.loading ? 'Loading…' : 'No heartbeats match this filter.'}</div>
+              <div className="empty">{heartbeatState.loading ? t('common.loading') : t('monitor.empty.no_match')}</div>
             ) : (logFilter === 'all' ? heartbeats : heartbeats.filter(h => h.status !== 'up')).map((h, i) => {
               const date = h.ts instanceof Array ? offsetDateTimeArrayToDate(h.ts) : new Date(h.ts);
               const t = date.toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'medium' });
@@ -814,10 +815,10 @@ export default function MonitorDetail({ monitorId }) {
               {!allLoaded && heartbeats.length > 0 && (
                 <button className="btn" style={{ padding: '4px 10px', fontSize: 11 }}
                   onClick={loadMore} disabled={loadingMore}>
-                  {loadingMore ? <><Loader2 size={11} className="spin"/> Loading…</> : <>Load older</>}
+                  {loadingMore ? <><Loader2 size={11} className="spin"/> {t('common.loading')}</> : <>{t('monitor.load_older')}</>}
                 </button>
               )}
-              {allLoaded && <span style={{ fontStyle: 'italic' }}>all history loaded</span>}
+              {allLoaded && <span style={{ fontStyle: 'italic' }}>{t('monitor.all_loaded')}</span>}
             </div>
           </div>
         )}
@@ -979,7 +980,7 @@ function EditModal({ monitor, onCancel }) {
         }}>
           <div>
             <div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600, marginBottom: 2 }}>
-              Edit monitor
+              {t('monitor.edit.eyebrow')}
             </div>
             <h3 style={{ fontSize: 17, fontWeight: 600, margin: 0, letterSpacing: '-.01em' }}>{monitor.name}</h3>
           </div>
@@ -996,17 +997,17 @@ function EditModal({ monitor, onCancel }) {
           )}
 
           {/* ── Basics ─────────────────────────────────────────────── */}
-          <div className="modal-section">Basics</div>
+          <div className="modal-section">{t('monitor.edit.section.basics')}</div>
 
-          <Field label="Name">
+          <Field label={t('monitor.edit.name')}>
             <input className="input" value={name} onChange={e => setName(e.target.value)}/>
           </Field>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-            <Field label="Interval (s)"><input className="input mono" value={intervalSec} onChange={e => setIntervalSec(e.target.value)}/></Field>
-            <Field label="Timeout (s)"><input className="input mono" value={timeoutSec} onChange={e => setTimeoutSec(e.target.value)}/></Field>
-            <Field label="Retries"><input className="input mono" value={retries} onChange={e => setRetries(e.target.value)}/></Field>
-            <Field label="Re-alert (s)"><input className="input mono" value={resend} onChange={e => setResend(e.target.value)}/></Field>
+            <Field label={t('monitor.edit.interval')}><input className="input mono" value={intervalSec} onChange={e => setIntervalSec(e.target.value)}/></Field>
+            <Field label={t('monitor.edit.timeout')}><input className="input mono" value={timeoutSec} onChange={e => setTimeoutSec(e.target.value)}/></Field>
+            <Field label={t('monitor.edit.retries')}><input className="input mono" value={retries} onChange={e => setRetries(e.target.value)}/></Field>
+            <Field label={t('monitor.edit.realert')}><input className="input mono" value={resend} onChange={e => setResend(e.target.value)}/></Field>
           </div>
 
           {/* SLO target + window. Both optional — clear either to disable
@@ -1014,12 +1015,12 @@ function EditModal({ monitor, onCancel }) {
               echo the ranges in the placeholders so the operator doesn't
               have to guess. */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-            <Field label="SLO target (%)">
+            <Field label={t('monitor.edit.slo_target')}>
               <input className="input mono" inputMode="decimal"
                 value={sloTarget} onChange={e => setSloTarget(e.target.value)}
                 placeholder="e.g. 99.9 (90.0 – 100.0)"/>
             </Field>
-            <Field label="SLO window (days)">
+            <Field label={t('monitor.edit.slo_window')}>
               <input className="input mono" inputMode="numeric"
                 value={sloWindow} onChange={e => setSloWindow(e.target.value)}
                 placeholder="e.g. 30 (1 – 90)"/>
@@ -1029,14 +1030,14 @@ function EditModal({ monitor, onCancel }) {
           {/* ── Target ─────────────────────────────────────────────── */}
           {(monitor.url != null || hasHostname || hasPort) && (
             <>
-              <div className="modal-section">Target</div>
+              <div className="modal-section">{t('monitor.edit.section.target')}</div>
               {monitor.url != null && (
-                <Field label="URL"><input className="input mono" value={url} onChange={e => setUrl(e.target.value)}/></Field>
+                <Field label={t('monitor.edit.url')}><input className="input mono" value={url} onChange={e => setUrl(e.target.value)}/></Field>
               )}
               {(hasHostname || hasPort) && (
                 <div style={{ display: 'grid', gridTemplateColumns: hasHostname && hasPort ? '1fr 140px' : '1fr', gap: 12 }}>
-                  {hasHostname && <Field label="Hostname"><input className="input mono" value={hostname} onChange={e => setHostname(e.target.value)}/></Field>}
-                  {hasPort     && <Field label="Port"><input className="input mono" value={port} onChange={e => setPort(e.target.value)}/></Field>}
+                  {hasHostname && <Field label={t('monitor.edit.hostname')}><input className="input mono" value={hostname} onChange={e => setHostname(e.target.value)}/></Field>}
+                  {hasPort     && <Field label={t('monitor.edit.port')}><input className="input mono" value={port} onChange={e => setPort(e.target.value)}/></Field>}
                 </div>
               )}
             </>
@@ -1045,41 +1046,41 @@ function EditModal({ monitor, onCancel }) {
           {/* ── HTTP request ──────────────────────────────────────── */}
           {isHttpFamily && (
             <>
-              <div className="modal-section">HTTP request</div>
+              <div className="modal-section">{t('monitor.edit.section.http')}</div>
               <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 12 }}>
-                <Field label="Method">
+                <Field label={t('monitor.edit.method')}>
                   <select className="input" value={method} onChange={e => setMethod(e.target.value)}>
                     {['GET','HEAD','POST','PUT','PATCH','DELETE','OPTIONS'].map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
                 </Field>
-                <Field label="Accepted statuses">
+                <Field label={t('monitor.edit.accepted_statuses')}>
                   <input className="input mono" value={statuses} onChange={e => setStatuses(e.target.value)} placeholder="200, 201, 204"/>
                 </Field>
               </div>
-              <Field label="Headers (JSON)">
+              <Field label={t('monitor.edit.headers')}>
                 <textarea className="input mono" rows={4} value={headers} onChange={e => setHeaders(e.target.value)} placeholder='{"Accept":"application/json"}' style={{ minHeight: 90 }}/>
               </Field>
-              <Field label="Body">
+              <Field label={t('monitor.edit.body')}>
                 <textarea className="input mono" rows={4} value={body} onChange={e => setBody(e.target.value)} placeholder='Request body (raw)' style={{ minHeight: 80 }}/>
               </Field>
-              <div className="modal-section">Behaviour</div>
+              <div className="modal-section">{t('monitor.edit.section.behaviour')}</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-                <Toggle label="Follow redirects" on={follow}     setOn={setFollow}/>
-                <Toggle label="Ignore TLS errors" on={ignoreTls} setOn={setIgnoreTls}/>
-                <Toggle label="Upside down"       on={upside}    setOn={setUpside}/>
+                <Toggle label={t('monitor.edit.follow_redirects')} on={follow}     setOn={setFollow}/>
+                <Toggle label={t('monitor.edit.ignore_tls')} on={ignoreTls} setOn={setIgnoreTls}/>
+                <Toggle label={t('monitor.edit.upside_down')}       on={upside}    setOn={setUpside}/>
               </div>
             </>
           )}
 
           {!isHttpFamily && (
             <>
-              <div className="modal-section">Behaviour</div>
-              <Toggle label="Upside down" on={upside} setOn={setUpside}/>
+              <div className="modal-section">{t('monitor.edit.section.behaviour')}</div>
+              <Toggle label={t('monitor.edit.upside_down')} on={upside} setOn={setUpside}/>
             </>
           )}
 
           {/* ── Probe config ──────────────────────────────────────── */}
-          <div className="modal-section">Probe config (JSON)</div>
+          <div className="modal-section">{t('monitor.edit.section.probe')}</div>
           <Field label="">
             <textarea className="input mono" rows={6}
               value={config} onChange={e => setConfig(e.target.value)}
@@ -1099,9 +1100,9 @@ function EditModal({ monitor, onCancel }) {
           background: 'var(--surface)',
           borderTop: '1px solid var(--border)',
         }}>
-          <button className="btn btn-ghost" onClick={onCancel} disabled={busy}>Cancel</button>
+          <button className="btn btn-ghost" onClick={onCancel} disabled={busy}>{t('common.cancel')}</button>
           <button className="btn btn-accent" onClick={save} disabled={busy}>
-            {busy ? 'Saving…' : 'Save'}
+            {busy ? t('common.saving') : t('common.save')}
           </button>
         </div>
       </div>
@@ -1192,7 +1193,7 @@ function ConfigPanel({ monitor }) {
     <>
       <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
         <div style={{ padding: '16px 22px' }}>
-          <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Target</h3>
+          <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{t('monitor.config.target')}</h3>
         </div>
         {row('Kind',       monitor.kind, true)}
         {row('Display name', monitor.name)}
@@ -1203,7 +1204,7 @@ function ConfigPanel({ monitor }) {
 
       <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
         <div style={{ padding: '16px 22px' }}>
-          <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Schedule</h3>
+          <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{t('monitor.config.schedule')}</h3>
         </div>
         {row('Interval',         `${monitor.interval_seconds}s`, true)}
         {row('Timeout',          `${monitor.timeout_seconds}s`,  true)}
@@ -1221,7 +1222,7 @@ function ConfigPanel({ monitor }) {
       {(monitor.kind === 'http' || monitor.kind === 'keyword' || monitor.kind === 'json_query') && (
         <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
           <div style={{ padding: '16px 22px' }}>
-            <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>HTTP</h3>
+            <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{t('monitor.config.http')}</h3>
           </div>
           {row('Method',            monitor.http_method, true)}
           {row('Accepted statuses', acceptedStatuses, true)}
@@ -1235,7 +1236,7 @@ function ConfigPanel({ monitor }) {
       {monitor.config && Object.keys(monitor.config).length > 0 && (
         <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
           <div style={{ padding: '16px 22px' }}>
-            <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Kind-specific config</h3>
+            <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{t('monitor.config.kind_specific')}</h3>
           </div>
           <pre className="mono" style={{
             margin: 0, padding: '14px 22px', fontSize: 12,
@@ -1248,7 +1249,7 @@ function ConfigPanel({ monitor }) {
 
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ padding: '16px 22px' }}>
-          <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Identity</h3>
+          <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{t('monitor.config.identity')}</h3>
         </div>
         {row('Monitor ID', monitor.id, true)}
         {row('Created at', monitor.created_at instanceof Array
@@ -1453,7 +1454,7 @@ function ReliabilityCard({ data, windowDays, onWindowChange }) {
   return (
     <div className="card" style={{ padding: '20px 22px', marginBottom: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-        <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Reliability</h3>
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{t('monitor.card.reliability')}</h3>
         <div
           role="radiogroup"
           aria-label="Reliability window"
@@ -1470,26 +1471,26 @@ function ReliabilityCard({ data, windowDays, onWindowChange }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
         <div>
           <div className="kpi-label" style={{ display: 'flex', alignItems: 'center' }}>
-            MTBF<HelpDot tip={mtbfTip}/>
+            {t('monitor.reliability.mtbf')}<HelpDot tip={mtbfTip}/>
           </div>
           <div className="kpi-value tabular" style={{ marginTop: 8, color: 'var(--text)' }}>{mtbf}</div>
-          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4 }}>between failures</div>
+          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4 }}>{t('monitor.reliability.between_failures')}</div>
         </div>
         <div>
           <div className="kpi-label" style={{ display: 'flex', alignItems: 'center' }}>
-            MTTR<HelpDot tip={mttrTip}/>
+            {t('monitor.reliability.mttr')}<HelpDot tip={mttrTip}/>
           </div>
           <div className="kpi-value tabular" style={{ marginTop: 8, color: 'var(--text)' }}>{mttr}</div>
-          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4 }}>to recover</div>
+          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4 }}>{t('monitor.reliability.to_recover')}</div>
         </div>
         <div>
-          <div className="kpi-label">Downtime events</div>
+          <div className="kpi-label">{t('monitor.reliability.downtime_events')}</div>
           <div
             className="kpi-value tabular"
             style={{ marginTop: 8, color: events > 0 ? 'var(--down)' : 'var(--text)' }}>
             {events}
           </div>
-          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4 }}>up→down transitions</div>
+          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4 }}>{t('monitor.reliability.transitions')}</div>
         </div>
       </div>
     </div>
@@ -1518,7 +1519,7 @@ function CertCard({ monitor }) {
     <div className="card" style={{ padding: '18px 22px', marginBottom: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <Lock size={14} color="var(--text-3)"/>
-        <h3 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>TLS certificate</h3>
+        <h3 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>{t('monitor.card.tls_cert')}</h3>
         <span style={{
           marginLeft: 'auto',
           background: palette.bg, color: palette.fg,
@@ -1547,16 +1548,16 @@ function CertCard({ monitor }) {
 function SloCard({ target, current, windowDays }) {
   const hasData = current != null;
   let tone = 'unknown';
-  let label = 'no data yet';
+  let label = t('monitor.slo.no_data');
   if (hasData) {
     if (current >= target) {
       // "At risk" = within 0.1 percentage points of the target.
       // Renders amber so the operator knows error-budget is thin.
       tone = (current - target) < 0.1 ? 'risk' : 'ok';
-      label = tone === 'risk' ? 'At risk' : 'OK';
+      label = tone === 'risk' ? t('monitor.slo.at_risk') : t('monitor.slo.ok');
     } else {
       tone = 'breached';
-      label = 'Breached';
+      label = t('monitor.slo.breached');
     }
   }
   const palette = {
@@ -1571,7 +1572,7 @@ function SloCard({ target, current, windowDays }) {
     <div className="card" style={{ padding: '18px 22px', marginBottom: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <Activity size={14} color="var(--text-3)"/>
-        <h3 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>SLO</h3>
+        <h3 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>{t('monitor.card.slo')}</h3>
         <span style={{
           marginLeft: 'auto',
           background: palette.bg, color: palette.fg,
@@ -1581,7 +1582,7 @@ function SloCard({ target, current, windowDays }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
         <div>
           <div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em', fontWeight: 500 }}>
-            Target
+            {t('monitor.slo.target')}
           </div>
           <div className="mono tabular" style={{ fontSize: 18, fontWeight: 500, marginTop: 2 }}>
             {Number(target).toFixed(2)}%
@@ -1589,7 +1590,7 @@ function SloCard({ target, current, windowDays }) {
         </div>
         <div>
           <div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em', fontWeight: 500 }}>
-            Current
+            {t('monitor.slo.current')}
           </div>
           <div className="mono tabular" style={{ fontSize: 18, fontWeight: 500, marginTop: 2, color: palette.fg }}>
             {fmtPct(current)}
@@ -1655,7 +1656,7 @@ function ErrorBudgetCard({ data }) {
     <div className="card" style={{ padding: '18px 22px', marginBottom: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <Activity size={14} color="var(--text-3)"/>
-        <h3 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>Error budget</h3>
+        <h3 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>{t('monitor.card.error_budget')}</h3>
         <span className="tabular mono" style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-3)' }}>
           {windowDays ? `${windowDays}-day window` : ''}
           {targetPct != null ? ` · ${Number(targetPct).toFixed(2)}% target` : ''}
@@ -1688,11 +1689,11 @@ function ErrorBudgetCard({ data }) {
             {loading ? '—' : fmtBudget(remaining)}
           </span>
           <span style={{ color: 'var(--text-3)' }}>
-            {' '}remaining of {loading ? '—' : fmtBudget(allowed)} budget
+            {' '}{t('monitor.budget.remaining_of', { budget: loading ? '—' : fmtBudget(allowed) })}
           </span>
         </div>
         <div className="tabular mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>
-          {loading ? '' : `${fmtBudget(used)} used`}
+          {loading ? '' : t('monitor.budget.used', { used: fmtBudget(used) })}
         </div>
       </div>
     </div>
