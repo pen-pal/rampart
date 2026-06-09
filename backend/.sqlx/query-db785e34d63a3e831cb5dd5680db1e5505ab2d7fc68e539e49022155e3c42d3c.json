@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO monitors (\n            id, name, kind, url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, group_id\n        ) VALUES (\n            $1, $2, $3, $4, $5, $6, $7,\n            $8, $9, $10,\n            $11, $12, $13,\n            $14, $15, $16,\n            $17, $18, $19, $20,\n            $21, $22\n        )\n        RETURNING\n            id, name,\n            kind   AS \"kind: MonitorKind\",\n            url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, last_push_at,\n            active,\n            current_status AS \"current_status: MonitorStatus\",\n            created_at, updated_at,\n            cert_days_left, cert_subject, cert_checked_at,\n            group_id\n        ",
+  "query": "\n        INSERT INTO monitors (\n            id, name, kind, url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, group_id,\n            slo_target_pct, slo_window_days\n        ) VALUES (\n            $1, $2, $3, $4, $5, $6, $7,\n            $8, $9, $10,\n            $11, $12, $13,\n            $14, $15, $16,\n            $17, $18, $19, $20,\n            $21, $22,\n            $23::float8::numeric, $24\n        )\n        RETURNING\n            id, name,\n            kind   AS \"kind: MonitorKind\",\n            url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, last_push_at,\n            active,\n            current_status AS \"current_status: MonitorStatus\",\n            created_at, updated_at,\n            cert_days_left, cert_subject, cert_checked_at,\n            group_id,\n            slo_target_pct::float8 AS \"slo_target_pct?\",\n            slo_window_days\n        ",
   "describe": {
     "columns": [
       {
@@ -392,6 +392,23 @@
             "name": "group_id"
           }
         }
+      },
+      {
+        "ordinal": 30,
+        "name": "slo_target_pct?",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 31,
+        "name": "slo_window_days",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "slo_window_days"
+          }
+        }
       }
     ],
     "parameters": {
@@ -463,7 +480,9 @@
         "Bool",
         "Uuid",
         "Text",
-        "Uuid"
+        "Uuid",
+        "Float8",
+        "Int4"
       ]
     },
     "nullable": [
@@ -496,8 +515,10 @@
       true,
       true,
       true,
+      true,
+      null,
       true
     ]
   },
-  "hash": "e9560f36892a48d49f195cc9ce8fe099edddf41198b40f28d93568154df95c9c"
+  "hash": "db785e34d63a3e831cb5dd5680db1e5505ab2d7fc68e539e49022155e3c42d3c"
 }

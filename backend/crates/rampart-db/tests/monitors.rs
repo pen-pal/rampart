@@ -27,6 +27,8 @@ fn http_monitor(name: &str, url: &str) -> NewMonitor {
         ignore_tls: false,
         proxy_id: None,
         group_id: None,
+        slo_target_pct: None,
+        slo_window_days: None,
     }
 }
 

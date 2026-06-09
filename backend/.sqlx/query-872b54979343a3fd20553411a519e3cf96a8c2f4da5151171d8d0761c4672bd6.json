@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE monitors SET slo_window_days = $1 WHERE id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "872b54979343a3fd20553411a519e3cf96a8c2f4da5151171d8d0761c4672bd6"
+}

@@ -164,6 +164,8 @@ fn map_one(raw: &Value) -> Result<MappedMonitor, SkippedMonitor> {
         ignore_tls: false,
         proxy_id: None,
         group_id: None,
+        slo_target_pct: None,
+        slo_window_days: None,
     };
 
     Ok(MappedMonitor {
