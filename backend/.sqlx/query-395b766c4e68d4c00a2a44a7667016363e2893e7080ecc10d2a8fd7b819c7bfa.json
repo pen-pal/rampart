@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, name, key_prefix, scopes, created_by,\n               created_at, last_used_at, expires_at\n        FROM api_keys\n        ORDER BY created_at DESC\n        ",
+  "query": "\n        SELECT id, name, key_prefix, scope, created_by,\n               created_at, last_used_at, expires_at\n        FROM api_keys\n        ORDER BY created_at DESC\n        ",
   "describe": {
     "columns": [
       {
@@ -38,12 +38,12 @@
       },
       {
         "ordinal": 3,
-        "name": "scopes",
-        "type_info": "TextArray",
+        "name": "scope",
+        "type_info": "Text",
         "origin": {
           "Table": {
             "table": "api_keys",
-            "name": "scopes"
+            "name": "scope"
           }
         }
       },
@@ -106,5 +106,5 @@
       true
     ]
   },
-  "hash": "8b732938c3b9d6bf5af269604b55a68504bb035ae42cf9f6210a7e81a86d9cfb"
+  "hash": "395b766c4e68d4c00a2a44a7667016363e2893e7080ecc10d2a8fd7b819c7bfa"
 }

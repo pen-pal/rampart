@@ -131,7 +131,10 @@ export default function ApiKeys() {
           ) : keys.map(k => (
             <div className="row" key={k.id}>
               <div>
-                <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 3 }}>{k.name}</div>
+                <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {k.name}
+                  <ScopePill scope={k.scope}/>
+                </div>
                 <div className="mono" style={{ fontSize: 11.5, color: 'var(--text-3)', marginBottom: 4 }}>
                   {k.key_prefix}… · {t('apikeys.created', { when: formatRelative(tsToDate(k.created_at)) })}
                 </div>
@@ -165,8 +168,30 @@ export default function ApiKeys() {
   );
 }
 
+const SCOPES = ['read', 'write', 'admin'];
+
+const SCOPE_COLORS = {
+  read:  { bg: 'var(--surface-2)',  fg: 'var(--text-2)', bd: 'var(--border-2)' },
+  write: { bg: 'var(--accent-soft)', fg: 'var(--accent-2)', bd: 'var(--accent)' },
+  admin: { bg: 'var(--warn-soft)',  fg: '#b45309',       bd: 'var(--warn)' },
+};
+
+function ScopePill({ scope }) {
+  const s = SCOPE_COLORS[scope] || SCOPE_COLORS.read;
+  return (
+    <span style={{
+      fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999,
+      background: s.bg, color: s.fg, border: `1px solid ${s.bd}`,
+      textTransform: 'uppercase', letterSpacing: '.03em',
+    }}>
+      {t(`apikeys.scope_${scope}`)}
+    </span>
+  );
+}
+
 function CreateModal({ onCancel, onCreated }) {
   const [name,  setName]  = useState('');
+  const [scope, setScope] = useState('read');
   const [exp,   setExp]   = useState('');
   const [busy,  setBusy]  = useState(false);
   const [err,   setErr]   = useState(null);
@@ -178,7 +203,7 @@ function CreateModal({ onCancel, onCreated }) {
     try {
       const issued = await api.apiKeys.create(
         name.trim(),
-        [],
+        scope,
         exp ? new Date(exp).toISOString() : null,
       );
       onCreated(issued);
@@ -201,6 +226,16 @@ function CreateModal({ onCancel, onCreated }) {
         <div style={{ marginBottom: 14 }}>
           <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-2)', display: 'block', marginBottom: 6 }}>{t('apikeys.name')}</label>
           <input className="input" autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="CI deploy bot"/>
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-2)', display: 'block', marginBottom: 6 }}>{t('apikeys.scope')}</label>
+          <select className="input" value={scope} onChange={e => setScope(e.target.value)}>
+            {SCOPES.map(s => (
+              <option key={s} value={s}>{t(`apikeys.scope_${s}`)}</option>
+            ))}
+          </select>
+          <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>{t(`apikeys.scope_hint_${scope}`)}</div>
         </div>
 
         <div style={{ marginBottom: 18 }}>
