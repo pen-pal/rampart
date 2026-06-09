@@ -321,12 +321,23 @@ export default function MonitorDetail({ monitorId, user }) {
     [monitorId, sloTargetSet],
     { pollMs: 300_000 },
   );
-  // SLO error-budget burn-down — one point per day across the configured
-  // window. Same 404 contract as the fuel gauge, so we short-circuit on
-  // un-configured monitors and poll on the same 5-min cadence.
+  // SLO error-budget burn-down — one point per day across a user-selected
+  // trailing window (7 / 30 / 90 days). Defaults to the monitor's configured
+  // `slo_window_days` until the operator picks a preset, matching the
+  // pre-toggle behaviour. `null` means "not yet picked" — we send no
+  // window_days param and let the backend resolve to the configured one.
+  // Same 404 contract as the fuel gauge, so we short-circuit on
+  // un-configured monitors and poll on the same 5-min cadence. Changing
+  // `burndownWindow` triggers a re-fetch via the dep list below.
+  const [burndownWindow, setBurndownWindow] = useState(null);
+  // Reset the picked window when navigating to a different monitor so the
+  // next monitor falls back to its own configured window.
+  useEffect(() => { setBurndownWindow(null); }, [monitorId]);
   const burndownState = useApi(
-    () => (monitorId && sloTargetSet) ? api.monitors.sloBurndown(monitorId) : Promise.resolve(null),
-    [monitorId, sloTargetSet],
+    () => (monitorId && sloTargetSet)
+      ? api.monitors.sloBurndown(monitorId, burndownWindow ?? undefined)
+      : Promise.resolve(null),
+    [monitorId, sloTargetSet, burndownWindow],
     { pollMs: 300_000 },
   );
   const groupsState    = useApi(() => api.monitorGroups.list(),          [], { pollMs: 60_000 });
@@ -631,7 +642,11 @@ export default function MonitorDetail({ monitorId, user }) {
             budget DEPLETING over time. Polls the /slo/burndown endpoint
             on the same 5-min cadence. */}
         {monitor.slo_target_pct != null && (
-          <BurndownCard data={burndownState.data}/>
+          <BurndownCard
+            data={burndownState.data}
+            windowDays={burndownWindow ?? monitor.slo_window_days}
+            onWindowChange={setBurndownWindow}
+          />
         )}
 
         {/* 90-day uptime strip */}
@@ -1727,10 +1742,38 @@ function ErrorBudgetCard({ data }) {
 // across the configured window as a descending area (from 100% toward 0%
 // as budget is consumed). Mirrors the response-time chart's recharts
 // setup. Renders a loading/empty state until the first payload lands.
-function BurndownCard({ data }) {
+function BurndownCard({ data, windowDays, onWindowChange }) {
   const points = data?.points ?? [];
-  const windowDays = data?.window_days ?? '';
   const targetPct  = data?.target_pct;
+  // Selection mirrors the `windowDays` prop (the monitor's configured window
+  // until the operator picks a preset) rather than the payload's own
+  // `window_days`, which may briefly lag while a new fetch is in flight.
+  const selected = windowDays ?? data?.window_days ?? 30;
+
+  // Segmented control — same three-equal-segment styling the reliability
+  // card uses. Each option is a real <button> for keyboard nav; the
+  // selected one is filled and a no-op to avoid a redundant re-fetch.
+  const SegBtn = ({ days }) => {
+    const isSel = selected === days;
+    return (
+      <button
+        type="button"
+        role="radio"
+        aria-checked={isSel}
+        aria-label={`${days}-day window`}
+        onClick={() => { if (!isSel) onWindowChange?.(days); }}
+        style={{
+          flex: 1, padding: '4px 10px', fontSize: 12, fontWeight: 600,
+          background: isSel ? 'var(--surface)' : 'transparent',
+          color: isSel ? 'var(--text)' : 'var(--text-2)',
+          border: 'none', borderRadius: 4,
+          boxShadow: isSel ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+          cursor: isSel ? 'default' : 'pointer',
+        }}>
+        {days}d
+      </button>
+    );
+  };
 
   // Map server points → chart rows. `day` is an ISO date string from the
   // serialised `time::Date`; show a compact "Jun 9" tick label and keep
@@ -1771,9 +1814,20 @@ function BurndownCard({ data }) {
         <Activity size={14} color="var(--text-3)"/>
         <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Error budget burn-down</h3>
         <span className="tabular mono" style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-3)' }}>
-          {windowDays ? `${windowDays}-day window` : ''}
-          {targetPct != null ? ` · ${Number(targetPct).toFixed(2)}% target` : ''}
+          {targetPct != null ? `${Number(targetPct).toFixed(2)}% target` : ''}
         </span>
+        <div
+          role="radiogroup"
+          aria-label="Burn-down window"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 2,
+            background: 'var(--surface-2)', padding: 2, borderRadius: 6,
+            width: 156,
+          }}>
+          <SegBtn days={7}/>
+          <SegBtn days={30}/>
+          <SegBtn days={90}/>
+        </div>
       </div>
       <div style={{ height: 200 }}>
         {chart.length > 0 ? (
