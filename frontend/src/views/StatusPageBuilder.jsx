@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-  ChevronLeft, Plus, Trash2, ExternalLink, Save, AlertCircle, Loader2, X, Globe,
+  ChevronLeft, ChevronDown, ChevronRight, Plus, Trash2, ExternalLink, Save, AlertCircle, Loader2, X, Globe,
   Pencil, Check, Copy, Upload, Image as ImageIcon,
 } from 'lucide-react';
 import { api, useApi, offsetDateTimeArrayToDate, formatRelative } from '../lib/api.js';
@@ -452,12 +452,31 @@ function SubscribersPanel({ pageId }) {
   );
 }
 
+// A single ingest token works for every receiver vendor — the URL only
+// differs by the `/{vendor}/` path segment. List them all so operators can
+// grab whichever their alerting stack speaks, rather than guessing.
+const INGEST_VENDORS = [
+  { id: 'alertmanager', label: 'Alertmanager' },
+  { id: 'grafana',      label: 'Grafana' },
+  { id: 'datadog',      label: 'Datadog' },
+  { id: 'pagerduty',    label: 'PagerDuty' },
+  { id: 'opsgenie',     label: 'Opsgenie' },
+];
+
 function IngestTokensPanel({ pageId }) {
   const list = useApi(() => api.ingestTokens.list(pageId), [pageId], { pollMs: 30_000 });
   const [tokens, setTokens] = useState(null);
   const [label,  setLabel]  = useState('');
   const [busy,   setBusy]   = useState(null);
   const [err,    setErr]    = useState(null);
+  // Per-token disclosure: which tokens have their webhook-URL list expanded.
+  // Collapsed by default so 5 URLs × N tokens doesn't flood the panel.
+  const [openUrls, setOpenUrls] = useState(() => new Set());
+  const toggleUrls = (id) => setOpenUrls(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
   // Mirror the polled list into local state so a freshly generated token can
   // be prepended without waiting for the next poll. Fall back to the polled
@@ -516,7 +535,7 @@ function IngestTokensPanel({ pageId }) {
           {t('statuspage.ingest.empty')}
         </div>
       ) : rows.map(tok => {
-        const webhookUrl = `${window.location.origin}/v1/public/ingest/alertmanager/${tok.token}`;
+        const urlsOpen = openUrls.has(tok.id);
         return (
           <div key={tok.id} style={{ padding: 12, marginBottom: 10, border: '1px solid var(--border)', borderRadius: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -542,13 +561,31 @@ function IngestTokensPanel({ pageId }) {
             </div>
 
             <div className="field" style={{ marginBottom: 0 }}>
-              <label className="field-label" style={{ marginBottom: 4 }}>{t('statuspage.ingest.webhook_url')}</label>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <input className="input mono" readOnly value={webhookUrl} style={{ fontSize: 11.5 }} onFocus={e => e.target.select()}/>
-                <button className="btn btn-ghost" onClick={() => copy(webhookUrl)} title={t('statuspage.ingest.copy_webhook')} style={{ padding: '5px 10px' }}>
-                  <Copy size={13}/>
-                </button>
-              </div>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => toggleUrls(tok.id)}
+                style={{ padding: '3px 0', fontSize: 12, color: 'var(--text-2)' }}
+              >
+                {urlsOpen ? <ChevronDown size={13}/> : <ChevronRight size={13}/>}
+                {t('statuspage.ingest.webhook_urls', { n: INGEST_VENDORS.length })}
+              </button>
+              {urlsOpen && (
+                <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {INGEST_VENDORS.map(v => {
+                    const url = `${window.location.origin}/v1/public/ingest/${v.id}/${tok.token}`;
+                    return (
+                      <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-2)', minWidth: 88 }}>{v.label}</span>
+                        <input className="input mono" readOnly value={url} style={{ fontSize: 11 }} onFocus={e => e.target.select()}/>
+                        <button className="btn btn-ghost" onClick={() => copy(url)} title={t('statuspage.ingest.copy_webhook')} style={{ padding: '5px 10px' }}>
+                          <Copy size={13}/>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         );
