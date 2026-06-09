@@ -9,6 +9,7 @@ use crate::error::ApiError;
 use crate::state::AppState;
 use axum::extract::{Extension, Path, State};
 use axum::http::{HeaderMap, StatusCode};
+use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::{Json, Router};
 use rampart_core::ids::StatusPageId;
@@ -25,7 +26,10 @@ pub fn admin_router() -> Router<AppState> {
 }
 
 pub fn public_router() -> Router<AppState> {
-    Router::new().route("/{slug}", get(public_view))
+    Router::new()
+        .route("/{slug}", get(public_view))
+        .route("/{slug}/feed.atom", get(public_feed_atom))
+        .route("/{slug}/feed.rss", get(public_feed_rss))
 }
 
 fn parse(id: &str) -> Result<StatusPageId, ApiError> {
@@ -109,4 +113,254 @@ async fn public_view(
     Ok(Json(
         rampart_db::status_pages::public_view(s.pool(), &slug).await?,
     ))
+}
+
+/// Atom 1.0 feed of incidents for a public status page. RSS/Atom is
+/// the universal "subscribe to updates" channel a visitor can drop
+/// into any reader (Feedly, NetNewsWire, Slack /feed, etc.) without
+/// the operator having to register them as an email subscriber. One
+/// entry per incident (active + recently-resolved); each carries the
+/// incident's running content + the most recent update so reader-side
+/// dedup is sensible.
+async fn public_feed_atom(
+    State(s): State<AppState>,
+    Path(slug): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    let page = rampart_db::status_pages::public_view(s.pool(), &slug).await?;
+    let xml = render_atom_feed(&page);
+    Ok((
+        StatusCode::OK,
+        [("content-type", "application/atom+xml; charset=utf-8")],
+        xml,
+    ))
+}
+
+/// RSS 2.0 feed companion for readers that don't speak Atom. Same data
+/// projection as the Atom feed; the format is the surface difference.
+async fn public_feed_rss(
+    State(s): State<AppState>,
+    Path(slug): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    let page = rampart_db::status_pages::public_view(s.pool(), &slug).await?;
+    let xml = render_rss_feed(&page);
+    Ok((
+        StatusCode::OK,
+        [("content-type", "application/rss+xml; charset=utf-8")],
+        xml,
+    ))
+}
+
+/// XML-text escape: only the five characters the XML spec requires —
+/// `&`, `<`, `>`, `"`, `'`. The feed templates wrap user-provided text
+/// (incident title + content + update messages) in element bodies, so
+/// this is the right escape for CDATA-free content.
+fn xml_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for ch in s.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&apos;"),
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+/// RFC 3339 / ISO 8601 timestamp formatter for Atom `<updated>` /
+/// `<published>` fields. Uses the `time` crate's RFC 3339 well-known
+/// format which always emits a `Z` suffix for UTC inputs.
+fn rfc3339(t: time::OffsetDateTime) -> String {
+    t.format(&time::format_description::well_known::Rfc3339)
+        .unwrap_or_else(|_| String::new())
+}
+
+/// RFC 822 timestamp formatter (the format RSS 2.0 expects). The `time`
+/// crate doesn't ship an RFC 822 formatter; format manually.
+fn rfc822(t: time::OffsetDateTime) -> String {
+    let weekday = match t.weekday() {
+        time::Weekday::Monday => "Mon",
+        time::Weekday::Tuesday => "Tue",
+        time::Weekday::Wednesday => "Wed",
+        time::Weekday::Thursday => "Thu",
+        time::Weekday::Friday => "Fri",
+        time::Weekday::Saturday => "Sat",
+        time::Weekday::Sunday => "Sun",
+    };
+    let month = match t.month() {
+        time::Month::January => "Jan",
+        time::Month::February => "Feb",
+        time::Month::March => "Mar",
+        time::Month::April => "Apr",
+        time::Month::May => "May",
+        time::Month::June => "Jun",
+        time::Month::July => "Jul",
+        time::Month::August => "Aug",
+        time::Month::September => "Sep",
+        time::Month::October => "Oct",
+        time::Month::November => "Nov",
+        time::Month::December => "Dec",
+    };
+    format!(
+        "{weekday}, {day:02} {month} {year:04} {hour:02}:{minute:02}:{second:02} +0000",
+        day = t.day(),
+        year = t.year(),
+        hour = t.hour(),
+        minute = t.minute(),
+        second = t.second(),
+    )
+}
+
+fn render_atom_feed(page: &PublicStatusPage) -> String {
+    use std::fmt::Write;
+    let mut out = String::with_capacity(2048);
+    let _ = writeln!(out, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+    let _ = writeln!(out, "<feed xmlns=\"http://www.w3.org/2005/Atom\">");
+    let _ = writeln!(out, "  <title>{}</title>", xml_escape(&page.title));
+    let _ = writeln!(
+        out,
+        "  <id>urn:rampart:status-page:{}</id>",
+        xml_escape(&page.slug)
+    );
+    let _ = writeln!(out, "  <updated>{}</updated>", rfc3339(page.generated_at));
+
+    // Active incidents first (newest activity wins for feed-reader sort
+    // order), then resolved-history entries.
+    for inc in &page.incidents {
+        let last_update_ts = inc
+            .updates
+            .iter()
+            .map(|u| u.posted_at)
+            .max()
+            .unwrap_or(inc.created_at);
+        let _ = writeln!(out, "  <entry>");
+        let _ = writeln!(out, "    <title>{}</title>", xml_escape(&inc.title));
+        let _ = writeln!(
+            out,
+            "    <id>urn:rampart:status-page:{}:incident-active:{}</id>",
+            xml_escape(&page.slug),
+            rfc3339(inc.created_at)
+        );
+        let _ = writeln!(
+            out,
+            "    <published>{}</published>",
+            rfc3339(inc.created_at)
+        );
+        let _ = writeln!(out, "    <updated>{}</updated>", rfc3339(last_update_ts));
+        let mut body = inc.content.clone();
+        for u in &inc.updates {
+            body.push_str("\n\n");
+            body.push_str(&format!("[{}] ", rfc3339(u.posted_at)));
+            body.push_str(&u.message);
+        }
+        let _ = writeln!(
+            out,
+            "    <content type=\"text\">{}</content>",
+            xml_escape(&body)
+        );
+        let _ = writeln!(out, "  </entry>");
+    }
+
+    for inc in &page.incident_history {
+        let _ = writeln!(out, "  <entry>");
+        let _ = writeln!(
+            out,
+            "    <title>{} (resolved)</title>",
+            xml_escape(&inc.title)
+        );
+        let _ = writeln!(
+            out,
+            "    <id>urn:rampart:status-page:{}:incident-resolved:{}</id>",
+            xml_escape(&page.slug),
+            rfc3339(inc.created_at)
+        );
+        let _ = writeln!(
+            out,
+            "    <published>{}</published>",
+            rfc3339(inc.created_at)
+        );
+        let _ = writeln!(out, "    <updated>{}</updated>", rfc3339(inc.resolved_at));
+        let _ = writeln!(
+            out,
+            "    <content type=\"text\">{}</content>",
+            xml_escape(&inc.content)
+        );
+        let _ = writeln!(out, "  </entry>");
+    }
+
+    let _ = writeln!(out, "</feed>");
+    out
+}
+
+fn render_rss_feed(page: &PublicStatusPage) -> String {
+    use std::fmt::Write;
+    let mut out = String::with_capacity(2048);
+    let _ = writeln!(out, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+    let _ = writeln!(out, "<rss version=\"2.0\">");
+    let _ = writeln!(out, "  <channel>");
+    let _ = writeln!(out, "    <title>{}</title>", xml_escape(&page.title));
+    let _ = writeln!(
+        out,
+        "    <description>{}</description>",
+        xml_escape(page.description.as_deref().unwrap_or(""))
+    );
+    let _ = writeln!(out, "    <pubDate>{}</pubDate>", rfc822(page.generated_at));
+
+    for inc in &page.incidents {
+        let last_update_ts = inc
+            .updates
+            .iter()
+            .map(|u| u.posted_at)
+            .max()
+            .unwrap_or(inc.created_at);
+        let mut body = inc.content.clone();
+        for u in &inc.updates {
+            body.push_str("\n\n");
+            body.push_str(&format!("[{}] ", rfc3339(u.posted_at)));
+            body.push_str(&u.message);
+        }
+        let _ = writeln!(out, "    <item>");
+        let _ = writeln!(out, "      <title>{}</title>", xml_escape(&inc.title));
+        let _ = writeln!(
+            out,
+            "      <description>{}</description>",
+            xml_escape(&body)
+        );
+        let _ = writeln!(out, "      <pubDate>{}</pubDate>", rfc822(last_update_ts));
+        let _ = writeln!(
+            out,
+            "      <guid isPermaLink=\"false\">urn:rampart:status-page:{}:incident-active:{}</guid>",
+            xml_escape(&page.slug),
+            rfc3339(inc.created_at)
+        );
+        let _ = writeln!(out, "    </item>");
+    }
+
+    for inc in &page.incident_history {
+        let _ = writeln!(out, "    <item>");
+        let _ = writeln!(
+            out,
+            "      <title>{} (resolved)</title>",
+            xml_escape(&inc.title)
+        );
+        let _ = writeln!(
+            out,
+            "      <description>{}</description>",
+            xml_escape(&inc.content)
+        );
+        let _ = writeln!(out, "      <pubDate>{}</pubDate>", rfc822(inc.resolved_at));
+        let _ = writeln!(
+            out,
+            "      <guid isPermaLink=\"false\">urn:rampart:status-page:{}:incident-resolved:{}</guid>",
+            xml_escape(&page.slug),
+            rfc3339(inc.created_at)
+        );
+        let _ = writeln!(out, "    </item>");
+    }
+
+    let _ = writeln!(out, "  </channel>");
+    let _ = writeln!(out, "</rss>");
+    out
 }

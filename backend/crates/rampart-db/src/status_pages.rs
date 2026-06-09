@@ -6,8 +6,8 @@
 
 use crate::{heartbeats, DbError, DbPool, DbResult};
 use rampart_core::status_page::{
-    NewStatusPage, PublicIncident, PublicIncidentUpdate, PublicStatusMonitor, PublicStatusPage,
-    StatusPage, UpdateStatusPage,
+    NewStatusPage, PublicIncident, PublicIncidentUpdate, PublicResolvedIncident,
+    PublicStatusMonitor, PublicStatusPage, StatusPage, UpdateStatusPage,
 };
 use rampart_core::{MonitorId, StatusPageId};
 use time::OffsetDateTime;
@@ -288,6 +288,23 @@ pub async fn public_view(pool: &DbPool, slug: &str) -> DbResult<PublicStatusPage
         });
     }
 
+    // Resolved-incident history for the public timeline pane.
+    // Cap at 30 — enough to cover a busy month, bounded so a long-
+    // lived page can't dump its full history on every scrape.
+    let history_rows = crate::incidents::list_resolved_history(pool, page.id, 30).await?;
+    let incident_history = history_rows
+        .into_iter()
+        .filter_map(|inc| {
+            inc.resolved_at.map(|resolved_at| PublicResolvedIncident {
+                title: inc.title,
+                content: inc.content,
+                style: inc.style,
+                created_at: inc.created_at,
+                resolved_at,
+            })
+        })
+        .collect();
+
     Ok(PublicStatusPage {
         slug: page.slug,
         title: page.title,
@@ -296,6 +313,7 @@ pub async fn public_view(pool: &DbPool, slug: &str) -> DbResult<PublicStatusPage
         generated_at: OffsetDateTime::now_utc(),
         monitors,
         incidents,
+        incident_history,
     })
 }
 

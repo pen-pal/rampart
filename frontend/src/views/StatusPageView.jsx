@@ -18,7 +18,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   CheckCircle2, AlertCircle, AlertTriangle, Calendar, Loader2,
-  Activity, Bell, Wrench, Shield,
+  Activity, Bell, Wrench, Shield, Mail, Rss, Link2, Check, X, History,
 } from 'lucide-react';
 import { api, offsetDateTimeArrayToDate } from '../lib/api.js';
 
@@ -434,6 +434,16 @@ export default function StatusPageView({ slug }) {
           <span><span className="legend-dot" style={{ background: 'var(--none)' }}/> No data</span>
         </div>
 
+        {/* ── Incident history ────────────────────────────────── */}
+        {(data.incident_history || []).length > 0 && (
+          <>
+            <div className="section-h"><History size={13}/> Incident history</div>
+            <div>
+              {(data.incident_history || []).map((inc, i) => <ResolvedIncident key={i} incident={inc}/>)}
+            </div>
+          </>
+        )}
+
         {/* ── Subscribe ────────────────────────────────────────── */}
         <div className="section-h"><Bell size={13}/> Subscribe to updates</div>
         <SubscribeBox slug={slug}/>
@@ -515,6 +525,54 @@ function cellTitle(c, daysAgo) {
 }
 
 function SubscribeBox({ slug }) {
+  // Tabs: 'email' | 'rss' | 'atom' | 'webhook'
+  const [tab, setTab] = useState('email');
+
+  const tabs = [
+    { id: 'email',   label: 'Email',   icon: Mail },
+    { id: 'rss',     label: 'RSS',     icon: Rss },
+    { id: 'atom',    label: 'Atom',    icon: Rss },
+    { id: 'webhook', label: 'Webhook', icon: Link2 },
+  ];
+
+  return (
+    <div className="subscribe-card" style={{ display: 'block', padding: '6px 6px 22px' }}>
+      <div style={{
+        display: 'flex', gap: 4, padding: 6,
+        background: 'var(--surface-2)', borderRadius: 10,
+        marginBottom: 18,
+      }}>
+        {tabs.map(t => {
+          const Icon = t.icon;
+          const active = tab === t.id;
+          return (
+            <button key={t.id} type="button" onClick={() => setTab(t.id)}
+              style={{
+                flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                padding: '9px 12px', borderRadius: 7,
+                background: active ? 'var(--surface)' : 'transparent',
+                color: active ? 'var(--text)' : 'var(--text-3)',
+                border: 'none', cursor: 'pointer', font: 'inherit',
+                fontSize: 12.5, fontWeight: 500,
+                boxShadow: active ? '0 1px 2px rgba(0,0,0,.05)' : 'none',
+                transition: 'all .12s',
+              }}>
+              <Icon size={13}/> {t.label}
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ padding: '0 18px' }}>
+        {tab === 'email'   && <EmailTab slug={slug}/>}
+        {tab === 'rss'     && <FeedTab slug={slug} kind="rss"/>}
+        {tab === 'atom'    && <FeedTab slug={slug} kind="atom"/>}
+        {tab === 'webhook' && <WebhookTab/>}
+      </div>
+    </div>
+  );
+}
+
+function EmailTab({ slug }) {
   const [email, setEmail] = useState('');
   const [state, setState] = useState('idle');
   const [err,   setErr]   = useState(null);
@@ -532,38 +590,97 @@ function SubscribeBox({ slug }) {
     }
   };
 
-  return (
-    <div className="subscribe-card">
-      <div style={{ flex: '1 1 280px', minWidth: 240 }}>
-        <h3>Get notified when an incident is posted</h3>
-        <p>One email per incident + the running updates. Unsubscribe anytime.</p>
+  if (state === 'ok') {
+    return (
+      <div style={{
+        background: 'var(--up-soft)', color: '#047857',
+        padding: '14px 18px', borderRadius: 9, fontSize: 13.5, fontWeight: 500,
+        display: 'flex', alignItems: 'center', gap: 10,
+      }}>
+        <Check size={16}/> Subscribed. We'll email you on every incident posted.
       </div>
-      {state === 'ok' ? (
-        <div style={{
-          background: 'var(--up-soft)', color: '#047857',
-          padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 500,
-        }}>
-          Subscribed. Check your inbox for updates.
-        </div>
-      ) : (
-        <form onSubmit={submit} style={{ display: 'flex', gap: 8, flex: '1 1 320px', minWidth: 280 }}>
-          <input className="sub-input" type="email" value={email}
-            onChange={e => setEmail(e.target.value)}
-            placeholder="you@example.com"/>
-          <button className="sub-btn" type="submit" disabled={state === 'sending'}>
-            {state === 'sending' ? 'Subscribing…' : 'Subscribe'}
-          </button>
-        </form>
-      )}
+    );
+  }
+
+  return (
+    <>
+      <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5 }}>
+        Get notified by email when an incident is posted and again on every update + when it's resolved.
+      </p>
+      <form onSubmit={submit} style={{ display: 'flex', gap: 8 }}>
+        <input className="sub-input" type="email" value={email}
+          onChange={e => setEmail(e.target.value)}
+          placeholder="you@example.com"
+          required/>
+        <button className="sub-btn" type="submit" disabled={state === 'sending'}>
+          {state === 'sending' ? 'Subscribing…' : 'Subscribe'}
+        </button>
+      </form>
       {state === 'err' && err && (
-        <div style={{
-          width: '100%', fontSize: 12, color: 'var(--down)',
-          marginTop: 8, fontWeight: 500,
-        }}>
-          {err}
-        </div>
+        <div style={{ fontSize: 12, color: 'var(--down)', marginTop: 8, fontWeight: 500 }}>{err}</div>
       )}
-    </div>
+    </>
+  );
+}
+
+function CopyButton({ value }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // Older browsers / non-secure contexts — fall back to a temp
+      // textarea selectall+copy. Quiet fallback; no toast.
+      const el = document.createElement('textarea');
+      el.value = value;
+      document.body.appendChild(el);
+      el.select();
+      try { document.execCommand('copy'); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch {}
+      document.body.removeChild(el);
+    }
+  };
+  return (
+    <button onClick={copy} className="sub-btn" type="button" style={{ padding: '8px 12px' }}>
+      {copied ? <><Check size={13}/> Copied</> : <><Link2 size={13}/> Copy</>}
+    </button>
+  );
+}
+
+function FeedTab({ slug, kind }) {
+  // URL is relative to the current origin so it works whether the page
+  // is served from `rampart.example.com` or behind a path-prefix proxy.
+  const url = `${window.location.origin}/v1/public/status-pages/${slug}/feed.${kind}`;
+  const label = kind === 'atom' ? 'Atom 1.0' : 'RSS 2.0';
+  return (
+    <>
+      <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5 }}>
+        Drop this {label} feed into any reader (Feedly, NetNewsWire, Reeder, Slack's <code style={{ background: 'var(--surface-2)', padding: '1px 5px', borderRadius: 4 }}>/feed</code>, etc.) to get a new entry per incident + a refresh on every update.
+      </p>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input className="sub-input" readOnly value={url}
+          onFocus={e => e.target.select()}
+          style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12.5 }}/>
+        <CopyButton value={url}/>
+        <a className="sub-btn" href={url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <Rss size={13}/> Open
+        </a>
+      </div>
+    </>
+  );
+}
+
+function WebhookTab() {
+  return (
+    <>
+      <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5 }}>
+        Webhook subscriptions are configured on the operator side from <strong>Notifications → Channels</strong> inside the Rampart admin. Drop a Slack / Discord / Microsoft Teams / Generic Webhook there and tag it for this status page.
+      </p>
+      <p style={{ margin: 0, fontSize: 12, color: 'var(--text-3)' }}>
+        If you don't run the Rampart instance hosting this page, ask the operator to wire your endpoint as a notification channel.
+      </p>
+    </>
   );
 }
 
@@ -574,6 +691,48 @@ const STYLE_TO_BG = {
   primary: ['#e0e7ff', '#4338ca'],
   success: ['#d1fae5', '#047857'],
 };
+
+/** A short "47 minutes" / "2 days" style duration. */
+function duration(start, end) {
+  const ms = end.getTime() - start.getTime();
+  const m = Math.round(ms / 60000);
+  if (m < 1)    return 'under a minute';
+  if (m < 60)   return `${m} minute${m === 1 ? '' : 's'}`;
+  const h = Math.floor(m / 60);
+  const rm = m % 60;
+  if (h < 24)   return rm === 0 ? `${h} hour${h === 1 ? '' : 's'}` : `${h}h ${rm}m`;
+  const d = Math.floor(h / 24);
+  const rh = h % 24;
+  return rh === 0 ? `${d} day${d === 1 ? '' : 's'}` : `${d}d ${rh}h`;
+}
+
+function ResolvedIncident({ incident }) {
+  const created = toDate(incident.created_at);
+  const resolved = toDate(incident.resolved_at);
+  const [bg, fg] = STYLE_TO_BG[incident.style] || STYLE_TO_BG.success;
+  return (
+    <div style={{
+      padding: '14px 18px', marginBottom: 10,
+      borderRadius: 12, background: 'var(--surface)',
+      border: '1px solid var(--border)',
+      display: 'grid', gridTemplateColumns: '6px 1fr', gap: 14, alignItems: 'flex-start',
+    }}>
+      <div style={{ width: 6, alignSelf: 'stretch', borderRadius: 3, background: bg }}/>
+      <div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 4 }}>
+          <strong style={{ fontSize: 14 }}>{incident.title}</strong>
+          <span style={{ fontSize: 11, color: fg, fontWeight: 500, background: bg, padding: '2px 8px', borderRadius: 999 }}>
+            Resolved
+          </span>
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 6 }}>
+          {created.toLocaleDateString()} · lasted {duration(created, resolved)}
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--text-2)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{incident.content}</div>
+      </div>
+    </div>
+  );
+}
 
 function Incident({ incident }) {
   const [bg, fg] = STYLE_TO_BG[incident.style] || STYLE_TO_BG.warning;
