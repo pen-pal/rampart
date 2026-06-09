@@ -1,6 +1,7 @@
 //! Shared application state.
 
 use crate::http_metrics::HttpMetrics;
+use crate::rate_limit::IpRateLimiter;
 use rampart_core::heartbeat::Heartbeat;
 use rampart_core::UserId;
 use rampart_db::DbPool;
@@ -33,6 +34,10 @@ struct Inner {
     /// AppState; the middleware in `lib.rs::build_router` calls
     /// `observe()` on every served request.
     http_metrics: Arc<HttpMetrics>,
+    /// Per-client-IP token bucket. Layered as middleware on the auth
+    /// router (login / register / 2fa verify) to cap brute-force
+    /// attempts. Cloning is cheap (Arc-shared).
+    auth_rate_limiter: IpRateLimiter,
 }
 
 pub struct TotpChallenge {
@@ -48,6 +53,7 @@ impl AppState {
             scheduler: None,
             totp_challenges: Mutex::new(HashMap::new()),
             http_metrics: Arc::new(HttpMetrics::new()),
+            auth_rate_limiter: IpRateLimiter::new(),
         }))
     }
 
@@ -62,11 +68,16 @@ impl AppState {
             scheduler: Some(scheduler),
             totp_challenges: Mutex::new(HashMap::new()),
             http_metrics: Arc::new(HttpMetrics::new()),
+            auth_rate_limiter: IpRateLimiter::new(),
         }))
     }
 
     pub fn http_metrics(&self) -> &Arc<HttpMetrics> {
         &self.0.http_metrics
+    }
+
+    pub fn auth_rate_limiter(&self) -> IpRateLimiter {
+        self.0.auth_rate_limiter.clone()
     }
 
     pub fn pool(&self) -> &DbPool {

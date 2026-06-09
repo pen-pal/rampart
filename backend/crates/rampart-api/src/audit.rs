@@ -24,6 +24,15 @@ pub async fn record(
 ) {
     let ip = client_ip(headers);
     let ua = headers.get("user-agent").and_then(|v| v.to_str().ok());
+    // Defence-in-depth: the audit log is admin-readable + CSV-exportable.
+    // Even if a route handler accidentally hands us a payload containing
+    // a password / bearer / TOTP secret / API key, we redact in-place
+    // before persistence so the secret never reaches an audit-export
+    // CSV, a SIEM, or a curious admin's `select * from audit_log`.
+    let payload = payload.map(|mut v| {
+        redact_secret_keys(&mut v);
+        v
+    });
     let entry = NewEntry {
         actor_user_id: Some(user.id),
         actor_api_key_id: None,
@@ -39,6 +48,55 @@ pub async fn record(
     }
 }
 
+/// Field names that hold secrets we never want in the audit log.
+/// Case-insensitive prefix-match against JSON object keys. Matched
+/// fields are replaced with the literal string "[redacted]".
+const SECRET_FIELD_PATTERNS: &[&str] = &[
+    "password",
+    "passwd",
+    "secret",
+    "token",
+    "api_key",
+    "apikey",
+    "private_key",
+    "client_secret",
+    "auth",
+    "credential",
+    "totp",
+    "recovery",
+    "vapid",
+    "smtp_password",
+    "bind_password",
+];
+
+/// In-place recursive walk: any object key whose lowercase form
+/// CONTAINS any pattern in `SECRET_FIELD_PATTERNS` has its value
+/// replaced with `"[redacted]"`. Arrays are recursed into; scalars
+/// are passed through. The shape of the payload is preserved so the
+/// audit-log UI still renders sensibly.
+fn redact_secret_keys(value: &mut serde_json::Value) {
+    use serde_json::Value;
+    match value {
+        Value::Object(map) => {
+            for (k, v) in map.iter_mut() {
+                let lower = k.to_lowercase();
+                let is_secret = SECRET_FIELD_PATTERNS.iter().any(|p| lower.contains(p));
+                if is_secret {
+                    *v = Value::String("[redacted]".into());
+                } else {
+                    redact_secret_keys(v);
+                }
+            }
+        }
+        Value::Array(arr) => {
+            for v in arr.iter_mut() {
+                redact_secret_keys(v);
+            }
+        }
+        _ => {}
+    }
+}
+
 /// Honor X-Forwarded-For if present (one trusted proxy hop). Otherwise
 /// give up — axum doesn't expose ConnectInfo at this layer cheaply.
 fn client_ip(headers: &HeaderMap) -> Option<IpNetwork> {
@@ -51,4 +109,62 @@ fn client_ip(headers: &HeaderMap) -> Option<IpNetwork> {
         .next()?
         .trim();
     IpNetwork::from_str(raw).ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::redact_secret_keys;
+    use serde_json::json;
+
+    #[test]
+    fn redacts_top_level_password_field() {
+        let mut v = json!({"email": "alice@example.com", "password": "hunter2"});
+        redact_secret_keys(&mut v);
+        assert_eq!(v["email"], "alice@example.com");
+        assert_eq!(v["password"], "[redacted]");
+    }
+
+    #[test]
+    fn redacts_nested_token_field() {
+        let mut v = json!({"smtp": {"host": "smtp.x", "smtp_password": "p"}});
+        redact_secret_keys(&mut v);
+        assert_eq!(v["smtp"]["host"], "smtp.x");
+        assert_eq!(v["smtp"]["smtp_password"], "[redacted]");
+    }
+
+    #[test]
+    fn redacts_inside_array_of_objects() {
+        let mut v = json!({"channels": [
+            {"name": "ops", "api_key": "abc"},
+            {"name": "alerts", "webhook_url": "https://x"}
+        ]});
+        redact_secret_keys(&mut v);
+        assert_eq!(v["channels"][0]["api_key"], "[redacted]");
+        // webhook_url is not in the secret-prefix list (operators do
+        // legitimately need to see the URL they configured) — passes
+        // through.
+        assert_eq!(v["channels"][1]["webhook_url"], "https://x");
+    }
+
+    #[test]
+    fn matching_is_case_insensitive_and_substring() {
+        let mut v = json!({"BIND_PASSWORD": "x", "RecoveryCode": "y", "client_secret_jwt": "z"});
+        redact_secret_keys(&mut v);
+        assert_eq!(v["BIND_PASSWORD"], "[redacted]");
+        assert_eq!(v["RecoveryCode"], "[redacted]");
+        assert_eq!(v["client_secret_jwt"], "[redacted]");
+    }
+
+    #[test]
+    fn leaves_innocuous_keys_alone() {
+        let mut v = json!({
+            "name": "Acme",
+            "url": "https://example.com",
+            "interval_seconds": 60,
+            "headers": [{"k": "X-Trace", "v": "1"}]
+        });
+        let before = v.clone();
+        redact_secret_keys(&mut v);
+        assert_eq!(v, before);
+    }
 }
