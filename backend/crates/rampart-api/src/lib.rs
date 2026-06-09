@@ -7,6 +7,7 @@
 pub mod audit;
 pub mod auth;
 pub mod error;
+pub mod importers;
 pub mod routes;
 pub mod smtp;
 pub mod state;
