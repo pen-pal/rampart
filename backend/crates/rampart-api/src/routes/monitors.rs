@@ -511,22 +511,83 @@ async fn bulk_edit(
     Ok(Json(BulkEditResult { updated }))
 }
 
+/// Optional body for `POST /v1/monitors/{id}/clone`.
+///
+/// Both fields are optional and the whole body may be omitted entirely
+/// (the legacy no-body call still works): `group_id` retargets the clone
+/// into a different folder/group (validated to exist; `null` clones into
+/// "ungrouped"), and `name` overrides the default "<name> (copy)" label.
+#[derive(Debug, Default, Deserialize)]
+pub struct CloneRequest {
+    /// Tri-state: omitted → inherit the source's group; `null` → ungrouped;
+    /// set → clone into this group (must exist).
+    #[serde(default, deserialize_with = "deserialize_optional_field")]
+    group_id: Option<Option<String>>,
+    name: Option<String>,
+}
+
+/// Distinguish "key absent" (`None`) from "key present and null"
+/// (`Some(None)`) for the tri-state `group_id`. Serde's plain
+/// `Option<Option<T>>` collapses both to `None`; this restores the
+/// distinction so an explicit `"group_id": null` can mean "ungroup".
+fn deserialize_optional_field<'de, D>(de: D) -> Result<Option<Option<String>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Ok(Some(Option::<String>::deserialize(de)?))
+}
+
 /// Duplicate a monitor with the same config under a "<name> (copy)"
 /// name. Heartbeat history is intentionally NOT copied — a clone is a
 /// fresh probe surface, not a fork of past state. Tags, dependencies,
 /// and notification channel attachments are also left empty so the
 /// operator can re-wire deliberately. Push tokens are regenerated for
 /// push monitors (the token has to be unique per row).
+///
+/// Accepts an optional JSON body (`CloneRequest`) to retarget the clone
+/// into a chosen group and/or override its name.
 async fn clone_one(
     State(state): State<AppState>,
     Extension(user): Extension<User>,
     headers: HeaderMap,
     Path(id): Path<String>,
+    body: Option<Json<CloneRequest>>,
 ) -> Result<(StatusCode, Json<Monitor>), ApiError> {
+    use rampart_core::ids::MonitorGroupId;
+
     let monitor_id = parse_monitor_id(&id)?;
     let src = rampart_db::monitors::get(state.pool(), monitor_id).await?;
+
+    let req = body.map(|Json(b)| b).unwrap_or_default();
+
+    // Resolve the target group. Tri-state: absent → inherit source's group,
+    // explicit null → ungrouped, set → that group (validated to exist).
+    let group_id = match req.group_id {
+        None => src.group_id,
+        Some(None) => None,
+        Some(Some(ref g)) if g.is_empty() => None,
+        Some(Some(ref g)) => {
+            let gid = Uuid::from_str(g)
+                .map(MonitorGroupId::from_uuid)
+                .map_err(|_| ApiError::BadRequest("invalid group_id".into()))?;
+            let exists = rampart_db::monitor_groups::list(state.pool())
+                .await?
+                .iter()
+                .any(|grp| grp.id == gid);
+            if !exists {
+                return Err(ApiError::BadRequest("target group does not exist".into()));
+            }
+            Some(gid)
+        }
+    };
+
+    let name = match req.name.map(|n| n.trim().to_string()) {
+        Some(n) if !n.is_empty() => n,
+        _ => format!("{} (copy)", src.name),
+    };
+
     let copy = rampart_core::monitor::NewMonitor {
-        name: format!("{} (copy)", src.name),
+        name,
         kind: src.kind,
         url: src.url.clone(),
         hostname: src.hostname.clone(),
@@ -545,7 +606,7 @@ async fn clone_one(
         follow_redirect: src.follow_redirect,
         ignore_tls: src.ignore_tls,
         proxy_id: src.proxy_id,
-        group_id: src.group_id,
+        group_id,
         slo_target_pct: src.slo_target_pct,
         slo_window_days: src.slo_window_days,
     };
@@ -558,7 +619,11 @@ async fn clone_one(
         "monitor.clone",
         "monitor",
         Some(cloned.id.0),
-        Some(serde_json::json!({ "source": monitor_id.0, "name": cloned.name })),
+        Some(serde_json::json!({
+            "source": monitor_id.0,
+            "name": cloned.name,
+            "group_id": group_id.map(|g| g.0),
+        })),
     )
     .await;
     Ok((StatusCode::CREATED, Json(cloned)))
