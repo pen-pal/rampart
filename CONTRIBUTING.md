@@ -38,7 +38,17 @@ The core feature set is shipped (38 probe kinds, 130 notification channels, stat
 
 ### 🚧 Known gaps
 
-- **SLO breach notifications.** Schema (`slo_target_pct` / `slo_window_days` on `monitors`), the rolling-window helper (`rampart_db::heartbeats::current_slo_uptime_pct`), and the Edit-modal + Overview-tab UI fields shipped in migration `0044`. Wiring the per-heartbeat breach detector into `rampart-notifier` (new `EventKind::SloBreached` / `EventKind::SloRecovered`, default templates per channel, de-duplication so a single breach pages once) is still TODO. Until then, operators see the SLO card go red on the dashboard but receive no push / email / Slack alert for the breach. Pick this up if you want to close the loop — keep it a single check, not a full error-budget calculator.
+*Nothing currently tracked — open an issue if you spot a feature that
+fits the project's scope but isn't covered.*
+
+> **SLO breach notifications shipped in `0045_slo_breach_dedup.sql`.**
+> The scheduler now runs `current_slo_uptime_pct` against every monitor
+> touched by a heartbeat batch; crossing the target emits
+> `EventKind::SloBreached`, climbing back emits `EventKind::SloRecovered`,
+> and a single `monitors.slo_breached_at` column de-duplicates so a
+> sustained breach pages once. Default subject + body templates live
+> alongside the status-flip defaults in
+> `rampart-notifier::template::default_subject` / `default_body`.
 
 ---
 

@@ -10,6 +10,12 @@ pub enum EventKind {
     StatusFlip,
     /// User-initiated "send me a test message" from the channel form.
     Test,
+    /// Rolling SLO uptime fell below the configured target. Fired once
+    /// per breach (de-duped by `monitors.slo_breached_at`).
+    SloBreached,
+    /// Rolling SLO uptime climbed back at-or-above the configured target
+    /// after a prior breach. Fired once per recovery, same de-dup column.
+    SloRecovered,
 }
 
 #[derive(Debug, Clone)]
@@ -18,6 +24,10 @@ pub struct Event {
     pub monitor: Monitor,
     pub heartbeat: Heartbeat,
     pub prev_status: Option<MonitorStatus>,
+    /// Current rolling uptime % at the moment an `SloBreached` /
+    /// `SloRecovered` event was emitted. None for non-SLO events.
+    /// Surfaced to the template engine as `{{ slo_current_pct }}`.
+    pub slo_current_pct: Option<f64>,
 }
 
 impl Event {

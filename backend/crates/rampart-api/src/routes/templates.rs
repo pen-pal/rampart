@@ -141,6 +141,7 @@ async fn preview(Json(input): Json<PreviewBody>) -> Result<Json<PreviewResponse>
         monitor,
         heartbeat: hb,
         prev_status: Some(MonitorStatus::Up),
+        slo_current_pct: None,
     };
     Ok(Json(PreviewResponse {
         subject: render(&input.subject_template, &event),

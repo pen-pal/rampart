@@ -2676,6 +2676,8 @@ const EVENT_KINDS = [
   { id: 'incident_created',  label: 'Incident created' },
   { id: 'incident_updated',  label: 'Incident updated' },
   { id: 'incident_resolved', label: 'Incident resolved' },
+  { id: 'slo_breached',      label: 'SLO breached' },
+  { id: 'slo_recovered',     label: 'SLO recovered' },
 ];
 
 // Starter templates — click to prefill the editor, tweak, then save.

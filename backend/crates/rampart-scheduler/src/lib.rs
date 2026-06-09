@@ -87,8 +87,9 @@ impl Scheduler {
         let (hb_broadcast, _) = broadcast::channel::<Heartbeat>(HEARTBEAT_BROADCAST_DEPTH);
         let writer_pool = pool.clone();
         let writer_broadcast = hb_broadcast.clone();
+        let writer_notifier = notifier.clone();
         tokio::spawn(async move {
-            writer_loop(writer_pool, hb_rx, writer_broadcast).await;
+            writer_loop(writer_pool, hb_rx, writer_broadcast, writer_notifier).await;
         });
 
         Self {
@@ -336,6 +337,7 @@ async fn run_once(
                     monitor: monitor.clone(),
                     heartbeat: hb.clone(),
                     prev_status: Some(prev),
+                    slo_current_pct: None,
                 });
             }
         }
@@ -403,6 +405,7 @@ async fn writer_loop(
     pool: DbPool,
     mut rx: mpsc::Receiver<Heartbeat>,
     bcast: broadcast::Sender<Heartbeat>,
+    notifier: Option<NotifierHandle>,
 ) {
     let mut buffer: Vec<Heartbeat> = Vec::with_capacity(BATCH_SIZE);
 
@@ -456,8 +459,119 @@ async fn writer_loop(
                     }
                 }
             }
+
+            // SLO breach detection. Runs *after* the batch is on disk so
+            // `current_slo_uptime_pct` sees every heartbeat just inserted.
+            // We pick one representative heartbeat per monitor (the latest
+            // one in the batch) to pass to the event; a single breach
+            // pages once thanks to `slo_breached_at`.
+            check_slo_breaches(&pool, &buffer, notifier.as_ref()).await;
         }
         buffer.clear();
+    }
+}
+
+/// For every monitor touched by this batch, recompute the rolling SLO
+/// uptime and emit `SloBreached` / `SloRecovered` when the column crosses
+/// the configured target. De-duplicated via `monitors.slo_breached_at`:
+/// while a breach is active the column is non-null and no further
+/// SloBreached fires; recovery clears the column.
+///
+/// Failures here are logged + swallowed — the heartbeat itself is
+/// already persisted and we'd rather not stall the writer because of a
+/// transient DB blip on the SLO read path.
+async fn check_slo_breaches(pool: &DbPool, batch: &[Heartbeat], notifier: Option<&NotifierHandle>) {
+    let Some(notifier) = notifier else { return };
+    if batch.is_empty() {
+        return;
+    }
+
+    // Latest heartbeat per monitor — the templates carry `ts` from this,
+    // so we want the most recent one regardless of input ordering.
+    let mut latest: HashMap<MonitorId, Heartbeat> = HashMap::with_capacity(batch.len());
+    for hb in batch {
+        match latest.get(&hb.monitor_id) {
+            Some(existing) if existing.ts >= hb.ts => {}
+            _ => {
+                latest.insert(hb.monitor_id, hb.clone());
+            }
+        }
+    }
+
+    for (mid, hb) in latest {
+        let slo = match rampart_db::monitors::slo_state(pool, mid).await {
+            Ok(Some(s)) => s,
+            // Monitor row gone (deleted) — nothing to do.
+            Ok(None) => continue,
+            Err(e) => {
+                warn!(monitor = %mid, error = %e, "slo_state lookup failed");
+                continue;
+            }
+        };
+
+        let (Some(target), Some(window)) = (slo.target_pct, slo.window_days) else {
+            // No SLO configured for this monitor — short-circuit fast.
+            continue;
+        };
+
+        let current = match rampart_db::heartbeats::current_slo_uptime_pct(pool, mid, window).await
+        {
+            Ok(Some(v)) => v,
+            // No heartbeats in the window yet — can't say "breached"
+            // off zero data. Skip without touching the de-dup column.
+            Ok(None) => continue,
+            Err(e) => {
+                warn!(monitor = %mid, error = %e, "current_slo_uptime_pct failed");
+                continue;
+            }
+        };
+
+        let breaching = current < target;
+        let already_breached = slo.breached_at.is_some();
+        let kind = match (breaching, already_breached) {
+            (true, false) => EventKind::SloBreached,
+            (false, true) => EventKind::SloRecovered,
+            // Either still good (no breach, no marker) or still breached
+            // (already paged) — single column de-dup keeps this silent.
+            _ => continue,
+        };
+
+        // Hydrate the full monitor so the template engine + per-channel
+        // adapters have the same shape they get for status flips.
+        let monitor = match rampart_db::monitors::get(pool, mid).await {
+            Ok(m) => m,
+            Err(e) => {
+                warn!(monitor = %mid, error = %e, "monitor hydrate for SLO event failed");
+                continue;
+            }
+        };
+
+        let stamp_result = match kind {
+            EventKind::SloBreached => rampart_db::monitors::mark_slo_breached(pool, mid).await,
+            EventKind::SloRecovered => rampart_db::monitors::clear_slo_breached(pool, mid).await,
+            _ => Ok(()),
+        };
+        if let Err(e) = stamp_result {
+            warn!(monitor = %mid, error = %e, "SLO de-dup column update failed");
+            // Fire the event anyway — better a possible duplicate page
+            // than silent breach. Next batch will retry the column update.
+        }
+
+        info!(
+            monitor = %mid,
+            kind = ?kind,
+            current = current,
+            target = target,
+            "SLO event firing",
+        );
+
+        notifier.notify(Event {
+            kind,
+            monitor,
+            heartbeat: hb,
+            prev_status: None,
+            slo_current_pct: Some(current),
+        });
     }
 }
 

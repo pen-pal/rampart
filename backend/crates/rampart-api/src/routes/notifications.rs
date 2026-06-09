@@ -250,6 +250,7 @@ async fn send_test(
         monitor: test_monitor,
         heartbeat: test_hb,
         prev_status: Some(rampart_core::MonitorStatus::Down),
+        slo_current_pct: None,
     };
     let subject = rampart_notifier::template::default_subject(&event);
     let body = rampart_notifier::template::default_body(&event);
