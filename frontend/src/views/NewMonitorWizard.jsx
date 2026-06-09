@@ -816,7 +816,8 @@ export default function NewMonitorWizard() {
 
           {/* nav buttons */}
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 36, paddingTop: 24, borderTop: '1px solid var(--border)' }}>
-            <button className="btn" disabled={step === 1 || submitting} onClick={() => setStep(s => s - 1)}>
+            <button className="btn" disabled={submitting}
+              onClick={() => (step === 1 ? cancel() : setStep(s => s - 1))}>
               <ChevronLeft size={13}/> Back
             </button>
             {step < 3 ? (
