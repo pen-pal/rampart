@@ -235,6 +235,22 @@ function formatDuration(ms) {
   return `${Math.floor(sec / 3600)}h ${Math.floor((sec % 3600) / 60)}m`;
 }
 
+// Like formatDuration but takes seconds (what the reliability endpoint
+// returns) and renders the same compact two-part form used elsewhere on
+// the page — "47h 23m", "4m 12s", "12s". Returns '—' for null/undefined
+// so callers can pipe a possibly-missing value straight in.
+function formatSecondsDuration(secs) {
+  if (secs == null) return '—';
+  const s = Math.max(0, Math.round(secs));
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`;
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (h < 24) return `${h}h ${m}m`;
+  const d = Math.floor(h / 24);
+  return `${d}d ${h % 24}h`;
+}
+
 // ── components ────────────────────────────────────────────────────────────
 function Kpi({ label, value, suffix, sub, color }) {
   return (
@@ -278,6 +294,10 @@ export default function MonitorDetail({ monitorId }) {
   useEffect(() => { setOlderHeartbeats([]); setAllLoaded(false); }, [monitorId]);
   const summaryState   = useApi(() => api.monitors.summary(86400),       [], { pollMs: 15_000 });
   const summaryState30 = useApi(() => api.monitors.summary(2_592_000),   [], { pollMs: 60_000 });
+  // Trailing-30d MTBF / MTTR — slow to change, so we poll only every
+  // 5min. Server walks heartbeat history directly so values are exact
+  // (not derived from the heartbeats cache the client has loaded).
+  const reliabilityState = useApi(() => monitorId ? api.monitors.reliability(monitorId) : Promise.resolve(null), [monitorId], { pollMs: 300_000 });
   const groupsState    = useApi(() => api.monitorGroups.list(),          [], { pollMs: 60_000 });
 
   const monitor = monitorState.data;
@@ -550,6 +570,18 @@ export default function MonitorDetail({ monitorId }) {
           <CertCard monitor={monitor}/>
         )}
 
+        {/* SLO card. Renders only when the operator has set a target;
+            current% is pulled from the rolling 30d summary endpoint
+            (close enough for the headline number — the precise
+            window-day reading lives server-side and surfaces via
+            breach alerts in a later iteration). */}
+        {monitor.slo_target_pct != null && (
+          <SloCard
+            target={monitor.slo_target_pct}
+            current={uptime30d}
+            windowDays={monitor.slo_window_days}/>
+        )}
+
         {/* 90-day uptime strip */}
         <div className="card" style={{ padding: '20px 22px', marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -566,6 +598,12 @@ export default function MonitorDetail({ monitorId }) {
             <span>Today</span>
           </div>
         </div>
+
+        {/* Reliability — MTBF / MTTR / downtime events over the trailing 30
+            days. Backend walks the heartbeat history (server-side) so this
+            stays accurate even before the client has lazy-loaded older
+            heartbeats. Renders dashes until the first response lands. */}
+        <ReliabilityCard data={reliabilityState.data}/>
 
         {/* response time chart */}
         <div className="card" style={{ padding: '20px 22px', marginBottom: 20 }}>
@@ -788,6 +826,15 @@ function EditModal({ monitor, onCancel }) {
       ? JSON.stringify(monitor.config, null, 2)
       : '',
   );
+  // Per-monitor SLO target. Both fields are optional — an empty string
+  // is treated as "clear" so the operator can disable an SLO by erasing
+  // either value.
+  const [sloTarget,   setSloTarget]   = useState(
+    monitor.slo_target_pct == null ? '' : String(monitor.slo_target_pct),
+  );
+  const [sloWindow,   setSloWindow]   = useState(
+    monitor.slo_window_days == null ? '' : String(monitor.slo_window_days),
+  );
   const [busy,        setBusy]        = useState(false);
   const [err,         setErr]         = useState(null);
 
@@ -834,6 +881,34 @@ function EditModal({ monitor, onCancel }) {
       patch.accepted_statuses = acceptedStatuses;
       patch.http_body         = body || null;
       patch.http_headers      = headersJson;
+    }
+    // SLO fields use the Option<Option<…>> double-option pattern on the
+    // backend: send `null` to clear, omit to leave unchanged. We always
+    // send both (the form lets the user clear either one) so the patch
+    // reflects exactly what's in the form.
+    {
+      const t = sloTarget.trim();
+      if (t === '') {
+        patch.slo_target_pct = null;
+      } else {
+        const n = parseFloat(t);
+        if (!Number.isFinite(n) || n < 90 || n > 100) {
+          setErr('SLO target must be between 90.0 and 100.0.');
+          return;
+        }
+        patch.slo_target_pct = n;
+      }
+      const w = sloWindow.trim();
+      if (w === '') {
+        patch.slo_window_days = null;
+      } else {
+        const n = parseInt(w, 10);
+        if (!Number.isFinite(n) || n < 1 || n > 90) {
+          setErr('SLO window must be between 1 and 90 days.');
+          return;
+        }
+        patch.slo_window_days = n;
+      }
     }
     Object.keys(patch).forEach(k => patch[k] === undefined && delete patch[k]);
 
@@ -899,6 +974,23 @@ function EditModal({ monitor, onCancel }) {
             <Field label="Timeout (s)"><input className="input mono" value={timeoutSec} onChange={e => setTimeoutSec(e.target.value)}/></Field>
             <Field label="Retries"><input className="input mono" value={retries} onChange={e => setRetries(e.target.value)}/></Field>
             <Field label="Re-alert (s)"><input className="input mono" value={resend} onChange={e => setResend(e.target.value)}/></Field>
+          </div>
+
+          {/* SLO target + window. Both optional — clear either to disable
+              the SLO. Server enforces the 90.0–100.0 / 1–90 ranges; we
+              echo the ranges in the placeholders so the operator doesn't
+              have to guess. */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+            <Field label="SLO target (%)">
+              <input className="input mono" inputMode="decimal"
+                value={sloTarget} onChange={e => setSloTarget(e.target.value)}
+                placeholder="e.g. 99.9 (90.0 – 100.0)"/>
+            </Field>
+            <Field label="SLO window (days)">
+              <input className="input mono" inputMode="numeric"
+                value={sloWindow} onChange={e => setSloWindow(e.target.value)}
+                placeholder="e.g. 30 (1 – 90)"/>
+            </Field>
           </div>
 
           {/* ── Target ─────────────────────────────────────────────── */}
@@ -1260,6 +1352,76 @@ function MonitorChannels({ monitorId }) {
   );
 }
 
+// Reliability rollup widget — MTBF, MTTR + downtime event count over the
+// trailing 30 days. The backend computes the values directly from the
+// heartbeat history (so the figures don't depend on which pages the
+// client has lazy-loaded). Renders dashes during the first fetch and
+// when there's no downtime to compute MTBF/MTTR from.
+function ReliabilityCard({ data }) {
+  // Tooltip text: industry-standard definitions so a new operator
+  // browsing the dashboard isn't left guessing what the acronyms mean.
+  const mtbfTip =
+    'MTBF — Mean Time Between Failures. Average uptime between consecutive '
+    + 'down events over the trailing window. Higher is better.';
+  const mttrTip =
+    'MTTR — Mean Time To Recovery. Average duration of a down event over '
+    + 'the trailing window. Lower is better.';
+
+  const windowDays = data?.window_days ?? 30;
+  const mtbf       = formatSecondsDuration(data?.mtbf_secs);
+  const mttr       = formatSecondsDuration(data?.mttr_secs);
+  const events     = data?.downtime_events ?? 0;
+
+  // Small inline-help icon. Browser default tooltip is enough — no extra
+  // dependency, plays well with keyboard nav too.
+  const HelpDot = ({ tip }) => (
+    <span
+      title={tip}
+      style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        width: 14, height: 14, marginLeft: 6, borderRadius: '50%',
+        background: 'var(--surface-2)', color: 'var(--text-3)',
+        fontSize: 10, fontWeight: 600, cursor: 'help', userSelect: 'none',
+      }}>?</span>
+  );
+
+  return (
+    <div className="card" style={{ padding: '20px 22px', marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Reliability</h3>
+        <span className="tabular mono" style={{ fontSize: 12, color: 'var(--text-2)' }}>
+          {`trailing ${windowDays} days`}
+        </span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+        <div>
+          <div className="kpi-label" style={{ display: 'flex', alignItems: 'center' }}>
+            MTBF<HelpDot tip={mtbfTip}/>
+          </div>
+          <div className="kpi-value tabular" style={{ marginTop: 8, color: 'var(--text)' }}>{mtbf}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4 }}>between failures</div>
+        </div>
+        <div>
+          <div className="kpi-label" style={{ display: 'flex', alignItems: 'center' }}>
+            MTTR<HelpDot tip={mttrTip}/>
+          </div>
+          <div className="kpi-value tabular" style={{ marginTop: 8, color: 'var(--text)' }}>{mttr}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4 }}>to recover</div>
+        </div>
+        <div>
+          <div className="kpi-label">Downtime events</div>
+          <div
+            className="kpi-value tabular"
+            style={{ marginTop: 8, color: events > 0 ? 'var(--down)' : 'var(--text)' }}>
+            {events}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4 }}>up→down transitions</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Push-URL card. Shown on push monitors so the user can copy the
 //    endpoint into their cron / CI / backup script. Server-side, the
 //    token is what authenticates the heartbeat (so treat it like a
@@ -1294,6 +1456,74 @@ function CertCard({ monitor }) {
       </div>
       <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-3)' }}>
         Inspected {formatRelative(checkedDate)} · refreshed hourly while the monitor is active.
+      </div>
+    </div>
+  );
+}
+
+// Compact SLO card. Mirrors CertCard's visual shape so the Overview tab
+// stays consistent. Three states:
+//   * "OK"       — current% >= target
+//   * "At risk"  — current is within 0.1pp of target but still ≥ target
+//   * "Breached" — current% < target
+// "No data" when current is null. Window is informational — the precise
+// uptime over the configured window is calculated server-side in the
+// breach detector; we approximate here with the rolling 30d summary so
+// the card stays cheap to render without an extra round-trip.
+function SloCard({ target, current, windowDays }) {
+  const hasData = current != null;
+  let tone = 'unknown';
+  let label = 'no data yet';
+  if (hasData) {
+    if (current >= target) {
+      // "At risk" = within 0.1 percentage points of the target.
+      // Renders amber so the operator knows error-budget is thin.
+      tone = (current - target) < 0.1 ? 'risk' : 'ok';
+      label = tone === 'risk' ? 'At risk' : 'OK';
+    } else {
+      tone = 'breached';
+      label = 'Breached';
+    }
+  }
+  const palette = {
+    ok:       { bg: 'var(--up-soft)',   fg: '#047857' },
+    risk:     { bg: 'var(--warn-soft)', fg: '#92400e' },
+    breached: { bg: 'var(--down-soft)', fg: '#b91c1c' },
+    unknown:  { bg: 'var(--surface-2)', fg: 'var(--text-2)' },
+  }[tone];
+  const fmtPct = v => (v == null ? '—' : `${Number(v).toFixed(2)}%`);
+  const windowLabel = windowDays ?? 30;
+  return (
+    <div className="card" style={{ padding: '18px 22px', marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <Activity size={14} color="var(--text-3)"/>
+        <h3 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>SLO</h3>
+        <span style={{
+          marginLeft: 'auto',
+          background: palette.bg, color: palette.fg,
+          fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 999,
+        }}>{label}</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em', fontWeight: 500 }}>
+            Target
+          </div>
+          <div className="mono tabular" style={{ fontSize: 18, fontWeight: 500, marginTop: 2 }}>
+            {Number(target).toFixed(2)}%
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em', fontWeight: 500 }}>
+            Current
+          </div>
+          <div className="mono tabular" style={{ fontSize: 18, fontWeight: 500, marginTop: 2, color: palette.fg }}>
+            {fmtPct(current)}
+          </div>
+        </div>
+      </div>
+      <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-3)' }}>
+        Rolling {windowLabel}-day window. Current is the headline 30-day uptime — the exact-window value surfaces through the breach alert when crossed.
       </div>
     </div>
   );

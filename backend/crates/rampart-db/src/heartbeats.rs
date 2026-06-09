@@ -204,6 +204,43 @@ pub async fn uptime_pct(
     Ok(Some(ok as f64 / total as f64 * 100.0))
 }
 
+/// Current rolling SLO uptime over the trailing `window_days`. Returns
+/// `None` when the window holds zero heartbeats (caller renders "no
+/// data" rather than a misleading 0%). Returns the percentage in the
+/// same shape (0.0 — 100.0) as [`uptime_pct`], so frontends can compare
+/// against `slo_target_pct` directly.
+///
+/// One simple aggregate query — same shape as `uptime_pct` with a
+/// day-granularity window. Deliberately not a perfect SLI/SLO
+/// error-budget calculator; just "you promised X%, you are at Y%".
+pub async fn current_slo_uptime_pct(
+    pool: &DbPool,
+    monitor: MonitorId,
+    window_days: i32,
+) -> DbResult<Option<f64>> {
+    let since = OffsetDateTime::now_utc() - time::Duration::days(window_days as i64);
+    let row = sqlx::query!(
+        r#"
+        SELECT
+            COUNT(*)                              AS total,
+            COUNT(*) FILTER (WHERE status = 'up') AS ok_count
+        FROM heartbeats
+        WHERE monitor_id = $1 AND ts >= $2
+        "#,
+        monitor.0,
+        since,
+    )
+    .fetch_one(pool)
+    .await?;
+
+    let total = row.total.unwrap_or(0);
+    if total == 0 {
+        return Ok(None);
+    }
+    let ok = row.ok_count.unwrap_or(0);
+    Ok(Some(ok as f64 / total as f64 * 100.0))
+}
+
 /// Average latency in milliseconds over the trailing window for
 /// successful heartbeats only. Used for the dashboard's p50 column.
 pub async fn avg_latency_ms(
@@ -430,6 +467,103 @@ pub async fn summary_window(pool: &DbPool, window_seconds: i64) -> DbResult<Vec<
             last_ts: r.last_ts,
         })
         .collect())
+}
+
+/// MTBF / MTTR rollup over a trailing window.
+///
+/// * `mtbf_secs` — mean time between failures: total up-state seconds
+///   divided by the number of up→down transitions. `None` when no
+///   failures occurred in the window (nothing to average over).
+/// * `mttr_secs` — mean time to recovery: total down-state seconds
+///   divided by the number of down→up transitions. `None` when no
+///   recoveries occurred in the window.
+/// * `downtime_events` — count of up→down transitions (i.e. failures).
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct MtbfMttr {
+    pub mtbf_secs: Option<i64>,
+    pub mttr_secs: Option<i64>,
+    pub downtime_events: i64,
+}
+
+/// Compute MTBF + MTTR for a monitor over the trailing `window_seconds`.
+///
+/// Walks the heartbeat history in ascending-ts order, treating each
+/// heartbeat as the start of a state segment that lasts until the next
+/// heartbeat. Statuses other than `up`/`down` (warn, paused, pending,
+/// maintenance) don't contribute to either bucket and don't count as
+/// failures or recoveries — they're treated as gaps in the timeline.
+///
+/// Returns `MtbfMttr { mtbf_secs: None, mttr_secs: None, downtime_events: 0 }`
+/// when there are no heartbeats or no transitions in the window.
+pub async fn mtbf_mttr(
+    pool: &DbPool,
+    monitor: MonitorId,
+    window_seconds: i64,
+) -> DbResult<MtbfMttr> {
+    let since = OffsetDateTime::now_utc() - time::Duration::seconds(window_seconds);
+    let rows = sqlx::query!(
+        r#"
+        SELECT
+            ts,
+            status AS "status: MonitorStatus"
+        FROM heartbeats
+        WHERE monitor_id = $1 AND ts >= $2
+        ORDER BY ts ASC
+        "#,
+        monitor.0,
+        since,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    if rows.is_empty() {
+        return Ok(MtbfMttr {
+            mtbf_secs: None,
+            mttr_secs: None,
+            downtime_events: 0,
+        });
+    }
+
+    // Walk consecutive heartbeats. Each pair (prev, curr) contributes a
+    // segment of length `curr.ts - prev.ts` attributed to prev.status,
+    // and the (prev.status -> curr.status) transition is recorded.
+    let mut total_up_secs: i64 = 0;
+    let mut total_down_secs: i64 = 0;
+    let mut failures: i64 = 0; // up -> down transitions
+    let mut recoveries: i64 = 0; // down -> up transitions
+
+    for win in rows.windows(2) {
+        let prev = &win[0];
+        let curr = &win[1];
+        let dur = (curr.ts - prev.ts).whole_seconds().max(0);
+        match prev.status {
+            MonitorStatus::Up => total_up_secs += dur,
+            MonitorStatus::Down => total_down_secs += dur,
+            _ => { /* warn/paused/pending/maintenance — not counted */ }
+        }
+        match (prev.status, curr.status) {
+            (MonitorStatus::Up, MonitorStatus::Down) => failures += 1,
+            (MonitorStatus::Down, MonitorStatus::Up) => recoveries += 1,
+            _ => {}
+        }
+    }
+
+    let mtbf_secs = if failures > 0 {
+        Some(total_up_secs / failures)
+    } else {
+        None
+    };
+    let mttr_secs = if recoveries > 0 {
+        Some(total_down_secs / recoveries)
+    } else {
+        None
+    };
+
+    Ok(MtbfMttr {
+        mtbf_secs,
+        mttr_secs,
+        downtime_events: failures,
+    })
 }
 
 /// Last `per_monitor` heartbeats for every monitor, oldest-first within each

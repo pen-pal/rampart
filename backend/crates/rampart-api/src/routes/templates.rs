@@ -123,6 +123,8 @@ async fn preview(Json(input): Json<PreviewBody>) -> Result<Json<PreviewResponse>
         cert_subject: None,
         cert_checked_at: None,
         group_id: None,
+        slo_target_pct: None,
+        slo_window_days: None,
     };
     let hb = Heartbeat {
         monitor_id: monitor.id,

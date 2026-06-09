@@ -79,6 +79,10 @@ export const api = {
       if (before) qs.set('before', before);
       return request(`/v1/monitors/${id}/heartbeats?${qs.toString()}`);
     },
+    /// Trailing-30d MTBF / MTTR + downtime event count. Backend computes
+    /// the window so all monitors render the same period regardless of
+    /// how much history the client has lazy-loaded.
+    reliability: (id)  => request(`/v1/monitors/${id}/reliability`),
   },
   health: {
     live:  () => request('/healthz'),
