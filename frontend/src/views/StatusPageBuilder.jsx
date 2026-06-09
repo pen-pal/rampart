@@ -463,17 +463,30 @@ function IncidentRow({ incident, busy, onResolve, onDelete, onPostUpdate }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(incident.title);
   const [content, setContent] = useState(incident.content);
+  const [pinned, setPinned] = useState(!!incident.pinned);
   const [saving, setSaving] = useState(false);
   const saveEdit = async () => {
     const t = title.trim(), c = content.trim();
     if (!t) { setEditing(false); setTitle(incident.title); return; }
-    if (t === incident.title && c === incident.content) { setEditing(false); return; }
+    const unchanged = t === incident.title
+                   && c === incident.content
+                   && pinned === !!incident.pinned;
+    if (unchanged) { setEditing(false); return; }
     setSaving(true);
-    try { await api.incidents.update(incident.id, { title: t, content: c }); onPostUpdate(); setEditing(false); }
+    try {
+      await api.incidents.update(incident.id, { title: t, content: c, pinned });
+      onPostUpdate();
+      setEditing(false);
+    }
     catch (e) { alert(e.message); }
     finally { setSaving(false); }
   };
-  const cancelEdit = () => { setEditing(false); setTitle(incident.title); setContent(incident.content); };
+  const cancelEdit = () => {
+    setEditing(false);
+    setTitle(incident.title);
+    setContent(incident.content);
+    setPinned(!!incident.pinned);
+  };
 
   return (
     <div style={{ padding: 12, marginBottom: 10, border: '1px solid var(--border)', borderRadius: 8 }}>
@@ -500,8 +513,14 @@ function IncidentRow({ incident, busy, onResolve, onDelete, onPostUpdate }) {
         )}
       </div>
       {editing ? (
-        <textarea className="input" value={content} onChange={e => setContent(e.target.value)}
-          rows={3} style={{ fontSize: 12.5, marginBottom: 8, width: '100%' }}/>
+        <>
+          <textarea className="input" value={content} onChange={e => setContent(e.target.value)}
+            rows={3} style={{ fontSize: 12.5, marginBottom: 8, width: '100%' }}/>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, marginBottom: 8, color: 'var(--text-2)' }}>
+            <input type="checkbox" checked={pinned} onChange={e => setPinned(e.target.checked)}/>
+            Pin to top of active incidents
+          </label>
+        </>
       ) : (
         <div style={{ fontSize: 12.5, color: 'var(--text-2)', marginBottom: 8, whiteSpace: 'pre-wrap' }}>{incident.content}</div>
       )}
