@@ -47,6 +47,9 @@ fn channel(name: &str) -> NewNotification {
         template_id: None,
         cooldown_seconds: 0,
         digest_window_secs: 0,
+        quiet_hours_start: None,
+        quiet_hours_end: None,
+        rate_limit_per_hour: 0,
     }
 }
 
@@ -233,6 +236,9 @@ async fn dedupes_across_paths_and_skips_inactive(pool: PgPool) {
             template_id: None,
             cooldown_seconds: None,
             digest_window_secs: None,
+            quiet_hours_start: None,
+            quiet_hours_end: None,
+            rate_limit_per_hour: None,
         },
     )
     .await

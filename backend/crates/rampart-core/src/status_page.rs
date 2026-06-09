@@ -8,7 +8,7 @@
 //!   `/v1/public/status-pages/:slug`. Carries enough information to
 //!   render the page without leaking probe configuration.
 
-use crate::ids::{MonitorId, StatusPageId};
+use crate::ids::{MonitorId, StatusPageId, StatusPageSectionId};
 use crate::incident::IncidentStyle;
 use crate::monitor::MonitorStatus;
 use serde::{Deserialize, Serialize};
@@ -45,6 +45,21 @@ pub struct StatusPage {
     /// detail / list reads; create returns the freshly attached set.
     #[serde(default)]
     pub monitor_ids: Vec<MonitorId>,
+    /// Per-monitor section assignment, in the same display order as
+    /// `monitor_ids`. `section_id` is `None` for an ungrouped monitor. Only
+    /// populated by detail reads (`get` / `get_by_slug`); list/create leave
+    /// it empty. Lets the builder render each attached monitor's current
+    /// section without a second round trip.
+    #[serde(default)]
+    pub monitor_sections: Vec<MonitorAssignment>,
+}
+
+/// One monitor's section assignment on a page. `section_id` is `None` when
+/// the monitor is ungrouped.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MonitorAssignment {
+    pub monitor_id: MonitorId,
+    pub section_id: Option<StatusPageSectionId>,
 }
 
 #[derive(Debug, Clone, Deserialize, Validate)]
@@ -127,6 +142,42 @@ pub struct UpdateStatusPage {
     pub monitor_ids: Option<Vec<MonitorId>>,
 }
 
+/// A labelled component group on a status page ("API", "Database", "Edge").
+/// Admin view: returned by the section CRUD routes so the builder can list
+/// and reorder them. The monitors assigned to a section live on the
+/// `status_page_monitors.section_id` join, not here.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StatusPageSection {
+    pub id: StatusPageSectionId,
+    pub status_page_id: StatusPageId,
+    pub name: String,
+    pub position: i32,
+}
+
+#[derive(Debug, Clone, Deserialize, Validate)]
+pub struct NewStatusPageSection {
+    #[validate(length(min = 1, max = 80))]
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Validate)]
+pub struct UpdateStatusPageSection {
+    #[validate(length(min = 1, max = 80))]
+    pub name: Option<String>,
+    /// New ordering position. When present the section moves to this slot;
+    /// the db layer doesn't renumber siblings, so callers that reorder a
+    /// whole list send one PATCH per section with its final position.
+    pub position: Option<i32>,
+}
+
+/// Body for assigning a monitor on a page to a section. `section_id: None`
+/// (a JSON `null`) un-assigns the monitor — it renders ungrouped at the top.
+#[derive(Debug, Clone, Deserialize)]
+pub struct AssignSectionReq {
+    #[serde(default)]
+    pub section_id: Option<StatusPageSectionId>,
+}
+
 fn default_theme() -> String {
     "light".into()
 }
@@ -173,7 +224,20 @@ pub struct PublicStatusPage {
     #[serde(default)]
     pub private: bool,
     pub generated_at: OffsetDateTime,
+    /// Flat, page-ordered list of every attached monitor. Retained for
+    /// back-compat (feeds, the day-latency `monitor_idx`, any client that
+    /// predates grouping). The same monitors are ALSO partitioned into
+    /// `sections` below; a grouping-aware frontend renders from `sections`,
+    /// everything else keeps using this list.
     pub monitors: Vec<PublicStatusMonitor>,
+    /// Monitors grouped under their section headers, in section `position`
+    /// order. The synthetic leading entry with `name == None` carries the
+    /// ungrouped monitors (those whose `section_id` is NULL) which render at
+    /// the top of the components list, above the first labelled header. Empty
+    /// when the page has no monitors; a page with no sections collapses to a
+    /// single ungrouped entry holding every monitor.
+    #[serde(default)]
+    pub sections: Vec<PublicSection>,
     /// Active incidents (active = TRUE), most-recent first, each
     /// carrying its running updates oldest-first.
     pub incidents: Vec<PublicIncident>,
@@ -208,11 +272,23 @@ impl PublicStatusPage {
             private: true,
             generated_at: OffsetDateTime::now_utc(),
             monitors: Vec::new(),
+            sections: Vec::new(),
             incidents: Vec::new(),
             incident_history: Vec::new(),
             maintenance: Vec::new(),
         }
     }
+}
+
+/// Public projection of a component section: a label plus the monitors that
+/// render under it. `name` is `None` for the synthetic ungrouped bucket
+/// (monitors with no section), which the frontend renders headerless at the
+/// top of the components list.
+#[derive(Debug, Clone, Serialize)]
+pub struct PublicSection {
+    /// `None` for the ungrouped bucket; `Some(label)` for a real section.
+    pub name: Option<String>,
+    pub monitors: Vec<PublicStatusMonitor>,
 }
 
 /// Public projection of a maintenance window. Carries just enough for

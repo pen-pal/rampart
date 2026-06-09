@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        WITH RECURSIVE mon AS (\n            SELECT id, group_id FROM monitors WHERE id = $1\n        ),\n        -- The monitor's direct folder plus every folder up the parent chain.\n        -- `UNION` (not UNION ALL) terminates on any data-level cycle, but the\n        -- application-level cycle guard at write time should prevent those.\n        ancestors AS (\n            SELECT group_id AS gid FROM mon WHERE group_id IS NOT NULL\n            UNION\n            SELECT mg.parent_id AS gid\n            FROM monitor_groups mg\n            JOIN ancestors a ON mg.id = a.gid\n            WHERE mg.parent_id IS NOT NULL\n        ),\n        -- Tags on the monitor + tags on every ancestor folder.\n        eff_tags AS (\n            SELECT tag_id FROM monitor_tags WHERE monitor_id = $1\n            UNION\n            SELECT gt.tag_id\n            FROM group_tags gt\n            WHERE gt.group_id IN (SELECT gid FROM ancestors)\n        ),\n        candidates AS (\n            -- explicitly attached\n            SELECT notification_id AS id FROM monitor_notifications WHERE monitor_id = $1\n            UNION\n            -- tag-matched: channel shares any effective tag\n            SELECT nt.notification_id AS id\n            FROM notification_tags nt\n            WHERE nt.tag_id IN (SELECT tag_id FROM eff_tags)\n            UNION\n            -- attached to any ancestor folder\n            SELECT gn.notification_id AS id\n            FROM group_notifications gn\n            WHERE gn.group_id IN (SELECT gid FROM ancestors)\n        )\n        SELECT n.id, n.kind AS \"kind: ChannelKind\", n.name, n.config, n.active,\n               n.template_id, n.created_at, n.cooldown_seconds, n.digest_window_secs, n.last_fired_at\n        FROM notifications n\n        JOIN candidates c ON c.id = n.id\n        WHERE n.active\n          AND n.id NOT IN (\n              SELECT notification_id FROM monitor_notification_excludes WHERE monitor_id = $1\n          )\n        ",
+  "query": "\n        INSERT INTO notifications (id, kind, name, config, active, template_id, cooldown_seconds, digest_window_secs,\n                                   quiet_hours_start, quiet_hours_end, rate_limit_per_hour)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)\n        RETURNING id, kind AS \"kind: ChannelKind\", name, config, active,\n                  template_id, created_at, cooldown_seconds, digest_window_secs,\n                  quiet_hours_start, quiet_hours_end, rate_limit_per_hour, last_fired_at\n        ",
   "describe": {
     "columns": [
       {
@@ -241,6 +241,39 @@
       },
       {
         "ordinal": 9,
+        "name": "quiet_hours_start",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "notifications",
+            "name": "quiet_hours_start"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "quiet_hours_end",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "notifications",
+            "name": "quiet_hours_end"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "rate_limit_per_hour",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "notifications",
+            "name": "rate_limit_per_hour"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
         "name": "last_fired_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -253,7 +286,154 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Uuid",
+        {
+          "Custom": {
+            "name": "channel_kind",
+            "kind": {
+              "Enum": [
+                "slack",
+                "discord",
+                "telegram",
+                "email",
+                "webhook",
+                "pagerduty",
+                "sms_twilio",
+                "teams",
+                "gotify",
+                "pushover",
+                "ntfy",
+                "mattermost",
+                "matrix",
+                "signal",
+                "rocket_chat",
+                "google_chat",
+                "zulip",
+                "line",
+                "lark",
+                "wecom",
+                "dingtalk",
+                "feishu",
+                "custom",
+                "apprise",
+                "bark",
+                "pushbullet",
+                "sendgrid",
+                "resend",
+                "brevo",
+                "opsgenie",
+                "pagertree",
+                "squadcast",
+                "goalert",
+                "alerta",
+                "alertnow",
+                "signl4",
+                "heii_oncall",
+                "serverchan",
+                "pushplus",
+                "pushdeer",
+                "aliyun_sms",
+                "mastodon",
+                "pumble",
+                "bitrix24",
+                "stackfield",
+                "splunk",
+                "grafana_oncall",
+                "home_assistant",
+                "clicksend",
+                "sms_46elks",
+                "callmebot",
+                "telnyx",
+                "notifery",
+                "whatsapp_waha",
+                "threema",
+                "bale",
+                "pushy",
+                "zoho_cliq",
+                "sms_manager",
+                "sms_eagle",
+                "octopush",
+                "whatsapp_whapi",
+                "whatsapp_360",
+                "whatsapp_evolution",
+                "flock",
+                "serwersms",
+                "smsplanet",
+                "smsc",
+                "cellsynt",
+                "sevenio",
+                "gtxmessaging",
+                "onesender",
+                "promosms",
+                "smspartner",
+                "sms_ir",
+                "freemobile",
+                "flashduty",
+                "teltonika",
+                "kook",
+                "nostr",
+                "onebot",
+                "onechat",
+                "max_messenger",
+                "halo_psa",
+                "jira_sm",
+                "spug_push",
+                "wpush",
+                "vk",
+                "yzj",
+                "google_sheets",
+                "gorush",
+                "fluxer",
+                "splash",
+                "messagebird",
+                "plivo",
+                "vonage",
+                "bandwidth",
+                "webex",
+                "pushcut",
+                "smsglobal",
+                "alertops",
+                "mailgun",
+                "mailjet",
+                "postmark",
+                "mandrill",
+                "sparkpost",
+                "spike_sh",
+                "zenduty",
+                "ringcentral",
+                "ilert",
+                "linear",
+                "clickup",
+                "trello",
+                "github_issue",
+                "gitlab_issue",
+                "asana",
+                "notion",
+                "sentry",
+                "rollbar",
+                "honeybadger",
+                "healthchecks_io",
+                "betterstack",
+                "statuspage_io",
+                "datadog",
+                "newrelic",
+                "aws_sns",
+                "azure_servicebus",
+                "gcp_pubsub",
+                "webpush"
+              ]
+            }
+          }
+        },
+        "Text",
+        "Jsonb",
+        "Bool",
+        "Uuid",
+        "Int4",
+        "Int4",
+        "Int2",
+        "Int2",
+        "Int4"
       ]
     },
     "nullable": [
@@ -266,8 +446,11 @@
       false,
       false,
       false,
+      true,
+      true,
+      false,
       true
     ]
   },
-  "hash": "4d9cd1589b16b1bdfe69699fff89518f7ffe206b9067ea4d84706c3654a8bc9c"
+  "hash": "8d0de32615fe118e68511c7ae2d16a1682e3574db6e9676269a9cbe6dd689113"
 }

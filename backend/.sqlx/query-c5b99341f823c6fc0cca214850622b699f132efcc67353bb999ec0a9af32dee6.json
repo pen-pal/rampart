@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT monitor_id, section_id FROM status_page_monitors\n        WHERE page_id = $1\n        ORDER BY position\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "monitor_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "status_page_monitors",
+            "name": "monitor_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "section_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "status_page_monitors",
+            "name": "section_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "c5b99341f823c6fc0cca214850622b699f132efcc67353bb999ec0a9af32dee6"
+}

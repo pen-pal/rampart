@@ -5,7 +5,7 @@
 //! the SQL layer.
 
 use crate::{DbError, DbPool, DbResult};
-use rampart_core::ids::{MonitorGroupId, ProxyId};
+use rampart_core::ids::{MonitorGroupId, ProxyId, TagId};
 use rampart_core::monitor::{NewMonitor, UpdateMonitor};
 use rampart_core::{Monitor, MonitorId, MonitorKind, MonitorStatus};
 use time::OffsetDateTime;
@@ -458,6 +458,27 @@ pub async fn set_active(pool: &DbPool, id: MonitorId, active: bool) -> DbResult<
         return Err(DbError::NotFound);
     }
     Ok(())
+}
+
+/// Flip `active` on every monitor carrying `tag` in a single statement.
+/// Used by the "pause/resume all with this tag" bulk action. Returns the
+/// number of rows actually changed — a monitor already in the target
+/// state isn't re-counted (the `active <> $1` guard keeps the count to
+/// genuine transitions, which is what the operator wants to hear back).
+pub async fn set_active_by_tag(pool: &DbPool, tag: TagId, active: bool) -> DbResult<u64> {
+    let result = sqlx::query!(
+        r#"
+        UPDATE monitors
+           SET active = $1, updated_at = NOW()
+         WHERE active <> $1
+           AND id IN (SELECT monitor_id FROM monitor_tags WHERE tag_id = $2)
+        "#,
+        active,
+        tag.0,
+    )
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected())
 }
 
 /// Assign (or clear, with None) a monitor's group. Used by bulk ops.

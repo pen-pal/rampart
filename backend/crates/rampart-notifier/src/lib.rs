@@ -39,7 +39,7 @@ pub(crate) fn init_test_crypto() {
 }
 
 pub use event::{Event, EventKind};
-pub use service::{NotifierHandle, NotifierService};
+pub use service::{send_system_email, NotifierHandle, NotifierService};
 
 use async_trait::async_trait;
 use thiserror::Error;

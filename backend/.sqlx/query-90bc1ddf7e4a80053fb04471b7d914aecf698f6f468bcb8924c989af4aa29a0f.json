@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE status_page_monitors\n        SET section_id = $1\n        WHERE page_id = $2 AND monitor_id = $3\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "90bc1ddf7e4a80053fb04471b7d914aecf698f6f468bcb8924c989af4aa29a0f"
+}

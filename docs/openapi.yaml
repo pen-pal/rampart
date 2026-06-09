@@ -2052,6 +2052,97 @@ paths:
           description: RSS feed.
           content:
             application/rss+xml: {}
+  /v1/monitors/bulk-by-tag:
+    post:
+      tags: [Monitors]
+      summary: Pause/resume all monitors carrying a tag
+      description: 'Body { tag_id, action: pause|resume }. Editor/admin.'
+      responses:
+        '200': { description: 'Affected count { affected }.' }
+  /v1/monitors/presets:
+    get:
+      tags: [Monitors]
+      summary: List monitor presets (reusable header/TLS bags)
+      responses:
+        '200': { description: Presets. }
+    post:
+      tags: [Monitors]
+      summary: Create a monitor preset
+      responses:
+        '201': { description: Created. }
+  /v1/monitors/presets/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      tags: [Monitors]
+      summary: Update a monitor preset
+      responses:
+        '200': { description: Updated. }
+    delete:
+      tags: [Monitors]
+      summary: Delete a monitor preset
+      responses:
+        '204': { description: Deleted. }
+  /v1/scheduled-reports:
+    get:
+      tags: [Notifications]
+      summary: List scheduled uptime reports
+      responses:
+        '200': { description: Reports. }
+    post:
+      tags: [Notifications]
+      summary: Create a scheduled report
+      responses:
+        '201': { description: Created. }
+  /v1/scheduled-reports/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      tags: [Notifications]
+      summary: Update a scheduled report
+      responses:
+        '200': { description: Updated. }
+    delete:
+      tags: [Notifications]
+      summary: Delete a scheduled report
+      responses:
+        '204': { description: Deleted. }
+  /v1/status-pages/{id}/sections:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Status Pages]
+      summary: List a page's component sections
+      responses:
+        '200': { description: Sections. }
+    post:
+      tags: [Status Pages]
+      summary: Create a component section
+      responses:
+        '201': { description: Created. }
+  /v1/status-pages/{id}/sections/{section_id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: section_id, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      tags: [Status Pages]
+      summary: Rename / reorder a section
+      responses:
+        '200': { description: Updated. }
+    delete:
+      tags: [Status Pages]
+      summary: Delete a section (its monitors become ungrouped)
+      responses:
+        '204': { description: Deleted. }
+  /v1/status-pages/{id}/monitors/{monitor_id}/section:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: monitor_id, in: path, required: true, schema: { type: string, format: uuid } }
+    put:
+      tags: [Status Pages]
+      summary: Assign a monitor to a section (null = ungroup)
+      responses:
+        '200': { description: Assigned. }
 
 components:
   securitySchemes:
