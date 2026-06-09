@@ -169,7 +169,7 @@ npm run build          # vite build, surfaces JSX errors
 ```
 
 ### End-to-End (Playwright)
-30 flows × 5 browser projects (Chromium, Firefox, WebKit + branded Chrome / Edge channels) = 150 cross-browser runs per CI push.
+47 flows × 5 browser projects (Chromium, Firefox, WebKit + branded Chrome / Edge channels) = 235 cross-browser runs per CI push.
 
 ```bash
 cd backend && cargo build -p rampart-api      # one-time + when api changes
