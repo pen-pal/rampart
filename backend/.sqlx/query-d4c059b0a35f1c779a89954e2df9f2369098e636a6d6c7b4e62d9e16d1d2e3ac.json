@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT db.notification_id AS \"notification_id!\"\n        FROM digest_buffer db\n        JOIN notifications n ON n.id = db.notification_id\n        WHERE n.digest_window_secs > 0\n        GROUP BY db.notification_id, n.digest_window_secs\n        HAVING MIN(db.enqueued_at) <= $1::timestamptz - make_interval(secs => n.digest_window_secs)\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "notification_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "digest_buffer",
+            "name": "notification_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d4c059b0a35f1c779a89954e2df9f2369098e636a6d6c7b4e62d9e16d1d2e3ac"
+}

@@ -1,9 +1,9 @@
 //! Events that trigger notifications.
 
 use rampart_core::{Heartbeat, Monitor, MonitorStatus};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EventKind {
     /// Status changed across a probe boundary (e.g. up → down).
@@ -24,7 +24,7 @@ pub enum EventKind {
     MaintenanceEnded,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Event {
     pub kind: EventKind,
     pub monitor: Monitor,
