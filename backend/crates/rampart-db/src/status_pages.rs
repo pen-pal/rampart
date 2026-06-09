@@ -363,6 +363,10 @@ pub async fn public_view(pool: &DbPool, slug: &str) -> DbResult<PublicStatusPage
         })
         .collect();
 
+    // Active + upcoming (<=7d) maintenance whose windows touch any monitor
+    // on this page. Drives the public banner above the components list.
+    let maintenance = crate::maintenance::public_for_status_page(pool, page.id).await?;
+
     Ok(PublicStatusPage {
         slug: page.slug,
         title: page.title,
@@ -374,6 +378,7 @@ pub async fn public_view(pool: &DbPool, slug: &str) -> DbResult<PublicStatusPage
         monitors,
         incidents,
         incident_history,
+        maintenance,
     })
 }
 

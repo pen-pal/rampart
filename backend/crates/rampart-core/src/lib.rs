@@ -43,7 +43,7 @@ pub use notification::{ChannelKind, MonitorNotification, Notification, Notificat
 pub use proxy::{NewProxy, Proxy, ProxyProtocol};
 pub use role::Role;
 pub use status_page::{
-    NewStatusPage, PublicIncident, PublicIncidentUpdate, PublicStatusMonitor, PublicStatusPage,
-    StatusPage, UpdateStatusPage,
+    NewStatusPage, PublicIncident, PublicIncidentUpdate, PublicMaintenance, PublicStatusMonitor,
+    PublicStatusPage, StatusPage, UpdateStatusPage,
 };
 pub use tag::{NewTag, Tag, TagBrief};
