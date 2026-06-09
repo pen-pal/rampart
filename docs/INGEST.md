@@ -66,6 +66,15 @@ curl -X DELETE https://rampart.example.com/v1/ingest-tokens/<TOKEN_ID> \
      --cookie 'session=<YOUR_SESSION>'
 ```
 
+### Managing tokens in the UI
+
+You don't have to use curl. In the dashboard, go to **Status pages**, edit an
+existing page, and scroll to the **Alertmanager / webhook ingest** section.
+There you can label and generate new tokens, copy each token's ready-to-paste
+Alertmanager webhook URL, and revoke tokens you no longer need. (The section
+only appears once a page is saved — tokens are scoped to a page id — and only
+for admin/editor roles.)
+
 ---
 
 ## 2. The ingest URL

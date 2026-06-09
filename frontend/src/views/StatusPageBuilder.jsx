@@ -3,7 +3,7 @@ import {
   ChevronLeft, Plus, Trash2, ExternalLink, Save, AlertCircle, Loader2, X, Globe,
   Pencil, Check, Copy, Upload, Image as ImageIcon,
 } from 'lucide-react';
-import { api, useApi, offsetDateTimeArrayToDate } from '../lib/api.js';
+import { api, useApi, offsetDateTimeArrayToDate, formatRelative } from '../lib/api.js';
 import { canWrite } from '../lib/roles.js';
 
 const css = `
@@ -84,6 +84,7 @@ export default function StatusPageBuilder({ user } = {}) {
       <Editor
         page={editing === 'new' ? null : editing}
         monitors={monitorsState.data || []}
+        writable={writable}
         onCancel={() => setEditing(null)}
         onSaved={reload}
       />
@@ -195,7 +196,7 @@ function PageRow({ page, busy, onEdit, onClone, onDelete, writable }) {
   );
 }
 
-function Editor({ page, monitors, onCancel, onSaved }) {
+function Editor({ page, monitors, writable, onCancel, onSaved }) {
   // Clones come in with everything pre-filled except `id`, so detect new
   // mode via absence-of-id rather than absence-of-page.
   const isNew = !page?.id;
@@ -398,6 +399,12 @@ function Editor({ page, monitors, onCancel, onSaved }) {
             <IncidentsPanel pageId={page.id}/>
             <div style={{ height: 22 }}/>
             <SubscribersPanel pageId={page.id}/>
+            {writable && (
+              <>
+                <div style={{ height: 22 }}/>
+                <IngestTokensPanel pageId={page.id}/>
+              </>
+            )}
           </>
         )}
       </div>
@@ -440,6 +447,111 @@ function SubscribersPanel({ pageId }) {
           <span/>
         </div>
       ))}
+    </div>
+  );
+}
+
+function IngestTokensPanel({ pageId }) {
+  const list = useApi(() => api.ingestTokens.list(pageId), [pageId], { pollMs: 30_000 });
+  const [tokens, setTokens] = useState(null);
+  const [label,  setLabel]  = useState('');
+  const [busy,   setBusy]   = useState(null);
+  const [err,    setErr]    = useState(null);
+
+  // Mirror the polled list into local state so a freshly generated token can
+  // be prepended without waiting for the next poll. Fall back to the polled
+  // data until the first local edit.
+  const rows = tokens ?? (list.data || []);
+
+  const generate = async () => {
+    const l = label.trim();
+    if (!l) { setErr('Give the token a label so you can tell it apart later.'); return; }
+    setBusy('new'); setErr(null);
+    try {
+      const created = await api.ingestTokens.create(pageId, l);
+      setTokens([created, ...rows]);
+      setLabel('');
+    } catch (e) { setErr(e.message || 'Failed to generate token.'); }
+    finally { setBusy(null); }
+  };
+
+  const revoke = async (id) => {
+    if (!confirm('Revoke this token? Any Alertmanager receiver using it will start getting 404s.')) return;
+    setBusy(id); setErr(null);
+    try {
+      await api.ingestTokens.remove(id);
+      setTokens(rows.filter(t => t.id !== id));
+    } catch (e) { setErr(e.message || 'Failed to revoke token.'); }
+    finally { setBusy(null); }
+  };
+
+  const copy = (text) => { try { navigator.clipboard.writeText(text); } catch { /* clipboard unavailable */ } };
+
+  return (
+    <div className="card" style={{ padding: 22 }}>
+      <h3 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 4px' }}>Alertmanager / webhook ingest</h3>
+      <p style={{ fontSize: 12, color: 'var(--text-3)', margin: '0 0 14px' }}>
+        Point a Prometheus Alertmanager receiver's webhook_config url here; firing alerts open incidents on this page, resolved alerts close them. See docs/INGEST.md.
+      </p>
+
+      {err && <div style={{ background: 'var(--down-soft)', color: '#b91c1c', padding: '8px 12px', borderRadius: 6, fontSize: 12, marginBottom: 10 }}>{err}</div>}
+
+      <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+        <input
+          className="input"
+          placeholder="Token label (e.g. alertmanager-prod)"
+          value={label}
+          onChange={e => setLabel(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') generate(); }}
+          style={{ fontSize: 12 }}
+        />
+        <button className="btn btn-accent" onClick={generate} disabled={busy === 'new'} style={{ padding: '5px 10px', fontSize: 12, whiteSpace: 'nowrap' }}>
+          <Plus size={12}/> {busy === 'new' ? 'Generating…' : 'Generate token'}
+        </button>
+      </div>
+
+      {rows.length === 0 ? (
+        <div style={{ padding: 16, fontSize: 12.5, color: 'var(--text-3)', textAlign: 'center' }}>
+          No ingest tokens yet — generate one to receive Alertmanager webhooks.
+        </div>
+      ) : rows.map(t => {
+        const webhookUrl = `${window.location.origin}/v1/public/ingest/alertmanager/${t.token}`;
+        return (
+          <div key={t.id} style={{ padding: 12, marginBottom: 10, border: '1px solid var(--border)', borderRadius: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>{t.label}</span>
+              <span style={{ fontSize: 10.5, color: 'var(--text-3)' }}>
+                created {new Date(Array.isArray(t.created_at) ? offsetDateTimeArrayToDate(t.created_at) : t.created_at).toLocaleDateString()}
+                {' · '}
+                {t.last_used_at ? `last used ${formatRelative(t.last_used_at)}` : 'never used'}
+              </span>
+              <button className="btn btn-ghost btn-danger" onClick={() => revoke(t.id)} disabled={busy === t.id} style={{ marginLeft: 'auto', padding: '3px 8px', fontSize: 11 }}>
+                <Trash2 size={11}/> Revoke
+              </button>
+            </div>
+
+            <div className="field" style={{ marginBottom: 8 }}>
+              <label className="field-label" style={{ marginBottom: 4 }}>Token</label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input className="input mono" readOnly value={t.token} style={{ fontSize: 11.5 }} onFocus={e => e.target.select()}/>
+                <button className="btn btn-ghost" onClick={() => copy(t.token)} title="Copy token" style={{ padding: '5px 10px' }}>
+                  <Copy size={13}/>
+                </button>
+              </div>
+            </div>
+
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label className="field-label" style={{ marginBottom: 4 }}>Alertmanager webhook URL</label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input className="input mono" readOnly value={webhookUrl} style={{ fontSize: 11.5 }} onFocus={e => e.target.select()}/>
+                <button className="btn btn-ghost" onClick={() => copy(webhookUrl)} title="Copy webhook URL" style={{ padding: '5px 10px' }}>
+                  <Copy size={13}/>
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

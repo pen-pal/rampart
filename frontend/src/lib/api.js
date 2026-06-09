@@ -169,6 +169,11 @@ export const api = {
     listForPage: (pageId)      => request(`/v1/status-pages/${pageId}/subscribers`),
     remove:      (id)          => request(`/v1/subscribers/${id}`, { method: 'DELETE' }),
   },
+  ingestTokens: {
+    list:   (pageId)        => request(`/v1/status-pages/${pageId}/ingest-tokens`),
+    create: (pageId, label) => request(`/v1/status-pages/${pageId}/ingest-tokens`, { method: 'POST', body: { label } }),
+    remove: (tokenId)       => request(`/v1/ingest-tokens/${tokenId}`, { method: 'DELETE' }),
+  },
   smtp: {
     get: () => request('/v1/settings/smtp'),
     put: (cfg) => request('/v1/settings/smtp', { method: 'PUT', body: cfg }),
