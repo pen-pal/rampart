@@ -20,6 +20,7 @@ struct TokenRow {
     status_page_id: Uuid,
     token: String,
     label: Option<String>,
+    mapping: Option<serde_json::Value>,
     created_at: OffsetDateTime,
     last_used_at: Option<OffsetDateTime>,
 }
@@ -31,6 +32,7 @@ impl From<TokenRow> for IngestToken {
             status_page_id: StatusPageId::from_uuid(r.status_page_id),
             token: r.token,
             label: r.label,
+            mapping: r.mapping,
             created_at: r.created_at,
             last_used_at: r.last_used_at,
         }
@@ -47,17 +49,42 @@ pub async fn create(
     let row = sqlx::query_as!(
         TokenRow,
         r#"
-        INSERT INTO ingest_tokens (id, status_page_id, token, label)
-        VALUES ($1, $2, $3, $4)
-        RETURNING id, status_page_id, token, label, created_at, last_used_at
+        INSERT INTO ingest_tokens (id, status_page_id, token, label, mapping)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id, status_page_id, token, label, mapping, created_at, last_used_at
         "#,
         id.0,
         page.0,
         token,
         input.label,
+        input.mapping,
     )
     .fetch_one(pool)
     .await?;
+    Ok(row.into())
+}
+
+/// Set (or clear, with `NULL`) the generic-receiver mapping on a token.
+/// Returns the updated token. NotFound for an unknown id.
+pub async fn set_mapping(
+    pool: &DbPool,
+    id: IngestTokenId,
+    mapping: Option<serde_json::Value>,
+) -> DbResult<IngestToken> {
+    let row = sqlx::query_as!(
+        TokenRow,
+        r#"
+        UPDATE ingest_tokens
+        SET mapping = $2
+        WHERE id = $1
+        RETURNING id, status_page_id, token, label, mapping, created_at, last_used_at
+        "#,
+        id.0,
+        mapping,
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or(DbError::NotFound)?;
     Ok(row.into())
 }
 
@@ -65,7 +92,7 @@ pub async fn list_for_page(pool: &DbPool, page: StatusPageId) -> DbResult<Vec<In
     let rows = sqlx::query_as!(
         TokenRow,
         r#"
-        SELECT id, status_page_id, token, label, created_at, last_used_at
+        SELECT id, status_page_id, token, label, mapping, created_at, last_used_at
         FROM ingest_tokens
         WHERE status_page_id = $1
         ORDER BY created_at DESC
@@ -82,7 +109,7 @@ pub async fn find_by_token(pool: &DbPool, token: &str) -> DbResult<IngestToken> 
     let row = sqlx::query_as!(
         TokenRow,
         r#"
-        SELECT id, status_page_id, token, label, created_at, last_used_at
+        SELECT id, status_page_id, token, label, mapping, created_at, last_used_at
         FROM ingest_tokens
         WHERE token = $1
         "#,

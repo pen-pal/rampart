@@ -8,6 +8,7 @@
 //!   POST /v1/public/ingest/datadog/{token}        (Datadog webhook)
 //!   POST /v1/public/ingest/pagerduty/{token}      (PagerDuty webhook v3)
 //!   POST /v1/public/ingest/opsgenie/{token}       (Opsgenie webhook)
+//!   POST /v1/public/ingest/generic/{token}        (operator-mapped JSON)
 //!   Each accepts that vendor's webhook payload and turns the contained
 //!   alert(s) into status-page incidents (firing → create, resolved →
 //!   resolve the matching open incident). The token in the URL IS the auth
@@ -33,7 +34,7 @@ use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use rampart_core::ids::{IngestTokenId, StatusPageId};
-use rampart_core::ingest_token::{IngestToken, NewIngestToken};
+use rampart_core::ingest_token::{IngestMapping, IngestToken, NewIngestToken};
 use rampart_core::IncidentStyle;
 use rampart_db::incidents::NewIncident;
 use serde::{Deserialize, Serialize};
@@ -51,6 +52,7 @@ pub fn public_router() -> Router<AppState> {
         .route("/ingest/datadog/{token}", post(datadog))
         .route("/ingest/pagerduty/{token}", post(pagerduty))
         .route("/ingest/opsgenie/{token}", post(opsgenie))
+        .route("/ingest/generic/{token}", post(generic))
 }
 
 /// Page-scoped token management. Merged into the `/v1/status-pages` admin nest.
@@ -58,9 +60,11 @@ pub fn page_router() -> Router<AppState> {
     Router::new().route("/{id}/ingest-tokens", get(list_tokens).post(create_token))
 }
 
-/// Top-level revoke. Nested at `/v1/ingest-tokens`.
+/// Top-level revoke + mapping management. Nested at `/v1/ingest-tokens`.
 pub fn token_router() -> Router<AppState> {
-    Router::new().route("/{id}", axum::routing::delete(revoke_token))
+    Router::new()
+        .route("/{id}", axum::routing::delete(revoke_token))
+        .route("/{id}/mapping", axum::routing::patch(set_token_mapping))
 }
 
 fn parse_page(s: &str) -> Result<StatusPageId, ApiError> {
@@ -101,6 +105,31 @@ async fn revoke_token(
 ) -> Result<StatusCode, ApiError> {
     rampart_db::ingest_tokens::delete(s.pool(), parse_token_id(&id)?).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Body for `PATCH /v1/ingest-tokens/{id}/mapping`. A `null` (or omitted)
+/// `mapping` clears the configured mapping; an object sets it. The mapping is
+/// validated by deserializing it into [`IngestMapping`] before it is stored,
+/// so an unparseable shape is rejected with `400` rather than failing later at
+/// ingest time.
+#[derive(Debug, Deserialize)]
+struct SetMappingBody {
+    #[serde(default)]
+    mapping: Option<serde_json::Value>,
+}
+
+async fn set_token_mapping(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+    Json(body): Json<SetMappingBody>,
+) -> Result<Json<IngestToken>, ApiError> {
+    if let Some(m) = &body.mapping {
+        serde_json::from_value::<IngestMapping>(m.clone())
+            .map_err(|e| ApiError::BadRequest(format!("invalid mapping: {e}")))?;
+    }
+    let tok = rampart_db::ingest_tokens::set_mapping(s.pool(), parse_token_id(&id)?, body.mapping)
+        .await?;
+    Ok(Json(tok))
 }
 
 // ---- shared ingest core --------------------------------------------------
@@ -606,6 +635,113 @@ async fn opsgenie(
         title,
         content: alert.description,
         style: opsgenie_style(&alert.priority),
+        dedup_key,
+    };
+    ingest_batch(&s, page, vec![alert]).await
+}
+
+// ---- public: generic JSON-path receiver ----------------------------------
+
+/// Parse a mapping's `style` string into an `IncidentStyle`, defaulting to
+/// `Info` when absent or unrecognized.
+fn style_from_mapping(style: Option<&str>) -> IncidentStyle {
+    match style.map(str::to_ascii_lowercase).as_deref() {
+        Some("warning") => IncidentStyle::Warning,
+        Some("danger") => IncidentStyle::Danger,
+        Some("primary") => IncidentStyle::Primary,
+        Some("success") => IncidentStyle::Success,
+        _ => IncidentStyle::Info,
+    }
+}
+
+/// Read the value at an optional RFC 6901 JSON Pointer as a trimmed string.
+/// Both JSON strings and scalars (numbers / bools) are coerced to text so a
+/// `"status": "firing"` and a `"firing": true`-style discriminator both work.
+/// Returns `None` for a missing pointer, an absent path, or a null/empty
+/// value.
+fn pointer_str(body: &serde_json::Value, pointer: Option<&str>) -> Option<String> {
+    let ptr = pointer?;
+    let v = body.pointer(ptr)?;
+    let s = match v {
+        serde_json::Value::String(s) => s.trim().to_string(),
+        serde_json::Value::Null => return None,
+        other => other.to_string(),
+    };
+    if s.is_empty() {
+        None
+    } else {
+        Some(s)
+    }
+}
+
+/// Generic operator-mapped receiver. The token's stored `mapping` describes
+/// how to pull the normalized incident fields out of an arbitrary inbound
+/// body via JSON Pointers, so any tool that can POST JSON works without a
+/// dedicated vendor parser.
+async fn generic(
+    State(s): State<AppState>,
+    Path(token): Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<(StatusCode, Json<IngestSummary>), ApiError> {
+    // Resolve the token to its record (404 on unknown) and require a mapping.
+    let tok = rampart_db::ingest_tokens::find_by_token(s.pool(), &token)
+        .await
+        .map_err(|_| ApiError::NotFound)?;
+    let _ = rampart_db::ingest_tokens::touch_last_used(s.pool(), tok.id).await;
+    let page = tok.status_page_id;
+
+    let raw = tok.mapping.ok_or_else(|| {
+        ApiError::BadRequest(
+            "this ingest token has no generic mapping configured; \
+             set one via PATCH /v1/ingest-tokens/{id}/mapping"
+                .into(),
+        )
+    })?;
+    let mapping: IngestMapping = serde_json::from_value(raw)
+        .map_err(|e| ApiError::BadRequest(format!("stored mapping is invalid: {e}")))?;
+
+    // Action: compare the value at action_path against the configured
+    // firing/resolved values. An unrecognized value (or absent path/pointer)
+    // falls through to Create so a present alert is never silently dropped.
+    let action_val = pointer_str(&body, mapping.action_path.as_deref());
+    let action = match action_val.as_deref() {
+        Some(v) if mapping.action_resolved_value.as_deref() == Some(v) => AlertAction::Resolve,
+        Some(v) if mapping.action_firing_value.as_deref() == Some(v) => AlertAction::Create,
+        _ => AlertAction::Create,
+    };
+
+    let content = pointer_str(&body, mapping.content_path.as_deref()).unwrap_or_default();
+
+    // Dedup key: the value at dedup_path; fall back to the title so a body
+    // without a stable key still dedups loosely. If neither is present the
+    // alert is unidentifiable, so it's a no-op rather than a blank incident.
+    let title_val = pointer_str(&body, mapping.title_path.as_deref());
+    let dedup_key = match pointer_str(&body, mapping.dedup_path.as_deref()).or_else(|| {
+        title_val
+            .clone()
+            .or_else(|| (!content.is_empty()).then(|| content.clone()))
+    }) {
+        Some(k) => k,
+        None => {
+            return Ok((
+                StatusCode::ACCEPTED,
+                Json(IngestSummary {
+                    created: 0,
+                    resolved: 0,
+                }),
+            ));
+        }
+    };
+
+    // Title is required for a create; fall back to the dedup key so the
+    // incident is never titleless.
+    let title = title_val.unwrap_or_else(|| dedup_key.clone());
+
+    let alert = NormalizedAlert {
+        action,
+        title,
+        content,
+        style: style_from_mapping(mapping.style.as_deref()),
         dedup_key,
     };
     ingest_batch(&s, page, vec![alert]).await
