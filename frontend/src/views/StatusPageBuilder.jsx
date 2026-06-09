@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   ChevronLeft, ChevronDown, ChevronRight, Plus, Trash2, ExternalLink, Save, AlertCircle, Loader2, X, Globe,
-  Pencil, Check, Copy, Upload, Image as ImageIcon,
+  Pencil, Check, Copy, Upload, Image as ImageIcon, Lock,
 } from 'lucide-react';
 import { api, useApi, offsetDateTimeArrayToDate, formatRelative } from '../lib/api.js';
 import { canWrite } from '../lib/roles.js';
@@ -157,6 +157,9 @@ export default function StatusPageBuilder({ user } = {}) {
                 theme: p.theme,
                 custom_domain: '',
                 logo_url: p.logo_url,
+                custom_css: p.custom_css,
+                // A clone starts public — the password hash is page-specific
+                // and never exposed to the client to copy anyway.
                 monitor_ids: [...p.monitor_ids],
               })}
               onDelete={() => remove(p.id)}
@@ -173,7 +176,19 @@ function PageRow({ page, busy, onEdit, onClone, onDelete, writable }) {
   return (
     <div className="row">
       <div>
-        <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 3 }}>{page.title}</div>
+        <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
+          {page.title}
+          {page.private && (
+            <span title={t('statuspage.private_lock_indicator')} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 3,
+              fontSize: 10.5, fontWeight: 500, color: 'var(--text-2)',
+              background: 'var(--surface-2)', border: '1px solid var(--border)',
+              padding: '1px 6px', borderRadius: 999,
+            }}>
+              <Lock size={10}/> {t('statuspage.private_lock_indicator')}
+            </span>
+          )}
+        </div>
         <a href={url} target="_blank" rel="noreferrer" style={{
           fontSize: 11.5, color: 'var(--accent-2)', textDecoration: 'none',
           display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -206,6 +221,15 @@ function Editor({ page, monitors, writable, onCancel, onSaved }) {
   const [description,  setDescription]  = useState(page?.description   || '');
   const [customDomain, setCustomDomain] = useState(page?.custom_domain || '');
   const [logoUrl,      setLogoUrl]      = useState(page?.logo_url      || '');
+  const [customCss,    setCustomCss]    = useState(page?.custom_css    || '');
+  // The page's existing privacy state (read-only `private` flag from the
+  // API; the hash itself is never sent to the client). `password` holds the
+  // operator's new/changed plaintext to submit; empty means "no change".
+  const [wasPrivate]   = useState(!!page?.private);
+  const [password,     setPassword]     = useState('');
+  // True once the operator clicks "Make public" on a currently-private page,
+  // so we submit an explicit clear (password: null) even with a blank field.
+  const [clearPassword, setClearPassword] = useState(false);
   const [picked,       setPicked]       = useState(new Set(page?.monitor_ids || []));
   const [err,          setErr]          = useState(null);
   const [saving,       setSaving]       = useState(false);
@@ -248,6 +272,8 @@ function Editor({ page, monitors, writable, onCancel, onSaved }) {
     try {
       const domain = customDomain.trim().toLowerCase() || null;
       const logo   = logoUrl || null;
+      const css    = customCss.trim() || null;
+      const pw     = password.trim();
       if (isNew) {
         await api.statusPages.create({
           slug:          slug.trim(),
@@ -255,15 +281,27 @@ function Editor({ page, monitors, writable, onCancel, onSaved }) {
           description:   description.trim() || null,
           custom_domain: domain,
           logo_url:      logo,
+          custom_css:    css,
+          // Only send a password when one was typed; otherwise the page is
+          // public. Omitting the key keeps the page public on the backend.
+          ...(pw ? { password: pw } : {}),
           monitor_ids:   orderedPicked,
         });
       } else {
+        // Password patch is triple-state: a typed value sets/changes it, an
+        // explicit "Make public" sends null to clear, and otherwise we omit
+        // the key entirely so the existing hash is left untouched.
+        let passwordPatch = {};
+        if (pw)                  passwordPatch = { password: pw };
+        else if (clearPassword)  passwordPatch = { password: null };
         await api.statusPages.update(page.id, {
           title:         title.trim(),
           description:   description.trim() || null,
           // Backend treats a present value as "set", `null` as "clear".
           custom_domain: domain,
           logo_url:      logo,
+          custom_css:    css,
+          ...passwordPatch,
           monitor_ids:   orderedPicked,
         });
       }
@@ -360,6 +398,57 @@ function Editor({ page, monitors, writable, onCancel, onSaved }) {
             </div>
             <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 6 }}>
               {t('statuspage.logo_hint')}
+            </div>
+          </div>
+
+          <div className="field">
+            <label className="field-label">
+              {t('statuspage.private')}
+              {(wasPrivate && !clearPassword) && (
+                <span style={{ marginLeft: 6, color: 'var(--accent-2)' }}>
+                  <Lock size={11} style={{ verticalAlign: '-1px' }}/>
+                </span>
+              )}
+            </label>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                className="input"
+                type="password"
+                autoComplete="new-password"
+                value={password}
+                onChange={e => { setPassword(e.target.value); if (e.target.value) setClearPassword(false); }}
+                placeholder={t('statuspage.private_password_placeholder')}
+              />
+              {wasPrivate && !clearPassword && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-danger"
+                  onClick={() => { setPassword(''); setClearPassword(true); }}
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  <X size={13}/> {t('statuspage.private_clear')}
+                </button>
+              )}
+            </div>
+            <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 4 }}>
+              {clearPassword
+                ? t('statuspage.private_set')
+                : (wasPrivate ? t('statuspage.private_change') : t('statuspage.private_set'))}
+            </div>
+          </div>
+
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label className="field-label">{t('statuspage.custom_css')}</label>
+            <textarea
+              className="textarea mono"
+              rows={6}
+              value={customCss}
+              onChange={e => setCustomCss(e.target.value)}
+              placeholder={t('statuspage.custom_css_placeholder')}
+              style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}
+            />
+            <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 4 }}>
+              {t('statuspage.custom_css_hint')}
             </div>
           </div>
         </div>

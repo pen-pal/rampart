@@ -30,6 +30,7 @@ pub fn public_router() -> Router<AppState> {
     Router::new()
         .route("/by-domain/{host}", get(public_view_by_domain))
         .route("/{slug}", get(public_view))
+        .route("/{slug}/unlock", axum::routing::post(public_unlock))
         .route("/{slug}/feed.atom", get(public_feed_atom))
         .route("/{slug}/feed.rss", get(public_feed_rss))
         .route("/{slug}/day-latency", get(public_day_latency))
@@ -45,6 +46,25 @@ fn parse(id: &str) -> Result<StatusPageId, ApiError> {
 /// The base64 payload inflates the raw bytes ~33%, so we measure the whole
 /// URI string and allow a little headroom for the `data:` prefix.
 const MAX_LOGO_DATA_URI_BYTES: usize = 512 * 1024;
+
+/// Upper bound on per-page custom CSS. 64 KB is far more than any sane
+/// theme override needs while still bounding the row + the inline <style>
+/// the public page injects.
+const MAX_CUSTOM_CSS_BYTES: usize = 64 * 1024;
+
+/// Validate optional per-page custom CSS — only a size cap. The content is
+/// operator-authored and injected into a scoped <style> tag client-side
+/// (which strips any close-out), so we don't sanitize here beyond the cap.
+fn validate_custom_css(css: Option<&str>) -> Result<(), ApiError> {
+    if let Some(c) = css {
+        if c.len() > MAX_CUSTOM_CSS_BYTES {
+            return Err(ApiError::BadRequest(
+                "custom_css exceeds the 64 KB limit".into(),
+            ));
+        }
+    }
+    Ok(())
+}
 
 /// Validate an optional custom domain. A bare hostname: 1–253 chars of
 /// lowercase letters, digits, dots, and hyphens. We don't enforce the
@@ -123,6 +143,7 @@ async fn create(
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     validate_custom_domain(input.custom_domain.as_deref())?;
     validate_logo_url(input.logo_url.as_deref())?;
+    validate_custom_css(input.custom_css.as_deref())?;
     let slug = input.slug.clone();
     let p = rampart_db::status_pages::create(s.pool(), input).await?;
     crate::audit::record(
@@ -155,6 +176,9 @@ async fn update(
     if let Some(Some(logo)) = input.logo_url.as_ref() {
         validate_logo_url(Some(logo))?;
     }
+    if let Some(Some(css)) = input.custom_css.as_ref() {
+        validate_custom_css(Some(css))?;
+    }
     Ok(Json(
         rampart_db::status_pages::update(s.pool(), parse(&id)?, input).await?,
     ))
@@ -181,10 +205,48 @@ async fn remove(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// Build the public projection for `slug`, but when the page is private
+/// return a locked stub (slug + title + `private: true`, nothing else)
+/// instead of the real component / incident data. A visitor unlocks the
+/// real payload via `POST .../unlock`. We do one cheap `get_by_slug` to
+/// learn the privacy flag before deciding whether to run the full rollup.
+async fn public_view_guarded(s: &AppState, slug: &str) -> Result<PublicStatusPage, ApiError> {
+    let page = rampart_db::status_pages::get_by_slug(s.pool(), slug).await?;
+    if page.private {
+        return Ok(PublicStatusPage::locked(page.slug, page.title));
+    }
+    Ok(rampart_db::status_pages::public_view(s.pool(), slug).await?)
+}
+
 async fn public_view(
     State(s): State<AppState>,
     Path(slug): Path<String>,
 ) -> Result<Json<PublicStatusPage>, ApiError> {
+    Ok(Json(public_view_guarded(&s, &slug).await?))
+}
+
+/// Body for `POST /v1/public/status-pages/{slug}/unlock`.
+#[derive(Debug, Deserialize)]
+pub struct UnlockReq {
+    pub password: String,
+}
+
+/// Verify a candidate password for a private page. On success returns the
+/// full `PublicStatusPage` payload (the frontend keeps it in memory for the
+/// session); on a wrong password returns 401. A public page (no password)
+/// also 401s here — `/unlock` is only meaningful for private pages, and we
+/// don't want to leak which non-private slugs exist via a 200. The 401 body
+/// is plain (no auth-redirect semantics): this route lives under
+/// `/v1/public/*`, which the frontend calls outside the shared wrapper.
+async fn public_unlock(
+    State(s): State<AppState>,
+    Path(slug): Path<String>,
+    Json(req): Json<UnlockReq>,
+) -> Result<Json<PublicStatusPage>, ApiError> {
+    let ok = rampart_db::status_pages::verify_page_password(s.pool(), &slug, &req.password).await?;
+    if !ok {
+        return Err(ApiError::Unauthorized);
+    }
     Ok(Json(
         rampart_db::status_pages::public_view(s.pool(), &slug).await?,
     ))
@@ -204,9 +266,7 @@ async fn public_view_by_domain(
     let page = rampart_db::status_pages::find_by_custom_domain(s.pool(), &host)
         .await?
         .ok_or(ApiError::NotFound)?;
-    Ok(Json(
-        rampart_db::status_pages::public_view(s.pool(), &page.slug).await?,
-    ))
+    Ok(Json(public_view_guarded(&s, &page.slug).await?))
 }
 
 /// Query for `GET /v1/public/status-pages/:slug/day-latency`.
