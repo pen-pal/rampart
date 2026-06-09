@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE notifications\n        SET name = $2, config = $3, active = $4, template_id = $5, cooldown_seconds = $6\n        WHERE id = $1\n        RETURNING id, kind AS \"kind: ChannelKind\", name, config, active,\n                  template_id, created_at, cooldown_seconds, last_fired_at\n        ",
+  "query": "\n        SELECT n.id, n.kind AS \"kind: ChannelKind\", n.name, n.config, n.active,\n               n.template_id, n.created_at, n.cooldown_seconds, n.digest_window_secs, n.last_fired_at\n        FROM notifications n\n        JOIN monitor_notifications mn ON mn.notification_id = n.id\n        WHERE mn.monitor_id = $1 AND n.active\n        ",
   "describe": {
     "columns": [
       {
@@ -230,6 +230,17 @@
       },
       {
         "ordinal": 8,
+        "name": "digest_window_secs",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "notifications",
+            "name": "digest_window_secs"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
         "name": "last_fired_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -242,12 +253,7 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid",
-        "Text",
-        "Jsonb",
-        "Bool",
-        "Uuid",
-        "Int4"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -259,8 +265,9 @@
       true,
       false,
       false,
+      false,
       true
     ]
   },
-  "hash": "a9ecd0dd182765cac73c014b5ff18ffad7f803eeedb15e4454454cba342fac20"
+  "hash": "4d64bc6bfba387594b1d9781543557350337228ca52552f103ce5b4a60a56bc5"
 }
