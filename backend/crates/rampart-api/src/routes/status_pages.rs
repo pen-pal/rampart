@@ -40,6 +40,64 @@ fn parse(id: &str) -> Result<StatusPageId, ApiError> {
         .map_err(|_| ApiError::BadRequest("invalid status page id".into()))
 }
 
+/// Upper bound on a `data:` URI logo, matching the 512 KB client-side cap.
+/// The base64 payload inflates the raw bytes ~33%, so we measure the whole
+/// URI string and allow a little headroom for the `data:` prefix.
+const MAX_LOGO_DATA_URI_BYTES: usize = 512 * 1024;
+
+/// Validate an optional custom domain. A bare hostname: 1–253 chars of
+/// lowercase letters, digits, dots, and hyphens. We don't enforce the
+/// finer RFC-1123 label rules (no leading/trailing hyphen per label) —
+/// this is a light guard against obviously bad input, not a resolver.
+fn validate_custom_domain(domain: Option<&str>) -> Result<(), ApiError> {
+    let Some(d) = domain else { return Ok(()) };
+    if d.is_empty() || d.len() > 253 {
+        return Err(ApiError::BadRequest(
+            "custom_domain must be 1-253 characters".into(),
+        ));
+    }
+    if !d
+        .bytes()
+        .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'.' || b == b'-')
+    {
+        return Err(ApiError::BadRequest(
+            "custom_domain may contain only lowercase letters, digits, dots, and hyphens".into(),
+        ));
+    }
+    Ok(())
+}
+
+/// Validate an optional logo URL. A `data:` URI is capped at 512 KB
+/// (a base64-encoded uploaded image); anything else must parse as an
+/// absolute http(s) URL.
+fn validate_logo_url(logo: Option<&str>) -> Result<(), ApiError> {
+    let Some(u) = logo else { return Ok(()) };
+    if u.is_empty() {
+        return Ok(());
+    }
+    if u.starts_with("data:") {
+        if u.len() > MAX_LOGO_DATA_URI_BYTES {
+            return Err(ApiError::BadRequest(
+                "logo data URI exceeds the 512 KB limit".into(),
+            ));
+        }
+        return Ok(());
+    }
+    // Not a data URI → require a plausible absolute http(s) URL. We keep
+    // the parse dependency-free: scheme + non-empty host.
+    let rest = u
+        .strip_prefix("https://")
+        .or_else(|| u.strip_prefix("http://"));
+    match rest {
+        Some(host_and_path) if !host_and_path.is_empty() && !host_and_path.starts_with('/') => {
+            Ok(())
+        }
+        _ => Err(ApiError::BadRequest(
+            "logo_url must be an http(s) URL or a data: URI".into(),
+        )),
+    }
+}
+
 async fn list(State(s): State<AppState>) -> Result<Json<Vec<StatusPage>>, ApiError> {
     Ok(Json(rampart_db::status_pages::list(s.pool()).await?))
 }
@@ -62,6 +120,8 @@ async fn create(
     input
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    validate_custom_domain(input.custom_domain.as_deref())?;
+    validate_logo_url(input.logo_url.as_deref())?;
     let slug = input.slug.clone();
     let p = rampart_db::status_pages::create(s.pool(), input).await?;
     crate::audit::record(
@@ -82,6 +142,18 @@ async fn update(
     Path(id): Path<String>,
     Json(input): Json<UpdateStatusPage>,
 ) -> Result<Json<StatusPage>, ApiError> {
+    input
+        .validate()
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    // Only validate the branding fields when the patch actually carries a
+    // value to set (Some(Some(_))). A clear (Some(None)) or an omitted
+    // field (None) needs no shape check.
+    if let Some(Some(domain)) = input.custom_domain.as_ref() {
+        validate_custom_domain(Some(domain))?;
+    }
+    if let Some(Some(logo)) = input.logo_url.as_ref() {
+        validate_logo_url(Some(logo))?;
+    }
     Ok(Json(
         rampart_db::status_pages::update(s.pool(), parse(&id)?, input).await?,
     ))
@@ -451,4 +523,48 @@ fn render_rss_feed(page: &PublicStatusPage) -> String {
     let _ = writeln!(out, "  </channel>");
     let _ = writeln!(out, "</rss>");
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn custom_domain_accepts_plain_hostname() {
+        assert!(validate_custom_domain(Some("status.acme.com")).is_ok());
+        assert!(validate_custom_domain(Some("status-1.acme-corp.io")).is_ok());
+        assert!(validate_custom_domain(None).is_ok());
+    }
+
+    #[test]
+    fn custom_domain_rejects_bad_chars_and_length() {
+        assert!(validate_custom_domain(Some("Status.Acme.com")).is_err()); // uppercase
+        assert!(validate_custom_domain(Some("status acme.com")).is_err()); // space
+        assert!(validate_custom_domain(Some("status_acme.com")).is_err()); // underscore
+        assert!(validate_custom_domain(Some("")).is_err()); // empty
+        let too_long = format!("{}.com", "a".repeat(260));
+        assert!(validate_custom_domain(Some(&too_long)).is_err());
+    }
+
+    #[test]
+    fn logo_url_accepts_http_and_data_uri() {
+        assert!(validate_logo_url(Some("https://cdn.acme.com/logo.png")).is_ok());
+        assert!(validate_logo_url(Some("http://acme.com/logo.svg")).is_ok());
+        assert!(validate_logo_url(Some("data:image/png;base64,iVBORw0KGgo=")).is_ok());
+        assert!(validate_logo_url(None).is_ok());
+        assert!(validate_logo_url(Some("")).is_ok());
+    }
+
+    #[test]
+    fn logo_url_rejects_non_url_and_oversized_data_uri() {
+        assert!(validate_logo_url(Some("ftp://acme.com/logo.png")).is_err());
+        assert!(validate_logo_url(Some("just-a-string")).is_err());
+        assert!(validate_logo_url(Some("https://")).is_err());
+        // A data: URI just over the 512 KB cap.
+        let big = format!(
+            "data:image/png;base64,{}",
+            "A".repeat(MAX_LOGO_DATA_URI_BYTES)
+        );
+        assert!(validate_logo_url(Some(&big)).is_err());
+    }
 }
