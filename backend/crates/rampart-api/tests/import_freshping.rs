@@ -1,0 +1,83 @@
+//! Integration test for the Freshping importer's parse + map pass.
+//!
+//! Lives at the `tests/` layer (not as a `#[cfg(test)]` mod in the
+//! importer file) because it asserts on the *binary contract* the
+//! `rampart-import` CLI relies on — the JSON fixture under
+//! `tests/fixtures/` is the same shape a real operator would drop on
+//! disk before running the importer.
+//!
+//! No DB needed — the dry-run path is the contract that matters.
+
+use rampart_api::importers::{freshping, ImportPlan};
+use rampart_core::MonitorKind;
+
+const FIXTURE: &str = include_str!("fixtures/freshping-sample.json");
+
+fn count(plan: &ImportPlan, kind: MonitorKind) -> usize {
+    plan.mapped.iter().filter(|m| m.mapped_kind == kind).count()
+}
+
+#[test]
+fn fixture_parses_and_maps_expected_kinds() {
+    let plan = freshping::parse_and_map(FIXTURE).expect("fixture parses");
+
+    // 5 checks: HTTPS + HTTP -> Http, PING -> Ping, PORT -> Tcp,
+    // DNS -> Dns. All recognised; nothing skipped.
+    assert_eq!(plan.mapped.len(), 5, "mapped count");
+    assert_eq!(plan.skipped.len(), 0, "skipped count");
+
+    assert_eq!(count(&plan, MonitorKind::Http), 2);
+    assert_eq!(count(&plan, MonitorKind::Ping), 1);
+    assert_eq!(count(&plan, MonitorKind::Tcp), 1);
+    assert_eq!(count(&plan, MonitorKind::Dns), 1);
+}
+
+#[test]
+fn fixture_field_translation_is_correct() {
+    let plan = freshping::parse_and_map(FIXTURE).expect("fixture parses");
+
+    // HTTPS: check_url -> url; check_interval (seconds) -> interval_seconds.
+    let site = plan
+        .mapped
+        .iter()
+        .find(|m| m.new_monitor.name == "Marketing site")
+        .expect("Marketing site present");
+    assert_eq!(site.mapped_kind, MonitorKind::Http);
+    assert_eq!(
+        site.new_monitor.url.as_deref(),
+        Some("https://www.example.com")
+    );
+    assert!(site.new_monitor.hostname.is_none());
+    assert_eq!(site.new_monitor.interval_seconds, 60);
+
+    // PORT: check_url -> hostname; port -> port.
+    let db = plan
+        .mapped
+        .iter()
+        .find(|m| m.new_monitor.name == "Primary database")
+        .expect("Primary database present");
+    assert_eq!(db.mapped_kind, MonitorKind::Tcp);
+    assert!(db.new_monitor.url.is_none());
+    assert_eq!(db.new_monitor.hostname.as_deref(), Some("db.example.com"));
+    assert_eq!(db.new_monitor.port, Some(5432));
+    assert_eq!(db.new_monitor.interval_seconds, 120);
+
+    // PING: check_url -> hostname.
+    let router = plan
+        .mapped
+        .iter()
+        .find(|m| m.new_monitor.name == "Edge router")
+        .expect("Edge router present");
+    assert_eq!(router.mapped_kind, MonitorKind::Ping);
+    assert_eq!(router.new_monitor.hostname.as_deref(), Some("10.0.0.1"));
+    assert!(router.new_monitor.url.is_none());
+
+    // DNS: check_url -> hostname.
+    let dns = plan
+        .mapped
+        .iter()
+        .find(|m| m.new_monitor.name == "Resolver")
+        .expect("Resolver present");
+    assert_eq!(dns.mapped_kind, MonitorKind::Dns);
+    assert_eq!(dns.new_monitor.hostname.as_deref(), Some("example.com"));
+}

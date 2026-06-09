@@ -43,6 +43,9 @@ rampart-import <format> <path-to-file> [--dry-run] [--skip-existing]
 | `cachet`       | Cachet `GET /api/v1/components` JSON dump (see below). |
 | `gatus`        | Gatus `GET /api/v1/endpoints/statuses` JSON dump (see below). |
 | `uptimecom`    | Uptime.com `GET /api/v1/checks/` JSON dump (see below). |
+| `hetrixtools`  | HetrixTools `GET /v1/uptime-monitors` JSON dump (see below). |
+| `freshping`    | Freshping (Freshworks) check export JSON dump (see below). |
+| `checkly`      | Checkly `GET /v1/checks` JSON dump (see below). |
 
 More formats are welcome — see `CONTRIBUTING.md`. The dispatch in
 `crates/rampart-api/src/bin/import.rs` is a single `match` on the
@@ -1250,5 +1253,204 @@ DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
 # Idempotent re-run: same source, skip rows whose name already exists.
 DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
   ./target/release/rampart-import uptimecom uptimecom-export.json \
+  --skip-existing
+```
+
+---
+
+## HetrixTools
+
+### Getting the export
+
+HetrixTools has no portal-side "export" button; pull the uptime-monitor
+roster via the v1 API with a token minted under your account's **API
+Settings**:
+
+```bash
+# HetrixTools wraps the list in a {"monitors":[…]} envelope.
+curl -s 'https://api.hetrixtools.com/v1/<API_TOKEN>/uptime-monitors/' \
+     > hetrixtools-export.json
+```
+
+> Upstream reference: https://docs.hetrixtools.com/category/uptime-monitors-api/
+
+### Type → MonitorKind mapping
+
+Each monitor carries a `Type` constant. The importer matches it
+case-insensitively.
+
+| HetrixTools `Type` | Rampart `MonitorKind` |
+| ------------------ | --------------------- |
+| `website`          | `Http`                |
+| `service`          | `Tcp`                 |
+| `ping`             | `Ping`                |
+
+### Field translation
+
+| HetrixTools field         | Rampart `NewMonitor` field                                     |
+| ------------------------- | -------------------------------------------------------------- |
+| `Name`                    | `name` (required)                                              |
+| `Target`                  | `url` for `website`; `hostname` for `service` / `ping`         |
+| `Port`                    | `port` (i32; dropped when `0` / absent)                        |
+| `Check_Frequency_Seconds` | `interval_seconds` (already seconds; defaults to 60)           |
+
+`timeout_seconds` defaults to 16s; HetrixTools' per-monitor timeout is
+not modelled on the listing endpoint.
+
+### Types that are skipped
+
+Anything not in the mapping table is reported as `skip: unsupported
+hetrixtools monitor`. Monitors missing `Name` are also skipped.
+
+### Example
+
+```bash
+# Dry-run first — no DB writes; just prints the per-kind breakdown.
+./target/release/rampart-import hetrixtools hetrixtools-export.json --dry-run
+
+# Real import. Insert every mapped row.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import hetrixtools hetrixtools-export.json
+
+# Idempotent re-run: same source, skip rows whose name already exists.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import hetrixtools hetrixtools-export.json \
+  --skip-existing
+```
+
+---
+
+## Freshping
+
+> Freshping is the Freshworks uptime product. Its export wraps the check
+> roster in a `{"checks":[…]}` envelope.
+
+### Getting the export
+
+Capture your Freshping checks to a JSON file shaped as
+`{"checks":[…]}`, then hand the path to the importer.
+
+> Upstream reference: https://freshping.io
+
+### Type → MonitorKind mapping
+
+Each check carries a `check_type` constant. The importer matches it
+case-insensitively.
+
+| Freshping `check_type` | Rampart `MonitorKind` |
+| ---------------------- | --------------------- |
+| `HTTP` / `HTTPS`       | `Http`                |
+| `PING`                 | `Ping`                |
+| `PORT`                 | `Tcp`                 |
+| `DNS`                  | `Dns`                 |
+
+### Field translation
+
+| Freshping field  | Rampart `NewMonitor` field                                          |
+| ---------------- | ------------------------------------------------------------------- |
+| `name`           | `name` (required)                                                   |
+| `check_url`      | `url` for `HTTP`/`HTTPS`; `hostname` for `PING` / `PORT` / `DNS`    |
+| `port`           | `port` (i32; dropped when `0` / absent)                             |
+| `check_interval` | `interval_seconds` (already seconds; defaults to 60)                |
+
+`timeout_seconds` defaults to 16s; Freshping's per-check timeout is not
+modelled here.
+
+### Types that are skipped
+
+Anything not in the mapping table is reported as `skip: unsupported
+freshping check`. Checks missing `name` are also skipped.
+
+### Example
+
+```bash
+# Dry-run first — no DB writes; just prints the per-kind breakdown.
+./target/release/rampart-import freshping freshping-export.json --dry-run
+
+# Real import. Insert every mapped row.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import freshping freshping-export.json
+
+# Idempotent re-run: same source, skip rows whose name already exists.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import freshping freshping-export.json \
+  --skip-existing
+```
+
+---
+
+## Checkly
+
+> Checkly's listing endpoint returns a **bare JSON array** at the top
+> level (not a `{"checks":[…]}` envelope), and ships the check cadence as
+> whole minutes under `frequency`.
+
+### Getting the export
+
+Pull the check roster via the v1 API with a token minted under your
+Checkly account's **Settings -> API Keys**:
+
+```bash
+# Checkly returns a bare JSON array; paginate via `limit`/`page` query
+# params and concat each page's array before running the importer.
+curl -s 'https://api.checklyhq.com/v1/checks' \
+     -H 'Authorization: Bearer <API_KEY>' \
+     -H 'X-Checkly-Account: <ACCOUNT_ID>' \
+     > checkly-export.json
+```
+
+> Upstream reference: https://www.checklyhq.com/docs/api/
+
+### Type → MonitorKind mapping
+
+Each check carries a `checkType` constant. The importer matches it
+case-insensitively.
+
+| Checkly `checkType` | Rampart `MonitorKind` |
+| ------------------- | --------------------- |
+| `API`               | `Http`                |
+| `BROWSER`           | `Browser`             |
+| `TCP`               | `Tcp`                 |
+
+### Field translation
+
+| Checkly field         | Rampart `NewMonitor` field                                     |
+| --------------------- | -------------------------------------------------------------- |
+| `name`                | `name` (required)                                              |
+| `request.url`         | `url` (`API`)                                                  |
+| `request.method`      | `http_method` (`API`; defaults to `GET`)                       |
+| `tcp.host`            | `hostname` (`TCP`)                                             |
+| `tcp.port`            | `port` (i32; `TCP`)                                            |
+| `frequency` (minutes) | `interval_seconds` = `frequency * 60`, floored to `60`         |
+
+`Browser` checks have no host/url target on the listing shape; point the
+imported monitor at an external headless service via `config.renderer_url`
+afterwards (see the `Browser` `MonitorKind` docs).
+
+### Types that are skipped
+
+Anything not in the mapping table is reported as `skip: unsupported
+checkly check`. Common examples:
+
+- `HEARTBEAT` — Checkly's passive ping target. Rampart models this with
+  the `Push` kind; port by hand.
+- `MULTI_STEP` and other higher-level families — no direct Rampart
+  equivalent.
+
+Checks missing `name` are also skipped.
+
+### Example
+
+```bash
+# Dry-run first — no DB writes; just prints the per-kind breakdown.
+./target/release/rampart-import checkly checkly-export.json --dry-run
+
+# Real import. Insert every mapped row.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import checkly checkly-export.json
+
+# Idempotent re-run: same source, skip rows whose name already exists.
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./target/release/rampart-import checkly checkly-export.json \
   --skip-existing
 ```
