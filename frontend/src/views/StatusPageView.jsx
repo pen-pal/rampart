@@ -15,7 +15,7 @@
 // The page polls the API every 30 seconds; the auto-refresh dot in the
 // brand row pulses on each refresh so visitors can see the page is alive.
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CheckCircle2, AlertCircle, AlertTriangle, Calendar, Loader2,
   Activity, Bell, Wrench, Shield, Mail, Rss, Link2, Check, X, History,
@@ -104,6 +104,54 @@ const css = `
     position: relative;
   }
   .strip > div:hover { transform: scaleY(1.15); }
+  .strip > div { cursor: pointer; outline: none; }
+  .strip > div:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+
+  /* Day-drilldown popover anchored under the clicked cell. */
+  .day-pop {
+    position: absolute; z-index: 50;
+    width: 300px;
+    background: var(--surface); color: var(--text);
+    border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 16px 40px rgba(0,0,0,.15);
+    padding: 14px 16px;
+    font-size: 13px;
+  }
+  .day-pop .day-pop-x {
+    position: absolute; top: 8px; right: 8px;
+    width: 24px; height: 24px; border-radius: 6px;
+    background: transparent; border: none;
+    color: var(--text-3); cursor: pointer; font: inherit;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .day-pop .day-pop-x:hover { background: var(--surface-2); color: var(--text); }
+  .day-pop .day-pop-date { font-weight: 600; margin-right: 32px; margin-bottom: 8px; }
+  .day-pop .day-pop-pill {
+    display: inline-block; padding: 3px 9px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; margin-bottom: 10px;
+  }
+  .day-pop .day-pop-pill.u { background: var(--up-soft);    color: #047857; }
+  .day-pop .day-pop-pill.d { background: var(--down-soft);  color: #b91c1c; }
+  .day-pop .day-pop-pill.w { background: var(--warn-soft);  color: #92400e; }
+  .day-pop .day-pop-pill.m { background: var(--maint-soft); color: #4338ca; }
+  .day-pop .day-pop-pill.n { background: var(--surface-2);  color: var(--text-3); }
+  .public.dark .day-pop-pill.u { color: #6ee7b7; }
+  .public.dark .day-pop-pill.d { color: #fca5a5; }
+  .public.dark .day-pop-pill.w { color: #fde68a; }
+  .public.dark .day-pop-pill.m { color: #c7d2fe; }
+  .day-pop .day-pop-inc {
+    border-top: 1px solid var(--border); padding-top: 10px; margin-top: 6px;
+  }
+  .day-pop .day-pop-inc-title {
+    font-size: 11px; color: var(--text-3); font-weight: 600;
+    text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px;
+  }
+  .day-pop ul { list-style: none; padding: 0; margin: 0; }
+  .day-pop ul li {
+    font-size: 12.5px; line-height: 1.4;
+    padding: 4px 0;
+  }
+  .day-pop ul li strong { font-weight: 500; }
   .s-u { background: var(--up); opacity: .9; }
   .s-d { background: var(--down); }
   .s-w { background: var(--warn); }
@@ -443,7 +491,14 @@ export default function StatusPageView({ slug }) {
             <div style={{ padding: 36, textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
               No components attached to this page yet.
             </div>
-          ) : monitors.map((m, i) => <Component key={i} monitor={m}/>)}
+          ) : monitors.map((m, i) => (
+            <Component
+              key={i}
+              monitor={m}
+              activeIncidents={incidents}
+              incidentHistory={data.incident_history || []}
+            />
+          ))}
         </div>
 
         {/* ── Legend ───────────────────────────────────────────── */}
@@ -503,7 +558,7 @@ function Kpi({ icon, label, value, sub }) {
   );
 }
 
-function Component({ monitor }) {
+function Component({ monitor, activeIncidents = [], incidentHistory = [] }) {
   const status = monitor.current_status;
   const statusKey = status === 'maintenance' ? 'maint' : status;
   // Daily-status strip carries 90 chars. If the backend hasn't backfilled
@@ -511,21 +566,62 @@ function Component({ monitor }) {
   // 90 cells (otherwise it'd render at variable widths between monitors).
   const strip = (monitor.daily_status_90d || '').padStart(90, 'n').slice(-90);
 
+  // Click-day drilldown popover. `openCell` is the cell-index from
+  // strip-left; `null` means closed.
+  const [openCell, setOpenCell] = useState(null);
+  const stripRef = useRef(null);
+  useEffect(() => {
+    if (openCell == null) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setOpenCell(null); };
+    const onClick = (e) => {
+      if (!stripRef.current) return;
+      if (!stripRef.current.parentElement.contains(e.target)) setOpenCell(null);
+    };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('click', onClick, true);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('click', onClick, true);
+    };
+  }, [openCell]);
+
   return (
     <div className="row">
-      <div>
+      <div style={{ position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 2 }}>
           <span style={{ fontSize: 15, fontWeight: 500 }}>{monitor.name}</span>
         </div>
-        <div className="strip" title="One cell per day, oldest left, today right">
-          {strip.split('').map((c, i) => (
-            <div
-              key={i}
-              className={`s-${c}`}
-              title={cellTitle(c, 90 - 1 - i)}
-            />
-          ))}
+        <div className="strip" ref={stripRef} title="Click a day for details">
+          {strip.split('').map((c, i) => {
+            const daysAgo = 90 - 1 - i;
+            return (
+              <div
+                key={i}
+                className={`s-${c}`}
+                tabIndex={0}
+                role="button"
+                aria-label={cellTitle(c, daysAgo)}
+                title={cellTitle(c, daysAgo)}
+                onClick={(e) => { e.stopPropagation(); setOpenCell(openCell === i ? null : i); }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setOpenCell(openCell === i ? null : i);
+                  }
+                }}
+              />
+            );
+          })}
         </div>
+        {openCell != null && (
+          <DayPopover
+            cellIndex={openCell}
+            statusChar={strip[openCell]}
+            activeIncidents={activeIncidents}
+            incidentHistory={incidentHistory}
+            onClose={() => setOpenCell(null)}
+          />
+        )}
         <div className="strip-axis">
           <span>90 days ago</span>
           <span>
@@ -590,6 +686,86 @@ function MonthChip({ point }) {
     <div className={cls} title={title}>
       <span className="month-chip-mo">{label}</span>
       <span className="month-chip-pct">{pctStr}</span>
+    </div>
+  );
+}
+
+/** UTC midnight Date for `daysAgo` days back (0 = today). */
+function dayStartUtc(daysAgo) {
+  const d = new Date();
+  d.setUTCHours(0, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() - daysAgo);
+  return d;
+}
+
+/** True when `inc`'s active window touches the `[dayStart, dayEnd)` range. */
+function incidentTouchesDay(inc, dayStart, dayEnd) {
+  const created = toDate(inc.created_at).getTime();
+  const resolved = inc.resolved_at != null
+    ? toDate(inc.resolved_at).getTime()
+    : Date.now();
+  return created < dayEnd.getTime() && resolved >= dayStart.getTime();
+}
+
+const DAY_STATUS = {
+  u: { label: 'Operational',  cls: 'u' },
+  d: { label: 'Down',         cls: 'd' },
+  w: { label: 'Degraded',     cls: 'w' },
+  m: { label: 'Maintenance',  cls: 'm' },
+  n: { label: 'No data',      cls: 'n' },
+};
+
+function DayPopover({ cellIndex, statusChar, activeIncidents, incidentHistory, onClose }) {
+  const closeRef = useRef(null);
+  useEffect(() => { closeRef.current?.focus(); }, []);
+  const daysAgo = 90 - 1 - cellIndex;
+  const dayStart = dayStartUtc(daysAgo);
+  const dayEnd = new Date(dayStart.getTime() + 86_400_000);
+  const meta = DAY_STATUS[statusChar] || DAY_STATUS.n;
+  const all = [...activeIncidents, ...incidentHistory];
+  const touching = all.filter(inc => incidentTouchesDay(inc, dayStart, dayEnd));
+
+  // Position the popover so its left edge sits over the clicked cell.
+  // 90 cells span the .strip's full width — cellIndex/89 maps to the
+  // strip's horizontal range. Clamp at the edges so the popover
+  // doesn't escape the row.
+  const pct = Math.max(2, Math.min(98, (cellIndex / 89) * 100));
+  const transform =
+    cellIndex < 12 ? 'translateX(0)' :
+    cellIndex > 77 ? 'translateX(-100%)' :
+    'translateX(-50%)';
+
+  const dateLabel = dayStart.toLocaleDateString(undefined, {
+    weekday: 'short', month: 'long', day: 'numeric', year: 'numeric',
+    timeZone: 'UTC',
+  });
+
+  return (
+    <div className="day-pop" style={{ top: 'calc(100% + 4px)', left: `${pct}%`, transform }}
+         onClick={e => e.stopPropagation()}>
+      <button ref={closeRef} className="day-pop-x" aria-label="Close" onClick={onClose}>×</button>
+      <div className="day-pop-date">{dateLabel}</div>
+      <span className={`day-pop-pill ${meta.cls}`}>{meta.label}</span>
+      {statusChar === 'u' && (
+        <div style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
+          All checks passed on this date.
+        </div>
+      )}
+      {touching.length > 0 && (
+        <div className="day-pop-inc">
+          <div className="day-pop-inc-title">Incidents on this date</div>
+          <ul>
+            {touching.map((inc, i) => (
+              <li key={i}>
+                <strong>{inc.title}</strong>
+                {inc.resolved_at != null && (
+                  <span style={{ color: 'var(--text-3)' }}> · resolved</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
