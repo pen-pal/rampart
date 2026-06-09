@@ -491,3 +491,62 @@ pub async fn set_status(pool: &DbPool, id: MonitorId, status: MonitorStatus) -> 
     .await?;
     Ok(())
 }
+
+/// Compact view of a monitor's SLO config + de-dup marker. The scheduler
+/// fetches one of these per monitor in a batch after persistence to decide
+/// whether to fire `SloBreached` / `SloRecovered`. Cheap single-row read
+/// — no tag hydration, no heartbeat lookup. Returns `None` when the
+/// monitor row is gone (deleted mid-batch); the caller treats that as
+/// "skip silently".
+#[derive(Debug, Clone)]
+pub struct SloState {
+    pub target_pct: Option<f64>,
+    pub window_days: Option<i32>,
+    pub breached_at: Option<OffsetDateTime>,
+}
+
+pub async fn slo_state(pool: &DbPool, id: MonitorId) -> DbResult<Option<SloState>> {
+    let row = sqlx::query!(
+        r#"
+        SELECT
+            slo_target_pct::float8 AS "target_pct?",
+            slo_window_days,
+            slo_breached_at
+        FROM monitors
+        WHERE id = $1
+        "#,
+        id.0,
+    )
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.map(|r| SloState {
+        target_pct: r.target_pct,
+        window_days: r.slo_window_days,
+        breached_at: r.slo_breached_at,
+    }))
+}
+
+/// Stamp `slo_breached_at = NOW()` so the next heartbeat batch won't
+/// re-fire the breach notification. The scheduler calls this exactly
+/// once when uptime first crosses below target.
+pub async fn mark_slo_breached(pool: &DbPool, id: MonitorId) -> DbResult<()> {
+    sqlx::query!(
+        "UPDATE monitors SET slo_breached_at = NOW() WHERE id = $1",
+        id.0,
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Clear `slo_breached_at` so a future breach can fire again. Called
+/// exactly once when uptime climbs back at-or-above target.
+pub async fn clear_slo_breached(pool: &DbPool, id: MonitorId) -> DbResult<()> {
+    sqlx::query!(
+        "UPDATE monitors SET slo_breached_at = NULL WHERE id = $1",
+        id.0,
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
