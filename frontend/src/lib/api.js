@@ -92,10 +92,15 @@ export const api = {
     /// 404 when the monitor has no SLO target set — callers should
     /// only invoke this after checking `monitor.slo_target_pct`.
     errorBudget: (id)  => request(`/v1/monitors/${id}/slo/error-budget`),
-    /// SLO error-budget burn-down: one point per day across the configured
-    /// window. Same 404 contract as `errorBudget` — only call after
-    /// confirming `monitor.slo_target_pct` is set.
-    sloBurndown: (id)  => request(`/v1/monitors/${id}/slo/burndown`),
+    /// SLO error-budget burn-down: one point per day across the window.
+    /// Same 404 contract as `errorBudget` — only call after confirming
+    /// `monitor.slo_target_pct` is set. `windowDays` is one of 7 / 30 / 90;
+    /// omitting it lets the backend default to the monitor's configured
+    /// `slo_window_days` (preserves the pre-toggle behaviour).
+    sloBurndown: (id, windowDays) => {
+      const qs = windowDays ? `?window_days=${windowDays}` : '';
+      return request(`/v1/monitors/${id}/slo/burndown${qs}`);
+    },
   },
   health: {
     live:  () => request('/healthz'),
