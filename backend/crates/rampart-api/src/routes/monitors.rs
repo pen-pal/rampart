@@ -597,14 +597,42 @@ pub struct BurndownDto {
     pub points: Vec<rampart_db::heartbeats::BurndownPoint>,
 }
 
+/// Whitelisted burn-down window sizes. Same tight set + rationale as the
+/// reliability card: each is a deliberate dashboard preset, and an
+/// unbounded value would let a caller force a full-history walk. When the
+/// param is omitted we fall back to the monitor's configured
+/// `slo_window_days` to preserve the pre-toggle behaviour.
+const BURNDOWN_WINDOW_DAYS_ALLOWED: &[i32] = &[7, 30, 90];
+
+#[derive(Debug, Deserialize)]
+pub struct BurndownQuery {
+    /// Trailing window in days. Allowed: 7, 30, 90. Defaults to the
+    /// monitor's configured `slo_window_days`.
+    pub window_days: Option<i32>,
+}
+
 async fn slo_burndown(
     State(state): State<AppState>,
     Path(id): Path<String>,
+    Query(q): Query<BurndownQuery>,
 ) -> Result<Json<BurndownDto>, ApiError> {
     let monitor_id = parse_monitor_id(&id)?;
     let monitor = rampart_db::monitors::get(state.pool(), monitor_id).await?;
     let target = monitor.slo_target_pct.ok_or(ApiError::NotFound)?;
-    let window_days = monitor.slo_window_days.ok_or(ApiError::NotFound)?;
+    let configured_window = monitor.slo_window_days.ok_or(ApiError::NotFound)?;
+    // Resolve the requested window: explicit `?window_days=` (whitelisted)
+    // or the monitor's configured window when omitted.
+    let window_days = match q.window_days {
+        Some(w) => {
+            if !BURNDOWN_WINDOW_DAYS_ALLOWED.contains(&w) {
+                return Err(ApiError::BadRequest(
+                    "window_days must be one of 7, 30, 90".into(),
+                ));
+            }
+            w
+        }
+        None => configured_window,
+    };
     let points = rampart_db::heartbeats::error_budget_burndown(
         state.pool(),
         monitor_id,
@@ -614,7 +642,8 @@ async fn slo_burndown(
     .await?;
     // Same allowance formula the burn-down helper uses internally; recompute
     // here so the response header matches the point values without threading
-    // it back out of the helper.
+    // it back out of the helper. Uses the resolved (requested) window, not
+    // the stored one, so the allowance lines up with the returned points.
     let allowed_downtime_secs =
         ((((100.0 - target) / 100.0) * (window_days as i64 * 86_400) as f64).round()).max(0.0)
             as i64;
