@@ -122,6 +122,12 @@ pub fn default_subject(event: &Event) -> String {
             "[SLO recovered] {{ monitor.name }} — {{ slo_current_pct }}% ≥ {{ slo_target_pct }}%",
             event,
         ),
+        EventKind::MaintenanceStarted => {
+            render("{{ monitor.name }}: scheduled maintenance started", event)
+        }
+        EventKind::MaintenanceEnded => {
+            render("{{ monitor.name }}: scheduled maintenance ended", event)
+        }
         _ => render("[{{ status }}] {{ monitor.name }}", event),
     }
 }
@@ -134,6 +140,14 @@ pub fn default_body(event: &Event) -> String {
         ),
         EventKind::SloRecovered => render(
             "{{ monitor.name }} SLO recovered — current {{ slo_current_pct }}% ≥ target {{ slo_target_pct }}%.\nMonitor: {{ monitor.id }}\nTime:    {{ ts }}\n",
+            event,
+        ),
+        EventKind::MaintenanceStarted => render(
+            "{{ monitor.name }}: scheduled maintenance started.\nMonitor: {{ monitor.id }}\nTime:    {{ ts }}\n",
+            event,
+        ),
+        EventKind::MaintenanceEnded => render(
+            "{{ monitor.name }}: scheduled maintenance ended.\nMonitor: {{ monitor.id }}\nTime:    {{ ts }}\n",
             event,
         ),
         _ => {
@@ -339,5 +353,37 @@ mod tests {
         let e = event_up_to_down();
         let out = render("[{{ slo_target_pct }}|{{ slo_current_pct }}]", &e);
         assert_eq!(out, "[|]");
+    }
+
+    fn maintenance_event(kind: EventKind) -> Event {
+        let mut m = sample_monitor();
+        m.name = "API · production".into();
+        let hb = sample_heartbeat_up(&m);
+        Event {
+            kind,
+            monitor: m,
+            heartbeat: hb,
+            prev_status: None,
+            slo_current_pct: None,
+        }
+    }
+
+    #[test]
+    fn default_subject_maintenance_started() {
+        let s = default_subject(&maintenance_event(EventKind::MaintenanceStarted));
+        assert_eq!(s, "API · production: scheduled maintenance started");
+    }
+
+    #[test]
+    fn default_subject_maintenance_ended() {
+        let s = default_subject(&maintenance_event(EventKind::MaintenanceEnded));
+        assert_eq!(s, "API · production: scheduled maintenance ended");
+    }
+
+    #[test]
+    fn default_body_maintenance_started_mentions_monitor() {
+        let b = default_body(&maintenance_event(EventKind::MaintenanceStarted));
+        assert!(b.contains("scheduled maintenance started"), "got: {b}");
+        assert!(b.contains("API · production"), "got: {b}");
     }
 }

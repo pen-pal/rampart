@@ -40,6 +40,7 @@ pub fn router() -> Router<AppState> {
         .route("/{id}/clone", post(clone_one))
         .route("/{id}/regenerate-push-token", post(regenerate_push_token))
         .route("/{id}/test-now", post(test_now))
+        .route("/{id}/test-notifications", post(test_notifications))
 }
 
 fn parse_monitor_id(s: &str) -> Result<MonitorId, ApiError> {
@@ -482,6 +483,134 @@ async fn test_now(
     )
     .await;
     Ok(Json(hb))
+}
+
+#[derive(Debug, Serialize)]
+struct ChannelTestResult {
+    channel_id: Uuid,
+    ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct TestNotificationsResponse {
+    sent: Vec<ChannelTestResult>,
+}
+
+/// `POST /v1/monitors/:id/test-notifications` — resolve every channel
+/// attached to this monitor (directly + via tag / folder routing, the
+/// same resolution the alerting path uses) and fire a synthetic test
+/// notification through each. Returns a per-channel ok/error list so the
+/// UI can show which channels failed without aborting the whole batch.
+async fn test_notifications(
+    State(state): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<TestNotificationsResponse>, ApiError> {
+    let monitor_id = parse_monitor_id(&id)?;
+    // 404 if the monitor doesn't exist.
+    let _ = rampart_db::monitors::get(state.pool(), monitor_id).await?;
+
+    let channels =
+        rampart_db::routing::resolve_channels_for_monitor(state.pool(), monitor_id).await?;
+
+    // Synthesize a fixed test payload — same shape as the per-channel
+    // test endpoint so users see a recognisable "test" message.
+    let now = OffsetDateTime::now_utc();
+    let test_monitor = rampart_core::Monitor {
+        id: rampart_core::ids::MonitorId::new(),
+        name: "Rampart test monitor".into(),
+        kind: rampart_core::MonitorKind::Http,
+        url: Some("https://example.com".into()),
+        hostname: None,
+        port: None,
+        config: serde_json::Value::Null,
+        interval_seconds: 60,
+        retry_interval_sec: 60,
+        max_retries: 0,
+        timeout_seconds: 10,
+        resend_interval_sec: 0,
+        upside_down: false,
+        http_method: "GET".into(),
+        http_body: None,
+        http_headers: None,
+        accepted_statuses: vec![200],
+        follow_redirect: true,
+        ignore_tls: false,
+        proxy_id: None,
+        push_token: None,
+        last_push_at: None,
+        active: true,
+        current_status: rampart_core::MonitorStatus::Up,
+        created_at: now,
+        updated_at: now,
+        tags: Vec::new(),
+        cert_days_left: None,
+        cert_subject: None,
+        cert_checked_at: None,
+        group_id: None,
+        slo_target_pct: None,
+        slo_window_days: None,
+    };
+    let test_hb = rampart_core::Heartbeat {
+        monitor_id: test_monitor.id,
+        ts: now,
+        status: rampart_core::MonitorStatus::Up,
+        latency_ms: Some(42),
+        status_code: Some(200),
+        msg: Some("This is a test notification from Rampart.".into()),
+        retries: 0,
+        important: true,
+    };
+    let event = rampart_notifier::Event {
+        kind: rampart_notifier::EventKind::Test,
+        monitor: test_monitor,
+        heartbeat: test_hb,
+        prev_status: Some(rampart_core::MonitorStatus::Down),
+        slo_current_pct: None,
+    };
+    let subject = rampart_notifier::template::default_subject(&event);
+    let body = rampart_notifier::template::default_body(&event);
+
+    let mut sent = Vec::with_capacity(channels.len());
+    for ch in channels {
+        let result = rampart_notifier::channels::dispatch(
+            ch.kind,
+            &ch.config,
+            &subject,
+            &body,
+            &event,
+            state.pool(),
+            ch.id,
+        )
+        .await;
+        match result {
+            Ok(()) => sent.push(ChannelTestResult {
+                channel_id: ch.id.0,
+                ok: true,
+                error: None,
+            }),
+            Err(e) => sent.push(ChannelTestResult {
+                channel_id: ch.id.0,
+                ok: false,
+                error: Some(e.to_string()),
+            }),
+        }
+    }
+
+    crate::audit::record(
+        state.pool(),
+        &user,
+        &headers,
+        "monitor.test_notifications",
+        "monitor",
+        Some(monitor_id.0),
+        Some(serde_json::json!({ "channels": sent.len() })),
+    )
+    .await;
+    Ok(Json(TestNotificationsResponse { sent }))
 }
 
 /// Rotate a push monitor's token. Used when the existing token leaks or
