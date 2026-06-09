@@ -238,11 +238,7 @@ pub async fn avg_latency_ms(
 /// Powers the per-monitor 90-day timeline strip on public status pages.
 /// Single query with GROUP BY date_trunc — cheap enough to call once
 /// per monitor on every public-view scrape.
-pub async fn daily_status(
-    pool: &DbPool,
-    monitor: MonitorId,
-    days: i32,
-) -> DbResult<Vec<u8>> {
+pub async fn daily_status(pool: &DbPool, monitor: MonitorId, days: i32) -> DbResult<Vec<u8>> {
     let since = OffsetDateTime::now_utc() - time::Duration::days(days as i64);
     let rows = sqlx::query!(
         r#"

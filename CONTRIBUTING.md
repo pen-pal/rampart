@@ -2,7 +2,7 @@
 
 Thanks for your interest in Rampart! 🦀
 
-Rampart is a self-hosted uptime monitor built for **homelabs, indie devs, and small teams**, shipping as a single binary backed by Postgres. 
+Rampart is a self-hosted uptime monitor built for **homelabs, indie devs, and small teams**, shipping as a single binary backed by Postgres.
 
 Before opening an issue or a PR, please read the scope section below carefully — it will save us all a lot of time.
 
@@ -24,7 +24,7 @@ The following features were considered and deliberately removed during the v1 �
 - Kubernetes / cloud-provider scanners
 
 > **The Litmus Test:** *"Would a solo operator or a small-team SRE say 'that's not what I came here for'?"* If yes, it doesn't belong here.
-> 
+>
 > *Full rationale for these decisions is in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).*
 
 ### ✅ In Scope
@@ -99,7 +99,7 @@ End-to-end, in order:
 
 1. **Migration:** `ALTER TYPE monitor_kind ADD VALUE IF NOT EXISTS 'newthing';` in a new `backend/migrations/000N_*.sql`.
 2. **Enum Variant:** Add to `MonitorKind` in `rampart-core/src/monitor.rs`.
-3. **Probe:** New file in `rampart-checker/src/newthing.rs` implementing `Probe`. 
+3. **Probe:** New file in `rampart-checker/src/newthing.rs` implementing `Probe`.
    - *Rule:* Always return `Heartbeat`, never `Result`. Failures become heartbeats with `status = Down` and a descriptive `msg`.
 4. **Dispatch:** Add the match arm in `rampart-checker/src/lib.rs::Probes::run`.
 5. **Wizard UI:** Add to the `types` array in `frontend/src/views/NewMonitorWizard.jsx` with an icon + description + example + placeholder.
@@ -200,6 +200,6 @@ Before opening an issue:
 
 ## ⚖️ License
 
-By contributing, you agree your contributions will be licensed under [**AGPL-3.0-or-later**](LICENSE), the same license as the project. 
+By contributing, you agree your contributions will be licensed under [**AGPL-3.0-or-later**](LICENSE), the same license as the project.
 
 There is no CLA. We use AGPL deliberately to keep the project and its derivatives in the open. If you can't accept that, this isn't the project for you, and that's completely fine.
