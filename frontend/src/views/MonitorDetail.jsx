@@ -294,10 +294,28 @@ export default function MonitorDetail({ monitorId }) {
   useEffect(() => { setOlderHeartbeats([]); setAllLoaded(false); }, [monitorId]);
   const summaryState   = useApi(() => api.monitors.summary(86400),       [], { pollMs: 15_000 });
   const summaryState30 = useApi(() => api.monitors.summary(2_592_000),   [], { pollMs: 60_000 });
-  // Trailing-30d MTBF / MTTR — slow to change, so we poll only every
-  // 5min. Server walks heartbeat history directly so values are exact
-  // (not derived from the heartbeats cache the client has loaded).
-  const reliabilityState = useApi(() => monitorId ? api.monitors.reliability(monitorId) : Promise.resolve(null), [monitorId], { pollMs: 300_000 });
+  // MTBF / MTTR over a user-selected trailing window (7 / 30 / 90 days).
+  // Default is 30 to match the pre-toggle widget. Slow to change, so we
+  // poll only every 5min. Server walks heartbeat history directly so
+  // values are exact (not derived from the heartbeats cache the client
+  // has loaded). Changing `reliabilityWindow` triggers a re-fetch via
+  // the dep list below.
+  const [reliabilityWindow, setReliabilityWindow] = useState(30);
+  const reliabilityState = useApi(
+    () => monitorId ? api.monitors.reliability(monitorId, reliabilityWindow) : Promise.resolve(null),
+    [monitorId, reliabilityWindow],
+    { pollMs: 300_000 },
+  );
+  // SLO error-budget. Polls alongside the reliability card every 5 min.
+  // Only fires when the operator has set an SLO target — the endpoint
+  // returns 404 otherwise, so we short-circuit before issuing the
+  // request to keep the network panel quiet on un-configured monitors.
+  const sloTargetSet = monitorState.data?.slo_target_pct != null;
+  const errorBudgetState = useApi(
+    () => (monitorId && sloTargetSet) ? api.monitors.errorBudget(monitorId) : Promise.resolve(null),
+    [monitorId, sloTargetSet],
+    { pollMs: 300_000 },
+  );
   const groupsState    = useApi(() => api.monitorGroups.list(),          [], { pollMs: 60_000 });
 
   const monitor = monitorState.data;
@@ -582,6 +600,16 @@ export default function MonitorDetail({ monitorId }) {
             windowDays={monitor.slo_window_days}/>
         )}
 
+        {/* Error-budget "fuel gauge". Shown directly under the SLO card
+            so the operator sees target / current / remaining as one
+            visual story. Polls the dedicated /slo/error-budget endpoint
+            (5-min cadence) so the bar reflects heartbeat-derived down
+            seconds for the configured window, not an interval-based
+            approximation. */}
+        {monitor.slo_target_pct != null && (
+          <ErrorBudgetCard data={errorBudgetState.data}/>
+        )}
+
         {/* 90-day uptime strip */}
         <div className="card" style={{ padding: '20px 22px', marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -599,11 +627,16 @@ export default function MonitorDetail({ monitorId }) {
           </div>
         </div>
 
-        {/* Reliability — MTBF / MTTR / downtime events over the trailing 30
-            days. Backend walks the heartbeat history (server-side) so this
-            stays accurate even before the client has lazy-loaded older
-            heartbeats. Renders dashes until the first response lands. */}
-        <ReliabilityCard data={reliabilityState.data}/>
+        {/* Reliability — MTBF / MTTR / downtime events over a user-selected
+            trailing window (7 / 30 / 90 days). Backend walks the heartbeat
+            history (server-side) so this stays accurate even before the
+            client has lazy-loaded older heartbeats. Renders dashes until
+            the first response lands. */}
+        <ReliabilityCard
+          data={reliabilityState.data}
+          windowDays={reliabilityWindow}
+          onWindowChange={setReliabilityWindow}
+        />
 
         {/* response time chart */}
         <div className="card" style={{ padding: '20px 22px', marginBottom: 20 }}>
@@ -1352,12 +1385,14 @@ function MonitorChannels({ monitorId }) {
   );
 }
 
-// Reliability rollup widget — MTBF, MTTR + downtime event count over the
-// trailing 30 days. The backend computes the values directly from the
-// heartbeat history (so the figures don't depend on which pages the
-// client has lazy-loaded). Renders dashes during the first fetch and
-// when there's no downtime to compute MTBF/MTTR from.
-function ReliabilityCard({ data }) {
+// Reliability rollup widget — MTBF, MTTR + downtime event count over a
+// user-selected trailing window (7 / 30 / 90 days). The backend computes
+// the values directly from the heartbeat history (so the figures don't
+// depend on which pages the client has lazy-loaded). Renders dashes
+// during the first fetch and when there's no downtime to compute MTBF /
+// MTTR from. The segmented control above the three figures drives the
+// window; clicking re-fetches via the parent component's state.
+function ReliabilityCard({ data, windowDays, onWindowChange }) {
   // Tooltip text: industry-standard definitions so a new operator
   // browsing the dashboard isn't left guessing what the acronyms mean.
   const mtbfTip =
@@ -1367,10 +1402,13 @@ function ReliabilityCard({ data }) {
     'MTTR — Mean Time To Recovery. Average duration of a down event over '
     + 'the trailing window. Lower is better.';
 
-  const windowDays = data?.window_days ?? 30;
-  const mtbf       = formatSecondsDuration(data?.mtbf_secs);
-  const mttr       = formatSecondsDuration(data?.mttr_secs);
-  const events     = data?.downtime_events ?? 0;
+  // Selection mirrors `windowDays` from the parent state — the response's
+  // own `window_days` may briefly lag while a new fetch is in flight, so
+  // the control should reflect the user's pick, not the stale payload.
+  const selected = windowDays ?? 30;
+  const mtbf     = formatSecondsDuration(data?.mtbf_secs);
+  const mttr     = formatSecondsDuration(data?.mttr_secs);
+  const events   = data?.downtime_events ?? 0;
 
   // Small inline-help icon. Browser default tooltip is enough — no extra
   // dependency, plays well with keyboard nav too.
@@ -1385,13 +1423,49 @@ function ReliabilityCard({ data }) {
       }}>?</span>
   );
 
+  // Segmented control — three equal segments, the selected one filled.
+  // role=group / aria-label keeps screen-reader semantics; each option is
+  // a real <button> so keyboard nav (tab + enter/space) works out of the
+  // box. We keep the buttons disabled-no-op when already selected to
+  // avoid a redundant re-fetch + spinner flash.
+  const SegBtn = ({ days }) => {
+    const isSel = selected === days;
+    return (
+      <button
+        type="button"
+        role="radio"
+        aria-checked={isSel}
+        aria-label={`${days}-day window`}
+        onClick={() => { if (!isSel) onWindowChange?.(days); }}
+        style={{
+          flex: 1, padding: '4px 10px', fontSize: 12, fontWeight: 600,
+          background: isSel ? 'var(--surface)' : 'transparent',
+          color: isSel ? 'var(--text)' : 'var(--text-2)',
+          border: 'none', borderRadius: 4,
+          boxShadow: isSel ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+          cursor: isSel ? 'default' : 'pointer',
+        }}>
+        {days}d
+      </button>
+    );
+  };
+
   return (
     <div className="card" style={{ padding: '20px 22px', marginBottom: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
         <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Reliability</h3>
-        <span className="tabular mono" style={{ fontSize: 12, color: 'var(--text-2)' }}>
-          {`trailing ${windowDays} days`}
-        </span>
+        <div
+          role="radiogroup"
+          aria-label="Reliability window"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 2,
+            background: 'var(--surface-2)', padding: 2, borderRadius: 6,
+            width: 156,
+          }}>
+          <SegBtn days={7}/>
+          <SegBtn days={30}/>
+          <SegBtn days={90}/>
+        </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
         <div>
@@ -1524,6 +1598,102 @@ function SloCard({ target, current, windowDays }) {
       </div>
       <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-3)' }}>
         Rolling {windowLabel}-day window. Current is the headline 30-day uptime — the exact-window value surfaces through the breach alert when crossed.
+      </div>
+    </div>
+  );
+}
+
+// Horizontal "fuel gauge" rendering the SLO error-budget. Two segments
+// inside one rounded track:
+//   * red    portion = used budget (down seconds in window)
+//   * green  portion = remaining budget
+// The numeric label under the bar reads
+// "47 min remaining of 144 min budget", coloured by remaining_pct:
+//   green when remaining_pct >= 50
+//   amber when remaining_pct >= 10
+//   red   when remaining_pct < 10
+// Renders a placeholder bar while the first fetch is in flight so the
+// card doesn't pop into existence after a delay.
+function ErrorBudgetCard({ data }) {
+  // Format a duration of seconds as a coarse "47 min" / "2.3 h" /
+  // "1.2 d" — the fuel-gauge label is meant to be glanceable, so we
+  // collapse precision once the number is large enough that exact
+  // minutes don't matter.
+  const fmtBudget = (secs) => {
+    if (secs == null) return '—';
+    const s = Math.max(0, Math.round(secs));
+    if (s < 60) return `${s} sec`;
+    const m = s / 60;
+    if (m < 120) return `${Math.round(m)} min`;
+    const h = m / 60;
+    if (h < 48) return `${h.toFixed(1)} h`;
+    const d = h / 24;
+    return `${d.toFixed(1)} d`;
+  };
+
+  const loading  = !data;
+  const allowed  = data?.allowed_downtime_secs ?? 0;
+  const used     = data?.used_downtime_secs ?? 0;
+  const remaining = data?.remaining_downtime_secs ?? 0;
+  const remainingPct = data?.remaining_pct ?? 0;
+  const windowDays   = data?.window_days ?? '';
+  const targetPct    = data?.target_pct;
+
+  // Width fractions for the two coloured segments. Clamp so a freshly
+  // exhausted budget still shows a 100% red bar instead of a 0-width
+  // sliver and so floating-point noise doesn't push past 100%.
+  const denom = Math.max(allowed, used) || 1;
+  const usedFrac      = Math.min(100, (used / denom) * 100);
+  const remainingFrac = Math.max(0, 100 - usedFrac);
+
+  // Threshold colour for the numeric label.
+  const numColor = remainingPct >= 50 ? 'var(--up)'
+    : remainingPct >= 10 ? 'var(--warn)'
+    : 'var(--down)';
+
+  return (
+    <div className="card" style={{ padding: '18px 22px', marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <Activity size={14} color="var(--text-3)"/>
+        <h3 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>Error budget</h3>
+        <span className="tabular mono" style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-3)' }}>
+          {windowDays ? `${windowDays}-day window` : ''}
+          {targetPct != null ? ` · ${Number(targetPct).toFixed(2)}% target` : ''}
+        </span>
+      </div>
+
+      {/* The bar itself. Two flex children with width-as-percent so the
+          ratio stays correct at any container width. Rounded outer,
+          square inner — the corners are clipped by overflow:hidden. */}
+      <div
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(remainingPct)}
+        style={{
+          display: 'flex', width: '100%', height: 14,
+          background: 'var(--surface-2)', borderRadius: 999, overflow: 'hidden',
+          border: '1px solid var(--border)',
+        }}>
+        <div style={{ width: `${usedFrac}%`,      background: 'var(--down)', transition: 'width .25s ease' }}/>
+        <div style={{ width: `${remainingFrac}%`, background: 'var(--up)',   transition: 'width .25s ease' }}/>
+      </div>
+
+      <div style={{
+        marginTop: 10, display: 'flex', alignItems: 'baseline',
+        justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
+      }}>
+        <div className="tabular" style={{ fontSize: 13 }}>
+          <span style={{ color: numColor, fontWeight: 600 }}>
+            {loading ? '—' : fmtBudget(remaining)}
+          </span>
+          <span style={{ color: 'var(--text-3)' }}>
+            {' '}remaining of {loading ? '—' : fmtBudget(allowed)} budget
+          </span>
+        </div>
+        <div className="tabular mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>
+          {loading ? '' : `${fmtBudget(used)} used`}
+        </div>
       </div>
     </div>
   );

@@ -183,13 +183,14 @@ async fn recent_per_monitor_groups_correctly(pool: PgPool) {
 }
 
 mod tests {
-    //! MTBF / MTTR rollup tests. Kept in their own module so the
-    //! `heartbeats::tests::mtbf*` cargo-test filter matches just these
-    //! cases without dragging in every other heartbeat integration test.
+    //! MTBF / MTTR + SLO-error-budget rollup tests. Kept in their own
+    //! module so cargo-test filters like `heartbeats::tests::mtbf*` and
+    //! `heartbeats::tests::error_budget*` match just these cases without
+    //! dragging in every other heartbeat integration test.
 
     use super::{hb, http_monitor};
     use rampart_core::MonitorStatus;
-    use rampart_db::heartbeats::{insert_many, mtbf_mttr};
+    use rampart_db::heartbeats::{error_budget, insert_many, mtbf_mttr};
     use rampart_db::monitors;
     use sqlx::PgPool;
 
@@ -275,6 +276,111 @@ mod tests {
         );
         assert!(r.mtbf_secs.is_some());
         assert!(r.mttr_secs.is_some());
+    }
+
+    // ── SLO error-budget tests ────────────────────────────────────────────
+    // window_days=30 → window_seconds = 30 * 86_400 = 2_592_000s.
+    //   target 99.9%  → allowed = (0.1 / 100) * 2_592_000 = 2_592s ≈ 43m
+    //   target 99.0%  → allowed = (1   / 100) * 2_592_000 = 25_920s ≈ 7h12m
+    //   target 100.0% → allowed = 0  (no error budget by definition)
+
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn error_budget_empty_history_full_budget(pool: PgPool) {
+        let m = monitors::create(&pool, http_monitor("eb-empty"))
+            .await
+            .unwrap();
+        let b = error_budget(&pool, m.id, 30, 99.9).await.unwrap();
+        assert_eq!(b.window_days, 30);
+        assert!((b.target_pct - 99.9).abs() < 1e-9);
+        assert_eq!(b.allowed_downtime_secs, 2_592);
+        assert_eq!(b.used_downtime_secs, 0);
+        assert_eq!(b.remaining_downtime_secs, 2_592);
+        assert!(
+            (b.remaining_pct - 100.0).abs() < 1e-9,
+            "no downtime yet → 100% budget remaining, got {}",
+            b.remaining_pct
+        );
+    }
+
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn error_budget_consumed_by_down_segment(pool: PgPool) {
+        // 200s down segment inside the window. Target 99.0% over 30d
+        // allows 25_920s of downtime; 200s used → 25_720s remaining.
+        let m = monitors::create(&pool, http_monitor("eb-down"))
+            .await
+            .unwrap();
+        let hbs = vec![
+            hb(m.id, MonitorStatus::Up, 50, 1000),
+            hb(m.id, MonitorStatus::Down, 0, 800), // down segment: 800→600 = 200s
+            hb(m.id, MonitorStatus::Up, 50, 600),
+            hb(m.id, MonitorStatus::Up, 50, 0),
+        ];
+        insert_many(&pool, &hbs).await.unwrap();
+
+        let b = error_budget(&pool, m.id, 30, 99.0).await.unwrap();
+        assert_eq!(b.allowed_downtime_secs, 25_920);
+        assert_eq!(b.used_downtime_secs, 200);
+        assert_eq!(b.remaining_downtime_secs, 25_720);
+        let expected_pct = 25_720.0 / 25_920.0 * 100.0;
+        assert!(
+            (b.remaining_pct - expected_pct).abs() < 1e-6,
+            "remaining_pct = {}, expected {}",
+            b.remaining_pct,
+            expected_pct
+        );
+    }
+
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn error_budget_exhausted_clamps_to_zero(pool: PgPool) {
+        // Down segment far longer than the allowed budget. remaining must
+        // clamp to 0 (not go negative) and remaining_pct must be 0.
+        let m = monitors::create(&pool, http_monitor("eb-blown"))
+            .await
+            .unwrap();
+        let hbs = vec![
+            // Place the long-down segment recently so the whole 10_000s
+            // sits inside any sensible window (we use 1 day = 86_400s).
+            hb(m.id, MonitorStatus::Up, 50, 12_000),
+            hb(m.id, MonitorStatus::Down, 0, 11_000), // 11_000 → 1_000 = 10_000s down
+            hb(m.id, MonitorStatus::Up, 50, 1_000),
+            hb(m.id, MonitorStatus::Up, 50, 0),
+        ];
+        insert_many(&pool, &hbs).await.unwrap();
+
+        // 1-day window @ 99.9% → allowed = 86.4s ≈ 86s, but we burned
+        // 10_000s. Budget is gone.
+        let b = error_budget(&pool, m.id, 1, 99.9).await.unwrap();
+        assert!(b.allowed_downtime_secs < b.used_downtime_secs);
+        assert_eq!(
+            b.remaining_downtime_secs, 0,
+            "remaining must clamp at 0 when over-burned"
+        );
+        assert!(
+            b.remaining_pct.abs() < 1e-9,
+            "remaining_pct should be 0, got {}",
+            b.remaining_pct
+        );
+    }
+
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn error_budget_one_hundred_pct_target_handles_zero_allowed(pool: PgPool) {
+        // A 100% SLO leaves no budget by definition — but the response
+        // must still serialise as finite numbers (not NaN), so the
+        // helper reports remaining_pct = 100.0 when there's no downtime
+        // to divide against an allowance of zero.
+        let m = monitors::create(&pool, http_monitor("eb-100pct"))
+            .await
+            .unwrap();
+        let b = error_budget(&pool, m.id, 30, 100.0).await.unwrap();
+        assert_eq!(b.allowed_downtime_secs, 0);
+        assert_eq!(b.used_downtime_secs, 0);
+        assert_eq!(b.remaining_downtime_secs, 0);
+        assert!(b.remaining_pct.is_finite());
+        assert!(
+            (b.remaining_pct - 100.0).abs() < 1e-9,
+            "100% target with no downtime → 100% remaining, got {}",
+            b.remaining_pct
+        );
     }
 }
 

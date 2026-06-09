@@ -7,7 +7,7 @@
 
 use crate::error::ApiError;
 use crate::state::AppState;
-use axum::extract::{Extension, Path, State};
+use axum::extract::{Extension, Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::get;
@@ -15,6 +15,7 @@ use axum::{Json, Router};
 use rampart_core::ids::StatusPageId;
 use rampart_core::status_page::{NewStatusPage, PublicStatusPage, StatusPage, UpdateStatusPage};
 use rampart_db::users::User;
+use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use uuid::Uuid;
 use validator::Validate;
@@ -30,6 +31,7 @@ pub fn public_router() -> Router<AppState> {
         .route("/{slug}", get(public_view))
         .route("/{slug}/feed.atom", get(public_feed_atom))
         .route("/{slug}/feed.rss", get(public_feed_rss))
+        .route("/{slug}/day-latency", get(public_day_latency))
 }
 
 fn parse(id: &str) -> Result<StatusPageId, ApiError> {
@@ -113,6 +115,92 @@ async fn public_view(
     Ok(Json(
         rampart_db::status_pages::public_view(s.pool(), &slug).await?,
     ))
+}
+
+/// Query for `GET /v1/public/status-pages/:slug/day-latency`.
+///
+/// `monitor_idx` is the 0-based position of the monitor on the public
+/// page (same ordering as `PublicStatusPage.monitors`). Index, not ID,
+/// because the public projection deliberately doesn't leak monitor UUIDs.
+///
+/// `date` is the UTC calendar day to bucket; serialized as `YYYY-MM-DD`.
+#[derive(Debug, Deserialize)]
+pub struct DayLatencyQuery {
+    pub monitor_idx: usize,
+    #[serde(with = "date_iso")]
+    pub date: time::Date,
+}
+
+mod date_iso {
+    //! `time::Date` serde adapter accepting `YYYY-MM-DD` strings — the
+    //! shape the frontend mints from `Date.toISOString().slice(0,10)`.
+    use serde::{Deserialize, Deserializer};
+    use time::format_description::well_known::Iso8601;
+
+    pub fn deserialize<'de, D>(d: D) -> Result<time::Date, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s: String = String::deserialize(d)?;
+        time::Date::parse(&s, &Iso8601::DATE).map_err(serde::de::Error::custom)
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct DayLatencyHour {
+    pub hour: i32,
+    pub avg_latency_ms: Option<f32>,
+    pub samples: i32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DayLatencyDto {
+    pub hours: Vec<DayLatencyHour>,
+}
+
+/// Per-hour avg latency for the UTC day specified, scoped to the monitor
+/// at `monitor_idx` on the public page. Backs the day-drilldown popover
+/// mini-chart. Returns a dense 24-entry vector — hours with no successful
+/// heartbeats land with `avg_latency_ms: null` so the frontend can
+/// render a muted no-data bar at that position.
+async fn public_day_latency(
+    State(s): State<AppState>,
+    Path(slug): Path<String>,
+    Query(q): Query<DayLatencyQuery>,
+) -> Result<Json<DayLatencyDto>, ApiError> {
+    // Resolve the slug + monitor index to a concrete MonitorId without
+    // exposing it to the public projection. We re-fetch the StatusPage
+    // edge list (one cheap query) rather than calling the full
+    // `public_view`, which would do all the per-monitor rollups again.
+    let page = rampart_db::status_pages::get_by_slug(s.pool(), &slug).await?;
+    let monitor_id = page
+        .monitor_ids
+        .get(q.monitor_idx)
+        .copied()
+        .ok_or(ApiError::NotFound)?;
+
+    let rows = rampart_db::heartbeats::day_hourly_latency(s.pool(), monitor_id, q.date).await?;
+
+    // Dense 24-entry pivot — frontend renders one bar per hour. Hours
+    // missing from the sparse rows land as no-data buckets.
+    let mut hours: Vec<DayLatencyHour> = (0..24)
+        .map(|h| DayLatencyHour {
+            hour: h,
+            avg_latency_ms: None,
+            samples: 0,
+        })
+        .collect();
+    for (h, avg, samples) in rows {
+        if (0..24).contains(&h) {
+            hours[h as usize] = DayLatencyHour {
+                hour: h,
+                avg_latency_ms: avg,
+                samples,
+            };
+        }
+    }
+
+    Ok(Json(DayLatencyDto { hours }))
 }
 
 /// Atom 1.0 feed of incidents for a public status page. RSS/Atom is

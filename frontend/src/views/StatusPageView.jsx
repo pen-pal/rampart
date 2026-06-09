@@ -139,6 +139,55 @@ const css = `
   .public.dark .day-pop-pill.d { color: #fca5a5; }
   .public.dark .day-pop-pill.w { color: #fde68a; }
   .public.dark .day-pop-pill.m { color: #c7d2fe; }
+  /* ── Day-popover hourly latency mini-chart ───────────────────
+     24 thin bars, one per UTC hour of the clicked day. Height ∝
+     avg_latency_ms / max_latency_ms in the day's window; no-data
+     hours render as a muted grey full-height bar so the axis stays
+     visually anchored. CSS-only — no recharts dependency. */
+  .day-pop .day-pop-lat {
+    border-top: 1px solid var(--border);
+    padding-top: 10px; margin-top: 10px;
+  }
+  .day-pop .day-pop-lat-title {
+    font-size: 11px; color: var(--text-3); font-weight: 600;
+    text-transform: uppercase; letter-spacing: .06em;
+    margin-bottom: 6px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .day-pop .day-pop-lat-max {
+    font-weight: 500; color: var(--text-2);
+    text-transform: none; letter-spacing: 0; font-size: 10.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  .day-pop .day-pop-lat-chart {
+    display: grid; grid-template-columns: repeat(24, 1fr);
+    gap: 1px; height: 42px; align-items: end;
+  }
+  .day-pop .day-pop-lat-chart > div {
+    background: var(--accent);
+    border-radius: 2px 2px 0 0;
+    min-height: 2px;
+    cursor: default;
+    transition: opacity .12s;
+  }
+  .day-pop .day-pop-lat-chart > div:hover { opacity: .75; }
+  .day-pop .day-pop-lat-chart > div.empty {
+    background: var(--surface-2);
+    height: 100% !important;
+    opacity: .6;
+  }
+  .day-pop .day-pop-lat-axis {
+    display: flex; justify-content: space-between;
+    font-size: 9.5px; color: var(--text-3);
+    margin-top: 4px; letter-spacing: .04em;
+    font-variant-numeric: tabular-nums;
+  }
+  .day-pop .day-pop-lat-state {
+    font-size: 12px; color: var(--text-3);
+    padding: 12px 0; text-align: center;
+  }
+  .day-pop .day-pop-lat-state.err { color: var(--down); }
+
   .day-pop .day-pop-inc {
     border-top: 1px solid var(--border); padding-top: 10px; margin-top: 6px;
   }
@@ -495,6 +544,8 @@ export default function StatusPageView({ slug }) {
             <Component
               key={i}
               monitor={m}
+              monitorIdx={i}
+              slug={slug}
               activeIncidents={incidents}
               incidentHistory={data.incident_history || []}
             />
@@ -558,7 +609,7 @@ function Kpi({ icon, label, value, sub }) {
   );
 }
 
-function Component({ monitor, activeIncidents = [], incidentHistory = [] }) {
+function Component({ monitor, monitorIdx, slug, activeIncidents = [], incidentHistory = [] }) {
   const status = monitor.current_status;
   const statusKey = status === 'maintenance' ? 'maint' : status;
   // Daily-status strip carries 90 chars. If the backend hasn't backfilled
@@ -617,6 +668,8 @@ function Component({ monitor, activeIncidents = [], incidentHistory = [] }) {
           <DayPopover
             cellIndex={openCell}
             statusChar={strip[openCell]}
+            slug={slug}
+            monitorIdx={monitorIdx}
             activeIncidents={activeIncidents}
             incidentHistory={incidentHistory}
             onClose={() => setOpenCell(null)}
@@ -715,7 +768,7 @@ const DAY_STATUS = {
   n: { label: 'No data',      cls: 'n' },
 };
 
-function DayPopover({ cellIndex, statusChar, activeIncidents, incidentHistory, onClose }) {
+function DayPopover({ cellIndex, statusChar, slug, monitorIdx, activeIncidents, incidentHistory, onClose }) {
   const closeRef = useRef(null);
   useEffect(() => { closeRef.current?.focus(); }, []);
   const daysAgo = 90 - 1 - cellIndex;
@@ -724,6 +777,23 @@ function DayPopover({ cellIndex, statusChar, activeIncidents, incidentHistory, o
   const meta = DAY_STATUS[statusChar] || DAY_STATUS.n;
   const all = [...activeIncidents, ...incidentHistory];
   const touching = all.filter(inc => incidentTouchesDay(inc, dayStart, dayEnd));
+
+  // Hourly-latency chart is only meaningful when at least some heartbeats
+  // are expected to be `up` — suppress for hard-down, maintenance, and
+  // no-data days where the bars would be empty or misleading.
+  const showLatency = statusChar === 'u' || statusChar === 'w';
+  const isoDate = dayStart.toISOString().slice(0, 10);
+  const [latency, setLatency] = useState({ state: 'idle', hours: [], error: null });
+
+  useEffect(() => {
+    if (!showLatency || slug == null || monitorIdx == null) return undefined;
+    let cancelled = false;
+    setLatency({ state: 'loading', hours: [], error: null });
+    api.statusPages.dayLatency(slug, monitorIdx, isoDate)
+      .then(r => { if (!cancelled) setLatency({ state: 'ok', hours: r.hours || [], error: null }); })
+      .catch(e => { if (!cancelled) setLatency({ state: 'err', hours: [], error: e?.message || 'failed to load' }); });
+    return () => { cancelled = true; };
+  }, [showLatency, slug, monitorIdx, isoDate]);
 
   // Position the popover so its left edge sits over the clicked cell.
   // 90 cells span the .strip's full width — cellIndex/89 maps to the
@@ -746,7 +816,8 @@ function DayPopover({ cellIndex, statusChar, activeIncidents, incidentHistory, o
       <button ref={closeRef} className="day-pop-x" aria-label="Close" onClick={onClose}>×</button>
       <div className="day-pop-date">{dateLabel}</div>
       <span className={`day-pop-pill ${meta.cls}`}>{meta.label}</span>
-      {statusChar === 'u' && (
+      {showLatency && <HourlyLatencyChart latency={latency}/>}
+      {!showLatency && statusChar === 'u' && (
         <div style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
           All checks passed on this date.
         </div>
@@ -766,6 +837,85 @@ function DayPopover({ cellIndex, statusChar, activeIncidents, incidentHistory, o
           </ul>
         </div>
       )}
+    </div>
+  );
+}
+
+/** 24-bar hourly latency mini-chart for the day-drilldown popover.
+ *  `latency` is `{ state: 'idle'|'loading'|'ok'|'err', hours, error }`
+ *  shaped by `DayPopover`. Pure CSS bars — no chart library. */
+function HourlyLatencyChart({ latency }) {
+  if (latency.state === 'loading' || latency.state === 'idle') {
+    return (
+      <div className="day-pop-lat">
+        <div className="day-pop-lat-title">Hourly latency</div>
+        <div className="day-pop-lat-state">
+          <Loader2 size={14} style={{ animation: 'spin 1s linear infinite', verticalAlign: 'middle' }}/>
+          <span style={{ marginLeft: 6 }}>Loading…</span>
+        </div>
+      </div>
+    );
+  }
+  if (latency.state === 'err') {
+    return (
+      <div className="day-pop-lat">
+        <div className="day-pop-lat-title">Hourly latency</div>
+        <div className="day-pop-lat-state err">Couldn't load latency.</div>
+      </div>
+    );
+  }
+
+  // Build a dense 24-entry view. Backend already returns 24 rows, but be
+  // defensive against partial responses.
+  const byHour = new Map(latency.hours.map(h => [h.hour, h]));
+  const dense = Array.from({ length: 24 }, (_, h) => byHour.get(h) || { hour: h, avg_latency_ms: null, samples: 0 });
+  const valid = dense.filter(h => h.avg_latency_ms != null);
+  if (valid.length === 0) {
+    return (
+      <div className="day-pop-lat">
+        <div className="day-pop-lat-title">Hourly latency</div>
+        <div className="day-pop-lat-state">No latency samples recorded.</div>
+      </div>
+    );
+  }
+  const maxMs = Math.max(...valid.map(h => h.avg_latency_ms));
+
+  return (
+    <div className="day-pop-lat">
+      <div className="day-pop-lat-title">
+        <span>Hourly latency</span>
+        <span className="day-pop-lat-max">peak {Math.round(maxMs)} ms</span>
+      </div>
+      <div className="day-pop-lat-chart">
+        {dense.map((h) => {
+          const hh = String(h.hour).padStart(2, '0');
+          if (h.avg_latency_ms == null) {
+            return (
+              <div
+                key={h.hour}
+                className="empty"
+                title={`${hh}:00 — no data`}
+                aria-label={`${hh}:00 no data`}
+              />
+            );
+          }
+          // Normalize to the day's peak; clamp the floor so tiny values
+          // still render as a visible 2px nub.
+          const pct = maxMs > 0 ? (h.avg_latency_ms / maxMs) * 100 : 0;
+          const ms = Math.round(h.avg_latency_ms);
+          return (
+            <div
+              key={h.hour}
+              style={{ height: `${Math.max(pct, 5)}%` }}
+              title={`${hh}:00 — ${ms}ms (${h.samples} sample${h.samples === 1 ? '' : 's'})`}
+              aria-label={`${hh}:00 ${ms} milliseconds, ${h.samples} samples`}
+            />
+          );
+        })}
+      </div>
+      <div className="day-pop-lat-axis">
+        <span>00</span><span>06</span><span>12</span><span>18</span><span>23</span>
+      </div>
     </div>
   );
 }
