@@ -133,6 +133,83 @@ impl Scheduler {
             if let Err(e) = self.reconcile().await {
                 error!(error = %e, "reconcile failed");
             }
+            // Best-effort maintenance start/end notifications, riding the
+            // same slow tick. Failures are logged inside the scan — they
+            // must never stall the reconcile loop.
+            self.check_maintenance_transitions().await;
+        }
+    }
+
+    /// Periodic, best-effort scan for maintenance windows that just became
+    /// active or just ended, firing `MaintenanceStarted` / `MaintenanceEnded`
+    /// once per transition. De-dup lives in the DB (`notified_start_at` /
+    /// `notified_end_at`), so re-running every slow tick is safe — same
+    /// single-column pattern as the SLO breach check. Not a precise cron:
+    /// a transition is noticed within one slow tick of its instant.
+    async fn check_maintenance_transitions(&self) {
+        let Some(notifier) = self.notifier.as_ref() else {
+            return;
+        };
+        let windows =
+            match rampart_db::maintenance::transitions_needing_notification(&self.pool).await {
+                Ok(w) => w,
+                Err(e) => {
+                    warn!(error = %e, "maintenance transition scan failed");
+                    return;
+                }
+            };
+
+        for w in windows {
+            // started: active now, start not yet notified.
+            // ended:   no longer active, started before, end not notified.
+            let kind = if w.currently_active && w.notified_start_at.is_none() {
+                EventKind::MaintenanceStarted
+            } else if !w.currently_active
+                && w.notified_start_at.is_some()
+                && w.notified_end_at.is_none()
+            {
+                EventKind::MaintenanceEnded
+            } else {
+                continue;
+            };
+
+            // Stamp the de-dup column *before* firing so a slow tick that
+            // overlaps the next scan doesn't double-fire. Stamp failure is
+            // logged; we still fire (better a possible dup than silence).
+            let stamp = match kind {
+                EventKind::MaintenanceStarted => {
+                    rampart_db::maintenance::mark_notified_start(&self.pool, w.id).await
+                }
+                _ => rampart_db::maintenance::mark_notified_end(&self.pool, w.id).await,
+            };
+            if let Err(e) = stamp {
+                warn!(window = %w.id, error = %e, "maintenance de-dup stamp failed");
+            }
+
+            info!(window = %w.id, name = %w.name, kind = ?kind, monitors = w.monitor_ids.len(),
+                  "maintenance event firing");
+
+            // One event per attached monitor — mirrors the per-monitor
+            // shape every other event uses, so channel routing + the
+            // subscriber fan-out (in the notifier) work unchanged. The
+            // notifier de-dups subscriber emails across the page.
+            for mid in &w.monitor_ids {
+                let monitor = match rampart_db::monitors::get(&self.pool, *mid).await {
+                    Ok(m) => m,
+                    Err(e) => {
+                        warn!(monitor = %mid, error = %e, "monitor hydrate for maintenance event failed");
+                        continue;
+                    }
+                };
+                let hb = maintenance_heartbeat(&monitor);
+                notifier.notify(Event {
+                    kind,
+                    monitor,
+                    heartbeat: hb,
+                    prev_status: None,
+                    slo_current_pct: None,
+                });
+            }
         }
     }
 

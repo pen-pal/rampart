@@ -76,6 +76,7 @@ export const api = {
     clone:   (id)         => request(`/v1/monitors/${id}/clone`,  { method: 'POST' }),
     regeneratePushToken: (id) => request(`/v1/monitors/${id}/regenerate-push-token`, { method: 'POST' }),
     testNow: (id)         => request(`/v1/monitors/${id}/test-now`, { method: 'POST' }),
+    testNotifications: (id) => request(`/v1/monitors/${id}/test-notifications`, { method: 'POST' }),
     bulk:    (monitorIds, action) => request('/v1/monitors/bulk', { method: 'POST', body: { monitor_ids: monitorIds, ...action } }),
     /// Bulk-import monitors from a Rampart-native CSV. POSTs the raw CSV
     /// text (not JSON) to `/v1/monitors/import-csv`; the backend parses +

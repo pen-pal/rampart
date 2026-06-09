@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT DISTINCT s.destination\n        FROM status_page_subscribers s\n        JOIN status_page_monitors spm ON spm.page_id = s.status_page_id\n        WHERE spm.monitor_id = ANY($1)\n          AND s.channel = 'email'\n          AND s.confirmed\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "destination",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "status_page_subscribers",
+            "name": "destination"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "6255bb97958804eca80117210ac5ce524b17faa01d5f4ab1a3744774f24259da"
+}

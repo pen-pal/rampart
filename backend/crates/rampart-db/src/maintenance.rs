@@ -270,6 +270,146 @@ pub async fn is_in_active_window(pool: &DbPool, monitor: MonitorId) -> DbResult<
     Ok(false)
 }
 
+/// Windows whose active span just changed across `now`, with their
+/// monitor sets — driver for the scheduler's maintenance-notification
+/// scan. Returns every `active` window that EITHER (a) is live right now
+/// but hasn't sent a start notification yet, OR (b) has already left its
+/// active span but hasn't sent an end notification yet. The scheduler
+/// decides which transition fired and stamps the matching column.
+///
+/// Recurrence is evaluated in Rust against `now` (same rationale as
+/// `is_in_active_window` — the row count is small). The de-dup columns
+/// (`notified_start_at` / `notified_end_at`) keep each transition to a
+/// single fire even though the scan re-runs every slow tick.
+#[derive(Debug, Clone)]
+pub struct MaintenanceTransition {
+    pub id: MaintenanceId,
+    pub name: String,
+    pub monitor_ids: Vec<MonitorId>,
+    /// True iff the window contains `now` per its recurrence.
+    pub currently_active: bool,
+    pub notified_start_at: Option<OffsetDateTime>,
+    pub notified_end_at: Option<OffsetDateTime>,
+}
+
+/// Scan all active windows and return those needing a start- or
+/// end-transition notification, hydrated with their monitor sets.
+pub async fn transitions_needing_notification(
+    pool: &DbPool,
+) -> DbResult<Vec<MaintenanceTransition>> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT id, name, start_at, end_at, recurrence,
+               notified_start_at, notified_end_at
+        FROM maintenance_windows
+        WHERE active
+        "#,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    if rows.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let now = OffsetDateTime::now_utc();
+    let mut out: Vec<MaintenanceTransition> = Vec::new();
+    let mut ids: Vec<Uuid> = Vec::new();
+    for r in rows {
+        let rec: Recurrence = serde_json::from_value(r.recurrence).unwrap_or(Recurrence::None);
+        let currently_active = rec.contains(r.start_at, r.end_at, now);
+        // Candidate when a transition is still un-notified:
+        //   active + no start mark  → start fired this scan
+        //   inactive + start mark + no end mark → end fired this scan
+        let start_pending = currently_active && r.notified_start_at.is_none();
+        let end_pending =
+            !currently_active && r.notified_start_at.is_some() && r.notified_end_at.is_none();
+        if !start_pending && !end_pending {
+            continue;
+        }
+        ids.push(r.id);
+        out.push(MaintenanceTransition {
+            id: MaintenanceId::from_uuid(r.id),
+            name: r.name,
+            monitor_ids: Vec::new(),
+            currently_active,
+            notified_start_at: r.notified_start_at,
+            notified_end_at: r.notified_end_at,
+        });
+    }
+
+    if out.is_empty() {
+        return Ok(out);
+    }
+
+    let edges = sqlx::query!(
+        r#"
+        SELECT window_id, monitor_id
+        FROM maintenance_window_monitors
+        WHERE window_id = ANY($1)
+        "#,
+        &ids,
+    )
+    .fetch_all(pool)
+    .await?;
+    for e in edges {
+        if let Some(t) = out.iter_mut().find(|t| t.id.0 == e.window_id) {
+            t.monitor_ids.push(MonitorId::from_uuid(e.monitor_id));
+        }
+    }
+    Ok(out)
+}
+
+/// Stamp `notified_start_at = NOW()` so the start notification fires once.
+pub async fn mark_notified_start(pool: &DbPool, id: MaintenanceId) -> DbResult<()> {
+    sqlx::query!(
+        "UPDATE maintenance_windows SET notified_start_at = NOW() WHERE id = $1",
+        id.0,
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Stamp `notified_end_at = NOW()` so the end notification fires once.
+pub async fn mark_notified_end(pool: &DbPool, id: MaintenanceId) -> DbResult<()> {
+    sqlx::query!(
+        "UPDATE maintenance_windows SET notified_end_at = NOW() WHERE id = $1",
+        id.0,
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Confirmed status-page email subscribers reachable from any of the
+/// given monitors. A monitor reaches a subscriber when both sit on the
+/// same status page. DISTINCT so a subscriber on a page hosting several
+/// of the monitors is only emailed once. Empty input short-circuits.
+pub async fn confirmed_subscriber_emails_for_monitors(
+    pool: &DbPool,
+    monitors: &[MonitorId],
+) -> DbResult<Vec<String>> {
+    if monitors.is_empty() {
+        return Ok(Vec::new());
+    }
+    let ids: Vec<Uuid> = monitors.iter().map(|m| m.0).collect();
+    let rows = sqlx::query!(
+        r#"
+        SELECT DISTINCT s.destination
+        FROM status_page_subscribers s
+        JOIN status_page_monitors spm ON spm.page_id = s.status_page_id
+        WHERE spm.monitor_id = ANY($1)
+          AND s.channel = 'email'
+          AND s.confirmed
+        "#,
+        &ids,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(|r| r.destination).collect())
+}
+
 /// Active + upcoming maintenance for a status page's public banner.
 ///
 /// Returns the public projection of every `active` window whose monitor

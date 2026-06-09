@@ -285,6 +285,9 @@ export default function MonitorDetail({ monitorId, user }) {
   const [acting, setActing] = useState(false);
   const [editing, setEditing] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [testingNotifs, setTestingNotifs] = useState(false);
+  // null = no result panel. Otherwise { sent: number, failed: number }.
+  const [notifResult, setNotifResult] = useState(null);
 
   const monitorState   = useApi(() => monitorId ? api.monitors.get(monitorId)         : Promise.resolve(null), [monitorId], { pollMs: 15_000 });
   // 2000 = the backend's hard cap on this endpoint. We poll the newest
@@ -421,6 +424,19 @@ export default function MonitorDetail({ monitorId, user }) {
     } catch (e) { alert(`Failed: ${e.message}`); }
     finally { setTesting(false); }
   };
+  const doTestNotifications = async () => {
+    if (!monitor || testingNotifs) return;
+    setTestingNotifs(true);
+    setNotifResult(null);
+    try {
+      const res = await api.monitors.testNotifications(monitor.id);
+      const sent = res?.sent ?? [];
+      const failed = sent.filter((s) => !s.ok).length;
+      setNotifResult({ sent: sent.length, failed });
+    } catch (e) {
+      setNotifResult({ error: e.message });
+    } finally { setTestingNotifs(false); }
+  };
 
   // ── missing-id / loading / not-found ──────────────────────────────────
   if (!monitorId) {
@@ -535,6 +551,12 @@ export default function MonitorDetail({ monitorId, user }) {
               </button>
             )}
             {writable && (
+              <button className="btn" onClick={doTestNotifications} disabled={acting || testingNotifs}
+                title={t('monitor.action.test_notifications_title')}>
+                {testingNotifs ? <><Loader2 size={13} className="spin"/> {t('monitor.action.testing')}</> : <><Bell size={13}/> {t('monitor.action.test_notifications')}</>}
+              </button>
+            )}
+            {writable && (
               <button className="btn" onClick={doPauseResume} disabled={acting}>
                 {monitor.active ? <><Pause size={13}/> {t('common.pause')}</> : <><Play size={13}/> {t('common.resume')}</>}
               </button>
@@ -547,6 +569,28 @@ export default function MonitorDetail({ monitorId, user }) {
             {writable && <button className="btn btn-danger" onClick={doDelete} disabled={acting}><Trash2 size={13}/> {t('common.delete')}</button>}
           </div>
         </div>
+
+        {notifResult && (
+          <div
+            role="status"
+            onClick={() => setNotifResult(null)}
+            style={{
+              marginBottom: 12, padding: '8px 12px', borderRadius: 8, cursor: 'pointer',
+              fontSize: 13, border: '1px solid var(--border)',
+              background: notifResult.error || notifResult.failed > 0 ? 'var(--down-bg, #fef2f2)' : 'var(--up-bg, #f0fdf4)',
+              color: 'var(--text)',
+            }}
+            title={t('monitor.action.test_notifications_dismiss')}
+          >
+            {notifResult.error
+              ? t('monitor.notif_test.error', { error: notifResult.error })
+              : notifResult.sent === 0
+                ? t('monitor.notif_test.none')
+                : notifResult.failed > 0
+                  ? t('monitor.notif_test.partial', { sent: notifResult.sent, failed: notifResult.failed })
+                  : t('monitor.notif_test.ok', { sent: notifResult.sent })}
+          </div>
+        )}
 
         <div className="tabs" style={{ marginBottom: -1 }}>
           {['overview', 'heartbeats', 'config'].map(tabKey => (

@@ -16,6 +16,12 @@ pub enum EventKind {
     /// Rolling SLO uptime climbed back at-or-above the configured target
     /// after a prior breach. Fired once per recovery, same de-dup column.
     SloRecovered,
+    /// A scheduled maintenance window just became active. Fired once per
+    /// window transition (de-duped by `maintenance_windows.notified_start_at`).
+    MaintenanceStarted,
+    /// A scheduled maintenance window just ended. Fired once per window
+    /// transition (de-duped by `maintenance_windows.notified_end_at`).
+    MaintenanceEnded,
 }
 
 #[derive(Debug, Clone)]
