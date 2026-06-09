@@ -9,7 +9,7 @@ import {
   Tag, ArrowUpRight, Wrench, Zap, Globe, Server,
   Database, Radio, Lock, Hash,
   Menu, Folder, Tag as TagIcon, Calendar as CalIcon, Network, Key, ScrollText, Users as UsersIcon, Mail, Database as DbIcon, Settings, Upload,
-  Bookmark, Star, Check, Trash2, X,
+  Bookmark, Star, Check, Trash2, X, Copy, Share2, Download,
 } from 'lucide-react';
 import {
   api, useApi, formatRelative, offsetDateTimeArrayToDate, statusToClass,
@@ -18,6 +18,49 @@ import { useHeartbeatStream, useDebouncedTick } from '../lib/sse.js';
 import { ThemeToggle } from '../components/ThemeToggle.jsx';
 import { canWrite } from '../lib/roles.js';
 import { t } from '../lib/i18n.js';
+
+// ─── shareable saved-view (de)serialisation ─────────────────────────────────
+// A saved view is pure filter state — { tags, folder, search } — so it can be
+// shared as an opaque, URL-safe token with no backend involvement. We JSON the
+// minimal shape, UTF-8 encode, then base64url it (so it survives a URL hash
+// param without escaping). encodeView/decodeView are pure + inverse.
+function encodeView(view) {
+  const payload = {
+    tags: Array.isArray(view?.tags) ? view.tags : [],
+    folder: view?.folder ?? null,
+    search: view?.search || '',
+  };
+  const json = JSON.stringify(payload);
+  // btoa wants a binary string; round-trip UTF-8 through encodeURIComponent so
+  // non-ASCII names/searches survive. Then make it base64url (URL-hash safe).
+  const b64 = btoa(unescape(encodeURIComponent(json)));
+  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function decodeView(token) {
+  if (!token) return null;
+  try {
+    let b64 = String(token).replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    const json = decodeURIComponent(escape(atob(b64)));
+    const p = JSON.parse(json);
+    if (!p || typeof p !== 'object') return null;
+    return {
+      tags: Array.isArray(p.tags) ? p.tags.filter(x => typeof x === 'string') : [],
+      folder: typeof p.folder === 'string' ? p.folder : null,
+      search: typeof p.search === 'string' ? p.search : '',
+    };
+  } catch { return null; }
+}
+// Pull a ?view=<token> param out of the hash (e.g. "#/?view=abc"). Returns the
+// raw token string or null. We parse the query portion of the hash ourselves
+// because the app is hash-routed and `location.search` is empty.
+function viewTokenFromHash() {
+  const h = window.location.hash || '';
+  const q = h.indexOf('?');
+  if (q === -1) return null;
+  try { return new URLSearchParams(h.slice(q + 1)).get('view'); }
+  catch { return null; }
+}
 
 // ──────────────────────────────────────────────────────────────────────────
 // DESIGN SYSTEM v2 — friendly, modern, operator-focused
@@ -107,6 +150,11 @@ const css = `
   }
   .mon-row:hover { background: var(--surface-2); }
   .mon-row.active { background: var(--accent-soft); }
+
+  /* per-row clone affordance — only visible on row hover to keep the list calm */
+  .clone-action { opacity: 0; transition: opacity .1s; background: none; border: none; cursor: pointer; padding: 4px; border-radius: 6px; color: var(--text-3); display: inline-flex; }
+  .activity-row:hover .clone-action { opacity: 1; }
+  .clone-action:hover { background: var(--surface-2); color: var(--text); }
 
   /* 60-cell mini history bar */
   .uptime-bar { display: flex; gap: 2px; height: 22px; }
@@ -343,6 +391,26 @@ export default function Dashboard({ user, onLogout } = {}) {
   const [bulkBusy, setBulkBusy] = useState(false);
   // Inline bulk-edit form: null when closed, else the working form state.
   const [bulkEdit, setBulkEdit] = useState(null);
+  // Clone-into-folder dialog: null when closed, else { monitor, group, busy }.
+  // `group` is the chosen target group id ('' = inherit source, '__ungroup__'
+  // = ungrouped, else a group id).
+  const [cloneState, setCloneState] = useState(null);
+  const submitClone = async () => {
+    if (!cloneState || cloneState.busy) return;
+    setCloneState(s => ({ ...s, busy: true }));
+    const g = cloneState.group;
+    const opts = {};
+    if (g === '__ungroup__') opts.group_id = null;
+    else if (g) opts.group_id = g;
+    try {
+      await api.monitors.clone(cloneState.monitor.id, opts);
+      setCloneState(null);
+      window.location.reload();
+    } catch (e) {
+      alert(t("dashboard.clone.failed", { msg: e.message }));
+      setCloneState(s => s && ({ ...s, busy: false }));
+    }
+  };
   const toggleSelect = (id) => setSelected(prev => {
     const next = new Set(prev);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -509,6 +577,54 @@ export default function Dashboard({ user, onLogout } = {}) {
     try { await persistPrefs({ defaultFolderId: next }); } catch { /* keep optimistic state */ }
   };
 
+  // ── share / export saved views ───────────────────────────────────────────
+  // Serialise a view (saved or the current filter state) to an opaque token
+  // and a ready-to-share deep link. No backend: a view is just filter state.
+  const exportView = (view) => {
+    const token = encodeView(view ?? { tags: [...tagFilter], folder: folderFilter, search: query });
+    const base = `${window.location.origin}${window.location.pathname}`;
+    return { token, url: `${base}#/?view=${token}` };
+  };
+
+  // Apply an imported view to the live filters. When `save` is true we also
+  // persist it into the user's saved views (reusing the existing setPrefs
+  // round-trip) so a shared link can become a permanent personal view.
+  const importView = async (token, { name, save } = {}) => {
+    const decoded = decodeView(token);
+    if (!decoded) { alert(t("dashboard.views.import_invalid")); return false; }
+    applyView(decoded);
+    if (save) {
+      const view = {
+        id: (crypto?.randomUUID?.() || String(Date.now())),
+        name: (name || '').trim() || t("dashboard.views.imported_name"),
+        tags: decoded.tags,
+        folder: decoded.folder,
+        search: decoded.search,
+      };
+      const next = [...savedViews, view];
+      setSavedViews(next);
+      try { await persistPrefs({ savedViews: next }); }
+      catch (e) { alert(t("dashboard.views.save_failed", { msg: e.message })); }
+    }
+    return true;
+  };
+
+  // On load, if the URL hash carries a ?view= token, apply it once. This lets
+  // a shared deep link land the recipient straight into the captured filters.
+  const viewHashApplied = useRef(false);
+  useEffect(() => {
+    if (viewHashApplied.current) return;
+    const token = viewTokenFromHash();
+    if (!token) { viewHashApplied.current = true; return; }
+    const decoded = decodeView(token);
+    if (decoded) applyView(decoded);
+    viewHashApplied.current = true;
+    // Strip the ?view= param so a later "save view" / reload doesn't re-apply
+    // it, but keep the user on the dashboard route.
+    try { window.history.replaceState(null, '', `${window.location.pathname}#/`); } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const matchesFolderFilter = (m) => {
     if (!folderFilter) return true;
     return m.group_id === folderFilter;
@@ -605,6 +721,8 @@ export default function Dashboard({ user, onLogout } = {}) {
             onSave={saveCurrentView}
             onApply={applyView}
             onDelete={deleteView}
+            onExport={exportView}
+            onImport={importView}
           />
           <button className="btn" onClick={goToStatusPage}><Wrench size={13}/> {t("dashboard.status_page")}</button>
           {writable && <a className="btn btn-ghost" href="#/import" style={{ textDecoration: 'none' }} title={t("import.link_title")}><Upload size={13}/> {t("import.link")}</a>}
@@ -1241,8 +1359,16 @@ export default function Dashboard({ user, onLogout } = {}) {
                   <div className="uptime-bar">
                     {hist.map((c, i) => <div key={i} className={c}/>)}
                   </div>
-                  <span className="mono tabular" style={{ fontSize: 12, color: uptime === 100 ? 'var(--up)' : uptime != null && uptime < 99 ? 'var(--down)' : 'var(--text)', textAlign: 'right', fontWeight: 500 }}>
-                    {uptime != null ? `${uptime.toFixed(2)}%` : '—'}
+                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                    <span className="mono tabular" style={{ fontSize: 12, color: uptime === 100 ? 'var(--up)' : uptime != null && uptime < 99 ? 'var(--down)' : 'var(--text)', textAlign: 'right', fontWeight: 500 }}>
+                      {uptime != null ? `${uptime.toFixed(2)}%` : '—'}
+                    </span>
+                    {writable && (
+                      <button className="clone-action" title={t("monitor.action.clone_into_title")}
+                        onClick={e => { e.stopPropagation(); setCloneState({ monitor: m, group: '', busy: false }); }}>
+                        <Copy size={13}/>
+                      </button>
+                    )}
                   </span>
                 </div>
               );
@@ -1259,6 +1385,180 @@ export default function Dashboard({ user, onLogout } = {}) {
           <div style={{ height: 40 }}/>
         </main>
       </div>
+
+      {/* ─── clone-into-folder dialog ──────────────────────────────── */}
+      {cloneState && (
+        <div onClick={() => !cloneState.busy && setCloneState(null)} style={{
+          position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,.35)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+        }}>
+          <div className="card" onClick={e => e.stopPropagation()} style={{ width: 420, maxWidth: '100%', padding: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <Copy size={16}/>
+              <strong style={{ fontSize: 15 }}>{t("dashboard.clone.title")}</strong>
+            </div>
+            <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginBottom: 14 }}>
+              {t("dashboard.clone.subtitle", { name: cloneState.monitor.name })}
+            </div>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <span style={{ fontSize: 12, color: 'var(--text-2)', fontWeight: 500 }}>{t("dashboard.clone.target_label")}</span>
+              <select className="select" value={cloneState.group} disabled={cloneState.busy}
+                onChange={e => setCloneState(s => ({ ...s, group: e.target.value }))}>
+                <option value="">{t("dashboard.clone.same_group")}</option>
+                <option value="__ungroup__">{t("dashboard.bulk.ungrouped")}</option>
+                {(() => {
+                  const all = groupsState.data || [];
+                  const byParent = new Map();
+                  for (const g of all) {
+                    const k = g.parent_id || '__root__';
+                    if (!byParent.has(k)) byParent.set(k, []);
+                    byParent.get(k).push(g);
+                  }
+                  const out = [];
+                  const walk = (key, depth) => {
+                    for (const g of (byParent.get(key) || [])) {
+                      out.push(
+                        <option key={g.id} value={g.id}>
+                          {'  '.repeat(depth)}{depth > 0 ? '↳ ' : ''}{g.name}
+                        </option>
+                      );
+                      walk(g.id, depth + 1);
+                    }
+                  };
+                  walk('__root__', 0);
+                  return out;
+                })()}
+              </select>
+            </label>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
+              <button className="btn btn-ghost" disabled={cloneState.busy} onClick={() => setCloneState(null)}>
+                {t("dashboard.bulk.cancel")}
+              </button>
+              <button className="btn btn-accent" disabled={cloneState.busy} onClick={submitClone}>
+                <Copy size={13}/> {t("dashboard.clone.confirm")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Saved-views dropdown. Lists the user's saved filter combos (tags + folder +
+// search) and lets them save the current one, apply/delete a saved one, and
+// — purely client-side — export a view to a shareable link/token or import
+// one pasted from elsewhere. Export/import need no backend: a view is just
+// filter state, and importing-with-save reuses the existing prefs round-trip.
+function ViewsMenu({ loggedIn, views = [], onSave, onApply, onDelete, onExport, onImport }) {
+  const [open, setOpen] = useState(false);
+  // The view currently being exported (saved view or the live filters), plus
+  // its serialised token/url — null when the share panel is closed.
+  const [share, setShare] = useState(null);
+  // Import panel: null when closed, else the working { token } string.
+  const [importing, setImporting] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) { setOpen(false); setShare(null); setImporting(null); } };
+    const onKey = (e) => { if (e.key === 'Escape') { setOpen(false); setShare(null); setImporting(null); } };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+
+  const doExport = (view) => { setShare({ view, ...onExport(view) }); setImporting(null); };
+  const copyShare = async () => {
+    if (!share) return;
+    try { await navigator.clipboard.writeText(share.url); setCopied(true); setTimeout(() => setCopied(false), 1500); }
+    catch { /* clipboard blocked — the field is selectable as a fallback */ }
+  };
+  const doImport = async (save) => {
+    const token = (importing?.token || '').trim();
+    if (!token) return;
+    // Accept either a bare token or a full URL with ?view=… in it.
+    let tok = token;
+    const qi = token.indexOf('?view=');
+    if (qi !== -1) { try { tok = new URLSearchParams(token.slice(qi + 1)).get('view') || token; } catch { /* keep raw */ } }
+    const ok = await onImport(tok, { save });
+    if (ok) { setImporting(null); setOpen(false); }
+  };
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button className="btn btn-ghost" onClick={() => setOpen(o => !o)} title={t("dashboard.views.menu")}>
+        <Bookmark size={14}/> {t("dashboard.views.menu")} <ChevronDown size={13}/>
+      </button>
+      {open && (
+        <div className="card" style={{
+          position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 50,
+          minWidth: 280, maxWidth: 360, padding: 8, boxShadow: 'var(--shadow, 0 8px 24px rgba(0,0,0,.12))',
+        }}>
+          {!loggedIn && (
+            <div style={{ fontSize: 11.5, color: 'var(--text-3)', padding: '4px 8px 8px' }}>
+              {t("dashboard.views.signed_out")}
+            </div>
+          )}
+          <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+            {views.length === 0 ? (
+              <div style={{ fontSize: 12, color: 'var(--text-3)', padding: '6px 8px' }}>{t("dashboard.views.none")}</div>
+            ) : views.map(v => (
+              <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 0' }}>
+                <button className="btn btn-ghost" style={{ flex: 1, justifyContent: 'flex-start', fontSize: 12.5 }}
+                  onClick={() => { onApply(v); setOpen(false); }} title={t("dashboard.views.apply_title")}>
+                  {v.name}
+                </button>
+                <button className="btn btn-ghost" style={{ padding: '4px 6px' }} title={t("dashboard.views.export")}
+                  onClick={() => doExport(v)}><Share2 size={13}/></button>
+                <button className="btn btn-ghost" style={{ padding: '4px 6px' }} title={t("dashboard.views.delete")}
+                  onClick={() => onDelete(v)}><Trash2 size={13}/></button>
+              </div>
+            ))}
+          </div>
+          <div style={{ borderTop: '1px solid var(--border)', marginTop: 6, paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <button className="btn btn-ghost" style={{ justifyContent: 'flex-start', fontSize: 12.5 }}
+              onClick={() => { onSave(); setOpen(false); }}><Bookmark size={13}/> {t("dashboard.views.save_current")}</button>
+            <button className="btn btn-ghost" style={{ justifyContent: 'flex-start', fontSize: 12.5 }}
+              onClick={() => doExport(null)}><Share2 size={13}/> {t("dashboard.views.export_current")}</button>
+            <button className="btn btn-ghost" style={{ justifyContent: 'flex-start', fontSize: 12.5 }}
+              onClick={() => { setImporting({ token: '' }); setShare(null); }}><Download size={13}/> {t("dashboard.views.import")}</button>
+          </div>
+
+          {share && (
+            <div style={{ borderTop: '1px solid var(--border)', marginTop: 6, paddingTop: 8 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>{t("dashboard.views.export_hint")}</div>
+              <input className="input" readOnly value={share.url} onFocus={e => e.target.select()}
+                style={{ width: '100%', fontSize: 11.5, padding: '5px 8px', fontFamily: 'var(--mono, monospace)' }}/>
+              <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                <button className="btn btn-accent" style={{ fontSize: 12 }} onClick={copyShare}>
+                  {copied ? <><Check size={12}/> {t("dashboard.views.copied")}</> : <><Copy size={12}/> {t("dashboard.views.copy")}</>}
+                </button>
+                <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setShare(null)}>{t("common.clear")}</button>
+              </div>
+            </div>
+          )}
+
+          {importing && (
+            <div style={{ borderTop: '1px solid var(--border)', marginTop: 6, paddingTop: 8 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>{t("dashboard.views.import_hint")}</div>
+              <input className="input" autoFocus value={importing.token}
+                placeholder={t("dashboard.views.import_ph")}
+                onChange={e => setImporting({ token: e.target.value })}
+                style={{ width: '100%', fontSize: 11.5, padding: '5px 8px', fontFamily: 'var(--mono, monospace)' }}/>
+              <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                <button className="btn btn-accent" style={{ fontSize: 12 }} disabled={!importing.token.trim()}
+                  onClick={() => doImport(false)}>{t("dashboard.views.import_apply")}</button>
+                {loggedIn && (
+                  <button className="btn" style={{ fontSize: 12 }} disabled={!importing.token.trim()}
+                    onClick={() => doImport(true)}>{t("dashboard.views.import_save")}</button>
+                )}
+                <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setImporting(null)}>{t("common.clear")}</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
