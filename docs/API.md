@@ -1,8 +1,39 @@
 # API reference
 
-The Rampart HTTP API serves the embedded React dashboard, the public status pages, the push-monitor heartbeat sink, and Prometheus / health checkers. This document is a hand-curated catalogue of every endpoint surfaced by the binary at the time of the last release — it is **not** an OpenAPI machine-readable spec (we deliberately don't generate one to avoid the per-handler annotation burden), but every entry below cross-references the source file where the contract is canonical.
+The Rampart HTTP API serves the embedded React dashboard, the public status pages, the push-monitor heartbeat sink, and Prometheus / health checkers. This document is a hand-curated catalogue of every endpoint surfaced by the binary at the time of the last release; every entry below cross-references the source file where the contract is canonical.
 
 If you want a deep dive into request / response shapes, open the named route file in [`backend/crates/rampart-api/src/routes/`](../backend/crates/rampart-api/src/routes/) and read the `#[derive(Serialize, Deserialize)]` types adjacent to the handler — they document themselves.
+
+## OpenAPI spec
+
+A hand-curated, machine-readable OpenAPI 3.1 description of the **primary** REST surface lives at [`docs/openapi.yaml`](./openapi.yaml) (`info.version` is pinned to the release line). It is representative rather than exhaustive — every resource group with its main routes and request/response shapes, but not every query parameter or every one of the ~100 handlers. The same document is also checked in as [`docs/openapi.json`](./openapi.json).
+
+The running binary serves both files at root level, unauthenticated:
+
+| Method · path        | Returns                          |
+| :------------------- | :------------------------------- |
+| `GET /openapi.yaml`  | the spec, `text/yaml`            |
+| `GET /openapi.json`  | the spec, `application/json`     |
+
+Wired in [`routes/openapi.rs`](../backend/crates/rampart-api/src/routes/openapi.rs); both files are embedded via `include_str!` so the served spec always matches the built source tree. There is no in-app Swagger-UI: the app CSP is `default-src 'self'`, which a CDN-hosted Swagger-UI bundle would violate.
+
+**View it rendered** with any local previewer pointed at the served YAML (or the file directly), e.g.:
+
+```bash
+# Redoc / Swagger-UI preview from the checked-in file
+npx @redocly/cli preview-docs docs/openapi.yaml
+
+# …or against a running instance
+curl -s http://localhost:8080/openapi.yaml | npx @redocly/cli preview-docs -
+```
+
+**Regenerate `openapi.json` after editing the YAML** (`openapi.yaml` is the source of truth):
+
+```bash
+python3 -c "import yaml,json,sys; json.dump(yaml.safe_load(open('docs/openapi.yaml')), open('docs/openapi.json','w'), indent=2)"
+```
+
+Generate a typed client with `openapi-generator` / `oapi-codegen` / `openapi-typescript` against either served file.
 
 ---
 
@@ -235,6 +266,6 @@ Source: [`error.rs`](../backend/crates/rampart-api/src/error.rs).
 
 ## What this doc isn't
 
-- **An OpenAPI / Swagger spec.** Generating one would require annotating every handler + every request body with `utoipa` macros; the maintenance cost of those annotations would exceed the value when the dashboard is the only known API client. If you need a programmatic client, the route files themselves are the source of truth — every input / output type derives `Serialize` / `Deserialize` so reading them as Rust gives you exactly the JSON contract.
+- **An auto-generated, exhaustive OpenAPI spec.** A hand-curated OpenAPI 3.1 description of the primary surface ships at [`docs/openapi.yaml`](./openapi.yaml) (see [OpenAPI spec](#openapi-spec) above), but it is deliberately *representative* — we don't annotate every handler with `utoipa` macros, since that maintenance cost would exceed the value when the dashboard is the only known API client. For the full, edge-case-accurate contract the route files remain the source of truth: every input / output type derives `Serialize` / `Deserialize`, so reading them as Rust gives you exactly the JSON contract.
 - **A versioned commitment.** The `/v1/` prefix exists because all endpoints today live there, not because there is a v2 in the wings. Breaking changes happen in major releases; see [`CHANGELOG.md`](../CHANGELOG.md) for the exact set per version.
 - **Exhaustive about every error edge.** Read the handler + the error module if you need the full surface.

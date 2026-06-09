@@ -1,0 +1,2062 @@
+openapi: 3.1.0
+info:
+  title: Rampart REST API
+  version: 0.3.0
+  summary: Uptime monitoring, status pages, incidents, and alerting.
+  description: |
+    Hand-curated OpenAPI description of the **primary** Rampart REST surface.
+    It is representative, not exhaustive: every resource group is covered with
+    its main routes and request/response shapes, but not every query parameter
+    or every one of the ~100 handlers is enumerated. The canonical contract for
+    any endpoint is the Rust source in
+    `backend/crates/rampart-api/src/routes/` and the types in
+    `backend/crates/rampart-core/`.
+
+    ## Authentication
+
+    Two interchangeable credentials resolve to the same authenticated user:
+
+    * **Session cookie** — `rampart_session`, HTTP-only, `SameSite=Strict`,
+      `Secure` over HTTPS. Minted by `POST /v1/auth/login` (or `/register` on
+      first run). This is what the dashboard SPA uses.
+    * **API key** — `Authorization: Bearer rmp_<32 chars>`, created at
+      `POST /v1/api-keys`. Equivalent to a session for all `/v1` routes.
+
+    The public surface (`/v1/auth/*`, `/v1/public/*`, the ingest receivers,
+    `/push/{token}`, and the spec + health endpoints) needs no credential.
+
+    ## RBAC
+
+    Three roles gate the protected `/v1` surface:
+
+    * `admin` — everything, including the admin-only groups below.
+    * `editor` — full monitoring CRUD (monitors, status pages, incidents,
+      notifications, tags, folders, maintenance) but no admin surfaces.
+    * `readonly` — `GET`/read only; any mutation returns `403`. Exempt:
+      self-service account routes (password, 2FA, web-push).
+
+    Each tag group below documents its role requirement.
+
+servers:
+  - url: /
+
+tags:
+  - name: Auth
+    description: Login / logout / current-user. Public; rate-limited per IP.
+  - name: Monitors
+    description: Monitor CRUD, heartbeats, reliability, SLO, bulk ops. Editor writes; readonly reads.
+  - name: Status Pages
+    description: Admin CRUD (editor) plus the unauthenticated public view, by-domain lookup, unlock, and feeds.
+  - name: Incidents
+    description: Status-page incident posts + running updates. Editor.
+  - name: Maintenance
+    description: Maintenance windows + monitor attach/detach. Editor.
+  - name: Notifications
+    description: Notification channels + message templates. Editor.
+  - name: Tags
+    description: Colored monitor labels. Editor.
+  - name: Folders
+    description: Cosmetic monitor groups (folders). Editor.
+  - name: API Keys
+    description: Personal bearer keys. Admin only.
+  - name: Proxies
+    description: Outbound HTTP/SOCKS proxies for probes. Admin only.
+  - name: Users
+    description: User management + role assignment (admin); self-service password (any role).
+  - name: Audit
+    description: Append-only audit log + CSV export. Admin only.
+  - name: Ingest
+    description: Public inbound webhook receivers + admin-managed ingest tokens.
+  - name: Health
+    description: Liveness / readiness / Prometheus metrics + the OpenAPI spec. Public.
+
+paths:
+  # ─────────────────────────── Health / ops ───────────────────────────
+  /healthz:
+    get:
+      tags: [Health]
+      summary: Liveness probe
+      description: Always 200 if the process can answer. Carries the build version.
+      security: []
+      responses:
+        '200':
+          description: Process is alive.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: alive }
+                  version: { type: string, example: 0.3.0 }
+  /readyz:
+    get:
+      tags: [Health]
+      summary: Readiness probe
+      description: 200 only once the database is reachable (a `SELECT 1` round-trip succeeds).
+      security: []
+      responses:
+        '200':
+          description: Ready.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ready }
+        '503':
+          description: Database unreachable.
+  /metrics:
+    get:
+      tags: [Health]
+      summary: Prometheus metrics
+      description: |
+        Text exposition (`text/plain; version=0.0.4`). Includes
+        `rampart_build_info`, `rampart_monitors{status}`,
+        `rampart_monitors_by_kind{kind}`, `rampart_channels_active`,
+        `rampart_webpush_subscribers`, `rampart_heartbeats_24h{status}`,
+        `rampart_incidents_open`, plus HTTP request counters / latency.
+      security: []
+      responses:
+        '200':
+          description: Prometheus exposition text.
+          content:
+            text/plain:
+              schema: { type: string }
+  /openapi.yaml:
+    get:
+      tags: [Health]
+      summary: This spec (YAML)
+      security: []
+      responses:
+        '200':
+          description: OpenAPI 3.1 document, YAML.
+          content:
+            text/yaml:
+              schema: { type: string }
+  /openapi.json:
+    get:
+      tags: [Health]
+      summary: This spec (JSON)
+      security: []
+      responses:
+        '200':
+          description: OpenAPI 3.1 document, JSON.
+          content:
+            application/json:
+              schema: { type: object }
+
+  # ─────────────────────────── Auth ───────────────────────────
+  /v1/auth/register:
+    post:
+      tags: [Auth]
+      summary: First-run signup
+      description: Succeeds only when zero users exist; the new user becomes `admin`. Subsequent calls return 409. Sets the session cookie.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterInput' }
+      responses:
+        '201':
+          description: User created; session cookie set.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in
+      description: Verifies email + password. On success sets the session cookie. If the account has TOTP enabled, returns 202 with a `challenge_token` to be completed via `/v1/auth/2fa/verify`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginInput' }
+      responses:
+        '200':
+          description: Logged in; session cookie set.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+        '202':
+          description: 2FA required.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totp_required: { type: boolean, example: true }
+                  challenge_token: { type: string, format: uuid }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /v1/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Log out
+      description: Deletes the session row and clears the cookie.
+      responses:
+        '204':
+          description: Logged out.
+  /v1/auth/me:
+    get:
+      tags: [Auth]
+      summary: Current user
+      description: |
+        Returns `{ user }` for the logged-in caller. Special-cases first run:
+        when the DB has no users at all, returns `{ needs_setup: true }` (200)
+        so the SPA can route to the signup screen. Otherwise 401 when not
+        authenticated.
+      security: []
+      responses:
+        '200':
+          description: The current user, or a first-run setup hint.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    properties:
+                      user: { $ref: '#/components/schemas/User' }
+                  - type: object
+                    properties:
+                      needs_setup: { type: boolean, example: true }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ─────────────────────────── Monitors ───────────────────────────
+  /v1/monitors:
+    get:
+      tags: [Monitors]
+      summary: List monitors
+      responses:
+        '200':
+          description: All monitors, tags hydrated.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Monitor' }
+    post:
+      tags: [Monitors]
+      summary: Create a monitor
+      description: Editor or admin. Which of `url` / `hostname` / `port` are required depends on `kind`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewMonitor' }
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Monitor' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /v1/monitors/{id}:
+    parameters:
+      - $ref: '#/components/parameters/MonitorId'
+    get:
+      tags: [Monitors]
+      summary: Get a monitor
+      responses:
+        '200':
+          description: The monitor.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Monitor' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Monitors]
+      summary: Update a monitor
+      description: Partial update. `kind` is immutable. Editor or admin.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateMonitor' }
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Monitor' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Monitors]
+      summary: Delete a monitor
+      responses:
+        '204': { description: Deleted. }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/monitors/{id}/heartbeats:
+    parameters:
+      - $ref: '#/components/parameters/MonitorId'
+      - name: limit
+        in: query
+        schema: { type: integer, default: 100, maximum: 2000 }
+      - name: before
+        in: query
+        description: Return heartbeats strictly older than this RFC3339 timestamp (cursor).
+        schema: { type: string, format: date-time }
+    get:
+      tags: [Monitors]
+      summary: Recent heartbeats
+      responses:
+        '200':
+          description: Heartbeats, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Heartbeat' }
+  /v1/monitors/{id}/reliability:
+    parameters:
+      - $ref: '#/components/parameters/MonitorId'
+      - name: window_days
+        in: query
+        description: Trailing window. Allowed 7, 30, 90. Default 30.
+        schema: { type: integer, enum: [7, 30, 90], default: 30 }
+    get:
+      tags: [Monitors]
+      summary: Reliability rollup (MTBF / MTTR)
+      responses:
+        '200':
+          description: Reliability metrics.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reliability' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /v1/monitors/{id}/slo/error-budget:
+    parameters:
+      - $ref: '#/components/parameters/MonitorId'
+    get:
+      tags: [Monitors]
+      summary: SLO error budget
+      description: 404 when the monitor has no `slo_target_pct` / `slo_window_days` configured.
+      responses:
+        '200':
+          description: Error-budget figures for the configured window.
+          content:
+            application/json:
+              schema: { type: object, description: 'rampart_db::heartbeats::ErrorBudget — remaining/consumed budget, allowed downtime, current uptime.' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/monitors/{id}/slo/burndown:
+    parameters:
+      - $ref: '#/components/parameters/MonitorId'
+      - name: window_days
+        in: query
+        schema: { type: integer, enum: [7, 30, 90] }
+    get:
+      tags: [Monitors]
+      summary: SLO error-budget burn-down
+      description: One point per day across the window. Same 404 contract as error-budget.
+      responses:
+        '200':
+          description: Burn-down series.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  window_days: { type: integer }
+                  target_pct: { type: number, format: double }
+                  allowed_downtime_secs: { type: integer, format: int64 }
+                  points: { type: array, items: { type: object } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/monitors/{id}/test-notifications:
+    parameters:
+      - $ref: '#/components/parameters/MonitorId'
+    post:
+      tags: [Monitors]
+      summary: Fire a test notification to every attached channel
+      description: Resolves the channels for this monitor (direct + tag/folder routing) and sends a synthetic test through each. Per-channel ok/error.
+      responses:
+        '200':
+          description: Per-channel results.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sent:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        channel_id: { type: string, format: uuid }
+                        ok: { type: boolean }
+                        error: { type: string }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/monitors/import-csv:
+    post:
+      tags: [Monitors]
+      summary: Bulk-import monitors from CSV
+      description: POST a Rampart-native CSV as the raw request body (`text/csv` / `text/plain`). Unmappable or failed rows come back in `skipped` rather than aborting the batch.
+      requestBody:
+        required: true
+        content:
+          text/csv:
+            schema: { type: string }
+      responses:
+        '200':
+          description: Import outcome.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  created: { type: integer }
+                  skipped:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        row: { type: string }
+                        reason: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /v1/monitors/bulk-edit:
+    post:
+      tags: [Monitors]
+      summary: Bulk-edit interval / timeout / tags
+      description: Apply interval/timeout changes and tag add/remove across up to 500 monitors. Best-effort per id; `updated` counts monitors mutated without error.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids]
+              properties:
+                ids: { type: array, items: { type: string, format: uuid } }
+                interval_seconds: { type: integer }
+                timeout_seconds: { type: integer }
+                add_tag_ids: { type: array, items: { type: string, format: uuid } }
+                remove_tag_ids: { type: array, items: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Edit outcome.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated: { type: integer }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  # ─────────────────────────── Status Pages ───────────────────────────
+  /v1/status-pages:
+    get:
+      tags: [Status Pages]
+      summary: List status pages (admin view)
+      responses:
+        '200':
+          description: All status pages.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/StatusPage' }
+    post:
+      tags: [Status Pages]
+      summary: Create a status page
+      description: Editor or admin. Setting `password` makes the page private.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewStatusPage' }
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StatusPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /v1/status-pages/{id}:
+    parameters:
+      - $ref: '#/components/parameters/StatusPageId'
+    get:
+      tags: [Status Pages]
+      summary: Get a status page (admin view)
+      responses:
+        '200':
+          description: The page.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StatusPage' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Status Pages]
+      summary: Update a status page
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateStatusPage' }
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StatusPage' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Status Pages]
+      summary: Delete a status page
+      responses:
+        '204': { description: Deleted. }
+  /v1/public/status-pages/{slug}:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Status Pages]
+      summary: Public status-page view
+      description: Unauthenticated. Private pages return a locked stub until unlocked via the cookie set by `/unlock`.
+      security: []
+      responses:
+        '200':
+          description: Public projection.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublicStatusPage' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/public/status-pages/by-domain/{host}:
+    parameters:
+      - name: host
+        in: path
+        required: true
+        description: Custom hostname (e.g. status.acme.com).
+        schema: { type: string }
+    get:
+      tags: [Status Pages]
+      summary: Public view resolved by custom domain
+      security: []
+      responses:
+        '200':
+          description: Public projection.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublicStatusPage' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/public/status-pages/{slug}/unlock:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [Status Pages]
+      summary: Unlock a password-protected page
+      description: Verifies the page password and sets an unlock cookie so subsequent public-view reads return full content.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: { type: string }
+      responses:
+        '200': { description: Unlocked. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /v1/public/status-pages/{slug}/feed.atom:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Status Pages]
+      summary: Incident feed (Atom)
+      security: []
+      responses:
+        '200':
+          description: Atom feed.
+          content:
+            application/atom+xml:
+              schema: { type: string }
+  /v1/public/status-pages/{slug}/feed.rss:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Status Pages]
+      summary: Incident feed (RSS)
+      security: []
+      responses:
+        '200':
+          description: RSS feed.
+          content:
+            application/rss+xml:
+              schema: { type: string }
+
+  # ─────────────────────────── Incidents ───────────────────────────
+  /v1/status-pages/{id}/incidents:
+    parameters:
+      - $ref: '#/components/parameters/StatusPageId'
+    get:
+      tags: [Incidents]
+      summary: List incidents for a page
+      responses:
+        '200':
+          description: Incidents.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Incident' }
+    post:
+      tags: [Incidents]
+      summary: Create an incident
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewIncident' }
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Incident' }
+  /v1/incidents/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IncidentId'
+    patch:
+      tags: [Incidents]
+      summary: Update an incident
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewIncident' }
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Incident' }
+    delete:
+      tags: [Incidents]
+      summary: Delete an incident
+      responses:
+        '204': { description: Deleted. }
+  /v1/incidents/{id}/resolve:
+    parameters:
+      - $ref: '#/components/parameters/IncidentId'
+    post:
+      tags: [Incidents]
+      summary: Resolve an incident
+      responses:
+        '200':
+          description: Resolved.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Incident' }
+  /v1/incidents/{id}/updates:
+    parameters:
+      - $ref: '#/components/parameters/IncidentId'
+    get:
+      tags: [Incidents]
+      summary: List incident updates
+      responses:
+        '200':
+          description: Updates, oldest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/IncidentUpdate' }
+    post:
+      tags: [Incidents]
+      summary: Post an incident update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message: { type: string }
+      responses:
+        '201':
+          description: Posted.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IncidentUpdate' }
+
+  # ─────────────────────────── Maintenance ───────────────────────────
+  /v1/maintenance-windows:
+    get:
+      tags: [Maintenance]
+      summary: List maintenance windows
+      responses:
+        '200':
+          description: Windows.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/MaintenanceWindow' }
+    post:
+      tags: [Maintenance]
+      summary: Create a maintenance window
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewMaintenanceWindow' }
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MaintenanceWindow' }
+  /v1/maintenance-windows/{id}:
+    parameters:
+      - $ref: '#/components/parameters/MaintenanceId'
+    get:
+      tags: [Maintenance]
+      summary: Get a maintenance window
+      responses:
+        '200':
+          description: The window.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MaintenanceWindow' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Maintenance]
+      summary: Update a maintenance window
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateMaintenanceWindow' }
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MaintenanceWindow' }
+    delete:
+      tags: [Maintenance]
+      summary: Delete a maintenance window
+      responses:
+        '204': { description: Deleted. }
+  /v1/maintenance-windows/{id}/monitors/{monitor_id}:
+    parameters:
+      - $ref: '#/components/parameters/MaintenanceId'
+      - name: monitor_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Maintenance]
+      summary: Attach a monitor to the window
+      responses:
+        '204': { description: Attached. }
+    delete:
+      tags: [Maintenance]
+      summary: Detach a monitor from the window
+      responses:
+        '204': { description: Detached. }
+
+  # ─────────────────────────── Notifications ───────────────────────────
+  /v1/notifications:
+    get:
+      tags: [Notifications]
+      summary: List notification channels
+      responses:
+        '200':
+          description: Channels.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Notification' }
+    post:
+      tags: [Notifications]
+      summary: Create a notification channel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewNotification' }
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Notification' }
+  /v1/notifications/{id}:
+    parameters:
+      - $ref: '#/components/parameters/NotificationId'
+    get:
+      tags: [Notifications]
+      summary: Get a channel
+      responses:
+        '200':
+          description: The channel.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Notification' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Notifications]
+      summary: Update a channel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewNotification' }
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Notification' }
+    delete:
+      tags: [Notifications]
+      summary: Delete a channel
+      responses:
+        '204': { description: Deleted. }
+  /v1/notifications/{id}/test:
+    parameters:
+      - $ref: '#/components/parameters/NotificationId'
+    post:
+      tags: [Notifications]
+      summary: Send a test through this channel
+      responses:
+        '200': { description: Sent (or per-channel error). }
+  /v1/notification-templates:
+    get:
+      tags: [Notifications]
+      summary: List message templates
+      responses:
+        '200':
+          description: Templates.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/NotificationTemplate' }
+    post:
+      tags: [Notifications]
+      summary: Create a message template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NotificationTemplate' }
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NotificationTemplate' }
+  /v1/notification-templates/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Notifications]
+      summary: Get a template
+      responses:
+        '200':
+          description: The template.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NotificationTemplate' }
+    patch:
+      tags: [Notifications]
+      summary: Update a template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NotificationTemplate' }
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NotificationTemplate' }
+    delete:
+      tags: [Notifications]
+      summary: Delete a template
+      responses:
+        '204': { description: Deleted. }
+
+  # ─────────────────────────── Tags ───────────────────────────
+  /v1/tags:
+    get:
+      tags: [Tags]
+      summary: List tags
+      responses:
+        '200':
+          description: Tags.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Tag' }
+    post:
+      tags: [Tags]
+      summary: Create a tag
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewTag' }
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tag' }
+  /v1/tags/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [Tags]
+      summary: Update a tag
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateTag' }
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tag' }
+    delete:
+      tags: [Tags]
+      summary: Delete a tag
+      responses:
+        '204': { description: Deleted. }
+  /v1/monitors/{id}/tags/{tag_id}:
+    parameters:
+      - $ref: '#/components/parameters/MonitorId'
+      - name: tag_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Tags]
+      summary: Attach a tag to a monitor
+      responses:
+        '204': { description: Attached. }
+    delete:
+      tags: [Tags]
+      summary: Detach a tag from a monitor
+      responses:
+        '204': { description: Detached. }
+
+  # ─────────────────────────── Folders ───────────────────────────
+  /v1/monitor-groups:
+    get:
+      tags: [Folders]
+      summary: List folders (monitor groups)
+      responses:
+        '200':
+          description: Folders.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/MonitorGroup' }
+    post:
+      tags: [Folders]
+      summary: Create a folder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewMonitorGroup' }
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MonitorGroup' }
+  /v1/monitor-groups/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [Folders]
+      summary: Update a folder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateMonitorGroup' }
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MonitorGroup' }
+    delete:
+      tags: [Folders]
+      summary: Delete a folder
+      responses:
+        '204': { description: Deleted. }
+
+  # ─────────────────────────── API Keys ───────────────────────────
+  /v1/api-keys:
+    get:
+      tags: [API Keys]
+      summary: List API keys
+      description: Admin only. Secrets are never returned — only the prefix.
+      responses:
+        '200':
+          description: Keys.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ApiKey' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [API Keys]
+      summary: Create an API key
+      description: Admin only. The raw `token` is returned **once**, here.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewApiKey' }
+      responses:
+        '201':
+          description: Created — includes the one-time plaintext token.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IssuedApiKey' }
+  /v1/api-keys/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [API Keys]
+      summary: Revoke an API key
+      responses:
+        '204': { description: Revoked. }
+
+  # ─────────────────────────── Proxies ───────────────────────────
+  /v1/proxies:
+    get:
+      tags: [Proxies]
+      summary: List proxies
+      description: Admin only. The password is never serialized.
+      responses:
+        '200':
+          description: Proxies.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Proxy' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Proxies]
+      summary: Create a proxy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewProxy' }
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Proxy' }
+  /v1/proxies/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [Proxies]
+      summary: Delete a proxy
+      responses:
+        '204': { description: Deleted. }
+  /v1/proxies/{id}/active:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Proxies]
+      summary: Toggle a proxy active flag
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                active: { type: boolean }
+      responses:
+        '200': { description: Updated. }
+
+  # ─────────────────────────── Users ───────────────────────────
+  /v1/users:
+    get:
+      tags: [Users]
+      summary: List users
+      description: Admin only.
+      responses:
+        '200':
+          description: Users.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/User' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Users]
+      summary: Create a user
+      description: 'Admin only. `role` defaults to `editor`; legacy `is_admin: true` maps to `admin`.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                name: { type: string }
+                password: { type: string, minLength: 10 }
+                role: { $ref: '#/components/schemas/Role' }
+                is_admin: { type: boolean, description: 'Legacy. Use role instead.' }
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /v1/users/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [Users]
+      summary: Delete a user
+      description: Admin only.
+      responses:
+        '204': { description: Deleted. }
+  /v1/users/{id}/role:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [Users]
+      summary: Set a user's role
+      description: Admin only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: { $ref: '#/components/schemas/Role' }
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+  /v1/users/me/password:
+    post:
+      tags: [Users]
+      summary: Change own password
+      description: Self-service — any role, including readonly.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password]
+              properties:
+                current_password: { type: string }
+                new_password: { type: string, minLength: 10 }
+      responses:
+        '204': { description: Changed. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ─────────────────────────── Audit ───────────────────────────
+  /v1/audit-log:
+    get:
+      tags: [Audit]
+      summary: List audit entries
+      description: Admin only. Secrets in payloads are redacted before storage.
+      responses:
+        '200':
+          description: Audit entries.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AuditEntry' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /v1/audit-log/export.csv:
+    get:
+      tags: [Audit]
+      summary: Export audit log as CSV
+      description: Admin only.
+      responses:
+        '200':
+          description: CSV attachment.
+          content:
+            text/csv:
+              schema: { type: string }
+
+  # ─────────────────────────── Ingest ───────────────────────────
+  /v1/public/ingest/alertmanager/{token}:
+    parameters:
+      - $ref: '#/components/parameters/IngestToken'
+    post:
+      tags: [Ingest]
+      summary: Alertmanager webhook receiver
+      description: Public — the `{token}` in the URL is the credential. Maps the alert payload to an incident on the token's status page.
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200': { description: Accepted. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /v1/public/ingest/grafana/{token}:
+    parameters:
+      - $ref: '#/components/parameters/IngestToken'
+    post:
+      tags: [Ingest]
+      summary: Grafana webhook receiver
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200': { description: Accepted. }
+  /v1/public/ingest/datadog/{token}:
+    parameters:
+      - $ref: '#/components/parameters/IngestToken'
+    post:
+      tags: [Ingest]
+      summary: Datadog webhook receiver
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200': { description: Accepted. }
+  /v1/public/ingest/pagerduty/{token}:
+    parameters:
+      - $ref: '#/components/parameters/IngestToken'
+    post:
+      tags: [Ingest]
+      summary: PagerDuty webhook receiver
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200': { description: Accepted. }
+  /v1/public/ingest/opsgenie/{token}:
+    parameters:
+      - $ref: '#/components/parameters/IngestToken'
+    post:
+      tags: [Ingest]
+      summary: Opsgenie webhook receiver
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200': { description: Accepted. }
+  /v1/status-pages/{id}/ingest-tokens:
+    parameters:
+      - $ref: '#/components/parameters/StatusPageId'
+    get:
+      tags: [Ingest]
+      summary: List ingest tokens for a page
+      description: Admin only.
+      responses:
+        '200':
+          description: Tokens.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/IngestTokenModel' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Ingest]
+      summary: Create an ingest token
+      description: Admin only. The raw token is returned (it goes into the alerting tool's config).
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label: { type: string }
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IngestTokenModel' }
+  /v1/ingest-tokens/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [Ingest]
+      summary: Revoke an ingest token
+      description: Admin only.
+      responses:
+        '204': { description: Revoked. }
+
+  # ─────────────────────────── Push (heartbeat sink) ───────────────────────────
+  /push/{token}:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        description: A push monitor's secret token.
+        schema: { type: string }
+    get:
+      tags: [Monitors]
+      summary: Push heartbeat (GET)
+      description: Public — the token IS the auth. Records a heartbeat for the push monitor that owns the token. Optional `status`, `msg`, `ping` query params.
+      security: []
+      responses:
+        '200': { description: Recorded. }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Monitors]
+      summary: Push heartbeat (POST)
+      security: []
+      responses:
+        '200': { description: Recorded. }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: rampart_session
+      description: HTTP-only session cookie set by `/v1/auth/login`.
+    bearerApiKey:
+      type: http
+      scheme: bearer
+      bearerFormat: rmp_<32 chars>
+      description: Personal API key created via `/v1/api-keys`.
+
+  parameters:
+    MonitorId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    StatusPageId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    IncidentId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    MaintenanceId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    NotificationId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    IngestToken:
+      name: token
+      in: path
+      required: true
+      description: Page-scoped ingest credential.
+      schema: { type: string }
+
+  responses:
+    BadRequest:
+      description: Invalid request.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Missing or invalid credentials.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Authenticated but lacks the required role.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: Conflict with current state.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+      description: Error envelope produced by `ApiError`.
+
+    Role:
+      type: string
+      enum: [admin, editor, readonly]
+
+    MonitorStatus:
+      type: string
+      enum: [up, down, warn, paused, pending, maintenance]
+
+    MonitorKind:
+      type: string
+      description: Probe type. Serialized snake_case. The full set the binary supports.
+      enum:
+        - http
+        - keyword
+        - json_query
+        - tcp
+        - ping
+        - dns
+        - push
+        - grpc
+        - tls
+        - docker
+        - steam
+        - mqtt
+        - radius
+        - kafka
+        - postgres
+        - mysql
+        - mssql
+        - redis
+        - mongodb
+        - memcached
+        - ntp
+        - websocket
+        - nats
+        - ldap
+        - amqp
+        - doh
+        - rdap
+        - snmp
+        - cassandra
+        - mdns
+        - ssdp
+        - domain
+        - browser
+        - ssh
+        - smtp
+        - imap
+        - ftp
+        - pop3
+
+    ChannelKind:
+      type: string
+      description: Notification channel kind. Serialized snake_case. ~130 supported; a representative subset is listed; `custom` is the catch-all webhook.
+      enum:
+        - slack
+        - discord
+        - telegram
+        - email
+        - webhook
+        - pagerduty
+        - sms_twilio
+        - teams
+        - gotify
+        - pushover
+        - ntfy
+        - mattermost
+        - matrix
+        - signal
+        - rocket_chat
+        - google_chat
+        - apprise
+        - custom
+        - webpush
+
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        name: { type: [string, 'null'] }
+        is_admin: { type: boolean, description: 'Derived rollback shim; prefer role.' }
+        role: { $ref: '#/components/schemas/Role' }
+        created_at: { type: string, format: date-time }
+        last_login_at: { type: [string, 'null'], format: date-time }
+        totp_enabled: { type: boolean }
+      required: [id, email, is_admin, role, created_at]
+
+    RegisterInput:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        name: { type: string }
+        password: { type: string, minLength: 10 }
+
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+
+    Monitor:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        kind: { $ref: '#/components/schemas/MonitorKind' }
+        url: { type: [string, 'null'] }
+        hostname: { type: [string, 'null'] }
+        port: { type: [integer, 'null'] }
+        config: { type: object, description: 'Kind-specific config (JSONPath, RRtype, container name, etc.).' }
+        interval_seconds: { type: integer }
+        retry_interval_sec: { type: integer }
+        max_retries: { type: integer }
+        timeout_seconds: { type: integer }
+        resend_interval_sec: { type: integer }
+        upside_down: { type: boolean }
+        http_method: { type: string }
+        http_body: { type: [string, 'null'] }
+        http_headers: { type: [object, 'null'] }
+        accepted_statuses: { type: array, items: { type: integer } }
+        follow_redirect: { type: boolean }
+        ignore_tls: { type: boolean }
+        proxy_id: { type: [string, 'null'], format: uuid }
+        push_token: { type: [string, 'null'] }
+        last_push_at: { type: [string, 'null'], format: date-time }
+        active: { type: boolean }
+        current_status: { $ref: '#/components/schemas/MonitorStatus' }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        tags: { type: array, items: { $ref: '#/components/schemas/TagBrief' } }
+        cert_days_left: { type: [integer, 'null'] }
+        cert_subject: { type: [string, 'null'] }
+        cert_checked_at: { type: [string, 'null'], format: date-time }
+        group_id: { type: [string, 'null'], format: uuid }
+        slo_target_pct: { type: [number, 'null'], format: double }
+        slo_window_days: { type: [integer, 'null'] }
+      required: [id, name, kind, config, interval_seconds, timeout_seconds, active, current_status, created_at, updated_at]
+
+    NewMonitor:
+      type: object
+      required: [name, kind]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        kind: { $ref: '#/components/schemas/MonitorKind' }
+        url: { type: string, description: 'http/keyword/json_query/tls/domain.' }
+        hostname: { type: string, description: 'tcp/ping/dns/grpc/database kinds.' }
+        port: { type: integer }
+        config: { type: object }
+        interval_seconds: { type: integer, minimum: 10, maximum: 86400, default: 60 }
+        timeout_seconds: { type: integer, minimum: 1, maximum: 600, default: 16 }
+        max_retries: { type: integer, default: 0 }
+        retry_interval_sec: { type: integer, default: 60 }
+        resend_interval_sec: { type: integer, default: 0 }
+        upside_down: { type: boolean, default: false }
+        http_method: { type: string, default: GET }
+        http_body: { type: string }
+        http_headers: { type: object }
+        accepted_statuses: { type: array, items: { type: integer }, default: [200, 201, 202, 203, 204, 205, 206, 207, 208, 226] }
+        follow_redirect: { type: boolean, default: true }
+        ignore_tls: { type: boolean, default: false }
+        proxy_id: { type: string, format: uuid }
+        group_id: { type: string, format: uuid }
+        slo_target_pct: { type: number, format: double, minimum: 90.0, maximum: 100.0 }
+        slo_window_days: { type: integer, minimum: 1, maximum: 90 }
+
+    UpdateMonitor:
+      type: object
+      description: Partial update. Omitted fields are unchanged. `kind` is immutable so it is absent. `group_id` / `slo_target_pct` / `slo_window_days` accept explicit `null` to clear.
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        url: { type: [string, 'null'] }
+        hostname: { type: [string, 'null'] }
+        port: { type: [integer, 'null'] }
+        config: { type: object }
+        interval_seconds: { type: integer, minimum: 10, maximum: 86400 }
+        timeout_seconds: { type: integer, minimum: 1, maximum: 600 }
+        max_retries: { type: integer }
+        retry_interval_sec: { type: integer }
+        resend_interval_sec: { type: integer }
+        upside_down: { type: boolean }
+        http_method: { type: string }
+        http_body: { type: [string, 'null'] }
+        http_headers: { type: [object, 'null'] }
+        accepted_statuses: { type: array, items: { type: integer } }
+        follow_redirect: { type: boolean }
+        ignore_tls: { type: boolean }
+        proxy_id: { type: [string, 'null'], format: uuid }
+        group_id: { type: [string, 'null'], format: uuid }
+        slo_target_pct: { type: [number, 'null'], format: double }
+        slo_window_days: { type: [integer, 'null'] }
+
+    Heartbeat:
+      type: object
+      properties:
+        monitor_id: { type: string, format: uuid }
+        ts: { type: string, format: date-time }
+        status: { $ref: '#/components/schemas/MonitorStatus' }
+        latency_ms: { type: [integer, 'null'] }
+        status_code: { type: [integer, 'null'] }
+        msg: { type: [string, 'null'] }
+        retries: { type: integer }
+        important: { type: boolean, description: 'True at the point status flipped.' }
+      required: [monitor_id, ts, status, retries, important]
+
+    Reliability:
+      type: object
+      properties:
+        window_days: { type: integer, format: int64 }
+        mtbf_secs: { type: [integer, 'null'], format: int64 }
+        mttr_secs: { type: [integer, 'null'], format: int64 }
+        downtime_events: { type: integer, format: int64 }
+      required: [window_days, downtime_events]
+
+    StatusPage:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        slug: { type: string }
+        title: { type: string }
+        description: { type: [string, 'null'] }
+        theme: { type: string }
+        custom_domain: { type: [string, 'null'] }
+        logo_url: { type: [string, 'null'] }
+        custom_css: { type: [string, 'null'] }
+        private: { type: boolean, description: 'True when a password is set; the hash is never serialized.' }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        monitor_ids: { type: array, items: { type: string, format: uuid } }
+      required: [id, slug, title, theme, private, created_at, updated_at]
+
+    NewStatusPage:
+      type: object
+      required: [slug, title]
+      properties:
+        slug: { type: string, minLength: 2, maxLength: 40, pattern: '^[a-z0-9-]{2,40}$' }
+        title: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: string }
+        theme: { type: string, default: light }
+        custom_domain: { type: string }
+        logo_url: { type: string }
+        custom_css: { type: string, description: 'Capped at 64 KB.' }
+        password: { type: string, description: 'Write-only; sets the page private.' }
+        monitor_ids: { type: array, items: { type: string, format: uuid } }
+
+    UpdateStatusPage:
+      type: object
+      description: Partial update. `description`/`custom_domain`/`logo_url`/`custom_css`/`password` use triple-state — explicit `null` clears, omission leaves unchanged. `monitor_ids` when present REPLACES the attached set.
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: [string, 'null'] }
+        theme: { type: string }
+        custom_domain: { type: [string, 'null'] }
+        logo_url: { type: [string, 'null'] }
+        custom_css: { type: [string, 'null'] }
+        password: { type: [string, 'null'] }
+        monitor_ids: { type: array, items: { type: string, format: uuid } }
+
+    PublicStatusPage:
+      type: object
+      description: Unauthenticated projection. No probe targets / channel info. Locked pages return only slug/title/private until unlocked.
+      properties:
+        slug: { type: string }
+        title: { type: string }
+        description: { type: [string, 'null'] }
+        theme: { type: string }
+        custom_domain: { type: [string, 'null'] }
+        logo_url: { type: [string, 'null'] }
+        custom_css: { type: [string, 'null'] }
+        private: { type: boolean }
+        generated_at: { type: string, format: date-time }
+        monitors:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              current_status: { $ref: '#/components/schemas/MonitorStatus' }
+              uptime_90d: { type: [number, 'null'], format: float }
+              avg_latency_ms_24h: { type: [number, 'null'], format: float }
+              daily_status_90d: { type: string, description: '90 chars; u/d/w/m/n per day.' }
+              monthly_uptime_12mo:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    year_month: { type: string, format: date }
+                    uptime_pct: { type: [number, 'null'], format: float }
+        incidents:
+          type: array
+          items:
+            type: object
+            properties:
+              title: { type: string }
+              content: { type: string }
+              style: { $ref: '#/components/schemas/IncidentStyle' }
+              pinned: { type: boolean }
+              created_at: { type: string, format: date-time }
+              updates:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    message: { type: string }
+                    posted_at: { type: string, format: date-time }
+        incident_history:
+          type: array
+          items:
+            type: object
+            properties:
+              title: { type: string }
+              content: { type: string }
+              style: { $ref: '#/components/schemas/IncidentStyle' }
+              created_at: { type: string, format: date-time }
+              resolved_at: { type: string, format: date-time }
+        maintenance:
+          type: array
+          items:
+            type: object
+            properties:
+              title: { type: string }
+              description: { type: [string, 'null'] }
+              starts_at: { type: string, format: date-time }
+              ends_at: { type: [string, 'null'], format: date-time }
+              active: { type: boolean }
+      required: [slug, title, theme, private, generated_at, monitors, incidents]
+
+    IncidentStyle:
+      type: string
+      enum: [info, warning, danger, primary, success]
+
+    Incident:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        status_page_id: { type: string, format: uuid }
+        title: { type: string }
+        content: { type: string }
+        style: { $ref: '#/components/schemas/IncidentStyle' }
+        pinned: { type: boolean }
+        active: { type: boolean }
+        resolved_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+        created_by: { type: [string, 'null'], format: uuid }
+        dedup_key: { type: [string, 'null'], description: 'Set by webhook ingest to match a resolve back to its open.' }
+      required: [id, status_page_id, title, content, style, pinned, active, created_at]
+
+    NewIncident:
+      type: object
+      required: [title, content]
+      properties:
+        title: { type: string }
+        content: { type: string }
+        style: { $ref: '#/components/schemas/IncidentStyle' }
+        pinned: { type: boolean }
+
+    IncidentUpdate:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        incident_id: { type: string, format: uuid }
+        message: { type: string }
+        posted_at: { type: string, format: date-time }
+        posted_by: { type: [string, 'null'], format: uuid }
+      required: [id, incident_id, message, posted_at]
+
+    Recurrence:
+      type: object
+      description: Tagged union on `kind`. `none` (single-shot), `daily`, or `weekly` (with `weekdays` 0=Sun..6=Sat). `until` is an optional RFC3339 end.
+      properties:
+        kind: { type: string, enum: [none, daily, weekly] }
+        weekdays: { type: array, items: { type: integer, minimum: 0, maximum: 6 } }
+        until: { type: string, format: date-time }
+      required: [kind]
+
+    MaintenanceWindow:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        start_at: { type: string, format: date-time }
+        end_at: { type: string, format: date-time }
+        active: { type: boolean }
+        created_at: { type: string, format: date-time }
+        monitor_ids: { type: array, items: { type: string, format: uuid } }
+        recurrence: { $ref: '#/components/schemas/Recurrence' }
+      required: [id, name, start_at, end_at, active, created_at]
+
+    NewMaintenanceWindow:
+      type: object
+      required: [name, start_at, end_at]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: string }
+        start_at: { type: string, format: date-time }
+        end_at: { type: string, format: date-time }
+        monitor_ids: { type: array, items: { type: string, format: uuid } }
+        recurrence: { $ref: '#/components/schemas/Recurrence' }
+
+    UpdateMaintenanceWindow:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: [string, 'null'] }
+        start_at: { type: string, format: date-time }
+        end_at: { type: string, format: date-time }
+        recurrence: { $ref: '#/components/schemas/Recurrence' }
+
+    Notification:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        kind: { $ref: '#/components/schemas/ChannelKind' }
+        config: { type: object, description: 'Kind-specific config. Secrets encrypted before insert.' }
+        is_default: { type: boolean }
+        template_id: { type: [string, 'null'], format: uuid }
+        active: { type: boolean }
+        last_fired_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+        cooldown_seconds: { type: integer }
+      required: [id, name, kind, config, is_default, active, created_at]
+
+    NewNotification:
+      type: object
+      required: [name, kind, config]
+      properties:
+        name: { type: string }
+        kind: { $ref: '#/components/schemas/ChannelKind' }
+        config: { type: object }
+        is_default: { type: boolean }
+        template_id: { type: [string, 'null'], format: uuid }
+        active: { type: boolean }
+        cooldown_seconds: { type: integer }
+
+    NotificationTemplate:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        channel_kinds: { type: array, items: { type: string } }
+        event_kind: { type: string }
+        subject_template: { type: [string, 'null'] }
+        body_template: { type: string }
+        is_default: { type: boolean }
+        created_at: { type: string, format: date-time }
+      required: [name, channel_kinds, event_kind, body_template]
+
+    Tag:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        color: { type: string, description: '#rrggbb' }
+        created_at: { type: string, format: date-time }
+      required: [id, name, color, created_at]
+
+    TagBrief:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        color: { type: string }
+      required: [id, name, color]
+
+    NewTag:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 40 }
+        color: { type: string, default: '#14b8a6' }
+
+    UpdateTag:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 40 }
+        color: { type: string }
+
+    MonitorGroup:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        sort_order: { type: integer }
+        parent_id: { type: [string, 'null'], format: uuid }
+        created_at: { type: string, format: date-time }
+      required: [id, name, sort_order, created_at]
+
+    NewMonitorGroup:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        sort_order: { type: integer, default: 0 }
+        parent_id: { type: string, format: uuid }
+
+    UpdateMonitorGroup:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        sort_order: { type: integer }
+        parent_id: { type: [string, 'null'], format: uuid, description: 'null moves to root.' }
+
+    ApiKey:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        key_prefix: { type: string, description: 'First 8 chars of the raw key.' }
+        scopes: { type: array, items: { type: string } }
+        created_by: { type: [string, 'null'], format: uuid }
+        created_at: { type: string, format: date-time }
+        last_used_at: { type: [string, 'null'], format: date-time }
+        expires_at: { type: [string, 'null'], format: date-time }
+      required: [id, name, key_prefix, scopes, created_at]
+
+    NewApiKey:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        scopes: { type: array, items: { type: string } }
+        expires_at: { type: string, format: date-time }
+
+    IssuedApiKey:
+      type: object
+      description: One-shot creation response. `token` is shown only here.
+      properties:
+        key: { $ref: '#/components/schemas/ApiKey' }
+        token: { type: string, description: 'Full plaintext token, rmp_<32 chars>.' }
+      required: [key, token]
+
+    Proxy:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        protocol: { type: string, enum: [http, https, socks, socks5, socks4] }
+        host: { type: string }
+        port: { type: integer }
+        auth: { type: boolean }
+        username: { type: [string, 'null'] }
+        active: { type: boolean }
+        created_at: { type: string, format: date-time }
+      required: [id, protocol, host, port, auth, active, created_at]
+
+    NewProxy:
+      type: object
+      required: [protocol, host, port]
+      properties:
+        protocol: { type: string, minLength: 1, maxLength: 16 }
+        host: { type: string, minLength: 1, maxLength: 255 }
+        port: { type: integer, minimum: 1, maximum: 65535 }
+        username: { type: string }
+        password: { type: string, description: 'Write-only; never serialized back.' }
+        active: { type: boolean, default: true }
+
+    IngestTokenModel:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        status_page_id: { type: string, format: uuid }
+        token: { type: string, description: 'Opaque URL credential; safe to show the page admin.' }
+        label: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+        last_used_at: { type: [string, 'null'], format: date-time }
+      required: [id, status_page_id, token, created_at]
+
+    AuditEntry:
+      type: object
+      description: Append-only audit row. Secret-bearing payload fields are redacted before storage.
+      properties:
+        id: { type: string, format: uuid }
+        actor_user_id: { type: [string, 'null'], format: uuid }
+        actor_api_key_id: { type: [string, 'null'], format: uuid }
+        action: { type: string, example: monitor.create }
+        resource_kind: { type: string, example: monitor }
+        resource_id: { type: [string, 'null'], format: uuid }
+        payload: { type: [object, 'null'] }
+        ip_addr: { type: [string, 'null'] }
+        user_agent: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+
+security:
+  - sessionCookie: []
+  - bearerApiKey: []
