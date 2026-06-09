@@ -703,6 +703,155 @@ const en = {
   'audit.expand':                    'Click to expand',
   'audit.collapse':                  'Click to collapse',
 
+  // ── status page: public (unauthenticated #/s/:slug view) ─────────
+  'statuspage.public.live_refresh':         'live · auto-refresh 30s',
+  'statuspage.public.not_found.title':      'Page not found',
+  'statuspage.public.not_found.body_pre':   'No status page is published at',
+  'statuspage.public.not_found.body_post':  '.',
+  'statuspage.public.close':                'Close',
+
+  // hero banner
+  'statuspage.public.hero.up.title':        'All Systems Operational',
+  'statuspage.public.hero.up.sub':          'Every component is reporting healthy.',
+  'statuspage.public.hero.incident.title':  'Active Incident',
+  'statuspage.public.hero.incident.sub':    'See details below.',
+  'statuspage.public.hero.degraded.title':  'Partial Service Degradation',
+  'statuspage.public.hero.degraded.sub':    'One or more components are degraded.',
+  'statuspage.public.hero.down.title':      'Service Disruption',
+  'statuspage.public.hero.down.sub':        'One or more components are down. Engineers are looking into it.',
+  'statuspage.public.hero.maint.title':     'Scheduled Maintenance',
+  'statuspage.public.hero.maint.sub':       'A planned maintenance window is in effect.',
+
+  // KPI row
+  'statuspage.public.kpi.components':       'Components',
+  'statuspage.public.kpi.components_sub':   '{up} up · {degraded} degraded · {down} down',
+  'statuspage.public.kpi.uptime_90d':       '90d uptime',
+  'statuspage.public.kpi.uptime_90d_sub':   'across all components',
+  'statuspage.public.kpi.active_incidents': 'Active incidents',
+  'statuspage.public.kpi.incidents_see_below': 'see below',
+  'statuspage.public.kpi.incidents_none':   'none right now',
+  'statuspage.public.kpi.last_update':      'Last update',
+  'statuspage.public.kpi.last_update_sub':  'refreshes every 30s',
+
+  // section headers + empty states
+  'statuspage.public.section.components':       'Components',
+  'statuspage.public.section.active_incidents': 'Active incidents',
+  'statuspage.public.section.incident_history': 'Incident history',
+  'statuspage.public.section.subscribe':        'Subscribe to updates',
+  'statuspage.public.empty.components':         'No components attached to this page yet.',
+
+  // legend
+  'statuspage.public.legend.operational':   'Operational',
+  'statuspage.public.legend.degraded':      'Degraded',
+  'statuspage.public.legend.down':          'Down',
+  'statuspage.public.legend.maintenance':   'Maintenance',
+  'statuspage.public.legend.no_data':       'No data',
+
+  // component badge status labels
+  'statuspage.public.status.up':            'Operational',
+  'statuspage.public.status.down':          'Down',
+  'statuspage.public.status.degraded':      'Degraded',
+  'statuspage.public.status.paused':        'Paused',
+  'statuspage.public.status.pending':       'Pending',
+  'statuspage.public.status.maintenance':   'Maintenance',
+
+  // daily uptime strip axis
+  'statuspage.public.strip.click_hint':     'Click a day for details',
+  'statuspage.public.strip.days_ago_90':    '90 days ago',
+  'statuspage.public.strip.today':          'today',
+  'statuspage.public.strip.no_data':        'no data yet',
+  'statuspage.public.strip.uptime':         '{pct}% uptime',
+  'statuspage.public.strip.avg_latency':    '· avg {ms} ms',
+
+  // monthly uptime chips (tooltip)
+  'statuspage.public.month.no_data':        '{month} — no data yet',
+  'statuspage.public.month.uptime':         '{month} — {pct}% uptime',
+
+  // day-drilldown popover
+  'statuspage.public.day.operational':      'Operational',
+  'statuspage.public.day.down':             'Down',
+  'statuspage.public.day.degraded':         'Degraded',
+  'statuspage.public.day.maintenance':      'Maintenance',
+  'statuspage.public.day.no_data':          'No data',
+  'statuspage.public.day.unknown':          'Unknown',
+  'statuspage.public.day.all_passed':       'All checks passed on this date.',
+  'statuspage.public.day.incidents_on_date': 'Incidents on this date',
+  'statuspage.public.day.resolved_suffix':  '· resolved',
+
+  // day-cell tooltip
+  'statuspage.public.cell.today':           '{label} · today',
+  'statuspage.public.cell.yesterday':       '{label} · yesterday',
+  'statuspage.public.cell.days_ago':        '{label} · {n} days ago',
+
+  // hourly latency mini-chart
+  'statuspage.public.latency.title':        'Hourly latency',
+  'statuspage.public.latency.loading':      'Loading…',
+  'statuspage.public.latency.error':        "Couldn't load latency.",
+  'statuspage.public.latency.no_samples':   'No latency samples recorded.',
+  'statuspage.public.latency.peak':         'peak {ms} ms',
+  'statuspage.public.latency.hour_no_data': '{hh}:00 — no data',
+  'statuspage.public.latency.hour_ms_one':  '{hh}:00 — {ms}ms ({n} sample)',
+  'statuspage.public.latency.hour_ms':      '{hh}:00 — {ms}ms ({n} samples)',
+  'statuspage.public.latency.hour_ms_aria': '{hh}:00 {ms} milliseconds, {n} samples',
+
+  // subscribe widget
+  'statuspage.public.subscribe.email_tab':   'Email',
+  'statuspage.public.subscribe.rss_tab':     'RSS',
+  'statuspage.public.subscribe.atom_tab':    'Atom',
+  'statuspage.public.subscribe.webhook_tab': 'Webhook',
+  'statuspage.public.subscribe.email_blurb': "Get notified by email when an incident is posted and again on every update + when it's resolved.",
+  'statuspage.public.subscribe.email_placeholder': 'you@example.com',
+  'statuspage.public.subscribe.subscribe':   'Subscribe',
+  'statuspage.public.subscribe.subscribing': 'Subscribing…',
+  'statuspage.public.subscribe.success':     "Subscribed. We'll email you on every incident posted.",
+  'statuspage.public.subscribe.err_email':   'Enter a valid email.',
+  'statuspage.public.subscribe.err_failed':  'Subscribe failed.',
+
+  // feed (RSS / Atom) tab
+  'statuspage.public.feed.blurb_pre':  "Drop this {format} feed into any reader (Feedly, NetNewsWire, Reeder, Slack's ",
+  'statuspage.public.feed.blurb_post': ', etc.) to get a new entry per incident + a refresh on every update.',
+  'statuspage.public.feed.open':       'Open',
+
+  // webhook tab
+  'statuspage.public.webhook.blurb_pre':  'Webhook subscriptions are configured on the operator side from ',
+  'statuspage.public.webhook.path':       'Notifications → Channels',
+  'statuspage.public.webhook.blurb_post': ' inside the Rampart admin. Drop a Slack / Discord / Microsoft Teams / Generic Webhook there and tag it for this status page.',
+  'statuspage.public.webhook.note':       "If you don't run the Rampart instance hosting this page, ask the operator to wire your endpoint as a notification channel.",
+
+  // copy button
+  'statuspage.public.copy.copy':    'Copy',
+  'statuspage.public.copy.copied':  'Copied',
+
+  // incident cards
+  'statuspage.public.incident.resolved': 'Resolved',
+  'statuspage.public.incident.lasted':   '{date} · lasted {duration}',
+  'statuspage.public.incident.posted':   'posted {when}',
+
+  // relative time
+  'statuspage.public.rel.just_now':  'just now',
+  'statuspage.public.rel.seconds':   '{n} seconds ago',
+  'statuspage.public.rel.minute':    '{n} minute ago',
+  'statuspage.public.rel.minutes':   '{n} minutes ago',
+  'statuspage.public.rel.hour':      '{n} hour ago',
+  'statuspage.public.rel.hours':     '{n} hours ago',
+  'statuspage.public.rel.yesterday': 'yesterday',
+  'statuspage.public.rel.days':      '{n} days ago',
+
+  // incident duration
+  'statuspage.public.duration.under_minute': 'under a minute',
+  'statuspage.public.duration.minute':       '{n} minute',
+  'statuspage.public.duration.minutes':      '{n} minutes',
+  'statuspage.public.duration.hour':         '{n} hour',
+  'statuspage.public.duration.hours':        '{n} hours',
+  'statuspage.public.duration.hm':           '{h}h {m}m',
+  'statuspage.public.duration.day':          '{n} day',
+  'statuspage.public.duration.days':         '{n} days',
+  'statuspage.public.duration.dh':           '{d}d {h}h',
+
+  // footer
+  'statuspage.public.footer.powered_by':   'Powered by',
+  'statuspage.public.footer.last_updated': 'Last updated {when}',
+
   // ── locale picker ────────────────────────────────────────────────
   'locale.picker.label':             'Language',
 };
