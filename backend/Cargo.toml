@@ -186,12 +186,15 @@ csnmp            = "0.4"
 #
 # NB: enabling scylla's `rustls-023` feature was attempted (intended to
 # wire `cassandras://`-style TLS through the workspace's ring stack) but
-# the crate declares `tokio-rustls = "0.26"` as a plain optional
-# dependency without `default-features = false`. tokio-rustls 0.26's
-# default is `aws_lc_rs`, which Cargo's feature unification activates on
-# the workspace's `rustls v0.23` — dragging `aws-lc-rs` + `cmake` into
-# the build graph against the no-C-crypto invariant. See
-# docs/SECURITY-DEBT.md "Pending TLS gaps" for the deferred follow-up.
+# the crate declares both `rustls = "0.23"` and `tokio-rustls = "0.26"`
+# as plain optional dependencies without `default-features = false`.
+# rustls 0.23's default feature set includes `aws_lc_rs`, which Cargo's
+# feature unification activates on the workspace's shared `rustls v0.23`
+# — dragging `aws-lc-rs` + `cmake` into the build graph against the
+# no-C-crypto invariant. Re-verified 2026-06-09 against scylla 1.6.0
+# (latest) and the upstream `main` branch: feature set unchanged, no
+# `ring` opt-in exists. See docs/SECURITY-DEBT.md "Pending TLS gaps"
+# for the deferred follow-up.
 scylla           = { version = "1", default-features = false }
 # Docker over the local socket or remote HTTP API.
 # `http` + `pipe` are the bollard default features but we set
