@@ -12,15 +12,18 @@ pub mod betterstack;
 pub mod cachet;
 pub mod checkly;
 pub mod cronitor;
+pub mod csv_import;
 pub mod datadog;
 pub mod freshping;
 pub mod gatus;
 pub mod healthchecks;
 pub mod hetrixtools;
 pub mod pingdom;
+pub mod pingometer;
 pub mod rapidspike;
 pub mod site24x7;
 pub mod statuscake;
+pub mod statusgator;
 pub mod updown;
 pub mod uptimecom;
 pub mod uptimerobot;
@@ -41,6 +44,9 @@ pub enum ImportError {
 
     #[error("export had no monitors array at the top level — pointed at the wrong file?")]
     NoMonitors,
+
+    #[error("failed to parse CSV: {0}")]
+    Csv(String),
 }
 
 /// One Site24x7 (or other source) monitor that successfully mapped

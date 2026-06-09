@@ -9,7 +9,8 @@
 //! Supported formats today: `site24x7`, `pingdom`, `datadog`,
 //! `uptimerobot`, `betterstack`, `healthchecks`, `cronitor`,
 //! `statuscake`, `rapidspike`, `updown`, `cachet`, `gatus`,
-//! `uptimecom`, `hetrixtools`, `freshping`, `checkly`. Adding a new
+//! `uptimecom`, `hetrixtools`, `freshping`, `checkly`, `statusgator`,
+//! `pingometer`, and the Rampart-native `csv` bulk format. Adding a new
 //! format means dropping a sibling module
 //! under `rampart_api::importers::` and a match arm in `run()` below.
 //!
@@ -22,8 +23,9 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use rampart_api::importers::{
-    betterstack, cachet, checkly, cronitor, datadog, freshping, gatus, healthchecks, hetrixtools,
-    pingdom, rapidspike, site24x7, statuscake, updown, uptimecom, uptimerobot, ImportPlan,
+    betterstack, cachet, checkly, cronitor, csv_import, datadog, freshping, gatus, healthchecks,
+    hetrixtools, pingdom, pingometer, rapidspike, site24x7, statuscake, statusgator, updown,
+    uptimecom, uptimerobot, ImportPlan,
 };
 use rampart_db::monitors;
 use tracing::{error, info, warn};
@@ -49,6 +51,9 @@ formats:
   hetrixtools   HetrixTools   `GET /v1/uptime-monitors` JSON dump
   freshping     Freshping     check export JSON dump
   checkly       Checkly       `GET /v1/checks` JSON dump
+  statusgator   StatusGator   services export JSON dump
+  pingometer    Pingometer    monitors export JSON dump
+  csv           Generic CSV   Rampart-native CSV (header row required)
 
 flags:
   --dry-run         parse + map; print summary; do NOT insert
@@ -143,9 +148,15 @@ async fn run(args: Args) -> anyhow::Result<ExitCode> {
         "hetrixtools" => hetrixtools::parse_and_map(&raw)?,
         "freshping" => freshping::parse_and_map(&raw)?,
         "checkly" => checkly::parse_and_map(&raw)?,
+        "statusgator" => statusgator::parse_and_map(&raw)?,
+        "pingometer" => pingometer::parse_and_map(&raw)?,
+        // CSV is not JSON: it has its own entry point that parses the
+        // raw file text as a Rampart-native CSV table rather than a
+        // vendor JSON export.
+        "csv" => csv_import::parse_csv_and_map(&raw)?,
         other => {
             anyhow::bail!(
-                "unsupported format `{other}` — supported: site24x7, pingdom, datadog, uptimerobot, betterstack, healthchecks, cronitor, statuscake, rapidspike, updown, cachet, gatus, uptimecom, hetrixtools, freshping, checkly. {USAGE}",
+                "unsupported format `{other}` — supported: site24x7, pingdom, datadog, uptimerobot, betterstack, healthchecks, cronitor, statuscake, rapidspike, updown, cachet, gatus, uptimecom, hetrixtools, freshping, checkly, statusgator, pingometer, csv. {USAGE}",
                 USAGE = "Use --help for the full list."
             );
         }

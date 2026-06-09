@@ -1,0 +1,31 @@
+{
+  "services": [
+    {
+      "name": "GitHub",
+      "url": "https://www.githubstatus.com",
+      "status": "up",
+      "home_page_url": "https://github.com"
+    },
+    {
+      "name": "Stripe",
+      "url": "https://status.stripe.com",
+      "status": "warn",
+      "home_page_url": "https://stripe.com"
+    },
+    {
+      "name": "Cloudflare",
+      "url": "https://www.cloudflarestatus.com",
+      "status": "up",
+      "home_page_url": "https://www.cloudflare.com"
+    },
+    {
+      "name": "Acme Internal",
+      "status": "up",
+      "home_page_url": "https://acme.example.com"
+    },
+    {
+      "name": "Manual Service",
+      "status": "up"
+    }
+  ]
+}
