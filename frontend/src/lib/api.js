@@ -85,6 +85,10 @@ export const api = {
     /// `payload` shape: { ids: [uuid], interval_seconds?, timeout_seconds?,
     /// add_tag_ids?: [uuid], remove_tag_ids?: [uuid] }. Returns { updated }.
     bulkEdit: (payload) => request('/v1/monitors/bulk-edit', { method: 'POST', body: payload }),
+    /// Pause / resume every monitor carrying a tag in one call. `action`
+    /// is 'pause' | 'resume'. Returns { affected: n } — the count of
+    /// monitors whose active state actually changed.
+    bulkByTag: (tagId, action) => request('/v1/monitors/bulk-by-tag', { method: 'POST', body: { tag_id: tagId, action } }),
     /// Bulk-import monitors from a Rampart-native CSV. POSTs the raw CSV
     /// text (not JSON) to `/v1/monitors/import-csv`; the backend parses +
     /// maps it and returns `{ created, skipped: [{ row, reason }] }`.
@@ -119,6 +123,17 @@ export const api = {
       return request(`/v1/monitors/${id}/slo/burndown${qs}`);
     },
   },
+  // ─── monitor presets ────────────────────────────────────────────────────
+  // Reusable config bags the New-Monitor wizard applies with a click:
+  // saved HTTP header sets (kind 'http_headers', data { headers: {…} }) and
+  // saved TLS posture (kind 'tls', data { ignore_tls: bool }). Nested under
+  // the monitors router on the backend, hence the /v1/monitors/presets paths.
+  monitorPresets: {
+    list:   ()      => request('/v1/monitors/presets'),
+    get:    (id)    => request(`/v1/monitors/presets/${id}`),
+    create: (input) => request('/v1/monitors/presets', { method: 'POST', body: input }),
+    remove: (id)    => request(`/v1/monitors/presets/${id}`, { method: 'DELETE' }),
+  },
   health: {
     live:  () => request('/healthz'),
     ready: () => request('/readyz'),
@@ -136,7 +151,7 @@ export const api = {
   notifications: {
     list:        ()                                  => request('/v1/notifications'),
     get:         (id)                                => request(`/v1/notifications/${id}`),
-    create:      (kind, name, config, templateId, cooldownSeconds = 0, digestWindowSecs = 0) => request('/v1/notifications', { method: 'POST', body: { kind, name, config, active: true, template_id: templateId || null, cooldown_seconds: Number(cooldownSeconds) || 0, digest_window_secs: Number(digestWindowSecs) || 0 } }),
+    create:      (kind, name, config, templateId, cooldownSeconds = 0, digestWindowSecs = 0, extra = {}) => request('/v1/notifications', { method: 'POST', body: { kind, name, config, active: true, template_id: templateId || null, cooldown_seconds: Number(cooldownSeconds) || 0, digest_window_secs: Number(digestWindowSecs) || 0, ...extra } }),
     update:      (id, patch)                         => request(`/v1/notifications/${id}`, { method: 'PATCH', body: patch }),
     remove:      (id)                                => request(`/v1/notifications/${id}`, { method: 'DELETE' }),
     test:        (id)                                => request(`/v1/notifications/${id}/test`, { method: 'POST' }),
@@ -144,6 +159,13 @@ export const api = {
     forMonitor:  (mid)                               => request(`/v1/monitors/${mid}/notifications`),
     attach:      (mid, nid)                          => request(`/v1/monitors/${mid}/notifications/${nid}`, { method: 'POST' }),
     detach:      (mid, nid)                          => request(`/v1/monitors/${mid}/notifications/${nid}`, { method: 'DELETE' }),
+  },
+  scheduledReports: {
+    list:    ()          => request('/v1/scheduled-reports'),
+    get:     (id)        => request(`/v1/scheduled-reports/${id}`),
+    create:  (input)     => request('/v1/scheduled-reports', { method: 'POST', body: input }),
+    update:  (id, patch) => request(`/v1/scheduled-reports/${id}`, { method: 'PATCH', body: patch }),
+    remove:  (id)        => request(`/v1/scheduled-reports/${id}`, { method: 'DELETE' }),
   },
   templates: {
     list:    ()              => request('/v1/notification-templates'),
@@ -243,6 +265,13 @@ export const api = {
     create:     (input)             => request('/v1/status-pages', { method: 'POST', body: input }),
     update:     (id, patch)         => request(`/v1/status-pages/${id}`, { method: 'PATCH', body: patch }),
     remove:     (id)                => request(`/v1/status-pages/${id}`, { method: 'DELETE' }),
+    // Component sections (sub-section grouping on the public page).
+    listSections:  (pageId)              => request(`/v1/status-pages/${pageId}/sections`),
+    createSection: (pageId, name)        => request(`/v1/status-pages/${pageId}/sections`, { method: 'POST', body: { name } }),
+    updateSection: (pageId, sectionId, patch) => request(`/v1/status-pages/${pageId}/sections/${sectionId}`, { method: 'PATCH', body: patch }),
+    deleteSection: (pageId, sectionId)   => request(`/v1/status-pages/${pageId}/sections/${sectionId}`, { method: 'DELETE' }),
+    // Assign a monitor to a section, or null to un-assign (ungrouped).
+    assignSection: (pageId, monitorId, sectionId) => request(`/v1/status-pages/${pageId}/monitors/${monitorId}/section`, { method: 'PUT', body: { section_id: sectionId } }),
     publicView: (slug)              => request(`/v1/public/status-pages/${slug}`),
     // Resolve a public page by the request's Host header (custom domain).
     // Backs the host-header routing probe in App.jsx: returns the same
