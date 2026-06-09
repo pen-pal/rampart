@@ -704,7 +704,11 @@ export default function Dashboard({ user, onLogout } = {}) {
                 <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
                   <AlertCircle size={14} color="var(--down)"/> Recent incidents
                 </h3>
-                <button className="btn btn-ghost" style={{ padding: '4px 8px' }}>View all <ArrowUpRight size={11}/></button>
+                <button className="btn btn-ghost" style={{ padding: '4px 8px' }}
+                        onClick={() => { window.location.hash = '#/status-page'; }}
+                        title="Manage incidents on the status-page builder">
+                  View all <ArrowUpRight size={11}/>
+                </button>
               </div>
               {recentIncidents.length === 0 ? (
                 <div className="empty">No incidents recorded yet.</div>
@@ -739,7 +743,11 @@ export default function Dashboard({ user, onLogout } = {}) {
                 <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Wrench size={14} color="var(--maint)"/> Maintenance
                 </h3>
-                <button className="btn btn-ghost" style={{ padding: '4px 8px' }}><Plus size={11}/></button>
+                <button className="btn btn-ghost" style={{ padding: '4px 8px' }}
+                        onClick={() => { window.location.hash = '#/maintenance'; }}
+                        title="Schedule a maintenance window">
+                  <Plus size={11}/>
+                </button>
               </div>
               {upcomingMaint.length === 0 ? (
                 <div className="empty">No upcoming maintenance scheduled.</div>
