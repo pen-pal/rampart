@@ -506,11 +506,21 @@ export default function StatusPageView({ slug }) {
 
         {/* ── Brand row ──────────────────────────────────────────── */}
         <div className="brand-row">
-          <div>
-            <h1>{data.title}</h1>
-            {data.description && (
-              <p style={{ fontSize: 13.5, color: 'var(--text-3)', margin: '4px 0 0' }}>{data.description}</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            {data.logo_url && (
+              <img
+                src={data.logo_url}
+                alt=""
+                className="brand-logo"
+                style={{ maxHeight: 40, maxWidth: 160, objectFit: 'contain', flexShrink: 0 }}
+              />
             )}
+            <div>
+              <h1>{data.title}</h1>
+              {data.description && (
+                <p style={{ fontSize: 13.5, color: 'var(--text-3)', margin: '4px 0 0' }}>{data.description}</p>
+              )}
+            </div>
           </div>
           <div className="live-dot">live · auto-refresh 30s</div>
         </div>

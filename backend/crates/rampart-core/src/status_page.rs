@@ -22,6 +22,14 @@ pub struct StatusPage {
     pub title: String,
     pub description: Option<String>,
     pub theme: String,
+    /// Operator-set custom hostname (e.g. "status.acme.com"). The operator
+    /// CNAMEs it to the Rampart host; we only store the canonical name.
+    #[serde(default)]
+    pub custom_domain: Option<String>,
+    /// Brand logo — either an external URL or a `data:` URI for an uploaded
+    /// image. Rendered to the left of the title on the public page.
+    #[serde(default)]
+    pub logo_url: Option<String>,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
     /// Monitors shown on this page, in display order. Populated by
@@ -47,6 +55,15 @@ pub struct NewStatusPage {
     #[serde(default = "default_theme")]
     pub theme: String,
 
+    /// Optional custom hostname. Shape-validated at the API edge (see
+    /// `routes::status_pages`); uniqueness is enforced by the DB index.
+    #[serde(default)]
+    pub custom_domain: Option<String>,
+
+    /// Optional brand logo — external URL or a `data:` URI.
+    #[serde(default)]
+    pub logo_url: Option<String>,
+
     #[serde(default)]
     pub monitor_ids: Vec<MonitorId>,
 }
@@ -61,6 +78,16 @@ pub struct UpdateStatusPage {
 
     #[serde(default)]
     pub theme: Option<String>,
+
+    /// `Some(Some(d))` sets the domain, `Some(None)` clears it, `None`
+    /// leaves it alone. Double-Option so a clear is distinguishable from
+    /// "field omitted".
+    #[serde(default)]
+    pub custom_domain: Option<Option<String>>,
+
+    /// Same triple-state semantics as `custom_domain`.
+    #[serde(default)]
+    pub logo_url: Option<Option<String>>,
 
     /// When present, REPLACES the attached set. When absent, leaves it alone.
     #[serde(default)]
@@ -79,6 +106,15 @@ pub struct PublicStatusPage {
     pub title: String,
     pub description: Option<String>,
     pub theme: String,
+    /// Canonical custom hostname, if the operator set one. The public
+    /// view exposes it so the page knows its branded domain; actual
+    /// routing is the operator's reverse proxy's job.
+    #[serde(default)]
+    pub custom_domain: Option<String>,
+    /// Brand logo (external URL or `data:` URI). Rendered to the left of
+    /// the page title.
+    #[serde(default)]
+    pub logo_url: Option<String>,
     pub generated_at: OffsetDateTime,
     pub monitors: Vec<PublicStatusMonitor>,
     /// Active incidents (active = TRUE), most-recent first, each

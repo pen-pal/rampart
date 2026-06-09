@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   ChevronLeft, Plus, Trash2, ExternalLink, Save, AlertCircle, Loader2, X, Globe,
-  Pencil, Check, Copy,
+  Pencil, Check, Copy, Upload, Image as ImageIcon,
 } from 'lucide-react';
 import { api, useApi, offsetDateTimeArrayToDate } from '../lib/api.js';
 
@@ -142,10 +142,14 @@ export default function StatusPageBuilder() {
                 // Strip id so Editor treats this as a new POST; blank slug
                 // (it must be unique) and suffix the title so the duplicate
                 // is visually distinct in the list before the user tweaks.
+                // A custom domain is also unique, so leave it blank on clone;
+                // the logo carries over since it's just branding.
                 slug: '',
                 title: `${p.title} (copy)`,
                 description: p.description,
                 theme: p.theme,
+                custom_domain: '',
+                logo_url: p.logo_url,
                 monitor_ids: [...p.monitor_ids],
               })}
               onDelete={() => remove(p.id)}
@@ -186,12 +190,31 @@ function Editor({ page, monitors, onCancel, onSaved }) {
   // Clones come in with everything pre-filled except `id`, so detect new
   // mode via absence-of-id rather than absence-of-page.
   const isNew = !page?.id;
-  const [slug,        setSlug]        = useState(page?.slug        || '');
-  const [title,       setTitle]       = useState(page?.title       || '');
-  const [description, setDescription] = useState(page?.description || '');
-  const [picked,      setPicked]      = useState(new Set(page?.monitor_ids || []));
-  const [err,         setErr]         = useState(null);
-  const [saving,      setSaving]      = useState(false);
+  const [slug,         setSlug]         = useState(page?.slug          || '');
+  const [title,        setTitle]        = useState(page?.title         || '');
+  const [description,  setDescription]  = useState(page?.description   || '');
+  const [customDomain, setCustomDomain] = useState(page?.custom_domain || '');
+  const [logoUrl,      setLogoUrl]      = useState(page?.logo_url      || '');
+  const [picked,       setPicked]       = useState(new Set(page?.monitor_ids || []));
+  const [err,          setErr]          = useState(null);
+  const [saving,       setSaving]       = useState(false);
+
+  // Cap an uploaded logo at 512 KB — matches the backend's data: URI guard.
+  const MAX_LOGO_BYTES = 512 * 1024;
+
+  const onLogoPick = (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = ''; // allow re-picking the same file later
+    if (!file) return;
+    if (file.size > MAX_LOGO_BYTES) {
+      setErr('Logo must be 512 KB or smaller. Try a smaller image.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => { setLogoUrl(reader.result); setErr(null); };
+    reader.onerror = () => setErr('Could not read that image. Try another file.');
+    reader.readAsDataURL(file);
+  };
 
   const toggle = (id) => {
     const next = new Set(picked);
@@ -212,18 +235,25 @@ function Editor({ page, monitors, onCancel, onSaved }) {
     }
     setSaving(true);
     try {
+      const domain = customDomain.trim().toLowerCase() || null;
+      const logo   = logoUrl || null;
       if (isNew) {
         await api.statusPages.create({
-          slug:        slug.trim(),
-          title:       title.trim(),
-          description: description.trim() || null,
-          monitor_ids: orderedPicked,
+          slug:          slug.trim(),
+          title:         title.trim(),
+          description:   description.trim() || null,
+          custom_domain: domain,
+          logo_url:      logo,
+          monitor_ids:   orderedPicked,
         });
       } else {
         await api.statusPages.update(page.id, {
-          title:       title.trim(),
-          description: description.trim() || null,
-          monitor_ids: orderedPicked,
+          title:         title.trim(),
+          description:   description.trim() || null,
+          // Backend treats a present value as "set", `null` as "clear".
+          custom_domain: domain,
+          logo_url:      logo,
+          monitor_ids:   orderedPicked,
         });
       }
       onSaved();
@@ -275,6 +305,51 @@ function Editor({ page, monitors, onCancel, onSaved }) {
           <div className="field">
             <label className="field-label">Description (optional)</label>
             <textarea className="textarea" rows={2} value={description} onChange={e => setDescription(e.target.value)} placeholder="Live status of acme.com services"/>
+          </div>
+
+          <div className="field">
+            <label className="field-label">Custom domain (optional)</label>
+            <input
+              className="input mono"
+              value={customDomain}
+              onChange={e => setCustomDomain(e.target.value.toLowerCase())}
+              placeholder="status.example.com"
+            />
+            <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 4 }}>
+              Point this hostname at the Rampart host with a CNAME record, then terminate it on your reverse proxy. Rampart stores the name for branding; routing stays with your proxy.
+            </div>
+          </div>
+
+          <div className="field">
+            <label className="field-label">Logo (optional)</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {logoUrl ? (
+                <img
+                  src={logoUrl}
+                  alt="Logo preview"
+                  style={{ height: 40, maxWidth: 140, objectFit: 'contain', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface-2)', padding: 4 }}
+                />
+              ) : (
+                <div style={{
+                  height: 40, width: 40, borderRadius: 6, border: '1px dashed var(--border-2)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-3)',
+                }}>
+                  <ImageIcon size={16}/>
+                </div>
+              )}
+              <label className="btn" style={{ cursor: 'pointer' }}>
+                <Upload size={13}/> {logoUrl ? 'Replace' : 'Upload'}
+                <input type="file" accept="image/*" onChange={onLogoPick} style={{ display: 'none' }}/>
+              </label>
+              {logoUrl && (
+                <button type="button" className="btn btn-ghost btn-danger" onClick={() => setLogoUrl('')}>
+                  <X size={13}/> Remove
+                </button>
+              )}
+            </div>
+            <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 6 }}>
+              PNG, SVG, or JPG up to 512 KB. Shown to the left of the title on the public page.
+            </div>
           </div>
         </div>
 

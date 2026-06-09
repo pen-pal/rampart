@@ -19,6 +19,8 @@ struct PageRow {
     title: String,
     description: Option<String>,
     theme: String,
+    custom_domain: Option<String>,
+    logo_url: Option<String>,
     created_at: OffsetDateTime,
 }
 
@@ -30,6 +32,8 @@ impl From<PageRow> for StatusPage {
             title: r.title,
             description: r.description,
             theme: r.theme,
+            custom_domain: r.custom_domain,
+            logo_url: r.logo_url,
             // The existing schema has no `updated_at`. The API response
             // re-uses `created_at` until a future migration adds one.
             created_at: r.created_at,
@@ -43,7 +47,7 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<StatusPage>> {
     let rows = sqlx::query_as!(
         PageRow,
         r#"
-        SELECT id, slug, title, description, theme, created_at
+        SELECT id, slug, title, description, theme, custom_domain, logo_url, created_at
         FROM status_pages
         ORDER BY created_at DESC
         "#,
@@ -80,7 +84,7 @@ pub async fn get(pool: &DbPool, id: StatusPageId) -> DbResult<StatusPage> {
     let row = sqlx::query_as!(
         PageRow,
         r#"
-        SELECT id, slug, title, description, theme, created_at
+        SELECT id, slug, title, description, theme, custom_domain, logo_url, created_at
         FROM status_pages
         WHERE id = $1
         "#,
@@ -97,7 +101,7 @@ pub async fn get_by_slug(pool: &DbPool, slug: &str) -> DbResult<StatusPage> {
     let row = sqlx::query_as!(
         PageRow,
         r#"
-        SELECT id, slug, title, description, theme, created_at
+        SELECT id, slug, title, description, theme, custom_domain, logo_url, created_at
         FROM status_pages
         WHERE slug = $1
         "#,
@@ -136,14 +140,16 @@ pub async fn create(pool: &DbPool, input: NewStatusPage) -> DbResult<StatusPage>
 
     sqlx::query!(
         r#"
-        INSERT INTO status_pages (id, slug, title, description, theme)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO status_pages (id, slug, title, description, theme, custom_domain, logo_url)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         "#,
         id.0,
         input.slug,
         input.title,
         input.description,
         input.theme,
+        input.custom_domain,
+        input.logo_url,
     )
     .execute(&mut *tx)
     .await
@@ -196,6 +202,25 @@ pub async fn update(
         sqlx::query!(
             "UPDATE status_pages SET description = $1 WHERE id = $2",
             desc.as_deref(),
+            id.0,
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
+    if let Some(domain) = patch.custom_domain.as_ref() {
+        sqlx::query!(
+            "UPDATE status_pages SET custom_domain = $1 WHERE id = $2",
+            domain.as_deref(),
+            id.0,
+        )
+        .execute(&mut *tx)
+        .await
+        .map_err(map_slug_conflicts)?;
+    }
+    if let Some(logo) = patch.logo_url.as_ref() {
+        sqlx::query!(
+            "UPDATE status_pages SET logo_url = $1 WHERE id = $2",
+            logo.as_deref(),
             id.0,
         )
         .execute(&mut *tx)
@@ -319,6 +344,8 @@ pub async fn public_view(pool: &DbPool, slug: &str) -> DbResult<PublicStatusPage
         title: page.title,
         description: page.description,
         theme: page.theme,
+        custom_domain: page.custom_domain,
+        logo_url: page.logo_url,
         generated_at: OffsetDateTime::now_utc(),
         monitors,
         incidents,
@@ -326,15 +353,29 @@ pub async fn public_view(pool: &DbPool, slug: &str) -> DbResult<PublicStatusPage
     })
 }
 
-/// Convert "duplicate slug" + "slug failed CHECK" Postgres errors into
-/// a friendlier `DbError::Conflict`. Anything else falls through to the
-/// generic sqlx error which surfaces as a 500.
+/// Convert unique / CHECK Postgres errors into a friendlier
+/// `DbError::Conflict`. Used by both create (slug + custom_domain) and the
+/// custom-domain update path. We disambiguate the duplicate-key case by the
+/// violated constraint name so a domain clash doesn't surface as "slug in
+/// use". Anything else falls through to the generic sqlx error (→ 500).
 fn map_slug_conflicts(e: sqlx::Error) -> DbError {
     match &e {
         sqlx::Error::Database(db) => {
             // 23505 = unique_violation, 23514 = check_violation.
             match db.code().as_deref() {
-                Some("23505") => DbError::Conflict("slug is already in use".into()),
+                Some("23505") => {
+                    // Disambiguate by the violated constraint. The custom-domain
+                    // uniqueness index is `status_pages_custom_domain_uidx`
+                    // (this migration); tolerate the `_key` spelling too in case
+                    // an environment already carries a same-purpose constraint.
+                    match db.constraint() {
+                        Some("status_pages_custom_domain_uidx")
+                        | Some("status_pages_custom_domain_key") => {
+                            DbError::Conflict("custom domain is already in use".into())
+                        }
+                        _ => DbError::Conflict("slug is already in use".into()),
+                    }
+                }
                 Some("23514") => DbError::Conflict("slug must match ^[a-z0-9-]{2,40}$".into()),
                 _ => DbError::from(e),
             }
