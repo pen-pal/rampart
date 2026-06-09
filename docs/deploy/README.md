@@ -221,6 +221,6 @@ Whichever you pick, Rampart's role is unchanged: it serves plain HTTP and routes
 
 ## What this directory does NOT cover
 
-- **Kubernetes** — Rampart is single-tenant and stateful. Helm chart contributions welcome (see CONTRIBUTING.md `In Scope`).
+- **Kubernetes** — covered by the Helm chart at [`charts/rampart/`](../../charts/rampart/) (Deployment + Service + optional Ingress with cert-manager + optional embedded Postgres for evaluation). This `docs/deploy/` directory is the single-box / Docker-Compose path; reach for the chart when you want a cluster deploy.
 - **Multi-region replication** — out of scope for the project (see `docs/DESIGN-ORIGINAL.md`). Run one box per region if you need that.
 - **Postgres tuning** — defaults from the postgres-alpine image are fine through ~1000 monitors. Past that, drop a `postgresql.conf` mount in and tune `shared_buffers` / `work_mem` / `max_connections` to your hardware.
