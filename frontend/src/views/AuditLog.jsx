@@ -28,6 +28,19 @@ function csvHref(kind, action, actor, from, to) {
   const tail = qs.toString();
   return `/v1/audit-log/csv${tail ? `?${tail}` : ''}`;
 }
+
+// Streaming export: the backend keyset-paginates the whole window so memory
+// stays flat regardless of log size. Only the time range is honoured (an
+// export is a full window dump), matching the server's `from`/`to` filter.
+function exportCsvHref(from, to) {
+  const qs = new URLSearchParams();
+  const fromIso = dtLocalToIso(from);
+  const toIso   = dtLocalToIso(to);
+  if (fromIso) qs.set('from', fromIso);
+  if (toIso)   qs.set('to',   toIso);
+  const tail = qs.toString();
+  return `/v1/audit-log/export.csv${tail ? `?${tail}` : ''}`;
+}
 import { api, useApi, formatRelative, offsetDateTimeArrayToDate } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
 
@@ -173,6 +186,11 @@ export default function AuditLog() {
               href={csvHref(kind, action, actor, from, to)}
               title={t('audit.csv_hint')}>
               <Download size={13}/> CSV
+            </a>
+            <a className="btn" download
+              href={exportCsvHref(from, to)}
+              title={t('audit.export_csv')}>
+              <Download size={13}/> {t('audit.export_csv')}
             </a>
           </div>
         </div>
