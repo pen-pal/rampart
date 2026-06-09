@@ -61,11 +61,72 @@ const css = `
   .kind-card.active { border-color: var(--accent); background: var(--accent-soft); }
 
   .channel-row {
-    display: grid; grid-template-columns: 30px 1fr auto;
+    display: grid; grid-template-columns: 38px 1fr auto;
     align-items: center; gap: 14px;
-    padding: 12px 18px; border-top: 1px solid var(--border);
+    padding: 14px 20px; border-top: 1px solid var(--border);
+    transition: background .12s;
   }
   .channel-row:first-child { border-top: none; }
+  .channel-row:hover { background: var(--surface-2); }
+
+  /* Channel icon tile — soft background, accent text, matches the
+     visual language of the kind-card chips in the form. Lets users
+     scan the channel list by colour quickly. */
+  .ch-icon-tile {
+    width: 38px; height: 38px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--accent-soft); color: var(--accent-2);
+    flex-shrink: 0;
+  }
+
+  /* Channel-type / status caption — pills instead of an uppercase
+     ALL-CAPS string. Reads at a glance against the channel name. */
+  .ch-meta {
+    display: flex; align-items: center; gap: 6px; margin-top: 4px;
+    font-size: 11.5px; color: var(--text-3);
+  }
+  .ch-type-pill {
+    background: var(--surface-2); color: var(--text-2);
+    padding: 2px 8px; border-radius: 999px;
+    font-weight: 500; font-size: 11px;
+  }
+  .ch-status-on {
+    color: var(--up); font-weight: 500;
+  }
+  .ch-status-off {
+    color: var(--text-3); font-weight: 500;
+  }
+  .ch-status-on::before, .ch-status-off::before {
+    content: ''; display: inline-block; width: 6px; height: 6px;
+    border-radius: 50%; margin-right: 5px; vertical-align: 1px;
+  }
+  .ch-status-on::before  { background: var(--up); box-shadow: 0 0 0 2px var(--up-soft); }
+  .ch-status-off::before { background: var(--text-3); }
+
+  /* Add/edit channel form panel — constrained width so the form
+     doesn't stretch across the full page. Sectioned underline
+     header gives it weight. */
+  .form-panel {
+    max-width: 720px;
+    margin: 0 auto 22px;
+    padding: 22px 26px 26px;
+  }
+  .form-panel h3 {
+    margin: 0 0 4px;
+    font-size: 16px; font-weight: 600; letter-spacing: -.01em;
+  }
+  .form-panel .form-eyebrow {
+    font-size: 11px; font-weight: 600; color: var(--accent-2);
+    text-transform: uppercase; letter-spacing: .06em;
+    margin-bottom: 4px;
+  }
+  .form-panel .form-divider {
+    height: 1px; background: var(--border);
+    margin: 18px 0 16px;
+  }
+  .field-hint {
+    font-size: 11.5px; color: var(--text-3); margin-top: 4px; line-height: 1.45;
+  }
 
   .banner-ok  { background: var(--up-soft);   color: #047857; border: 1px solid #a7f3d0; padding: 10px 14px; border-radius: 8px; font-size: 13px; }
   .banner-err { background: var(--down-soft); color: #b91c1c; border: 1px solid #fecaca; padding: 10px 14px; border-radius: 8px; font-size: 13px; }
@@ -2392,10 +2453,14 @@ export default function Notifications() {
   // The add/edit channel form. Rendered at the top in add mode, or inline
   // under the row being edited. `inline` tweaks margins for the nested case.
   const channelFormCard = (inline = false) => (
-    <div className="card" style={{ padding: 20, marginBottom: inline ? 0 : 20 }}>
-      <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 14px' }}>
-        {editId ? `Edit channel · ${name}` : 'Add a new channel'}
+    <div className={`card form-panel${inline ? ' form-panel-inline' : ''}`} style={inline ? { padding: 20, margin: 0 } : undefined}>
+      <div className="form-eyebrow">
+        {editId ? 'Edit channel' : 'New channel'}
+      </div>
+      <h3>
+        {editId ? name : 'Add a notification channel'}
       </h3>
+      <div className="form-divider"/>
       {editId && (
         <div className="field-hint" style={{ marginBottom: 12, color: 'var(--text-3)' }}>
           Channel type can't be changed — config fields are type-specific. Delete + re-add to switch type.
@@ -2482,10 +2547,17 @@ export default function Notifications() {
           <Bell size={15}/> Notifications
         </span>
         {tab === 'channels' && (
-          <button className="btn btn-accent" style={{ marginLeft: 'auto' }}
-            onClick={() => { if (showAdd) { setShowAdd(false); resetForm(); } else { resetForm(); setShowAdd(true); } }}>
-            <Plus size={13}/> {showAdd ? 'Hide form' : 'Add channel'}
-          </button>
+          showAdd ? (
+            <button className="btn" style={{ marginLeft: 'auto' }}
+              onClick={() => { setShowAdd(false); resetForm(); }}>
+              <X size={13}/> Close form
+            </button>
+          ) : (
+            <button className="btn btn-accent" style={{ marginLeft: 'auto' }}
+              onClick={() => { resetForm(); setShowAdd(true); }}>
+              <Plus size={13}/> Add channel
+            </button>
+          )
         )}
       </header>
 
@@ -2532,9 +2604,9 @@ export default function Notifications() {
             return (
               <React.Fragment key={c.id}>
               <div className="channel-row" style={editingThis ? { background: 'var(--surface-2)' } : undefined}>
-                <Icon size={16} color="var(--text-2)"/>
-                <div>
-                  <div style={{ fontSize: 13.5, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <div className="ch-icon-tile"><Icon size={17}/></div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     {c.name}
                     {tpl && <span className="template-pill"><FileText size={9}/> {tpl.name}</span>}
                     {(c.tags || []).map(t => (
@@ -2544,8 +2616,11 @@ export default function Notifications() {
                       }}>{t.name}</span>
                     ))}
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2, textTransform: 'uppercase', letterSpacing: '.04em' }}>
-                    {meta ? meta.name : c.kind} · {c.active ? 'enabled' : 'disabled'}
+                  <div className="ch-meta">
+                    <span className="ch-type-pill">{meta ? meta.name : c.kind}</span>
+                    <span className={c.active ? 'ch-status-on' : 'ch-status-off'}>
+                      {c.active ? 'Enabled' : 'Disabled'}
+                    </span>
                   </div>
                 </div>
                 <div style={{ gridColumn: '3', display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
