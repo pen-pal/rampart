@@ -161,14 +161,19 @@ jobs:
       - name: Install sqlx-cli
         run: cargo install sqlx-cli --no-default-features --features rustls,postgres --locked
 
-      - name: Build backend (debug)
-        working-directory: backend
-        run: cargo build -p rampart-api
-
+      # Frontend bundle MUST build before the backend: rampart-api embeds
+      # frontend/dist/ via rust-embed, whose derive macro errors at compile
+      # time if the folder is absent. (backend-lint / backend-test stub an
+      # empty dist; the e2e job needs the real bundle anyway, so just build
+      # it first.)
       - name: Install frontend deps + build bundle
         run: |
           npm ci
           npm run build
+
+      - name: Build backend (debug)
+        working-directory: backend
+        run: cargo build -p rampart-api
 
       - name: Install Playwright browser (${{ matrix.browser }})
         # Bundled engines (chromium / firefox / webkit) install their own
