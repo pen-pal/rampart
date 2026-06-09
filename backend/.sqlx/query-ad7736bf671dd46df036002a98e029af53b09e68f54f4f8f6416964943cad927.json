@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT n.id, n.kind AS \"kind: ChannelKind\", n.name, n.config, n.active,\n               n.template_id, n.created_at, n.cooldown_seconds, n.last_fired_at\n        FROM notifications n\n        JOIN monitor_notifications mn ON mn.notification_id = n.id\n        WHERE mn.monitor_id = $1 AND n.active\n        ",
+  "query": "\n        SELECT id, kind AS \"kind: ChannelKind\", name, config, active,\n               template_id, created_at, cooldown_seconds, digest_window_secs, last_fired_at\n        FROM notifications\n        ORDER BY created_at DESC\n        ",
   "describe": {
     "columns": [
       {
@@ -230,6 +230,17 @@
       },
       {
         "ordinal": 8,
+        "name": "digest_window_secs",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "notifications",
+            "name": "digest_window_secs"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
         "name": "last_fired_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -241,9 +252,7 @@
       }
     ],
     "parameters": {
-      "Left": [
-        "Uuid"
-      ]
+      "Left": []
     },
     "nullable": [
       false,
@@ -254,8 +263,9 @@
       true,
       false,
       false,
+      false,
       true
     ]
   },
-  "hash": "d93d9f38e6725647794a0e527da76ef89372320ca0c980ca9dcc2e465da90d47"
+  "hash": "ad7736bf671dd46df036002a98e029af53b09e68f54f4f8f6416964943cad927"
 }

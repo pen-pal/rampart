@@ -44,6 +44,7 @@ fn webhook_channel(name: &str) -> NewNotification {
         active: true,
         template_id: None,
         cooldown_seconds: 0,
+        digest_window_secs: 0,
     }
 }
 
@@ -54,6 +55,7 @@ fn empty_update() -> UpdateNotification {
         active: None,
         template_id: None,
         cooldown_seconds: None,
+        digest_window_secs: None,
     }
 }
 

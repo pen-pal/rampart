@@ -2380,6 +2380,7 @@ export default function Notifications({ user } = {}) {
   const [config,  setConfig]  = useState({});
   const [templateId, setTemplateId] = useState('');
   const [cooldown,   setCooldown]   = useState(0);
+  const [digest,     setDigest]     = useState(0);
   const [busy,    setBusy]    = useState(false);
   const [msg,     setMsg]     = useState(null);
   const [kindQuery, setKindQuery] = useState('');  // filters the channel picker
@@ -2392,7 +2393,7 @@ export default function Notifications({ user } = {}) {
 
   const resetForm = () => {
     setEditId(null); setKind('slack'); setName(''); setConfig({});
-    setTemplateId(''); setCooldown(0); setMsg(null); setKindQuery('');
+    setTemplateId(''); setCooldown(0); setDigest(0); setMsg(null); setKindQuery('');
   };
 
   // Prefill the form from an existing channel and switch to edit mode.
@@ -2407,6 +2408,7 @@ export default function Notifications({ user } = {}) {
     setConfig(c.config || {});
     setTemplateId(c.template_id || '');
     setCooldown(c.cooldown_seconds || 0);
+    setDigest(c.digest_window_secs || 0);
     setMsg(null);
     setShowAdd(false);  // edit renders inline under the row, not at top
   };
@@ -2423,10 +2425,11 @@ export default function Notifications({ user } = {}) {
           config,
           template_id: templateId || null,
           cooldown_seconds: Number(cooldown) || 0,
+          digest_window_secs: Number(digest) || 0,
         });
         setMsg({ kind: 'ok', text: 'Channel updated. Reloading…' });
       } else {
-        await api.notifications.create(kind, name.trim(), config, templateId || null, cooldown);
+        await api.notifications.create(kind, name.trim(), config, templateId || null, cooldown, digest);
         setMsg({ kind: 'ok', text: 'Channel added. Reloading…' });
       }
       setTimeout(reload, 400);
@@ -2505,6 +2508,13 @@ export default function Notifications({ user } = {}) {
           <input className="input" type="number" min="0" step="1" value={cooldown}
             onChange={e => setCooldown(e.target.value)} placeholder={t('notifications.form.cooldown_placeholder')}/>
           <div className="field-hint">{t('notifications.form.cooldown_hint')}</div>
+        </div>
+
+        <div className="field">
+          <label className="field-label">{t('notifications.form.digest')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· {t('notifications.form.digest_unit')}</span></label>
+          <input className="input" type="number" min="0" max="3600" step="1" value={digest}
+            onChange={e => setDigest(e.target.value)} placeholder={t('notifications.form.digest_placeholder')}/>
+          <div className="field-hint">{t('notifications.form.digest_hint')}</div>
         </div>
 
         {msg && <div className={msg.kind === 'ok' ? 'banner-ok' : 'banner-err'} style={{ marginBottom: 12 }}>{msg.text}</div>}
