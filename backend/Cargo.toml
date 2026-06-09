@@ -166,16 +166,32 @@ async-nats       = { version = "0.36", default-features = false, features = ["se
 # since the tokio async surface is what the probe uses.
 ldap3            = { version = "0.12", default-features = false, features = ["tls-rustls-ring"] }
 # AMQP 0-9-1 client (RabbitMQ et al). Pure-Rust. `default-features
-# off` keeps the native-tls path out; the probe defers `amqps://` to
-# a follow-up that wires our existing rustls ClientConfig through
-# lapin's connector. Today the probe handles `amqp://` plaintext.
-lapin            = { version = "3", default-features = false }
+# off` cuts the native-tls + aws-lc-rs paths (lapin's default `rustls`
+# feature pulls `rustls-native-certs` + `rustls--aws_lc_rs`, neither of
+# which fits the workspace's pure-Rust / ring crypto stance — see
+# docs/DEPENDENCIES.md). Instead we hand-pick:
+#   * `rustls--ring`             — ring-backed crypto provider, matches
+#                                  the workspace-shared CryptoProvider
+#                                  installed in `rampart_api::main`.
+#   * `rustls-webpki-roots-certs` — Mozilla webpki trust anchors, matches
+#                                  the rest of the workspace's TLS path.
+# Together these enable `amqps://` for the AMQP probe without dragging
+# `aws-lc-rs` / `cmake` / `openssl` into the build graph.
+lapin            = { version = "3", default-features = false, features = ["rustls--ring", "rustls-webpki-roots-certs"] }
 # SNMP v1/v2c client. Pure-Rust, tokio-async, no C deps.
 csnmp            = "0.4"
 # Cassandra / ScyllaDB driver. Pure-Rust, tokio-async. default-features
 # off because the default feature set drags in `openssl` for TLS; the
-# probe handles plaintext CQL only (TLS is a follow-up that would wire
-# our rustls ClientConfig through `scylla::SessionConfig::rustls_*`).
+# probe handles plaintext CQL only.
+#
+# NB: enabling scylla's `rustls-023` feature was attempted (intended to
+# wire `cassandras://`-style TLS through the workspace's ring stack) but
+# the crate declares `tokio-rustls = "0.26"` as a plain optional
+# dependency without `default-features = false`. tokio-rustls 0.26's
+# default is `aws_lc_rs`, which Cargo's feature unification activates on
+# the workspace's `rustls v0.23` — dragging `aws-lc-rs` + `cmake` into
+# the build graph against the no-C-crypto invariant. See
+# docs/SECURITY-DEBT.md "Pending TLS gaps" for the deferred follow-up.
 scylla           = { version = "1", default-features = false }
 # Docker over the local socket or remote HTTP API.
 # `http` + `pipe` are the bollard default features but we set
