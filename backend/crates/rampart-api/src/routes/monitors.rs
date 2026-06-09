@@ -27,6 +27,7 @@ pub fn router() -> Router<AppState> {
         .route("/", get(list).post(create))
         .route("/import-csv", post(import_csv))
         .route("/bulk", post(bulk))
+        .route("/bulk-edit", post(bulk_edit))
         .route("/summary", get(summary))
         .route("/history", get(history_all))
         .route("/{id}", get(get_one).patch(update).delete(delete_one))
@@ -376,6 +377,138 @@ async fn bulk(
     .await;
 
     Ok(Json(BulkResult { ok, failed }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BulkEditRequest {
+    ids: Vec<String>,
+    #[serde(default)]
+    interval_seconds: Option<i32>,
+    #[serde(default)]
+    timeout_seconds: Option<i32>,
+    #[serde(default)]
+    add_tag_ids: Vec<String>,
+    #[serde(default)]
+    remove_tag_ids: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct BulkEditResult {
+    updated: usize,
+}
+
+/// Apply interval/timeout/tag changes to many monitors in one call. Like
+/// [`bulk`] this is best-effort per id, but unlike the single-action
+/// `bulk` it can do several mutations to each monitor: optionally set
+/// `interval_seconds` / `timeout_seconds` (validated against the same
+/// ranges `NewMonitor` enforces, via the shared `UpdateMonitor` validator)
+/// and add / remove any number of tags. `updated` counts the monitors that
+/// had at least one mutation applied without error. The scheduler is poked
+/// once at the end so interval changes get picked up by the running probes.
+async fn bulk_edit(
+    State(state): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
+    Json(req): Json<BulkEditRequest>,
+) -> Result<Json<BulkEditResult>, ApiError> {
+    if req.ids.is_empty() {
+        return Err(ApiError::BadRequest("ids is empty".into()));
+    }
+    if req.ids.len() > 500 {
+        return Err(ApiError::BadRequest("too many monitors (max 500)".into()));
+    }
+
+    use rampart_core::ids::TagId;
+
+    // Resolve + validate everything once before the loop so a bad payload
+    // fails fast (and identically) for every id rather than partway through.
+    let want_field_update = req.interval_seconds.is_some() || req.timeout_seconds.is_some();
+    if want_field_update {
+        // Reuse the canonical UpdateMonitor validator for the interval /
+        // timeout ranges — deserialize a minimal patch so its `#[serde(default)]`
+        // fields populate, then run `.validate()`.
+        let patch: UpdateMonitor = serde_json::from_value(serde_json::json!({
+            "interval_seconds": req.interval_seconds,
+            "timeout_seconds": req.timeout_seconds,
+        }))
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+        patch.validate()?;
+    }
+
+    let parse_tags = |raw: &[String]| -> Result<Vec<TagId>, ApiError> {
+        raw.iter()
+            .map(|t| {
+                Uuid::from_str(t)
+                    .map(TagId::from_uuid)
+                    .map_err(|_| ApiError::BadRequest("invalid tag_id".into()))
+            })
+            .collect()
+    };
+    let add_tags = parse_tags(&req.add_tag_ids)?;
+    let remove_tags = parse_tags(&req.remove_tag_ids)?;
+
+    let pool = state.pool();
+    let mut updated = 0usize;
+    for raw in &req.ids {
+        let mid = match parse_monitor_id(raw) {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+        let mut ok = true;
+        if want_field_update {
+            // Fresh patch per monitor — `update` consumes it. Only the
+            // interval / timeout fields are set; everything else is None and
+            // COALESCEs to the existing value in the DB.
+            let patch: UpdateMonitor = match serde_json::from_value(serde_json::json!({
+                "interval_seconds": req.interval_seconds,
+                "timeout_seconds": req.timeout_seconds,
+            })) {
+                Ok(p) => p,
+                Err(_) => {
+                    continue;
+                }
+            };
+            if rampart_db::monitors::update(pool, mid, patch)
+                .await
+                .is_err()
+            {
+                ok = false;
+            }
+        }
+        for tag in &add_tags {
+            if rampart_db::tags::attach(pool, mid, *tag).await.is_err() {
+                ok = false;
+            }
+        }
+        for tag in &remove_tags {
+            if rampart_db::tags::detach(pool, mid, *tag).await.is_err() {
+                ok = false;
+            }
+        }
+        if ok {
+            updated += 1;
+        }
+    }
+
+    state.poke_scheduler();
+    crate::audit::record(
+        pool,
+        &user,
+        &headers,
+        "monitor.bulk_edit",
+        "monitor",
+        None,
+        Some(serde_json::json!({
+            "updated": updated,
+            "interval_seconds": req.interval_seconds,
+            "timeout_seconds": req.timeout_seconds,
+            "add_tag_ids": req.add_tag_ids.len(),
+            "remove_tag_ids": req.remove_tag_ids.len(),
+        })),
+    )
+    .await;
+
+    Ok(Json(BulkEditResult { updated }))
 }
 
 /// Duplicate a monitor with the same config under a "<name> (copy)"
