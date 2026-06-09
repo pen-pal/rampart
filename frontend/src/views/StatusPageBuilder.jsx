@@ -486,6 +486,8 @@ function Editor({ page, monitors, writable, onCancel, onSaved }) {
         {!isNew && (
           <>
             <div style={{ height: 22 }}/>
+            <SectionsManager pageId={page.id} monitors={monitors} attached={orderedPicked} writable={writable}/>
+            <div style={{ height: 22 }}/>
             <IncidentsPanel pageId={page.id}/>
             <div style={{ height: 22 }}/>
             <SubscribersPanel pageId={page.id}/>
@@ -498,6 +500,160 @@ function Editor({ page, monitors, writable, onCancel, onSaved }) {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+// Manage component sections (sub-section grouping) for a saved page.
+//   - Add / rename / delete sections (each is a labelled header on the
+//     public page; deleting one leaves its monitors ungrouped).
+//   - Assign each attached monitor to a section via a per-monitor <select>.
+// Section CRUD + assignment are immediate API calls against the saved page
+// (independent of the page's main Save button), so this panel only renders
+// in edit mode. `attached` is the editor's current ordered monitor-id set;
+// `monitors` is the full monitor list for name lookup.
+function SectionsManager({ pageId, monitors, attached, writable }) {
+  // `useApi` re-fires when its deps change, so bump these counters to force a
+  // re-fetch after a mutation (there's no imperative reload on the hook).
+  const [secBump, setSecBump]       = useState(0);
+  const [detailBump, setDetailBump] = useState(0);
+  const sectionsState = useApi(() => api.statusPages.listSections(pageId), [pageId, secBump], { pollMs: 0 });
+  // Full page detail carries `monitor_sections` (per-monitor assignment),
+  // which the list endpoint the Editor was seeded from does not include.
+  const detailState   = useApi(() => api.statusPages.get(pageId), [pageId, detailBump], { pollMs: 0 });
+
+  const [newName, setNewName] = useState('');
+  const [busy,    setBusy]    = useState(null);
+  const [err,     setErr]     = useState(null);
+  // Local override of monitor→section so a <select> change reflects
+  // immediately without re-fetching the whole page detail.
+  const [assignOverride, setAssignOverride] = useState({});
+  const [editing, setEditing] = useState(null);   // section id being renamed
+  const [editName, setEditName] = useState('');
+
+  const sections = sectionsState.data || [];
+  const assignments = useMemo(() => {
+    const map = {};
+    for (const a of (detailState.data?.monitor_sections || [])) map[a.monitor_id] = a.section_id || '';
+    return { ...map, ...assignOverride };
+  }, [detailState.data, assignOverride]);
+
+  // Only show monitors actually attached to this page; resolve names.
+  const attachedMonitors = (attached || [])
+    .map(id => monitors.find(m => m.id === id))
+    .filter(Boolean);
+
+  const addSection = async () => {
+    const name = newName.trim();
+    if (!name) { setErr(t('statuspage.sections.err_name')); return; }
+    setBusy('new'); setErr(null);
+    try {
+      await api.statusPages.createSection(pageId, name);
+      setNewName('');
+      setSecBump(n => n + 1);
+    } catch (e) { setErr(e.message || t('statuspage.sections.err_save')); }
+    finally { setBusy(null); }
+  };
+
+  const rename = async (id) => {
+    const name = editName.trim();
+    if (!name) { setEditing(null); return; }
+    setBusy(id); setErr(null);
+    try {
+      await api.statusPages.updateSection(pageId, id, { name });
+      setEditing(null);
+      setSecBump(n => n + 1);
+    } catch (e) { setErr(e.message || t('statuspage.sections.err_save')); }
+    finally { setBusy(null); }
+  };
+
+  const removeSection = async (id) => {
+    if (!confirm(t('statuspage.sections.delete_confirm'))) return;
+    setBusy(id); setErr(null);
+    try {
+      await api.statusPages.deleteSection(pageId, id);
+      setSecBump(n => n + 1);
+      setDetailBump(n => n + 1);
+    } catch (e) { setErr(e.message || t('statuspage.sections.err_save')); }
+    finally { setBusy(null); }
+  };
+
+  const assign = async (monitorId, sectionId) => {
+    setAssignOverride(prev => ({ ...prev, [monitorId]: sectionId }));
+    setErr(null);
+    try {
+      await api.statusPages.assignSection(pageId, monitorId, sectionId || null);
+    } catch (e) { setErr(e.message || t('statuspage.sections.err_save')); }
+  };
+
+  return (
+    <div className="card" style={{ padding: 22 }}>
+      <h3 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 4px' }}>{t('statuspage.sections.title')}</h3>
+      <p style={{ fontSize: 12, color: 'var(--text-3)', margin: '0 0 14px' }}>{t('statuspage.sections.hint')}</p>
+
+      {err && <div style={{ background: 'var(--down-soft)', color: '#b91c1c', padding: '8px 12px', borderRadius: 6, fontSize: 12, marginBottom: 10 }}>{err}</div>}
+
+      {writable && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+          <input
+            className="input"
+            placeholder={t('statuspage.sections.add_placeholder')}
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') addSection(); }}
+            style={{ fontSize: 12 }}
+          />
+          <button className="btn btn-accent" onClick={addSection} disabled={busy === 'new'} style={{ padding: '5px 10px', fontSize: 12, whiteSpace: 'nowrap' }}>
+            <Plus size={12}/> {busy === 'new' ? t('statuspage.sections.adding') : t('statuspage.sections.add')}
+          </button>
+        </div>
+      )}
+
+      {sections.length === 0 ? (
+        <div style={{ padding: 12, fontSize: 12.5, color: 'var(--text-3)', textAlign: 'center', marginBottom: 14 }}>
+          {t('statuspage.sections.empty')}
+        </div>
+      ) : sections.map(sec => (
+        <div key={sec.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+          {editing === sec.id ? (
+            <>
+              <input className="input" autoFocus value={editName} onChange={e => setEditName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') rename(sec.id); if (e.key === 'Escape') setEditing(null); }}
+                style={{ fontSize: 12.5, padding: '4px 8px', flex: 1 }}/>
+              <button className="btn btn-accent" onClick={() => rename(sec.id)} disabled={busy === sec.id} style={{ padding: '3px 8px', fontSize: 11 }}><Check size={11}/></button>
+              <button className="btn btn-ghost" onClick={() => setEditing(null)} disabled={busy === sec.id} style={{ padding: '3px 8px', fontSize: 11 }}><X size={11}/></button>
+            </>
+          ) : (
+            <>
+              <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{sec.name}</span>
+              {writable && <button className="btn btn-ghost" onClick={() => { setEditing(sec.id); setEditName(sec.name); }} disabled={busy === sec.id} style={{ padding: '3px 8px', fontSize: 11 }} title={t('statuspage.sections.rename')}><Pencil size={11}/></button>}
+              {writable && <button className="btn btn-ghost btn-danger" onClick={() => removeSection(sec.id)} disabled={busy === sec.id} style={{ padding: '3px 8px', fontSize: 11 }} title={t('statuspage.sections.delete')}><Trash2 size={11}/></button>}
+            </>
+          )}
+        </div>
+      ))}
+
+      {attachedMonitors.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          {attachedMonitors.map(m => (
+            <div key={m.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 12, padding: '7px 0', borderTop: '1px solid var(--border)' }}>
+              <span style={{ fontSize: 12.5 }}>{m.name}</span>
+              <select
+                className="input"
+                value={assignments[m.id] || ''}
+                onChange={e => assign(m.id, e.target.value)}
+                disabled={!writable}
+                style={{ width: 180, fontSize: 12, padding: '5px 8px' }}
+              >
+                <option value="">{t('statuspage.sections.ungrouped')}</option>
+                {sections.map(sec => (
+                  <option key={sec.id} value={sec.id}>{sec.name}</option>
+                ))}
+              </select>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

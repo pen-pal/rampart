@@ -28,6 +28,12 @@ pub fn router() -> Router<AppState> {
         .route("/import-csv", post(import_csv))
         .route("/bulk", post(bulk))
         .route("/bulk-edit", post(bulk_edit))
+        .route("/bulk-by-tag", post(bulk_by_tag))
+        // Reusable config presets (saved header sets / TLS posture). Nested
+        // under the monitors router so the one mod.rs router edit this wave
+        // belongs to another feature — these land at /v1/monitors/presets.
+        .route("/presets", get(list_presets).post(create_preset))
+        .route("/presets/{id}", get(get_preset).delete(delete_preset))
         .route("/summary", get(summary))
         .route("/history", get(history_all))
         .route("/{id}", get(get_one).patch(update).delete(delete_one))
@@ -509,6 +515,138 @@ async fn bulk_edit(
     .await;
 
     Ok(Json(BulkEditResult { updated }))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum BulkByTagAction {
+    Pause,
+    Resume,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BulkByTagRequest {
+    tag_id: String,
+    action: BulkByTagAction,
+}
+
+#[derive(Serialize)]
+struct BulkByTagResult {
+    affected: usize,
+}
+
+/// `POST /v1/monitors/bulk-by-tag` — resolve every monitor carrying the
+/// given tag and pause/resume all of them in one statement. Unlike the
+/// id-list `bulk` route the caller never enumerates monitors; they name a
+/// tag and an action. Reuses the same `active` flip the per-monitor
+/// pause/resume helpers use (`set_active_by_tag`), so the scheduler picks
+/// up the change on the next poke. `affected` counts genuine transitions
+/// — monitors already in the target state aren't recounted.
+async fn bulk_by_tag(
+    State(state): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
+    Json(req): Json<BulkByTagRequest>,
+) -> Result<Json<BulkByTagResult>, ApiError> {
+    use rampart_core::ids::TagId;
+
+    let tag = Uuid::from_str(&req.tag_id)
+        .map(TagId::from_uuid)
+        .map_err(|_| ApiError::BadRequest("invalid tag_id".into()))?;
+    let active = match req.action {
+        BulkByTagAction::Pause => false,
+        BulkByTagAction::Resume => true,
+    };
+
+    let affected =
+        rampart_db::monitors::set_active_by_tag(state.pool(), tag, active).await? as usize;
+    state.poke_scheduler();
+
+    let action_name = if active { "resume" } else { "pause" };
+    crate::audit::record(
+        state.pool(),
+        &user,
+        &headers,
+        "monitor.bulk_by_tag",
+        "monitor",
+        None,
+        Some(serde_json::json!({ "tag_id": req.tag_id, "action": action_name, "affected": affected })),
+    )
+    .await;
+
+    Ok(Json(BulkByTagResult { affected }))
+}
+
+// ─── monitor presets (saved header sets / TLS posture) ──────────────────
+//
+// Nested under the monitors router so we don't touch routes/mod.rs this
+// wave; the public paths are /v1/monitors/presets[/:id]. CRUD without
+// PATCH — a preset is a small immutable bag the operator deletes + recreates
+// rather than edits in place.
+
+fn parse_preset_id(s: &str) -> Result<rampart_core::MonitorPresetId, ApiError> {
+    Uuid::from_str(s)
+        .map(rampart_core::MonitorPresetId::from_uuid)
+        .map_err(|_| ApiError::BadRequest("invalid preset id".into()))
+}
+
+async fn list_presets(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<rampart_core::MonitorPreset>>, ApiError> {
+    Ok(Json(rampart_db::monitor_presets::list(state.pool()).await?))
+}
+
+async fn get_preset(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<rampart_core::MonitorPreset>, ApiError> {
+    Ok(Json(
+        rampart_db::monitor_presets::get(state.pool(), parse_preset_id(&id)?).await?,
+    ))
+}
+
+async fn create_preset(
+    State(state): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
+    Json(input): Json<rampart_core::NewMonitorPreset>,
+) -> Result<(StatusCode, Json<rampart_core::MonitorPreset>), ApiError> {
+    if input.name.trim().is_empty() {
+        return Err(ApiError::BadRequest("name is required".into()));
+    }
+    let preset = rampart_db::monitor_presets::create(state.pool(), input).await?;
+    crate::audit::record(
+        state.pool(),
+        &user,
+        &headers,
+        "monitor_preset.create",
+        "monitor_preset",
+        Some(preset.id.0),
+        Some(serde_json::json!({ "name": preset.name, "kind": preset.kind.as_str() })),
+    )
+    .await;
+    Ok((StatusCode::CREATED, Json(preset)))
+}
+
+async fn delete_preset(
+    State(state): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    let preset_id = parse_preset_id(&id)?;
+    rampart_db::monitor_presets::delete(state.pool(), preset_id).await?;
+    crate::audit::record(
+        state.pool(),
+        &user,
+        &headers,
+        "monitor_preset.delete",
+        "monitor_preset",
+        Some(preset_id.0),
+        None,
+    )
+    .await;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// Optional body for `POST /v1/monitors/{id}/clone`.

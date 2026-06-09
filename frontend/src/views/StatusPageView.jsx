@@ -658,6 +658,27 @@ export default function StatusPageView({ slug, byDomainHost }) {
   const incidents = view.incidents || [];
   const hasIncidents = incidents.length > 0;
 
+  // Component grouping. The backend partitions the flat `monitors` list into
+  // ordered `sections` (synthetic leading `name: null` bucket = ungrouped).
+  // We render from `sections` when present, but each Component still needs
+  // its index into the FLAT `monitors` list — that's what the day-latency
+  // endpoint keys off (`monitor_idx`). Resolve that flat index per section
+  // monitor by consuming flat entries in order (handles duplicate names).
+  const sections = (view.sections && view.sections.length > 0)
+    ? view.sections
+    : [{ name: null, monitors }];
+  const flatIndexFor = (() => {
+    const pool = monitors.map((m, idx) => ({ m, idx, used: false }));
+    return (m) => {
+      const hit = pool.find(e => !e.used && e.m === m)
+        || pool.find(e => !e.used && e.m.name === m.name
+              && e.m.current_status === m.current_status
+              && e.m.daily_status_90d === m.daily_status_90d);
+      if (hit) { hit.used = true; return hit.idx; }
+      return monitors.indexOf(m);
+    };
+  })();
+
   let status = overall(monitors);
   if (status === 'up' && hasIncidents) status = 'warn';
 
@@ -734,22 +755,37 @@ export default function StatusPageView({ slug, byDomainHost }) {
         {/* ── Components (always above incidents — components are the
              primary signal; incident threads sit below as context) ── */}
         <div className="section-h"><Activity size={13}/> {t('statuspage.public.section.components')}</div>
-        <div className="card" style={{ overflow: 'hidden' }}>
-          {monitors.length === 0 ? (
-            <div style={{ padding: 36, textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
-              {t('statuspage.public.empty.components')}
+        {monitors.length === 0 ? (
+          <div className="card" style={{ padding: 36, textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
+            {t('statuspage.public.empty.components')}
+          </div>
+        ) : (
+          // One card per section. The ungrouped bucket (name == null) renders
+          // headerless at the top; labelled sections get a header above their
+          // card. A page with no sections collapses to a single ungrouped card,
+          // preserving the original flat layout.
+          sections.filter(sec => (sec.monitors || []).length > 0).map((sec, si) => (
+            <div key={si} style={{ marginBottom: sec.name ? 0 : 0 }}>
+              {sec.name && (
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-2)', margin: '18px 0 8px' }}>
+                  {sec.name}
+                </div>
+              )}
+              <div className="card" style={{ overflow: 'hidden', marginBottom: 4 }}>
+                {sec.monitors.map((m, i) => (
+                  <Component
+                    key={i}
+                    monitor={m}
+                    monitorIdx={flatIndexFor(m)}
+                    slug={effectiveSlug}
+                    activeIncidents={incidents}
+                    incidentHistory={view.incident_history || []}
+                  />
+                ))}
+              </div>
             </div>
-          ) : monitors.map((m, i) => (
-            <Component
-              key={i}
-              monitor={m}
-              monitorIdx={i}
-              slug={effectiveSlug}
-              activeIncidents={incidents}
-              incidentHistory={view.incident_history || []}
-            />
-          ))}
-        </div>
+          ))
+        )}
 
         {/* ── Legend ───────────────────────────────────────────── */}
         <div className="legend">

@@ -12,6 +12,7 @@ rampart-checker  = { path = "../rampart-checker" }
 rampart-notifier = { path = "../rampart-notifier" }
 
 tokio       = { workspace = true }
+reqwest     = { workspace = true }
 futures     = { workspace = true }
 serde       = { workspace = true }
 serde_json  = { workspace = true }

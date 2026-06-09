@@ -9,10 +9,11 @@ use crate::{heartbeats, DbError, DbPool, DbResult};
 use argon2::password_hash::{rand_core::OsRng, SaltString};
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use rampart_core::status_page::{
-    MonthlyUptimePoint, NewStatusPage, PublicIncident, PublicIncidentUpdate,
-    PublicResolvedIncident, PublicStatusMonitor, PublicStatusPage, StatusPage, UpdateStatusPage,
+    MonitorAssignment, MonthlyUptimePoint, NewStatusPage, NewStatusPageSection, PublicIncident,
+    PublicIncidentUpdate, PublicResolvedIncident, PublicSection, PublicStatusMonitor,
+    PublicStatusPage, StatusPage, StatusPageSection, UpdateStatusPage, UpdateStatusPageSection,
 };
-use rampart_core::{MonitorId, StatusPageId};
+use rampart_core::{MonitorId, StatusPageId, StatusPageSectionId};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -61,6 +62,7 @@ impl From<PageRow> for StatusPage {
             created_at: r.created_at,
             updated_at: r.created_at,
             monitor_ids: Vec::new(),
+            monitor_sections: Vec::new(),
         }
     }
 }
@@ -169,7 +171,7 @@ async fn hydrate(pool: &DbPool, row: PageRow) -> DbResult<StatusPage> {
     let mut page: StatusPage = row.into();
     let edges = sqlx::query!(
         r#"
-        SELECT monitor_id FROM status_page_monitors
+        SELECT monitor_id, section_id FROM status_page_monitors
         WHERE page_id = $1
         ORDER BY position
         "#,
@@ -178,8 +180,15 @@ async fn hydrate(pool: &DbPool, row: PageRow) -> DbResult<StatusPage> {
     .fetch_all(pool)
     .await?;
     page.monitor_ids = edges
-        .into_iter()
+        .iter()
         .map(|e| MonitorId::from_uuid(e.monitor_id))
+        .collect();
+    page.monitor_sections = edges
+        .into_iter()
+        .map(|e| MonitorAssignment {
+            monitor_id: MonitorId::from_uuid(e.monitor_id),
+            section_id: e.section_id.map(StatusPageSectionId::from_uuid),
+        })
         .collect();
     Ok(page)
 }
@@ -352,7 +361,12 @@ pub async fn delete(pool: &DbPool, id: StatusPageId) -> DbResult<()> {
 pub async fn public_view(pool: &DbPool, slug: &str) -> DbResult<PublicStatusPage> {
     let page = get_by_slug(pool, slug).await?;
 
+    // Build the flat, page-ordered monitor projection (back-compat) once.
+    // We keep each monitor's id alongside its projection so we can partition
+    // the same projections into sections below without re-querying.
     let mut monitors = Vec::with_capacity(page.monitor_ids.len());
+    let mut by_id: Vec<(MonitorId, PublicStatusMonitor)> =
+        Vec::with_capacity(page.monitor_ids.len());
     for mid in &page.monitor_ids {
         let m = crate::monitors::get(pool, *mid).await?;
         let uptime = heartbeats::uptime_pct(pool, *mid, 90 * 86400)
@@ -373,13 +387,70 @@ pub async fn public_view(pool: &DbPool, slug: &str) -> DbResult<PublicStatusPage
                 uptime_pct: p.uptime_pct,
             })
             .collect();
-        monitors.push(PublicStatusMonitor {
+        let pm = PublicStatusMonitor {
             name: m.name,
             current_status: m.current_status,
             uptime_90d: uptime,
             avg_latency_ms_24h: avg_lat,
             daily_status_90d: daily_str,
             monthly_uptime_12mo: monthly_points,
+        };
+        monitors.push(pm.clone());
+        by_id.push((*mid, pm));
+    }
+
+    // Partition the projections into public sections. Read the page's
+    // sections (ordered) plus the monitor→section assignments, then bucket:
+    // a synthetic leading ungrouped entry (name = None) for monitors with no
+    // section, followed by one entry per labelled section in `position`
+    // order. The ungrouped entry is only emitted when it actually has
+    // monitors, so a fully-grouped page renders no headerless bucket.
+    let section_rows = list_sections(pool, page.id).await?;
+    let assignments = sqlx::query!(
+        r#"
+        SELECT monitor_id, section_id
+        FROM status_page_monitors
+        WHERE page_id = $1
+        "#,
+        page.id.0,
+    )
+    .fetch_all(pool)
+    .await?;
+    let mut section_of: std::collections::HashMap<Uuid, Option<Uuid>> =
+        std::collections::HashMap::with_capacity(assignments.len());
+    for a in assignments {
+        section_of.insert(a.monitor_id, a.section_id);
+    }
+
+    let mut ungrouped: Vec<PublicStatusMonitor> = Vec::new();
+    // Preserve section order; each holds its monitors in page order.
+    let mut grouped: Vec<(Uuid, String, Vec<PublicStatusMonitor>)> = section_rows
+        .iter()
+        .map(|s| (s.id.0, s.name.clone(), Vec::new()))
+        .collect();
+    for (mid, pm) in by_id {
+        match section_of.get(&mid.0).copied().flatten() {
+            Some(sid) => match grouped.iter_mut().find(|(id, _, _)| *id == sid) {
+                Some((_, _, ms)) => ms.push(pm),
+                // Dangling section_id (shouldn't happen given the FK) → treat
+                // as ungrouped rather than dropping the monitor.
+                None => ungrouped.push(pm),
+            },
+            None => ungrouped.push(pm),
+        }
+    }
+
+    let mut sections: Vec<PublicSection> = Vec::with_capacity(grouped.len() + 1);
+    if !ungrouped.is_empty() {
+        sections.push(PublicSection {
+            name: None,
+            monitors: ungrouped,
+        });
+    }
+    for (_, name, ms) in grouped {
+        sections.push(PublicSection {
+            name: Some(name),
+            monitors: ms,
         });
     }
 
@@ -438,6 +509,7 @@ pub async fn public_view(pool: &DbPool, slug: &str) -> DbResult<PublicStatusPage
         private: page.private,
         generated_at: OffsetDateTime::now_utc(),
         monitors,
+        sections,
         incidents,
         incident_history,
         maintenance,
@@ -462,6 +534,163 @@ pub async fn verify_page_password(pool: &DbPool, slug: &str, candidate: &str) ->
     Ok(PasswordHash::new(&hash)
         .and_then(|h| Argon2::default().verify_password(candidate.as_bytes(), &h))
         .is_ok())
+}
+
+// ── Component sections (sub-section grouping) ──────────────────────────
+
+struct SectionRow {
+    id: Uuid,
+    status_page_id: Uuid,
+    name: String,
+    position: i32,
+}
+
+impl From<SectionRow> for StatusPageSection {
+    fn from(r: SectionRow) -> Self {
+        StatusPageSection {
+            id: StatusPageSectionId::from_uuid(r.id),
+            status_page_id: StatusPageId::from_uuid(r.status_page_id),
+            name: r.name,
+            position: r.position,
+        }
+    }
+}
+
+/// List a page's sections in display (`position`) order.
+pub async fn list_sections(
+    pool: &DbPool,
+    page_id: StatusPageId,
+) -> DbResult<Vec<StatusPageSection>> {
+    let rows = sqlx::query_as!(
+        SectionRow,
+        r#"
+        SELECT id, status_page_id, name, position
+        FROM status_page_sections
+        WHERE status_page_id = $1
+        ORDER BY position, name
+        "#,
+        page_id.0,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(Into::into).collect())
+}
+
+/// Create a section on a page, appended after the current last section
+/// (position = current count). Returns the freshly created row.
+pub async fn create_section(
+    pool: &DbPool,
+    page_id: StatusPageId,
+    input: NewStatusPageSection,
+) -> DbResult<StatusPageSection> {
+    let id = StatusPageSectionId::new();
+    // New sections land at the end. `COALESCE(MAX(position)+1, 0)` keeps the
+    // append ordering stable without the caller having to compute it.
+    let pos = sqlx::query_scalar!(
+        r#"
+        SELECT COALESCE(MAX(position) + 1, 0) AS "pos!"
+        FROM status_page_sections
+        WHERE status_page_id = $1
+        "#,
+        page_id.0,
+    )
+    .fetch_one(pool)
+    .await?;
+
+    let row = sqlx::query_as!(
+        SectionRow,
+        r#"
+        INSERT INTO status_page_sections (id, status_page_id, name, position)
+        VALUES ($1, $2, $3, $4)
+        RETURNING id, status_page_id, name, position
+        "#,
+        id.0,
+        page_id.0,
+        input.name,
+        pos,
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(row.into())
+}
+
+/// Rename and/or reposition a section. Fields left `None` are untouched.
+pub async fn update_section(
+    pool: &DbPool,
+    id: StatusPageSectionId,
+    patch: UpdateStatusPageSection,
+) -> DbResult<StatusPageSection> {
+    if let Some(name) = patch.name.as_deref() {
+        sqlx::query!(
+            "UPDATE status_page_sections SET name = $1 WHERE id = $2",
+            name,
+            id.0,
+        )
+        .execute(pool)
+        .await?;
+    }
+    if let Some(pos) = patch.position {
+        sqlx::query!(
+            "UPDATE status_page_sections SET position = $1 WHERE id = $2",
+            pos,
+            id.0,
+        )
+        .execute(pool)
+        .await?;
+    }
+    let row = sqlx::query_as!(
+        SectionRow,
+        r#"
+        SELECT id, status_page_id, name, position
+        FROM status_page_sections
+        WHERE id = $1
+        "#,
+        id.0,
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or(DbError::NotFound)?;
+    Ok(row.into())
+}
+
+/// Delete a section. The `status_page_monitors.section_id` FK is
+/// `ON DELETE SET NULL`, so its monitors fall back to ungrouped rather than
+/// detaching from the page.
+pub async fn delete_section(pool: &DbPool, id: StatusPageSectionId) -> DbResult<()> {
+    let result = sqlx::query!("DELETE FROM status_page_sections WHERE id = $1", id.0)
+        .execute(pool)
+        .await?;
+    if result.rows_affected() == 0 {
+        return Err(DbError::NotFound);
+    }
+    Ok(())
+}
+
+/// Assign a monitor (already attached to the page) to a section, or
+/// un-assign it when `section_id` is `None`. Errors `NotFound` when the
+/// monitor isn't attached to the page so a stray id doesn't silently no-op.
+pub async fn assign_monitor_section(
+    pool: &DbPool,
+    page_id: StatusPageId,
+    monitor_id: MonitorId,
+    section_id: Option<StatusPageSectionId>,
+) -> DbResult<()> {
+    let result = sqlx::query!(
+        r#"
+        UPDATE status_page_monitors
+        SET section_id = $1
+        WHERE page_id = $2 AND monitor_id = $3
+        "#,
+        section_id.map(|s| s.0),
+        page_id.0,
+        monitor_id.0,
+    )
+    .execute(pool)
+    .await?;
+    if result.rows_affected() == 0 {
+        return Err(DbError::NotFound);
+    }
+    Ok(())
 }
 
 /// Convert unique / CHECK Postgres errors into a friendlier

@@ -330,12 +330,26 @@ export default function NewMonitorWizard() {
   const [backoffBase,     setBackoffBase]     = useState('5');
   const [upsideDown,  setUpsideDown]  = useState(false);
   const [followRedir, setFollowRedir] = useState(true);
+  const [ignoreTls,   setIgnoreTls]   = useState(false);
   const [proxyId,     setProxyId]     = useState('');
+
+  // HTTP request headers as raw "Name: value" lines, one per line. Kept as
+  // a textarea string (not a parsed map) so operators can paste a block;
+  // parsed to a { name: value } object only at submit / preset-save time.
+  const [headersText, setHeadersText] = useState('');
 
   // Available proxies for the picker. Polled rarely — these don't change
   // mid-flow. Falls back to [] on error so the form still renders.
   const proxiesState = useApi(() => api.proxies.list(), []);
   const proxies = proxiesState.data || [];
+
+  // Reusable config presets (saved header sets / TLS posture). Bumped via
+  // presetReload after a save so a freshly-created preset shows up without
+  // a full page reload.
+  const [presetReload, setPresetReload] = useState(0);
+  const presetsState = useApi(() => api.monitorPresets.list(), [presetReload]);
+  const presets = presetsState.data || [];
+  const [savingPreset, setSavingPreset] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState(null);
@@ -363,6 +377,60 @@ export default function NewMonitorWizard() {
   };
 
   const cancel = () => { window.location.hash = '#/'; };
+
+  // Parse the "Name: value" textarea into a { name: value } object.
+  // Blank lines and lines without a colon are skipped; the first colon
+  // splits name from value so values containing colons survive.
+  const parseHeaders = (text) => {
+    const out = {};
+    for (const line of text.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const idx = trimmed.indexOf(':');
+      if (idx <= 0) continue;
+      const name = trimmed.slice(0, idx).trim();
+      const value = trimmed.slice(idx + 1).trim();
+      if (name) out[name] = value;
+    }
+    return out;
+  };
+
+  // Serialize a { name: value } map back into textarea lines.
+  const headersToText = (map) =>
+    Object.entries(map || {}).map(([k, v]) => `${k}: ${v}`).join('\n');
+
+  // Apply a chosen preset: header presets fill the headers textarea, TLS
+  // presets flip the ignore_tls toggle. No-op on an empty selection.
+  const applyPreset = (presetId) => {
+    const p = presets.find(x => x.id === presetId);
+    if (!p) return;
+    if (p.kind === 'http_headers') {
+      setHeadersText(headersToText(p.data?.headers));
+    } else if (p.kind === 'tls') {
+      setIgnoreTls(!!p.data?.ignore_tls);
+    }
+  };
+
+  // Save the headers currently typed into the wizard as a new reusable
+  // preset the operator can apply on future monitors.
+  const saveHeadersPreset = async () => {
+    const headers = parseHeaders(headersText);
+    if (Object.keys(headers).length === 0) {
+      setErr(t('wizard.preset.empty'));
+      return;
+    }
+    const name = prompt(t('wizard.preset.name_prompt'));
+    if (!name || !name.trim()) return;
+    setSavingPreset(true);
+    try {
+      await api.monitorPresets.create({ name: name.trim(), kind: 'http_headers', data: { headers } });
+      setPresetReload(n => n + 1);
+    } catch (e) {
+      setErr(e.message || t('wizard.preset.save_failed'));
+    } finally {
+      setSavingPreset(false);
+    }
+  };
 
   const buildPayload = () => {
     const acceptedStatuses = statuses
@@ -416,6 +484,9 @@ export default function NewMonitorWizard() {
       payload.follow_redirect  = followRedir;
       payload.http_method      = method;
       payload.accepted_statuses = acceptedStatuses.length ? acceptedStatuses : undefined;
+      payload.ignore_tls       = ignoreTls;
+      const headers = parseHeaders(headersText);
+      if (Object.keys(headers).length) payload.http_headers = headers;
     }
     if (fields.url      && url)      payload.url      = url;
     if (fields.hostname && hostname) payload.hostname = hostname;
@@ -605,6 +676,50 @@ export default function NewMonitorWizard() {
                     </select>
                     <div className="field-hint">{t('wizard.field.expected_http_version_hint')}</div>
                   </div>
+                )}
+
+                {fields.httpExtras && (
+                  <div className="field">
+                    <label className="field-label">{t('wizard.field.http_headers')}</label>
+                    {/* Apply a saved preset to fill headers / TLS posture. */}
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+                      <select className="select" style={{ flex: 1 }} value="__placeholder__"
+                        disabled={presets.length === 0}
+                        onChange={e => {
+                          const v = e.target.value;
+                          if (v === '__placeholder__') return;
+                          applyPreset(v);
+                          e.target.value = '__placeholder__';
+                        }}>
+                        <option value="__placeholder__">
+                          {presets.length === 0 ? t('wizard.preset.none') : t('wizard.preset.apply')}
+                        </option>
+                        {presets.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} · {p.kind === 'tls' ? t('wizard.preset.kind_tls') : t('wizard.preset.kind_headers')}
+                          </option>
+                        ))}
+                      </select>
+                      <button type="button" className="btn" disabled={savingPreset}
+                        onClick={saveHeadersPreset}>
+                        <Plus size={12}/> {t('wizard.preset.save')}
+                      </button>
+                    </div>
+                    <textarea className="input mono" rows={3} value={headersText}
+                      onChange={e => setHeadersText(e.target.value)}
+                      placeholder={'Authorization: Bearer …\nX-Api-Version: 2'}/>
+                    <div className="field-hint">{t('wizard.field.http_headers_hint')}</div>
+                  </div>
+                )}
+
+                {fields.httpExtras && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 14px', fontSize: 13, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={ignoreTls} onChange={e => setIgnoreTls(e.target.checked)}/>
+                    <span>
+                      {t('wizard.field.ignore_tls')}
+                      <span style={{ display: 'block', fontSize: 12, color: 'var(--text-3)' }}>{t('wizard.field.ignore_tls_hint')}</span>
+                    </span>
+                  </label>
                 )}
 
                 {fields.hostname && (

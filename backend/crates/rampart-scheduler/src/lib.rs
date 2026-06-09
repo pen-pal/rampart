@@ -137,6 +137,67 @@ impl Scheduler {
             // same slow tick. Failures are logged inside the scan — they
             // must never stall the reconcile loop.
             self.check_maintenance_transitions().await;
+            // Scheduled weekly uptime reports, same best-effort contract.
+            self.check_scheduled_reports().await;
+        }
+    }
+
+    /// Periodic, best-effort scan for scheduled uptime reports that are due
+    /// (never sent, or `last_sent_at` older than the cadence window). For
+    /// each, render a per-monitor 7-day uptime digest and email it to the
+    /// report's recipients via the system SMTP sender (the same path the
+    /// maintenance-subscriber fan-out uses), then stamp `last_sent_at`.
+    /// De-dup lives in that column, so re-running every slow tick is safe.
+    /// Failures are logged and never stall the reconcile loop.
+    async fn check_scheduled_reports(&self) {
+        let now = time::OffsetDateTime::now_utc();
+        let due = match rampart_db::scheduled_reports::due(&self.pool, now).await {
+            Ok(d) => d,
+            Err(e) => {
+                warn!(error = %e, "scheduled report due scan failed");
+                return;
+            }
+        };
+        if due.is_empty() {
+            return;
+        }
+
+        for report in due {
+            if report.recipients.is_empty() {
+                // Nothing to send — stamp it so we don't rescan it every
+                // tick, and so it shows a sensible last_sent_at in the UI.
+                if let Err(e) =
+                    rampart_db::scheduled_reports::mark_sent(&self.pool, report.id).await
+                {
+                    warn!(report = %report.id, error = %e, "scheduled report stamp failed");
+                }
+                continue;
+            }
+
+            let (subject, body) = match render_uptime_report(&self.pool, &report.name).await {
+                Ok(v) => v,
+                Err(e) => {
+                    warn!(report = %report.id, error = %e, "uptime report render failed");
+                    continue;
+                }
+            };
+
+            let sent = rampart_notifier::send_system_email(
+                &self.pool,
+                &report.recipients,
+                &subject,
+                &body,
+            )
+            .await;
+            info!(report = %report.id, name = %report.name, recipients = report.recipients.len(),
+                  sent, "scheduled uptime report sent");
+
+            // Stamp regardless of how many recipients succeeded: SMTP may be
+            // unconfigured (sent == 0) and we don't want to retry every tick
+            // forever. Per-recipient failures are already logged.
+            if let Err(e) = rampart_db::scheduled_reports::mark_sent(&self.pool, report.id).await {
+                warn!(report = %report.id, error = %e, "scheduled report stamp failed");
+            }
         }
     }
 
@@ -536,6 +597,15 @@ async fn writer_loop(
 ) {
     let mut buffer: Vec<Heartbeat> = Vec::with_capacity(BATCH_SIZE);
 
+    // Shared client for outbound result webhooks (item: per-monitor probe
+    // result webhooks). Short timeout, built once. A build failure leaves
+    // the feature disabled but never takes down the writer.
+    let result_webhook_client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()
+        .map_err(|e| warn!(error = %e, "result webhook client build failed; webhooks disabled"))
+        .ok();
+
     loop {
         // Wait for at least one heartbeat. If the channel closes, drain
         // remaining buffer and exit.
@@ -593,6 +663,14 @@ async fn writer_loop(
             // one in the batch) to pass to the event; a single breach
             // pages once thanks to `slo_breached_at`.
             check_slo_breaches(&pool, &buffer, notifier.as_ref()).await;
+
+            // Outbound per-monitor result webhooks. Fires on EVERY
+            // heartbeat (not just alerts) for monitors that configure
+            // `config.result_webhook`. Fire-and-forget on a detached task
+            // so a slow sink never blocks the writer.
+            if let Some(client) = result_webhook_client.as_ref() {
+                fire_result_webhooks(&pool, client, &buffer).await;
+            }
         }
         buffer.clear();
     }
@@ -702,6 +780,77 @@ async fn check_slo_breaches(pool: &DbPool, batch: &[Heartbeat], notifier: Option
     }
 }
 
+/// Fire per-monitor result webhooks for a just-persisted batch.
+///
+/// For every monitor in the batch that has a `result_webhook` string in
+/// its `config` JSONB, POST a compact JSON body per heartbeat to that URL.
+/// Fully fire-and-forget: each POST runs on a detached task with the
+/// shared short-timeout client, failures are logged, and nothing here can
+/// block or fail the writer loop.
+///
+/// The monitor config (and thus the webhook URL + name) is fetched once
+/// per distinct monitor in the batch — at most a handful of PK lookups per
+/// flush. Monitors without the config key short-circuit with no I/O beyond
+/// that single fetch.
+async fn fire_result_webhooks(pool: &DbPool, client: &reqwest::Client, batch: &[Heartbeat]) {
+    use std::collections::HashMap;
+
+    // Resolve each distinct monitor's webhook URL + name once. `None`
+    // means "no webhook configured" (or fetch failed) — short-circuits the
+    // per-heartbeat loop below.
+    let mut target_for: HashMap<MonitorId, Option<(String, String)>> = HashMap::new();
+    for hb in batch {
+        if let std::collections::hash_map::Entry::Vacant(e) = target_for.entry(hb.monitor_id) {
+            let target = match rampart_db::monitors::get(pool, hb.monitor_id).await {
+                Ok(m) => result_webhook_url(&m).map(|url| (url, m.name)),
+                Err(e2) => {
+                    warn!(monitor = %hb.monitor_id, error = %e2, "result webhook monitor fetch failed");
+                    None
+                }
+            };
+            e.insert(target);
+        }
+    }
+
+    for hb in batch {
+        let Some(Some((url, name))) = target_for.get(&hb.monitor_id) else {
+            continue;
+        };
+        let payload = serde_json::json!({
+            "monitor_id": hb.monitor_id,
+            "name": name,
+            "status": hb.status,
+            "latency_ms": hb.latency_ms,
+            "status_code": hb.status_code,
+            "ts": hb.ts,
+        });
+        let client = client.clone();
+        let url = url.clone();
+        let mid = hb.monitor_id;
+        tokio::spawn(async move {
+            match client.post(&url).json(&payload).send().await {
+                Ok(resp) if resp.status().is_success() => {}
+                Ok(resp) => {
+                    warn!(monitor = %mid, status = %resp.status(), "result webhook non-2xx")
+                }
+                Err(e) => warn!(monitor = %mid, error = %e, "result webhook POST failed"),
+            }
+        });
+    }
+}
+
+/// Extract the optional `result_webhook` URL from a monitor's `config`
+/// JSONB. Returns `None` when absent, null, non-string, or empty.
+fn result_webhook_url(monitor: &Monitor) -> Option<String> {
+    monitor
+        .config
+        .get("result_webhook")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+}
+
 /// Returns `true` if the batch persisted — callers gate the live-stream
 /// fan-out on this so subscribers never receive rows that aren't on disk.
 async fn flush(pool: &DbPool, batch: &[Heartbeat]) -> bool {
@@ -712,6 +861,34 @@ async fn flush(pool: &DbPool, batch: &[Heartbeat]) -> bool {
         return false;
     }
     true
+}
+
+/// Render the weekly uptime report: one line per monitor with its 7-day
+/// uptime percentage (or "no data" when the window holds no heartbeats).
+/// Plain text — the system email sender ships text/plain. Returns
+/// `(subject, body)`.
+async fn render_uptime_report(
+    pool: &DbPool,
+    report_name: &str,
+) -> Result<(String, String), rampart_db::DbError> {
+    const WINDOW_SECONDS: i64 = 7 * 24 * 3600;
+    let monitors = rampart_db::monitors::list(pool).await?;
+
+    let subject = format!("Weekly uptime report — {report_name}");
+    let mut lines = Vec::with_capacity(monitors.len() + 2);
+    lines.push(subject.clone());
+    lines.push("Per-monitor uptime over the last 7 days:".to_string());
+    if monitors.is_empty() {
+        lines.push("(no monitors configured)".to_string());
+    }
+    for m in &monitors {
+        let pct = rampart_db::heartbeats::uptime_pct(pool, m.id, WINDOW_SECONDS).await?;
+        match pct {
+            Some(p) => lines.push(format!("- {}: {:.2}%", m.name, p)),
+            None => lines.push(format!("- {}: no data", m.name)),
+        }
+    }
+    Ok((subject, lines.join("\n")))
 }
 
 /// Synthesize a Maintenance heartbeat — keeps the timeline contiguous

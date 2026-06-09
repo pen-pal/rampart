@@ -2381,6 +2381,9 @@ export default function Notifications({ user } = {}) {
   const [templateId, setTemplateId] = useState('');
   const [cooldown,   setCooldown]   = useState(0);
   const [digest,     setDigest]     = useState(0);
+  const [quietStart, setQuietStart] = useState('');  // '' = unset
+  const [quietEnd,   setQuietEnd]   = useState('');
+  const [rateLimit,  setRateLimit]  = useState(0);
   const [busy,    setBusy]    = useState(false);
   const [msg,     setMsg]     = useState(null);
   const [kindQuery, setKindQuery] = useState('');  // filters the channel picker
@@ -2393,7 +2396,9 @@ export default function Notifications({ user } = {}) {
 
   const resetForm = () => {
     setEditId(null); setKind('slack'); setName(''); setConfig({});
-    setTemplateId(''); setCooldown(0); setDigest(0); setMsg(null); setKindQuery('');
+    setTemplateId(''); setCooldown(0); setDigest(0);
+    setQuietStart(''); setQuietEnd(''); setRateLimit(0);
+    setMsg(null); setKindQuery('');
   };
 
   // Prefill the form from an existing channel and switch to edit mode.
@@ -2409,6 +2414,9 @@ export default function Notifications({ user } = {}) {
     setTemplateId(c.template_id || '');
     setCooldown(c.cooldown_seconds || 0);
     setDigest(c.digest_window_secs || 0);
+    setQuietStart(c.quiet_hours_start == null ? '' : String(c.quiet_hours_start));
+    setQuietEnd(c.quiet_hours_end == null ? '' : String(c.quiet_hours_end));
+    setRateLimit(c.rate_limit_per_hour || 0);
     setMsg(null);
     setShowAdd(false);  // edit renders inline under the row, not at top
   };
@@ -2417,6 +2425,10 @@ export default function Notifications({ user } = {}) {
     e?.preventDefault?.();
     setMsg(null);
     if (!name.trim()) { setMsg({ kind: 'err', text: 'Name is required.' }); return; }
+    // '' → null (no quiet-hours bound); otherwise a 0-23 integer.
+    const qStart = quietStart === '' ? null : Number(quietStart);
+    const qEnd   = quietEnd   === '' ? null : Number(quietEnd);
+    const rate   = Number(rateLimit) || 0;
     setBusy(true);
     try {
       if (editId) {
@@ -2426,10 +2438,17 @@ export default function Notifications({ user } = {}) {
           template_id: templateId || null,
           cooldown_seconds: Number(cooldown) || 0,
           digest_window_secs: Number(digest) || 0,
+          quiet_hours_start: qStart,
+          quiet_hours_end: qEnd,
+          rate_limit_per_hour: rate,
         });
         setMsg({ kind: 'ok', text: 'Channel updated. Reloading…' });
       } else {
-        await api.notifications.create(kind, name.trim(), config, templateId || null, cooldown, digest);
+        await api.notifications.create(kind, name.trim(), config, templateId || null, cooldown, digest, {
+          quiet_hours_start: qStart,
+          quiet_hours_end: qEnd,
+          rate_limit_per_hour: rate,
+        });
         setMsg({ kind: 'ok', text: 'Channel added. Reloading…' });
       }
       setTimeout(reload, 400);
@@ -2515,6 +2534,25 @@ export default function Notifications({ user } = {}) {
           <input className="input" type="number" min="0" max="3600" step="1" value={digest}
             onChange={e => setDigest(e.target.value)} placeholder={t('notifications.form.digest_placeholder')}/>
           <div className="field-hint">{t('notifications.form.digest_hint')}</div>
+        </div>
+
+        <div className="field">
+          <label className="field-label">{t('notifications.form.quiet_hours')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· {t('notifications.form.quiet_hours_unit')}</span></label>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input className="input" type="number" min="0" max="23" step="1" value={quietStart}
+              onChange={e => setQuietStart(e.target.value)} placeholder={t('notifications.form.quiet_hours_start_placeholder')} style={{ width: 120 }}/>
+            <span style={{ color: 'var(--text-3)' }}>→</span>
+            <input className="input" type="number" min="0" max="23" step="1" value={quietEnd}
+              onChange={e => setQuietEnd(e.target.value)} placeholder={t('notifications.form.quiet_hours_end_placeholder')} style={{ width: 120 }}/>
+          </div>
+          <div className="field-hint">{t('notifications.form.quiet_hours_hint')}</div>
+        </div>
+
+        <div className="field">
+          <label className="field-label">{t('notifications.form.rate_limit')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· {t('notifications.form.rate_limit_unit')}</span></label>
+          <input className="input" type="number" min="0" step="1" value={rateLimit}
+            onChange={e => setRateLimit(e.target.value)} placeholder={t('notifications.form.rate_limit_placeholder')}/>
+          <div className="field-hint">{t('notifications.form.rate_limit_hint')}</div>
         </div>
 
         {msg && <div className={msg.kind === 'ok' ? 'banner-ok' : 'banner-err'} style={{ marginBottom: 12 }}>{msg.text}</div>}
