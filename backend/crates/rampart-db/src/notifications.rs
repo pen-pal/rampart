@@ -19,6 +19,12 @@ pub struct Notification {
     pub created_at: OffsetDateTime,
     #[serde(default)]
     pub cooldown_seconds: i32,
+    /// Coalescing window in seconds. 0 = send each event immediately
+    /// (legacy). > 0 = buffer events for this channel in the notifier and
+    /// flush one combined message every `digest_window_secs`. Clamped to
+    /// 0..=3600 on write.
+    #[serde(default)]
+    pub digest_window_secs: i32,
     #[serde(default)]
     pub last_fired_at: Option<OffsetDateTime>,
     /// Routing tags attached to this channel. Hydrated by the DB layer on
@@ -43,9 +49,19 @@ pub struct NewNotification {
     /// the channel's last successful fire.
     #[serde(default)]
     pub cooldown_seconds: i32,
+    /// 0 = immediate (legacy). > 0 = coalesce events into one combined
+    /// message every N seconds. Clamped to 0..=3600 on insert.
+    #[serde(default)]
+    pub digest_window_secs: i32,
 }
 fn default_enabled() -> bool {
     true
+}
+
+/// Clamp a digest window to the supported 0..=3600 range. Mirrors the
+/// DB CHECK constraint so a bad value is corrected rather than rejected.
+fn clamp_digest_window(v: i32) -> i32 {
+    v.clamp(0, 3600)
 }
 
 #[derive(Debug, Deserialize)]
@@ -65,6 +81,8 @@ pub struct UpdateNotification {
     pub template_id: Option<Option<NotificationTemplateId>>,
     #[serde(default)]
     pub cooldown_seconds: Option<i32>,
+    #[serde(default)]
+    pub digest_window_secs: Option<i32>,
 }
 
 /// Wraps the deserialized value in an outer `Some` so the caller can
@@ -82,7 +100,7 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<Notification>> {
     let rows = sqlx::query!(
         r#"
         SELECT id, kind AS "kind: ChannelKind", name, config, active,
-               template_id, created_at, cooldown_seconds, last_fired_at
+               template_id, created_at, cooldown_seconds, digest_window_secs, last_fired_at
         FROM notifications
         ORDER BY created_at DESC
         "#,
@@ -100,6 +118,7 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<Notification>> {
             template_id: r.template_id.map(NotificationTemplateId::from_uuid),
             created_at: r.created_at,
             cooldown_seconds: r.cooldown_seconds,
+            digest_window_secs: r.digest_window_secs,
             last_fired_at: r.last_fired_at,
             tags: Vec::new(),
         })
@@ -118,7 +137,7 @@ pub async fn get(pool: &DbPool, id: NotificationId) -> DbResult<Notification> {
     let row = sqlx::query!(
         r#"
         SELECT id, kind AS "kind: ChannelKind", name, config, active,
-               template_id, created_at, cooldown_seconds, last_fired_at
+               template_id, created_at, cooldown_seconds, digest_window_secs, last_fired_at
         FROM notifications
         WHERE id = $1
         "#,
@@ -138,6 +157,7 @@ pub async fn get(pool: &DbPool, id: NotificationId) -> DbResult<Notification> {
         template_id: row.template_id.map(NotificationTemplateId::from_uuid),
         created_at: row.created_at,
         cooldown_seconds: row.cooldown_seconds,
+        digest_window_secs: row.digest_window_secs,
         last_fired_at: row.last_fired_at,
         tags: tag_map.remove(&nid).unwrap_or_default(),
     })
@@ -147,10 +167,10 @@ pub async fn create(pool: &DbPool, input: NewNotification) -> DbResult<Notificat
     let id = Uuid::now_v7();
     let row = sqlx::query!(
         r#"
-        INSERT INTO notifications (id, kind, name, config, active, template_id, cooldown_seconds)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        INSERT INTO notifications (id, kind, name, config, active, template_id, cooldown_seconds, digest_window_secs)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING id, kind AS "kind: ChannelKind", name, config, active,
-                  template_id, created_at, cooldown_seconds, last_fired_at
+                  template_id, created_at, cooldown_seconds, digest_window_secs, last_fired_at
         "#,
         id,
         input.kind as ChannelKind,
@@ -159,6 +179,7 @@ pub async fn create(pool: &DbPool, input: NewNotification) -> DbResult<Notificat
         input.active,
         input.template_id.map(|t| t.0),
         input.cooldown_seconds,
+        clamp_digest_window(input.digest_window_secs),
     )
     .fetch_one(pool)
     .await?;
@@ -171,6 +192,7 @@ pub async fn create(pool: &DbPool, input: NewNotification) -> DbResult<Notificat
         template_id: row.template_id.map(NotificationTemplateId::from_uuid),
         created_at: row.created_at,
         cooldown_seconds: row.cooldown_seconds,
+        digest_window_secs: row.digest_window_secs,
         last_fired_at: row.last_fired_at,
         tags: Vec::new(),
     })
@@ -186,6 +208,8 @@ pub async fn update(
     let new_config = input.config.unwrap_or(cur.config);
     let new_active = input.active.unwrap_or(cur.active);
     let new_cooldown = input.cooldown_seconds.unwrap_or(cur.cooldown_seconds);
+    let new_digest =
+        clamp_digest_window(input.digest_window_secs.unwrap_or(cur.digest_window_secs));
     // template_id: outer None = keep current; outer Some(None) = clear;
     // outer Some(Some(id)) = set.
     let new_template_id = match input.template_id {
@@ -197,10 +221,11 @@ pub async fn update(
     let row = sqlx::query!(
         r#"
         UPDATE notifications
-        SET name = $2, config = $3, active = $4, template_id = $5, cooldown_seconds = $6
+        SET name = $2, config = $3, active = $4, template_id = $5, cooldown_seconds = $6,
+            digest_window_secs = $7
         WHERE id = $1
         RETURNING id, kind AS "kind: ChannelKind", name, config, active,
-                  template_id, created_at, cooldown_seconds, last_fired_at
+                  template_id, created_at, cooldown_seconds, digest_window_secs, last_fired_at
         "#,
         id.0,
         new_name,
@@ -208,6 +233,7 @@ pub async fn update(
         new_active,
         new_template_id,
         new_cooldown,
+        new_digest,
     )
     .fetch_one(pool)
     .await?;
@@ -220,6 +246,7 @@ pub async fn update(
         template_id: row.template_id.map(NotificationTemplateId::from_uuid),
         created_at: row.created_at,
         cooldown_seconds: row.cooldown_seconds,
+        digest_window_secs: row.digest_window_secs,
         last_fired_at: row.last_fired_at,
         tags: Vec::new(),
     })
@@ -294,7 +321,7 @@ pub async fn for_monitor(pool: &DbPool, monitor: MonitorId) -> DbResult<Vec<Noti
     let rows = sqlx::query!(
         r#"
         SELECT n.id, n.kind AS "kind: ChannelKind", n.name, n.config, n.active,
-               n.template_id, n.created_at, n.cooldown_seconds, n.last_fired_at
+               n.template_id, n.created_at, n.cooldown_seconds, n.digest_window_secs, n.last_fired_at
         FROM notifications n
         JOIN monitor_notifications mn ON mn.notification_id = n.id
         WHERE mn.monitor_id = $1 AND n.active
@@ -314,6 +341,7 @@ pub async fn for_monitor(pool: &DbPool, monitor: MonitorId) -> DbResult<Vec<Noti
             template_id: r.template_id.map(NotificationTemplateId::from_uuid),
             created_at: r.created_at,
             cooldown_seconds: r.cooldown_seconds,
+            digest_window_secs: r.digest_window_secs,
             last_fired_at: r.last_fired_at,
             tags: Vec::new(),
         })

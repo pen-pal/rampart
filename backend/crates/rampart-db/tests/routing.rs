@@ -46,6 +46,7 @@ fn channel(name: &str) -> NewNotification {
         active: true,
         template_id: None,
         cooldown_seconds: 0,
+        digest_window_secs: 0,
     }
 }
 
@@ -231,6 +232,7 @@ async fn dedupes_across_paths_and_skips_inactive(pool: PgPool) {
             active: Some(false),
             template_id: None,
             cooldown_seconds: None,
+            digest_window_secs: None,
         },
     )
     .await

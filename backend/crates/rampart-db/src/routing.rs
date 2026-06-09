@@ -68,7 +68,7 @@ pub async fn resolve_channels_for_monitor(
             WHERE gn.group_id IN (SELECT gid FROM ancestors)
         )
         SELECT n.id, n.kind AS "kind: ChannelKind", n.name, n.config, n.active,
-               n.template_id, n.created_at, n.cooldown_seconds, n.last_fired_at
+               n.template_id, n.created_at, n.cooldown_seconds, n.digest_window_secs, n.last_fired_at
         FROM notifications n
         JOIN candidates c ON c.id = n.id
         WHERE n.active
@@ -92,6 +92,7 @@ pub async fn resolve_channels_for_monitor(
             template_id: r.template_id.map(NotificationTemplateId::from_uuid),
             created_at: r.created_at,
             cooldown_seconds: r.cooldown_seconds,
+            digest_window_secs: r.digest_window_secs,
             last_fired_at: r.last_fired_at,
             tags: Vec::new(),
         })
