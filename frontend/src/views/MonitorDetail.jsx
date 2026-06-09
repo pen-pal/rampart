@@ -81,6 +81,37 @@ const css = `
   .tabs button:hover { color: var(--text); }
   .tabs button.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.04); }
 
+  /* Form controls — the .input / select.input / textarea.input rules were
+     missing from this view's CSS block, so the EditModal's inputs fell
+     through to browser-default styling. */
+  .input {
+    width: 100%; padding: 8px 11px; border-radius: 8px;
+    background: var(--surface); border: 1px solid var(--border);
+    font-size: 13px; color: var(--text); outline: none;
+    font-family: inherit; line-height: 1.4;
+    transition: border-color .12s, box-shadow .12s;
+  }
+  .input::placeholder { color: var(--text-3); }
+  .input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  select.input { padding-right: 28px; appearance: none; cursor: pointer; }
+  textarea.input { resize: vertical; min-height: 56px; }
+
+  /* Modal section header — quiet uppercase divider that groups related
+     fields in the edit modal without adding a heavy <h3>. */
+  .modal-section {
+    font-size: 11px; font-weight: 600; color: var(--text-3);
+    text-transform: uppercase; letter-spacing: .06em;
+    margin: 18px 0 10px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  }
+  .modal-section:first-of-type { margin-top: 4px; }
+  .modal-hint {
+    font-size: 11px; color: var(--text-3); margin-top: 4px;
+  }
+
   .kpi-label { font-size: 11px; font-weight: 500; color: var(--text-3); text-transform: uppercase; letter-spacing: .04em; }
   .kpi-value { font-size: 28px; font-weight: 600; line-height: 1; letter-spacing: -.02em; }
 
@@ -817,88 +848,132 @@ function EditModal({ monitor, onCancel }) {
   };
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)',
+    <div onClick={onCancel} style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
       padding: 20,
     }}>
-      <div className="modal-card" style={{
-        background: 'var(--surface)', borderRadius: 12, maxWidth: 640, width: '100%',
-        maxHeight: '90vh', overflow: 'auto', padding: 24,
+      <div className="modal-card" onClick={e => e.stopPropagation()} style={{
+        background: 'var(--surface)', borderRadius: 14,
+        maxWidth: 760, width: '100%',
+        maxHeight: '92vh', overflow: 'auto',
+        boxShadow: '0 24px 64px rgba(0,0,0,.18)',
+        border: '1px solid var(--border)',
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Edit · {monitor.name}</h3>
-          <button className="btn btn-ghost" onClick={onCancel} disabled={busy}><X size={14}/></button>
-        </div>
-        {err && (
-          <div style={{ background: 'var(--down-soft)', color: '#b91c1c', border: '1px solid #fecaca', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 14 }}>
-            {err}
-          </div>
-        )}
-
-        <Field label="Name">
-          <input className="input" value={name} onChange={e => setName(e.target.value)}/>
-        </Field>
-
-        <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10 }}>
-          <Field label="Interval (s)"><input className="input" value={intervalSec} onChange={e => setIntervalSec(e.target.value)}/></Field>
-          <Field label="Timeout (s)"><input className="input" value={timeoutSec} onChange={e => setTimeoutSec(e.target.value)}/></Field>
-          <Field label="Retries"><input className="input" value={retries} onChange={e => setRetries(e.target.value)}/></Field>
-          <Field label="Re-alert (s)"><input className="input" value={resend} onChange={e => setResend(e.target.value)}/></Field>
-        </div>
-
-        {monitor.url != null && (
-          <Field label="URL"><input className="input mono" value={url} onChange={e => setUrl(e.target.value)}/></Field>
-        )}
-        {(hasHostname || hasPort) && (
-          <div style={{ display: 'grid', gridTemplateColumns: hasPort ? '1fr 110px' : '1fr', gap: 10 }}>
-            {hasHostname && <Field label="Hostname"><input className="input mono" value={hostname} onChange={e => setHostname(e.target.value)}/></Field>}
-            {hasPort     && <Field label="Port"><input className="input mono" value={port} onChange={e => setPort(e.target.value)}/></Field>}
-          </div>
-        )}
-
-        {isHttpFamily && (
-          <>
-            <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10 }}>
-              <Field label="Method">
-                <select className="input" value={method} onChange={e => setMethod(e.target.value)}>
-                  {['GET','HEAD','POST','PUT','PATCH','DELETE','OPTIONS'].map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </Field>
-              <Field label="Accepted statuses">
-                <input className="input mono" value={statuses} onChange={e => setStatuses(e.target.value)} placeholder="200, 201, 204"/>
-              </Field>
+        {/* Header — sticky so the title + close stay visible while scrolling
+            the long form. */}
+        <div style={{
+          position: 'sticky', top: 0, zIndex: 1,
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '18px 24px',
+          background: 'var(--surface)',
+          borderBottom: '1px solid var(--border)',
+        }}>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600, marginBottom: 2 }}>
+              Edit monitor
             </div>
-            <Field label="Headers (JSON)">
-              <textarea className="input mono" rows={3} value={headers} onChange={e => setHeaders(e.target.value)} placeholder='{"Accept":"application/json"}'/>
-            </Field>
-            <Field label="Body">
-              <textarea className="input mono" rows={2} value={body} onChange={e => setBody(e.target.value)}/>
-            </Field>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-              <Toggle label="Follow redirects" on={follow}     setOn={setFollow}/>
-              <Toggle label="Ignore TLS errors" on={ignoreTls} setOn={setIgnoreTls}/>
-              <Toggle label="Upside down"       on={upside}    setOn={setUpside}/>
+            <h3 style={{ fontSize: 17, fontWeight: 600, margin: 0, letterSpacing: '-.01em' }}>{monitor.name}</h3>
+          </div>
+          <button className="btn btn-ghost" onClick={onCancel} disabled={busy} aria-label="Close">
+            <X size={16}/>
+          </button>
+        </div>
+
+        <div style={{ padding: '20px 24px 24px' }}>
+          {err && (
+            <div style={{ background: 'var(--down-soft)', color: '#b91c1c', border: '1px solid #fecaca', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 14 }}>
+              {err}
             </div>
-          </>
-        )}
+          )}
 
-        {!isHttpFamily && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
-            <Toggle label="Upside down" on={upside} setOn={setUpside}/>
+          {/* ── Basics ─────────────────────────────────────────────── */}
+          <div className="modal-section">Basics</div>
+
+          <Field label="Name">
+            <input className="input" value={name} onChange={e => setName(e.target.value)}/>
+          </Field>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+            <Field label="Interval (s)"><input className="input mono" value={intervalSec} onChange={e => setIntervalSec(e.target.value)}/></Field>
+            <Field label="Timeout (s)"><input className="input mono" value={timeoutSec} onChange={e => setTimeoutSec(e.target.value)}/></Field>
+            <Field label="Retries"><input className="input mono" value={retries} onChange={e => setRetries(e.target.value)}/></Field>
+            <Field label="Re-alert (s)"><input className="input mono" value={resend} onChange={e => setResend(e.target.value)}/></Field>
           </div>
-        )}
 
-        <Field label="Probe config (JSON)">
-          <textarea className="input mono" rows={4}
-            value={config} onChange={e => setConfig(e.target.value)}
-            placeholder={configPlaceholder(monitor.kind)}/>
-          <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>
-            {configHint(monitor.kind)}
-          </div>
-        </Field>
+          {/* ── Target ─────────────────────────────────────────────── */}
+          {(monitor.url != null || hasHostname || hasPort) && (
+            <>
+              <div className="modal-section">Target</div>
+              {monitor.url != null && (
+                <Field label="URL"><input className="input mono" value={url} onChange={e => setUrl(e.target.value)}/></Field>
+              )}
+              {(hasHostname || hasPort) && (
+                <div style={{ display: 'grid', gridTemplateColumns: hasHostname && hasPort ? '1fr 140px' : '1fr', gap: 12 }}>
+                  {hasHostname && <Field label="Hostname"><input className="input mono" value={hostname} onChange={e => setHostname(e.target.value)}/></Field>}
+                  {hasPort     && <Field label="Port"><input className="input mono" value={port} onChange={e => setPort(e.target.value)}/></Field>}
+                </div>
+              )}
+            </>
+          )}
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+          {/* ── HTTP request ──────────────────────────────────────── */}
+          {isHttpFamily && (
+            <>
+              <div className="modal-section">HTTP request</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 12 }}>
+                <Field label="Method">
+                  <select className="input" value={method} onChange={e => setMethod(e.target.value)}>
+                    {['GET','HEAD','POST','PUT','PATCH','DELETE','OPTIONS'].map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </Field>
+                <Field label="Accepted statuses">
+                  <input className="input mono" value={statuses} onChange={e => setStatuses(e.target.value)} placeholder="200, 201, 204"/>
+                </Field>
+              </div>
+              <Field label="Headers (JSON)">
+                <textarea className="input mono" rows={4} value={headers} onChange={e => setHeaders(e.target.value)} placeholder='{"Accept":"application/json"}' style={{ minHeight: 90 }}/>
+              </Field>
+              <Field label="Body">
+                <textarea className="input mono" rows={4} value={body} onChange={e => setBody(e.target.value)} placeholder='Request body (raw)' style={{ minHeight: 80 }}/>
+              </Field>
+              <div className="modal-section">Behaviour</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                <Toggle label="Follow redirects" on={follow}     setOn={setFollow}/>
+                <Toggle label="Ignore TLS errors" on={ignoreTls} setOn={setIgnoreTls}/>
+                <Toggle label="Upside down"       on={upside}    setOn={setUpside}/>
+              </div>
+            </>
+          )}
+
+          {!isHttpFamily && (
+            <>
+              <div className="modal-section">Behaviour</div>
+              <Toggle label="Upside down" on={upside} setOn={setUpside}/>
+            </>
+          )}
+
+          {/* ── Probe config ──────────────────────────────────────── */}
+          <div className="modal-section">Probe config (JSON)</div>
+          <Field label="">
+            <textarea className="input mono" rows={6}
+              value={config} onChange={e => setConfig(e.target.value)}
+              placeholder={configPlaceholder(monitor.kind)}
+              style={{ minHeight: 120 }}/>
+            <div className="modal-hint">
+              {configHint(monitor.kind)}
+            </div>
+          </Field>
+        </div>
+
+        {/* Footer — sticky so the action buttons are always reachable. */}
+        <div style={{
+          position: 'sticky', bottom: 0, zIndex: 1,
+          display: 'flex', justifyContent: 'flex-end', gap: 8,
+          padding: '14px 24px',
+          background: 'var(--surface)',
+          borderTop: '1px solid var(--border)',
+        }}>
           <button className="btn btn-ghost" onClick={onCancel} disabled={busy}>Cancel</button>
           <button className="btn btn-accent" onClick={save} disabled={busy}>
             {busy ? 'Saving…' : 'Save'}
@@ -941,19 +1016,28 @@ function configHint(kind) {
 
 function Field({ label, children }) {
   return (
-    <div style={{ marginBottom: 12 }}>
-      <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 5 }}>
-        {label}
-      </label>
+    <div style={{ marginBottom: 14 }}>
+      {label && (
+        <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-2)', letterSpacing: '.02em', marginBottom: 6 }}>
+          {label}
+        </label>
+      )}
       {children}
     </div>
   );
 }
 function Toggle({ label, on, setOn }) {
   return (
-    <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer' }}>
-      <input type="checkbox" checked={on} onChange={e => setOn(e.target.checked)}/>
-      <span style={{ fontSize: 12.5 }}>{label}</span>
+    <label style={{
+      display: 'flex', alignItems: 'center', gap: 9,
+      padding: '10px 12px',
+      border: '1px solid ' + (on ? 'var(--accent)' : 'var(--border)'),
+      background: on ? 'var(--accent-soft)' : 'var(--surface)',
+      borderRadius: 8, cursor: 'pointer',
+      transition: 'all .12s',
+    }}>
+      <input type="checkbox" checked={on} onChange={e => setOn(e.target.checked)} style={{ accentColor: 'var(--accent)' }}/>
+      <span style={{ fontSize: 12.5, color: on ? 'var(--accent-2)' : 'var(--text-2)', fontWeight: on ? 500 : 400 }}>{label}</span>
     </label>
   );
 }

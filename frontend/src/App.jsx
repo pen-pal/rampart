@@ -20,6 +20,7 @@ const AuditLog          = lazy(() => import('./views/AuditLog.jsx'));
 const StatusPageView    = lazy(() => import('./views/StatusPageView.jsx'));
 import { api } from './lib/api.js';
 import { parseRoute } from './lib/router.js';
+import { FloatingThemeToggle } from './components/ThemeToggle.jsx';
 
 // Minimal centered fallback shown while a lazy view chunk is downloading.
 // Uses existing theme CSS vars so it adapts to light/dark automatically.
@@ -128,11 +129,18 @@ export default function App() {
     }}/>; break;
   }
 
+  // Theme toggle: shown on every authenticated view AND on the public
+  // status surface (so a visitor can flip to dark too). Hidden on the
+  // login screen because the Login view already carries the brand mark
+  // chrome at the top.
+  const showThemeToggle = route.view !== 'login';
+
   return (
     <>
       <Suspense fallback={<ViewFallback />}>
         {view}
       </Suspense>
+      {showThemeToggle && <FloatingThemeToggle />}
       {route.view !== 'login' && route.view !== 'public-status' && <ViewSwitcher current={route.view} />}
     </>
   );
