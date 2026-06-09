@@ -117,3 +117,96 @@ pub async fn list(pool: &DbPool, limit: i64, filter: AuditFilter<'_>) -> DbResul
         })
         .collect())
 }
+
+/// One row of the CSV export, with the actor already resolved to a human
+/// label: the user's email when the action was performed by a logged-in
+/// admin, otherwise the api-key id. The `payload` is intentionally absent —
+/// it is sanitised at write time but is free-form JSON we do not surface in
+/// the flat CSV. Every textual field here is already redaction-safe.
+#[derive(Debug, Clone)]
+pub struct ExportRow {
+    pub id: i64,
+    pub ts: OffsetDateTime,
+    /// Email of the acting user, or the api-key id, or empty (system action).
+    pub actor: String,
+    pub action: String,
+    pub resource_kind: String,
+    pub resource_id: Option<Uuid>,
+    pub ip_addr: Option<String>,
+    pub user_agent: Option<String>,
+}
+
+/// Time-range filter for [`export_batch`]. Mirrors the `from`/`to` of
+/// [`AuditFilter`]; the export deliberately does not expose the other
+/// (kind/action/actor) filters — an export is a full window dump.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ExportFilter {
+    /// Inclusive lower bound on `ts`. None = no lower bound.
+    pub from: Option<OffsetDateTime>,
+    /// Inclusive upper bound on `ts`. None = no upper bound.
+    pub to: Option<OffsetDateTime>,
+}
+
+/// Fetch a single keyset page of export rows in descending id order.
+///
+/// Pass `before_id = None` for the first page; thereafter pass the `id` of
+/// the last row of the previous page. Returns up to `batch` rows. The caller
+/// streams these pages back-to-back so the server never holds more than one
+/// batch in memory regardless of how large the audit log is.
+///
+/// `batch` is clamped to a sane window so a caller can't ask for the whole
+/// table in one query.
+pub async fn export_batch(
+    pool: &DbPool,
+    before_id: Option<i64>,
+    batch: i64,
+    filter: ExportFilter,
+) -> DbResult<Vec<ExportRow>> {
+    let batch = batch.clamp(1, 5_000);
+    let rows = sqlx::query!(
+        r#"
+        SELECT a.id,
+               a.ts,
+               a.action,
+               a.resource_kind,
+               a.resource_id,
+               a.ip_addr,
+               a.user_agent,
+               u.email::text       AS actor_email,
+               a.actor_api_key_id  AS actor_api_key_id
+        FROM audit_log a
+        LEFT JOIN users u ON u.id = a.actor_user_id
+        WHERE ($1::bigint IS NULL OR a.id < $1)
+          AND ($2::timestamptz IS NULL OR a.ts >= $2)
+          AND ($3::timestamptz IS NULL OR a.ts <= $3)
+        ORDER BY a.id DESC
+        LIMIT $4
+        "#,
+        before_id,
+        filter.from,
+        filter.to,
+        batch,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|r| {
+            let actor = r
+                .actor_email
+                .or_else(|| r.actor_api_key_id.map(|k| k.to_string()))
+                .unwrap_or_default();
+            ExportRow {
+                id: r.id,
+                ts: r.ts,
+                actor,
+                action: r.action,
+                resource_kind: r.resource_kind,
+                resource_id: r.resource_id,
+                ip_addr: r.ip_addr.map(|n| n.network().to_string()),
+                user_agent: r.user_agent,
+            }
+        })
+        .collect())
+}
