@@ -12,6 +12,7 @@ use axum::http::{Method, Request, Response, StatusCode};
 use axum::Router;
 use http_body_util::BodyExt;
 use rampart_api::test_router;
+use rampart_core::Role;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use sqlx::PgPool;
@@ -19,6 +20,27 @@ use tower::ServiceExt;
 
 pub fn router(pool: PgPool) -> Router {
     test_router(pool)
+}
+
+/// Create a user with the given role directly in the DB, mint a session,
+/// and return the `rampart_session=<token>` cookie string. Used by RBAC
+/// tests where the locked registration flow can't create extra users.
+pub async fn user_with_role(pool: &PgPool, email: &str, role: Role) -> String {
+    let user = rampart_db::users::create(
+        pool,
+        rampart_db::users::NewUser {
+            email: email.into(),
+            name: Some("Test".into()),
+            password_hash: "$argon2id$v=19$m=19456,t=2,p=1$fake$hash".into(),
+            role,
+        },
+    )
+    .await
+    .expect("create roled user");
+    let session = rampart_db::sessions::create(pool, user.id, 3600, None, None)
+        .await
+        .expect("create session");
+    format!("rampart_session={}", session.id)
 }
 
 /// Issue a JSON request against the router. `body_json` is serialised;

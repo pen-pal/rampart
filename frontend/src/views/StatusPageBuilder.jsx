@@ -4,6 +4,7 @@ import {
   Pencil, Check, Copy, Upload, Image as ImageIcon,
 } from 'lucide-react';
 import { api, useApi, offsetDateTimeArrayToDate } from '../lib/api.js';
+import { canWrite } from '../lib/roles.js';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -55,7 +56,8 @@ const css = `
   .banner-err { background: var(--down-soft); color: #b91c1c; border: 1px solid #fecaca; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
 `;
 
-export default function StatusPageBuilder() {
+export default function StatusPageBuilder({ user } = {}) {
+  const writable = canWrite(user);
   const pagesState    = useApi(() => api.statusPages.list(), [], { pollMs: 30_000 });
   const monitorsState = useApi(() => api.monitors.list(), []);
 
@@ -106,9 +108,11 @@ export default function StatusPageBuilder() {
               Public, no-login views of selected monitors. Share the URL with customers or post it in your README.
             </p>
           </div>
-          <button className="btn btn-accent" onClick={() => setEditing('new')}>
-            <Plus size={14}/> New status page
-          </button>
+          {writable && (
+            <button className="btn btn-accent" onClick={() => setEditing('new')}>
+              <Plus size={14}/> New status page
+            </button>
+          )}
         </div>
 
         {err && (
@@ -137,6 +141,7 @@ export default function StatusPageBuilder() {
               key={p.id}
               page={p}
               busy={busy === p.id}
+              writable={writable}
               onEdit={() => setEditing(p)}
               onClone={() => setEditing({
                 // Strip id so Editor treats this as a new POST; blank slug
@@ -161,7 +166,7 @@ export default function StatusPageBuilder() {
   );
 }
 
-function PageRow({ page, busy, onEdit, onClone, onDelete }) {
+function PageRow({ page, busy, onEdit, onClone, onDelete, writable }) {
   const url = `${window.location.origin}/#/s/${page.slug}`;
   return (
     <div className="row">
@@ -178,9 +183,13 @@ function PageRow({ page, busy, onEdit, onClone, onDelete }) {
           {page.description && ` · ${page.description}`}
         </div>
       </div>
-      <button className="btn btn-ghost" onClick={onEdit} disabled={busy}>Edit</button>
-      <button className="btn btn-ghost" onClick={onClone} disabled={busy} title="Clone — start a new page seeded from this one"><Copy size={13}/></button>
-      <button className="btn btn-ghost btn-danger" onClick={onDelete} disabled={busy}><Trash2 size={13}/></button>
+      {writable ? (
+        <>
+          <button className="btn btn-ghost" onClick={onEdit} disabled={busy}>Edit</button>
+          <button className="btn btn-ghost" onClick={onClone} disabled={busy} title="Clone — start a new page seeded from this one"><Copy size={13}/></button>
+          <button className="btn btn-ghost btn-danger" onClick={onDelete} disabled={busy}><Trash2 size={13}/></button>
+        </>
+      ) : (<><span/><span/><span/></>)}
       <span/>
     </div>
   );

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, email::text AS \"email!\", name, is_admin,\n               created_at, last_login_at, totp_enabled\n        FROM users\n        WHERE id = $1\n        ",
+  "query": "\n        INSERT INTO users (id, email, name, password_hash, is_admin, role)\n        VALUES ($1, $2, $3, $4, $5, $6)\n        RETURNING id, email::text AS \"email!\", name, is_admin, role AS \"role: Role\",\n                  created_at, last_login_at, totp_enabled\n        ",
   "describe": {
     "columns": [
       {
@@ -44,6 +44,28 @@
       },
       {
         "ordinal": 4,
+        "name": "role: Role",
+        "type_info": {
+          "Custom": {
+            "name": "user_role",
+            "kind": {
+              "Enum": [
+                "admin",
+                "editor",
+                "readonly"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "role"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -54,7 +76,7 @@
         }
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "last_login_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -65,7 +87,7 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "totp_enabled",
         "type_info": "Bool",
         "origin": {
@@ -78,7 +100,28 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Uuid",
+        {
+          "Custom": {
+            "name": "citext",
+            "kind": "Simple"
+          }
+        },
+        "Text",
+        "Text",
+        "Bool",
+        {
+          "Custom": {
+            "name": "user_role",
+            "kind": {
+              "Enum": [
+                "admin",
+                "editor",
+                "readonly"
+              ]
+            }
+          }
+        }
       ]
     },
     "nullable": [
@@ -87,9 +130,10 @@
       true,
       false,
       false,
+      false,
       true,
       false
     ]
   },
-  "hash": "2f579211343f6b505f590cf14de1a793aaab3d53761da4a2ade27643a1ee12ac"
+  "hash": "8192488095ec9c1d03b70ef237bbd20c12647ce62718d40029f19214f4847bdf"
 }

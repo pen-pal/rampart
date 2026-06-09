@@ -19,6 +19,7 @@ const Tags              = lazy(() => import('./views/Tags.jsx'));
 const AuditLog          = lazy(() => import('./views/AuditLog.jsx'));
 const StatusPageView    = lazy(() => import('./views/StatusPageView.jsx'));
 import { api } from './lib/api.js';
+import { isAdmin } from './lib/roles.js';
 import { parseRoute } from './lib/router.js';
 import { FloatingThemeToggle, FloatingLocalePicker } from './components/ThemeToggle.jsx';
 
@@ -103,14 +104,34 @@ export default function App() {
     return null;
   }
 
+  // Admin-only views. Non-admins (editor / readonly) who navigate here
+  // directly are bounced to the dashboard — the backend also 403s these,
+  // this is just UX so they don't land on a dead screen. `role` is the
+  // source of truth on `authState.user`.
+  const ADMIN_ONLY_VIEWS = new Set([
+    'users', 'security', 'api-keys', 'proxies', 'audit',
+    'smtp-settings', 'retention-settings',
+  ]);
+  if (
+    !authState.loading
+    && authState.user
+    && ADMIN_ONLY_VIEWS.has(route.view)
+    && !isAdmin(authState.user)
+  ) {
+    if (window.location.hash !== '#/') window.location.hash = '#/';
+    return null;
+  }
+
+  const user = authState.user;
+
   let view = null;
   switch (route.view) {
     case 'login':         view = <Login />; break;
-    case 'monitor':       view = <MonitorDetail monitorId={route.id} />; break;
+    case 'monitor':       view = <MonitorDetail monitorId={route.id} user={user} />; break;
     case 'new-monitor':   view = <NewMonitorWizard />; break;
-    case 'status-page':   view = <StatusPageBuilder />; break;
-    case 'notifications': view = <Notifications />; break;
-    case 'maintenance':   view = <Maintenance />; break;
+    case 'status-page':   view = <StatusPageBuilder user={user} />; break;
+    case 'notifications': view = <Notifications user={user} />; break;
+    case 'maintenance':   view = <Maintenance user={user} />; break;
     case 'api-keys':      view = <ApiKeys />; break;
     case 'proxies':       view = <Proxies />; break;
     case 'security':      view = <Security />; break;
@@ -142,31 +163,35 @@ export default function App() {
       </Suspense>
       {showThemeToggle && <FloatingThemeToggle />}
       {showThemeToggle && <FloatingLocalePicker />}
-      {route.view !== 'login' && route.view !== 'public-status' && <ViewSwitcher current={route.view} />}
+      {route.view !== 'login' && route.view !== 'public-status' && <ViewSwitcher current={route.view} user={authState.user} />}
     </>
   );
 }
 
 // ─── floating dev-only switcher ───────────────────────────────────────────
-function ViewSwitcher({ current }) {
+function ViewSwitcher({ current, user }) {
   const [open, setOpen] = useState(false);
-  const links = [
+  const admin = isAdmin(user);
+  // `adminOnly: true` links are hidden for non-admins (editor / readonly).
+  // Read views stay visible for everyone, including readonly.
+  const allLinks = [
     { hash: '#/',              view: 'dashboard'     },
     { hash: '#/monitor',       view: 'monitor'       },
     { hash: '#/notifications', view: 'notifications' },
     { hash: '#/maintenance',   view: 'maintenance'   },
-    { hash: '#/api-keys',      view: 'api-keys'      },
-    { hash: '#/proxies',       view: 'proxies'       },
-    { hash: '#/security',      view: 'security'      },
-    { hash: '#/users',         view: 'users'         },
+    { hash: '#/api-keys',      view: 'api-keys',     adminOnly: true },
+    { hash: '#/proxies',       view: 'proxies',      adminOnly: true },
+    { hash: '#/security',      view: 'security',     adminOnly: true },
+    { hash: '#/users',         view: 'users',        adminOnly: true },
     { hash: '#/folders',            view: 'folders'           },
     { hash: '#/tags',               view: 'tags'              },
-    { hash: '#/settings/smtp',      view: 'smtp-settings'      },
-    { hash: '#/settings/retention', view: 'retention-settings' },
-    { hash: '#/audit',         view: 'audit'         },
+    { hash: '#/settings/smtp',      view: 'smtp-settings',      adminOnly: true },
+    { hash: '#/settings/retention', view: 'retention-settings', adminOnly: true },
+    { hash: '#/audit',         view: 'audit',        adminOnly: true },
     { hash: '#/status-page',   view: 'status-page'   },
     { hash: '#/new-monitor',   view: 'new-monitor'   },
   ];
+  const links = allLinks.filter(l => admin || !l.adminOnly);
   return (
     <div className="rampart-view-switcher" style={{
       position: 'fixed', right: 16, bottom: 16, zIndex: 10000,

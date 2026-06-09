@@ -60,7 +60,25 @@ pub fn v1_public(state: &AppState) -> Router<AppState> {
 }
 
 pub fn v1_protected() -> Router<AppState> {
-    Router::new()
+    // ── RBAC layering ────────────────────────────────────────────────────
+    // Three slices, all sitting under the outer `require_session` layer
+    // (applied in lib.rs, which populates the `User` in extensions):
+    //
+    //  1. `editor_or_read` — monitors / groups / tags / notifications /
+    //     templates / maintenance / status-pages / incidents / subscribers /
+    //     stream. Wrapped by `require_write_or_readonly_get`: readonly users
+    //     GET fine but 403 on any mutation; editors + admins write freely.
+    //
+    //  2. `admin_only` — users / audit-log / settings / api-keys / proxies /
+    //     ingest-token admin. Wrapped by `require_admin` (403 for everyone
+    //     who isn't admin, on every verb).
+    //
+    //  3. `self_service` — the caller acting on their OWN account: password
+    //     change, 2FA setup/enable/disable, webpush subscription. No role
+    //     gate — a readonly user must still be able to secure their own
+    //     account, so these are exempt from the readonly write-guard.
+
+    let editor_or_read = Router::new()
         // /v1/monitors itself + /v1/monitors/:id/notifications and /tags subroutes
         .nest(
             "/monitors",
@@ -90,38 +108,43 @@ pub fn v1_protected() -> Router<AppState> {
         .nest("/status-pages", status_pages::admin_router())
         // /v1/status-pages/:id/incidents list+create
         .nest("/status-pages", incidents::page_router())
-        // /v1/status-pages/:id/ingest-tokens list+create
-        .nest("/status-pages", ingest::page_router())
         // /v1/incidents/:id update/delete/resolve/updates
         .nest("/incidents", incidents::incident_router())
-        // /v1/ingest-tokens/:id revoke
-        .nest("/ingest-tokens", ingest::token_router())
-        // Subscribers admin + SMTP settings.
+        // Subscribers admin (list/delete) — editors manage status pages.
         .merge(subscribers::admin_router())
-        // /v1/audit-log — admin only via the layer the users router uses.
-        .nest(
-            "/audit-log",
-            audit::router().route_layer(axum::middleware::from_fn(crate::auth::require_admin)),
-        )
+        // /v1/stream/heartbeats — Server-Sent Events fan-out (GET only).
+        .nest("/stream", stream::router())
+        .route_layer(axum::middleware::from_fn(
+            crate::auth::require_write_or_readonly_get,
+        ));
+
+    let admin_only = Router::new()
+        // /v1/users admin CRUD + role management.
+        .nest("/users", users::admin_router())
+        // /v1/audit-log
+        .nest("/audit-log", audit::router())
+        // SMTP + retention settings.
+        .merge(subscribers::settings_router())
         // /v1/api-keys — list/create/revoke
         .nest("/api-keys", api_keys::router())
         // /v1/proxies — list/create/delete/active
         .nest("/proxies", proxies::router())
-        // /v1/stream/heartbeats — Server-Sent Events fan-out.
-        .nest("/stream", stream::router())
-        // /v1/webpush — VAPID key + browser subscription management.
-        .nest("/webpush", webpush::router())
-        // /v1/auth/2fa/* admin endpoints — verify is public; the rest
-        // need an existing session so they sit here.
-        .nest("/auth/2fa", totp::router())
-        // /v1/users/me/password — self-service; admin gate would
-        // bizarrely block users from changing their own password.
+        // /v1/status-pages/:id/ingest-tokens list+create (admin-managed)
+        .nest("/status-pages", ingest::page_router())
+        // /v1/ingest-tokens/:id revoke
+        .nest("/ingest-tokens", ingest::token_router())
+        .route_layer(axum::middleware::from_fn(crate::auth::require_admin));
+
+    let self_service = Router::new()
+        // /v1/users/me/password — self-service password change.
         .nest("/users", users::self_router())
-        // /v1/users admin CRUD — gated by require_admin on top of the
-        // outer require_session middleware.
-        .nest(
-            "/users",
-            users::admin_router()
-                .route_layer(axum::middleware::from_fn(crate::auth::require_admin)),
-        )
+        // /v1/auth/2fa/* — the caller securing their own account.
+        .nest("/auth/2fa", totp::router())
+        // /v1/webpush — the caller's own browser push subscription.
+        .nest("/webpush", webpush::router());
+
+    Router::new()
+        .merge(editor_or_read)
+        .merge(admin_only)
+        .merge(self_service)
 }

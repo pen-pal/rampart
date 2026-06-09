@@ -15,6 +15,7 @@ import {
 } from '../lib/api.js';
 import { useHeartbeatStream, useDebouncedTick } from '../lib/sse.js';
 import { ThemeToggle } from '../components/ThemeToggle.jsx';
+import { canWrite } from '../lib/roles.js';
 import { t } from '../lib/i18n.js';
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -243,6 +244,10 @@ const SERIES_COLORS = ['#14b8a6', '#6366f1', '#10b981', '#ef4444'];
 
 // ─── main component ───────────────────────────────────────────────────────
 export default function Dashboard({ user, onLogout } = {}) {
+  // Whether the current user may mutate (admin/editor). Readonly users see
+  // the data but no create / bulk / pause / delete affordances. The backend
+  // is the real gate (it 403s); this is UX so they don't hit dead buttons.
+  const writable = canWrite(user);
   // Live heartbeat overlay — SSE pushes mutate `liveHb` immediately so
   // status pulses don't wait for the next poll. The polled hooks below
   // still run as the source of truth + reconnect fallback.
@@ -474,7 +479,7 @@ export default function Dashboard({ user, onLogout } = {}) {
             <Bell size={14}/>
           </a>
           <button className="btn" onClick={goToStatusPage}><Wrench size={13}/> {t("dashboard.status_page")}</button>
-          <button className="btn btn-accent" onClick={goToNewMonitor}><Plus size={13} strokeWidth={2.4}/> {t("dashboard.add_monitor")}</button>
+          {writable && <button className="btn btn-accent" onClick={goToNewMonitor}><Plus size={13} strokeWidth={2.4}/> {t("dashboard.add_monitor")}</button>}
           {user && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div title={user.email} style={{
@@ -599,9 +604,11 @@ export default function Dashboard({ user, onLogout } = {}) {
           })() : !monitorsState.loading && (
             <div className="empty" style={{ paddingTop: 32 }}>
               {t("dashboard.empty.title")}<br/>
-              <button className="btn btn-accent" onClick={goToNewMonitor} style={{ marginTop: 12 }}>
-                <Plus size={13}/> {t("dashboard.empty.create_first")}
-              </button>
+              {writable && (
+                <button className="btn btn-accent" onClick={goToNewMonitor} style={{ marginTop: 12 }}>
+                  <Plus size={13}/> {t("dashboard.empty.create_first")}
+                </button>
+              )}
             </div>
           )}
 
@@ -922,10 +929,12 @@ export default function Dashboard({ user, onLogout } = {}) {
                   background: selected.has(m.id) ? 'var(--accent-soft)' : 'transparent',
                 }}>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                    <input type="checkbox" checked={selected.has(m.id)}
-                      onClick={e => e.stopPropagation()}
-                      onChange={() => toggleSelect(m.id)}
-                      title="Select for bulk action"/>
+                    {writable && (
+                      <input type="checkbox" checked={selected.has(m.id)}
+                        onClick={e => e.stopPropagation()}
+                        onChange={() => toggleSelect(m.id)}
+                        title="Select for bulk action"/>
+                    )}
                     <span className={`dot ${cls}`}/>
                   </span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>

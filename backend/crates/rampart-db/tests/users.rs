@@ -4,7 +4,8 @@
 //! the `migrations` arg) and drops it afterwards, so tests don't share
 //! state and can run in parallel.
 
-use rampart_db::users::{count, create, get, get_by_email, mark_login, NewUser};
+use rampart_core::Role;
+use rampart_db::users::{count, create, get, get_by_email, mark_login, set_role, NewUser};
 use sqlx::PgPool;
 
 fn sample(email: &str) -> NewUser {
@@ -14,7 +15,7 @@ fn sample(email: &str) -> NewUser {
         // Argon2 hash of literal "password" — not used for verification
         // here; users::create just stores whatever string we give it.
         password_hash: "$argon2id$v=19$m=19456,t=2,p=1$fake$hash".into(),
-        is_admin: true,
+        role: Role::Admin,
     }
 }
 
@@ -29,6 +30,7 @@ async fn create_and_read_back(pool: PgPool) {
     let u = create(&pool, sample("alice@example.com")).await.unwrap();
     assert_eq!(u.email, "alice@example.com");
     assert!(u.is_admin);
+    assert_eq!(u.role, Role::Admin);
     assert!(
         u.last_login_at.is_none(),
         "freshly created user has no login yet"
@@ -37,6 +39,30 @@ async fn create_and_read_back(pool: PgPool) {
     let again = get(&pool, u.id).await.unwrap();
     assert_eq!(again.id, u.id);
     assert_eq!(again.email, "alice@example.com");
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn set_role_keeps_is_admin_shim_in_sync(pool: PgPool) {
+    let u = create(&pool, sample("role@example.com")).await.unwrap();
+    assert!(u.is_admin);
+    assert_eq!(u.role, Role::Admin);
+
+    set_role(&pool, u.id, Role::Readonly).await.unwrap();
+    let ro = get(&pool, u.id).await.unwrap();
+    assert_eq!(ro.role, Role::Readonly);
+    assert!(!ro.is_admin, "is_admin shim must follow role");
+    assert!(!ro.role.can_write());
+
+    set_role(&pool, u.id, Role::Editor).await.unwrap();
+    let ed = get(&pool, u.id).await.unwrap();
+    assert_eq!(ed.role, Role::Editor);
+    assert!(!ed.is_admin);
+    assert!(ed.role.can_write());
+
+    set_role(&pool, u.id, Role::Admin).await.unwrap();
+    let ad = get(&pool, u.id).await.unwrap();
+    assert!(ad.is_admin, "promoting to admin re-sets the shim");
+    assert!(ad.role.is_admin());
 }
 
 #[sqlx::test(migrations = "../../migrations")]

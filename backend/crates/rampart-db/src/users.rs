@@ -2,6 +2,7 @@
 
 use crate::{DbError, DbPool, DbResult};
 use rampart_core::ids::UserId;
+use rampart_core::Role;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -12,6 +13,9 @@ pub struct User {
     pub email: String,
     pub name: Option<String>,
     pub is_admin: bool,
+    /// Authoritative RBAC role. `is_admin` above is a derived shim kept
+    /// one release for rollback safety.
+    pub role: Role,
     pub created_at: OffsetDateTime,
     pub last_login_at: Option<OffsetDateTime>,
     #[serde(default)]
@@ -25,6 +29,7 @@ pub struct UserWithHash {
     pub name: Option<String>,
     pub password_hash: String,
     pub is_admin: bool,
+    pub role: Role,
     /// Plain TEXT secret (base32). Only loaded for login verification —
     /// never serialised back through the public User type.
     #[serde(skip_serializing)]
@@ -37,7 +42,7 @@ pub struct NewUser {
     pub email: String,
     pub name: Option<String>,
     pub password_hash: String,
-    pub is_admin: bool,
+    pub role: Role,
 }
 
 pub async fn count(pool: &DbPool) -> DbResult<i64> {
@@ -49,18 +54,21 @@ pub async fn count(pool: &DbPool) -> DbResult<i64> {
 
 pub async fn create(pool: &DbPool, input: NewUser) -> DbResult<User> {
     let id = Uuid::now_v7();
+    // Keep the is_admin shim in sync with the authoritative role.
+    let is_admin = input.role.is_admin();
     let row = sqlx::query!(
         r#"
-        INSERT INTO users (id, email, name, password_hash, is_admin)
-        VALUES ($1, $2, $3, $4, $5)
-        RETURNING id, email::text AS "email!", name, is_admin,
+        INSERT INTO users (id, email, name, password_hash, is_admin, role)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING id, email::text AS "email!", name, is_admin, role AS "role: Role",
                   created_at, last_login_at, totp_enabled
         "#,
         id,
         input.email,
         input.name,
         input.password_hash,
-        input.is_admin,
+        is_admin,
+        input.role as Role,
     )
     .fetch_one(pool)
     .await
@@ -76,6 +84,7 @@ pub async fn create(pool: &DbPool, input: NewUser) -> DbResult<User> {
         email: row.email,
         name: row.name,
         is_admin: row.is_admin,
+        role: row.role,
         created_at: row.created_at,
         last_login_at: row.last_login_at,
         totp_enabled: row.totp_enabled,
@@ -86,7 +95,7 @@ pub async fn get_by_email(pool: &DbPool, email: &str) -> DbResult<UserWithHash> 
     let row = sqlx::query!(
         r#"
         SELECT id, email::text AS "email!", name, password_hash, is_admin,
-               totp_secret, totp_enabled
+               role AS "role: Role", totp_secret, totp_enabled
         FROM users
         WHERE email = $1::citext
         "#,
@@ -102,6 +111,7 @@ pub async fn get_by_email(pool: &DbPool, email: &str) -> DbResult<UserWithHash> 
         name: row.name,
         password_hash: row.password_hash,
         is_admin: row.is_admin,
+        role: row.role,
         totp_secret: row.totp_secret,
         totp_enabled: row.totp_enabled,
     })
@@ -110,7 +120,7 @@ pub async fn get_by_email(pool: &DbPool, email: &str) -> DbResult<UserWithHash> 
 pub async fn get(pool: &DbPool, id: UserId) -> DbResult<User> {
     let row = sqlx::query!(
         r#"
-        SELECT id, email::text AS "email!", name, is_admin,
+        SELECT id, email::text AS "email!", name, is_admin, role AS "role: Role",
                created_at, last_login_at, totp_enabled
         FROM users
         WHERE id = $1
@@ -126,6 +136,7 @@ pub async fn get(pool: &DbPool, id: UserId) -> DbResult<User> {
         email: row.email,
         name: row.name,
         is_admin: row.is_admin,
+        role: row.role,
         created_at: row.created_at,
         last_login_at: row.last_login_at,
         totp_enabled: row.totp_enabled,
@@ -179,7 +190,7 @@ pub async fn mark_login(pool: &DbPool, id: UserId) -> DbResult<()> {
 pub async fn list(pool: &DbPool) -> DbResult<Vec<User>> {
     let rows = sqlx::query!(
         r#"
-        SELECT id, email::text AS "email!", name, is_admin,
+        SELECT id, email::text AS "email!", name, is_admin, role AS "role: Role",
                created_at, last_login_at, totp_enabled
         FROM users
         ORDER BY created_at ASC
@@ -195,6 +206,7 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<User>> {
             email: r.email,
             name: r.name,
             is_admin: r.is_admin,
+            role: r.role,
             created_at: r.created_at,
             last_login_at: r.last_login_at,
             totp_enabled: r.totp_enabled,
@@ -203,8 +215,29 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<User>> {
 }
 
 pub async fn set_admin(pool: &DbPool, id: UserId, is_admin: bool) -> DbResult<()> {
+    // Promote/demote via the boolean shim. Keep `role` authoritative and in
+    // sync: admin → Admin, !admin → Editor (the sensible non-admin default).
+    let role = if is_admin { Role::Admin } else { Role::Editor };
     let result = sqlx::query!(
-        "UPDATE users SET is_admin = $1 WHERE id = $2",
+        "UPDATE users SET is_admin = $1, role = $2 WHERE id = $3",
+        is_admin,
+        role as Role,
+        id.0,
+    )
+    .execute(pool)
+    .await?;
+    if result.rows_affected() == 0 {
+        return Err(DbError::NotFound);
+    }
+    Ok(())
+}
+
+/// Set the authoritative RBAC role, keeping the `is_admin` shim in sync.
+pub async fn set_role(pool: &DbPool, id: UserId, role: Role) -> DbResult<()> {
+    let is_admin = role.is_admin();
+    let result = sqlx::query!(
+        "UPDATE users SET role = $1, is_admin = $2 WHERE id = $3",
+        role as Role,
         is_admin,
         id.0,
     )

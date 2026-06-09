@@ -171,13 +171,53 @@ fn bearer_token(headers: &axum::http::HeaderMap) -> Option<String> {
 
 /// Like `require_session` but additionally rejects non-admins with 403.
 /// Apply on top of `require_session` (it relies on the User in extensions).
+/// `role` is authoritative.
 pub async fn require_admin(req: Request, next: Next) -> Result<Response, ApiError> {
     let user = req
         .extensions()
         .get::<rampart_db::users::User>()
         .ok_or(ApiError::Unauthorized)?
         .clone();
-    if !user.is_admin {
+    if !user.role.is_admin() {
+        return Err(ApiError::Forbidden);
+    }
+    Ok(next.run(req).await)
+}
+
+/// Rejects users who cannot write (readonly) with 403, but lets admin +
+/// editor through regardless of HTTP verb. Apply on top of `require_session`
+/// to gate route groups that editors are allowed to fully manage.
+pub async fn require_editor(req: Request, next: Next) -> Result<Response, ApiError> {
+    let user = req
+        .extensions()
+        .get::<rampart_db::users::User>()
+        .ok_or(ApiError::Unauthorized)?
+        .clone();
+    if !user.role.can_write() {
+        return Err(ApiError::Forbidden);
+    }
+    Ok(next.run(req).await)
+}
+
+/// Method-aware guard for the whole protected tree. Read-only verbs
+/// (GET / HEAD / OPTIONS) are always allowed; any mutating verb requires
+/// `can_write()` (admin or editor). This is what makes a `readonly` user
+/// able to view everything but 403 on every POST/PUT/PATCH/DELETE.
+///
+/// Layered beneath the admin-only subtrees: those additionally apply
+/// `require_admin`, so a non-admin editor still gets 403 there.
+pub async fn require_write_or_readonly_get(req: Request, next: Next) -> Result<Response, ApiError> {
+    use axum::http::Method;
+    let read_only = matches!(*req.method(), Method::GET | Method::HEAD | Method::OPTIONS);
+    if read_only {
+        return Ok(next.run(req).await);
+    }
+    let user = req
+        .extensions()
+        .get::<rampart_db::users::User>()
+        .ok_or(ApiError::Unauthorized)?
+        .clone();
+    if !user.role.can_write() {
         return Err(ApiError::Forbidden);
     }
     Ok(next.run(req).await)
