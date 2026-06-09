@@ -14,6 +14,7 @@ pub mod audit;
 pub mod auth;
 pub mod health;
 pub mod incidents;
+pub mod ingest;
 pub mod maintenance;
 pub mod monitor_groups;
 pub mod monitors;
@@ -53,6 +54,9 @@ pub fn v1_public(state: &AppState) -> Router<AppState> {
         .nest("/public/status-pages", status_pages::public_router())
         // Public subscribe + unsubscribe.
         .nest("/public", subscribers::public_router())
+        // Public inbound webhook receivers (Alertmanager). The {token} in
+        // the URL is the auth — no session.
+        .nest("/public", ingest::public_router())
 }
 
 pub fn v1_protected() -> Router<AppState> {
@@ -86,8 +90,12 @@ pub fn v1_protected() -> Router<AppState> {
         .nest("/status-pages", status_pages::admin_router())
         // /v1/status-pages/:id/incidents list+create
         .nest("/status-pages", incidents::page_router())
+        // /v1/status-pages/:id/ingest-tokens list+create
+        .nest("/status-pages", ingest::page_router())
         // /v1/incidents/:id update/delete/resolve/updates
         .nest("/incidents", incidents::incident_router())
+        // /v1/ingest-tokens/:id revoke
+        .nest("/ingest-tokens", ingest::token_router())
         // Subscribers admin + SMTP settings.
         .merge(subscribers::admin_router())
         // /v1/audit-log — admin only via the layer the users router uses.
