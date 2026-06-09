@@ -13,6 +13,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use rampart_core::ids::UserId;
+use rampart_core::Role;
 use rampart_db::users::{NewUser, User};
 use serde::Deserialize;
 use std::str::FromStr;
@@ -24,6 +25,7 @@ pub fn admin_router() -> Router<AppState> {
         .route("/", get(list).post(create))
         .route("/{id}", axum::routing::delete(remove))
         .route("/{id}/admin", post(set_admin))
+        .route("/{id}/role", axum::routing::patch(set_role))
 }
 
 pub fn self_router() -> Router<AppState> {
@@ -44,6 +46,11 @@ struct CreateUserInput {
     #[serde(default)]
     name: Option<String>,
     password: String,
+    /// New canonical field. Defaults to `editor` if omitted.
+    #[serde(default)]
+    role: Option<Role>,
+    /// Legacy field kept for older clients: `is_admin: true` maps to the
+    /// admin role when `role` isn't supplied.
     #[serde(default)]
     is_admin: bool,
 }
@@ -66,6 +73,13 @@ async fn create(
     if !input.email.contains('@') {
         return Err(ApiError::BadRequest("email looks invalid".into()));
     }
+    // Resolve the role: explicit `role` wins; otherwise fall back to the
+    // legacy `is_admin` boolean (admin if true, editor if false).
+    let role = input.role.unwrap_or(if input.is_admin {
+        Role::Admin
+    } else {
+        Role::Editor
+    });
     let hash = hash_password(&input.password)?;
     let u = rampart_db::users::create(
         s.pool(),
@@ -73,7 +87,7 @@ async fn create(
             email: input.email.clone(),
             name: input.name,
             password_hash: hash,
-            is_admin: input.is_admin,
+            role,
         },
     )
     .await?;
@@ -84,7 +98,7 @@ async fn create(
         "user.create",
         "user",
         Some(u.id.0),
-        Some(serde_json::json!({ "email": input.email, "is_admin": input.is_admin })),
+        Some(serde_json::json!({ "email": input.email, "role": role })),
     )
     .await;
     Ok((StatusCode::CREATED, Json(u)))
@@ -121,6 +135,40 @@ async fn set_admin(
         "user",
         Some(target.0),
         None,
+    )
+    .await;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Deserialize)]
+struct SetRoleInput {
+    role: Role,
+}
+
+async fn set_role(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+    Extension(caller): Extension<User>,
+    headers: HeaderMap,
+    Json(body): Json<SetRoleInput>,
+) -> Result<StatusCode, ApiError> {
+    let target = parse(&id)?;
+    // Refuse to drop your own admin — prevents the last admin locking
+    // themselves out. Same guard the boolean demote path uses.
+    if !body.role.is_admin() && target == caller.id {
+        return Err(ApiError::BadRequest(
+            "you can't remove your own admin role".into(),
+        ));
+    }
+    rampart_db::users::set_role(s.pool(), target, body.role).await?;
+    crate::audit::record(
+        s.pool(),
+        &caller,
+        &headers,
+        "user.set_role",
+        "user",
+        Some(target.0),
+        Some(serde_json::json!({ "role": body.role })),
     )
     .await;
     Ok(StatusCode::NO_CONTENT)

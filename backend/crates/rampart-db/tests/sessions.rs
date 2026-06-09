@@ -12,7 +12,7 @@ async fn make_user(pool: &PgPool, email: &str) -> rampart_core::ids::UserId {
             email: email.into(),
             name: None,
             password_hash: "fake".into(),
-            is_admin: false,
+            role: rampart_core::Role::Editor,
         },
     )
     .await
