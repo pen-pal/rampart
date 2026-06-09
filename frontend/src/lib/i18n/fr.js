@@ -65,6 +65,20 @@ const fr = {
   'dashboard.bulk.edit_empty':       'Définissez un intervalle, un délai ou choisissez des étiquettes à modifier.',
   'dashboard.bulk.edit_failed':      'La modification en lot a échoué : {msg}',
 
+  // ── dashboard : vues de filtre enregistrées + dossier par défaut ──
+  'dashboard.views.menu':            'Vues',
+  'dashboard.views.none':            'Aucune vue enregistrée pour le moment',
+  'dashboard.views.save_current':    'Enregistrer la vue actuelle…',
+  'dashboard.views.save_prompt':     'Nommez cette vue',
+  'dashboard.views.save_failed':     'Impossible d’enregistrer la vue : {msg}',
+  'dashboard.views.delete':          'Supprimer la vue',
+  'dashboard.views.delete_confirm':  'Supprimer la vue enregistrée « {name} » ?',
+  'dashboard.views.applied':         'Vue « {name} » appliquée',
+  'dashboard.views.default_folder':  'Ouvrir ici par défaut',
+  'dashboard.views.default_cleared': 'Dossier par défaut effacé',
+  'dashboard.views.is_default':      'Dossier par défaut',
+  'dashboard.views.signed_out':      'Connectez-vous pour enregistrer les vues sur tous vos appareils',
+
   // ── common ───────────────────────────────────────────────────────
   'common.cancel':                   'Annuler',
   'common.save':                     'Enregistrer',
@@ -204,6 +218,20 @@ const fr = {
   'monitor.action.clone_title':      'Dupliquer avec la même configuration (sans historique)',
   'monitor.action.csv':              'CSV',
   'monitor.action.csv_title':        'Télécharger les 30 derniers jours de battements au format CSV',
+
+  // ── détail du moniteur : action rapide de maintenance ────────────
+  'monitor.maint_now.button':        'Maintenance maintenant',
+  'monitor.maint_now.title':         'Démarrer dès maintenant une fenêtre de maintenance ponctuelle pour ce moniteur',
+  'monitor.maint_now.heading':       'Démarrer la maintenance pour',
+  'monitor.maint_now.window_name':   'Maintenance manuelle',
+  'monitor.maint_now.dur_1h':        '1 heure',
+  'monitor.maint_now.dur_4h':        '4 heures',
+  'monitor.maint_now.dur_24h':       '24 heures',
+  'monitor.maint_now.start':         'Démarrer',
+  'monitor.maint_now.creating':      'Démarrage…',
+  'monitor.maint_now.cancel':        'Annuler',
+  'monitor.maint_now.active':        'Maintenance active jusqu’à {until}.',
+  'monitor.maint_now.error':         'Impossible de démarrer la maintenance : {error}',
   'monitor.tab.overview':            'Aperçu',
   'monitor.tab.heartbeats':          'Battements',
   'monitor.tab.config':              'Configuration',
@@ -424,6 +452,9 @@ const fr = {
   'wizard.field.url':                'URL',
   'wizard.field.http_method':        'Méthode HTTP',
   'wizard.field.accepted_statuses':  'Codes de statut acceptés',
+  'wizard.field.expected_http_version':      'Version HTTP attendue',
+  'wizard.field.expected_http_version_any':  'Indifférente',
+  'wizard.field.expected_http_version_hint': 'Le battement échoue si le serveur négocie une version différente. HTTP/3 nécessite la fonctionnalité de compilation http3.',
   'wizard.field.hostname':           'Nom d’hôte',
   'wizard.field.port':               'Port',
   'wizard.field.keyword':            'Mot-clé requis dans le corps',
@@ -865,6 +896,20 @@ const fr = {
   'import.skip_missing_name':        'nom manquant',
   'import.skip_unknown_kind':        'type inconnu `{kind}`',
   'import.skip_missing_field':       'champ obligatoire manquant `{field}`',
+
+  // ── page d’autogestion de l’abonné (#/manage/{token}) ────────────
+  'subscribe.manage.title':            'Gérer vos abonnements',
+  'subscribe.manage.loading':          'Chargement…',
+  'subscribe.manage.invalid':          'Ce lien de gestion est invalide ou a expiré.',
+  'subscribe.manage.email_label':      'Abonnements pour',
+  'subscribe.manage.subscribed_on':    'Abonné le {date}',
+  'subscribe.manage.unsubscribe':      'Se désabonner',
+  'subscribe.manage.unsubscribing':    'Désabonnement…',
+  'subscribe.manage.unsubscribe_all':  'Tout désabonner',
+  'subscribe.manage.confirm_all':      'Désabonner cet e-mail de toutes les pages de statut ?',
+  'subscribe.manage.none':             'Vous n’êtes abonné à aucune page de statut.',
+  'subscribe.manage.done':             'Vous avez été désabonné.',
+  'subscribe.manage.err_failed':       'Une erreur est survenue. Veuillez réessayer.',
 };
 
 export default fr;
