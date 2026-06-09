@@ -17,7 +17,7 @@
 //!      the channel's optional `template_id` reference, else defaults).
 //!   3. Dispatch in parallel — slow channels don't block fast ones.
 
-use crate::{channels, template, Event};
+use crate::{channels, template, Event, EventKind};
 use rampart_core::ChannelKind;
 use rampart_db::DbPool;
 use tokio::sync::mpsc;
@@ -86,6 +86,17 @@ async fn dispatch_one(pool: &DbPool, event: Event) -> anyhow::Result<()> {
             // than silence during a real outage. Log so it gets noticed.
             warn!(error = %e, "dependency check failed; firing anyway");
         }
+    }
+
+    // Maintenance start/end also fan out to status-page email subscribers
+    // of any page the affected monitor is on. Best-effort, runs alongside
+    // the channel dispatch below. Fired from the scheduler's periodic
+    // maintenance scan; de-dup lives in the DB column it stamps.
+    if matches!(
+        event.kind,
+        EventKind::MaintenanceStarted | EventKind::MaintenanceEnded
+    ) {
+        fan_out_maintenance_subscribers(pool, &event).await;
     }
 
     // Resolve effective channels: explicitly-attached ∪ tag-matched ∪
@@ -163,5 +174,109 @@ async fn dispatch_one(pool: &DbPool, event: Event) -> anyhow::Result<()> {
     for h in handles {
         let _ = h.await;
     }
+    Ok(())
+}
+
+/// System-wide SMTP config, stored in the `settings` table under key
+/// "smtp". Mirrors `rampart-api`'s `smtp::SmtpConfig` — status-page
+/// subscriber emails (incident updates today, maintenance start/end here)
+/// go through this rather than a per-monitor email channel. Kept as a
+/// local copy because the notifier crate can't depend on rampart-api.
+#[derive(Debug, serde::Deserialize)]
+struct SubscriberSmtp {
+    host: String,
+    port: u16,
+    encryption: String,
+    #[serde(default)]
+    username: Option<String>,
+    #[serde(default)]
+    password: Option<String>,
+    from: String,
+}
+
+/// Best-effort email fan-out to confirmed status-page subscribers for a
+/// maintenance start/end event. Loads system SMTP from settings; if none
+/// is configured we silently no-op (same contract as the incident
+/// fan-out). Failures per recipient are logged, never surfaced — the
+/// channel dispatch path is independent of this.
+async fn fan_out_maintenance_subscribers(pool: &DbPool, event: &Event) {
+    let emails = match rampart_db::maintenance::confirmed_subscriber_emails_for_monitors(
+        pool,
+        std::slice::from_ref(&event.monitor.id),
+    )
+    .await
+    {
+        Ok(e) if !e.is_empty() => e,
+        Ok(_) => return,
+        Err(e) => {
+            warn!(error = %e, "maintenance subscriber lookup failed");
+            return;
+        }
+    };
+
+    let cfg = match rampart_db::settings::get(pool, "smtp").await {
+        Ok(Some(v)) => match serde_json::from_value::<SubscriberSmtp>(v) {
+            Ok(c) => c,
+            Err(e) => {
+                warn!(error = %e, "smtp config parse failed; skipping subscriber email");
+                return;
+            }
+        },
+        // No SMTP configured — silent no-op, channels still fired above.
+        Ok(None) => return,
+        Err(e) => {
+            warn!(error = %e, "smtp config load failed; skipping subscriber email");
+            return;
+        }
+    };
+
+    let subject = template::default_subject(event);
+    let body = template::default_body(event);
+    for addr in emails {
+        if let Err(e) = send_subscriber_email(&cfg, &addr, &subject, &body).await {
+            warn!(recipient = %addr, error = %e, "maintenance subscriber email failed");
+        }
+    }
+}
+
+async fn send_subscriber_email(
+    cfg: &SubscriberSmtp,
+    to: &str,
+    subject: &str,
+    body: &str,
+) -> Result<(), String> {
+    use lettre::message::{header, Mailbox};
+    use lettre::transport::smtp::authentication::Credentials;
+    use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
+    use std::str::FromStr;
+
+    let from = Mailbox::from_str(&cfg.from).map_err(|e| format!("from addr: {e}"))?;
+    let to_mb = Mailbox::from_str(to).map_err(|e| format!("to addr: {e}"))?;
+    let msg = Message::builder()
+        .from(from)
+        .to(to_mb)
+        .subject(subject)
+        .header(header::ContentType::TEXT_PLAIN)
+        .body(body.to_string())
+        .map_err(|e| format!("build: {e}"))?;
+
+    let builder = match cfg.encryption.as_str() {
+        "tls" => {
+            AsyncSmtpTransport::<Tokio1Executor>::relay(&cfg.host).map_err(|e| e.to_string())?
+        }
+        "starttls" => AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&cfg.host)
+            .map_err(|e| e.to_string())?,
+        "plain" => AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&cfg.host),
+        other => return Err(format!("unknown encryption: {other}")),
+    };
+    let mut builder = builder.port(cfg.port);
+    if let (Some(u), Some(p)) = (cfg.username.as_deref(), cfg.password.as_deref()) {
+        builder = builder.credentials(Credentials::new(u.into(), p.into()));
+    }
+    builder
+        .build()
+        .send(msg)
+        .await
+        .map_err(|e| format!("send: {e}"))?;
     Ok(())
 }

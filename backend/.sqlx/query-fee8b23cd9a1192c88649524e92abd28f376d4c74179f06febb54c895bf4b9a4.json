@@ -1,0 +1,98 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, name, start_at, end_at, recurrence,\n               notified_start_at, notified_end_at\n        FROM maintenance_windows\n        WHERE active\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "maintenance_windows",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "maintenance_windows",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "start_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "maintenance_windows",
+            "name": "start_at"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "end_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "maintenance_windows",
+            "name": "end_at"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "recurrence",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "maintenance_windows",
+            "name": "recurrence"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "notified_start_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "maintenance_windows",
+            "name": "notified_start_at"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "notified_end_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "maintenance_windows",
+            "name": "notified_end_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "fee8b23cd9a1192c88649524e92abd28f376d4c74179f06febb54c895bf4b9a4"
+}
