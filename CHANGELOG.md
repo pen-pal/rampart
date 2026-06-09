@@ -19,12 +19,37 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ### Added
 
+#### SLO + reliability analytics (batch 3)
+
+- **SLO breach + recovery notifications.** Closes the loop left open by the SLO schema work below. New `EventKind::SloBreached` / `EventKind::SloRecovered` in `rampart-notifier`; the scheduler's `writer_loop` checks each monitor's rolling SLO uptime after every heartbeat-batch flush and emits a breach (or recovery) alert through the normal notification channels. De-duplicated via a single `slo_breached_at` column (migration `0045_slo_breach_dedup.sql`) so a flapping monitor pages once, not per-batch. New `{{ slo_target_pct }}` / `{{ slo_current_pct }}` template placeholders + purpose-built default subject/body per event kind. The two new kinds appear in the template-editor dropdown.
+- **MTBF / MTTR window picker.** `GET /v1/monitors/{id}/reliability` now accepts `?window_days=7|30|90` (whitelist — anything else 400s; defaults to 30). The Reliability card gains a 7d / 30d / 90d segmented control that re-fetches on change.
+- **SLO error budget.** New `GET /v1/monitors/{id}/slo/error-budget` returns allowed / used / remaining downtime seconds + remaining %. MonitorDetail renders a horizontal fuel-gauge bar under the SLO card — green (remaining) / red (used) with a "47 min remaining of 144 min budget" label, threshold-coloured (green ≥50% / amber ≥10% / red <10%). 4 new unit tests.
+- **Public status-page day-latency drilldown.** The click-day popover on the 90-day strip now shows a CSS-only 24-bar per-hour latency mini-chart (new `GET /v1/public/status-pages/{slug}/day-latency` endpoint backed by `day_hourly_latency`). Rendered for operational/degraded days; per-bar hover tooltip "03:00 — 142ms (47 samples)"; no-data hours muted grey.
+
+#### Importers (3 new — catalog now 10 providers)
+
+- **StatusCake importer.** Maps `test_type` (HTTP / PING / TCP / DNS / SMTP / SSH) onto Rampart kinds.
+- **RapidSpike importer.** Maps `monitor_type` (http_check / tcp_check / dns_check / ping_check).
+- **Updown.io importer.** Bare-array export; every check is HTTP, promotes to Keyword when `string_match` is set.
+
+#### Frontend
+
+- **i18n Dashboard wiring + locale picker.** Builds on the i18n scaffolding — ~37 Dashboard strings now route through `t(…)`; `en.js` expanded to 49 keys; `es` / `fr` / `de` carry real translations for 11 high-traffic keys (with English fallback); a floating Globe-icon locale picker (beside the theme toggle) cycles all 6 SUPPORTED locales. `ja` / `zh` await native-speaker review.
+
+#### Probes
+
+- **NATS-over-TLS confirmed shipping.** Re-verification found the `tls://` path already works via the ring connector (was mis-described as blocked in an earlier commit message). Cassandra-over-TLS re-verified against scylla 1.6.0 + `main` — still upstream-blocked (no ring-only feature), documented in `docs/SECURITY-DEBT.md`.
+
+_(Earlier post-v0.2.0 work — the monitor-reliability schema, the first
+3 importers in this cycle, and AMQPS — is listed below; the SLO batch
+above completes the SLO surface those introduced.)_
+
 #### Monitor reliability
 
 - **MTBF / MTTR widget.** New `GET /v1/monitors/{id}/reliability` returns Mean Time Between Failures + Mean Time To Recovery + downtime-event count over the trailing 30 days. Computed by `rampart_db::heartbeats::mtbf_mttr` which walks heartbeats ASC, sums up/down segment durations, and counts up→down / down→up transitions. Frontend renders a Reliability card on the monitor Overview tab — three figures, formatted as "47h 23m" / "4m 12s", with `?`-tooltip help per metric. 4 new unit tests under `rampart-db/tests/heartbeats.rs`.
-- **Per-monitor SLO targets.** `Monitor` gains `slo_target_pct` (90.000 — 100.000) + `slo_window_days` (1 — 90) via migration `0044_monitor_slo.sql`. Edit modal exposes the two inputs; Overview tab renders an SLO card next to uptime with current% / target% / status pill (green when current ≥ target, amber within 0.1 pp, red below). `current_slo_uptime_pct` helper in `rampart-db::heartbeats` returns the rolling-window uptime in the same shape as the existing `uptime_pct` helper. **Notifier dispatch (`EventKind::SloBreached` / `SloRecovered`) is the follow-up — schema + helper + UI shipped here, alerts wire-up tracked in CONTRIBUTING's "Known gaps".**
+- **Per-monitor SLO targets.** `Monitor` gains `slo_target_pct` (90.000 — 100.000) + `slo_window_days` (1 — 90) via migration `0044_monitor_slo.sql`. Edit modal exposes the two inputs; Overview tab renders an SLO card next to uptime with current% / target% / status pill (green when current ≥ target, amber within 0.1 pp, red below). `current_slo_uptime_pct` helper in `rampart-db::heartbeats` returns the rolling-window uptime in the same shape as the existing `uptime_pct` helper. _(Notifier dispatch — `EventKind::SloBreached` / `SloRecovered` — has since landed; see the SLO batch at the top of this section.)_
 
-#### Importers (3 new — catalog now 7 providers)
+#### Importers (BetterStack / Healthchecks / Cronitor — took the catalog to 7)
 
 - **BetterStack importer.** Maps BetterStack `monitor_type` (status / keyword / keyword_absence / ping / tcp / udp / dns / smtp / pop / imap / playwright) onto Rampart `MonitorKind`. `pronounceable_name` → `Monitor.name`; `check_frequency` (s) → `interval_seconds`; `verify_ssl=false` → `ignore_tls=true`; `keyword_absence` documented as imperfect (negated keyword).
 - **Healthchecks.io importer.** Every check maps to `MonitorKind::Push` (Healthchecks is heartbeat-only). UUID stashed in `config.healthchecks_uuid` for reference; `timeout` → `interval_seconds`; `grace` → `timeout_seconds`.
