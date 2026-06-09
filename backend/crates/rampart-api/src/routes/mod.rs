@@ -33,12 +33,21 @@ pub mod webpush;
 use crate::state::AppState;
 use axum::Router;
 
-pub fn v1_public() -> Router<AppState> {
-    Router::new()
+pub fn v1_public(state: &AppState) -> Router<AppState> {
+    // Per-IP rate limit on the auth surface only. Cap = 10 attempts /
+    // 6-second refill → ~10/min average, no lockout on a single typo.
+    // Layered via `route_layer` so it scopes to just the inner auth +
+    // 2fa-verify routes; the public status-page reads + subscriber
+    // endpoints below are unaffected.
+    let rate_limited_auth = Router::new()
         .nest("/auth", auth::router())
-        // The TOTP verify step happens AFTER password (which was public)
-        // but BEFORE a session exists — has to live under v1_public.
         .nest("/auth/2fa", totp::public_router())
+        .route_layer(axum::middleware::from_fn_with_state(
+            state.auth_rate_limiter(),
+            crate::rate_limit::enforce_ip_rate_limit,
+        ));
+    Router::new()
+        .merge(rate_limited_auth)
         // Public status-page reads — embedded under /v1/public so the
         // boundary is explicit and obvious in the routing table.
         .nest("/public/status-pages", status_pages::public_router())

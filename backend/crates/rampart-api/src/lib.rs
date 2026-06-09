@@ -9,6 +9,7 @@ pub mod auth;
 pub mod error;
 pub mod http_metrics;
 pub mod importers;
+pub mod rate_limit;
 pub mod routes;
 pub mod smtp;
 pub mod state;
@@ -166,7 +167,7 @@ pub fn build_router(state: AppState) -> Router {
         // /push/:token is intentionally public — the token IS the auth.
         // Sits outside /v1 to keep external cron snippets short.
         .nest("/push", routes::push::router())
-        .nest("/v1", routes::v1_public().merge(protected_v1))
+        .nest("/v1", routes::v1_public(&state).merge(protected_v1))
         .with_state(state)
         .fallback(static_assets::handler)
         .layer(axum::middleware::from_fn_with_state(
