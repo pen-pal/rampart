@@ -13,6 +13,7 @@ pub mod api_keys;
 pub mod audit;
 pub mod auth;
 pub mod health;
+pub mod incident_templates;
 pub mod incidents;
 pub mod ingest;
 pub mod maintenance;
@@ -120,6 +121,8 @@ pub fn v1_protected() -> Router<AppState> {
         .nest("/status-pages", incidents::page_router())
         // /v1/incidents/:id update/delete/resolve/updates
         .nest("/incidents", incidents::incident_router())
+        // /v1/incident-templates CRUD — global canned incident-update library
+        .nest("/incident-templates", incident_templates::router())
         // Subscribers admin (list/delete) — editors manage status pages.
         .merge(subscribers::admin_router())
         // /v1/stream/heartbeats — Server-Sent Events fan-out (GET only).

@@ -326,6 +326,8 @@ export default function NewMonitorWizard() {
   const [intervalSec, setIntervalSec] = useState('60');
   const [timeoutSec,  setTimeoutSec]  = useState('10');
   const [retries,     setRetries]     = useState(0);
+  const [backoffStrategy, setBackoffStrategy] = useState('none');
+  const [backoffBase,     setBackoffBase]     = useState('5');
   const [upsideDown,  setUpsideDown]  = useState(false);
   const [followRedir, setFollowRedir] = useState(true);
   const [proxyId,     setProxyId]     = useState('');
@@ -387,6 +389,16 @@ export default function NewMonitorWizard() {
     // in the freeform config JSONB; the rampart-checker HTTP probe reads it.
     if (fields.httpExtras && expectedHttpVersion) {
       config.expected_http_version = expectedHttpVersion;
+    }
+    // Optional retry-backoff curve. Only attach when the operator picked a
+    // growth strategy — leaving it off keeps the scheduler's historical
+    // (no inter-retry sleep) timing untouched.
+    if (backoffStrategy !== 'none') {
+      config.retry_backoff = {
+        strategy:  backoffStrategy,
+        base_secs: Math.max(1, parseInt(backoffBase, 10) || 5),
+        max_secs:  60,
+      };
     }
 
     const payload = {
@@ -732,6 +744,25 @@ export default function NewMonitorWizard() {
                   <label className="field-label">{t('wizard.field.retries')}</label>
                   <input className="input mono" type="number" min="0" value={retries} onChange={e => setRetries(e.target.value)}/>
                   <div className="field-hint">{t('wizard.field.retries_hint')}</div>
+                </div>
+
+                <div className="form-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div className="field">
+                    <label className="field-label">{t('wizard.field.retry_backoff')}</label>
+                    <select className="select" value={backoffStrategy} onChange={e => setBackoffStrategy(e.target.value)}>
+                      <option value="none">{t('wizard.backoff.none')}</option>
+                      <option value="linear">{t('wizard.backoff.linear')}</option>
+                      <option value="exponential">{t('wizard.backoff.exponential')}</option>
+                    </select>
+                    <div className="field-hint">{t('wizard.field.retry_backoff_hint')}</div>
+                  </div>
+                  {backoffStrategy !== 'none' && (
+                    <div className="field">
+                      <label className="field-label">{t('wizard.field.backoff_base')}</label>
+                      <input className="input mono" type="number" min="1" value={backoffBase} onChange={e => setBackoffBase(e.target.value)}/>
+                      <div className="field-hint">{t('wizard.field.backoff_base_hint')}</div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="field">

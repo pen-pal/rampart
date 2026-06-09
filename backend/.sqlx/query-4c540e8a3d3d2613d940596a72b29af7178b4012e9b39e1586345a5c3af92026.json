@@ -1,0 +1,87 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, name, body, style AS \"style: IncidentStyle\", created_at\n        FROM incident_templates\n        ORDER BY created_at DESC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "incident_templates",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "incident_templates",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "body",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "incident_templates",
+            "name": "body"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "style: IncidentStyle",
+        "type_info": {
+          "Custom": {
+            "name": "incident_style",
+            "kind": {
+              "Enum": [
+                "info",
+                "warning",
+                "danger",
+                "primary",
+                "success"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "incident_templates",
+            "name": "style"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "incident_templates",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "4c540e8a3d3d2613d940596a72b29af7178b4012e9b39e1586345a5c3af92026"
+}

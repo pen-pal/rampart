@@ -30,14 +30,17 @@ pub use api_key::{ApiKey, IssuedApiKey, KeyScope, NewApiKey};
 pub use error::{CoreError, Result};
 pub use heartbeat::Heartbeat;
 pub use ids::{
-    ApiKeyId, BadgeId, IncidentId, IncidentUpdateId, IngestTokenId, MaintenanceId, MonitorGroupId,
-    MonitorId, NotificationId, NotificationTemplateId, ProxyId, SessionId, StatusPageComponentId,
-    StatusPageGroupId, StatusPageId, StatusPageSubscriberId, TagId, UserId,
+    ApiKeyId, BadgeId, IncidentId, IncidentTemplateId, IncidentUpdateId, IngestTokenId,
+    MaintenanceId, MonitorGroupId, MonitorId, NotificationId, NotificationTemplateId, ProxyId,
+    SessionId, StatusPageComponentId, StatusPageGroupId, StatusPageId, StatusPageSubscriberId,
+    TagId, UserId,
 };
-pub use incident::{Incident, IncidentStyle, IncidentUpdate};
+pub use incident::{Incident, IncidentStyle, IncidentTemplate, IncidentUpdate};
 pub use ingest_token::{IngestToken, NewIngestToken};
 pub use maintenance::{MaintenanceWindow, NewMaintenanceWindow};
-pub use monitor::{Monitor, MonitorKind, MonitorStatus, NewMonitor, UpdateMonitor};
+pub use monitor::{
+    BackoffStrategy, Monitor, MonitorKind, MonitorStatus, NewMonitor, RetryBackoff, UpdateMonitor,
+};
 pub use monitor_group::{MonitorGroup, NewMonitorGroup, UpdateMonitorGroup};
 pub use notification::{ChannelKind, MonitorNotification, Notification, NotificationTemplate};
 pub use proxy::{NewProxy, Proxy, ProxyProtocol};

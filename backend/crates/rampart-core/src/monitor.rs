@@ -118,6 +118,81 @@ pub enum MonitorKind {
     Pop3,
 }
 
+/// Per-monitor backoff strategy applied *between* retry attempts after a
+/// failing probe, before the failure is committed as a state flip.
+///
+/// Stored inside the freeform [`Monitor::config`] JSONB under the
+/// `retry_backoff` key to avoid a schema change:
+///
+/// ```json
+/// { "retry_backoff": { "strategy": "exponential", "base_secs": 5, "max_secs": 60 } }
+/// ```
+///
+/// When the key is absent, the scheduler does not change its timing at all
+/// (identical to the historical behaviour — no inter-retry sleep).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BackoffStrategy {
+    /// No growth — every retry waits `base_secs` (the legacy, flat cadence).
+    Fixed,
+    /// `delay = base_secs × attempt` (attempt is 1-based).
+    Linear,
+    /// `delay = base_secs × 2^(attempt-1)`.
+    Exponential,
+}
+
+/// Parsed `config.retry_backoff` block.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RetryBackoff {
+    pub strategy: BackoffStrategy,
+    /// Base delay in seconds. The first retry waits exactly this (for every
+    /// strategy, since attempt 1 multiplies base by 1).
+    #[serde(default = "default_backoff_base")]
+    pub base_secs: u32,
+    /// Hard ceiling on the computed delay, in seconds. The scheduler
+    /// additionally clamps to the monitor interval at call time.
+    #[serde(default = "default_backoff_max")]
+    pub max_secs: u32,
+}
+
+fn default_backoff_base() -> u32 {
+    5
+}
+fn default_backoff_max() -> u32 {
+    60
+}
+
+impl RetryBackoff {
+    /// Extract the backoff block from a monitor's freeform `config` JSONB.
+    /// Returns `None` when the `retry_backoff` key is missing or malformed,
+    /// so callers fall back to today's no-sleep behaviour.
+    pub fn from_config(config: &serde_json::Value) -> Option<Self> {
+        let raw = config.get("retry_backoff")?;
+        serde_json::from_value(raw.clone()).ok()
+    }
+
+    /// Delay, in seconds, to sleep *before* the given 1-based retry attempt.
+    /// `attempt` 1 is the first retry after the initial probe failure.
+    ///
+    /// The result is clamped to `max_secs`. Computation is saturating so a
+    /// large exponent can never overflow or wrap — it simply pins to the cap.
+    pub fn delay_secs(&self, attempt: u32) -> u32 {
+        let attempt = attempt.max(1);
+        let raw = match self.strategy {
+            BackoffStrategy::Fixed => self.base_secs,
+            BackoffStrategy::Linear => self.base_secs.saturating_mul(attempt),
+            BackoffStrategy::Exponential => {
+                // base × 2^(attempt-1), saturating. Cap the exponent so the
+                // shift can't panic; anything past ~31 already saturates.
+                let exp = (attempt - 1).min(31);
+                let factor = 1u32.checked_shl(exp).unwrap_or(u32::MAX);
+                self.base_secs.saturating_mul(factor)
+            }
+        };
+        raw.min(self.max_secs)
+    }
+}
+
 /// Current rolled-up status of a monitor (or of one heartbeat).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "monitor_status", rename_all = "lowercase")]
@@ -477,6 +552,77 @@ mod tests {
             nm.validate().is_err(),
             "interval_seconds < 10 should fail validation"
         );
+    }
+
+    #[test]
+    fn backoff_linear_grows_and_caps() {
+        let b = RetryBackoff {
+            strategy: BackoffStrategy::Linear,
+            base_secs: 5,
+            max_secs: 30,
+        };
+        // base × attempt
+        assert_eq!(b.delay_secs(1), 5);
+        assert_eq!(b.delay_secs(2), 10);
+        assert_eq!(b.delay_secs(3), 15);
+        assert_eq!(b.delay_secs(6), 30); // 5×6=30, exactly at cap
+        assert_eq!(b.delay_secs(100), 30); // capped
+        assert_eq!(b.delay_secs(0), 5); // attempt clamped to 1
+    }
+
+    #[test]
+    fn backoff_exponential_grows_and_caps() {
+        let b = RetryBackoff {
+            strategy: BackoffStrategy::Exponential,
+            base_secs: 5,
+            max_secs: 60,
+        };
+        // base × 2^(attempt-1)
+        assert_eq!(b.delay_secs(1), 5); // 5×1
+        assert_eq!(b.delay_secs(2), 10); // 5×2
+        assert_eq!(b.delay_secs(3), 20); // 5×4
+        assert_eq!(b.delay_secs(4), 40); // 5×8
+        assert_eq!(b.delay_secs(5), 60); // 5×16=80 → capped at 60
+        assert_eq!(b.delay_secs(64), 60); // huge exponent saturates then caps
+    }
+
+    #[test]
+    fn backoff_fixed_is_flat() {
+        let b = RetryBackoff {
+            strategy: BackoffStrategy::Fixed,
+            base_secs: 7,
+            max_secs: 60,
+        };
+        assert_eq!(b.delay_secs(1), 7);
+        assert_eq!(b.delay_secs(9), 7);
+    }
+
+    #[test]
+    fn backoff_parses_from_config_jsonb() {
+        let cfg = serde_json::json!({
+            "retry_backoff": { "strategy": "exponential", "base_secs": 5, "max_secs": 60 }
+        });
+        let b = RetryBackoff::from_config(&cfg).expect("should parse");
+        assert_eq!(b.strategy, BackoffStrategy::Exponential);
+        assert_eq!(b.base_secs, 5);
+        assert_eq!(b.max_secs, 60);
+    }
+
+    #[test]
+    fn backoff_absent_or_malformed_is_none() {
+        // No key at all → today's behaviour.
+        assert!(RetryBackoff::from_config(&serde_json::json!({})).is_none());
+        // Garbage strategy → None, not a panic.
+        let bad = serde_json::json!({ "retry_backoff": { "strategy": "wat" } });
+        assert!(RetryBackoff::from_config(&bad).is_none());
+    }
+
+    #[test]
+    fn backoff_uses_defaults_when_fields_omitted() {
+        let cfg = serde_json::json!({ "retry_backoff": { "strategy": "linear" } });
+        let b = RetryBackoff::from_config(&cfg).unwrap();
+        assert_eq!(b.base_secs, 5);
+        assert_eq!(b.max_secs, 60);
     }
 
     #[test]
