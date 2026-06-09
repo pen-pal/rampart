@@ -6,6 +6,7 @@ import {
   ChevronDown, Check, Copy,
 } from 'lucide-react';
 import { api, useApi } from '../lib/api.js';
+import { t } from '../lib/i18n.js';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -2444,7 +2445,7 @@ export default function Notifications() {
   const sendTest = async (id) => {
     try {
       await api.notifications.test(id);
-      alert('Test message sent. Check the channel.');
+      alert(t('notifications.test_sent'));
     } catch (e) { alert(`Failed: ${e.message}`); }
   };
 
@@ -2455,20 +2456,20 @@ export default function Notifications() {
   const channelFormCard = (inline = false) => (
     <div className={`card form-panel${inline ? ' form-panel-inline' : ''}`} style={inline ? { padding: 20, margin: 0 } : undefined}>
       <div className="form-eyebrow">
-        {editId ? 'Edit channel' : 'New channel'}
+        {editId ? t('notifications.form.eyebrow_edit') : t('notifications.form.eyebrow_new')}
       </div>
       <h3>
-        {editId ? name : 'Add a notification channel'}
+        {editId ? name : t('notifications.form.title_new')}
       </h3>
       <div className="form-divider"/>
       {editId && (
         <div className="field-hint" style={{ marginBottom: 12, color: 'var(--text-3)' }}>
-          Channel type can't be changed — config fields are type-specific. Delete + re-add to switch type.
+          {t('notifications.form.kind_locked')}
         </div>
       )}
       {!editId && (
         <div className="field">
-          <label className="field-label">Channel type</label>
+          <label className="field-label">{t('notifications.form.channel_type')}</label>
           <ChannelTypeDropdown
             value={kind}
             query={kindQuery}
@@ -2480,39 +2481,39 @@ export default function Notifications() {
 
       <form onSubmit={submit}>
         <div className="field">
-          <label className="field-label">Display name</label>
+          <label className="field-label">{t('notifications.form.display_name')}</label>
           <input className="input" value={name} onChange={e => setName(e.target.value)}
-            placeholder="e.g. Production alerts"/>
+            placeholder={t('notifications.form.display_name_placeholder')}/>
         </div>
         <ConfigForm kind={kind} config={config} setConfig={setConfig}/>
 
         <div className="field">
-          <label className="field-label">Template <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+          <label className="field-label">{t('notifications.form.template')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· {t('common.optional')}</span></label>
           <select className="select" value={templateId} onChange={e => setTemplateId(e.target.value)}>
-            <option value="">— Use default subject/body —</option>
-            {(templates.data || []).map(t => (
-              <option key={t.id} value={t.id}>{t.name} ({t.event_kind})</option>
+            <option value="">{t('notifications.form.template_default')}</option>
+            {(templates.data || []).map(tpl => (
+              <option key={tpl.id} value={tpl.id}>{tpl.name} ({tpl.event_kind})</option>
             ))}
           </select>
-          <div className="field-hint">Manage templates on the <strong>Templates</strong> tab. Leave on default for the built-in subject + body.</div>
+          <div className="field-hint">{t('notifications.form.template_hint')}</div>
         </div>
 
         <div className="field">
-          <label className="field-label">Cooldown <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· seconds · optional</span></label>
+          <label className="field-label">{t('notifications.form.cooldown')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· {t('notifications.form.cooldown_unit')}</span></label>
           <input className="input" type="number" min="0" step="1" value={cooldown}
-            onChange={e => setCooldown(e.target.value)} placeholder="0 (no cooldown)"/>
-          <div className="field-hint">Suppress repeated fires within this window. Useful for flap-prone monitors paired with SMS or paging. <code>0</code> disables.</div>
+            onChange={e => setCooldown(e.target.value)} placeholder={t('notifications.form.cooldown_placeholder')}/>
+          <div className="field-hint">{t('notifications.form.cooldown_hint')}</div>
         </div>
 
         {msg && <div className={msg.kind === 'ok' ? 'banner-ok' : 'banner-err'} style={{ marginBottom: 12 }}>{msg.text}</div>}
 
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-accent" type="submit" disabled={busy}>
-            {busy ? <><Loader2 size={13} className="spin"/> Saving…</>
-                  : editId ? <><Save size={13}/> Update channel</>
-                           : <><Plus size={13}/> Save channel</>}
+            {busy ? <><Loader2 size={13} className="spin"/> {t('common.saving')}</>
+                  : editId ? <><Save size={13}/> {t('notifications.form.update_channel')}</>
+                           : <><Plus size={13}/> {t('notifications.form.save_channel')}</>}
           </button>
-          <button className="btn" type="button" onClick={() => { setShowAdd(false); resetForm(); }}>Cancel</button>
+          <button className="btn" type="button" onClick={() => { setShowAdd(false); resetForm(); }}>{t('common.cancel')}</button>
         </div>
       </form>
 
@@ -2520,9 +2521,9 @@ export default function Notifications() {
           A channel sharing a tag with a monitor or its folder auto-routes. */}
       {editId && (
         <div style={{ borderTop: '1px solid var(--border)', marginTop: 16, paddingTop: 14 }}>
-          <div className="field-label" style={{ marginBottom: 6 }}>Routing tags</div>
+          <div className="field-label" style={{ marginBottom: 6 }}>{t('notifications.form.routing_tags')}</div>
           <div className="field-hint" style={{ marginBottom: 8 }}>
-            This channel auto-fires for any monitor (or folder) sharing one of these tags — no manual attach needed.
+            {t('notifications.form.routing_tags_hint')}
           </div>
           <ChannelTagEditor channelId={editId} allTags={allTags.data || []}/>
         </div>
@@ -2540,22 +2541,22 @@ export default function Notifications() {
         position: 'sticky', top: 0, zIndex: 10,
       }}>
         <a href="#/" style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-3)', textDecoration: 'none', fontSize: 13 }}>
-          <ChevronLeft size={14}/> Dashboard
+          <ChevronLeft size={14}/> {t('common.dashboard')}
         </a>
         <span style={{ color: 'var(--text-3)' }}>/</span>
         <span style={{ fontSize: 14, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Bell size={15}/> Notifications
+          <Bell size={15}/> {t('notifications.title')}
         </span>
         {tab === 'channels' && (
           showAdd ? (
             <button className="btn" style={{ marginLeft: 'auto' }}
               onClick={() => { setShowAdd(false); resetForm(); }}>
-              <X size={13}/> Close form
+              <X size={13}/> {t('notifications.close_form')}
             </button>
           ) : (
             <button className="btn btn-accent" style={{ marginLeft: 'auto' }}
               onClick={() => { resetForm(); setShowAdd(true); }}>
-              <Plus size={13}/> Add channel
+              <Plus size={13}/> {t('notifications.add_channel')}
             </button>
           )
         )}
@@ -2563,18 +2564,18 @@ export default function Notifications() {
 
       <main style={{ padding: '28px 32px', maxWidth: 1000, margin: '0 auto' }}>
         <h1 style={{ fontSize: 22, fontWeight: 600, margin: '0 0 8px', letterSpacing: '-.02em' }}>
-          Notifications
+          {t('notifications.title')}
         </h1>
         <p style={{ fontSize: 13, color: 'var(--text-2)', margin: '0 0 18px' }}>
-          Channels are <em>where</em> alerts go; templates are <em>what</em> they say. Attach a template to a channel to customise its subject + body.
+          {t('notifications.subtitle')}
         </p>
 
         <div className="tabs">
           <button className={tab === 'channels'  ? 'active' : ''} onClick={() => setTab('channels')}>
-            <Bell size={12}/> Channels {(list.data || []).length > 0 && <span className="mono" style={{ opacity: .7 }}>{(list.data || []).length}</span>}
+            <Bell size={12}/> {t('notifications.tab.channels')} {(list.data || []).length > 0 && <span className="mono" style={{ opacity: .7 }}>{(list.data || []).length}</span>}
           </button>
           <button className={tab === 'templates' ? 'active' : ''} onClick={() => setTab('templates')}>
-            <FileText size={12}/> Templates {(templates.data || []).length > 0 && <span className="mono" style={{ opacity: .7 }}>{(templates.data || []).length}</span>}
+            <FileText size={12}/> {t('notifications.tab.templates')} {(templates.data || []).length > 0 && <span className="mono" style={{ opacity: .7 }}>{(templates.data || []).length}</span>}
           </button>
         </div>
 
@@ -2588,12 +2589,12 @@ export default function Notifications() {
 
         {/* Channel list */}
         <div className="card" style={{ padding: 0 }}>
-          {list.loading && <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>Loading channels…</div>}
+          {list.loading && <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>{t('notifications.loading_channels')}</div>}
           {!list.loading && channels.length === 0 && (
             <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
               <Bell size={20} style={{ opacity: .4, marginBottom: 8 }}/>
-              <div>No notification channels configured yet.</div>
-              <div style={{ marginTop: 6 }}>Click <strong>Add channel</strong> above to set up your first one.</div>
+              <div>{t('notifications.empty.title')}</div>
+              <div style={{ marginTop: 6 }}>{t('notifications.empty.cta')}</div>
             </div>
           )}
           {channels.map(c => {
@@ -2619,19 +2620,19 @@ export default function Notifications() {
                   <div className="ch-meta">
                     <span className="ch-type-pill">{meta ? meta.name : c.kind}</span>
                     <span className={c.active ? 'ch-status-on' : 'ch-status-off'}>
-                      {c.active ? 'Enabled' : 'Disabled'}
+                      {c.active ? t('notifications.channel.enabled') : t('notifications.channel.disabled')}
                     </span>
                   </div>
                 </div>
                 <div style={{ gridColumn: '3', display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
                   {c.kind === 'webpush' && <EnablePushButton notificationId={c.id}/>}
-                  <button className={`btn ${editingThis ? 'btn-accent' : ''}`} onClick={() => startEdit(c)} title="Edit this channel">
-                    <Edit3 size={12}/> {editingThis ? 'Close' : 'Edit'}
+                  <button className={`btn ${editingThis ? 'btn-accent' : ''}`} onClick={() => startEdit(c)} title={t('notifications.channel.edit_title')}>
+                    <Edit3 size={12}/> {editingThis ? t('common.close') : t('common.edit')}
                   </button>
-                  <button className="btn" onClick={() => sendTest(c.id)} title="Send a test message">
-                    <Send size={12}/> Test
+                  <button className="btn" onClick={() => sendTest(c.id)} title={t('notifications.channel.test_title')}>
+                    <Send size={12}/> {t('common.test')}
                   </button>
-                  <button className="btn btn-danger" onClick={() => removeOne(c.id)} title="Delete">
+                  <button className="btn btn-danger" onClick={() => removeOne(c.id)} title={t('notifications.channel.delete_title')}>
                     <Trash2 size={12}/>
                   </button>
                 </div>
@@ -2734,11 +2735,11 @@ function TemplatesPanel({ state, reload }) {
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 0 }}>
-          Reusable subject + body strings. Attach to channels to customise what they send.
+          {t('notifications.templates.subtitle')}
         </p>
         {!showAdd && !editing && (
           <button className="btn btn-accent" onClick={() => { setPrefill(null); setShowAdd(true); }}>
-            <Plus size={13}/> New template
+            <Plus size={13}/> {t('notifications.templates.new')}
           </button>
         )}
       </div>
@@ -2747,7 +2748,7 @@ function TemplatesPanel({ state, reload }) {
       {!showAdd && !editing && (
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 8 }}>
-            Start from a preset
+            {t('notifications.templates.start_preset')}
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {TEMPLATE_PRESETS.map(p => (
@@ -2771,28 +2772,28 @@ function TemplatesPanel({ state, reload }) {
       )}
 
       <div className="card" style={{ padding: 0, marginTop: 16 }}>
-        {state.loading && <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>Loading templates…</div>}
+        {state.loading && <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>{t('notifications.templates.loading')}</div>}
         {!state.loading && (state.data || []).length === 0 && !showAdd && (
           <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
             <FileText size={20} style={{ opacity: .4, marginBottom: 8 }}/>
-            <div>No templates yet.</div>
-            <div style={{ marginTop: 6 }}>Channels will use built-in defaults until you add one.</div>
+            <div>{t('notifications.templates.empty.title')}</div>
+            <div style={{ marginTop: 6 }}>{t('notifications.templates.empty.cta')}</div>
           </div>
         )}
-        {(state.data || []).map(t => (
-          <div key={t.id} className="template-row">
+        {(state.data || []).map(tpl => (
+          <div key={tpl.id} className="template-row">
             <FileText size={16} color="var(--text-2)"/>
             <div>
-              <div style={{ fontSize: 13.5, fontWeight: 500 }}>{t.name}</div>
+              <div style={{ fontSize: 13.5, fontWeight: 500 }}>{tpl.name}</div>
               <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>
-                <span style={{ textTransform: 'uppercase', letterSpacing: '.04em' }}>{t.event_kind.replace(/_/g, ' ')}</span>
-                {t.channel_kinds.length > 0 && <> · for: {t.channel_kinds.join(', ')}</>}
+                <span style={{ textTransform: 'uppercase', letterSpacing: '.04em' }}>{tpl.event_kind.replace(/_/g, ' ')}</span>
+                {tpl.channel_kinds.length > 0 && <> · for: {tpl.channel_kinds.join(', ')}</>}
               </div>
             </div>
             <span style={{ fontSize: 11, color: 'var(--text-3)' }}>
-              {t.body_template.length} chars
+              {t('notifications.templates.chars', { n: tpl.body_template.length })}
             </span>
-            <button className="btn" onClick={() => setEditing(t)} title="Edit">
+            <button className="btn" onClick={() => setEditing(tpl)} title={t('notifications.templates.edit_title')}>
               <Edit3 size={12}/>
             </button>
             <button className="btn" onClick={() => {
@@ -2801,20 +2802,20 @@ function TemplatesPanel({ state, reload }) {
               // unique constraint doesn't trip on first save.
               setEditing(null);
               setPrefill({
-                name: `${t.name} (copy)`,
-                event_kind: t.event_kind,
-                subject_template: t.subject_template,
-                body_template: t.body_template,
+                name: `${tpl.name} (copy)`,
+                event_kind: tpl.event_kind,
+                subject_template: tpl.subject_template,
+                body_template: tpl.body_template,
               });
               setShowAdd(true);
-            }} title="Clone — start a new template from this one">
+            }} title={t('notifications.templates.clone_title')}>
               <Copy size={12}/>
             </button>
             <button className="btn btn-danger" onClick={async () => {
-              if (!confirm(`Delete template "${t.name}"?`)) return;
-              try { await api.templates.remove(t.id); reload(); }
+              if (!confirm(`Delete template "${tpl.name}"?`)) return;
+              try { await api.templates.remove(tpl.id); reload(); }
               catch (e) { alert(e.message); }
-            }} title="Delete">
+            }} title={t('notifications.templates.delete_title')}>
               <Trash2 size={12}/>
             </button>
           </div>
@@ -2879,16 +2880,16 @@ function TemplateForm({ initial, prefill, onCancel, onSaved }) {
   return (
     <div className="card" style={{ padding: 20, marginBottom: 12 }}>
       <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 14px' }}>
-        {initial ? `Edit template: ${initial.name}` : 'New template'}
+        {initial ? t('notifications.editor.title_edit', { name: initial.name }) : t('notifications.editor.title_new')}
       </h3>
       <form onSubmit={save}>
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
           <div className="field">
-            <label className="field-label">Name</label>
-            <input className="input" value={name} onChange={e => setName(e.target.value)} placeholder="Concise outage" autoFocus/>
+            <label className="field-label">{t('notifications.editor.name')}</label>
+            <input className="input" value={name} onChange={e => setName(e.target.value)} placeholder={t('notifications.editor.name_placeholder')} autoFocus/>
           </div>
           <div className="field">
-            <label className="field-label">Event kind</label>
+            <label className="field-label">{t('notifications.editor.event_kind')}</label>
             <select className="select" value={eventKind} onChange={e => setEventKind(e.target.value)}>
               {EVENT_KINDS.map(k => <option key={k.id} value={k.id}>{k.label}</option>)}
             </select>
@@ -2896,18 +2897,18 @@ function TemplateForm({ initial, prefill, onCancel, onSaved }) {
         </div>
 
         <div className="field">
-          <label className="field-label">Subject template <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+          <label className="field-label">{t('notifications.editor.subject')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· {t('common.optional')}</span></label>
           <input className="input mono" value={subject} onChange={e => setSubject(e.target.value)} placeholder="[{{status}}] {{monitor.name}}"/>
         </div>
 
         <div className="field">
-          <label className="field-label">Body template</label>
+          <label className="field-label">{t('notifications.editor.body')}</label>
           <textarea className="input mono" rows={7} value={body} onChange={e => setBody(e.target.value)}
             style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, padding: '10px 12px', lineHeight: 1.5 }}/>
         </div>
 
         <div className="field">
-          <label className="field-label">Available placeholders <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· click to insert into body</span></label>
+          <label className="field-label">{t('notifications.editor.placeholders')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· {t('notifications.editor.placeholders_hint')}</span></label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {PLACEHOLDERS.map(ph => (
               <button key={ph} type="button" className="code" onClick={() => insertPlaceholder(ph, 'body')}
@@ -2923,19 +2924,19 @@ function TemplateForm({ initial, prefill, onCancel, onSaved }) {
         {preview && (
           <div className="field" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span className="field-label" style={{ margin: 0 }}>Preview · rendered against a fake "down" heartbeat</span>
+              <span className="field-label" style={{ margin: 0 }}>{t('notifications.editor.preview_header')}</span>
               <button type="button" className="btn btn-ghost" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => setPreview(null)}>
-                <X size={11}/> Close
+                <X size={11}/> {t('common.close')}
               </button>
             </div>
             {preview.subject && (
               <div style={{ marginBottom: 8 }}>
-                <div style={{ fontSize: 10.5, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 2 }}>Subject</div>
+                <div style={{ fontSize: 10.5, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 2 }}>{t('notifications.editor.subject_label')}</div>
                 <div className="mono" style={{ fontSize: 12.5, color: 'var(--text)' }}>{preview.subject}</div>
               </div>
             )}
             <div>
-              <div style={{ fontSize: 10.5, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 2 }}>Body</div>
+              <div style={{ fontSize: 10.5, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 2 }}>{t('notifications.editor.body_label')}</div>
               <pre className="mono" style={{ fontSize: 12, color: 'var(--text)', margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{preview.body}</pre>
             </div>
           </div>
@@ -2943,12 +2944,12 @@ function TemplateForm({ initial, prefill, onCancel, onSaved }) {
 
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-accent" type="submit" disabled={busy}>
-            {busy ? <><Loader2 size={13} className="spin"/> Saving…</> : <><Save size={13}/> {initial ? 'Update template' : 'Save template'}</>}
+            {busy ? <><Loader2 size={13} className="spin"/> {t('common.saving')}</> : <><Save size={13}/> {initial ? t('notifications.editor.update') : t('notifications.editor.save')}</>}
           </button>
           <button className="btn" type="button" onClick={doPreview} disabled={previewing}>
-            {previewing ? <><Loader2 size={13} className="spin"/> Rendering…</> : <><BellRing size={13}/> Preview</>}
+            {previewing ? <><Loader2 size={13} className="spin"/> {t('notifications.editor.rendering')}</> : <><BellRing size={13}/> {t('notifications.editor.preview')}</>}
           </button>
-          <button className="btn" type="button" onClick={onCancel}><X size={13}/> Cancel</button>
+          <button className="btn" type="button" onClick={onCancel}><X size={13}/> {t('common.cancel')}</button>
         </div>
       </form>
     </div>
@@ -2994,14 +2995,14 @@ function EnablePushButton({ notificationId }) {
   };
 
   if (state === 'done') {
-    return <span className="btn" style={{ cursor: 'default', color: 'var(--up)' }}><BellRing size={12}/> Subscribed</span>;
+    return <span className="btn" style={{ cursor: 'default', color: 'var(--up)' }}><BellRing size={12}/> {t('notifications.subscribed')}</span>;
   }
   return (
     <button className="btn" onClick={enable} disabled={state === 'working'} title="Subscribe this browser to push alerts">
       {state === 'working'
         ? <><Loader2 size={12} className="spin"/> …</>
-        : <><BellRing size={12}/> Enable push</>}
-      {state === 'unsupported' && <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--down)' }}>not supported</span>}
+        : <><BellRing size={12}/> {t('notifications.enable_push')}</>}
+      {state === 'unsupported' && <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--down)' }}>{t('notifications.not_supported')}</span>}
       {state === 'error' && msg && <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--down)' }}>{msg}</span>}
     </button>
   );
@@ -3051,7 +3052,7 @@ function ChannelTypeDropdown({ value, query, setQuery, onSelect }) {
         style={{ display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', cursor: 'pointer', width: '100%' }}>
         <SelIcon size={15} color="var(--accent-2)"/>
         <span style={{ fontWeight: 500, fontSize: 13 }}>{selected.name}</span>
-        <span style={{ marginLeft: 'auto', color: 'var(--text-3)', fontSize: 11 }}>{SUPPORTED.length} types</span>
+        <span style={{ marginLeft: 'auto', color: 'var(--text-3)', fontSize: 11 }}>{t('notifications.types_count', { n: SUPPORTED.length })}</span>
         <ChevronDown size={14} color="var(--text-3)" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}/>
       </button>
 
@@ -3064,7 +3065,7 @@ function ChannelTypeDropdown({ value, query, setQuery, onSelect }) {
           <div style={{ position: 'relative', padding: 8, borderBottom: '1px solid var(--border)' }}>
             <Search size={13} color="var(--text-3)" style={{ position: 'absolute', left: 18, top: '50%', transform: 'translateY(-50%)' }}/>
             <input ref={inputRef} className="input" value={query} onChange={e => setQuery(e.target.value)}
-              placeholder="Filter channel types…" style={{ paddingLeft: 28 }}/>
+              placeholder={t('notifications.filter_types')} style={{ paddingLeft: 28 }}/>
           </div>
           <div style={{ maxHeight: 320, overflowY: 'auto', padding: 4 }}>
             {matches.map(s => {
