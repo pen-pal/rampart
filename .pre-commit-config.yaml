@@ -1,0 +1,73 @@
+# pre-commit hook config for Rampart.
+#
+# Install once per clone:
+#   pip install pre-commit   # or `brew install pre-commit`
+#   pre-commit install
+#
+# Run on the full tree (rather than just staged files) to seed a clean
+# baseline after install:
+#   pre-commit run --all-files
+#
+# What runs on every `git commit`:
+#   1. pre-commit-hooks  — quick whole-tree hygiene (trailing whitespace,
+#                          end-of-file, JSON/TOML/YAML parse, merge-conflict
+#                          markers, broken symlinks, accidentally-committed
+#                          private keys + AWS creds, large files).
+#   2. gitleaks          — repo-wide secret scanner.
+#   3. trufflehog        — verified-secret scanner (catches creds that
+#                          gitleaks's pattern set misses).
+#   4. shellcheck        — *.sh static analysis.
+#   5. cargo-fmt         — `cargo fmt --all -- --check` in backend/ so any
+#                          staged .rs file lands in workspace-formatted
+#                          state. If anything would change, the hook
+#                          aborts so the operator can `cargo fmt --all`
+#                          and re-stage.
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v2.3.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-json
+      - id: check-toml
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: check-symlinks
+      - id: detect-private-key
+      - id: check-added-large-files
+      - id: detect-aws-credentials
+        args: [--allow-missing-credentials]
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.2
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/trufflesecurity/truffleHog
+    rev: v3.88.26
+    hooks:
+      - id: trufflehog
+        name: TruffleHog
+        description: Detect verified secrets with TruffleHog.
+        entry: trufflehog git file://. --since-commit HEAD --results=verified --fail
+        language: golang
+        pass_filenames: false
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+
+  # Local rustfmt hook. Runs `cargo fmt --all -- --check` inside backend/
+  # so every Cargo workspace member is held to the same `rustfmt.toml`
+  # standard. Triggers only when a Rust file or Cargo manifest is
+  # staged, so non-backend commits don't pay the cargo-startup cost.
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: cargo fmt --all
+        entry: bash -c 'cd backend && cargo fmt --all -- --check'
+        language: system
+        files: \.(rs|toml)$
+        pass_filenames: false
