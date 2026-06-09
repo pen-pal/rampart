@@ -1,0 +1,47 @@
+{
+  "monitors": [
+    {
+      "code": "ABCD12",
+      "name": "Nightly job heartbeat",
+      "type": "heartbeat",
+      "schedule": "every 24 hours",
+      "notify": ["ops@example.com"]
+    },
+    {
+      "code": "EFGH34",
+      "name": "Cron backup runner",
+      "type": "job",
+      "schedule": "0 2 * * *",
+      "notify": ["ops@example.com"]
+    },
+    {
+      "code": "IJKL56",
+      "name": "Acme API check",
+      "type": "check",
+      "request": {
+        "url": "https://api.example.com/health",
+        "method": "GET"
+      },
+      "schedule": "every 60 seconds",
+      "assertions": [
+        {"rule_type": "response_code", "operator": "==", "value": "200"}
+      ]
+    },
+    {
+      "code": "MNOP78",
+      "name": "Acme homepage uptime",
+      "type": "uptime",
+      "request": {
+        "url": "https://www.example.com",
+        "method": "GET"
+      },
+      "schedule": "every 5 minutes"
+    },
+    {
+      "code": "QRST90",
+      "name": "Future synthetic check",
+      "type": "synthetic",
+      "schedule": "every 1 minute"
+    }
+  ]
+}
