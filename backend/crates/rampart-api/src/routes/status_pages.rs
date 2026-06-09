@@ -28,6 +28,7 @@ pub fn admin_router() -> Router<AppState> {
 
 pub fn public_router() -> Router<AppState> {
     Router::new()
+        .route("/by-domain/{host}", get(public_view_by_domain))
         .route("/{slug}", get(public_view))
         .route("/{slug}/feed.atom", get(public_feed_atom))
         .route("/{slug}/feed.rss", get(public_feed_rss))
@@ -186,6 +187,25 @@ async fn public_view(
 ) -> Result<Json<PublicStatusPage>, ApiError> {
     Ok(Json(
         rampart_db::status_pages::public_view(s.pool(), &slug).await?,
+    ))
+}
+
+/// Public view resolved by the page's `custom_domain` rather than its slug.
+/// Backs the frontend host-header probe: a visitor hitting `status.acme.com`
+/// loads this on boot and, if it resolves, renders the public status view in
+/// place of the dashboard shell. We resolve the domain to a slug first, then
+/// reuse the same `public_view` projection so the payload is byte-identical to
+/// the slug route. A domain with no matching page returns 404, which the
+/// frontend treats as "not a custom-domain host" and falls through silently.
+async fn public_view_by_domain(
+    State(s): State<AppState>,
+    Path(host): Path<String>,
+) -> Result<Json<PublicStatusPage>, ApiError> {
+    let page = rampart_db::status_pages::find_by_custom_domain(s.pool(), &host)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    Ok(Json(
+        rampart_db::status_pages::public_view(s.pool(), &page.slug).await?,
     ))
 }
 
