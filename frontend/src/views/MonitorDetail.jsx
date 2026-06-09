@@ -321,6 +321,14 @@ export default function MonitorDetail({ monitorId, user }) {
     [monitorId, sloTargetSet],
     { pollMs: 300_000 },
   );
+  // SLO error-budget burn-down — one point per day across the configured
+  // window. Same 404 contract as the fuel gauge, so we short-circuit on
+  // un-configured monitors and poll on the same 5-min cadence.
+  const burndownState = useApi(
+    () => (monitorId && sloTargetSet) ? api.monitors.sloBurndown(monitorId) : Promise.resolve(null),
+    [monitorId, sloTargetSet],
+    { pollMs: 300_000 },
+  );
   const groupsState    = useApi(() => api.monitorGroups.list(),          [], { pollMs: 60_000 });
 
   const monitor = monitorState.data;
@@ -615,6 +623,15 @@ export default function MonitorDetail({ monitorId, user }) {
             approximation. */}
         {monitor.slo_target_pct != null && (
           <ErrorBudgetCard data={errorBudgetState.data}/>
+        )}
+
+        {/* Error budget burn-down. Sits directly under the fuel gauge:
+            the gauge is the point-in-time reading, this is the same
+            number plotted across the window so the operator sees the
+            budget DEPLETING over time. Polls the /slo/burndown endpoint
+            on the same 5-min cadence. */}
+        {monitor.slo_target_pct != null && (
+          <BurndownCard data={burndownState.data}/>
         )}
 
         {/* 90-day uptime strip */}
@@ -1701,6 +1718,90 @@ function ErrorBudgetCard({ data }) {
         <div className="tabular mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>
           {loading ? '' : t('monitor.budget.used', { used: fmtBudget(used) })}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// SLO error-budget burn-down chart. Plots `budget_remaining_pct` per day
+// across the configured window as a descending area (from 100% toward 0%
+// as budget is consumed). Mirrors the response-time chart's recharts
+// setup. Renders a loading/empty state until the first payload lands.
+function BurndownCard({ data }) {
+  const points = data?.points ?? [];
+  const windowDays = data?.window_days ?? '';
+  const targetPct  = data?.target_pct;
+
+  // Map server points → chart rows. `day` is an ISO date string from the
+  // serialised `time::Date`; show a compact "Jun 9" tick label and keep
+  // the raw values for the tooltip.
+  const chart = useMemo(() => points.map((p) => {
+    const d = new Date(`${p.day}T00:00:00Z`);
+    const label = isNaN(d.getTime())
+      ? String(p.day)
+      : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    return {
+      label,
+      date: String(p.day),
+      remainingPct: p.budget_remaining_pct,
+      remainingSecs: p.budget_remaining_secs,
+    };
+  }), [points]);
+
+  const renderTooltip = ({ active, payload }) => {
+    if (!active || !payload || !payload.length) return null;
+    const row = payload[0].payload;
+    return (
+      <div style={{
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: 8, fontSize: 12, padding: '8px 10px', boxShadow: '0 4px 12px rgba(0,0,0,.08)',
+      }}>
+        <div style={{ color: 'var(--text-2)', marginBottom: 4 }}>{row.date}</div>
+        <div className="tabular">
+          <strong>{row.remainingPct.toFixed(1)}%</strong>
+          <span style={{ color: 'var(--text-3)' }}> · {Math.round(row.remainingSecs / 60)} min left</span>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="card" style={{ padding: '20px 22px', marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+        <Activity size={14} color="var(--text-3)"/>
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Error budget burn-down</h3>
+        <span className="tabular mono" style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-3)' }}>
+          {windowDays ? `${windowDays}-day window` : ''}
+          {targetPct != null ? ` · ${Number(targetPct).toFixed(2)}% target` : ''}
+        </span>
+      </div>
+      <div style={{ height: 200 }}>
+        {chart.length > 0 ? (
+          <ResponsiveContainer>
+            <AreaChart data={chart} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
+              <defs>
+                <linearGradient id="burndown" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%"   stopColor="var(--up)" stopOpacity={0.3}/>
+                  <stop offset="100%" stopColor="var(--up)" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <XAxis dataKey="label" stroke="var(--text-3)" tick={{ fontSize: 11, fontFamily: 'JetBrains Mono' }}
+                interval={Math.max(0, Math.floor(chart.length / 8))} tickLine={false}
+                axisLine={{ stroke: 'var(--border)' }}/>
+              <YAxis stroke="var(--text-3)" tick={{ fontSize: 11, fontFamily: 'JetBrains Mono' }}
+                domain={[0, 100]} tickLine={false} axisLine={false} tickFormatter={v => `${v}%`}/>
+              <Tooltip content={renderTooltip}/>
+              <ReferenceLine y={0} stroke="var(--down)" strokeWidth={1.2}
+                label={{ value: 'budget exhausted', fill: 'var(--down)', fontSize: 10, position: 'insideTopRight' }}/>
+              <Area type="monotone" dataKey="remainingPct" stroke="var(--up)" strokeWidth={1.8}
+                fill="url(#burndown)" connectNulls isAnimationActive={false}/>
+            </AreaChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="empty" style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {data ? 'No data in the window yet' : '—'}
+          </div>
+        )}
       </div>
     </div>
   );

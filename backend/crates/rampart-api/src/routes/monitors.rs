@@ -33,6 +33,7 @@ pub fn router() -> Router<AppState> {
         .route("/{id}/heartbeats.csv", get(heartbeats_csv))
         .route("/{id}/reliability", get(reliability))
         .route("/{id}/slo/error-budget", get(slo_error_budget))
+        .route("/{id}/slo/burndown", get(slo_burndown))
         .route("/{id}/pause", post(pause))
         .route("/{id}/resume", post(resume))
         .route("/{id}/clone", post(clone_one))
@@ -581,6 +582,48 @@ async fn slo_error_budget(
     let budget =
         rampart_db::heartbeats::error_budget(state.pool(), monitor_id, window_days, target).await?;
     Ok(Json(budget))
+}
+
+/// SLO error-budget burn-down: one point per day across the configured
+/// window showing the budget depleting over time. Same 404 contract as
+/// [`slo_error_budget`] — returns Not Found when `slo_target_pct` /
+/// `slo_window_days` are unset, so the frontend only requests it after
+/// reading the monitor row and confirming a target is configured.
+#[derive(Debug, Serialize)]
+pub struct BurndownDto {
+    pub window_days: i32,
+    pub target_pct: f64,
+    pub allowed_downtime_secs: i64,
+    pub points: Vec<rampart_db::heartbeats::BurndownPoint>,
+}
+
+async fn slo_burndown(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<BurndownDto>, ApiError> {
+    let monitor_id = parse_monitor_id(&id)?;
+    let monitor = rampart_db::monitors::get(state.pool(), monitor_id).await?;
+    let target = monitor.slo_target_pct.ok_or(ApiError::NotFound)?;
+    let window_days = monitor.slo_window_days.ok_or(ApiError::NotFound)?;
+    let points = rampart_db::heartbeats::error_budget_burndown(
+        state.pool(),
+        monitor_id,
+        window_days,
+        target,
+    )
+    .await?;
+    // Same allowance formula the burn-down helper uses internally; recompute
+    // here so the response header matches the point values without threading
+    // it back out of the helper.
+    let allowed_downtime_secs =
+        ((((100.0 - target) / 100.0) * (window_days as i64 * 86_400) as f64).round()).max(0.0)
+            as i64;
+    Ok(Json(BurndownDto {
+        window_days,
+        target_pct: target,
+        allowed_downtime_secs,
+        points,
+    }))
 }
 
 async fn heartbeats(
