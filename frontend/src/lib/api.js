@@ -175,7 +175,7 @@ export const api = {
   },
   apiKeys: {
     list:   ()                  => request('/v1/api-keys'),
-    create: (name, scopes, exp) => request('/v1/api-keys', { method: 'POST', body: { name, scopes: scopes || [], expires_at: exp || null } }),
+    create: (name, scope, exp) => request('/v1/api-keys', { method: 'POST', body: { name, scope: scope || 'read', expires_at: exp || null } }),
     revoke: (id)                => request(`/v1/api-keys/${id}`, { method: 'DELETE' }),
   },
   audit: {

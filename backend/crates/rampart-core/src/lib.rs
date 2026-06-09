@@ -26,7 +26,7 @@ pub mod tag;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
 
-pub use api_key::{ApiKey, IssuedApiKey, NewApiKey};
+pub use api_key::{ApiKey, IssuedApiKey, KeyScope, NewApiKey};
 pub use error::{CoreError, Result};
 pub use heartbeat::Heartbeat;
 pub use ids::{

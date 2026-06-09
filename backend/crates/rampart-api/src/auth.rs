@@ -126,9 +126,17 @@ pub async fn require_session(
             let _ = rampart_db::api_keys::touch_last_used(&pool, key_id).await;
         });
 
-        let user = rampart_db::users::get(state.pool(), user_id)
+        let mut user = rampart_db::users::get(state.pool(), user_id)
             .await
             .map_err(|_| ApiError::Unauthorized)?;
+        // Per-key authorization (migration 0057): the request's effective
+        // role comes from the KEY's scope, NOT the creator's user role. This
+        // is what enforces scopes — a `read` key gets Role::Readonly even if
+        // an admin minted it, so the existing RBAC route guards (which read
+        // `user.role`) 403 it on mutations / admin routes automatically.
+        // `min(creator_role, key_scope_role)` would be stricter, but scopes
+        // are the contract here, so the key's scope is authoritative.
+        user.role = key.scope.as_role();
         req.extensions_mut().insert(user);
         return Ok(next.run(req).await);
     }

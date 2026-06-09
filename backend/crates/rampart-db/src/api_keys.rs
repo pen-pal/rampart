@@ -6,7 +6,7 @@
 //! beyond what a UNIQUE index already exposes.
 
 use crate::{DbError, DbPool, DbResult};
-use rampart_core::api_key::{ApiKey, IssuedApiKey, NewApiKey};
+use rampart_core::api_key::{ApiKey, IssuedApiKey, KeyScope, NewApiKey};
 use rampart_core::ids::{ApiKeyId, UserId};
 use sha2::{Digest, Sha256};
 use time::OffsetDateTime;
@@ -20,7 +20,7 @@ struct KeyRow {
     id: Uuid,
     name: String,
     key_prefix: String,
-    scopes: Vec<String>,
+    scope: String,
     created_by: Option<Uuid>,
     created_at: OffsetDateTime,
     last_used_at: Option<OffsetDateTime>,
@@ -33,7 +33,7 @@ impl From<KeyRow> for ApiKey {
             id: ApiKeyId::from_uuid(r.id),
             name: r.name,
             key_prefix: r.key_prefix,
-            scopes: r.scopes,
+            scope: KeyScope::from_db(&r.scope),
             created_by: r.created_by.map(UserId::from_uuid),
             created_at: r.created_at,
             last_used_at: r.last_used_at,
@@ -46,7 +46,7 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<ApiKey>> {
     let rows = sqlx::query_as!(
         KeyRow,
         r#"
-        SELECT id, name, key_prefix, scopes, created_by,
+        SELECT id, name, key_prefix, scope, created_by,
                created_at, last_used_at, expires_at
         FROM api_keys
         ORDER BY created_at DESC
@@ -66,16 +66,20 @@ pub async fn create(pool: &DbPool, input: NewApiKey, created_by: UserId) -> DbRe
     let row = sqlx::query_as!(
         KeyRow,
         r#"
-        INSERT INTO api_keys (id, name, key_hash, key_prefix, scopes, created_by, expires_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING id, name, key_prefix, scopes, created_by,
+        INSERT INTO api_keys (id, name, key_hash, key_prefix, scope, scopes, created_by, expires_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING id, name, key_prefix, scope, created_by,
                   created_at, last_used_at, expires_at
         "#,
         id.0,
         input.name,
         hash,
         prefix,
-        &input.scopes,
+        input.scope.as_str(),
+        // `scopes` (the legacy array) is a deprecated rollback shim kept one
+        // release; it's NOT NULL with no default, so we satisfy it with an
+        // empty array. `scope` is authoritative.
+        &Vec::<String>::new(),
         created_by.0,
         input.expires_at,
     )
@@ -109,7 +113,7 @@ pub async fn lookup(pool: &DbPool, token: &str) -> DbResult<(ApiKey, UserId)> {
     let row = sqlx::query_as!(
         KeyRow,
         r#"
-        SELECT id, name, key_prefix, scopes, created_by,
+        SELECT id, name, key_prefix, scope, created_by,
                created_at, last_used_at, expires_at
         FROM api_keys
         WHERE key_hash = $1
