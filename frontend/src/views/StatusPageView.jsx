@@ -435,17 +435,8 @@ export default function StatusPageView({ slug }) {
           <Kpi icon={<Calendar size={12}/>} label="Last update"   value={data.generated_at ? relative(toDate(data.generated_at)) : '—'} sub="refreshes every 30s"/>
         </div>
 
-        {/* ── Active incidents ──────────────────────────────────── */}
-        {hasIncidents && (
-          <>
-            <div className="section-h"><Bell size={13}/> Active incidents</div>
-            <div>
-              {incidents.map((inc, i) => <Incident key={i} incident={inc}/>)}
-            </div>
-          </>
-        )}
-
-        {/* ── Components ───────────────────────────────────────── */}
+        {/* ── Components (always above incidents — components are the
+             primary signal; incident threads sit below as context) ── */}
         <div className="section-h"><Activity size={13}/> Components</div>
         <div className="card" style={{ overflow: 'hidden' }}>
           {monitors.length === 0 ? (
@@ -463,6 +454,20 @@ export default function StatusPageView({ slug }) {
           <span><span className="legend-dot" style={{ background: 'var(--maint)' }}/> Maintenance</span>
           <span><span className="legend-dot" style={{ background: 'var(--none)' }}/> No data</span>
         </div>
+
+        {/* ── Active incidents (below components — components are the
+             primary signal; incident threads sit below as context.
+             Backend's `list_active` orders pinned-first, so the pin
+             ranking takes effect inside this section only — pinning
+             never floats incidents above the components list). ── */}
+        {hasIncidents && (
+          <>
+            <div className="section-h"><Bell size={13}/> Active incidents</div>
+            <div>
+              {incidents.map((inc, i) => <Incident key={i} incident={inc}/>)}
+            </div>
+          </>
+        )}
 
         {/* ── Incident history ────────────────────────────────── */}
         {(data.incident_history || []).length > 0 && (
