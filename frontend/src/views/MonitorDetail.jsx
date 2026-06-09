@@ -28,10 +28,29 @@ const css = `
     --maint:#6366f1; --maint-soft:#e0e7ff;
     --paused:#a8a29e;
 
+    /* Foreground text colours for the soft status backgrounds. Pulled out
+       as their own tokens so the dark-theme override below can flip them —
+       the literal #047857 / #b91c1c values are tuned for the LIGHT soft
+       backgrounds and turn unreadable once --up-soft / --down-soft flip to
+       their dark equivalents. */
+    --up-text:#047857; --down-text:#b91c1c; --warn-text:#92400e; --maint-text:#4338ca;
+    /* Result-panel tints for the "Test notifications" outcome banner. */
+    --up-bg:#f0fdf4; --down-bg:#fef2f2;
+
     background: var(--bg); color: var(--text);
     font-family: Inter, ui-sans-serif, system-ui, sans-serif;
     font-feature-settings: 'cv11','ss01';
     min-height: 100vh;
+  }
+
+  /* Dark-mode overrides for the tokens theme.js doesn't flip (it covers
+     --up/--down + their -soft variants, but not --warn/--maint-soft nor the
+     new -text / result-panel tints above). Higher specificity than the base
+     .rampart block, lower churn than touching theme.js. */
+  [data-theme="dark"] .rampart {
+    --warn-soft:#78350f; --maint-soft:#3730a3;
+    --up-text:#6ee7b7; --down-text:#fca5a5; --warn-text:#fde68a; --maint-text:#c7d2fe;
+    --up-bg:#052e16; --down-bg:#450a0a;
   }
   .rampart * { box-sizing: border-box; }
   .mono { font-family: 'JetBrains Mono', monospace; font-feature-settings: 'zero'; }
@@ -60,10 +79,10 @@ const css = `
     padding: 3px 9px; border-radius: 999px;
     font-size: 11px; font-weight: 500; line-height: 1.4;
   }
-  .pill-up     { background: var(--up-soft);    color: #047857; }
-  .pill-down   { background: var(--down-soft);  color: #b91c1c; }
-  .pill-warn   { background: var(--warn-soft);  color: #b45309; }
-  .pill-maint  { background: var(--maint-soft); color: #4338ca; }
+  .pill-up     { background: var(--up-soft);    color: var(--up-text); }
+  .pill-down   { background: var(--down-soft);  color: var(--down-text); }
+  .pill-warn   { background: var(--warn-soft);  color: var(--warn-text); }
+  .pill-maint  { background: var(--maint-soft); color: var(--maint-text); }
   .pill-paused { background: var(--surface-2);  color: var(--text-2); }
   .pill-pending{ background: var(--surface-2);  color: var(--text-2); }
 
@@ -577,7 +596,7 @@ export default function MonitorDetail({ monitorId, user }) {
             style={{
               marginBottom: 12, padding: '8px 12px', borderRadius: 8, cursor: 'pointer',
               fontSize: 13, border: '1px solid var(--border)',
-              background: notifResult.error || notifResult.failed > 0 ? 'var(--down-bg, #fef2f2)' : 'var(--up-bg, #f0fdf4)',
+              background: notifResult.error || notifResult.failed > 0 ? 'var(--down-bg)' : 'var(--up-bg)',
               color: 'var(--text)',
             }}
             title={t('monitor.action.test_notifications_dismiss')}
@@ -638,13 +657,13 @@ export default function MonitorDetail({ monitorId, user }) {
           <div style={{
             display: 'flex', alignItems: 'center', gap: 10,
             padding: '12px 16px', marginBottom: 20,
-            background: 'var(--warn-soft)', border: '1px solid #fcd34d',
-            borderRadius: 10, fontSize: 13, color: '#92400e',
+            background: 'var(--warn-soft)', border: '1px solid var(--warn)',
+            borderRadius: 10, fontSize: 13, color: 'var(--warn-text)',
           }}>
             <Calendar size={14}/>
             <strong>Monitor is currently in maintenance.</strong>
             Checks and alerts are suppressed.
-            <a href="#/maintenance" style={{ marginLeft: 'auto', color: '#92400e', fontSize: 12 }}>Manage windows →</a>
+            <a href="#/maintenance" style={{ marginLeft: 'auto', color: 'var(--warn-text)', fontSize: 12 }}>Manage windows →</a>
           </div>
         )}
 
@@ -1073,7 +1092,7 @@ function EditModal({ monitor, onCancel }) {
 
         <div style={{ padding: '20px 24px 24px' }}>
           {err && (
-            <div style={{ background: 'var(--down-soft)', color: '#b91c1c', border: '1px solid #fecaca', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 14 }}>
+            <div style={{ background: 'var(--down-soft)', color: 'var(--down-text)', border: '1px solid var(--down)', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 14 }}>
               {err}
             </div>
           )}
@@ -1592,10 +1611,10 @@ function CertCard({ monitor }) {
     : days < 14 ? 'warn'
     : 'ok';
   const palette = {
-    ok:      { bg: 'var(--up-soft)',   fg: '#047857', label: `${days} days left` },
-    warn:    { bg: 'var(--warn-soft)', fg: '#92400e', label: `expires in ${days} days` },
-    expired: { bg: 'var(--down-soft)', fg: '#b91c1c', label: `expired ${Math.abs(days)} days ago` },
-    unknown: { bg: 'var(--surface-2)', fg: 'var(--text-2)', label: 'unknown' },
+    ok:      { bg: 'var(--up-soft)',   fg: 'var(--up-text)',   label: `${days} days left` },
+    warn:    { bg: 'var(--warn-soft)', fg: 'var(--warn-text)', label: `expires in ${days} days` },
+    expired: { bg: 'var(--down-soft)', fg: 'var(--down-text)', label: `expired ${Math.abs(days)} days ago` },
+    unknown: { bg: 'var(--surface-2)', fg: 'var(--text-2)',    label: 'unknown' },
   }[tone];
   return (
     <div className="card" style={{ padding: '18px 22px', marginBottom: 20 }}>
@@ -1643,9 +1662,9 @@ function SloCard({ target, current, windowDays }) {
     }
   }
   const palette = {
-    ok:       { bg: 'var(--up-soft)',   fg: '#047857' },
-    risk:     { bg: 'var(--warn-soft)', fg: '#92400e' },
-    breached: { bg: 'var(--down-soft)', fg: '#b91c1c' },
+    ok:       { bg: 'var(--up-soft)',   fg: 'var(--up-text)' },
+    risk:     { bg: 'var(--warn-soft)', fg: 'var(--warn-text)' },
+    breached: { bg: 'var(--down-soft)', fg: 'var(--down-text)' },
     unknown:  { bg: 'var(--surface-2)', fg: 'var(--text-2)' },
   }[tone];
   const fmtPct = v => (v == null ? '—' : `${Number(v).toFixed(2)}%`);
