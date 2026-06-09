@@ -3,6 +3,7 @@ import {
   ChevronLeft, Save, Loader2, AlertCircle, Database,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
+import { t } from '../lib/i18n.js';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -72,14 +73,14 @@ export default function RetentionSettings() {
     const hb = parseInt(heartbeats, 10);
     const al = parseInt(auditLog, 10);
     if (!hb || !al || hb < 1 || al < 1) {
-      setErr('Both windows must be a positive number of days.');
+      setErr(t('settings.retention.err_positive'));
       return;
     }
     setBusy(true);
     try {
       await api.retention.put(hb, al);
       setOk(true);
-    } catch (e) { setErr(e.message || 'Save failed.'); }
+    } catch (e) { setErr(e.message || t('settings.retention.err_save')); }
     finally { setBusy(false); }
   };
 
@@ -88,16 +89,14 @@ export default function RetentionSettings() {
       <style>{css}</style>
       <div style={{ maxWidth: 640, margin: '0 auto', padding: '32px 32px 64px' }}>
         <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}>
-          <ChevronLeft size={14}/> Dashboard
+          <ChevronLeft size={14}/> {t('common.dashboard')}
         </a>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
           <Database size={20}/>
-          <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0, letterSpacing: '-.02em' }}>Retention</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0, letterSpacing: '-.02em' }}>{t('settings.retention.title')}</h1>
         </div>
         <p style={{ fontSize: 13, color: 'var(--text-2)', margin: '0 0 22px' }}>
-          A background prune loop runs every hour and deletes rows older than
-          these windows. Lowering a window deletes data on the next tick — there
-          is no undo.
+          {t('settings.retention.subtitle')}
         </p>
 
         {load ? (
@@ -105,31 +104,29 @@ export default function RetentionSettings() {
         ) : (
           <div className="card" style={{ padding: 22 }}>
             {err && <div className="banner-err"><AlertCircle size={14} style={{ verticalAlign: '-2px', marginRight: 6 }}/>{err}</div>}
-            {ok  && <div className="banner-ok">Retention saved. Next prune tick applies the new window.</div>}
+            {ok  && <div className="banner-ok">{t('settings.retention.saved')}</div>}
 
             <div className="field">
-              <label className="field-label">Heartbeats · days</label>
+              <label className="field-label">{t('settings.retention.heartbeats_label')}</label>
               <input className="input mono" type="number" min="1" step="1"
                 value={heartbeats} onChange={e => setHb(e.target.value)}/>
               <div className="field-hint">
-                Per-check probe results. The dashboard's uptime strip rolls up
-                90 days, so anything lower trims that view. Default <code>90</code>.
+                {t('settings.retention.heartbeats_hint')}
               </div>
             </div>
 
             <div className="field">
-              <label className="field-label">Audit log · days</label>
+              <label className="field-label">{t('settings.retention.audit_label')}</label>
               <input className="input mono" type="number" min="1" step="1"
                 value={auditLog} onChange={e => setAl(e.target.value)}/>
               <div className="field-hint">
-                Admin actions, logins, config changes. Compliance reviews
-                typically want 1 year — default <code>365</code>.
+                {t('settings.retention.audit_hint')}
               </div>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button className="btn btn-accent" onClick={save} disabled={busy}>
-                {busy ? <><Loader2 size={13}/> Saving…</> : <><Save size={13}/> Save</>}
+                {busy ? <><Loader2 size={13}/> {t('common.saving')}</> : <><Save size={13}/> {t('common.save')}</>}
               </button>
             </div>
           </div>

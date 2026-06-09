@@ -3,6 +3,7 @@ import {
   ChevronLeft, Plus, Trash2, Key, Copy, Check, AlertCircle, Loader2, X, Eye, EyeOff,
 } from 'lucide-react';
 import { api, useApi, formatRelative, offsetDateTimeArrayToDate } from '../lib/api.js';
+import { t } from '../lib/i18n.js';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -60,7 +61,7 @@ const css = `
   }
 `;
 
-const tsToDate = (t) => (Array.isArray(t) ? offsetDateTimeArrayToDate(t) : new Date(t));
+const tsToDate = (ts) => (Array.isArray(ts) ? offsetDateTimeArrayToDate(ts) : new Date(ts));
 
 export default function ApiKeys() {
   const keysState = useApi(() => api.apiKeys.list(), [], { pollMs: 30_000 });
@@ -72,7 +73,7 @@ export default function ApiKeys() {
   const reload = () => window.location.reload();
 
   const revoke = async (id) => {
-    if (!confirm('Revoke this API key? Any clients using it will fail with 401.')) return;
+    if (!confirm(t('apikeys.revoke_confirm'))) return;
     setBusy(id); setErr(null);
     try {
       await api.apiKeys.revoke(id);
@@ -89,20 +90,20 @@ export default function ApiKeys() {
 
       <div style={{ maxWidth: 880, margin: '0 auto', padding: '32px 32px 64px' }}>
         <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}>
-          <ChevronLeft size={14}/> Dashboard
+          <ChevronLeft size={14}/> {t('common.dashboard')}
         </a>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 22 }}>
           <div>
             <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 4px', letterSpacing: '-.02em' }}>
-              API keys
+              {t('apikeys.title')}
             </h1>
             <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 0 }}>
-              Long-lived bearer tokens for scripts and CI. Sent as <span className="mono">Authorization: Bearer rmp_…</span>
+              {t('apikeys.subtitle')} <span className="mono">Authorization: Bearer rmp_…</span>
             </p>
           </div>
           <button className="btn btn-accent" onClick={() => setCreating(true)}>
-            <Plus size={14}/> New key
+            <Plus size={14}/> {t('apikeys.new')}
           </button>
         </div>
 
@@ -121,10 +122,10 @@ export default function ApiKeys() {
             <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-3)' }}>
               <Key size={28} style={{ marginBottom: 10, opacity: .5 }}/>
               <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-2)', marginBottom: 4 }}>
-                No API keys yet
+                {t('apikeys.empty.title')}
               </div>
               <div style={{ fontSize: 12.5 }}>
-                Create one to grant scripts read/write access without a session cookie.
+                {t('apikeys.empty.cta')}
               </div>
             </div>
           ) : keys.map(k => (
@@ -132,17 +133,17 @@ export default function ApiKeys() {
               <div>
                 <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 3 }}>{k.name}</div>
                 <div className="mono" style={{ fontSize: 11.5, color: 'var(--text-3)', marginBottom: 4 }}>
-                  {k.key_prefix}… · created {formatRelative(tsToDate(k.created_at))}
+                  {k.key_prefix}… · {t('apikeys.created', { when: formatRelative(tsToDate(k.created_at)) })}
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-3)' }}>
                   {k.last_used_at
-                    ? `Last used ${formatRelative(tsToDate(k.last_used_at))}`
-                    : 'Never used'}
-                  {k.expires_at && ` · expires ${formatRelative(tsToDate(k.expires_at))}`}
+                    ? t('apikeys.last_used', { when: formatRelative(tsToDate(k.last_used_at)) })
+                    : t('apikeys.never_used')}
+                  {k.expires_at && ` · ${t('apikeys.expires', { when: formatRelative(tsToDate(k.expires_at)) })}`}
                 </div>
               </div>
               <button className="btn btn-ghost btn-danger" onClick={() => revoke(k.id)} disabled={busy === k.id}>
-                <Trash2 size={13}/> Revoke
+                <Trash2 size={13}/> {t('apikeys.revoke')}
               </button>
               <span/>
             </div>
@@ -172,7 +173,7 @@ function CreateModal({ onCancel, onCreated }) {
 
   const submit = async () => {
     setErr(null);
-    if (!name.trim()) { setErr('Name is required.'); return; }
+    if (!name.trim()) { setErr(t('apikeys.err_name')); return; }
     setBusy(true);
     try {
       const issued = await api.apiKeys.create(
@@ -182,7 +183,7 @@ function CreateModal({ onCancel, onCreated }) {
       );
       onCreated(issued);
     } catch (e) {
-      setErr(e.message || 'Failed to create key.');
+      setErr(e.message || t('apikeys.err_create'));
       setBusy(false);
     }
   };
@@ -191,27 +192,27 @@ function CreateModal({ onCancel, onCreated }) {
     <div className="modal-backdrop">
       <div className="modal">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>New API key</h3>
+          <h3 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>{t('apikeys.new')}</h3>
           <button className="btn btn-ghost" onClick={onCancel} disabled={busy}><X size={14}/></button>
         </div>
 
         {err && <div className="banner-err">{err}</div>}
 
         <div style={{ marginBottom: 14 }}>
-          <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-2)', display: 'block', marginBottom: 6 }}>Name</label>
+          <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-2)', display: 'block', marginBottom: 6 }}>{t('apikeys.name')}</label>
           <input className="input" autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="CI deploy bot"/>
         </div>
 
         <div style={{ marginBottom: 18 }}>
-          <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-2)', display: 'block', marginBottom: 6 }}>Expires (optional)</label>
+          <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-2)', display: 'block', marginBottom: 6 }}>{t('apikeys.expires_optional')}</label>
           <input type="datetime-local" className="input" value={exp} onChange={e => setExp(e.target.value)}/>
-          <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>Leave blank for a non-expiring key.</div>
+          <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>{t('apikeys.expires_hint')}</div>
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button className="btn btn-ghost" onClick={onCancel} disabled={busy}>Cancel</button>
+          <button className="btn btn-ghost" onClick={onCancel} disabled={busy}>{t('common.cancel')}</button>
           <button className="btn btn-accent" onClick={submit} disabled={busy}>
-            {busy ? <><Loader2 size={13}/> Creating…</> : <>Generate key</>}
+            {busy ? <><Loader2 size={13}/> {t('apikeys.creating')}</> : <>{t('apikeys.generate')}</>}
           </button>
         </div>
       </div>
@@ -234,9 +235,9 @@ function TokenModal({ issued, onClose }) {
   return (
     <div className="modal-backdrop">
       <div className="modal">
-        <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 6px' }}>API key created</h3>
+        <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 6px' }}>{t('apikeys.created_title')}</h3>
         <p style={{ fontSize: 13, color: 'var(--text-2)', margin: '0 0 16px' }}>
-          Copy the token below. <strong>It will not be shown again.</strong>
+          {t('apikeys.copy_intro')} <strong>{t('apikeys.not_shown_again')}</strong>
         </p>
 
         <div style={{
@@ -253,16 +254,16 @@ function TokenModal({ issued, onClose }) {
             {revealed ? <EyeOff size={13}/> : <Eye size={13}/>}
           </button>
           <button className="btn btn-ghost" onClick={copy}>
-            {copied ? <><Check size={13}/> Copied</> : <><Copy size={13}/> Copy</>}
+            {copied ? <><Check size={13}/> {t('apikeys.copied')}</> : <><Copy size={13}/> {t('apikeys.copy')}</>}
           </button>
         </div>
 
         <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 18 }}>
-          Use with: <code className="mono" style={{ color: 'var(--text-2)' }}>curl -H "Authorization: Bearer {issued.token.slice(0, 12)}…" ...</code>
+          {t('apikeys.use_with')} <code className="mono" style={{ color: 'var(--text-2)' }}>curl -H "Authorization: Bearer {issued.token.slice(0, 12)}…" ...</code>
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="btn btn-accent" onClick={onClose}>I've saved the key</button>
+          <button className="btn btn-accent" onClick={onClose}>{t('apikeys.saved_key')}</button>
         </div>
       </div>
     </div>

@@ -11,6 +11,7 @@ import {
   Pencil, Check, Activity, Bell, Folder,
 } from 'lucide-react';
 import { api, useApi } from '../lib/api.js';
+import { t } from '../lib/i18n.js';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -76,8 +77,8 @@ export default function Tags() {
     if (!newName.trim()) return;
     setBusy(true); setErr(null);
     try {
-      const t = await api.tags.create(newName.trim(), newColor);
-      setTags(ts => [...ts, t].sort((a, b) => a.name.localeCompare(b.name)));
+      const created = await api.tags.create(newName.trim(), newColor);
+      setTags(ts => [...ts, created].sort((a, b) => a.name.localeCompare(b.name)));
       setNewName('');
     } catch (e) { setErr(e.message); } finally { setBusy(false); }
   };
@@ -85,16 +86,16 @@ export default function Tags() {
   const onPatch = async (id, patch) => {
     setErr(null);
     try {
-      const t = await api.tags.update(id, patch);
-      setTags(ts => ts.map(x => x.id === id ? t : x).sort((a, b) => a.name.localeCompare(b.name)));
+      const updated = await api.tags.update(id, patch);
+      setTags(ts => ts.map(x => x.id === id ? updated : x).sort((a, b) => a.name.localeCompare(b.name)));
     } catch (e) { setErr(e.message); throw e; }
   };
   const onDelete = async (id, name) => {
     const u = usageById.get(id);
     const refs = u ? (u.monitors + u.channels + u.groups) : 0;
     const confirmMsg = refs > 0
-      ? `Delete tag "${name}"? It is attached to ${u.monitors} monitor(s), ${u.channels} channel(s), ${u.groups} folder(s). Attachments will be removed.`
-      : `Delete tag "${name}"?`;
+      ? t('tags.delete_confirm_refs', { name, monitors: u.monitors, channels: u.channels, groups: u.groups })
+      : t('tags.delete_confirm', { name });
     if (!confirm(confirmMsg)) return;
     setErr(null);
     try {
@@ -107,15 +108,13 @@ export default function Tags() {
     <div className="rampart">
       <style>{css}</style>
       <div style={{ maxWidth: 760, margin: '0 auto', padding: '32px 32px 64px' }}>
-        <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}><ChevronLeft size={14}/> Dashboard</a>
+        <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}><ChevronLeft size={14}/> {t('common.dashboard')}</a>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
           <TagIcon size={20}/>
-          <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0, letterSpacing: '-.02em' }}>Tags</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0, letterSpacing: '-.02em' }}>{t('tags.title')}</h1>
         </div>
         <p style={{ fontSize: 13, color: 'var(--text-2)', margin: '4px 0 22px' }}>
-          Coloured labels you can attach to monitors, folders, and notification channels.
-          Tag-based routing: a channel and a monitor sharing a tag auto-route together — see
-          the Folders page for the resolver semantics.
+          {t('tags.subtitle')}
         </p>
 
         {err && <div className="banner-err" style={{ marginBottom: 16 }}><AlertCircle size={14} style={{ verticalAlign: '-2px', marginRight: 6 }}/>{err}</div>}
@@ -123,10 +122,10 @@ export default function Tags() {
         {/* Create */}
         <div className="card" style={{ padding: 16, marginBottom: 20, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <input className="input" value={newName} onChange={e => setNewName(e.target.value)} style={{ flex: '1 1 200px' }}
-            placeholder="New tag name…" onKeyDown={e => e.key === 'Enter' && create()}/>
+            placeholder={t('tags.new_placeholder')} onKeyDown={e => e.key === 'Enter' && create()}/>
           <ColorSwatch color={newColor} onChange={setNewColor}/>
           <button className="btn btn-accent" onClick={create} disabled={busy} style={{ flexShrink: 0 }}>
-            {busy ? <Loader2 size={13} className="spin"/> : <Plus size={13}/>} Create tag
+            {busy ? <Loader2 size={13} className="spin"/> : <Plus size={13}/>} {t('tags.create')}
           </button>
         </div>
 
@@ -134,14 +133,14 @@ export default function Tags() {
         {!tagsState.loading && tags.length === 0 && (
           <div className="card" style={{ padding: 32, textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
             <TagIcon size={20} style={{ opacity: .4, marginBottom: 8 }}/>
-            <div>No tags yet. Create one above.</div>
+            <div>{t('tags.empty')}</div>
           </div>
         )}
 
         {tags.length > 0 && (
           <div className="card">
-            {tags.map(t => (
-              <TagRow key={t.id} tag={t} usage={usageById.get(t.id)} onPatch={onPatch} onDelete={onDelete}/>
+            {tags.map(tag => (
+              <TagRow key={tag.id} tag={tag} usage={usageById.get(tag.id)} onPatch={onPatch} onDelete={onDelete}/>
             ))}
           </div>
         )}
@@ -184,9 +183,9 @@ function TagRow({ tag, usage, onPatch, onDelete }) {
           <>
             <span className="chip" style={{ background: tag.color }}>{tag.name}</span>
             <span className="meta">
-              <span className="meta-item" title="Monitors carrying this tag"><Activity size={11}/>{u.monitors}</span>
-              <span className="meta-item" title="Notification channels carrying this tag"><Bell size={11}/>{u.channels}</span>
-              <span className="meta-item" title="Folders carrying this tag"><Folder size={11}/>{u.groups}</span>
+              <span className="meta-item" title={t('tags.usage.monitors')}><Activity size={11}/>{u.monitors}</span>
+              <span className="meta-item" title={t('tags.usage.channels')}><Bell size={11}/>{u.channels}</span>
+              <span className="meta-item" title={t('tags.usage.folders')}><Folder size={11}/>{u.groups}</span>
             </span>
           </>
         )}
@@ -198,7 +197,7 @@ function TagRow({ tag, usage, onPatch, onDelete }) {
             <button className="btn btn-ghost" onClick={() => { setEditing(false); setName(tag.name); setColor(tag.color); }} style={{ padding: '5px 8px' }}><X size={13}/></button>
           </span>
         ) : (
-          <button className="btn btn-ghost" style={{ padding: '5px 8px' }} title="Rename / recolour" onClick={() => setEditing(true)}>
+          <button className="btn btn-ghost" style={{ padding: '5px 8px' }} title={t('tags.rename_recolour')} onClick={() => setEditing(true)}>
             <Pencil size={12}/>
           </button>
         )}
@@ -214,7 +213,7 @@ function ColorSwatch({ color, onChange }) {
   const [open, setOpen] = useState(false);
   return (
     <span style={{ position: 'relative', display: 'inline-flex' }}>
-      <button type="button" aria-label="Pick colour" className="btn" style={{
+      <button type="button" aria-label={t('tags.pick_colour')} className="btn" style={{
         background: color, borderColor: color, width: 28, height: 28, padding: 0, borderRadius: 8,
       }} onClick={() => setOpen(o => !o)}/>
       {open && (
