@@ -1,0 +1,44 @@
+{
+  "data": [
+    {
+      "id": 1,
+      "name": "Marketing site",
+      "link": "https://www.example.com",
+      "status": 1,
+      "description": "Public marketing site",
+      "order": 0,
+      "group_id": 0,
+      "enabled": true
+    },
+    {
+      "id": 2,
+      "name": "API gateway",
+      "link": "https://api.example.com/health",
+      "status": 1,
+      "description": "Public API",
+      "order": 1,
+      "group_id": 0,
+      "enabled": true
+    },
+    {
+      "id": 3,
+      "name": "Customer database",
+      "link": "",
+      "status": 1,
+      "description": "Internal Postgres — manual status only",
+      "order": 2,
+      "group_id": 1,
+      "enabled": true
+    },
+    {
+      "id": 4,
+      "name": "Legacy FTP drop",
+      "link": "ftp://files.example.com",
+      "status": 2,
+      "description": "Non-http link — no probe target",
+      "order": 3,
+      "group_id": 1,
+      "enabled": true
+    }
+  ]
+}

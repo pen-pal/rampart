@@ -1,0 +1,45 @@
+{
+  "count": 5,
+  "results": [
+    {
+      "pk": 101,
+      "name": "Marketing site",
+      "check_type": "HTTP",
+      "msp_address": "https://www.example.com",
+      "msp_interval": 1,
+      "msp_port": 0
+    },
+    {
+      "pk": 102,
+      "name": "Primary database",
+      "check_type": "TCP",
+      "msp_address": "db.example.com",
+      "msp_interval": 5,
+      "msp_port": 5432
+    },
+    {
+      "pk": 103,
+      "name": "Edge router",
+      "check_type": "ICMP",
+      "msp_address": "10.0.0.1",
+      "msp_interval": 1,
+      "msp_port": 0
+    },
+    {
+      "pk": 104,
+      "name": "TLS certificate",
+      "check_type": "SSL",
+      "msp_address": "example.com",
+      "msp_interval": 10,
+      "msp_port": 443
+    },
+    {
+      "pk": 105,
+      "name": "Checkout flow",
+      "check_type": "TRANSACTION",
+      "msp_address": "https://shop.example.com",
+      "msp_interval": 5,
+      "msp_port": 0
+    }
+  ]
+}
