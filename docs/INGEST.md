@@ -1,4 +1,4 @@
-# Inbound Alert Ingestion (Alertmanager / Grafana / Datadog / PagerDuty / Opsgenie)
+# Inbound Alert Ingestion (Alertmanager / Grafana / Datadog / PagerDuty / Opsgenie / Generic)
 
 Rampart can accept alerts pushed from external monitoring systems and turn
 them into status-page incidents. The supported sources are:
@@ -8,6 +8,7 @@ them into status-page incidents. The supported sources are:
 - **Datadog** (webhook integration) — `POST /v1/public/ingest/datadog/{token}`
 - **PagerDuty** (webhook v3) — `POST /v1/public/ingest/pagerduty/{token}`
 - **Opsgenie** (webhook integration) — `POST /v1/public/ingest/opsgenie/{token}`
+- **Generic JSON webhook** (operator-mapped) — `POST /v1/public/ingest/generic/{token}`
 
 They all share the same token auth, the same status-page resolution, and
 the same create-or-resolve incident core; they differ only in how their
@@ -417,3 +418,105 @@ alert, so resolution is exact. Any action other than `Create` / `Close`
 `alertId`, `tinyId`, or `message` is a no-op. Returns `202 Accepted` with the
 same `{ "created": N, "resolved": M }` summary; an unknown token returns
 `404 Not Found`.
+
+---
+
+## 9. Generic JSON webhook (operator-mapped)
+
+The five sections above hard-code each vendor's payload shape. The **generic**
+receiver instead lets you describe, per token, how to pull the normalized
+incident fields out of *any* inbound JSON body, so any tool that can POST JSON
+becomes a source — no dedicated parser required.
+
+The receiver lives at:
+
+```
+POST /v1/public/ingest/generic/{token}
+```
+
+It accepts an **arbitrary JSON body** and uses the token's configured
+**mapping** to extract the incident fields. The mapping is a small JSON object
+of [RFC 6901 JSON Pointers](https://datatracker.ietf.org/doc/html/rfc6901)
+(the same `/path/to/field` syntax `serde_json` understands natively):
+
+| Mapping field | Meaning |
+|---------------|---------|
+| `action_path` | JSON Pointer to the firing/resolved discriminator value. |
+| `action_firing_value` | Value at `action_path` that means **create** an incident. |
+| `action_resolved_value` | Value at `action_path` that means **resolve** the matching incident. |
+| `title_path` | JSON Pointer to the incident **title**. |
+| `content_path` | JSON Pointer to the incident **content/body**. |
+| `dedup_path` | JSON Pointer to a stable **dedup key** (matches a resolve back to its firing). |
+| `style` | Default incident **style**: `info` (default) \| `warning` \| `danger` \| `primary` \| `success`. |
+
+All fields are optional and degrade gracefully:
+
+- **action**: if the value at `action_path` equals `action_resolved_value` →
+  resolve; if it equals `action_firing_value` → create; **anything else
+  (including an absent path or no `action_path`) is treated as firing**, so a
+  present alert is never silently dropped.
+- **dedup key**: the value at `dedup_path`; falls back to the title, then the
+  content. A body that yields none of these is unidentifiable and is a no-op.
+- **title**: the value at `title_path`; falls back to the dedup key so an
+  incident is never titleless.
+- **content**: the value at `content_path`; defaults to empty.
+- **style**: `mapping.style`, defaulting to `info`.
+
+Scalar values (numbers, booleans) at a pointer are coerced to text, so both
+`"status": "firing"` and `"firing": true` style discriminators work.
+
+### Configure the mapping
+
+Mint a token as usual (section 1), then set its mapping with:
+
+```
+PATCH /v1/ingest-tokens/{id}/mapping
+```
+
+```bash
+curl -X PATCH https://rampart.example.com/v1/ingest-tokens/<TOKEN_ID>/mapping \
+     -H 'Content-Type: application/json' \
+     --cookie 'session=<YOUR_SESSION>' \
+     -d '{
+       "mapping": {
+         "action_path": "/status",
+         "action_firing_value": "firing",
+         "action_resolved_value": "resolved",
+         "title_path": "/labels/alertname",
+         "content_path": "/annotations/summary",
+         "dedup_path": "/fingerprint",
+         "style": "warning"
+       }
+     }'
+```
+
+The mapping is validated on save (an unparseable shape is `400`) and returned
+on the updated token. Posting `{"mapping": null}` clears it. You can also pass
+`mapping` in the body when minting the token (section 1).
+
+### Post an alert
+
+With the mapping above configured, POST any JSON body that matches those
+pointers:
+
+```bash
+curl -X POST https://rampart.example.com/v1/public/ingest/generic/ing_X0a9...40chars... \
+     -H 'Content-Type: application/json' \
+     -d '{
+       "status": "firing",
+       "fingerprint": "abc123",
+       "labels":      { "alertname": "DiskFull" },
+       "annotations": { "summary": "/ is at 98% on db-1" }
+     }'
+```
+
+Response (`202 Accepted`):
+
+```json
+{ "created": 1, "resolved": 0 }
+```
+
+A token with **no mapping configured** POSTed to the generic receiver returns
+`400 Bad Request` with a clear message. An unknown token returns
+`404 Not Found`. Create/resolve, dedup, and the partial-unique-index behavior
+are identical to the named receivers (section 4).
