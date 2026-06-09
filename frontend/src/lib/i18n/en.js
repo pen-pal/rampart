@@ -90,6 +90,27 @@ const en = {
   'dashboard.views.default_cleared': 'Default folder cleared',
   'dashboard.views.is_default':      'Default folder',
   'dashboard.views.signed_out':      'Sign in to save views across devices',
+  'dashboard.views.apply_title':     'Apply this view',
+  'dashboard.views.export':          'Share / export',
+  'dashboard.views.export_current':  'Share current view…',
+  'dashboard.views.export_hint':     'Copy this link to share these filters. Anyone who opens it lands on the same view.',
+  'dashboard.views.copy':            'Copy link',
+  'dashboard.views.copied':          'Copied',
+  'dashboard.views.import':          'Import a shared view…',
+  'dashboard.views.import_hint':     'Paste a shared view link or token.',
+  'dashboard.views.import_ph':       'Paste link or token',
+  'dashboard.views.import_apply':    'Apply',
+  'dashboard.views.import_save':     'Apply & save',
+  'dashboard.views.import_invalid':  'That doesn’t look like a valid shared view.',
+  'dashboard.views.imported_name':   'Imported view',
+
+  // ── dashboard: clone monitor into a folder ───────────────────────
+  'dashboard.clone.title':           'Clone monitor',
+  'dashboard.clone.subtitle':        'Duplicate “{name}” (config only — no history, tags, or channels).',
+  'dashboard.clone.target_label':    'Place the copy in',
+  'dashboard.clone.same_group':      'Same folder as original',
+  'dashboard.clone.confirm':         'Clone',
+  'dashboard.clone.failed':          'Clone failed: {msg}',
 
   // ── common ───────────────────────────────────────────────────────
   'common.cancel':                   'Cancel',
@@ -242,6 +263,7 @@ const en = {
   'monitor.notif_test.none':         'No channels attached to this monitor.',
   'monitor.notif_test.error':        'Test failed: {error}',
   'monitor.action.clone_title':      'Duplicate with the same config (no history)',
+  'monitor.action.clone_into_title': 'Clone into a folder…',
   'monitor.action.csv':              'CSV',
   'monitor.action.csv_title':        'Download last 30 days of heartbeats as CSV',
 
@@ -473,6 +495,18 @@ const en = {
   'statuspage.incident.pin_active':  'Pin to top of active incidents',
   'statuspage.incident.update_placeholder': 'Post a running update…',
 
+  // ── incident-update templates ────────────────────────────────────
+  'statuspage.tpl.use':              'Use template…',
+  'statuspage.tpl.manage':           'Templates',
+  'statuspage.tpl.empty':            'No templates yet. Save a canned update below to reuse it.',
+  'statuspage.tpl.add':              'Add',
+  'statuspage.tpl.delete':           'Delete template',
+  'statuspage.tpl.delete_confirm':   'Delete this template?',
+  'statuspage.tpl.name_placeholder': 'Template name (e.g. Investigating)',
+  'statuspage.tpl.body_placeholder': 'Template body',
+  'statuspage.tpl.err_required':     'Name and body are required.',
+  'statuspage.tpl.err_save':         'Failed to save template.',
+
   // ── new monitor wizard: chrome ───────────────────────────────────
   'wizard.breadcrumb':               'Monitors /',
   'wizard.new_monitor':              'New monitor',
@@ -531,6 +565,13 @@ const en = {
   'wizard.field.timeout':            'Timeout',
   'wizard.field.retries':            'Retries before marking down',
   'wizard.field.retries_hint':       '0 = mark down on first failed check.',
+  'wizard.field.retry_backoff':      'Retry backoff',
+  'wizard.field.retry_backoff_hint': 'Optional delay between retries. None keeps the current immediate cadence.',
+  'wizard.field.backoff_base':       'Base seconds',
+  'wizard.field.backoff_base_hint':  'Linear: base × attempt. Exponential: base × 2^(attempt−1). Capped at 60s.',
+  'wizard.backoff.none':             'None',
+  'wizard.backoff.linear':           'Linear',
+  'wizard.backoff.exponential':      'Exponential',
   'wizard.field.notifications':      'Notifications',
   'wizard.field.advanced':           'Advanced options',
   'wizard.interval.10s':             'Every 10 seconds',

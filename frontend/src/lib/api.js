@@ -73,7 +73,10 @@ export const api = {
     remove:  (id)         => request(`/v1/monitors/${id}`, { method: 'DELETE' }),
     pause:   (id)         => request(`/v1/monitors/${id}/pause`,  { method: 'POST' }),
     resume:  (id)         => request(`/v1/monitors/${id}/resume`, { method: 'POST' }),
-    clone:   (id)         => request(`/v1/monitors/${id}/clone`,  { method: 'POST' }),
+    // Clone a monitor. Optional `opts` { group_id?: uuid|null, name?: string }
+    // retargets the copy into a chosen folder/group and/or renames it. Omit
+    // `opts` (or pass {}) for the legacy "clone into the same group" behaviour.
+    clone:   (id, opts)   => request(`/v1/monitors/${id}/clone`,  { method: 'POST', ...(opts && Object.keys(opts).length ? { body: opts } : {}) }),
     regeneratePushToken: (id) => request(`/v1/monitors/${id}/regenerate-push-token`, { method: 'POST' }),
     testNow: (id)         => request(`/v1/monitors/${id}/test-now`, { method: 'POST' }),
     testNotifications: (id) => request(`/v1/monitors/${id}/test-notifications`, { method: 'POST' }),
@@ -218,6 +221,11 @@ export const api = {
     resolve:      (id)                  => request(`/v1/incidents/${id}/resolve`, { method: 'POST' }),
     listUpdates:  (id)                  => request(`/v1/incidents/${id}/updates`),
     postUpdate:   (id, message)         => request(`/v1/incidents/${id}/updates`, { method: 'POST', body: { message } }),
+  },
+  incidentTemplates: {
+    list:   ()      => request('/v1/incident-templates'),
+    create: (input) => request('/v1/incident-templates', { method: 'POST', body: input }),
+    remove: (id)    => request(`/v1/incident-templates/${id}`, { method: 'DELETE' }),
   },
   tags: {
     list:   ()                  => request('/v1/tags'),
