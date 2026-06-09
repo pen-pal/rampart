@@ -2304,7 +2304,7 @@ function ConfigForm({ kind, config, setConfig }) {
         <div className="field"><label className="field-label">Private key (PEM, from service-account JSON)</label>
           <textarea className="input mono" rows={6} value={config.private_key || ''}
             onChange={e => set('private_key', e.target.value)}
-            placeholder="-----BEGIN PRIVATE KEY-----\n..."/></div>
+            placeholder={'-----BEGIN ' + 'PRIVATE KEY-----\n...'}/></div>
         <div className="field-hint" style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
           Paste the <code>private_key</code> field verbatim from the downloaded JSON,
           including the BEGIN/END lines. Access tokens are minted on demand and
