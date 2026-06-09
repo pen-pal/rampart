@@ -18,11 +18,24 @@ const css = `
     --up:#10b981; --up-soft:#d1fae5;
     --down:#ef4444; --down-soft:#fee2e2;
     --warn:#b45309; --warn-soft:#fef3c7;
+    /* Foreground text for the soft status backgrounds (badges + error
+       banner). Tuned for the LIGHT soft fills; flipped in the dark block
+       below so they don't go dark-on-dark once --up-soft / --down-soft /
+       --warn-soft flip. */
+    --up-text:#047857; --down-text:#b91c1c; --warn-text:#b45309;
     background: var(--bg); color: var(--text);
     font-family: Inter, ui-sans-serif, system-ui, sans-serif;
     min-height: 100vh;
   }
   .rampart * { box-sizing: border-box; }
+
+  /* Dark-mode overrides. theme.js flips --up-soft / --down-soft but not
+     --warn / --warn-soft, so we set those here alongside the dark-tuned
+     -text tints. Higher specificity than the base .rampart block. */
+  [data-theme="dark"] .rampart {
+    --warn-soft:#78350f;
+    --up-text:#6ee7b7; --down-text:#fca5a5; --warn-text:#fde68a;
+  }
   .mono { font-family: 'JetBrains Mono', monospace; }
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
   .btn {
@@ -46,10 +59,10 @@ const css = `
     font-family: 'JetBrains Mono', monospace;
   }
   .textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-  .banner-err { background: var(--down-soft); color: #b91c1c; border: 1px solid #fecaca; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
+  .banner-err { background: var(--down-soft); color: var(--down-text); border: 1px solid var(--down); padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
   .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
-  .badge-create { background: var(--up-soft); color: #047857; }
-  .badge-skip { background: var(--warn-soft); color: var(--warn); }
+  .badge-create { background: var(--up-soft); color: var(--up-text); }
+  .badge-skip { background: var(--warn-soft); color: var(--warn-text); }
 `;
 
 // ── client-side CSV validation ──────────────────────────────────────

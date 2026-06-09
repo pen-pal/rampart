@@ -394,6 +394,16 @@ const css = `
   .sub-btn:hover:not([disabled]) { background: var(--accent-2); }
   .sub-btn[disabled] { opacity: .6; cursor: not-allowed; }
 
+  /* Email-subscribe success banner. --up-soft flips to a dark green in
+     .public.dark, so the green text needs a lighter dark-mode value too
+     (mirrors the .badge-up treatment). */
+  .sub-ok {
+    background: var(--up-soft); color: #047857;
+    padding: 14px 18px; border-radius: 9px; font-size: 13.5px; font-weight: 500;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .public.dark .sub-ok { color: #6ee7b7; }
+
   /* ── Scheduled-maintenance banner ─────────────────────────────────
      Distinct from incident cards: keyed off the --maint colour token so
      planned work reads as "informational, not an outage". Active windows
@@ -1187,11 +1197,7 @@ function EmailTab({ slug }) {
 
   if (state === 'ok') {
     return (
-      <div style={{
-        background: 'var(--up-soft)', color: '#047857',
-        padding: '14px 18px', borderRadius: 9, fontSize: 13.5, fontWeight: 500,
-        display: 'flex', alignItems: 'center', gap: 10,
-      }}>
+      <div className="sub-ok">
         <Check size={16}/> {t('statuspage.public.subscribe.success')}
       </div>
     );
