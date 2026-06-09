@@ -17,6 +17,62 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+#### Notifications
+
+- **Per-channel quiet hours + rate limit** (migration `0060`) —
+  `quiet_hours_start`/`quiet_hours_end` (UTC) suppress non-test sends
+  inside the window; `rate_limit_per_hour` drops sends past a rolling
+  1-hour cap. Channel-form fields in the Notifications view.
+- **Outbound probe-result webhooks** — per-monitor `config.result_webhook`
+  (JSONB) fire-and-forgets `{monitor_id, name, status, latency_ms,
+  status_code, ts}` to a URL after every heartbeat (5s timeout, never
+  blocks the scheduler).
+- **Scheduled weekly uptime reports** (migration `0062`) —
+  `scheduled_reports` table + `/v1/scheduled-reports` admin CRUD; a
+  slow-tick renders per-monitor 7-day uptime and emails recipients via
+  the SMTP path. (No frontend yet — API-driven.)
+- **Digest-buffer restart test** — proves coalesced alerts persisted in
+  `digest_buffer` (v0.4.0) are recovered + flushed after a restart.
+
+#### Status pages
+
+- **Component grouping / sections** (migration `0063`) —
+  `status_page_sections` + `status_page_monitors.section_id`
+  (`ON DELETE SET NULL`). The builder manages sections + per-monitor
+  assignment; the public page renders monitors grouped under section
+  headers (ungrouped first). `PublicStatusPage.sections` added.
+
+#### Monitors
+
+- **Header/cert presets** (migration `0064`) — `monitor_presets`
+  (named header / TLS bags) + `/v1/monitors/presets` CRUD + an
+  "Apply preset" picker in the wizard.
+- **Bulk enable/disable by tag** — `POST /v1/monitors/bulk-by-tag
+  {tag_id, action}` pauses/resumes every monitor carrying a tag; a
+  tag-filter action on the dashboard.
+- **Dependency-graph view** — a read-only `#/dependencies` page
+  rendering the monitor dependency edges as a hand-rolled SVG graph
+  (status-coloured nodes, click to open a monitor). No new backend.
+
+#### Tests + docs
+
+- **7 new e2e specs** (generic webhook, per-incident RSS, incident
+  templates, status-page sections, monitor presets + bulk-by-tag,
+  scheduled reports, clone-to-folder) → 61 flows × 5 = 305 cross-browser
+  runs.
+- Upstream TLS/crypto blocks (Cassandra-TLS, rumqttc 0.25,
+  rustls-webpki advisories) re-verified — no movement; dated note in
+  `docs/SECURITY-DEBT.md`.
+
+### Notes
+
+- Migrations `0060`/`0062`/`0063`/`0064`, all additive. The backend
+  features co-extend rampart-core's id + re-export registry, so they
+  landed in one commit (`aa97821`); the OpenAPI drift guard caught + got
+  the 8 new routes documented.
+
 ---
 
 ## [0.4.0] — 2026-06-09
