@@ -67,3 +67,19 @@ When either of those lands, follow the same workflow as the
 "Planned upgrade pass" section: enable the feature, run the probe
 against a live cluster, drop the rejection branch in
 `cassandra.rs`, and remove this row.
+
+## Re-verification — 2026-06-09 (post-v0.4.0)
+
+Re-checked the standing upstream blocks; all unchanged, no action:
+
+- **Cassandra-TLS** (`scylla`): still no `ring`-only feature on the
+  pinned `1.x`; enabling rustls drags `aws-lc-rs`. Blocked.
+- **`rumqttc` 0.25**: still pulls `aws-lc-rs`. Pinned at 0.24
+  (`use-rustls`). Blocked.
+- **`rustls-webpki` advisories** (0.101.7 via `tiberius` 0.12 → rustls
+  0.21; 0.102.8 via `async-nats` 0.36): deep transitive, CRL paths
+  unreached in our config; ignored in `deny.toml`. No upstream bump
+  that drops the old webpki yet.
+
+Confirmed `cargo tree -i aws-lc-rs` / `-i cmake` / `-i openssl` still
+return "did not match any packages".
