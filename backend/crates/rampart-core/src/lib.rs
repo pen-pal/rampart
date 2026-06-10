@@ -33,7 +33,7 @@ pub use error::{CoreError, Result};
 pub use heartbeat::Heartbeat;
 pub use ids::{
     ApiKeyId, BadgeId, IncidentId, IncidentTemplateId, IncidentUpdateId, IngestTokenId,
-    MaintenanceId, MonitorGroupId, MonitorId, MonitorPresetId, NotificationId,
+    MaintenanceId, MonitorGroupId, MonitorId, MonitorPresetId, MonitorTemplateId, NotificationId,
     NotificationTemplateId, ProxyId, ScheduledReportId, SessionId, StatusPageComponentId,
     StatusPageGroupId, StatusPageId, StatusPageSectionId, StatusPageSubscriberId, TagId, UserId,
 };

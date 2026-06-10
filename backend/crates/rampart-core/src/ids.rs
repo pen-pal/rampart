@@ -82,4 +82,5 @@ id!(ProxyId);
 id!(BadgeId);
 id!(IngestTokenId);
 id!(MonitorPresetId);
+id!(MonitorTemplateId);
 id!(ScheduledReportId);

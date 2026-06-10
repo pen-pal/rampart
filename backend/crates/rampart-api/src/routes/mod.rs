@@ -19,6 +19,7 @@ pub mod incidents;
 pub mod ingest;
 pub mod maintenance;
 pub mod monitor_groups;
+pub mod monitor_templates;
 pub mod monitors;
 pub mod notifications;
 pub mod openapi;
@@ -106,6 +107,8 @@ pub fn v1_protected() -> Router<AppState> {
             "/monitor-groups",
             monitor_groups::router().merge(routing::group_router()),
         )
+        // /v1/monitor-templates CRUD + instantiate (whole reusable monitor specs)
+        .nest("/monitor-templates", monitor_templates::router())
         // /v1/tags CRUD
         .nest("/tags", tags::router())
         // /v1/notifications CRUD + channel tags
