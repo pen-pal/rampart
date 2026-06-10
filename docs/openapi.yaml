@@ -1301,6 +1301,29 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/DeliveryLogEntry' }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /v1/delivery-log/{id}/retry:
+    post:
+      tags: [Audit]
+      summary: Retry a failed delivery
+      description: >-
+        Admin only. Re-send the notification recorded by this delivery-log
+        entry through its original channel. Records a new delivery-log row for
+        the retry attempt and returns it.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: The new delivery attempt.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeliveryLogEntry' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: The original channel no longer exists, so it cannot be retried.
+        '403': { $ref: '#/components/responses/Forbidden' }
   /v1/audit-log:
     get:
       tags: [Audit]
@@ -2133,6 +2156,18 @@ paths:
       summary: Delete a scheduled report
       responses:
         '204': { description: Deleted. }
+  /v1/scheduled-reports/{id}/send:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Notifications]
+      summary: Send a scheduled report now
+      description: >-
+        Admin only. Render and email the report immediately (out of band of its
+        cadence) and stamp `last_sent_at`.
+      responses:
+        '204': { description: Sent. }
+        '404': { $ref: '#/components/responses/NotFound' }
   /v1/status-pages/{id}/sections:
     parameters:
       - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
