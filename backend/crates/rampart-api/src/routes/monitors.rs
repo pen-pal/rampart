@@ -1,8 +1,7 @@
 //! `/v1/monitors` routes.
 //!
-//! Single-tenant: no workspace scoping. Authentication is a TODO —
-//! the scaffold passes through. Add a session/JWT extractor before
-//! exposing this to the internet.
+//! Single-tenant: no workspace scoping. Authentication is enforced by
+//! the session / API-key middleware in `crate::auth`.
 
 use crate::error::ApiError;
 use crate::state::AppState;
