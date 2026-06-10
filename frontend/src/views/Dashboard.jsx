@@ -8,8 +8,8 @@ import {
   AlertCircle, Pause, MoreHorizontal, Calendar,
   Tag, ArrowUpRight, Wrench, Zap, Globe, Server,
   Database, Radio, Lock, Hash,
-  Menu, Folder, Tag as TagIcon, Calendar as CalIcon, Network, Key, ScrollText, Users as UsersIcon, Mail, Database as DbIcon, Settings, Upload,
-  Bookmark, Star, Check, Trash2, X, Copy, Share2, Download,
+  Menu, Folder, Tag as TagIcon, Calendar as CalIcon, Network, Key, ScrollText, Users as UsersIcon, Mail, Database as DbIcon, Settings, Upload, FileStack,
+  Bookmark, Star, Check, Trash2, X, Copy, Share2, Download, RotateCcw,
 } from 'lucide-react';
 import {
   api, useApi, formatRelative, offsetDateTimeArrayToDate, statusToClass,
@@ -150,6 +150,16 @@ const css = `
   }
   .mon-row:hover { background: var(--surface-2); }
   .mon-row.active { background: var(--accent-soft); }
+  /* drag-to-folder affordance: grab cursor + a faint move handle on hover,
+     and a dim ghost while the row is being dragged. */
+  .mon-row.draggable { cursor: grab; }
+  .mon-row.draggable:active { cursor: grabbing; }
+  .mon-row.dragging { opacity: .45; }
+  /* drop highlight on the folder header being hovered during a drag */
+  .group-head.drop-target {
+    background: var(--accent-soft); color: var(--accent-2);
+    border-radius: 8px; outline: 1px dashed var(--accent);
+  }
 
   /* per-row clone affordance — only visible on row hover to keep the list calm */
   .clone-action { opacity: 0; transition: opacity .1s; background: none; border: none; cursor: pointer; padding: 4px; border-radius: 6px; color: var(--text-3); display: inline-flex; }
@@ -238,11 +248,18 @@ function heartbeatsToCells(hbs, paused) {
 }
 
 // ─── monitor row in sidebar ───────────────────────────────────────────────
-function MonitorRow({ m, active, onClick, uptimePct }) {
+function MonitorRow({ m, active, onClick, uptimePct, draggable, dragging, onDragStart, onDragEnd }) {
   const Icon = kindIcon(m.kind);
   const cls = statusToClass(m.current_status);
   return (
-    <div className={`mon-row ${active ? 'active' : ''}`} onClick={onClick}>
+    <div
+      className={`mon-row ${active ? 'active' : ''}${draggable ? ' draggable' : ''}${dragging ? ' dragging' : ''}`}
+      onClick={onClick}
+      draggable={draggable || undefined}
+      onDragStart={draggable ? onDragStart : undefined}
+      onDragEnd={draggable ? onDragEnd : undefined}
+      aria-grabbed={draggable ? (dragging ? true : false) : undefined}
+      title={draggable ? t('monitor.move.hint') : undefined}>
       <span className={`dot ${cls}`}/>
       <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
         <Icon size={13} color="var(--text-3)" strokeWidth={1.8}/>
@@ -291,6 +308,15 @@ function buildTrend(historyById, monitorsById) {
 }
 const SERIES_COLORS = ['#14b8a6', '#6366f1', '#10b981', '#ef4444'];
 
+// Render a bulk-edit preview value (from/to) compactly. Handles null (cleared
+// group), booleans (enabled), arrays (tag sets) and scalars.
+function fmtBulkVal(v) {
+  if (v === null || v === undefined) return '—';
+  if (Array.isArray(v)) return v.length ? `[${v.length}]` : '[]';
+  if (typeof v === 'boolean') return v ? 'on' : 'off';
+  return String(v);
+}
+
 // ─── main component ───────────────────────────────────────────────────────
 export default function Dashboard({ user, onLogout } = {}) {
   // Whether the current user may mutate (admin/editor). Readonly users see
@@ -312,8 +338,14 @@ export default function Dashboard({ user, onLogout } = {}) {
   // hammering — coalesces N heartbeats per ~500ms window into one bump.
   const liveTick = useDebouncedTick(stream.lastEventAt, 500);
 
-  const monitorsState = useApi(() => api.monitors.list(),         [liveTick], { pollMs: 30_000 });
-  const groupsState   = useApi(() => api.monitorGroups.list(),     [],         { pollMs: 60_000 });
+  // Manual refetch trigger. Bumping it re-runs the monitor/group fetches
+  // without a full page reload — used by bulk-edit (so the undo bar can
+  // survive the refresh) and the drag-to-folder move.
+  const [reloadKey, setReloadKey] = useState(0);
+  const bumpReload = () => setReloadKey(k => k + 1);
+
+  const monitorsState = useApi(() => api.monitors.list(),         [liveTick, reloadKey], { pollMs: 30_000 });
+  const groupsState   = useApi(() => api.monitorGroups.list(),     [reloadKey],          { pollMs: 60_000 });
   const channelsState = useApi(() => api.notifications.list(),     [],         { pollMs: 60_000 });
   const tagsState     = useApi(() => api.tags.list(),              [],         { pollMs: 60_000 });
   const [windowSec, setWindowSec] = useState(86400); // 1h | 24h | 7d | 30d
@@ -391,6 +423,13 @@ export default function Dashboard({ user, onLogout } = {}) {
   const [bulkBusy, setBulkBusy] = useState(false);
   // Inline bulk-edit form: null when closed, else the working form state.
   const [bulkEdit, setBulkEdit] = useState(null);
+  // Dry-run preview returned by bulk-edit?dry_run=true: null when not
+  // previewing, else { would_update, would_skip, preview: [...] }. Shown in a
+  // confirm panel before the operator commits the real edit.
+  const [bulkPreview, setBulkPreview] = useState(null);
+  // Undo payload captured from the last real bulk-edit:
+  // { undo: { ids, patch }, undo_partial, n }. POST it straight back to revert.
+  const [bulkUndo, setBulkUndo] = useState(null);
   // Clone-into-folder dialog: null when closed, else { monitor, group, busy }.
   // `group` is the chosen target group id ('' = inherit source, '__ungroup__'
   // = ungrouped, else a group id).
@@ -416,6 +455,28 @@ export default function Dashboard({ user, onLogout } = {}) {
     if (next.has(id)) next.delete(id); else next.add(id);
     return next;
   });
+
+  // ── drag a monitor between folders (sidebar tree) ────────────────────────
+  // `dragMon` holds the id of the monitor currently being dragged; `dropTarget`
+  // is the bucket key being hovered ('ungrouped' → null group). Editor/admin
+  // only. The existing folder-assignment UI (bulk-edit, per-monitor config)
+  // stays as the keyboard / non-drag path.
+  const [dragMon, setDragMon] = useState(null);
+  const [dropTarget, setDropTarget] = useState(null);
+  const moveMonitorToGroup = async (monitorId, groupKey) => {
+    if (!monitorId) return;
+    // 'ungrouped' bucket → clear the folder (null); any other key is a group id.
+    const targetId = groupKey === 'ungrouped' ? null : groupKey;
+    const mon = monitors.find(m => m.id === monitorId);
+    // No-op when the monitor is already in the target folder.
+    if (mon && (mon.group_id || null) === targetId) return;
+    try {
+      await api.monitors.update(monitorId, { group_id: targetId });
+      bumpReload();
+    } catch (e) {
+      alert(t("monitor.move.failed", { msg: e.message }));
+    }
+  };
   const runBulk = async (action, confirmMsg) => {
     if (selected.size === 0 || bulkBusy) return;
     if (confirmMsg && !confirm(confirmMsg)) return;
@@ -429,12 +490,13 @@ export default function Dashboard({ user, onLogout } = {}) {
       setBulkBusy(false);
     }
   };
-  const runBulkEdit = async () => {
-    if (selected.size === 0 || bulkBusy || !bulkEdit) return;
-    // Build the patch per the bulk-edit contract: only include fields the
-    // operator actually touched. `enabled` is a tri-state ('' = leave alone),
-    // `group` is '' (leave) / '__ungroup__' (clear → null) / a group id, and
-    // `tags` is a full replace of the tag set when the toggle is on.
+  // Build the patch per the bulk-edit contract: only include fields the
+  // operator actually touched. `enabled` is a tri-state ('' = leave alone),
+  // `group` is '' (leave) / '__ungroup__' (clear → null) / a group id, and
+  // `tags` is a full replace of the tag set when the toggle is on. Returns
+  // null when nothing was touched.
+  const buildBulkPatch = () => {
+    if (!bulkEdit) return null;
     const patch = {};
     const interval = bulkEdit.interval.trim();
     const timeout = bulkEdit.timeout.trim();
@@ -445,19 +507,66 @@ export default function Dashboard({ user, onLogout } = {}) {
     if (bulkEdit.group === '__ungroup__') patch.group_id = null;
     else if (bulkEdit.group) patch.group_id = bulkEdit.group;
     if (bulkEdit.setTagsOn) patch.tags = Array.from(bulkEdit.tags);
+    return Object.keys(patch).length === 0 ? null : patch;
+  };
+
+  // Dry run: ask the backend what it WOULD change, then show the per-monitor
+  // diff in a confirm panel before the operator commits. No mutation here.
+  const previewBulkEdit = async () => {
+    if (selected.size === 0 || bulkBusy || !bulkEdit) return;
+    const patch = buildBulkPatch();
+    if (!patch) { alert(t("dashboard.bulk.edit_empty")); return; }
+    setBulkBusy(true);
+    try {
+      const res = await api.monitors.bulkEditPreview(Array.from(selected), patch);
+      setBulkPreview(res);
+    } catch (e) {
+      alert(t("dashboard.bulk.preview_failed", { msg: e.message }));
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const runBulkEdit = async () => {
+    if (selected.size === 0 || bulkBusy || !bulkEdit) return;
+    const patch = buildBulkPatch();
     // Nothing to do — guard so we don't fire a no-op request.
-    if (Object.keys(patch).length === 0) {
+    if (!patch) {
       alert(t("dashboard.bulk.edit_empty"));
       return;
     }
     setBulkBusy(true);
     try {
-      await api.monitors.bulkEdit(Array.from(selected), patch);
+      const res = await api.monitors.bulkEdit(Array.from(selected), patch);
       setBulkEdit(null);
+      setBulkPreview(null);
       setSelected(new Set());
-      window.location.reload();
+      // Capture the inverse request so we can offer a one-click undo. We
+      // refetch the lists rather than reload the page so the undo bar can
+      // persist across the refresh.
+      if (res?.undo) {
+        setBulkUndo({ undo: res.undo, undo_partial: !!res.undo_partial, n: res.updated ?? 0 });
+      }
+      bumpReload();
     } catch (e) {
       alert(t("dashboard.bulk.edit_failed", { msg: e.message }));
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  // Replay the inverse request the backend handed back. `undo` is already a
+  // ready-to-POST { ids, patch } body.
+  const undoBulkEdit = async () => {
+    if (!bulkUndo || bulkBusy) return;
+    setBulkBusy(true);
+    try {
+      await api.monitors.bulkEdit(bulkUndo.undo.ids, bulkUndo.undo.patch);
+      setBulkUndo(null);
+      bumpReload();
+    } catch (e) {
+      alert(t("dashboard.bulk.undo_failed", { msg: e.message }));
+    } finally {
       setBulkBusy(false);
     }
   };
@@ -735,7 +844,7 @@ export default function Dashboard({ user, onLogout } = {}) {
               transition: 'background .2s',
             }}/>
           <ThemeToggle/>
-          <NavMenu/>
+          <NavMenu writable={writable}/>
           <a className="btn btn-ghost" title="Notification channels" href="#/notifications" style={{ textDecoration: 'none' }}>
             <Bell size={14}/>
           </a>
@@ -853,9 +962,28 @@ export default function Dashboard({ user, onLogout } = {}) {
             const display = visible.length === 0 ? [{ key:'ungrouped', name:'Monitors', rows: filtered, depth: 0 }] : visible;
             return display.map(b => {
               const open = openGroups[b.key] ?? true;
+              // Folder headers (and the Ungrouped bucket) are drop zones when a
+              // monitor is being dragged. Editor/admin only.
+              const isDropZone = writable && b.key !== undefined;
+              const dropHandlers = isDropZone ? {
+                onDragOver: (e) => { if (dragMon) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } },
+                onDragEnter: (e) => { if (dragMon) { e.preventDefault(); setDropTarget(b.key); } },
+                onDragLeave: () => setDropTarget(prev => (prev === b.key ? null : prev)),
+                onDrop: (e) => {
+                  e.preventDefault();
+                  const id = dragMon || e.dataTransfer.getData('text/plain');
+                  setDropTarget(null);
+                  setDragMon(null);
+                  if (id) moveMonitorToGroup(id, b.key);
+                },
+              } : {};
               return (
                 <div key={b.key} style={{ marginBottom: 4 }}>
-                  <div className="group-head" style={{ paddingLeft: 12 + (b.depth || 0) * 14 }} onClick={() => toggleGroup(b.key)}>
+                  <div
+                    className={`group-head${isDropZone && dropTarget === b.key ? ' drop-target' : ''}`}
+                    style={{ paddingLeft: 12 + (b.depth || 0) * 14 }}
+                    onClick={() => toggleGroup(b.key)}
+                    {...dropHandlers}>
                     {open ? <ChevronDown size={11}/> : <ChevronRight size={11}/>}
                     <span>{b.name}</span>
                     {loggedIn && b.key !== 'ungrouped' && (
@@ -879,6 +1007,14 @@ export default function Dashboard({ user, onLogout } = {}) {
                       active={false}
                       onClick={() => openMonitor(m.id)}
                       uptimePct={summaryById.get(m.id)?.uptime_pct}
+                      draggable={writable}
+                      dragging={dragMon === m.id}
+                      onDragStart={(e) => {
+                        setDragMon(m.id);
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.setData('text/plain', m.id);
+                      }}
+                      onDragEnd={() => { setDragMon(null); setDropTarget(null); }}
                     />
                   ))}
                 </div>
@@ -1200,7 +1336,7 @@ export default function Dashboard({ user, onLogout } = {}) {
                   onClick={() => runBulk({ action: 'delete' }, t("dashboard.bulk.delete_confirm", { n: selected.size }))}>
                   <AlertCircle size={12}/> {t("dashboard.bulk.delete")}
                 </button>
-                <button className="btn btn-ghost" disabled={bulkBusy} onClick={() => { setSelected(new Set()); setBulkEdit(null); }} style={{ marginLeft: 'auto' }}>{t("dashboard.bulk.clear")}</button>
+                <button className="btn btn-ghost" disabled={bulkBusy} onClick={() => { setSelected(new Set()); setBulkEdit(null); setBulkPreview(null); }} style={{ marginLeft: 'auto' }}>{t("dashboard.bulk.clear")}</button>
 
                 {writable && bulkEdit && (
                   <div style={{
@@ -1282,15 +1418,90 @@ export default function Dashboard({ user, onLogout } = {}) {
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+                      <button className="btn" disabled={bulkBusy} onClick={previewBulkEdit}>
+                        {t("dashboard.bulk.preview.button")}
+                      </button>
                       <button className="btn btn-accent" disabled={bulkBusy} onClick={runBulkEdit}>
                         {t("dashboard.bulk.apply")}
                       </button>
-                      <button className="btn btn-ghost" disabled={bulkBusy} onClick={() => setBulkEdit(null)}>
+                      <button className="btn btn-ghost" disabled={bulkBusy} onClick={() => { setBulkEdit(null); setBulkPreview(null); }}>
                         {t("dashboard.bulk.cancel")}
                       </button>
                     </div>
+
+                    {/* Dry-run preview: per-monitor field diffs the real edit
+                        WOULD apply. Confirming here commits the same patch. */}
+                    {bulkPreview && (
+                      <div style={{
+                        flexBasis: '100%', marginTop: 8, padding: 12, borderRadius: 8,
+                        background: 'var(--surface)', border: '1px solid var(--border)',
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                          <strong style={{ fontSize: 12.5 }}>{t("dashboard.bulk.preview.title")}</strong>
+                          <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
+                            {t("dashboard.bulk.preview.summary", {
+                              update: bulkPreview.would_update ?? (bulkPreview.preview || []).length,
+                              skip: bulkPreview.would_skip ?? 0,
+                            })}
+                          </span>
+                          <button className="btn btn-ghost" style={{ marginLeft: 'auto', padding: '2px 6px' }}
+                            onClick={() => setBulkPreview(null)}><X size={12}/></button>
+                        </div>
+                        {(bulkPreview.preview || []).length === 0 ? (
+                          <div style={{ fontSize: 12, color: 'var(--text-3)' }}>{t("dashboard.bulk.preview.no_changes")}</div>
+                        ) : (
+                          <div style={{ maxHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {(bulkPreview.preview || []).map(row => (
+                              <div key={row.id} style={{ fontSize: 12 }}>
+                                <span style={{ fontWeight: 600 }}>{row.name}</span>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 2 }}>
+                                  {Object.entries(row.changes || {}).map(([field, ch]) => (
+                                    <span key={field} className="mono" style={{ fontSize: 11, color: 'var(--text-2)' }}>
+                                      {field}: <span style={{ color: 'var(--text-3)' }}>{fmtBulkVal(ch.from)}</span>
+                                      {' → '}<span style={{ color: 'var(--accent-2)' }}>{fmtBulkVal(ch.to)}</span>
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'flex-end' }}>
+                          <button className="btn btn-ghost" disabled={bulkBusy} onClick={() => setBulkPreview(null)}>
+                            {t("dashboard.bulk.preview.dismiss")}
+                          </button>
+                          <button className="btn btn-accent" disabled={bulkBusy} onClick={runBulkEdit}>
+                            {t("dashboard.bulk.preview.confirm")}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Undo bar — appears after a real bulk-edit. POSTs the inverse
+                request the backend handed back. Disabled-annotated when the
+                tag part couldn't be inverted as one set. */}
+            {bulkUndo && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+                padding: '10px 22px', background: 'var(--surface-2)',
+                borderBottom: '1px solid var(--border)', fontSize: 12.5,
+              }}>
+                <strong>{t("dashboard.bulk.undo.done", { n: bulkUndo.n })}</strong>
+                {bulkUndo.undo_partial && (
+                  <span style={{ color: 'var(--warn)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <AlertCircle size={13}/> {t("dashboard.bulk.undo.partial")}
+                  </span>
+                )}
+                <button className="btn" disabled={bulkBusy} onClick={undoBulkEdit}>
+                  <RotateCcw size={12}/> {t("dashboard.bulk.undo.button")}
+                </button>
+                <button className="btn btn-ghost" disabled={bulkBusy} onClick={() => setBulkUndo(null)} style={{ marginLeft: 'auto' }}>
+                  {t("dashboard.bulk.undo.dismiss")}
+                </button>
               </div>
             )}
 
@@ -1602,7 +1813,7 @@ function ViewsMenu({ loggedIn, views = [], onSave, onApply, onDelete, onExport, 
 
 // Header nav menu — single discoverable entry point to every admin page.
 // Previously these were only reachable via the dev-only floating switcher.
-function NavMenu() {
+function NavMenu({ writable } = {}) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -1617,6 +1828,7 @@ function NavMenu() {
   const items = [
     { href: '#/folders',          label: 'Folders',        Icon: Folder },
     { href: '#/tags',             label: 'Tags',           Icon: TagIcon },
+    ...(writable ? [{ href: '#/templates', label: t('templates.nav'), Icon: FileStack }] : []),
     { href: '#/maintenance',      label: 'Maintenance',    Icon: CalIcon },
     { href: '#/proxies',          label: 'Proxies',        Icon: Network },
     { href: '#/api-keys',         label: 'API keys',       Icon: Key },

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  ChevronLeft, ChevronRight, Send, AlertCircle, Loader2, CheckCircle2, XCircle, RotateCw,
+  ChevronLeft, ChevronRight, Send, AlertCircle, Loader2, CheckCircle2, XCircle, RotateCw, Download,
 } from 'lucide-react';
 import { api, useApi, ApiError, formatRelative, formatClock, offsetDateTimeArrayToDate } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
@@ -117,9 +117,19 @@ export default function DeliveryLog({ user }) {
           <ChevronLeft size={14}/> {t('delivery.back')}
         </a>
 
-        <div style={{ marginBottom: 22 }}>
-          <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 4px', letterSpacing: '-.02em' }}>{t('delivery.title')}</h1>
-          <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 0 }}>{t('delivery.subtitle')}</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 22 }}>
+          <div>
+            <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 4px', letterSpacing: '-.02em' }}>{t('delivery.title')}</h1>
+            <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 0 }}>{t('delivery.subtitle')}</p>
+          </div>
+          {/* Admin-only full-window CSV dump. Plain anchor with the `download`
+              attribute so the browser streams it straight to disk — matches the
+              audit-log export affordance. */}
+          {admin && (
+            <a className="btn" download href="/v1/delivery-log/export.csv" title={t('delivery.export_csv')}>
+              <Download size={13}/> {t('delivery.export_csv')}
+            </a>
+          )}
         </div>
 
         {state.error && (
