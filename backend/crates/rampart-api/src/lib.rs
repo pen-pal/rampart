@@ -216,7 +216,11 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 
-/// Default per-key budget: requests allowed per rolling hour.
+/// Fallback per-key budget when a key carries no explicit
+/// `rate_limit_per_hour` (e.g. a request that somehow reached this layer
+/// without the persisted budget). The authoritative value is the per-key
+/// budget read from the `AuthApiKeyId` extension; this const is only the
+/// default.
 const API_KEY_RATE_LIMIT: u32 = 1000;
 /// Length of the rolling window.
 const API_KEY_RATE_WINDOW: Duration = Duration::from_secs(3600);
@@ -242,11 +246,16 @@ struct RateDecision {
     reset_secs: u64,
 }
 
-/// Admit (or reject) one request for `key`. Prunes entries older than the
-/// window, then either records the request (allowed) or, if the window is
-/// already full, leaves it untouched and reports the wait. Mirrors the
-/// notifier's per-channel limiter shape.
-fn admit_key(key: ApiKeyId) -> RateDecision {
+/// Admit (or reject) one request for `key` against its per-key `limit`
+/// budget. Prunes entries older than the window, then either records the
+/// request (allowed) or, if the window is already full, leaves it untouched
+/// and reports the wait. Mirrors the notifier's per-channel limiter shape.
+///
+/// The in-process COUNTER (the per-key timestamp deque) is process-local and
+/// resets on restart; only the BUDGET (`limit`) is persisted, carried here
+/// from the key's `rate_limit_per_hour` column. Durable cross-node counters
+/// are out of scope.
+fn admit_key(key: ApiKeyId, limit: u32) -> RateDecision {
     let now = Instant::now();
     let mut map = key_rate_window().lock().expect("key rate window poisoned");
     let dq = map.entry(key).or_default();
@@ -256,7 +265,7 @@ fn admit_key(key: ApiKeyId) -> RateDecision {
     {
         dq.pop_front();
     }
-    let limit = API_KEY_RATE_LIMIT as usize;
+    let limit = limit as usize;
     if dq.len() >= limit {
         // Full: reset is when the oldest request ages out of the window.
         let reset_secs = dq
@@ -293,12 +302,20 @@ fn admit_key(key: ApiKeyId) -> RateDecision {
 /// - Otherwise → run the request and attach `X-RateLimit-Limit`,
 ///   `-Remaining`, `-Reset` to the response.
 pub async fn enforce_api_key_rate_limit(req: Request, next: Next) -> Response {
-    let Some(key_id) = req.extensions().get::<auth::AuthApiKeyId>().map(|k| k.0) else {
+    let Some(auth_key) = req.extensions().get::<auth::AuthApiKeyId>().copied() else {
         // Not an api-key request — unlimited, no headers.
         return next.run(req).await;
     };
 
-    let decision = admit_key(key_id);
+    // The persisted per-key budget is authoritative; fall back to the
+    // process default only for a non-positive value (which the create path
+    // already rejects, so this is purely defensive).
+    let limit: u32 = u32::try_from(auth_key.rate_limit_per_hour)
+        .ok()
+        .filter(|&l| l > 0)
+        .unwrap_or(API_KEY_RATE_LIMIT);
+
+    let decision = admit_key(auth_key.id, limit);
     if !decision.allowed {
         let mut resp = (
             StatusCode::TOO_MANY_REQUESTS,
@@ -307,18 +324,24 @@ pub async fn enforce_api_key_rate_limit(req: Request, next: Next) -> Response {
             .into_response();
         let h = resp.headers_mut();
         h.insert("retry-after", num_header(decision.reset_secs));
-        set_rate_headers(h, decision.remaining, decision.reset_secs);
+        set_rate_headers(h, limit, decision.remaining, decision.reset_secs);
         return resp;
     }
 
     let mut resp = next.run(req).await;
-    set_rate_headers(resp.headers_mut(), decision.remaining, decision.reset_secs);
+    set_rate_headers(
+        resp.headers_mut(),
+        limit,
+        decision.remaining,
+        decision.reset_secs,
+    );
     resp
 }
 
-/// Attach the three `X-RateLimit-*` advisory headers.
-fn set_rate_headers(h: &mut axum::http::HeaderMap, remaining: u32, reset_secs: u64) {
-    h.insert("x-ratelimit-limit", num_header(API_KEY_RATE_LIMIT as u64));
+/// Attach the three `X-RateLimit-*` advisory headers. `limit` is the key's
+/// own per-hour budget so the advertised ceiling matches what's enforced.
+fn set_rate_headers(h: &mut axum::http::HeaderMap, limit: u32, remaining: u32, reset_secs: u64) {
+    h.insert("x-ratelimit-limit", num_header(limit as u64));
     h.insert("x-ratelimit-remaining", num_header(remaining as u64));
     h.insert("x-ratelimit-reset", num_header(reset_secs));
 }

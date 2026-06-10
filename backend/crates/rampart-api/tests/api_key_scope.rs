@@ -54,6 +54,7 @@ async fn key_with_scope(pool: &PgPool, email: &str, scope: KeyScope) -> String {
             name: format!("{}-key", scope.as_str()),
             scope,
             expires_at: None,
+            rate_limit_per_hour: rampart_core::api_key::DEFAULT_RATE_LIMIT_PER_HOUR,
         },
         owner.id,
     )

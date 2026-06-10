@@ -25,6 +25,7 @@ struct KeyRow {
     created_at: OffsetDateTime,
     last_used_at: Option<OffsetDateTime>,
     expires_at: Option<OffsetDateTime>,
+    rate_limit_per_hour: i32,
 }
 
 impl From<KeyRow> for ApiKey {
@@ -38,6 +39,7 @@ impl From<KeyRow> for ApiKey {
             created_at: r.created_at,
             last_used_at: r.last_used_at,
             expires_at: r.expires_at,
+            rate_limit_per_hour: r.rate_limit_per_hour,
         }
     }
 }
@@ -47,7 +49,7 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<ApiKey>> {
         KeyRow,
         r#"
         SELECT id, name, key_prefix, scope, created_by,
-               created_at, last_used_at, expires_at
+               created_at, last_used_at, expires_at, rate_limit_per_hour
         FROM api_keys
         ORDER BY created_at DESC
         "#,
@@ -66,10 +68,10 @@ pub async fn create(pool: &DbPool, input: NewApiKey, created_by: UserId) -> DbRe
     let row = sqlx::query_as!(
         KeyRow,
         r#"
-        INSERT INTO api_keys (id, name, key_hash, key_prefix, scope, scopes, created_by, expires_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO api_keys (id, name, key_hash, key_prefix, scope, scopes, created_by, expires_at, rate_limit_per_hour)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING id, name, key_prefix, scope, created_by,
-                  created_at, last_used_at, expires_at
+                  created_at, last_used_at, expires_at, rate_limit_per_hour
         "#,
         id.0,
         input.name,
@@ -82,6 +84,7 @@ pub async fn create(pool: &DbPool, input: NewApiKey, created_by: UserId) -> DbRe
         &Vec::<String>::new(),
         created_by.0,
         input.expires_at,
+        input.rate_limit_per_hour,
     )
     .fetch_one(pool)
     .await?;
@@ -114,7 +117,7 @@ pub async fn lookup(pool: &DbPool, token: &str) -> DbResult<(ApiKey, UserId)> {
         KeyRow,
         r#"
         SELECT id, name, key_prefix, scope, created_by,
-               created_at, last_used_at, expires_at
+               created_at, last_used_at, expires_at, rate_limit_per_hour
         FROM api_keys
         WHERE key_hash = $1
           AND (expires_at IS NULL OR expires_at > NOW())

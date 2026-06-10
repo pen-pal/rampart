@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, name, key_prefix, scope, created_by,\n               created_at, last_used_at, expires_at\n        FROM api_keys\n        ORDER BY created_at DESC\n        ",
+  "query": "\n        SELECT id, name, key_prefix, scope, created_by,\n               created_at, last_used_at, expires_at, rate_limit_per_hour\n        FROM api_keys\n        WHERE key_hash = $1\n          AND (expires_at IS NULL OR expires_at > NOW())\n        ",
   "describe": {
     "columns": [
       {
@@ -90,10 +90,23 @@
             "name": "expires_at"
           }
         }
+      },
+      {
+        "ordinal": 8,
+        "name": "rate_limit_per_hour",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "api_keys",
+            "name": "rate_limit_per_hour"
+          }
+        }
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Text"
+      ]
     },
     "nullable": [
       false,
@@ -103,8 +116,9 @@
       true,
       false,
       true,
-      true
+      true,
+      false
     ]
   },
-  "hash": "395b766c4e68d4c00a2a44a7667016363e2893e7080ecc10d2a8fd7b819c7bfa"
+  "hash": "8b0264b24e57f8636f6206e30f4d9e6a960bfc4956e02193a2cbc4240bd9032a"
 }
