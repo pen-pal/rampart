@@ -160,6 +160,21 @@ export const api = {
     attach:      (mid, nid)                          => request(`/v1/monitors/${mid}/notifications/${nid}`, { method: 'POST' }),
     detach:      (mid, nid)                          => request(`/v1/monitors/${mid}/notifications/${nid}`, { method: 'DELETE' }),
   },
+  // ─── delivery log ────────────────────────────────────────────────────────
+  // Read-only paginated feed of recent notification deliveries. Each row is
+  // { channel_kind, event_kind, monitor_id, ok, error, sent_at }. Keyset
+  // pagination (newest-first): pass `before` = the RFC3339 `sent_at` of the
+  // last row of the previous page to fetch the next one. The backend has no
+  // offset param — it returns rows strictly older than `before`.
+  deliveryLog: {
+    list: (opts = {}) => {
+      const qs = new URLSearchParams();
+      if (opts.limit  != null) qs.set('limit',  String(opts.limit));
+      if (opts.before != null) qs.set('before', String(opts.before));
+      const s = qs.toString();
+      return request(`/v1/delivery-log${s ? '?' + s : ''}`);
+    },
+  },
   scheduledReports: {
     list:    ()          => request('/v1/scheduled-reports'),
     get:     (id)        => request(`/v1/scheduled-reports/${id}`),

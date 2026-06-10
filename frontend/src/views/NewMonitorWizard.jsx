@@ -338,6 +338,10 @@ export default function NewMonitorWizard() {
   // parsed to a { name: value } object only at submit / preset-save time.
   const [headersText, setHeadersText] = useState('');
 
+  // Per-monitor outbound result webhook. POSTed each probe result; stored
+  // in the freeform config.result_webhook JSONB. Blank = disabled.
+  const [resultWebhook, setResultWebhook] = useState('');
+
   // Available proxies for the picker. Polled rarely — these don't change
   // mid-flow. Falls back to [] on error so the form still renders.
   const proxiesState = useApi(() => api.proxies.list(), []);
@@ -399,13 +403,23 @@ export default function NewMonitorWizard() {
   const headersToText = (map) =>
     Object.entries(map || {}).map(([k, v]) => `${k}: ${v}`).join('\n');
 
-  // Apply a chosen preset: header presets fill the headers textarea, TLS
-  // presets flip the ignore_tls toggle. No-op on an empty selection.
+  // Apply a chosen preset. The `data` bag is freeform JSONB owned by the
+  // wizard, so a single `http_headers` preset can now carry a whole-HTTP
+  // template: headers PLUS method / accepted_statuses / ignore_tls. Each
+  // field is applied only when present, so legacy header-only presets and
+  // the richer "HTTP template" presets share one apply path. `tls` presets
+  // still just flip the ignore_tls toggle.
   const applyPreset = (presetId) => {
     const p = presets.find(x => x.id === presetId);
     if (!p) return;
     if (p.kind === 'http_headers') {
-      setHeadersText(headersToText(p.data?.headers));
+      const d = p.data || {};
+      if (d.headers && Object.keys(d.headers).length) setHeadersText(headersToText(d.headers));
+      if (typeof d.method === 'string' && d.method) setMethod(d.method);
+      if (Array.isArray(d.accepted_statuses) && d.accepted_statuses.length) {
+        setStatuses(d.accepted_statuses.join(', '));
+      }
+      if (typeof d.ignore_tls === 'boolean') setIgnoreTls(d.ignore_tls);
     } else if (p.kind === 'tls') {
       setIgnoreTls(!!p.data?.ignore_tls);
     }
@@ -424,6 +438,37 @@ export default function NewMonitorWizard() {
     setSavingPreset(true);
     try {
       await api.monitorPresets.create({ name: name.trim(), kind: 'http_headers', data: { headers } });
+      setPresetReload(n => n + 1);
+    } catch (e) {
+      setErr(e.message || t('wizard.preset.save_failed'));
+    } finally {
+      setSavingPreset(false);
+    }
+  };
+
+  // Save the whole current HTTP config (method + accepted statuses +
+  // ignore_tls + any headers) as a reusable "HTTP template" preset. Stored
+  // under the existing `http_headers` kind with an extended `data` bag — the
+  // backend treats `data` as opaque JSONB so no migration / new kind needed.
+  const saveMonitorPreset = async () => {
+    const headers = parseHeaders(headersText);
+    const accepted = statuses
+      .split(',')
+      .map(s => parseInt(s.trim(), 10))
+      .filter(n => Number.isFinite(n));
+    // Require at least something meaningful beyond the defaults.
+    if (Object.keys(headers).length === 0 && accepted.length === 0 && method === 'GET' && !ignoreTls) {
+      setErr(t('wizard.preset.monitor_empty'));
+      return;
+    }
+    const name = prompt(t('wizard.preset.name_prompt'));
+    if (!name || !name.trim()) return;
+    setSavingPreset(true);
+    try {
+      const data = { method, ignore_tls: ignoreTls };
+      if (Object.keys(headers).length) data.headers = headers;
+      if (accepted.length) data.accepted_statuses = accepted;
+      await api.monitorPresets.create({ name: name.trim(), kind: 'http_headers', data });
       setPresetReload(n => n + 1);
     } catch (e) {
       setErr(e.message || t('wizard.preset.save_failed'));
@@ -452,6 +497,11 @@ export default function NewMonitorWizard() {
     }
     if (fields.banner && bannerExpect.trim()) {
       config.expect = bannerExpect.trim();
+    }
+    // Optional per-monitor outbound result webhook (HTTP-family only). The
+    // backend reads config.result_webhook; blank disables it.
+    if (fields.httpExtras && resultWebhook.trim()) {
+      config.result_webhook = resultWebhook.trim();
     }
     // Optional negotiated-HTTP-version assertion (http1/http2/http3). Stored
     // in the freeform config JSONB; the rampart-checker HTTP probe reads it.
@@ -704,6 +754,10 @@ export default function NewMonitorWizard() {
                         onClick={saveHeadersPreset}>
                         <Plus size={12}/> {t('wizard.preset.save')}
                       </button>
+                      <button type="button" className="btn" disabled={savingPreset}
+                        onClick={saveMonitorPreset}>
+                        <Plus size={12}/> {t('wizard.preset.save_monitor')}
+                      </button>
                     </div>
                     <textarea className="input mono" rows={3} value={headersText}
                       onChange={e => setHeadersText(e.target.value)}
@@ -720,6 +774,15 @@ export default function NewMonitorWizard() {
                       <span style={{ display: 'block', fontSize: 12, color: 'var(--text-3)' }}>{t('wizard.field.ignore_tls_hint')}</span>
                     </span>
                   </label>
+                )}
+
+                {fields.httpExtras && (
+                  <div className="field">
+                    <label className="field-label">{t('wizard.field.result_webhook')}</label>
+                    <input className="input mono" value={resultWebhook} onChange={e => setResultWebhook(e.target.value)}
+                      placeholder="https://hooks.example.com/probe-result"/>
+                    <div className="field-hint">{t('wizard.field.result_webhook_hint')}</div>
+                  </div>
                 )}
 
                 {fields.hostname && (
