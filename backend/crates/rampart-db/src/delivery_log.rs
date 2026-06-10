@@ -140,3 +140,38 @@ pub async fn list(
         })
         .collect())
 }
+
+/// Fetch up to `limit` deliveries newest-first for a bulk CSV export.
+///
+/// Unlike [`list`], this skips the keyset cursor and the 500-row clamp: an
+/// export is a single full dump, so the caller passes its own (larger) cap.
+/// `limit` is still floored at 1 to keep the query well-formed.
+pub async fn list_all(pool: &DbPool, limit: i64) -> DbResult<Vec<DeliveryEntry>> {
+    let limit = limit.max(1);
+    let rows = sqlx::query!(
+        r#"
+        SELECT id, notification_id, channel_kind, event_kind,
+               monitor_id, ok, error, sent_at
+        FROM delivery_log
+        ORDER BY sent_at DESC, id DESC
+        LIMIT $1
+        "#,
+        limit,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|r| DeliveryEntry {
+            id: r.id,
+            notification_id: r.notification_id.map(NotificationId::from_uuid),
+            channel_kind: r.channel_kind,
+            event_kind: r.event_kind,
+            monitor_id: r.monitor_id,
+            ok: r.ok,
+            error: r.error,
+            sent_at: r.sent_at,
+        })
+        .collect())
+}

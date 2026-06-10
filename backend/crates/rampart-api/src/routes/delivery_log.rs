@@ -7,6 +7,7 @@
 use crate::error::ApiError;
 use crate::state::AppState;
 use axum::extract::{Path, Query, State};
+use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use rampart_db::delivery_log::DeliveryEntry;
@@ -16,6 +17,7 @@ use time::OffsetDateTime;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list))
+        .route("/export.csv", get(export_csv))
         .route("/{id}/retry", post(retry))
 }
 
@@ -67,13 +69,85 @@ async fn retry(
     Ok(Json(attempt))
 }
 
+/// Upper bound on rows pulled into a single CSV export. Large enough for a
+/// routine operational dump of the delivery log, small enough that the whole
+/// payload stays comfortably in memory. An export hitting this ceiling is
+/// truncated to the newest [`EXPORT_CAP`] attempts; a note is logged so the
+/// truncation is visible in the server logs.
+const EXPORT_CAP: i64 = 50_000;
+
+/// CSV export of delivery attempts (admin-only — gated by the `admin_only`
+/// layer the delivery-log router is nested under).
+///
+/// Mirrors the audit-log `list_csv` export: materialises up to [`EXPORT_CAP`]
+/// rows newest-first and emits them as `text/csv` with an attachment
+/// `content-disposition`. Fields that contain a comma, quote, or newline are
+/// quoted per RFC 4180.
+async fn export_csv(State(s): State<AppState>) -> Result<impl IntoResponse, ApiError> {
+    let rows = rampart_db::delivery_log::list_all(s.pool(), EXPORT_CAP).await?;
+    if rows.len() as i64 == EXPORT_CAP {
+        tracing::warn!(
+            cap = EXPORT_CAP,
+            "delivery-log CSV export hit the row cap; output truncated to the newest {EXPORT_CAP} attempts",
+        );
+    }
+
+    let fmt = time::format_description::well_known::Rfc3339;
+    let mut body = String::with_capacity(64 + rows.len() * 96);
+    body.push_str("sent_at,channel_kind,event_kind,monitor_id,ok,error\n");
+    for r in &rows {
+        body.push_str(&format!(
+            "{},{},{},{},{},{}\n",
+            r.sent_at.format(&fmt).unwrap_or_default(),
+            csv_escape(&r.channel_kind),
+            csv_escape(&r.event_kind),
+            r.monitor_id.map(|m| m.to_string()).unwrap_or_default(),
+            r.ok,
+            csv_escape(r.error.as_deref().unwrap_or("")),
+        ));
+    }
+
+    Ok((
+        [
+            ("content-type", "text/csv; charset=utf-8".to_string()),
+            (
+                "content-disposition",
+                "attachment; filename=\"delivery-log.csv\"".to_string(),
+            ),
+        ],
+        body,
+    ))
+}
+
+/// Minimal CSV escape: double embedded quotes and wrap the field if it
+/// contains a comma, quote, or newline. Local copy of the same helper from
+/// routes/audit.rs — small enough that duplicating is cheaper than carving
+/// out a shared module.
+fn csv_escape(s: &str) -> String {
+    if s.is_empty() {
+        return String::new();
+    }
+    if !(s.contains(',') || s.contains('"') || s.contains('\n') || s.contains('\r')) {
+        return s.to_string();
+    }
+    let escaped = s.replace('"', "\"\"");
+    format!("\"{escaped}\"")
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::state::AppState;
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use http_body_util::BodyExt;
     use rampart_core::monitor::NewMonitor;
     use rampart_core::{ChannelKind, MonitorKind};
     use rampart_db::delivery_log::{self, NewDelivery};
     use rampart_db::notifications::{self, NewNotification};
     use sqlx::PgPool;
+    use std::sync::Arc;
+    use tokio::sync::Notify;
+    use tower::ServiceExt;
 
     fn webhook_channel() -> NewNotification {
         NewNotification {
@@ -171,5 +245,55 @@ mod tests {
             .filter(|r| r.notification_id == Some(channel.id))
             .count();
         assert_eq!(for_channel, 2);
+    }
+
+    /// Hit GET /export.csv on the delivery-log router and assert a `text/csv`
+    /// response whose first line is the documented header row.
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn export_csv_returns_text_csv_with_header(pool: PgPool) {
+        // Seed one delivery so the body has a data row beyond the header.
+        delivery_log::record(
+            &pool,
+            NewDelivery {
+                notification_id: None,
+                channel_kind: "webhook",
+                event_kind: "monitor_down",
+                monitor_id: None,
+                ok: true,
+                error: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let state = AppState::new(pool, Arc::new(Notify::new()));
+        let app = super::router().with_state(state);
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/export.csv")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let ct = resp
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default()
+            .to_string();
+        assert!(ct.starts_with("text/csv"), "content-type was {ct}");
+
+        let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        let body = String::from_utf8(bytes.to_vec()).unwrap();
+        let header = body.lines().next().unwrap();
+        assert_eq!(
+            header,
+            "sent_at,channel_kind,event_kind,monitor_id,ok,error"
+        );
     }
 }
