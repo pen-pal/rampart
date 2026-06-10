@@ -24,17 +24,38 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 - **Per-channel quiet hours + rate limit** (migration `0060`) —
   `quiet_hours_start`/`quiet_hours_end` (UTC) suppress non-test sends
   inside the window; `rate_limit_per_hour` drops sends past a rolling
-  1-hour cap. Channel-form fields in the Notifications view.
+  1-hour cap. Channel-form fields in the Notifications view. Quiet hours
+  and maintenance-window suppression verified to compose without
+  double-handling — flips during maintenance are dropped upstream in the
+  scheduler (never reach the notifier); maintenance start/end
+  announcements respect a channel's quiet window like any other send.
+  Pinned by tests.
+- **Delivery log** (migration `0065`) — append-only `delivery_log` of
+  every channel send attempt (success + failure, immediate + digest
+  paths), recorded best-effort so a logging failure can never break
+  dispatch. `GET /v1/delivery-log` (admin, keyset-paginated newest-first
+  on the `before` cursor) + a read-only `#/delivery-log` view.
 - **Outbound probe-result webhooks** — per-monitor `config.result_webhook`
   (JSONB) fire-and-forgets `{monitor_id, name, status, latency_ms,
   status_code, ts}` to a URL after every heartbeat (5s timeout, never
-  blocks the scheduler).
+  blocks the scheduler). A "Result webhook URL" field in the monitor
+  wizard writes it.
 - **Scheduled weekly uptime reports** (migration `0062`) —
   `scheduled_reports` table + `/v1/scheduled-reports` admin CRUD; a
   slow-tick renders per-monitor 7-day uptime and emails recipients via
-  the SMTP path. (No frontend yet — API-driven.)
+  the SMTP path. A `#/reports` admin view manages them (list / create /
+  edit / delete; name + recipients + cadence).
 - **Digest-buffer restart test** — proves coalesced alerts persisted in
   `digest_buffer` (v0.4.0) are recovered + flushed after a restart.
+
+#### API
+
+- **Per-API-key rate limit + `X-RateLimit-*` headers** — a courtesy
+  in-process rolling-hour budget (1000/hr) keyed by API key, enforced by
+  a tower middleware layered inner to `require_session`. Over budget →
+  `429` + `Retry-After`; under it → `X-RateLimit-Limit` / `-Remaining` /
+  `-Reset` on the response. Cookie/session requests are unlimited and get
+  no headers.
 
 #### Status pages
 
@@ -43,12 +64,17 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
   (`ON DELETE SET NULL`). The builder manages sections + per-monitor
   assignment; the public page renders monitors grouped under section
   headers (ungrouped first). `PublicStatusPage.sections` added.
+- **Section reorder** — up/down controls on the sections panel persist
+  new positions via the existing `updateSection` PATCH (accessible arrow
+  buttons over fiddly HTML5 drag), optimistic local reorder then refetch.
 
 #### Monitors
 
-- **Header/cert presets** (migration `0064`) — `monitor_presets`
-  (named header / TLS bags) + `/v1/monitors/presets` CRUD + an
-  "Apply preset" picker in the wizard.
+- **Header/cert presets → HTTP templates** (migration `0064`) —
+  `monitor_presets` (named header / TLS bags) + `/v1/monitors/presets`
+  CRUD + an "Apply preset" picker in the wizard. Presets extended to
+  carry the whole HTTP config (method + accepted statuses + ignore-TLS,
+  not just headers) so a preset prefills a near-complete monitor.
 - **Bulk enable/disable by tag** — `POST /v1/monitors/bulk-by-tag
   {tag_id, action}` pauses/resumes every monitor carrying a tag; a
   tag-filter action on the dashboard.
@@ -66,12 +92,22 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
   rustls-webpki advisories) re-verified — no movement; dated note in
   `docs/SECURITY-DEBT.md`.
 
+#### Internationalization
+
+- **ja / zh batch-13 coverage** — best-effort Japanese + Simplified-
+  Chinese translations for the 76 new keys (scheduled reports, delivery
+  log, status-page sections, wizard presets + result-webhook) that
+  previously fell back to English through the `...en` spread. Both stay
+  MACHINE-DRAFT pending native-speaker review.
+
 ### Notes
 
-- Migrations `0060`/`0062`/`0063`/`0064`, all additive. The backend
-  features co-extend rampart-core's id + re-export registry, so they
-  landed in one commit (`aa97821`); the OpenAPI drift guard caught + got
-  the 8 new routes documented.
+- Migrations `0060`/`0062`/`0063`/`0064`/`0065`, all additive. The
+  earlier backend features co-extend rampart-core's id + re-export
+  registry, so they landed in one commit (`aa97821`); the delivery log,
+  rate-limit headers, frontend surfaces, and ja/zh translations landed
+  as four further per-concern commits. The OpenAPI drift guard caught +
+  got every new route documented.
 
 ---
 
