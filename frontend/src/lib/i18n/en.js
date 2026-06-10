@@ -82,6 +82,19 @@ const en = {
   'dashboard.bulk.cancel':           'Cancel',
   'dashboard.bulk.edit_empty':       'Set an interval, timeout, state, folder, or tags to change.',
   'dashboard.bulk.edit_failed':      'Bulk-edit failed: {msg}',
+  // bulk-edit dry-run preview + undo
+  'dashboard.bulk.preview.button':   'Preview',
+  'dashboard.bulk.preview.title':    'Preview of changes',
+  'dashboard.bulk.preview.summary':  '{update} to update · {skip} skipped',
+  'dashboard.bulk.preview.no_changes': 'No monitors would change.',
+  'dashboard.bulk.preview.dismiss':  'Back',
+  'dashboard.bulk.preview.confirm':  'Apply these changes',
+  'dashboard.bulk.preview_failed':   'Preview failed: {msg}',
+  'dashboard.bulk.undo.done':        'Updated {n} monitor(s).',
+  'dashboard.bulk.undo.partial':     'Tags can’t be fully reverted in one step.',
+  'dashboard.bulk.undo.button':      'Undo',
+  'dashboard.bulk.undo.dismiss':     'Dismiss',
+  'dashboard.bulk.undo_failed':      'Undo failed: {msg}',
 
   // ── dashboard: pause/resume all monitors with a tag ──────────────
   'dashboard.bulk_tag.pause':        'pause',
@@ -239,6 +252,32 @@ const en = {
   'delivery.prev':                   'Previous',
   'delivery.next':                   'Next',
   'delivery.page':                   'Page {n}',
+  'delivery.export_csv':             'Export CSV',
+
+  // ── monitor templates library ────────────────────────────────────
+  'templates.nav':                   'Monitor templates',
+  'templates.back':                  'Dashboard',
+  'templates.title':                 'Monitor templates',
+  'templates.subtitle':              'Reusable monitor blueprints. Spin up a fully-configured monitor from a saved spec in one click.',
+  'templates.loading':               'Loading templates…',
+  'templates.empty.title':           'No templates yet',
+  'templates.empty.cta':             'Open any monitor and choose “Save as template” to capture its configuration here.',
+  'templates.new_from':              'New monitor',
+  'templates.delete':                'Delete',
+  'templates.delete_confirm':        'Delete this template? Monitors already created from it are unaffected.',
+  'templates.err_delete':            'Failed to delete the template.',
+  'templates.err_instantiate':       'Failed to create a monitor from this template.',
+  'templates.instantiate_title':     'New monitor from “{name}”',
+  'templates.name_override':         'Monitor name',
+  'templates.name_override_hint':    'Leave blank to use the template’s own name.',
+  'templates.instantiating':         'Creating…',
+  'templates.create_monitor':        'Create monitor',
+  'templates.save.button':           'Save as template',
+  'templates.save.title':            'Capture this monitor’s configuration as a reusable template',
+  'templates.save.prompt':           'Name for the new template:',
+  'templates.save.default_name':     '{name} template',
+  'templates.save.ok_goto':          'Template saved. Open the templates library?',
+  'templates.save.failed':           'Failed to save template: {msg}',
   'notifications.form.update_channel': 'Update channel',
   'notifications.form.save_channel': 'Save channel',
   'notifications.form.routing_tags': 'Routing tags',
@@ -376,6 +415,18 @@ const en = {
   'monitor.kpi.no_data':             'no data yet',
   'monitor.kpi.successful_24h':      'successful checks · 24h',
   'monitor.kpi.timeout':             'timeout {n}s',
+
+  // ── monitor detail: uptime history (long-horizon rollups) ────────
+  'monitor.uptime_history.title':         'Uptime history',
+  'monitor.uptime_history.range_label':   '{range} range',
+  'monitor.uptime_history.empty':         'No uptime history for this range yet.',
+  'monitor.uptime_history.tooltip':       '{day}: {pct}% · {samples} samples',
+  'monitor.uptime_history.tooltip_nodata': '{day}: no data',
+  'monitor.uptime_history.floor':         'axis from {pct}%',
+
+  // ── monitor: drag-to-folder move ─────────────────────────────────
+  'monitor.move.hint':               'Drag onto a folder to move this monitor',
+  'monitor.move.failed':             'Failed to move monitor: {msg}',
 
   // ── monitor detail: cards ────────────────────────────────────────
   'monitor.card.90d_uptime':         '90-day uptime',

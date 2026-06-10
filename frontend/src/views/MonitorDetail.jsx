@@ -5,7 +5,7 @@ import {
 import {
   ChevronLeft, Pause, Play, Edit3, Trash2, Bell, Plus, X, Send, Download,
   Globe, Server, Lock, AlertCircle, Activity, Hash, Radio, Database,
-  MoreHorizontal, Calendar, ChevronDown, Copy, Check, Zap, Loader2,
+  MoreHorizontal, Calendar, ChevronDown, Copy, Check, Zap, Loader2, FileStack,
 } from 'lucide-react';
 import {
   api, useApi, formatRelative, offsetDateTimeArrayToDate, statusToClass,
@@ -381,6 +381,18 @@ export default function MonitorDetail({ monitorId, user }) {
   );
   const groupsState    = useApi(() => api.monitorGroups.list(),          [], { pollMs: 60_000 });
 
+  // Long-horizon uptime history — daily uptime% over a 30d / 90d / 1y range.
+  // Reads from server-side rollups so it works past raw heartbeat retention,
+  // complementing the 90-day strip (which is heartbeat-derived). Re-fetches
+  // when the range selector changes. Reset to 30d when switching monitors.
+  const [uptimeRange, setUptimeRange] = useState('30d');
+  useEffect(() => { setUptimeRange('30d'); }, [monitorId]);
+  const uptimeHistoryState = useApi(
+    () => monitorId ? api.monitors.uptimeHistory(monitorId, uptimeRange) : Promise.resolve([]),
+    [monitorId, uptimeRange],
+    { pollMs: 300_000 },
+  );
+
   const monitor = monitorState.data;
   // Combined view = freshly polled page + accumulated older pages.
   // Order is descending-ts (newest first) like the backend returns.
@@ -445,6 +457,40 @@ export default function MonitorDetail({ monitorId, user }) {
       const copy = await api.monitors.clone(monitor.id);
       window.location.hash = `#/monitor/${copy.id}`;
     } catch (e) { alert(`Failed: ${e.message}`); setActing(false); }
+  };
+  // Capture this monitor's config into a reusable template. The `spec` is a
+  // monitor-creation body: we lift the probe-shape fields off the monitor and
+  // drop the per-instance bits (name, group, push token) the template library
+  // fills in at instantiate time.
+  const doSaveAsTemplate = async () => {
+    if (!monitor || acting) return;
+    const tplName = prompt(t('templates.save.prompt'), t('templates.save.default_name', { name: monitor.name }));
+    if (tplName == null || !tplName.trim()) return;
+    const spec = {
+      kind: monitor.kind,
+      interval_seconds: monitor.interval_seconds,
+      timeout_seconds:  monitor.timeout_seconds,
+    };
+    if (monitor.url != null)               spec.url = monitor.url;
+    if (monitor.hostname != null)          spec.hostname = monitor.hostname;
+    if (monitor.port != null)              spec.port = monitor.port;
+    if (monitor.http_method != null)       spec.http_method = monitor.http_method;
+    if (monitor.accepted_statuses != null) spec.accepted_statuses = monitor.accepted_statuses;
+    if (monitor.http_headers != null)      spec.http_headers = monitor.http_headers;
+    if (monitor.follow_redirect != null)   spec.follow_redirect = monitor.follow_redirect;
+    if (monitor.ignore_tls != null)        spec.ignore_tls = monitor.ignore_tls;
+    if (monitor.max_retries != null)       spec.max_retries = monitor.max_retries;
+    if (monitor.upside_down != null)       spec.upside_down = monitor.upside_down;
+    if (monitor.config != null && Object.keys(monitor.config).length) spec.config = monitor.config;
+    setActing(true);
+    try {
+      await api.monitorTemplates.create({ name: tplName.trim(), spec });
+      if (confirm(t('templates.save.ok_goto'))) window.location.hash = '#/templates';
+    } catch (e) {
+      alert(t('templates.save.failed', { msg: e.message }));
+    } finally {
+      setActing(false);
+    }
   };
   const doTestNow = async () => {
     if (!monitor || testing) return;
@@ -668,6 +714,7 @@ export default function MonitorDetail({ monitorId, user }) {
             )}
             {writable && <button className="btn" onClick={() => setEditing(true)} disabled={acting}><Edit3 size={13}/> {t('common.edit')}</button>}
             {writable && <button className="btn" onClick={doClone} disabled={acting} title={t('monitor.action.clone_title')}><Copy size={13}/> {t('common.clone')}</button>}
+            {writable && <button className="btn" onClick={doSaveAsTemplate} disabled={acting} title={t('templates.save.title')}><FileStack size={13}/> {t('templates.save.button')}</button>}
             <a className="btn" href={`/v1/monitors/${monitor.id}/heartbeats.csv`} title={t('monitor.action.csv_title')} download>
               <Download size={13}/> {t('monitor.action.csv')}
             </a>
@@ -831,6 +878,16 @@ export default function MonitorDetail({ monitorId, user }) {
             <span>Today</span>
           </div>
         </div>
+
+        {/* Long-horizon uptime history — daily uptime% over 30d / 90d / 1y,
+            fed from server-side rollups so it outlives raw heartbeat
+            retention. Complements the heartbeat-derived strip above. */}
+        <UptimeHistoryCard
+          data={uptimeHistoryState.data}
+          loading={uptimeHistoryState.loading}
+          range={uptimeRange}
+          onRangeChange={setUptimeRange}
+        />
 
         {/* Reliability — MTBF / MTTR / downtime events over a user-selected
             trailing window (7 / 30 / 90 days). Backend walks the heartbeat
@@ -2023,6 +2080,126 @@ function BurndownCard({ data, windowDays, onWindowChange }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── long-horizon uptime history (hand-rolled SVG bars) ─────────────────────
+// Daily uptime% across 30d / 90d / 1y, coloured by threshold. Built as a bare
+// SVG (no charting dep) to match the dependency-graph / sparkline approach.
+// Each bar carries a <title> tooltip with the day, pct and sample count.
+function UptimeHistoryCard({ data, loading, range, onRangeChange }) {
+  const rows = Array.isArray(data) ? data : [];
+
+  // Colour a bar by uptime threshold: green ≥ 99.9, amber ≥ 99, red below.
+  // A day with no samples renders as a faint "no-data" stub.
+  const colourFor = (pct) =>
+    pct == null ? 'var(--border)'
+    : pct >= 99.9 ? 'var(--up)'
+    : pct >= 99   ? 'var(--warn)'
+    :               'var(--down)';
+
+  const RANGES = ['30d', '90d', '1y'];
+  const SegBtn = ({ r }) => {
+    const isSel = range === r;
+    return (
+      <button
+        type="button" role="radio" aria-checked={isSel}
+        aria-label={t('monitor.uptime_history.range_label', { range: r })}
+        onClick={() => { if (!isSel) onRangeChange?.(r); }}
+        style={{
+          flex: 1, padding: '4px 10px', fontSize: 12, fontWeight: 600,
+          background: isSel ? 'var(--surface)' : 'transparent',
+          color: isSel ? 'var(--text)' : 'var(--text-2)',
+          border: 'none', borderRadius: 4,
+          boxShadow: isSel ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+          cursor: isSel ? 'default' : 'pointer',
+        }}>
+        {r}
+      </button>
+    );
+  };
+
+  // SVG geometry — a fixed viewBox scaled to width via CSS. Bars are evenly
+  // spaced across the full range; the y-axis is zoomed to [floor, 100] so
+  // day-to-day variation near 100% stays legible (uptime rarely dips far).
+  const H = 120, padTop = 6, padBottom = 16, plotH = H - padTop - padBottom;
+  const n = rows.length;
+  const minPct = rows.reduce((lo, r) => (r.uptime_pct != null && r.uptime_pct < lo ? r.uptime_pct : lo), 100);
+  // Floor the y-axis a touch below the worst day (never above 90) so a 100%
+  // wall of bars still shows height, but a bad day visibly drops.
+  const yFloor = Math.min(90, Math.floor(minPct));
+  const span = Math.max(1, 100 - yFloor);
+  const barW = n > 0 ? 100 / n : 0; // percentage units in a 0..100 viewBox X
+  const fmtDay = (d) => {
+    const dt = new Date(`${d}T00:00:00Z`);
+    return isNaN(dt.getTime()) ? String(d)
+      : dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  };
+  const firstLabel = n > 0 ? fmtDay(rows[0].day) : '';
+  const lastLabel  = n > 0 ? fmtDay(rows[n - 1].day) : '';
+
+  return (
+    <div className="card" style={{ padding: '20px 22px', marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+        <Activity size={14} color="var(--text-3)"/>
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{t('monitor.uptime_history.title')}</h3>
+        <div role="radiogroup" aria-label={t('monitor.uptime_history.title')}
+          style={{
+            marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 2,
+            background: 'var(--surface-2)', padding: 2, borderRadius: 6, width: 156,
+          }}>
+          {RANGES.map(r => <SegBtn key={r} r={r}/>)}
+        </div>
+      </div>
+
+      {loading && n === 0 ? (
+        <div className="empty" style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {t('common.loading')}
+        </div>
+      ) : n === 0 ? (
+        <div className="empty" style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {t('monitor.uptime_history.empty')}
+        </div>
+      ) : (
+        <>
+          <svg viewBox={`0 0 100 ${H}`} preserveAspectRatio="none"
+            style={{ width: '100%', height: 120, display: 'block', overflow: 'visible' }}
+            role="img" aria-label={t('monitor.uptime_history.title')}>
+            {rows.map((r, i) => {
+              const pct = r.uptime_pct;
+              const hasData = pct != null && (r.sample_count == null || r.sample_count > 0);
+              const norm = hasData ? Math.max(0, Math.min(1, (pct - yFloor) / span)) : 0;
+              const barH = hasData ? Math.max(1, norm * plotH) : plotH;
+              const x = i * barW;
+              const y = padTop + (plotH - barH);
+              return (
+                <rect key={i}
+                  x={x + barW * 0.12} y={y}
+                  width={barW * 0.76} height={barH}
+                  rx={0.4}
+                  fill={hasData ? colourFor(pct) : 'var(--border)'}
+                  opacity={hasData ? 0.9 : 0.4}>
+                  <title>
+                    {hasData
+                      ? t('monitor.uptime_history.tooltip', {
+                          day: fmtDay(r.day),
+                          pct: Number(pct).toFixed(2),
+                          samples: r.sample_count ?? 0,
+                        })
+                      : t('monitor.uptime_history.tooltip_nodata', { day: fmtDay(r.day) })}
+                  </title>
+                </rect>
+              );
+            })}
+          </svg>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 11, color: 'var(--text-3)' }}>
+            <span>{firstLabel}</span>
+            <span className="mono tabular">{t('monitor.uptime_history.floor', { pct: yFloor })}</span>
+            <span>{lastLabel}</span>
+          </div>
+        </>
+      )}
     </div>
   );
 }

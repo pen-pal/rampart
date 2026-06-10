@@ -122,6 +122,39 @@ export const api = {
       const qs = windowDays ? `?window_days=${windowDays}` : '';
       return request(`/v1/monitors/${id}/slo/burndown${qs}`);
     },
+    /// Hourly status rollups across an explicit [from, to] window. Both
+    /// bounds are RFC3339 strings. Returns one bucket per hour:
+    /// [{ bucket_start, up_count, down_count, other_count, sample_count,
+    /// avg_latency_ms }]. Backs the long-horizon views that outlive raw
+    /// heartbeat retention.
+    rollups: (id, from, to) => {
+      const qs = new URLSearchParams();
+      if (from) qs.set('from', from);
+      if (to)   qs.set('to',   to);
+      const s = qs.toString();
+      return request(`/v1/monitors/${id}/rollups${s ? '?' + s : ''}`);
+    },
+    /// Daily uptime percentage over a trailing range. `range` is one of
+    /// '30d' | '90d' | '1y'. Returns [{ day(date), uptime_pct, sample_count }],
+    /// oldest-first. Works past raw retention because it reads from rollups.
+    uptimeHistory: (id, range) => request(`/v1/monitors/${id}/uptime-history?range=${encodeURIComponent(range || '30d')}`),
+    /// Preview a bulk-edit WITHOUT mutating. Same body as `bulkEdit`; the
+    /// `?dry_run=true` flag makes the backend return what it WOULD do:
+    /// { would_update, would_skip, preview: [{ id, name, changes: {
+    /// <field>: { from, to } } }] }.
+    bulkEditPreview: (ids, patch) => request('/v1/monitors/bulk-edit?dry_run=true', { method: 'POST', body: { ids, patch } }),
+  },
+  // ─── monitor templates ───────────────────────────────────────────────────
+  // Reusable monitor blueprints. `spec` is a monitor-creation body (kind +
+  // url/config + interval_seconds etc.); `instantiate` materialises a real
+  // monitor from one with an optional name override and returns the created
+  // monitor. Distinct from monitorPresets (those are header/TLS config bags).
+  monitorTemplates: {
+    list:        ()              => request('/v1/monitor-templates'),
+    get:         (id)            => request(`/v1/monitor-templates/${id}`),
+    create:      (input)         => request('/v1/monitor-templates', { method: 'POST', body: input }),
+    remove:      (id)            => request(`/v1/monitor-templates/${id}`, { method: 'DELETE' }),
+    instantiate: (id, name)      => request(`/v1/monitor-templates/${id}/instantiate`, { method: 'POST', body: name ? { name } : {} }),
   },
   // ─── monitor presets ────────────────────────────────────────────────────
   // Reusable config bags the New-Monitor wizard applies with a click:
