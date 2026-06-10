@@ -513,11 +513,21 @@ const css = `
 // `<script` (case-insensitive) so the operator can't close the style
 // context and inject markup/script after it. Everything else passes through
 // verbatim so legitimate overrides keep working.
+//
+// A single pass is NOT enough: removing one match can splice the surrounding
+// text into a fresh match the scan already moved past — e.g.
+// `<scr<scriptipt` → strip the inner `<script` → `<scr`+`ipt` = `<script`,
+// which would survive (CodeQL js/incomplete-multi-character-sanitization).
+// Re-run to a fixpoint so no reassembled token can slip through.
 function sanitizeCustomCss(raw) {
   if (!raw) return '';
-  return String(raw)
-    .replace(/<\/style/gi, '')
-    .replace(/<script/gi, '');
+  let out = String(raw);
+  let prev;
+  do {
+    prev = out;
+    out = out.replace(/<\/style/gi, '').replace(/<script/gi, '');
+  } while (out !== prev);
+  return out;
 }
 
 // Status → localized badge label. A function (not a const map) so the
