@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO heartbeat_rollups\n            (monitor_id, bucket_start, up_count, down_count,\n             other_count, sample_count, avg_latency_ms)\n        SELECT\n            monitor_id,\n            date_trunc('hour', ts AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS bucket_start,\n            COUNT(*) FILTER (WHERE status = 'up')::int                   AS up_count,\n            COUNT(*) FILTER (WHERE status = 'down')::int                 AS down_count,\n            COUNT(*) FILTER (WHERE status NOT IN ('up','down'))::int     AS other_count,\n            COUNT(*)::int                                                AS sample_count,\n            AVG(latency_ms) FILTER (WHERE latency_ms IS NOT NULL)        AS avg_latency_ms\n        FROM heartbeats\n        WHERE ts < NOW() - make_interval(days => $1)\n        GROUP BY monitor_id, bucket_start\n        ON CONFLICT (monitor_id, bucket_start) DO UPDATE SET\n            up_count       = heartbeat_rollups.up_count     + EXCLUDED.up_count,\n            down_count     = heartbeat_rollups.down_count   + EXCLUDED.down_count,\n            other_count    = heartbeat_rollups.other_count  + EXCLUDED.other_count,\n            sample_count   = heartbeat_rollups.sample_count + EXCLUDED.sample_count,\n            avg_latency_ms = CASE\n                WHEN heartbeat_rollups.avg_latency_ms IS NULL THEN EXCLUDED.avg_latency_ms\n                WHEN EXCLUDED.avg_latency_ms IS NULL THEN heartbeat_rollups.avg_latency_ms\n                ELSE (heartbeat_rollups.avg_latency_ms * heartbeat_rollups.sample_count\n                      + EXCLUDED.avg_latency_ms * EXCLUDED.sample_count)\n                     / NULLIF(heartbeat_rollups.sample_count + EXCLUDED.sample_count, 0)\n            END\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d272085a40c5089df9f057232d320a3d14511e8334ca6e8a45e72287a81e8809"
+}
