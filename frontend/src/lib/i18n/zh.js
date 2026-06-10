@@ -574,6 +574,30 @@ const zh = {
   'wizard.preset.monitor_empty':     '保存模板前请填写 HTTP 配置。',
   'wizard.field.result_webhook':      '结果 Webhook URL',
   'wizard.field.result_webhook_hint': '将每次探测结果（状态 + 延迟）POST 到此 URL。留空则禁用。保存在监控配置中。',
+
+  // ── batch-14 ─────────────────────────────────────────────────────
+  'wizard.field.result_webhook_invalid':     '请输入有效的 http(s) URL，或留空以禁用。',
+  'wizard.field.result_webhook_secret':      '签名密钥（HMAC-SHA256）',
+  'wizard.field.result_webhook_secret_hint': '设置后，每次 POST 都会使用 X-Rampart-Signature: sha256=… 对 <时间戳>.<正文> 进行签名。仅在设置了 URL 时生效。',
+  'dashboard.bulk.enabled_label':    '状态',
+  'dashboard.bulk.group_label':      '文件夹',
+  'dashboard.bulk.leave_alone':      '保持不变',
+  'dashboard.bulk.set_enabled':      '启用',
+  'dashboard.bulk.set_paused':       '暂停',
+  'dashboard.bulk.set_tags_label':   '替换标签',
+  'reports.cadence.daily':           '每日',
+  'reports.cadence.monthly':         '每月',
+  'reports.send_now':                '立即发送',
+  'reports.sending':                 '发送中…',
+  'reports.sent':                    '已发送',
+  'delivery.retry_send':             '重试',
+  'delivery.retrying':               '重试中…',
+  'delivery.retry_sent':             '已重新发送',
+  'delivery.retry_gone':             '渠道已不存在',
+  'delivery.retry_failed':           '重试失败',
+  'apikeys.rate_limit':              '速率限制（请求/小时）',
+  'apikeys.rate_limit_value':        '{n}/小时',
+  'statuspage.sections.drag_hint':   '拖动以重新排序，或使用箭头。',
 };
 
 export default zh;
