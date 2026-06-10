@@ -426,21 +426,31 @@ paths:
   /v1/monitors/bulk-edit:
     post:
       tags: [Monitors]
-      summary: Bulk-edit interval / timeout / tags
-      description: Apply interval/timeout changes and tag add/remove across up to 500 monitors. Best-effort per id; `updated` counts monitors mutated without error.
+      summary: Bulk-edit monitors
+      description: >-
+        Apply a patch to up to 500 monitors in one transaction. Each `patch`
+        field is optional and omitting it leaves that attribute untouched;
+        `tags` REPLACES the tag set; `group_id: null` clears the folder.
+        Interval/timeout are range-checked up front via the shared validator,
+        so an out-of-range value rejects the whole request. `updated` counts
+        monitors mutated; `skipped` counts ids that matched no monitor.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [ids]
+              required: [ids, patch]
               properties:
                 ids: { type: array, items: { type: string, format: uuid } }
-                interval_seconds: { type: integer }
-                timeout_seconds: { type: integer }
-                add_tag_ids: { type: array, items: { type: string, format: uuid } }
-                remove_tag_ids: { type: array, items: { type: string, format: uuid } }
+                patch:
+                  type: object
+                  properties:
+                    interval_secs: { type: integer }
+                    timeout_secs: { type: integer }
+                    enabled: { type: boolean }
+                    group_id: { type: [string, 'null'], format: uuid, description: 'null clears the folder assignment.' }
+                    tags: { type: array, items: { type: string, format: uuid }, description: 'Replaces the monitor''s entire tag set.' }
       responses:
         '200':
           description: Edit outcome.
@@ -450,6 +460,7 @@ paths:
                 type: object
                 properties:
                   updated: { type: integer }
+                  skipped: { type: integer }
         '400': { $ref: '#/components/responses/BadRequest' }
 
   # ─────────────────────────── Status Pages ───────────────────────────
