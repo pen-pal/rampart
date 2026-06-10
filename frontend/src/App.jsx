@@ -19,6 +19,8 @@ const RetentionSettings = lazy(() => import('./views/RetentionSettings.jsx'));
 const Folders           = lazy(() => import('./views/Folders.jsx'));
 const Tags              = lazy(() => import('./views/Tags.jsx'));
 const AuditLog          = lazy(() => import('./views/AuditLog.jsx'));
+const ScheduledReports  = lazy(() => import('./views/ScheduledReports.jsx'));
+const DeliveryLog       = lazy(() => import('./views/DeliveryLog.jsx'));
 const StatusPageView    = lazy(() => import('./views/StatusPageView.jsx'));
 const ManageSubscription = lazy(() => import('./views/ManageSubscription.jsx'));
 import { api } from './lib/api.js';
@@ -59,6 +61,8 @@ const VIEW_LABEL = {
   'retention-settings': 'Retention',
   'folders':            'Folders',
   'audit':         'Audit log',
+  'reports':       'Scheduled reports',
+  'delivery-log':  'Delivery log',
   'public-status': 'Public view',
   'login':         'Login',
 };
@@ -171,7 +175,7 @@ export default function App() {
   // source of truth on `authState.user`.
   const ADMIN_ONLY_VIEWS = new Set([
     'users', 'security', 'api-keys', 'proxies', 'audit',
-    'smtp-settings', 'retention-settings',
+    'smtp-settings', 'retention-settings', 'reports', 'delivery-log',
   ]);
   if (
     !authState.loading
@@ -204,6 +208,8 @@ export default function App() {
     case 'folders':            view = <Folders />; break;
     case 'tags':               view = <Tags />; break;
     case 'audit':         view = <AuditLog />; break;
+    case 'reports':       view = <ScheduledReports />; break;
+    case 'delivery-log':  view = <DeliveryLog />; break;
     case 'public-status': view = <StatusPageView slug={route.id} />; break;
     case 'manage-subscription': view = <ManageSubscription token={route.id} />; break;
     case 'dashboard':
@@ -253,6 +259,8 @@ function ViewSwitcher({ current, user }) {
     { hash: '#/settings/smtp',      view: 'smtp-settings',      adminOnly: true },
     { hash: '#/settings/retention', view: 'retention-settings', adminOnly: true },
     { hash: '#/audit',         view: 'audit',        adminOnly: true },
+    { hash: '#/reports',       view: 'reports',      adminOnly: true },
+    { hash: '#/delivery-log',  view: 'delivery-log', adminOnly: true },
     { hash: '#/status-page',   view: 'status-page'   },
     { hash: '#/new-monitor',   view: 'new-monitor'   },
     { hash: '#/import',        view: 'import'        },

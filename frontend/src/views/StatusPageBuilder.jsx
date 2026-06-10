@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ChevronLeft, ChevronDown, ChevronRight, Plus, Trash2, ExternalLink, Save, AlertCircle, Loader2, X, Globe,
+  ChevronLeft, ChevronDown, ChevronRight, ChevronUp, Plus, Trash2, ExternalLink, Save, AlertCircle, Loader2, X, Globe,
   Pencil, Check, Copy, Upload, Image as ImageIcon, Lock,
 } from 'lucide-react';
 import { api, useApi, offsetDateTimeArrayToDate, formatRelative } from '../lib/api.js';
@@ -530,8 +530,22 @@ function SectionsManager({ pageId, monitors, attached, writable }) {
   const [assignOverride, setAssignOverride] = useState({});
   const [editing, setEditing] = useState(null);   // section id being renamed
   const [editName, setEditName] = useState('');
+  // Optimistic reorder buffer: when the operator moves a section we render
+  // this immediately, then persist + refetch. `null` means "use the fetched
+  // order". We key it to the fetched ids so a refetch that changes the set
+  // (add/delete) discards a stale optimistic order.
+  const [orderOverride, setOrderOverride] = useState(null);
 
-  const sections = sectionsState.data || [];
+  const fetched = sectionsState.data || [];
+  // Once a refetch lands (new `data` reference from useApi), trust the server
+  // order and drop our optimistic buffer.
+  useEffect(() => { setOrderOverride(null); }, [sectionsState.data]);
+  const sections = useMemo(() => {
+    if (!orderOverride) return fetched;
+    const sameSet = orderOverride.length === fetched.length
+      && orderOverride.every(s => fetched.some(f => f.id === s.id));
+    return sameSet ? orderOverride : fetched;
+  }, [fetched, orderOverride]);
   const assignments = useMemo(() => {
     const map = {};
     for (const a of (detailState.data?.monitor_sections || [])) map[a.monitor_id] = a.section_id || '';
@@ -578,6 +592,35 @@ function SectionsManager({ pageId, monitors, attached, writable }) {
     finally { setBusy(null); }
   };
 
+  // Move a section one slot up (dir = -1) or down (dir = +1). Swaps the two
+  // affected sections optimistically, then PATCHes both with their new
+  // `position` values and refetches so the canonical order wins.
+  const move = async (index, dir) => {
+    const target = index + dir;
+    if (target < 0 || target >= sections.length) return;
+    const reordered = sections.slice();
+    [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
+    setOrderOverride(reordered);
+    setErr(null);
+    const a = sections[index];
+    const b = sections[target];
+    setBusy(a.id);
+    try {
+      // Swap the two stored positions so the new visual order persists. Fall
+      // back to array indices when a section has no position yet.
+      const posA = a.position ?? index;
+      const posB = b.position ?? target;
+      await Promise.all([
+        api.statusPages.updateSection(pageId, a.id, { position: posB }),
+        api.statusPages.updateSection(pageId, b.id, { position: posA }),
+      ]);
+      setSecBump(n => n + 1);
+    } catch (e) {
+      setOrderOverride(null); // drop the optimistic order on failure
+      setErr(e.message || t('statuspage.sections.err_reorder'));
+    } finally { setBusy(null); }
+  };
+
   const assign = async (monitorId, sectionId) => {
     setAssignOverride(prev => ({ ...prev, [monitorId]: sectionId }));
     setErr(null);
@@ -613,7 +656,7 @@ function SectionsManager({ pageId, monitors, attached, writable }) {
         <div style={{ padding: 12, fontSize: 12.5, color: 'var(--text-3)', textAlign: 'center', marginBottom: 14 }}>
           {t('statuspage.sections.empty')}
         </div>
-      ) : sections.map(sec => (
+      ) : sections.map((sec, i) => (
         <div key={sec.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
           {editing === sec.id ? (
             <>
@@ -625,6 +668,26 @@ function SectionsManager({ pageId, monitors, attached, writable }) {
             </>
           ) : (
             <>
+              {writable && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => move(i, -1)}
+                    disabled={busy != null || i === 0}
+                    aria-label={t('statuspage.sections.move_up')}
+                    title={t('statuspage.sections.move_up')}
+                    style={{ padding: '0 4px', minHeight: 0, lineHeight: 1 }}
+                  ><ChevronUp size={13}/></button>
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => move(i, 1)}
+                    disabled={busy != null || i === sections.length - 1}
+                    aria-label={t('statuspage.sections.move_down')}
+                    title={t('statuspage.sections.move_down')}
+                    style={{ padding: '0 4px', minHeight: 0, lineHeight: 1 }}
+                  ><ChevronDown size={13}/></button>
+                </div>
+              )}
               <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{sec.name}</span>
               {writable && <button className="btn btn-ghost" onClick={() => { setEditing(sec.id); setEditName(sec.name); }} disabled={busy === sec.id} style={{ padding: '3px 8px', fontSize: 11 }} title={t('statuspage.sections.rename')}><Pencil size={11}/></button>}
               {writable && <button className="btn btn-ghost btn-danger" onClick={() => removeSection(sec.id)} disabled={busy === sec.id} style={{ padding: '3px 8px', fontSize: 11 }} title={t('statuspage.sections.delete')}><Trash2 size={11}/></button>}
