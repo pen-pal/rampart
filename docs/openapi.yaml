@@ -1275,6 +1275,32 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   # ─────────────────────────── Audit ───────────────────────────
+  /v1/delivery-log:
+    get:
+      tags: [Audit]
+      summary: List notification delivery attempts
+      description: >-
+        Admin only. Recent per-channel notification send attempts (success and
+        failure), newest first. Paginated with the `before` RFC3339 cursor.
+      parameters:
+        - in: query
+          name: before
+          required: false
+          schema: { type: string, format: date-time }
+          description: Return entries strictly older than this timestamp.
+        - in: query
+          name: limit
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+      responses:
+        '200':
+          description: Delivery-log entries, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DeliveryLogEntry' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /v1/audit-log:
     get:
       tags: [Audit]
@@ -2826,6 +2852,18 @@ components:
         ip_addr: { type: [string, 'null'] }
         user_agent: { type: [string, 'null'] }
         created_at: { type: string, format: date-time }
+    DeliveryLogEntry:
+      type: object
+      description: One notification delivery attempt (success or failure) recorded by the notifier.
+      properties:
+        id: { type: integer, format: int64 }
+        notification_id: { type: [string, 'null'], format: uuid, description: Source channel; null if the channel was since deleted (FK ON DELETE SET NULL). }
+        channel_kind: { type: string, example: email }
+        event_kind: { type: string, example: monitor_down }
+        monitor_id: { type: [string, 'null'], format: uuid }
+        ok: { type: boolean }
+        error: { type: [string, 'null'], description: Failure detail when ok=false. }
+        sent_at: { type: string, format: date-time }
 
 security:
   - sessionCookie: []

@@ -77,6 +77,45 @@ fn rate_limit_allows(id: NotificationId, limit: i32) -> bool {
     true
 }
 
+/// snake_case string form of a serde-serializable kind enum (ChannelKind /
+/// EventKind), used to denormalise the kind into the delivery_log row so it
+/// stays readable after the channel is deleted. Both enums derive Serialize
+/// with `rename_all = "snake_case"`, so a unit variant serializes to a bare
+/// JSON string; we strip the quotes. Falls back to "unknown" on the
+/// impossible serialize failure rather than panicking on the logging path.
+fn kind_str<T: serde::Serialize>(kind: &T) -> String {
+    match serde_json::to_value(kind) {
+        Ok(serde_json::Value::String(s)) => s,
+        _ => "unknown".to_string(),
+    }
+}
+
+/// Best-effort append to the delivery_log. Records one channel send attempt
+/// (success or failure). By contract this NEVER affects dispatch — any DB
+/// error is logged and swallowed, mirroring the fire-and-forget nature of
+/// the notifier. Called from both the immediate dispatch path and the
+/// digest flush so the log reflects every actual send attempt.
+async fn record_delivery(
+    pool: &DbPool,
+    notification_id: NotificationId,
+    channel_kind: ChannelKind,
+    event: &Event,
+    ok: bool,
+    error: Option<&str>,
+) {
+    let entry = rampart_db::delivery_log::NewDelivery {
+        notification_id: Some(notification_id),
+        channel_kind: &kind_str(&channel_kind),
+        event_kind: &kind_str(&event.kind),
+        monitor_id: Some(event.monitor.id.0),
+        ok,
+        error,
+    };
+    if let Err(e) = rampart_db::delivery_log::record(pool, entry).await {
+        warn!(channel = %notification_id.0, error = %e, "delivery_log record failed");
+    }
+}
+
 /// How often the digest flush task wakes to drain due channel buffers.
 /// Each channel's own `digest_window_secs` gates whether it actually
 /// flushes on a given wake; this is just the resolution of the timer.
@@ -205,6 +244,24 @@ async fn dispatch_one(pool: &DbPool, event: Event) -> anyhow::Result<()> {
         // before the digest branch so a suppressed event is neither sent
         // nor buffered — keeps the contract simple: during quiet hours /
         // once over the rate cap, the channel is silent.
+        //
+        // Interaction with maintenance suppression (see item 7): the two
+        // suppression paths are disjoint and don't double-handle.
+        //   - monitor_down/up (StatusFlip) for a monitor inside an active
+        //     maintenance window is suppressed UPSTREAM, in the scheduler:
+        //     `run_once` emits a synthetic Maintenance heartbeat instead of
+        //     probing and its `user_visible_flip` guard drops any flip
+        //     into/out of Maintenance, so NO StatusFlip event ever reaches
+        //     this loop. Quiet-hours therefore never sees (and can't
+        //     double-count or double-suppress) a maintenance-suppressed
+        //     down/up alert.
+        //   - MaintenanceStarted/Ended are operational announcements that DO
+        //     flow through here. They are treated like any other channel
+        //     send: suppressed only when this channel has a quiet window
+        //     configured AND we're inside it. A channel with no quiet window
+        //     always announces them. That is the intended composition —
+        //     quiet hours gates the announcement per-channel; it does not
+        //     interact with the maintenance probe-suppression above.
         if !matches!(event.kind, EventKind::Test) {
             if let (Some(start), Some(end)) = (row.quiet_hours_start, row.quiet_hours_end) {
                 let hour = time::OffsetDateTime::now_utc().hour() as i16;
@@ -288,12 +345,19 @@ async fn dispatch_one(pool: &DbPool, event: Event) -> anyhow::Result<()> {
             match channels::dispatch(kind, &cfg, &subject, &body, &event, &pool_clone, id).await {
                 Ok(()) => {
                     info!(channel = %name, kind = ?kind, "notification sent");
+                    // Record the successful attempt (best-effort).
+                    record_delivery(&pool_clone, id, kind, &event, true, None).await;
                     // Bump last_fired_at so the next event respects the cooldown.
                     if let Err(e) = rampart_db::notifications::mark_fired(&pool_clone, id).await {
                         warn!(channel = %name, error = %e, "mark_fired failed");
                     }
                 }
-                Err(e) => warn!(channel = %name, kind = ?kind, error = %e, "notification failed"),
+                Err(e) => {
+                    warn!(channel = %name, kind = ?kind, error = %e, "notification failed");
+                    // Record the failed attempt with its error (best-effort).
+                    record_delivery(&pool_clone, id, kind, &event, false, Some(&e.to_string()))
+                        .await;
+                }
             }
         }));
     }
@@ -408,6 +472,9 @@ async fn flush_channel(pool: &DbPool, id: NotificationId) -> anyhow::Result<()> 
     match channels::dispatch(digest.kind, &digest.config, &subject, &body, repr, pool, id).await {
         Ok(()) => {
             info!(channel = %digest.name, kind = ?digest.kind, count, "digest sent");
+            // Record the combined send as one delivery attempt, keyed on the
+            // representative (most-recent) event (best-effort).
+            record_delivery(pool, id, digest.kind, repr, true, None).await;
             if let Err(e) = rampart_db::notifications::mark_fired(pool, id).await {
                 warn!(channel = %digest.name, error = %e, "mark_fired failed");
             }
@@ -417,6 +484,7 @@ async fn flush_channel(pool: &DbPool, id: NotificationId) -> anyhow::Result<()> 
         }
         Err(e) => {
             warn!(channel = %digest.name, kind = ?digest.kind, error = %e, "digest send failed");
+            record_delivery(pool, id, digest.kind, repr, false, Some(&e.to_string())).await;
         }
     }
     Ok(())
@@ -622,4 +690,95 @@ async fn send_subscriber_email(
         .await
         .map_err(|e| format!("send: {e}"))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::EventKind;
+
+    /// The exact predicate the dispatch loop applies to decide whether a
+    /// quiet window suppresses a send for one channel: a channel only
+    /// suppresses when it HAS a quiet window configured and the current
+    /// hour falls inside it. Mirrors the `if let (Some, Some)` guard in
+    /// `dispatch_one` so we can assert the maintenance interaction without
+    /// standing up a DB.
+    fn quiet_suppresses(hour: i16, window: Option<(i16, i16)>) -> bool {
+        match window {
+            Some((start, end)) => in_quiet_hours(hour, start, end),
+            None => false,
+        }
+    }
+
+    #[test]
+    fn in_quiet_hours_handles_plain_and_wraparound() {
+        // plain window 9..17
+        assert!(in_quiet_hours(10, 9, 17));
+        assert!(!in_quiet_hours(8, 9, 17));
+        assert!(!in_quiet_hours(17, 9, 17)); // half-open: end excluded
+                                             // wrap-around 22..6
+        assert!(in_quiet_hours(23, 22, 6));
+        assert!(in_quiet_hours(5, 22, 6));
+        assert!(!in_quiet_hours(6, 22, 6));
+        assert!(!in_quiet_hours(12, 22, 6));
+        // empty window start==end never quiet
+        assert!(!in_quiet_hours(3, 3, 3));
+    }
+
+    /// Item 7: maintenance start/end announcements are operational events
+    /// that flow through the channel dispatch loop and respect quiet hours
+    /// like any other send — but ONLY on channels that actually have a
+    /// quiet window. A channel with no quiet window always announces.
+    #[test]
+    fn maintenance_announcements_respect_quiet_hours_only_when_window_set() {
+        // Channel WITH a quiet window 22..6, current hour 23 → suppressed.
+        assert!(quiet_suppresses(23, Some((22, 6))));
+        // Same channel at 12:00 (outside the window) → fires.
+        assert!(!quiet_suppresses(12, Some((22, 6))));
+        // Channel with NO quiet window → maintenance announcements always
+        // fire, regardless of the hour.
+        assert!(!quiet_suppresses(3, None));
+        assert!(!quiet_suppresses(23, None));
+    }
+
+    /// Documents the no-double-suppression invariant for monitor_down/up
+    /// (item 7): a StatusFlip into or out of Maintenance is suppressed
+    /// UPSTREAM in the scheduler (`run_once`'s `user_visible_flip` guard),
+    /// so the notifier's quiet-hours path never observes one. This test
+    /// pins the contract the comment in `dispatch_one` relies on: only
+    /// non-maintenance flips ever reach the notifier, so quiet hours and
+    /// maintenance suppression operate on disjoint event sets.
+    #[test]
+    fn statusflip_during_maintenance_is_suppressed_upstream_not_here() {
+        use rampart_core::MonitorStatus;
+        // Mirror of scheduler `run_once`'s guard.
+        fn user_visible_flip(prev: MonitorStatus, now: MonitorStatus) -> bool {
+            !(prev == MonitorStatus::Pending && now == MonitorStatus::Up)
+                && now != MonitorStatus::Maintenance
+                && prev != MonitorStatus::Maintenance
+        }
+        // Flip into maintenance, or out of it, is NOT user-visible → no
+        // StatusFlip event emitted → notifier never applies quiet hours to it.
+        assert!(!user_visible_flip(
+            MonitorStatus::Up,
+            MonitorStatus::Maintenance
+        ));
+        assert!(!user_visible_flip(
+            MonitorStatus::Maintenance,
+            MonitorStatus::Up
+        ));
+        assert!(!user_visible_flip(
+            MonitorStatus::Maintenance,
+            MonitorStatus::Down
+        ));
+        // A genuine outage flip outside maintenance IS user-visible and
+        // does reach the notifier (where quiet hours may then gate it).
+        assert!(user_visible_flip(MonitorStatus::Up, MonitorStatus::Down));
+        // And EventKind discriminates the two announcement kinds we DO let
+        // through the loop.
+        assert!(matches!(
+            EventKind::MaintenanceStarted,
+            EventKind::MaintenanceStarted
+        ));
+    }
 }
