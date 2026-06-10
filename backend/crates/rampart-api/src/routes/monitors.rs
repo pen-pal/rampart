@@ -385,32 +385,48 @@ async fn bulk(
     Ok(Json(BulkResult { ok, failed }))
 }
 
+/// The `patch` object inside a [`BulkEditRequest`]. Every field is optional;
+/// omitted fields leave that attribute untouched on every listed monitor.
+/// `group_id` uses a double-option so an explicit `"group_id": null` clears
+/// the group while omitting it leaves the group as-is. `tags`, when present,
+/// REPLACES the monitor's full tag set (empty list clears all tags).
+#[derive(Debug, Default, Deserialize)]
+pub struct BulkEditPatch {
+    #[serde(default)]
+    interval_secs: Option<i32>,
+    #[serde(default)]
+    timeout_secs: Option<i32>,
+    #[serde(default)]
+    enabled: Option<bool>,
+    #[serde(default, deserialize_with = "deserialize_optional_field")]
+    group_id: Option<Option<String>>,
+    #[serde(default)]
+    tags: Option<Vec<String>>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct BulkEditRequest {
     ids: Vec<String>,
-    #[serde(default)]
-    interval_seconds: Option<i32>,
-    #[serde(default)]
-    timeout_seconds: Option<i32>,
-    #[serde(default)]
-    add_tag_ids: Vec<String>,
-    #[serde(default)]
-    remove_tag_ids: Vec<String>,
+    patch: BulkEditPatch,
 }
 
 #[derive(Serialize)]
 struct BulkEditResult {
+    /// Monitors found and mutated.
     updated: usize,
+    /// Requested ids that didn't resolve to a monitor and were skipped.
+    skipped: usize,
 }
 
-/// Apply interval/timeout/tag changes to many monitors in one call. Like
-/// [`bulk`] this is best-effort per id, but unlike the single-action
-/// `bulk` it can do several mutations to each monitor: optionally set
-/// `interval_seconds` / `timeout_seconds` (validated against the same
-/// ranges `NewMonitor` enforces, via the shared `UpdateMonitor` validator)
-/// and add / remove any number of tags. `updated` counts the monitors that
-/// had at least one mutation applied without error. The scheduler is poked
-/// once at the end so interval changes get picked up by the running probes.
+/// `POST /v1/monitors/bulk-edit` — apply the same partial `patch` to a list
+/// of monitors in ONE transaction (all-or-nothing). Unlike the best-effort
+/// [`bulk`] route, every supplied field is validated up front and the whole
+/// batch is committed atomically. `interval_secs` / `timeout_secs` are range-
+/// checked via the shared `UpdateMonitor` validator; `group_id` is tri-state
+/// (omit → leave, `null` → clear, set → assign); `tags` replaces the full tag
+/// set when present. Ids that don't exist are skipped and reported in
+/// `skipped`. The scheduler is poked once so interval/enabled changes are
+/// picked up by the running probes.
 async fn bulk_edit(
     State(state): State<AppState>,
     Extension(user): Extension<User>,
@@ -424,97 +440,83 @@ async fn bulk_edit(
         return Err(ApiError::BadRequest("too many monitors (max 500)".into()));
     }
 
-    use rampart_core::ids::TagId;
+    use rampart_core::ids::{MonitorGroupId, TagId};
 
-    // Resolve + validate everything once before the loop so a bad payload
-    // fails fast (and identically) for every id rather than partway through.
-    let want_field_update = req.interval_seconds.is_some() || req.timeout_seconds.is_some();
-    if want_field_update {
-        // Reuse the canonical UpdateMonitor validator for the interval /
-        // timeout ranges — deserialize a minimal patch so its `#[serde(default)]`
-        // fields populate, then run `.validate()`.
-        let patch: UpdateMonitor = serde_json::from_value(serde_json::json!({
-            "interval_seconds": req.interval_seconds,
-            "timeout_seconds": req.timeout_seconds,
+    // Range-check interval / timeout up front via the canonical UpdateMonitor
+    // validator so a bad payload fails fast for the whole batch.
+    if req.patch.interval_secs.is_some() || req.patch.timeout_secs.is_some() {
+        let probe: UpdateMonitor = serde_json::from_value(serde_json::json!({
+            "interval_seconds": req.patch.interval_secs,
+            "timeout_seconds": req.patch.timeout_secs,
         }))
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
-        patch.validate()?;
+        probe.validate()?;
     }
 
-    let parse_tags = |raw: &[String]| -> Result<Vec<TagId>, ApiError> {
-        raw.iter()
-            .map(|t| {
-                Uuid::from_str(t)
-                    .map(TagId::from_uuid)
-                    .map_err(|_| ApiError::BadRequest("invalid tag_id".into()))
-            })
-            .collect()
+    // Parse the monitor ids; a malformed id is a 400 for the whole request.
+    let ids: Vec<MonitorId> = req
+        .ids
+        .iter()
+        .map(|raw| parse_monitor_id(raw))
+        .collect::<Result<_, _>>()?;
+
+    // Resolve the tri-state group: omit → leave alone, null/empty → clear,
+    // set → assign that group.
+    let group_id: Option<Option<MonitorGroupId>> = match &req.patch.group_id {
+        None => None,
+        Some(None) => Some(None),
+        Some(Some(g)) if g.is_empty() => Some(None),
+        Some(Some(g)) => Some(Some(
+            Uuid::from_str(g)
+                .map(MonitorGroupId::from_uuid)
+                .map_err(|_| ApiError::BadRequest("invalid group_id".into()))?,
+        )),
     };
-    let add_tags = parse_tags(&req.add_tag_ids)?;
-    let remove_tags = parse_tags(&req.remove_tag_ids)?;
 
-    let pool = state.pool();
-    let mut updated = 0usize;
-    for raw in &req.ids {
-        let mid = match parse_monitor_id(raw) {
-            Ok(m) => m,
-            Err(_) => continue,
-        };
-        let mut ok = true;
-        if want_field_update {
-            // Fresh patch per monitor — `update` consumes it. Only the
-            // interval / timeout fields are set; everything else is None and
-            // COALESCEs to the existing value in the DB.
-            let patch: UpdateMonitor = match serde_json::from_value(serde_json::json!({
-                "interval_seconds": req.interval_seconds,
-                "timeout_seconds": req.timeout_seconds,
-            })) {
-                Ok(p) => p,
-                Err(_) => {
-                    continue;
-                }
-            };
-            if rampart_db::monitors::update(pool, mid, patch)
-                .await
-                .is_err()
-            {
-                ok = false;
-            }
-        }
-        for tag in &add_tags {
-            if rampart_db::tags::attach(pool, mid, *tag).await.is_err() {
-                ok = false;
-            }
-        }
-        for tag in &remove_tags {
-            if rampart_db::tags::detach(pool, mid, *tag).await.is_err() {
-                ok = false;
-            }
-        }
-        if ok {
-            updated += 1;
-        }
-    }
+    // Parse the tag set, when supplied.
+    let tags: Option<Vec<TagId>> = match &req.patch.tags {
+        None => None,
+        Some(list) => Some(
+            list.iter()
+                .map(|t| {
+                    Uuid::from_str(t)
+                        .map(TagId::from_uuid)
+                        .map_err(|_| ApiError::BadRequest("invalid tag_id".into()))
+                })
+                .collect::<Result<_, _>>()?,
+        ),
+    };
+
+    let patch = rampart_db::monitors::BulkEditPatch {
+        interval_seconds: req.patch.interval_secs,
+        timeout_seconds: req.patch.timeout_secs,
+        active: req.patch.enabled,
+        group_id,
+        tags,
+    };
+
+    let outcome = rampart_db::monitors::bulk_edit(state.pool(), &ids, &patch).await?;
 
     state.poke_scheduler();
     crate::audit::record(
-        pool,
+        state.pool(),
         &user,
         &headers,
         "monitor.bulk_edit",
         "monitor",
         None,
         Some(serde_json::json!({
-            "updated": updated,
-            "interval_seconds": req.interval_seconds,
-            "timeout_seconds": req.timeout_seconds,
-            "add_tag_ids": req.add_tag_ids.len(),
-            "remove_tag_ids": req.remove_tag_ids.len(),
+            "updated": outcome.updated,
+            "skipped": outcome.skipped_unknown,
+            "ids": req.ids.len(),
         })),
     )
     .await;
 
-    Ok(Json(BulkEditResult { updated }))
+    Ok(Json(BulkEditResult {
+        updated: outcome.updated,
+        skipped: outcome.skipped_unknown,
+    }))
 }
 
 #[derive(Debug, Deserialize)]
