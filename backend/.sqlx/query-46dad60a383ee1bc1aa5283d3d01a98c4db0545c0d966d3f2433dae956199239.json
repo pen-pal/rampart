@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM monitor_tags WHERE monitor_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "46dad60a383ee1bc1aa5283d3d01a98c4db0545c0d966d3f2433dae956199239"
+}

@@ -160,3 +160,54 @@ async fn validation_rejects_below_min_interval(pool: PgPool) {
     let (s, _, _) = request(&r, Method::POST, "/v1/monitors", Some(payload), Some(&c)).await;
     assert_eq!(s, StatusCode::UNPROCESSABLE_ENTITY);
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn bulk_edit_sets_interval_on_all(pool: PgPool) {
+    let r = common::router(pool);
+    let c = register_admin(&r).await;
+
+    // Create three monitors at the default 60s interval.
+    let mut ids = Vec::new();
+    for n in 0..3 {
+        let created: Value = json(
+            &r,
+            Method::POST,
+            "/v1/monitors",
+            Some(new_http(
+                &format!("m{n}"),
+                &format!("https://m{n}.example.com"),
+            )),
+            Some(&c),
+        )
+        .await;
+        ids.push(created["id"].as_str().unwrap().to_string());
+    }
+
+    // Bulk-set the interval (plus an unknown id to exercise `skipped`).
+    let fake = "00000000-0000-0000-0000-000000000000";
+    let mut req_ids = ids.clone();
+    req_ids.push(fake.to_string());
+    let res: Value = json(
+        &r,
+        Method::POST,
+        "/v1/monitors/bulk-edit",
+        Some(json!({ "ids": req_ids, "patch": { "interval_secs": 120 } })),
+        Some(&c),
+    )
+    .await;
+    assert_eq!(res["updated"], 3);
+    assert_eq!(res["skipped"], 1);
+
+    // Every real monitor now reports the new interval.
+    for id in &ids {
+        let m: Value = json(
+            &r,
+            Method::GET,
+            &format!("/v1/monitors/{id}"),
+            None,
+            Some(&c),
+        )
+        .await;
+        assert_eq!(m["interval_seconds"], 120, "monitor {id} not updated");
+    }
+}
