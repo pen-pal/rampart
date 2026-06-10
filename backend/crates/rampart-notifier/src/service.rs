@@ -116,6 +116,165 @@ async fn record_delivery(
     }
 }
 
+/// Parse the snake_case `event_kind` string persisted in a delivery_log row
+/// back into an [`EventKind`]. `EventKind` derives `Deserialize` with
+/// `rename_all = "snake_case"`, so a bare JSON string round-trips. Anything
+/// unrecognised (an older/garbled row) falls back to `Test`, which is the
+/// most innocuous kind to re-send.
+fn parse_event_kind(s: &str) -> EventKind {
+    serde_json::from_value(serde_json::Value::String(s.to_string())).unwrap_or(EventKind::Test)
+}
+
+/// Build the synthetic monitor used when the original `monitor_id` is gone
+/// (deleted, or the row never carried one). Mirrors the "fake monitor" the
+/// send-test path uses so the renderer always has well-formed fields.
+fn synthetic_monitor() -> rampart_core::Monitor {
+    let now = time::OffsetDateTime::now_utc();
+    rampart_core::Monitor {
+        id: rampart_core::ids::MonitorId::new(),
+        name: "(deleted monitor)".into(),
+        kind: rampart_core::MonitorKind::Http,
+        url: Some("https://example.com".into()),
+        hostname: None,
+        port: None,
+        config: serde_json::Value::Null,
+        interval_seconds: 60,
+        retry_interval_sec: 60,
+        max_retries: 0,
+        timeout_seconds: 10,
+        resend_interval_sec: 0,
+        upside_down: false,
+        http_method: "GET".into(),
+        http_body: None,
+        http_headers: None,
+        accepted_statuses: vec![200],
+        follow_redirect: true,
+        ignore_tls: false,
+        proxy_id: None,
+        push_token: None,
+        last_push_at: None,
+        active: true,
+        current_status: rampart_core::MonitorStatus::Up,
+        created_at: now,
+        updated_at: now,
+        tags: Vec::new(),
+        cert_days_left: None,
+        cert_subject: None,
+        cert_checked_at: None,
+        group_id: None,
+        slo_target_pct: None,
+        slo_window_days: None,
+    }
+}
+
+/// Re-send a single past delivery through its ORIGINAL channel and record a
+/// NEW delivery_log row for the retry attempt (returned to the caller).
+///
+/// The channel is identified by the stored `notification_id`; the caller
+/// (the admin retry route) is responsible for rejecting an entry whose
+/// channel was deleted (`notification_id IS NULL`) before reaching here, so
+/// this takes a concrete `NotificationId`. The channel's CURRENT config is
+/// loaded fresh (an edit since the original send is honoured), and the same
+/// per-channel send path used by live dispatch — `channels::dispatch` —
+/// is reused so there is no duplicated send logic.
+///
+/// The original event payload isn't persisted in the log, so we rebuild a
+/// representative [`Event`] from the row's `event_kind` plus the monitor it
+/// referenced (loaded fresh; a synthetic stand-in if the monitor is gone).
+/// Both a successful and a failed retry append a fresh row — the returned
+/// entry is that new attempt.
+pub async fn resend_delivery(
+    pool: &DbPool,
+    entry: &rampart_db::delivery_log::DeliveryEntry,
+    channel_id: NotificationId,
+) -> anyhow::Result<rampart_db::delivery_log::DeliveryEntry> {
+    let chan = rampart_db::notifications::get(pool, channel_id).await?;
+
+    // Rebuild a representative monitor for rendering: the real one when it
+    // still exists, otherwise a synthetic stand-in.
+    let monitor = match entry.monitor_id {
+        Some(mid) => {
+            match rampart_db::monitors::get(pool, rampart_core::ids::MonitorId::from_uuid(mid))
+                .await
+            {
+                Ok(m) => m,
+                Err(rampart_db::DbError::NotFound) => synthetic_monitor(),
+                Err(e) => return Err(e.into()),
+            }
+        }
+        None => synthetic_monitor(),
+    };
+
+    let now = time::OffsetDateTime::now_utc();
+    let heartbeat = rampart_core::Heartbeat {
+        monitor_id: monitor.id,
+        ts: now,
+        status: monitor.current_status,
+        latency_ms: None,
+        status_code: None,
+        msg: Some("Re-sent from the delivery log.".into()),
+        retries: 0,
+        important: true,
+    };
+    let event = Event {
+        kind: parse_event_kind(&entry.event_kind),
+        monitor,
+        heartbeat,
+        prev_status: None,
+        slo_current_pct: None,
+    };
+
+    let subject = template::default_subject(&event);
+    let body = match chan.template_id {
+        None => template::default_body(&event),
+        Some(tid) => match rampart_db::templates::get_render_strings(pool, tid).await {
+            Ok(t) => template::render(&t.body, &event),
+            Err(e) => {
+                warn!(channel = %chan.name, template = %tid.0, error = %e,
+                      "retry template lookup failed; falling back to default body");
+                template::default_body(&event)
+            }
+        },
+    };
+
+    // Reuse the live per-channel send path, then record the retry as a new
+    // attempt (success or failure) and hand that row back to the caller.
+    let (ok, err) = match channels::dispatch(
+        chan.kind,
+        &chan.config,
+        &subject,
+        &body,
+        &event,
+        pool,
+        channel_id,
+    )
+    .await
+    {
+        Ok(()) => {
+            info!(channel = %chan.name, kind = ?chan.kind, "delivery re-sent");
+            (true, None)
+        }
+        Err(e) => {
+            warn!(channel = %chan.name, kind = ?chan.kind, error = %e, "delivery re-send failed");
+            (false, Some(e.to_string()))
+        }
+    };
+
+    let new_entry = rampart_db::delivery_log::record(
+        pool,
+        rampart_db::delivery_log::NewDelivery {
+            notification_id: Some(channel_id),
+            channel_kind: &kind_str(&chan.kind),
+            event_kind: &kind_str(&event.kind),
+            monitor_id: entry.monitor_id,
+            ok,
+            error: err.as_deref(),
+        },
+    )
+    .await?;
+    Ok(new_entry)
+}
+
 /// How often the digest flush task wakes to drain due channel buffers.
 /// Each channel's own `digest_window_secs` gates whether it actually
 /// flushes on a given wake; this is just the resolution of the timer.
