@@ -38,14 +38,18 @@ pub struct NewDelivery<'a> {
     pub error: Option<&'a str>,
 }
 
-/// Append one delivery attempt. Best-effort by contract — callers in the
-/// notifier swallow the error so a logging failure can't break dispatch.
-pub async fn record(pool: &DbPool, entry: NewDelivery<'_>) -> DbResult<()> {
-    sqlx::query!(
+/// Append one delivery attempt and return the persisted row. Best-effort by
+/// contract — callers in the notifier swallow the error so a logging failure
+/// can't break dispatch. The returned [`DeliveryEntry`] lets the retry path
+/// hand the freshly-recorded attempt straight back to the API caller.
+pub async fn record(pool: &DbPool, entry: NewDelivery<'_>) -> DbResult<DeliveryEntry> {
+    let row = sqlx::query!(
         r#"
         INSERT INTO delivery_log
             (notification_id, channel_kind, event_kind, monitor_id, ok, error)
         VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING id, notification_id, channel_kind, event_kind,
+                  monitor_id, ok, error, sent_at
         "#,
         entry.notification_id.map(|n| n.0),
         entry.channel_kind,
@@ -54,9 +58,46 @@ pub async fn record(pool: &DbPool, entry: NewDelivery<'_>) -> DbResult<()> {
         entry.ok,
         entry.error,
     )
-    .execute(pool)
+    .fetch_one(pool)
     .await?;
-    Ok(())
+    Ok(DeliveryEntry {
+        id: row.id,
+        notification_id: row.notification_id.map(NotificationId::from_uuid),
+        channel_kind: row.channel_kind,
+        event_kind: row.event_kind,
+        monitor_id: row.monitor_id,
+        ok: row.ok,
+        error: row.error,
+        sent_at: row.sent_at,
+    })
+}
+
+/// Load a single delivery attempt by id. Returns `None` when no row matches
+/// (the retry route turns that into a 404). The full row carries the
+/// `notification_id` the retry path needs to re-resolve the channel.
+pub async fn get(pool: &DbPool, id: i64) -> DbResult<Option<DeliveryEntry>> {
+    let row = sqlx::query!(
+        r#"
+        SELECT id, notification_id, channel_kind, event_kind,
+               monitor_id, ok, error, sent_at
+        FROM delivery_log
+        WHERE id = $1
+        "#,
+        id,
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row.map(|r| DeliveryEntry {
+        id: r.id,
+        notification_id: r.notification_id.map(NotificationId::from_uuid),
+        channel_kind: r.channel_kind,
+        event_kind: r.event_kind,
+        monitor_id: r.monitor_id,
+        ok: r.ok,
+        error: r.error,
+        sent_at: r.sent_at,
+    }))
 }
 
 /// List recent deliveries, newest-first. `before_ts` is a keyset cursor:
