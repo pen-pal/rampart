@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT tag_id FROM monitor_tags WHERE monitor_id = $1 ORDER BY tag_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "tag_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "monitor_tags",
+            "name": "tag_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a6fed7564ccb05d49d98d78aa614abaa1eb755dcc96b359e3af68ad2fe89399f"
+}

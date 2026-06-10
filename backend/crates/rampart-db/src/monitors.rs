@@ -530,12 +530,106 @@ impl BulkEditPatch {
     }
 }
 
+/// A snapshot of the fields a bulk edit is allowed to touch, captured for a
+/// single monitor BEFORE the edit is applied. Only the columns the patch is
+/// actually about are meaningful for undo/preview, but we capture them all so
+/// the caller can diff and build an inverse patch. `tags` holds the prior tag
+/// id set (order-independent).
+#[derive(Debug, Clone)]
+pub struct MonitorPrior {
+    pub id: MonitorId,
+    pub name: String,
+    pub interval_seconds: i32,
+    pub timeout_seconds: i32,
+    pub active: bool,
+    pub group_id: Option<MonitorGroupId>,
+    pub tags: Vec<TagId>,
+}
+
 /// Outcome of a [`bulk_edit`] call: how many of the requested ids were found
 /// and mutated, and how many were unknown (no such monitor) and skipped.
-#[derive(Debug, Clone, Copy)]
+/// `priors` carries the pre-edit snapshot of every monitor that was actually
+/// mutated, in request order, so the caller can construct an inverse ("undo")
+/// payload without any server-side undo state.
+#[derive(Debug, Clone)]
 pub struct BulkEditOutcome {
     pub updated: usize,
     pub skipped_unknown: usize,
+    pub priors: Vec<MonitorPrior>,
+}
+
+/// Read-only twin of [`bulk_edit`]: resolve which monitors exist and capture
+/// their current (pre-edit) field snapshot WITHOUT opening a write
+/// transaction or mutating anything. Returns the priors for every id that
+/// resolves to a monitor (in request order) plus a count of unknown ids.
+/// The caller diffs each prior against `patch` to build the preview.
+pub async fn bulk_edit_preview(
+    pool: &DbPool,
+    ids: &[MonitorId],
+    want_tags: bool,
+) -> DbResult<(Vec<MonitorPrior>, usize)> {
+    let mut priors = Vec::new();
+    let mut skipped_unknown = 0usize;
+
+    for id in ids {
+        match load_prior(pool, *id, want_tags).await? {
+            Some(prior) => priors.push(prior),
+            None => skipped_unknown += 1,
+        }
+    }
+
+    Ok((priors, skipped_unknown))
+}
+
+/// Fetch the editable-field snapshot for one monitor. `None` when the id
+/// doesn't resolve. `with_tags` skips the tag read when the patch isn't
+/// touching tags (avoids a query per monitor for the common case).
+async fn load_prior<'e, E>(
+    executor: E,
+    id: MonitorId,
+    with_tags: bool,
+) -> DbResult<Option<MonitorPrior>>
+where
+    E: sqlx::PgExecutor<'e> + Copy,
+{
+    let row = sqlx::query!(
+        r#"
+        SELECT name, interval_seconds, timeout_seconds, active, group_id
+        FROM monitors
+        WHERE id = $1
+        "#,
+        id.0,
+    )
+    .fetch_optional(executor)
+    .await?;
+
+    let Some(row) = row else {
+        return Ok(None);
+    };
+
+    let tags = if with_tags {
+        sqlx::query_scalar!(
+            r#"SELECT tag_id FROM monitor_tags WHERE monitor_id = $1 ORDER BY tag_id"#,
+            id.0,
+        )
+        .fetch_all(executor)
+        .await?
+        .into_iter()
+        .map(TagId::from_uuid)
+        .collect()
+    } else {
+        Vec::new()
+    };
+
+    Ok(Some(MonitorPrior {
+        id,
+        name: row.name,
+        interval_seconds: row.interval_seconds,
+        timeout_seconds: row.timeout_seconds,
+        active: row.active,
+        group_id: row.group_id.map(MonitorGroupId::from_uuid),
+        tags,
+    }))
 }
 
 /// Apply `patch` to every monitor in `ids` inside ONE transaction — either
@@ -560,22 +654,56 @@ pub async fn bulk_edit(
 
     let mut updated = 0usize;
     let mut skipped_unknown = 0usize;
+    let mut priors: Vec<MonitorPrior> = Vec::new();
+    let capture_tags = patch.tags.is_some();
 
     for id in ids {
-        // Probe existence first so unknown ids are reported separately from
-        // genuine no-op updates. A FOR UPDATE lock keeps the row stable for
-        // the rest of this transaction.
-        let exists = sqlx::query_scalar!(
-            r#"SELECT 1 AS "one!" FROM monitors WHERE id = $1 FOR UPDATE"#,
+        // Lock + snapshot the prior values in one shot so unknown ids are
+        // reported separately from genuine no-op updates, the row stays
+        // stable for the rest of this transaction (FOR UPDATE), and we
+        // retain the pre-edit state needed to build the inverse undo patch.
+        let prior_row = sqlx::query!(
+            r#"
+            SELECT name, interval_seconds, timeout_seconds, active, group_id
+            FROM monitors
+            WHERE id = $1
+            FOR UPDATE
+            "#,
             id.0,
         )
         .fetch_optional(&mut *tx)
-        .await?
-        .is_some();
-        if !exists {
+        .await?;
+
+        let Some(prior_row) = prior_row else {
             skipped_unknown += 1;
             continue;
-        }
+        };
+
+        // Snapshot the prior tag set (only when the patch replaces tags;
+        // otherwise tags are untouched and irrelevant to the undo).
+        let prior_tags: Vec<TagId> = if capture_tags {
+            sqlx::query_scalar!(
+                r#"SELECT tag_id FROM monitor_tags WHERE monitor_id = $1 ORDER BY tag_id"#,
+                id.0,
+            )
+            .fetch_all(&mut *tx)
+            .await?
+            .into_iter()
+            .map(TagId::from_uuid)
+            .collect()
+        } else {
+            Vec::new()
+        };
+
+        priors.push(MonitorPrior {
+            id: *id,
+            name: prior_row.name,
+            interval_seconds: prior_row.interval_seconds,
+            timeout_seconds: prior_row.timeout_seconds,
+            active: prior_row.active,
+            group_id: prior_row.group_id.map(MonitorGroupId::from_uuid),
+            tags: prior_tags,
+        });
 
         if patch.touches_columns() {
             sqlx::query!(
@@ -627,6 +755,7 @@ pub async fn bulk_edit(
     Ok(BulkEditOutcome {
         updated,
         skipped_unknown,
+        priors,
     })
 }
 

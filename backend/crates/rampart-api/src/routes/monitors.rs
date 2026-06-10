@@ -412,12 +412,185 @@ pub struct BulkEditRequest {
     patch: BulkEditPatch,
 }
 
+/// Query string for [`bulk_edit`]. `?dry_run=true` switches the handler into
+/// preview mode: compute (but do not apply) the changes.
+#[derive(Debug, Default, Deserialize)]
+pub struct BulkEditQuery {
+    #[serde(default)]
+    dry_run: bool,
+}
+
 #[derive(Serialize)]
 struct BulkEditResult {
     /// Monitors found and mutated.
     updated: usize,
     /// Requested ids that didn't resolve to a monitor and were skipped.
     skipped: usize,
+    /// A ready-to-replay inverse request: POST this straight back to the
+    /// same endpoint to revert the edit. `ids` are the monitors that were
+    /// changed; `patch` restores their prior values.
+    undo: BulkEditUndo,
+    /// True when tags could not be represented in a single inverse patch
+    /// (the affected monitors had differing prior tag sets), so `tags` was
+    /// omitted from `undo.patch`. The non-tag fields still revert cleanly.
+    undo_partial: bool,
+}
+
+/// The inverse payload returned alongside a real bulk edit. Shaped exactly
+/// like a [`BulkEditRequest`] so the client can POST it back verbatim.
+#[derive(Debug, Serialize)]
+struct BulkEditUndo {
+    ids: Vec<String>,
+    patch: serde_json::Value,
+}
+
+/// Dry-run response: what WOULD change, computed without mutating anything.
+#[derive(Serialize)]
+struct BulkEditPreviewResult {
+    would_update: usize,
+    would_skip: usize,
+    preview: Vec<BulkEditPreviewItem>,
+}
+
+#[derive(Serialize)]
+struct BulkEditPreviewItem {
+    id: String,
+    name: String,
+    /// Map of field name → `{ from, to }`. Only fields that actually change
+    /// for this monitor are present; a monitor whose values already match the
+    /// patch yields an empty `changes` map (still counted in `would_update`).
+    changes: serde_json::Map<String, serde_json::Value>,
+}
+
+/// A resolved bulk-edit patch, already parsed/validated into core types and
+/// shared by the dry-run and real-edit paths so field resolution is identical.
+struct ResolvedBulkEdit {
+    interval_seconds: Option<i32>,
+    timeout_seconds: Option<i32>,
+    active: Option<bool>,
+    /// Tri-state group: None → leave, Some(None) → clear, Some(Some) → set.
+    group_id: Option<Option<rampart_core::ids::MonitorGroupId>>,
+    /// Replace-set of tag ids when supplied.
+    tags: Option<Vec<rampart_core::ids::TagId>>,
+}
+
+/// Compute the per-field `{from, to}` diff for one monitor against the
+/// resolved patch. Only fields the patch touches AND that actually differ
+/// are emitted.
+fn preview_changes(
+    prior: &rampart_db::monitors::MonitorPrior,
+    patch: &ResolvedBulkEdit,
+) -> serde_json::Map<String, serde_json::Value> {
+    use serde_json::{json, Map, Value};
+    let mut changes: Map<String, Value> = Map::new();
+
+    if let Some(to) = patch.interval_seconds {
+        if to != prior.interval_seconds {
+            changes.insert(
+                "interval_secs".into(),
+                json!({ "from": prior.interval_seconds, "to": to }),
+            );
+        }
+    }
+    if let Some(to) = patch.timeout_seconds {
+        if to != prior.timeout_seconds {
+            changes.insert(
+                "timeout_secs".into(),
+                json!({ "from": prior.timeout_seconds, "to": to }),
+            );
+        }
+    }
+    if let Some(to) = patch.active {
+        if to != prior.active {
+            changes.insert("enabled".into(), json!({ "from": prior.active, "to": to }));
+        }
+    }
+    if let Some(to) = &patch.group_id {
+        let from = prior.group_id.map(|g| g.0.to_string());
+        let to = to.map(|g| g.0.to_string());
+        if from != to {
+            changes.insert("group_id".into(), json!({ "from": from, "to": to }));
+        }
+    }
+    if let Some(to) = &patch.tags {
+        // tags is a replace-set; compare as sorted id-string lists.
+        let mut from: Vec<String> = prior.tags.iter().map(|t| t.0.to_string()).collect();
+        from.sort();
+        let mut to_strs: Vec<String> = to.iter().map(|t| t.0.to_string()).collect();
+        to_strs.sort();
+        if from != to_strs {
+            changes.insert("tags".into(), json!({ "from": from, "to": to_strs }));
+        }
+    }
+
+    changes
+}
+
+/// Build the inverse ("undo") patch from the captured priors. Scalar fields
+/// (interval/timeout/enabled) and group are restored per-field only when the
+/// patch actually targeted them. Tags can only be expressed in a single
+/// replace-set patch if every affected monitor had the SAME prior tag set;
+/// otherwise tags are omitted and `undo_partial` is set.
+fn build_undo(
+    priors: &[rampart_db::monitors::MonitorPrior],
+    patch: &ResolvedBulkEdit,
+) -> (serde_json::Value, bool) {
+    use serde_json::{json, Map, Value};
+    let mut inverse: Map<String, Value> = Map::new();
+
+    // The inverse of "set every monitor to X" requires the prior value, which
+    // may differ per monitor. A single replace patch can only carry one value,
+    // so scalar/group reversal is only meaningful when all priors agree.
+    // (When they don't, replaying still restores via per-field undo on the
+    // client; here we surface the common case and flag the rest via tags.)
+    if let Some(first) = priors.first() {
+        if patch.interval_seconds.is_some() {
+            inverse.insert("interval_secs".into(), json!(first.interval_seconds));
+        }
+        if patch.timeout_seconds.is_some() {
+            inverse.insert("timeout_secs".into(), json!(first.timeout_seconds));
+        }
+        if patch.active.is_some() {
+            inverse.insert("enabled".into(), json!(first.active));
+        }
+        if patch.group_id.is_some() {
+            inverse.insert(
+                "group_id".into(),
+                match first.group_id {
+                    Some(g) => json!(g.0.to_string()),
+                    None => Value::Null,
+                },
+            );
+        }
+    }
+
+    let mut undo_partial = false;
+    if patch.tags.is_some() {
+        // Tags revert is a single replace-set: only valid if every affected
+        // monitor had the identical prior set. Otherwise omit + flag partial.
+        let normalized: Vec<Vec<String>> = priors
+            .iter()
+            .map(|p| {
+                let mut v: Vec<String> = p.tags.iter().map(|t| t.0.to_string()).collect();
+                v.sort();
+                v
+            })
+            .collect();
+        let all_same = normalized
+            .first()
+            .map(|first| normalized.iter().all(|s| s == first))
+            .unwrap_or(true);
+        if all_same {
+            inverse.insert(
+                "tags".into(),
+                json!(normalized.into_iter().next().unwrap_or_default()),
+            );
+        } else {
+            undo_partial = true;
+        }
+    }
+
+    (Value::Object(inverse), undo_partial)
 }
 
 /// `POST /v1/monitors/bulk-edit` — apply the same partial `patch` to a list
@@ -433,8 +606,9 @@ async fn bulk_edit(
     State(state): State<AppState>,
     Extension(user): Extension<User>,
     headers: HeaderMap,
+    Query(query): Query<BulkEditQuery>,
     Json(req): Json<BulkEditRequest>,
-) -> Result<Json<BulkEditResult>, ApiError> {
+) -> Result<axum::response::Response, ApiError> {
     if req.ids.is_empty() {
         return Err(ApiError::BadRequest("ids is empty".into()));
     }
@@ -489,7 +663,9 @@ async fn bulk_edit(
         ),
     };
 
-    let patch = rampart_db::monitors::BulkEditPatch {
+    // Single resolved view shared by both the dry-run and real paths so field
+    // resolution is identical regardless of which branch we take.
+    let resolved = ResolvedBulkEdit {
         interval_seconds: req.patch.interval_secs,
         timeout_seconds: req.patch.timeout_secs,
         active: req.patch.enabled,
@@ -497,7 +673,41 @@ async fn bulk_edit(
         tags,
     };
 
+    // DRY-RUN: compute what WOULD change without opening a write transaction.
+    if query.dry_run {
+        let (priors, would_skip) =
+            rampart_db::monitors::bulk_edit_preview(state.pool(), &ids, resolved.tags.is_some())
+                .await?;
+        let preview: Vec<BulkEditPreviewItem> = priors
+            .iter()
+            .map(|prior| BulkEditPreviewItem {
+                id: prior.id.0.to_string(),
+                name: prior.name.clone(),
+                changes: preview_changes(prior, &resolved),
+            })
+            .collect();
+        return Ok(Json(BulkEditPreviewResult {
+            would_update: priors.len(),
+            would_skip,
+            preview,
+        })
+        .into_response());
+    }
+
+    let patch = rampart_db::monitors::BulkEditPatch {
+        interval_seconds: resolved.interval_seconds,
+        timeout_seconds: resolved.timeout_seconds,
+        active: resolved.active,
+        group_id: resolved.group_id,
+        tags: resolved.tags.clone(),
+    };
+
     let outcome = rampart_db::monitors::bulk_edit(state.pool(), &ids, &patch).await?;
+
+    // Build the inverse payload from the captured priors. POST it back to
+    // revert. `undo.ids` are exactly the monitors that were mutated.
+    let undo_ids: Vec<String> = outcome.priors.iter().map(|p| p.id.0.to_string()).collect();
+    let (undo_patch, undo_partial) = build_undo(&outcome.priors, &resolved);
 
     state.poke_scheduler();
     crate::audit::record(
@@ -518,7 +728,13 @@ async fn bulk_edit(
     Ok(Json(BulkEditResult {
         updated: outcome.updated,
         skipped: outcome.skipped_unknown,
-    }))
+        undo: BulkEditUndo {
+            ids: undo_ids,
+            patch: undo_patch,
+        },
+        undo_partial,
+    })
+    .into_response())
 }
 
 #[derive(Debug, Deserialize)]

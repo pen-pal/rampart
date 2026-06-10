@@ -211,3 +211,144 @@ async fn bulk_edit_sets_interval_on_all(pool: PgPool) {
         assert_eq!(m["interval_seconds"], 120, "monitor {id} not updated");
     }
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn bulk_edit_dry_run_previews_without_mutating(pool: PgPool) {
+    let r = common::router(pool);
+    let c = register_admin(&r).await;
+
+    // Two monitors at 60s; one will be left at 60 in the patch target only.
+    let mut ids = Vec::new();
+    for n in 0..2 {
+        let created: Value = json(
+            &r,
+            Method::POST,
+            "/v1/monitors",
+            Some(new_http(
+                &format!("d{n}"),
+                &format!("https://d{n}.example.com"),
+            )),
+            Some(&c),
+        )
+        .await;
+        ids.push(created["id"].as_str().unwrap().to_string());
+    }
+
+    let fake = "00000000-0000-0000-0000-000000000000";
+    let mut req_ids = ids.clone();
+    req_ids.push(fake.to_string());
+
+    // Dry-run: ask to bump interval to 120 and disable.
+    let res: Value = json(
+        &r,
+        Method::POST,
+        "/v1/monitors/bulk-edit?dry_run=true",
+        Some(json!({ "ids": req_ids, "patch": { "interval_secs": 120, "enabled": false } })),
+        Some(&c),
+    )
+    .await;
+
+    assert_eq!(res["would_update"], 2);
+    assert_eq!(res["would_skip"], 1);
+    let preview = res["preview"].as_array().unwrap();
+    assert_eq!(preview.len(), 2);
+    let first = &preview[0];
+    assert_eq!(first["changes"]["interval_secs"]["from"], 60);
+    assert_eq!(first["changes"]["interval_secs"]["to"], 120);
+    assert_eq!(first["changes"]["enabled"]["from"], true);
+    assert_eq!(first["changes"]["enabled"]["to"], false);
+    // Dry-run carries no undo and never mentions updated/skipped.
+    assert!(res.get("undo").is_none());
+    assert!(res.get("updated").is_none());
+
+    // NOTHING changed: every monitor still at 60s and active.
+    for id in &ids {
+        let m: Value = json(
+            &r,
+            Method::GET,
+            &format!("/v1/monitors/{id}"),
+            None,
+            Some(&c),
+        )
+        .await;
+        assert_eq!(m["interval_seconds"], 60, "monitor {id} was mutated");
+        assert_eq!(m["active"], true, "monitor {id} was disabled");
+    }
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn bulk_edit_returns_replayable_undo(pool: PgPool) {
+    let r = common::router(pool);
+    let c = register_admin(&r).await;
+
+    let mut ids = Vec::new();
+    for n in 0..2 {
+        let created: Value = json(
+            &r,
+            Method::POST,
+            "/v1/monitors",
+            Some(new_http(
+                &format!("u{n}"),
+                &format!("https://u{n}.example.com"),
+            )),
+            Some(&c),
+        )
+        .await;
+        ids.push(created["id"].as_str().unwrap().to_string());
+    }
+
+    // Real edit: bump interval to 300.
+    let res: Value = json(
+        &r,
+        Method::POST,
+        "/v1/monitors/bulk-edit",
+        Some(json!({ "ids": ids, "patch": { "interval_secs": 300 } })),
+        Some(&c),
+    )
+    .await;
+    assert_eq!(res["updated"], 2);
+    assert_eq!(res["skipped"], 0);
+    assert_eq!(res["undo_partial"], false);
+
+    // Undo payload should target the same monitors and restore 60s.
+    let undo = res["undo"].clone();
+    assert_eq!(undo["patch"]["interval_secs"], 60);
+    let undo_ids = undo["ids"].as_array().unwrap();
+    assert_eq!(undo_ids.len(), 2);
+
+    // Confirm the edit applied.
+    for id in &ids {
+        let m: Value = json(
+            &r,
+            Method::GET,
+            &format!("/v1/monitors/{id}"),
+            None,
+            Some(&c),
+        )
+        .await;
+        assert_eq!(m["interval_seconds"], 300);
+    }
+
+    // Replay the undo verbatim — it reverts the change.
+    let replay: Value = json(
+        &r,
+        Method::POST,
+        "/v1/monitors/bulk-edit",
+        Some(json!({ "ids": undo["ids"], "patch": undo["patch"] })),
+        Some(&c),
+    )
+    .await;
+    assert_eq!(replay["updated"], 2);
+
+    for id in &ids {
+        let m: Value = json(
+            &r,
+            Method::GET,
+            &format!("/v1/monitors/{id}"),
+            None,
+            Some(&c),
+        )
+        .await;
+        assert_eq!(m["interval_seconds"], 60, "undo did not revert {id}");
+    }
+}
