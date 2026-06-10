@@ -18,6 +18,7 @@ pub mod maintenance;
 pub mod metrics;
 pub mod monitor_groups;
 pub mod monitor_presets;
+pub mod monitor_templates;
 pub mod monitors;
 pub mod notifications;
 pub mod proxies;
