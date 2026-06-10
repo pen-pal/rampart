@@ -159,7 +159,10 @@ pub fn build_router(state: AppState) -> Router {
         // layer runs and can read it. Session/cookie requests never carry
         // the extension, so this layer passes them through untouched
         // (unlimited, no headers).
-        .route_layer(axum::middleware::from_fn(enforce_api_key_rate_limit))
+        .route_layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            enforce_api_key_rate_limit,
+        ))
         .route_layer(axum::middleware::from_fn_with_state(
             state.clone(),
             auth::require_session,
@@ -198,23 +201,20 @@ pub fn test_router(pool: DbPool) -> Router {
     build_router(state)
 }
 
-// ─── Per-API-key rate limiting (item 11) ─────────────────────────────────
+// ─── Per-API-key rate limiting (item 6) ──────────────────────────────────
 //
-// A simple in-process rolling-hour counter, keyed by API key id, with a
-// fixed default budget. Cookie/session requests are unlimited and get no
-// headers — only requests carrying an `AuthApiKeyId` extension (set by
-// `auth::require_session` on the bearer path) are counted. The window is
-// process-local and resets on restart: this is a courtesy throttle and an
-// informational header set, not a durable cross-node quota.
+// A per-key fixed-window counter, keyed by API key id, with a per-key
+// budget. Cookie/session requests are unlimited and get no headers — only
+// requests carrying an `AuthApiKeyId` extension (set by
+// `auth::require_session` on the bearer path) are counted. The counter is
+// now DURABLE: it lives in the `api_key_rate_usage` table (via
+// `rampart_db::rate_limit::admit`) and survives restarts. This is a courtesy
+// throttle and an informational header set, not a hard cross-node quota.
 
-use axum::extract::Request;
+use axum::extract::{Request, State};
 use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
-use rampart_core::ApiKeyId;
-use std::collections::{HashMap, VecDeque};
-use std::sync::{Mutex, OnceLock};
-use std::time::Instant;
 
 /// Fallback per-key budget when a key carries no explicit
 /// `rate_limit_per_hour` (e.g. a request that somehow reached this layer
@@ -222,77 +222,6 @@ use std::time::Instant;
 /// budget read from the `AuthApiKeyId` extension; this const is only the
 /// default.
 const API_KEY_RATE_LIMIT: u32 = 1000;
-/// Length of the rolling window.
-const API_KEY_RATE_WINDOW: Duration = Duration::from_secs(3600);
-
-/// Rolling per-key request timestamps inside the trailing hour. In-memory
-/// only. Keyed by API key id; each entry is the deque of request instants
-/// still inside the window.
-static KEY_RATE_WINDOW: OnceLock<Mutex<HashMap<ApiKeyId, VecDeque<Instant>>>> = OnceLock::new();
-
-fn key_rate_window() -> &'static Mutex<HashMap<ApiKeyId, VecDeque<Instant>>> {
-    KEY_RATE_WINDOW.get_or_init(|| Mutex::new(HashMap::new()))
-}
-
-/// Outcome of admitting one request for a key.
-struct RateDecision {
-    /// Whether the request is under the limit (false → 429).
-    allowed: bool,
-    /// Requests remaining in the current window after this one. 0 when
-    /// blocked.
-    remaining: u32,
-    /// Seconds until the window frees up at least one slot — the oldest
-    /// in-window request's age subtracted from the window length.
-    reset_secs: u64,
-}
-
-/// Admit (or reject) one request for `key` against its per-key `limit`
-/// budget. Prunes entries older than the window, then either records the
-/// request (allowed) or, if the window is already full, leaves it untouched
-/// and reports the wait. Mirrors the notifier's per-channel limiter shape.
-///
-/// The in-process COUNTER (the per-key timestamp deque) is process-local and
-/// resets on restart; only the BUDGET (`limit`) is persisted, carried here
-/// from the key's `rate_limit_per_hour` column. Durable cross-node counters
-/// are out of scope.
-fn admit_key(key: ApiKeyId, limit: u32) -> RateDecision {
-    let now = Instant::now();
-    let mut map = key_rate_window().lock().expect("key rate window poisoned");
-    let dq = map.entry(key).or_default();
-    while dq
-        .front()
-        .is_some_and(|t| now.duration_since(*t) >= API_KEY_RATE_WINDOW)
-    {
-        dq.pop_front();
-    }
-    let limit = limit as usize;
-    if dq.len() >= limit {
-        // Full: reset is when the oldest request ages out of the window.
-        let reset_secs = dq
-            .front()
-            .map(|t| API_KEY_RATE_WINDOW.saturating_sub(now.duration_since(*t)))
-            .unwrap_or(API_KEY_RATE_WINDOW)
-            .as_secs();
-        return RateDecision {
-            allowed: false,
-            remaining: 0,
-            reset_secs,
-        };
-    }
-    dq.push_back(now);
-    // Reset is measured from the oldest in-window request — that's when the
-    // window starts freeing slots again.
-    let reset_secs = dq
-        .front()
-        .map(|t| API_KEY_RATE_WINDOW.saturating_sub(now.duration_since(*t)))
-        .unwrap_or(API_KEY_RATE_WINDOW)
-        .as_secs();
-    RateDecision {
-        allowed: true,
-        remaining: (limit - dq.len()) as u32,
-        reset_secs,
-    }
-}
 
 /// Middleware: enforce + advertise the per-key rate limit.
 ///
@@ -301,7 +230,15 @@ fn admit_key(key: ApiKeyId, limit: u32) -> RateDecision {
 /// - Over the limit → 429 with `Retry-After` + the `X-RateLimit-*` set.
 /// - Otherwise → run the request and attach `X-RateLimit-Limit`,
 ///   `-Remaining`, `-Reset` to the response.
-pub async fn enforce_api_key_rate_limit(req: Request, next: Next) -> Response {
+///
+/// The admit decision is delegated to a durable, race-safe DB counter so the
+/// usage tally persists across restarts; only the per-key BUDGET still rides
+/// in on the `AuthApiKeyId` extension.
+pub async fn enforce_api_key_rate_limit(
+    State(state): State<AppState>,
+    req: Request,
+    next: Next,
+) -> Response {
     let Some(auth_key) = req.extensions().get::<auth::AuthApiKeyId>().copied() else {
         // Not an api-key request — unlimited, no headers.
         return next.run(req).await;
@@ -315,7 +252,13 @@ pub async fn enforce_api_key_rate_limit(req: Request, next: Next) -> Response {
         .filter(|&l| l > 0)
         .unwrap_or(API_KEY_RATE_LIMIT);
 
-    let decision = admit_key(auth_key.id, limit);
+    let decision = match rampart_db::rate_limit::admit(state.pool(), auth_key.id, limit).await {
+        Ok(d) => d,
+        // A counter failure must not take the request down — fail open. The
+        // throttle is a courtesy, not a security control, so on a DB hiccup
+        // we let the request through without rate headers rather than 500.
+        Err(_) => return next.run(req).await,
+    };
     if !decision.allowed {
         let mut resp = (
             StatusCode::TOO_MANY_REQUESTS,
