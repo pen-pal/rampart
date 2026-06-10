@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                UPDATE monitors SET\n                    interval_seconds = COALESCE($2, interval_seconds),\n                    timeout_seconds  = COALESCE($3, timeout_seconds),\n                    active           = COALESCE($4, active),\n                    group_id         = CASE WHEN $5 THEN $6 ELSE group_id END,\n                    updated_at       = NOW()\n                WHERE id = $1\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Int4",
+        "Bool",
+        "Bool",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f5091dc6503cac627bbb8e3875a295685cd770b3c9074293476bb68fac837953"
+}

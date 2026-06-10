@@ -500,6 +500,136 @@ pub async fn set_group(
     Ok(())
 }
 
+/// Field set for a transactional bulk edit. Every field is tri-/bi-state so
+/// "not supplied" is distinct from "supplied":
+/// - `interval_seconds` / `timeout_seconds` / `active`: `None` → leave alone,
+///   `Some(v)` → set on every listed monitor.
+/// - `group_id`: `Option<Option<…>>` — `None` → leave alone, `Some(None)` →
+///   clear the group, `Some(Some(g))` → set it. (Double-option, same shape as
+///   `UpdateMonitor::group_id`.)
+/// - `tags`: `None` → leave the monitor's tags untouched, `Some(list)` →
+///   replace the full tag set with `list` (empty list clears all tags).
+#[derive(Debug, Clone, Default)]
+pub struct BulkEditPatch {
+    pub interval_seconds: Option<i32>,
+    pub timeout_seconds: Option<i32>,
+    pub active: Option<bool>,
+    pub group_id: Option<Option<MonitorGroupId>>,
+    pub tags: Option<Vec<TagId>>,
+}
+
+impl BulkEditPatch {
+    /// True when the patch carries at least one column-level change (i.e.
+    /// something to UPDATE on the `monitors` row itself). Tag replacement is
+    /// handled separately and is not counted here.
+    fn touches_columns(&self) -> bool {
+        self.interval_seconds.is_some()
+            || self.timeout_seconds.is_some()
+            || self.active.is_some()
+            || self.group_id.is_some()
+    }
+}
+
+/// Outcome of a [`bulk_edit`] call: how many of the requested ids were found
+/// and mutated, and how many were unknown (no such monitor) and skipped.
+#[derive(Debug, Clone, Copy)]
+pub struct BulkEditOutcome {
+    pub updated: usize,
+    pub skipped_unknown: usize,
+}
+
+/// Apply `patch` to every monitor in `ids` inside ONE transaction — either
+/// the whole batch commits or nothing does. Ids that don't resolve to a
+/// monitor row are skipped (counted in `skipped_unknown`) rather than
+/// aborting the batch. Fields omitted from `patch` are left untouched on
+/// every monitor (COALESCE for the scalar columns; group/tags only mutated
+/// when explicitly supplied).
+pub async fn bulk_edit(
+    pool: &DbPool,
+    ids: &[MonitorId],
+    patch: &BulkEditPatch,
+) -> DbResult<BulkEditOutcome> {
+    let mut tx = pool.begin().await?;
+
+    let interval = patch.interval_seconds;
+    let timeout = patch.timeout_seconds;
+    let active = patch.active;
+    // Flatten the group double-option into "should we touch it?" + value.
+    let set_group = patch.group_id.is_some();
+    let group_uuid: Option<Uuid> = patch.group_id.flatten().map(|g| g.0);
+
+    let mut updated = 0usize;
+    let mut skipped_unknown = 0usize;
+
+    for id in ids {
+        // Probe existence first so unknown ids are reported separately from
+        // genuine no-op updates. A FOR UPDATE lock keeps the row stable for
+        // the rest of this transaction.
+        let exists = sqlx::query_scalar!(
+            r#"SELECT 1 AS "one!" FROM monitors WHERE id = $1 FOR UPDATE"#,
+            id.0,
+        )
+        .fetch_optional(&mut *tx)
+        .await?
+        .is_some();
+        if !exists {
+            skipped_unknown += 1;
+            continue;
+        }
+
+        if patch.touches_columns() {
+            sqlx::query!(
+                r#"
+                UPDATE monitors SET
+                    interval_seconds = COALESCE($2, interval_seconds),
+                    timeout_seconds  = COALESCE($3, timeout_seconds),
+                    active           = COALESCE($4, active),
+                    group_id         = CASE WHEN $5 THEN $6 ELSE group_id END,
+                    updated_at       = NOW()
+                WHERE id = $1
+                "#,
+                id.0,
+                interval,
+                timeout,
+                active,
+                set_group,
+                group_uuid,
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        // Tag replacement: clear then re-insert the supplied set. Empty list
+        // is a deliberate "remove all tags".
+        if let Some(tags) = &patch.tags {
+            sqlx::query!(r#"DELETE FROM monitor_tags WHERE monitor_id = $1"#, id.0)
+                .execute(&mut *tx)
+                .await?;
+            for tag in tags {
+                sqlx::query!(
+                    r#"
+                    INSERT INTO monitor_tags (monitor_id, tag_id)
+                    VALUES ($1, $2)
+                    ON CONFLICT DO NOTHING
+                    "#,
+                    id.0,
+                    tag.0,
+                )
+                .execute(&mut *tx)
+                .await?;
+            }
+        }
+
+        updated += 1;
+    }
+
+    tx.commit().await?;
+    Ok(BulkEditOutcome {
+        updated,
+        skipped_unknown,
+    })
+}
+
 /// Atomically transition `current_status`. Called from the scheduler
 /// after a heartbeat lands; idempotent (same status → noop).
 pub async fn set_status(pool: &DbPool, id: MonitorId, status: MonitorStatus) -> DbResult<()> {
