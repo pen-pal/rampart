@@ -174,7 +174,13 @@ impl Scheduler {
                 continue;
             }
 
-            let (subject, body) = match render_uptime_report(&self.pool, &report.name).await {
+            let (subject, body) = match rampart_db::scheduled_reports::render(
+                &self.pool,
+                &report.name,
+                &report.cadence,
+            )
+            .await
+            {
                 Ok(v) => v,
                 Err(e) => {
                     warn!(report = %report.id, error = %e, "uptime report render failed");
@@ -795,14 +801,15 @@ async fn check_slo_breaches(pool: &DbPool, batch: &[Heartbeat], notifier: Option
 async fn fire_result_webhooks(pool: &DbPool, client: &reqwest::Client, batch: &[Heartbeat]) {
     use std::collections::HashMap;
 
-    // Resolve each distinct monitor's webhook URL + name once. `None`
-    // means "no webhook configured" (or fetch failed) — short-circuits the
-    // per-heartbeat loop below.
-    let mut target_for: HashMap<MonitorId, Option<(String, String)>> = HashMap::new();
+    // Resolve each distinct monitor's webhook URL + optional signing secret
+    // + name once. `None` means "no webhook configured" (or fetch failed) —
+    // short-circuits the per-heartbeat loop below.
+    type Target = (String, Option<String>, String);
+    let mut target_for: HashMap<MonitorId, Option<Target>> = HashMap::new();
     for hb in batch {
         if let std::collections::hash_map::Entry::Vacant(e) = target_for.entry(hb.monitor_id) {
             let target = match rampart_db::monitors::get(pool, hb.monitor_id).await {
-                Ok(m) => result_webhook_url(&m).map(|url| (url, m.name)),
+                Ok(m) => result_webhook_url(&m).map(|url| (url, result_webhook_secret(&m), m.name)),
                 Err(e2) => {
                     warn!(monitor = %hb.monitor_id, error = %e2, "result webhook monitor fetch failed");
                     None
@@ -813,30 +820,100 @@ async fn fire_result_webhooks(pool: &DbPool, client: &reqwest::Client, batch: &[
     }
 
     for hb in batch {
-        let Some(Some((url, name))) = target_for.get(&hb.monitor_id) else {
+        let Some(Some((url, secret, name))) = target_for.get(&hb.monitor_id) else {
             continue;
         };
+        let ts = hb.ts.unix_timestamp();
         let payload = serde_json::json!({
             "monitor_id": hb.monitor_id,
             "name": name,
             "status": hb.status,
             "latency_ms": hb.latency_ms,
             "status_code": hb.status_code,
-            "ts": hb.ts,
+            "ts": ts,
         });
+        // Serialize once so the signature (over the exact wire bytes) and the
+        // POST body cannot drift. A serialize failure is logged + skipped.
+        let body_bytes = match serde_json::to_vec(&payload) {
+            Ok(b) => b,
+            Err(e) => {
+                warn!(monitor = %hb.monitor_id, error = %e, "result webhook payload encode failed");
+                continue;
+            }
+        };
+        // Optional HMAC-SHA256 over `<ts>.<body>` — replay-resistant because
+        // the timestamp is bound into the signed string and echoed in a
+        // header the receiver can age-check.
+        let signature = secret
+            .as_deref()
+            .map(|s| sign_result_webhook(s, ts, &body_bytes));
+
         let client = client.clone();
         let url = url.clone();
         let mid = hb.monitor_id;
+        let pool = pool.clone();
         tokio::spawn(async move {
-            match client.post(&url).json(&payload).send().await {
-                Ok(resp) if resp.status().is_success() => {}
+            let mut req = client
+                .post(&url)
+                .header(reqwest::header::CONTENT_TYPE, "application/json")
+                .header("X-Rampart-Timestamp", ts.to_string());
+            if let Some(sig) = signature {
+                req = req.header("X-Rampart-Signature", format!("sha256={sig}"));
+            }
+            let (ok, err) = match req.body(body_bytes).send().await {
+                Ok(resp) if resp.status().is_success() => (true, None),
                 Ok(resp) => {
-                    warn!(monitor = %mid, status = %resp.status(), "result webhook non-2xx")
+                    let status = resp.status();
+                    warn!(monitor = %mid, status = %status, "result webhook non-2xx");
+                    (false, Some(format!("non-2xx: {status}")))
                 }
-                Err(e) => warn!(monitor = %mid, error = %e, "result webhook POST failed"),
+                Err(e) => {
+                    warn!(monitor = %mid, error = %e, "result webhook POST failed");
+                    (false, Some(e.to_string()))
+                }
+            };
+
+            // Best-effort delivery-log row for every attempt, success or
+            // failure — swallow logging errors so the webhook path never
+            // depends on the audit write.
+            if let Err(e) = rampart_db::delivery_log::record(
+                &pool,
+                rampart_db::delivery_log::NewDelivery {
+                    notification_id: None,
+                    channel_kind: "result_webhook",
+                    event_kind: "probe_result",
+                    monitor_id: Some(mid.0),
+                    ok,
+                    error: err.as_deref(),
+                },
+            )
+            .await
+            {
+                warn!(monitor = %mid, error = %e, "result webhook delivery-log record failed");
             }
         });
     }
+}
+
+/// Compute the result-webhook signature: lowercase hex HMAC-SHA256 of
+/// `<ts>.<body>` under `secret`. Returned without the `sha256=` prefix —
+/// callers add it to the header value.
+fn sign_result_webhook(secret: &str, ts: i64, body: &[u8]) -> String {
+    use hmac::{Hmac, Mac};
+    use sha2::Sha256;
+    type HmacSha256 = Hmac<Sha256>;
+    // new_from_slice only fails on a zero-length key for HMAC; an empty
+    // secret is already filtered out by result_webhook_secret, so this is
+    // infallible in practice. Fall back to an empty signature rather than
+    // panicking if that ever changes.
+    let mut mac = match HmacSha256::new_from_slice(secret.as_bytes()) {
+        Ok(m) => m,
+        Err(_) => return String::new(),
+    };
+    mac.update(ts.to_string().as_bytes());
+    mac.update(b".");
+    mac.update(body);
+    hex::encode(mac.finalize().into_bytes())
 }
 
 /// Extract the optional `result_webhook` URL from a monitor's `config`
@@ -845,6 +922,19 @@ fn result_webhook_url(monitor: &Monitor) -> Option<String> {
     monitor
         .config
         .get("result_webhook")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+}
+
+/// Extract the optional `result_webhook_secret` from a monitor's `config`
+/// JSONB. Returns `None` when absent, null, non-string, or empty — in which
+/// case the outbound POST is sent unsigned (unchanged historical behaviour).
+fn result_webhook_secret(monitor: &Monitor) -> Option<String> {
+    monitor
+        .config
+        .get("result_webhook_secret")
         .and_then(|v| v.as_str())
         .map(str::trim)
         .filter(|s| !s.is_empty())
@@ -861,34 +951,6 @@ async fn flush(pool: &DbPool, batch: &[Heartbeat]) -> bool {
         return false;
     }
     true
-}
-
-/// Render the weekly uptime report: one line per monitor with its 7-day
-/// uptime percentage (or "no data" when the window holds no heartbeats).
-/// Plain text — the system email sender ships text/plain. Returns
-/// `(subject, body)`.
-async fn render_uptime_report(
-    pool: &DbPool,
-    report_name: &str,
-) -> Result<(String, String), rampart_db::DbError> {
-    const WINDOW_SECONDS: i64 = 7 * 24 * 3600;
-    let monitors = rampart_db::monitors::list(pool).await?;
-
-    let subject = format!("Weekly uptime report — {report_name}");
-    let mut lines = Vec::with_capacity(monitors.len() + 2);
-    lines.push(subject.clone());
-    lines.push("Per-monitor uptime over the last 7 days:".to_string());
-    if monitors.is_empty() {
-        lines.push("(no monitors configured)".to_string());
-    }
-    for m in &monitors {
-        let pct = rampart_db::heartbeats::uptime_pct(pool, m.id, WINDOW_SECONDS).await?;
-        match pct {
-            Some(p) => lines.push(format!("- {}: {:.2}%", m.name, p)),
-            None => lines.push(format!("- {}: no data", m.name)),
-        }
-    }
-    Ok((subject, lines.join("\n")))
 }
 
 /// Synthesize a Maintenance heartbeat — keeps the timeline contiguous
@@ -948,5 +1010,37 @@ async fn push_heartbeat(monitor: &Monitor, pool: &DbPool) -> Heartbeat {
         msg,
         retries: 0,
         important: false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sign_result_webhook_matches_known_vector() {
+        // Vector independently computed with Python's hmac/hashlib:
+        //   hmac.new(b"topsecret",
+        //            b"1700000000.{\"hello\":\"world\"}",
+        //            hashlib.sha256).hexdigest()
+        let sig = sign_result_webhook("topsecret", 1_700_000_000, br#"{"hello":"world"}"#);
+        assert_eq!(
+            sig,
+            "79883357e4c4c4abee43cf4b32367d67a1344520479e3e8c85e98406a6d6a2a5"
+        );
+        // Lowercase hex, 64 chars (32-byte digest).
+        assert_eq!(sig.len(), 64);
+        assert!(sig
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+    }
+
+    #[test]
+    fn sign_result_webhook_binds_timestamp() {
+        // Same body, different ts → different signature (replay resistance).
+        let body = br#"{"a":1}"#;
+        let a = sign_result_webhook("k", 1, body);
+        let b = sign_result_webhook("k", 2, body);
+        assert_ne!(a, b);
     }
 }

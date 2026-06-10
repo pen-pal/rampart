@@ -144,18 +144,30 @@ pub async fn delete(pool: &DbPool, id: ScheduledReportId) -> DbResult<()> {
     Ok(())
 }
 
-/// Reports due to be sent: never sent, or `last_sent_at` older than 7
-/// days. The scheduler calls this on its slow tick; the 7-day gate covers
-/// the only cadence we support today (weekly). A row with no recipients is
-/// still returned — the scheduler logs + skips it so a misconfigured
-/// report is visible rather than silently never due.
+/// Reports due to be sent: never sent, or `last_sent_at` older than the
+/// row's cadence window. The scheduler calls this on its slow tick.
+///
+/// Due-ness per cadence:
+/// - `daily` — `last_sent_at` more than ~24h ago.
+/// - `weekly` — more than ~7d ago (the historical behaviour, preserved).
+/// - `monthly` — sent in an earlier calendar month than `now`.
+///
+/// Any unrecognised cadence falls back to the weekly window so a typo can
+/// never wedge a report into "never due". A row with no recipients is still
+/// returned — the scheduler logs + skips it so a misconfigured report is
+/// visible rather than silently never due.
 pub async fn due(pool: &DbPool, now: OffsetDateTime) -> DbResult<Vec<ScheduledReport>> {
     let rows = sqlx::query!(
         r#"
         SELECT id, name, recipients, cadence, last_sent_at, created_at
         FROM scheduled_reports
         WHERE last_sent_at IS NULL
-           OR last_sent_at <= $1::timestamptz - interval '7 days'
+           OR CASE cadence
+                WHEN 'daily'   THEN last_sent_at <= $1::timestamptz - interval '1 day'
+                WHEN 'monthly' THEN date_trunc('month', last_sent_at)
+                                    < date_trunc('month', $1::timestamptz)
+                ELSE                last_sent_at <= $1::timestamptz - interval '7 days'
+              END
         "#,
         now,
     )
@@ -172,6 +184,54 @@ pub async fn due(pool: &DbPool, now: OffsetDateTime) -> DbResult<Vec<ScheduledRe
             created_at: r.created_at,
         })
         .collect())
+}
+
+/// Lookback window, in seconds, for a cadence string. Matches the due-ness
+/// gate: daily → 1 day, monthly → 30 days, everything else (incl. weekly and
+/// any unknown value) → 7 days. The digest body reports uptime over exactly
+/// this window so "Daily uptime report" covers the last day, etc.
+pub fn cadence_window_seconds(cadence: &str) -> i64 {
+    match cadence {
+        "daily" => 24 * 3600,
+        "monthly" => 30 * 24 * 3600,
+        _ => 7 * 24 * 3600,
+    }
+}
+
+/// Human label for a cadence, used in the report subject line.
+fn cadence_label(cadence: &str) -> &'static str {
+    match cadence {
+        "daily" => "Daily",
+        "monthly" => "Monthly",
+        _ => "Weekly",
+    }
+}
+
+/// Render an uptime digest for a report: one line per monitor with its
+/// uptime percentage over the cadence's lookback window (or "no data" when
+/// the window holds no heartbeats). Plain text — the system email sender
+/// ships text/plain. Returns `(subject, body)`. Shared by the scheduler's
+/// due-report check and the API's send-now endpoint so the two never drift.
+pub async fn render(pool: &DbPool, report_name: &str, cadence: &str) -> DbResult<(String, String)> {
+    let window_seconds = cadence_window_seconds(cadence);
+    let monitors = crate::monitors::list(pool).await?;
+
+    let subject = format!("{} uptime report — {report_name}", cadence_label(cadence));
+    let mut lines = Vec::with_capacity(monitors.len() + 2);
+    lines.push(subject.clone());
+    let days = window_seconds / (24 * 3600);
+    lines.push(format!("Per-monitor uptime over the last {days} day(s):"));
+    if monitors.is_empty() {
+        lines.push("(no monitors configured)".to_string());
+    }
+    for m in &monitors {
+        let pct = crate::heartbeats::uptime_pct(pool, m.id, window_seconds).await?;
+        match pct {
+            Some(p) => lines.push(format!("- {}: {:.2}%", m.name, p)),
+            None => lines.push(format!("- {}: no data", m.name)),
+        }
+    }
+    Ok((subject, lines.join("\n")))
 }
 
 /// Stamp `last_sent_at = NOW()` after a successful send so the report
