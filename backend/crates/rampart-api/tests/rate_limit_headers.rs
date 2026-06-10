@@ -154,6 +154,66 @@ async fn ratelimit_limit_header_reflects_per_key_budget(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../../migrations")]
+async fn ratelimit_remaining_decrements_across_requests(pool: PgPool) {
+    let app = router(pool.clone());
+    let _ = register_admin(&app).await;
+    let token = admin_key_with_budget(&pool, "counter@example.com", 10).await;
+
+    // Three successive requests on the same key. The counter is now durable
+    // (DB-backed), so each request decrements `remaining` monotonically
+    // within the fixed window — 9, 8, 7 out of a budget of 10.
+    for expected_remaining in [9_u32, 8, 7] {
+        let (status, headers, body) = bearer_get(&app, "/v1/monitors", &token).await;
+        assert_eq!(
+            status,
+            StatusCode::OK,
+            "api-key GET should succeed: {}",
+            String::from_utf8_lossy(&body)
+        );
+        let remaining: u32 = header(&headers, "x-ratelimit-remaining")
+            .expect("remaining header present")
+            .parse()
+            .expect("remaining is a number");
+        assert_eq!(
+            remaining, expected_remaining,
+            "remaining must decrement across requests on the same key"
+        );
+    }
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn over_budget_request_is_throttled(pool: PgPool) {
+    let app = router(pool.clone());
+    let _ = register_admin(&app).await;
+    // Budget of 1: the first request is admitted, the second exceeds it.
+    let token = admin_key_with_budget(&pool, "throttle@example.com", 1).await;
+
+    let (status, _, _) = bearer_get(&app, "/v1/monitors", &token).await;
+    assert_eq!(status, StatusCode::OK, "first request under budget");
+
+    let (status, headers, _) = bearer_get(&app, "/v1/monitors", &token).await;
+    assert_eq!(
+        status,
+        StatusCode::TOO_MANY_REQUESTS,
+        "second request over budget is 429"
+    );
+    assert_eq!(
+        header(&headers, "x-ratelimit-remaining"),
+        Some("0"),
+        "remaining is 0 when throttled"
+    );
+    assert!(
+        header(&headers, "retry-after").is_some(),
+        "Retry-After present on 429"
+    );
+    assert_eq!(
+        header(&headers, "x-ratelimit-limit"),
+        Some("1"),
+        "limit header still advertised on 429"
+    );
+}
+
+#[sqlx::test(migrations = "../../migrations")]
 async fn session_request_has_no_ratelimit_headers(pool: PgPool) {
     let app = router(pool.clone());
     let cookie = register_admin(&app).await;

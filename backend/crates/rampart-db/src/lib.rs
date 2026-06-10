@@ -22,6 +22,7 @@ pub mod monitors;
 pub mod notifications;
 pub mod proxies;
 pub mod prune;
+pub mod rate_limit;
 pub mod recovery_codes;
 pub mod routing;
 pub mod scheduled_reports;
