@@ -79,6 +79,19 @@ pub struct ApiKey {
     pub created_at: OffsetDateTime,
     pub last_used_at: Option<OffsetDateTime>,
     pub expires_at: Option<OffsetDateTime>,
+    /// Per-key request budget per rolling hour. Enforced in-process by the
+    /// API's rate-limit layer and surfaced in the `X-RateLimit-Limit`
+    /// header. Defaults to 1000 (migration 0067).
+    pub rate_limit_per_hour: i32,
+}
+
+/// Default per-key hourly request budget when the client omits one. Mirrors
+/// the column default in migration 0067 and the in-process fallback in the
+/// API rate-limit layer.
+pub const DEFAULT_RATE_LIMIT_PER_HOUR: i32 = 1000;
+
+fn default_rate_limit_per_hour() -> i32 {
+    DEFAULT_RATE_LIMIT_PER_HOUR
 }
 
 #[derive(Debug, Clone, Deserialize, Validate)]
@@ -94,6 +107,12 @@ pub struct NewApiKey {
     /// Optional absolute expiry. Server validates it's in the future.
     #[serde(default)]
     pub expires_at: Option<OffsetDateTime>,
+
+    /// Per-key hourly request budget. Defaults to 1000 when omitted. Must be
+    /// at least 1 — a zero budget would lock the key out entirely.
+    #[serde(default = "default_rate_limit_per_hour")]
+    #[validate(range(min = 1))]
+    pub rate_limit_per_hour: i32,
 }
 
 /// One-shot response returned by POST /v1/api-keys. The raw `token` is

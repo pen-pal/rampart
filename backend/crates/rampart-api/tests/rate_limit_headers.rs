@@ -17,9 +17,9 @@ use rampart_core::Role;
 use sqlx::PgPool;
 use tower::ServiceExt;
 
-/// Mint an admin-scope API key owned by a fresh admin user; return the raw
-/// bearer token.
-async fn admin_key(pool: &PgPool, email: &str) -> String {
+/// Mint an admin-scope API key owned by a fresh admin user, with the given
+/// per-hour budget; return the raw bearer token.
+async fn admin_key_with_budget(pool: &PgPool, email: &str, rate_limit_per_hour: i32) -> String {
     let owner = rampart_db::users::create(
         pool,
         rampart_db::users::NewUser {
@@ -37,12 +37,23 @@ async fn admin_key(pool: &PgPool, email: &str) -> String {
             name: "rl-key".into(),
             scope: KeyScope::Admin,
             expires_at: None,
+            rate_limit_per_hour,
         },
         owner.id,
     )
     .await
     .expect("mint api key");
     issued.token
+}
+
+/// Mint an admin-scope API key with the default (1000/hr) budget.
+async fn admin_key(pool: &PgPool, email: &str) -> String {
+    admin_key_with_budget(
+        pool,
+        email,
+        rampart_core::api_key::DEFAULT_RATE_LIMIT_PER_HOUR,
+    )
+    .await
 }
 
 /// GET `path` with a bearer token, returning status + all response headers.
@@ -107,6 +118,38 @@ async fn api_key_request_gets_ratelimit_headers(pool: PgPool) {
     assert!(
         header(&headers, "x-ratelimit-reset").is_some(),
         "reset header present"
+    );
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn ratelimit_limit_header_reflects_per_key_budget(pool: PgPool) {
+    let app = router(pool.clone());
+    let _ = register_admin(&app).await;
+    // Mint a key with a small, non-default budget.
+    let token = admin_key_with_budget(&pool, "smallbudget@example.com", 5).await;
+
+    let (status, headers, body) = bearer_get(&app, "/v1/monitors", &token).await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "api-key GET should succeed: {}",
+        String::from_utf8_lossy(&body)
+    );
+
+    // The advertised ceiling matches the key's own budget, not the default.
+    assert_eq!(
+        header(&headers, "x-ratelimit-limit"),
+        Some("5"),
+        "limit header reflects per-key budget"
+    );
+    let remaining: u32 = header(&headers, "x-ratelimit-remaining")
+        .expect("remaining header present")
+        .parse()
+        .expect("remaining is a number");
+    // First request in the window → 4 remaining out of 5.
+    assert_eq!(
+        remaining, 4,
+        "remaining after one request against a budget of 5"
     );
 }
 
