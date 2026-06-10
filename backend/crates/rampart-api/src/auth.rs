@@ -25,6 +25,15 @@ use uuid::Uuid;
 pub const SESSION_COOKIE: &str = "rampart_session";
 pub const SESSION_TTL_SECS: i64 = 60 * 60 * 24 * 14; // 14 days
 
+/// Request-extension marker carrying the id of the API key that
+/// authenticated the request. Inserted by `require_session` only on the
+/// bearer / api-key path — cookie sessions never set it. The per-key
+/// rate-limit layer in `lib.rs` reads it to (a) scope the rolling-hour
+/// counter to the key and (b) decide whether to emit `X-RateLimit-*`
+/// headers at all (absent → session request → unlimited, no headers).
+#[derive(Debug, Clone, Copy)]
+pub struct AuthApiKeyId(pub rampart_core::ApiKeyId);
+
 /// Hash a plaintext password with Argon2id and per-password random salt.
 pub fn hash_password(plaintext: &str) -> Result<String, ApiError> {
     let salt = SaltString::generate(&mut OsRng);
@@ -138,6 +147,12 @@ pub async fn require_session(
         // are the contract here, so the key's scope is authoritative.
         user.role = key.scope.as_role();
         req.extensions_mut().insert(user);
+        // Stash the authenticating key id so a downstream layer (the
+        // per-key rate limiter in `lib.rs`) can identify which key made
+        // the request. Only set on the api-key path — cookie/session
+        // requests never carry it, which is exactly how the rate limiter
+        // tells the two apart (session requests stay unlimited).
+        req.extensions_mut().insert(AuthApiKeyId(key.id));
         return Ok(next.run(req).await);
     }
 
