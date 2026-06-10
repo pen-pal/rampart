@@ -1,0 +1,135 @@
+//! Per-API-key rate-limit headers (item 11).
+//!
+//! An API-key-authenticated request gets the advisory `X-RateLimit-*`
+//! header set (Limit / Remaining / Reset). A cookie/session request stays
+//! unlimited and gets NONE of those headers — the middleware keys off the
+//! `AuthApiKeyId` extension that only the bearer auth path stamps.
+
+mod common;
+
+use axum::body::{Body, Bytes};
+use axum::http::{Method, Request, Response, StatusCode};
+use axum::Router;
+use common::{register_admin, router};
+use http_body_util::BodyExt;
+use rampart_core::api_key::{KeyScope, NewApiKey};
+use rampart_core::Role;
+use sqlx::PgPool;
+use tower::ServiceExt;
+
+/// Mint an admin-scope API key owned by a fresh admin user; return the raw
+/// bearer token.
+async fn admin_key(pool: &PgPool, email: &str) -> String {
+    let owner = rampart_db::users::create(
+        pool,
+        rampart_db::users::NewUser {
+            email: email.into(),
+            name: Some("Owner".into()),
+            password_hash: "$argon2id$v=19$m=19456,t=2,p=1$fake$hash".into(),
+            role: Role::Admin,
+        },
+    )
+    .await
+    .expect("create key owner");
+    let issued = rampart_db::api_keys::create(
+        pool,
+        NewApiKey {
+            name: "rl-key".into(),
+            scope: KeyScope::Admin,
+            expires_at: None,
+        },
+        owner.id,
+    )
+    .await
+    .expect("mint api key");
+    issued.token
+}
+
+/// GET `path` with a bearer token, returning status + all response headers.
+async fn bearer_get(
+    router: &Router,
+    path: &str,
+    token: &str,
+) -> (StatusCode, Vec<(String, String)>, Bytes) {
+    let req = Request::builder()
+        .method(Method::GET)
+        .uri(path)
+        .header("authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    let resp: Response<Body> = router.clone().oneshot(req).await.unwrap();
+    let status = resp.status();
+    let headers = resp
+        .headers()
+        .iter()
+        .map(|(k, v)| (k.as_str().to_string(), v.to_str().unwrap_or("").to_string()))
+        .collect();
+    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+    (status, headers, bytes)
+}
+
+fn header<'a>(headers: &'a [(String, String)], name: &str) -> Option<&'a str> {
+    headers
+        .iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case(name))
+        .map(|(_, v)| v.as_str())
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn api_key_request_gets_ratelimit_headers(pool: PgPool) {
+    let app = router(pool.clone());
+    // Register the first admin so the system isn't in the locked
+    // bootstrap state, then mint a key.
+    let _ = register_admin(&app).await;
+    let token = admin_key(&pool, "keyowner@example.com").await;
+
+    // A protected GET authenticated by the api key.
+    let (status, headers, body) = bearer_get(&app, "/v1/monitors", &token).await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "api-key GET should succeed: {}",
+        String::from_utf8_lossy(&body)
+    );
+
+    // All three advisory headers present.
+    assert_eq!(
+        header(&headers, "x-ratelimit-limit"),
+        Some("1000"),
+        "limit header"
+    );
+    let remaining: u32 = header(&headers, "x-ratelimit-remaining")
+        .expect("remaining header present")
+        .parse()
+        .expect("remaining is a number");
+    // First request in the window → 999 remaining out of 1000.
+    assert_eq!(remaining, 999, "remaining after one request");
+    assert!(
+        header(&headers, "x-ratelimit-reset").is_some(),
+        "reset header present"
+    );
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn session_request_has_no_ratelimit_headers(pool: PgPool) {
+    let app = router(pool.clone());
+    let cookie = register_admin(&app).await;
+
+    // Same protected GET, but cookie-authenticated.
+    let (status, headers, _) =
+        common::request(&app, Method::GET, "/v1/monitors", None, Some(&cookie)).await;
+    assert_eq!(status, StatusCode::OK, "session GET should succeed");
+
+    assert!(
+        header(&headers, "x-ratelimit-limit").is_none(),
+        "session request must NOT carry x-ratelimit-limit"
+    );
+    assert!(
+        header(&headers, "x-ratelimit-remaining").is_none(),
+        "session request must NOT carry x-ratelimit-remaining"
+    );
+    assert!(
+        header(&headers, "x-ratelimit-reset").is_none(),
+        "session request must NOT carry x-ratelimit-reset"
+    );
+}
