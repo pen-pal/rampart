@@ -34,5 +34,7 @@ export function parseRoute(hash) {
   if (h === '#/settings/smtp')      return { view: 'smtp-settings',      id: null };
   if (h === '#/settings/retention') return { view: 'retention-settings', id: null };
   if (h === '#/audit')              return { view: 'audit',         id: null };
+  if (h === '#/reports')            return { view: 'reports',       id: null };
+  if (h === '#/delivery-log')       return { view: 'delivery-log',  id: null };
   return { view: 'dashboard', id: null };
 }
