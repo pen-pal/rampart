@@ -17,6 +17,14 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Changed
+
+- **Full ja/zh dashboard translations** — Japanese and Simplified Chinese
+  locales now cover all 1081 keys (previously ~540 machine-draft keys with
+  an English fallback for the rest), with terminology unified within each
+  locale (ja: チャンネル/フォルダー; zh: 监控项/渠道). Still flagged
+  pending human native-speaker sign-off in the file headers.
+
 ---
 
 ## [0.5.0] — 2026-06-10
