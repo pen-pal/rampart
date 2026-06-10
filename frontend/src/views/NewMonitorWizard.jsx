@@ -341,6 +341,9 @@ export default function NewMonitorWizard() {
   // Per-monitor outbound result webhook. POSTed each probe result; stored
   // in the freeform config.result_webhook JSONB. Blank = disabled.
   const [resultWebhook, setResultWebhook] = useState('');
+  // Optional HMAC-SHA256 signing secret paired with the webhook URL. Stored
+  // in config.result_webhook_secret; only meaningful when a URL is set.
+  const [resultWebhookSecret, setResultWebhookSecret] = useState('');
 
   // Available proxies for the picker. Polled rarely — these don't change
   // mid-flow. Falls back to [] on error so the form still renders.
@@ -357,6 +360,20 @@ export default function NewMonitorWizard() {
 
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState(null);
+
+  // Client-side validation for the result-webhook URL: empty is valid
+  // (disabled), otherwise it must parse as an http(s) URL. Drives both the
+  // inline field error and a guard on advancing/submitting.
+  const resultWebhookInvalid = (() => {
+    const v = resultWebhook.trim();
+    if (!v) return false;
+    try {
+      const u = new URL(v);
+      return u.protocol !== 'http:' && u.protocol !== 'https:';
+    } catch {
+      return true;
+    }
+  })();
 
   // Channels picked on step 3 — attached to the monitor after create.
   const channelsState = useApi(() => api.notifications.list(), []);
@@ -502,6 +519,10 @@ export default function NewMonitorWizard() {
     // backend reads config.result_webhook; blank disables it.
     if (fields.httpExtras && resultWebhook.trim()) {
       config.result_webhook = resultWebhook.trim();
+      // HMAC signing secret is only meaningful alongside a URL.
+      if (resultWebhookSecret.trim()) {
+        config.result_webhook_secret = resultWebhookSecret.trim();
+      }
     }
     // Optional negotiated-HTTP-version assertion (http1/http2/http3). Stored
     // in the freeform config JSONB; the rampart-checker HTTP probe reads it.
@@ -780,8 +801,18 @@ export default function NewMonitorWizard() {
                   <div className="field">
                     <label className="field-label">{t('wizard.field.result_webhook')}</label>
                     <input className="input mono" value={resultWebhook} onChange={e => setResultWebhook(e.target.value)}
+                      style={resultWebhookInvalid ? { borderColor: 'var(--down)' } : undefined}
                       placeholder="https://hooks.example.com/probe-result"/>
-                    <div className="field-hint">{t('wizard.field.result_webhook_hint')}</div>
+                    {resultWebhookInvalid
+                      ? <div className="field-hint" style={{ color: 'var(--down)' }}>{t('wizard.field.result_webhook_invalid')}</div>
+                      : <div className="field-hint">{t('wizard.field.result_webhook_hint')}</div>}
+                    <div style={{ marginTop: 12 }}>
+                      <label className="field-label">{t('wizard.field.result_webhook_secret')}</label>
+                      <input className="input mono" value={resultWebhookSecret} onChange={e => setResultWebhookSecret(e.target.value)}
+                        disabled={!resultWebhook.trim()}
+                        placeholder="whsec_…"/>
+                      <div className="field-hint">{t('wizard.field.result_webhook_secret_hint')}</div>
+                    </div>
                   </div>
                 )}
 
@@ -1048,11 +1079,11 @@ export default function NewMonitorWizard() {
               <ChevronLeft size={13}/> {t('wizard.back')}
             </button>
             {step < 3 ? (
-              <button className="btn btn-accent" onClick={() => setStep(s => s + 1)} disabled={submitting}>
+              <button className="btn btn-accent" onClick={() => setStep(s => s + 1)} disabled={submitting || resultWebhookInvalid}>
                 {t('wizard.continue')} <ChevronRight size={13}/>
               </button>
             ) : (
-              <button className="btn btn-accent" onClick={submit} disabled={submitting}>
+              <button className="btn btn-accent" onClick={submit} disabled={submitting || resultWebhookInvalid}>
                 <Check size={13}/> {submitting ? t('wizard.creating') : t('wizard.create_monitor')}
               </button>
             )}

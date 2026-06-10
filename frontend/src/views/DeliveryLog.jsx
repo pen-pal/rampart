@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import {
-  ChevronLeft, ChevronRight, Send, AlertCircle, Loader2, CheckCircle2, XCircle,
+  ChevronLeft, ChevronRight, Send, AlertCircle, Loader2, CheckCircle2, XCircle, RotateCw,
 } from 'lucide-react';
-import { api, useApi, formatRelative, formatClock, offsetDateTimeArrayToDate } from '../lib/api.js';
+import { api, useApi, ApiError, formatRelative, formatClock, offsetDateTimeArrayToDate } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import { isAdmin } from '../lib/roles.js';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -56,13 +57,34 @@ const css = `
 const PAGE_SIZE = 50;
 const tsToDate = (ts) => (Array.isArray(ts) ? offsetDateTimeArrayToDate(ts) : new Date(ts));
 
-export default function DeliveryLog() {
+export default function DeliveryLog({ user }) {
+  const admin = isAdmin(user);
   // Keyset pagination: `cursors` is the stack of `before` values for the
   // pages already visited. Empty → first (newest) page (before=null). The
   // backend has no offset, so each forward step carries the last row's
   // sent_at as the next page's `before`.
   const [cursors, setCursors] = useState([]);
   const [reloadKey, setReloadKey] = useState(0);
+  // Transient per-row retry feedback keyed by delivery id:
+  // { [id]: { state: 'sending' | 'ok' | 'gone' | 'err', msg? } }.
+  const [retryState, setRetryState] = useState({});
+
+  const retry = async (id) => {
+    if (!id) return;
+    setRetryState(s => ({ ...s, [id]: { state: 'sending' } }));
+    try {
+      await api.deliveryLog.retry(id);
+      setRetryState(s => ({ ...s, [id]: { state: 'ok' } }));
+      // Refetch the page so the new delivery row shows up.
+      setTimeout(() => setReloadKey(k => k + 1), 900);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409) {
+        setRetryState(s => ({ ...s, [id]: { state: 'gone' } }));
+      } else {
+        setRetryState(s => ({ ...s, [id]: { state: 'err', msg: e.message } }));
+      }
+    }
+  };
   const before = cursors.length ? cursors[cursors.length - 1] : undefined;
   // Fetch one extra row to learn whether a next page exists without a count.
   const state = useApi(
@@ -151,6 +173,24 @@ export default function DeliveryLog() {
                         <span title={r.error || ''} style={{ display: 'inline-flex', flexDirection: 'column', gap: 3 }}>
                           <span className="pill pill-fail"><XCircle size={12}/> {t('delivery.fail')}</span>
                           {r.error && <span style={{ fontSize: 11, color: 'var(--down)', maxWidth: 280, wordBreak: 'break-word' }}>{r.error}</span>}
+                          {admin && r.id && (() => {
+                            const rs = retryState[r.id];
+                            return (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                                <button className="btn btn-ghost" style={{ padding: '3px 8px', fontSize: 11.5 }}
+                                  disabled={rs?.state === 'sending' || rs?.state === 'ok'}
+                                  onClick={() => retry(r.id)}>
+                                  {rs?.state === 'sending'
+                                    ? <><Loader2 size={11}/> {t('delivery.retrying')}</>
+                                    : rs?.state === 'ok'
+                                    ? <><CheckCircle2 size={11}/> {t('delivery.retry_sent')}</>
+                                    : <><RotateCw size={11}/> {t('delivery.retry_send')}</>}
+                                </button>
+                                {rs?.state === 'gone' && <span style={{ fontSize: 11, color: 'var(--down)' }}>{t('delivery.retry_gone')}</span>}
+                                {rs?.state === 'err' && <span style={{ fontSize: 11, color: 'var(--down)' }}>{rs.msg || t('delivery.retry_failed')}</span>}
+                              </span>
+                            );
+                          })()}
                         </span>
                       )}
                     </td>

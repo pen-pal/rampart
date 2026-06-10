@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import {
-  ChevronLeft, Plus, Trash2, Mail, AlertCircle, Loader2, X, Pencil, Check,
+  ChevronLeft, Plus, Trash2, Mail, AlertCircle, Loader2, X, Pencil, Check, Send,
 } from 'lucide-react';
 import { api, useApi, formatRelative, offsetDateTimeArrayToDate } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import { isAdmin } from '../lib/roles.js';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -65,12 +66,15 @@ const recipientsToText = (arr) => (arr || []).join('\n');
 const textToRecipients = (text) =>
   text.split('\n').map(s => s.trim()).filter(Boolean);
 
-export default function ScheduledReports() {
+export default function ScheduledReports({ user }) {
+  const admin = isAdmin(user);
   const reportsState = useApi(() => api.scheduledReports.list(), [], { pollMs: 30_000 });
   const [creating, setCreating] = useState(false);
   const [editing,  setEditing]  = useState(null); // report being edited, or null
   const [busy,     setBusy]      = useState(null);
   const [err,      setErr]       = useState(null);
+  // Transient per-row send-now feedback: { [id]: 'sending' | 'sent' | 'err' }.
+  const [sendState, setSendState] = useState({});
 
   const reload = () => window.location.reload();
 
@@ -80,6 +84,21 @@ export default function ScheduledReports() {
     try { await api.scheduledReports.remove(id); reload(); }
     catch (e) { setErr(e.message); }
     finally { setBusy(null); }
+  };
+
+  const sendNow = async (id) => {
+    setSendState(s => ({ ...s, [id]: 'sending' }));
+    try {
+      await api.scheduledReports.send(id);
+      setSendState(s => ({ ...s, [id]: 'sent' }));
+      // Refetch so last_sent_at refreshes; clear the transient flag after.
+      // Refetch (window reload) so last_sent_at refreshes after a short
+      // beat showing the "sent" confirmation.
+      setTimeout(() => { reload(); }, 1200);
+    } catch (e) {
+      setSendState(s => ({ ...s, [id]: 'err' }));
+      setErr(e.message || t('reports.send_failed'));
+    }
   };
 
   const reports = reportsState.data || [];
@@ -146,12 +165,25 @@ export default function ScheduledReports() {
                     </div>
                   )}
                 </div>
-                <button className="btn btn-ghost" onClick={() => { setCreating(false); setEditing(r.id); }} disabled={busy === r.id}>
-                  <Pencil size={13}/> {t('reports.edit')}
-                </button>
-                <button className="btn btn-ghost btn-danger" onClick={() => remove(r.id)} disabled={busy === r.id}>
-                  <Trash2 size={13}/>
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {admin && (
+                    <button className="btn btn-ghost" onClick={() => sendNow(r.id)}
+                      disabled={busy === r.id || sendState[r.id] === 'sending'}
+                      title={t('reports.send_now')}>
+                      {sendState[r.id] === 'sending'
+                        ? <><Loader2 size={13}/> {t('reports.sending')}</>
+                        : sendState[r.id] === 'sent'
+                        ? <><Check size={13}/> {t('reports.sent')}</>
+                        : <><Send size={13}/> {t('reports.send_now')}</>}
+                    </button>
+                  )}
+                  <button className="btn btn-ghost" onClick={() => { setCreating(false); setEditing(r.id); }} disabled={busy === r.id}>
+                    <Pencil size={13}/> {t('reports.edit')}
+                  </button>
+                  <button className="btn btn-ghost btn-danger" onClick={() => remove(r.id)} disabled={busy === r.id}>
+                    <Trash2 size={13}/>
+                  </button>
+                </div>
               </div>
             )
           ))}
@@ -213,7 +245,9 @@ function ReportForm({ report, onCancel, onSaved }) {
         <div>
           <label className="field-label">{t('reports.field.cadence')}</label>
           <select className="select" value={cadence} onChange={e => setCadence(e.target.value)}>
+            <option value="daily">{t('reports.cadence.daily')}</option>
             <option value="weekly">{t('reports.cadence.weekly')}</option>
+            <option value="monthly">{t('reports.cadence.monthly')}</option>
           </select>
         </div>
       </div>

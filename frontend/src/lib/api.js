@@ -81,10 +81,10 @@ export const api = {
     testNow: (id)         => request(`/v1/monitors/${id}/test-now`, { method: 'POST' }),
     testNotifications: (id) => request(`/v1/monitors/${id}/test-notifications`, { method: 'POST' }),
     bulk:    (monitorIds, action) => request('/v1/monitors/bulk', { method: 'POST', body: { monitor_ids: monitorIds, ...action } }),
-    /// Bulk-edit interval / timeout / tags across many monitors in one call.
-    /// `payload` shape: { ids: [uuid], interval_seconds?, timeout_seconds?,
-    /// add_tag_ids?: [uuid], remove_tag_ids?: [uuid] }. Returns { updated }.
-    bulkEdit: (payload) => request('/v1/monitors/bulk-edit', { method: 'POST', body: payload }),
+    /// Bulk-edit a set of monitors in one call. `payload` shape:
+    /// { ids: [uuid], patch: { interval_secs?, timeout_secs?, enabled?,
+    /// group_id?(null clears), tags?: [uuid] } }. Returns { updated, skipped }.
+    bulkEdit: (ids, patch) => request('/v1/monitors/bulk-edit', { method: 'POST', body: { ids, patch } }),
     /// Pause / resume every monitor carrying a tag in one call. `action`
     /// is 'pause' | 'resume'. Returns { affected: n } — the count of
     /// monitors whose active state actually changed.
@@ -174,6 +174,10 @@ export const api = {
       const s = qs.toString();
       return request(`/v1/delivery-log${s ? '?' + s : ''}`);
     },
+    /// Re-send a previously-failed (or any) delivery. Returns the new
+    /// DeliveryLogEntry (200); 409 if the original channel was deleted;
+    /// 404 if the id is unknown. Admin-only on the backend.
+    retry: (id) => request(`/v1/delivery-log/${id}/retry`, { method: 'POST' }),
   },
   scheduledReports: {
     list:    ()          => request('/v1/scheduled-reports'),
@@ -181,6 +185,8 @@ export const api = {
     create:  (input)     => request('/v1/scheduled-reports', { method: 'POST', body: input }),
     update:  (id, patch) => request(`/v1/scheduled-reports/${id}`, { method: 'PATCH', body: patch }),
     remove:  (id)        => request(`/v1/scheduled-reports/${id}`, { method: 'DELETE' }),
+    /// Render + email the report immediately. Returns 204 (null) on success.
+    send:    (id)        => request(`/v1/scheduled-reports/${id}/send`, { method: 'POST' }),
   },
   templates: {
     list:    ()              => request('/v1/notification-templates'),
@@ -215,7 +221,9 @@ export const api = {
   },
   apiKeys: {
     list:   ()                  => request('/v1/api-keys'),
-    create: (name, scope, exp) => request('/v1/api-keys', { method: 'POST', body: { name, scope: scope || 'read', expires_at: exp || null } }),
+    // `rateLimit` is the optional per-hour request budget (integer, default
+    // 1000 server-side); omit it (null/undefined) to take the default.
+    create: (name, scope, exp, rateLimit) => request('/v1/api-keys', { method: 'POST', body: { name, scope: scope || 'read', expires_at: exp || null, ...(rateLimit != null ? { rate_limit_per_hour: Number(rateLimit) } : {}) } }),
     revoke: (id)                => request(`/v1/api-keys/${id}`, { method: 'DELETE' }),
   },
   audit: {
