@@ -40,6 +40,8 @@ pub fn router() -> Router<AppState> {
         .route("/{id}/heartbeats", get(heartbeats))
         .route("/{id}/heartbeats.csv", get(heartbeats_csv))
         .route("/{id}/reliability", get(reliability))
+        .route("/{id}/rollups", get(rollups))
+        .route("/{id}/uptime-history", get(uptime_history))
         .route("/{id}/slo/error-budget", get(slo_error_budget))
         .route("/{id}/slo/burndown", get(slo_burndown))
         .route("/{id}/pause", post(pause))
@@ -1191,6 +1193,179 @@ async fn slo_burndown(
         allowed_downtime_secs,
         points,
     }))
+}
+
+// ─── hourly rollups + long-range uptime history ─────────────────────────
+
+/// One hourly rollup bucket, as returned by `GET /{id}/rollups`.
+#[derive(Debug, Serialize)]
+pub struct RollupDto {
+    #[serde(with = "time::serde::rfc3339")]
+    pub bucket_start: OffsetDateTime,
+    pub up_count: i32,
+    pub down_count: i32,
+    pub other_count: i32,
+    pub sample_count: i32,
+    pub avg_latency_ms: Option<f64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RollupsQuery {
+    /// Window start (RFC3339). Defaults to 30 days ago.
+    #[serde(default, with = "time::serde::rfc3339::option")]
+    pub from: Option<OffsetDateTime>,
+    /// Window end (RFC3339, exclusive). Defaults to "now".
+    #[serde(default, with = "time::serde::rfc3339::option")]
+    pub to: Option<OffsetDateTime>,
+}
+
+/// `GET /v1/monitors/{id}/rollups?from=&to=` — the hourly `heartbeat_rollups`
+/// rows for the monitor over the half-open `[from, to)` range. Defaults to
+/// the last 30 days. Read access, same RBAC as `/heartbeats` (GET handling
+/// at the router layer). Rollups are retained ~1y, so this serves history
+/// long past the raw-heartbeat retention horizon.
+async fn rollups(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Query(q): Query<RollupsQuery>,
+) -> Result<Json<Vec<RollupDto>>, ApiError> {
+    let monitor_id = parse_monitor_id(&id)?;
+    // 404 if the monitor doesn't exist (parity with the other read routes).
+    let _ = rampart_db::monitors::get(state.pool(), monitor_id).await?;
+
+    let to = q.to.unwrap_or_else(OffsetDateTime::now_utc);
+    let from = q.from.unwrap_or_else(|| to - time::Duration::days(30));
+    if from >= to {
+        return Err(ApiError::BadRequest("from must be before to".into()));
+    }
+
+    let rows = rampart_db::prune::rollups_for_monitor(state.pool(), monitor_id.0, from, to).await?;
+    Ok(Json(
+        rows.into_iter()
+            .map(|r| RollupDto {
+                bucket_start: r.bucket_start,
+                up_count: r.up_count,
+                down_count: r.down_count,
+                other_count: r.other_count,
+                sample_count: r.sample_count,
+                avg_latency_ms: r.avg_latency_ms,
+            })
+            .collect(),
+    ))
+}
+
+/// One day's uptime% in the long-range history series.
+#[derive(Debug, Serialize)]
+pub struct UptimeHistoryPoint {
+    /// UTC calendar date (YYYY-MM-DD).
+    pub date: String,
+    pub up_count: i64,
+    pub sample_count: i64,
+    /// `null` when no samples were recorded that day.
+    pub uptime_pct: Option<f64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UptimeHistoryQuery {
+    /// One of `30d`, `90d`, `1y`. Defaults to `30d`.
+    pub range: Option<String>,
+}
+
+/// Whitelisted ranges → (days back). Tight set: each is a deliberate
+/// dashboard preset, and an unbounded value would let a caller force a
+/// full-history walk.
+fn parse_uptime_range(range: Option<&str>) -> Result<i64, ApiError> {
+    match range.unwrap_or("30d") {
+        "30d" => Ok(30),
+        "90d" => Ok(90),
+        "1y" => Ok(365),
+        _ => Err(ApiError::BadRequest(
+            "range must be one of 30d, 90d, 1y".into(),
+        )),
+    }
+}
+
+/// `GET /v1/monitors/{id}/uptime-history?range=30d|90d|1y` — a daily uptime%
+/// series over the trailing range, oldest first. Read access, same RBAC as
+/// `/heartbeats`.
+///
+/// Stitching: the series is assembled from two sources so it stays correct
+/// past the raw-heartbeat retention horizon. Within the raw-retention window
+/// the high-resolution `heartbeats` are still present, so those days are
+/// computed directly from raw (`daily_uptime_from_raw`). Older days no longer
+/// have raw rows — they've been folded into the hourly `heartbeat_rollups`
+/// (kept ~1y) — so those days are derived from rollups
+/// (`up_count / sample_count`).
+///
+/// We read the raw-retention tier from settings, then split the range at that
+/// boundary: rollups for `[range_start, raw_boundary)`, raw for
+/// `[raw_boundary, now)`. A day is never double-counted because the prune job
+/// deletes a raw heartbeat in the same transaction that folds it into a
+/// rollup, so any given heartbeat lives in exactly one of the two tables. If
+/// the boundary lands mid-day the two sources contribute disjoint hours of
+/// that day, which the per-day map merges by summing.
+async fn uptime_history(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Query(q): Query<UptimeHistoryQuery>,
+) -> Result<Json<Vec<UptimeHistoryPoint>>, ApiError> {
+    let monitor_id = parse_monitor_id(&id)?;
+    let _ = rampart_db::monitors::get(state.pool(), monitor_id).await?;
+
+    let days = parse_uptime_range(q.range.as_deref())?;
+    let now = OffsetDateTime::now_utc();
+    let range_start = now - time::Duration::days(days);
+
+    // Raw-retention boundary: heartbeats older than this have been pruned and
+    // only survive as rollups. Clamp into the range so a retention window
+    // wider than the request just means "all raw, no rollup tail".
+    let cfg = rampart_db::prune::load_config(state.pool()).await?;
+    let raw_boundary = (now - time::Duration::days(cfg.heartbeats as i64)).max(range_start);
+
+    // Accumulate (up, samples) per UTC day across both sources.
+    use std::collections::BTreeMap;
+    let mut by_day: BTreeMap<time::Date, (i64, i64)> = BTreeMap::new();
+
+    // Older portion: rollups for [range_start, raw_boundary).
+    if range_start < raw_boundary {
+        let pts = rampart_db::prune::daily_uptime_from_rollups(
+            state.pool(),
+            monitor_id.0,
+            range_start,
+            raw_boundary,
+        )
+        .await?;
+        for p in pts {
+            let e = by_day.entry(p.day).or_insert((0, 0));
+            e.0 += p.up_count;
+            e.1 += p.sample_count;
+        }
+    }
+
+    // Recent portion: raw heartbeats for [raw_boundary, now).
+    let pts =
+        rampart_db::prune::daily_uptime_from_raw(state.pool(), monitor_id.0, raw_boundary, now)
+            .await?;
+    for p in pts {
+        let e = by_day.entry(p.day).or_insert((0, 0));
+        e.0 += p.up_count;
+        e.1 += p.sample_count;
+    }
+
+    let series = by_day
+        .into_iter()
+        .map(|(day, (up, samples))| UptimeHistoryPoint {
+            date: day.to_string(),
+            up_count: up,
+            sample_count: samples,
+            uptime_pct: if samples > 0 {
+                Some(up as f64 / samples as f64 * 100.0)
+            } else {
+                None
+            },
+        })
+        .collect();
+    Ok(Json(series))
 }
 
 async fn heartbeats(
