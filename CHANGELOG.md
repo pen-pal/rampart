@@ -17,6 +17,10 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+---
+
+## [0.5.0] — 2026-06-10
+
 ### Added
 
 #### Notifications
@@ -38,24 +42,39 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 - **Outbound probe-result webhooks** — per-monitor `config.result_webhook`
   (JSONB) fire-and-forgets `{monitor_id, name, status, latency_ms,
   status_code, ts}` to a URL after every heartbeat (5s timeout, never
-  blocks the scheduler). A "Result webhook URL" field in the monitor
-  wizard writes it.
-- **Scheduled weekly uptime reports** (migration `0062`) —
-  `scheduled_reports` table + `/v1/scheduled-reports` admin CRUD; a
-  slow-tick renders per-monitor 7-day uptime and emails recipients via
-  the SMTP path. A `#/reports` admin view manages them (list / create /
-  edit / delete; name + recipients + cadence).
+  blocks the scheduler). A "Result webhook URL" field (with http(s)
+  validation) + an optional HMAC signing-secret field in the monitor
+  wizard write it. When `config.result_webhook_secret` is set each POST
+  carries `X-Rampart-Signature: sha256=<hmac>` over `<ts>.<body>` plus
+  `X-Rampart-Timestamp` (replay-resistant); see
+  [`docs/RESULT-WEBHOOKS.md`](docs/RESULT-WEBHOOKS.md) for the receiver
+  guide + verification snippets. Each send (success/failure) is recorded
+  in the delivery log.
+- **Retry a failed delivery** — `POST /v1/delivery-log/{id}/retry`
+  (admin) re-sends a logged delivery through its original channel,
+  recording a fresh attempt; `409` when the channel was since deleted. A
+  "Retry" button on failed delivery-log rows.
+- **Scheduled uptime reports** (migration `0062`) — `scheduled_reports`
+  table + `/v1/scheduled-reports` admin CRUD; a slow-tick renders
+  per-monitor uptime and emails recipients via the SMTP path. Cadence is
+  **daily / weekly / monthly** (lookback window matches), plus
+  `POST /{id}/send` to send one out of band. A `#/reports` admin view
+  manages them (list / create / edit / delete; name + recipients +
+  cadence + send-now).
 - **Digest-buffer restart test** — proves coalesced alerts persisted in
   `digest_buffer` (v0.4.0) are recovered + flushed after a restart.
 
 #### API
 
-- **Per-API-key rate limit + `X-RateLimit-*` headers** — a courtesy
-  in-process rolling-hour budget (1000/hr) keyed by API key, enforced by
-  a tower middleware layered inner to `require_session`. Over budget →
-  `429` + `Retry-After`; under it → `X-RateLimit-Limit` / `-Remaining` /
-  `-Reset` on the response. Cookie/session requests are unlimited and get
-  no headers.
+- **Per-API-key rate limit + `X-RateLimit-*` headers** — a per-key
+  hourly budget (default 1000/hr, configurable per key via
+  `rate_limit_per_hour`, migration `0067`) enforced by a tower middleware
+  layered inner to `require_session`. Over budget → `429` + `Retry-After`;
+  under it → `X-RateLimit-Limit` / `-Remaining` / `-Reset`. Cookie/session
+  requests are unlimited and get no headers. The counter is **durable
+  across restart** (migration `0068`, `api_key_rate_usage` fixed-window
+  table updated with a race-safe `INSERT … ON CONFLICT` per request);
+  fail-open on a DB error.
 
 #### Status pages
 
@@ -78,9 +97,47 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 - **Bulk enable/disable by tag** — `POST /v1/monitors/bulk-by-tag
   {tag_id, action}` pauses/resumes every monitor carrying a tag; a
   tag-filter action on the dashboard.
+- **Bulk-edit** — `POST /v1/monitors/bulk-edit {ids, patch:{interval_secs,
+  timeout_secs, enabled, group_id, tags}}` applies a patch to up to 500
+  monitors in one transaction (`tags` replaces the set, `group_id:null`
+  clears the folder), returning `{updated, skipped}`. `?dry_run=true`
+  returns a per-monitor field-level diff without mutating; a real edit
+  returns a ready-to-replay `undo` payload. Dashboard multi-select bar
+  with Preview + Undo.
+- **Drag monitors between folders** — drag a monitor row onto a folder
+  header (or Ungrouped) on the dashboard to reassign its folder via
+  `PATCH group_id`; the existing folder UI + keyboard paths stay.
+- **Monitor templates** (migration `0069`) — `monitor_templates`
+  (named whole-monitor `spec` JSONB) + `/v1/monitor-templates` CRUD +
+  `POST /{id}/instantiate` (optional name override) to spin up a new
+  monitor. A `#/templates` library + a "Save as template" action on the
+  monitor detail.
+- **Hourly rollups + long-range uptime** (migration `0066`) — retention
+  now **tiers** instead of flat-deleting: heartbeats older than the raw
+  tier are downsampled into `heartbeat_rollups` (hourly up/down/other +
+  avg latency, idempotent UPSERT) then the raw rows are dropped; rollups
+  are kept ~1y. `GET /{id}/rollups` exposes the buckets and
+  `GET /{id}/uptime-history?range=30d|90d|1y` returns a daily uptime
+  series stitched from raw + rollups (works past the raw horizon). A
+  monitor-detail uptime-history chart with a range selector.
 - **Dependency-graph view** — a read-only `#/dependencies` page
   rendering the monitor dependency edges as a hand-rolled SVG graph
   (status-coloured nodes, click to open a monitor). No new backend.
+
+#### Audit
+
+- **Delivery-log CSV export** — `GET /v1/delivery-log/export.csv`
+  (admin) streams the delivery log (sent_at, channel, event, monitor,
+  ok, error); an "Export CSV" button on the view.
+
+### Security
+
+- **Custom-CSS sanitizer reassembly bypass** — `sanitizeCustomCss`
+  stripped `</style`/`<script` in a single pass, so an interleaved
+  payload like `<scr<scriptipt>` rejoined into a surviving `<script`
+  after one removal. Now strips to a fixpoint (loop until stable),
+  closing the `<style>`-breakout vector. Resolves CodeQL
+  `js/incomplete-multi-character-sanitization`.
 
 #### Tests + docs
 
@@ -94,20 +151,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 #### Internationalization
 
-- **ja / zh batch-13 coverage** — best-effort Japanese + Simplified-
-  Chinese translations for the 76 new keys (scheduled reports, delivery
-  log, status-page sections, wizard presets + result-webhook) that
-  previously fell back to English through the `...en` spread. Both stay
+- **ja / zh coverage** — best-effort Japanese + Simplified-Chinese
+  translations for every new surface (scheduled reports, delivery log,
+  sections, presets, result-webhook + secret, bulk-edit preview/undo,
+  uptime history, monitor templates, CSV export, folder drag) that would
+  otherwise fall back to English through the `...en` spread. Both stay
   MACHINE-DRAFT pending native-speaker review.
 
 ### Notes
 
-- Migrations `0060`/`0062`/`0063`/`0064`/`0065`, all additive. The
-  earlier backend features co-extend rampart-core's id + re-export
-  registry, so they landed in one commit (`aa97821`); the delivery log,
-  rate-limit headers, frontend surfaces, and ja/zh translations landed
-  as four further per-concern commits. The OpenAPI drift guard caught +
-  got every new route documented.
+- Migrations `0060`/`0062`–`0069`, all additive. Backend features landed
+  as per-concern commits; the OpenAPI drift guard caught and got every
+  new route documented. The retention prune loop now downsamples to
+  `heartbeat_rollups` before deleting — long history survives at hourly
+  granularity past the raw tier.
 
 ---
 
@@ -472,5 +529,9 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 
 ---
 
-[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.5.0...HEAD
+[0.5.0]:      https://github.com/pen-pal/rampart/releases/tag/v0.5.0
+[0.4.0]:      https://github.com/pen-pal/rampart/releases/tag/v0.4.0
+[0.3.0]:      https://github.com/pen-pal/rampart/releases/tag/v0.3.0
+[0.2.0]:      https://github.com/pen-pal/rampart/releases/tag/v0.2.0
 [0.1.0]:      https://github.com/pen-pal/rampart/releases/tag/v0.1.0
