@@ -137,6 +137,7 @@ export default function ApiKeys() {
                 </div>
                 <div className="mono" style={{ fontSize: 11.5, color: 'var(--text-3)', marginBottom: 4 }}>
                   {k.key_prefix}… · {t('apikeys.created', { when: formatRelative(tsToDate(k.created_at)) })}
+                  {k.rate_limit_per_hour != null && ` · ${t('apikeys.rate_limit_value', { n: k.rate_limit_per_hour })}`}
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-3)' }}>
                   {k.last_used_at
@@ -193,18 +194,27 @@ function CreateModal({ onCancel, onCreated }) {
   const [name,  setName]  = useState('');
   const [scope, setScope] = useState('read');
   const [exp,   setExp]   = useState('');
+  const [rateLimit, setRateLimit] = useState('1000');
   const [busy,  setBusy]  = useState(false);
   const [err,   setErr]   = useState(null);
 
   const submit = async () => {
     setErr(null);
     if (!name.trim()) { setErr(t('apikeys.err_name')); return; }
+    // Optional rate limit: blank → server default; otherwise a positive int.
+    const rl = rateLimit.trim();
+    let rlNum = null;
+    if (rl !== '') {
+      rlNum = parseInt(rl, 10);
+      if (!Number.isFinite(rlNum) || rlNum < 1) { setErr(t('apikeys.err_rate_limit')); return; }
+    }
     setBusy(true);
     try {
       const issued = await api.apiKeys.create(
         name.trim(),
         scope,
         exp ? new Date(exp).toISOString() : null,
+        rlNum,
       );
       onCreated(issued);
     } catch (e) {
@@ -238,10 +248,16 @@ function CreateModal({ onCancel, onCreated }) {
           <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>{t(`apikeys.scope_hint_${scope}`)}</div>
         </div>
 
-        <div style={{ marginBottom: 18 }}>
+        <div style={{ marginBottom: 14 }}>
           <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-2)', display: 'block', marginBottom: 6 }}>{t('apikeys.expires_optional')}</label>
           <input type="datetime-local" className="input" value={exp} onChange={e => setExp(e.target.value)}/>
           <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>{t('apikeys.expires_hint')}</div>
+        </div>
+
+        <div style={{ marginBottom: 18 }}>
+          <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-2)', display: 'block', marginBottom: 6 }}>{t('apikeys.rate_limit')}</label>
+          <input type="number" min="1" className="input" value={rateLimit} onChange={e => setRateLimit(e.target.value)} placeholder="1000"/>
+          <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>{t('apikeys.rate_limit_hint')}</div>
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>

@@ -573,6 +573,30 @@ const ja = {
   'wizard.preset.monitor_empty':     'テンプレートを保存する前に、HTTP 設定を入力してください。',
   'wizard.field.result_webhook':      '結果 Webhook URL',
   'wizard.field.result_webhook_hint': '各プローブ結果（ステータス + レイテンシ）をこの URL に POST します。空欄にすると無効になります。モニター設定に保存されます。',
+
+  // ── batch-14 ─────────────────────────────────────────────────────
+  'wizard.field.result_webhook_invalid':     '有効な http(s) URL を入力するか、無効にするには空欄にしてください。',
+  'wizard.field.result_webhook_secret':      '署名シークレット（HMAC-SHA256）',
+  'wizard.field.result_webhook_secret_hint': '設定すると、各 POST は <タイムスタンプ>.<本文> に対して X-Rampart-Signature: sha256=… で署名されます。URL が設定されている場合のみ有効です。',
+  'dashboard.bulk.enabled_label':    '状態',
+  'dashboard.bulk.group_label':      'フォルダ',
+  'dashboard.bulk.leave_alone':      '変更しない',
+  'dashboard.bulk.set_enabled':      '有効化',
+  'dashboard.bulk.set_paused':       '一時停止',
+  'dashboard.bulk.set_tags_label':   'タグを置き換え',
+  'reports.cadence.daily':           '毎日',
+  'reports.cadence.monthly':         '毎月',
+  'reports.send_now':                '今すぐ送信',
+  'reports.sending':                 '送信中…',
+  'reports.sent':                    '送信済み',
+  'delivery.retry_send':             '再試行',
+  'delivery.retrying':               '再試行中…',
+  'delivery.retry_sent':             '再送信済み',
+  'delivery.retry_gone':             'チャンネルは存在しません',
+  'delivery.retry_failed':           '再試行に失敗しました',
+  'apikeys.rate_limit':              'レート制限（リクエスト/時）',
+  'apikeys.rate_limit_value':        '{n}/時',
+  'statuspage.sections.drag_hint':   'ドラッグして並べ替え、または矢印を使用します。',
 };
 
 export default ja;

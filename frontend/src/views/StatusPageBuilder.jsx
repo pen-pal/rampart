@@ -530,6 +530,12 @@ function SectionsManager({ pageId, monitors, attached, writable }) {
   const [assignOverride, setAssignOverride] = useState({});
   const [editing, setEditing] = useState(null);   // section id being renamed
   const [editName, setEditName] = useState('');
+  // HTML5 drag-and-drop reorder: index of the row currently being dragged,
+  // and the index it's hovering over (for a drop-target highlight). Null when
+  // no drag is in progress. This is additive to the up/down arrow buttons,
+  // which remain for keyboard/accessibility.
+  const [dragIndex, setDragIndex] = useState(null);
+  const [overIndex, setOverIndex] = useState(null);
   // Optimistic reorder buffer: when the operator moves a section we render
   // this immediately, then persist + refetch. `null` means "use the fetched
   // order". We key it to the fetched ids so a refetch that changes the set
@@ -621,6 +627,34 @@ function SectionsManager({ pageId, monitors, attached, writable }) {
     } finally { setBusy(null); }
   };
 
+  // Drop-based reorder: pull the dragged row out of `from` and splice it in
+  // at `to`, then persist the full new order (one PATCH per section whose
+  // position changed) and refetch. Mirrors `move`'s optimistic-then-persist
+  // approach but handles an arbitrary distance, not just an adjacent swap.
+  const reorderTo = async (from, to) => {
+    if (from == null || to == null || from === to) return;
+    if (from < 0 || from >= sections.length || to < 0 || to >= sections.length) return;
+    const reordered = sections.slice();
+    const [moved] = reordered.splice(from, 1);
+    reordered.splice(to, 0, moved);
+    setOrderOverride(reordered);
+    setErr(null);
+    setBusy('reorder');
+    try {
+      // Renumber positions densely so the new visual order persists. Only
+      // PATCH the sections whose stored position actually changed.
+      await Promise.all(reordered.map((sec, idx) =>
+        (sec.position === idx
+          ? null
+          : api.statusPages.updateSection(pageId, sec.id, { position: idx }))
+      ).filter(Boolean));
+      setSecBump(n => n + 1);
+    } catch (e) {
+      setOrderOverride(null);
+      setErr(e.message || t('statuspage.sections.err_reorder'));
+    } finally { setBusy(null); }
+  };
+
   const assign = async (monitorId, sectionId) => {
     setAssignOverride(prev => ({ ...prev, [monitorId]: sectionId }));
     setErr(null);
@@ -657,7 +691,20 @@ function SectionsManager({ pageId, monitors, attached, writable }) {
           {t('statuspage.sections.empty')}
         </div>
       ) : sections.map((sec, i) => (
-        <div key={sec.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+        <div key={sec.id}
+          draggable={writable && editing == null && busy == null}
+          onDragStart={writable ? (e) => { setDragIndex(i); e.dataTransfer.effectAllowed = 'move'; } : undefined}
+          onDragOver={writable ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (overIndex !== i) setOverIndex(i); } : undefined}
+          onDrop={writable ? (e) => { e.preventDefault(); reorderTo(dragIndex, i); setDragIndex(null); setOverIndex(null); } : undefined}
+          onDragEnd={writable ? () => { setDragIndex(null); setOverIndex(null); } : undefined}
+          title={writable ? t('statuspage.sections.drag_hint') : undefined}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0',
+            borderBottom: '1px solid var(--border)',
+            cursor: (writable && editing == null) ? 'grab' : 'default',
+            opacity: dragIndex === i ? 0.4 : 1,
+            borderTop: (overIndex === i && dragIndex != null && dragIndex !== i) ? '2px solid var(--accent)' : '2px solid transparent',
+          }}>
           {editing === sec.id ? (
             <>
               <input className="input" autoFocus value={editName} onChange={e => setEditName(e.target.value)}

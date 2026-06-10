@@ -199,7 +199,7 @@ export default function App() {
     case 'notifications': view = <Notifications user={user} />; break;
     case 'maintenance':   view = <Maintenance user={user} />; break;
     case 'dependencies':  view = <DependencyGraph />; break;
-    case 'api-keys':      view = <ApiKeys />; break;
+    case 'api-keys':      view = <ApiKeys user={user} />; break;
     case 'proxies':       view = <Proxies />; break;
     case 'security':      view = <Security />; break;
     case 'users':         view = <Users />; break;
@@ -208,8 +208,8 @@ export default function App() {
     case 'folders':            view = <Folders />; break;
     case 'tags':               view = <Tags />; break;
     case 'audit':         view = <AuditLog />; break;
-    case 'reports':       view = <ScheduledReports />; break;
-    case 'delivery-log':  view = <DeliveryLog />; break;
+    case 'reports':       view = <ScheduledReports user={user} />; break;
+    case 'delivery-log':  view = <DeliveryLog user={user} />; break;
     case 'public-status': view = <StatusPageView slug={route.id} />; break;
     case 'manage-subscription': view = <ManageSubscription token={route.id} />; break;
     case 'dashboard':
