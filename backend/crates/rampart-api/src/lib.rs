@@ -150,10 +150,20 @@ pub fn build_router(state: AppState) -> Router {
                 .allow_origin(Any),
         );
 
-    let protected_v1 = routes::v1_protected().route_layer(axum::middleware::from_fn_with_state(
-        state.clone(),
-        auth::require_session,
-    ));
+    let protected_v1 = routes::v1_protected()
+        // Per-key rate limit + `X-RateLimit-*` headers. Layered INNER to
+        // `require_session` (route_layers apply last-outermost, so the
+        // require_session layer below — applied last — wraps this one):
+        // the request hits `require_session` first, which stamps the
+        // `AuthApiKeyId` extension on the api-key path, and only then this
+        // layer runs and can read it. Session/cookie requests never carry
+        // the extension, so this layer passes them through untouched
+        // (unlimited, no headers).
+        .route_layer(axum::middleware::from_fn(enforce_api_key_rate_limit))
+        .route_layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            auth::require_session,
+        ));
 
     // HTTP request metrics middleware. Layered AFTER the router so the
     // counter sees the final response status (route-not-found → 404 is
@@ -186,4 +196,135 @@ pub fn build_router(state: AppState) -> Router {
 pub fn test_router(pool: DbPool) -> Router {
     let state = AppState::new(pool, Arc::new(Notify::new()));
     build_router(state)
+}
+
+// ─── Per-API-key rate limiting (item 11) ─────────────────────────────────
+//
+// A simple in-process rolling-hour counter, keyed by API key id, with a
+// fixed default budget. Cookie/session requests are unlimited and get no
+// headers — only requests carrying an `AuthApiKeyId` extension (set by
+// `auth::require_session` on the bearer path) are counted. The window is
+// process-local and resets on restart: this is a courtesy throttle and an
+// informational header set, not a durable cross-node quota.
+
+use axum::extract::Request;
+use axum::http::StatusCode;
+use axum::middleware::Next;
+use axum::response::{IntoResponse, Response};
+use rampart_core::ApiKeyId;
+use std::collections::{HashMap, VecDeque};
+use std::sync::{Mutex, OnceLock};
+use std::time::Instant;
+
+/// Default per-key budget: requests allowed per rolling hour.
+const API_KEY_RATE_LIMIT: u32 = 1000;
+/// Length of the rolling window.
+const API_KEY_RATE_WINDOW: Duration = Duration::from_secs(3600);
+
+/// Rolling per-key request timestamps inside the trailing hour. In-memory
+/// only. Keyed by API key id; each entry is the deque of request instants
+/// still inside the window.
+static KEY_RATE_WINDOW: OnceLock<Mutex<HashMap<ApiKeyId, VecDeque<Instant>>>> = OnceLock::new();
+
+fn key_rate_window() -> &'static Mutex<HashMap<ApiKeyId, VecDeque<Instant>>> {
+    KEY_RATE_WINDOW.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Outcome of admitting one request for a key.
+struct RateDecision {
+    /// Whether the request is under the limit (false → 429).
+    allowed: bool,
+    /// Requests remaining in the current window after this one. 0 when
+    /// blocked.
+    remaining: u32,
+    /// Seconds until the window frees up at least one slot — the oldest
+    /// in-window request's age subtracted from the window length.
+    reset_secs: u64,
+}
+
+/// Admit (or reject) one request for `key`. Prunes entries older than the
+/// window, then either records the request (allowed) or, if the window is
+/// already full, leaves it untouched and reports the wait. Mirrors the
+/// notifier's per-channel limiter shape.
+fn admit_key(key: ApiKeyId) -> RateDecision {
+    let now = Instant::now();
+    let mut map = key_rate_window().lock().expect("key rate window poisoned");
+    let dq = map.entry(key).or_default();
+    while dq
+        .front()
+        .is_some_and(|t| now.duration_since(*t) >= API_KEY_RATE_WINDOW)
+    {
+        dq.pop_front();
+    }
+    let limit = API_KEY_RATE_LIMIT as usize;
+    if dq.len() >= limit {
+        // Full: reset is when the oldest request ages out of the window.
+        let reset_secs = dq
+            .front()
+            .map(|t| API_KEY_RATE_WINDOW.saturating_sub(now.duration_since(*t)))
+            .unwrap_or(API_KEY_RATE_WINDOW)
+            .as_secs();
+        return RateDecision {
+            allowed: false,
+            remaining: 0,
+            reset_secs,
+        };
+    }
+    dq.push_back(now);
+    // Reset is measured from the oldest in-window request — that's when the
+    // window starts freeing slots again.
+    let reset_secs = dq
+        .front()
+        .map(|t| API_KEY_RATE_WINDOW.saturating_sub(now.duration_since(*t)))
+        .unwrap_or(API_KEY_RATE_WINDOW)
+        .as_secs();
+    RateDecision {
+        allowed: true,
+        remaining: (limit - dq.len()) as u32,
+        reset_secs,
+    }
+}
+
+/// Middleware: enforce + advertise the per-key rate limit.
+///
+/// - No `AuthApiKeyId` extension → cookie/session request → pass through
+///   unchanged, no headers (session requests are unlimited).
+/// - Over the limit → 429 with `Retry-After` + the `X-RateLimit-*` set.
+/// - Otherwise → run the request and attach `X-RateLimit-Limit`,
+///   `-Remaining`, `-Reset` to the response.
+pub async fn enforce_api_key_rate_limit(req: Request, next: Next) -> Response {
+    let Some(key_id) = req.extensions().get::<auth::AuthApiKeyId>().map(|k| k.0) else {
+        // Not an api-key request — unlimited, no headers.
+        return next.run(req).await;
+    };
+
+    let decision = admit_key(key_id);
+    if !decision.allowed {
+        let mut resp = (
+            StatusCode::TOO_MANY_REQUESTS,
+            "rate limit exceeded — slow down",
+        )
+            .into_response();
+        let h = resp.headers_mut();
+        h.insert("retry-after", num_header(decision.reset_secs));
+        set_rate_headers(h, decision.remaining, decision.reset_secs);
+        return resp;
+    }
+
+    let mut resp = next.run(req).await;
+    set_rate_headers(resp.headers_mut(), decision.remaining, decision.reset_secs);
+    resp
+}
+
+/// Attach the three `X-RateLimit-*` advisory headers.
+fn set_rate_headers(h: &mut axum::http::HeaderMap, remaining: u32, reset_secs: u64) {
+    h.insert("x-ratelimit-limit", num_header(API_KEY_RATE_LIMIT as u64));
+    h.insert("x-ratelimit-remaining", num_header(remaining as u64));
+    h.insert("x-ratelimit-reset", num_header(reset_secs));
+}
+
+/// Format a number as a header value. Numeric strings are always valid
+/// header values, so the unwrap can't fire in practice.
+fn num_header(n: u64) -> HeaderValue {
+    HeaderValue::from_str(&n.to_string()).expect("numeric header value is always valid")
 }
