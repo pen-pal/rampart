@@ -96,6 +96,113 @@ pub async fn load_config(pool: &DbPool) -> DbResult<RetentionConfig> {
         .unwrap_or_default())
 }
 
+/// One day's derived uptime, oldest first. `uptime_pct` is `None` when no
+/// samples were recorded that day (caller renders a "no data" gap rather
+/// than a misleading 0%).
+#[derive(Debug, Clone)]
+pub struct DailyUptimePoint {
+    pub day: time::Date,
+    pub up_count: i64,
+    pub sample_count: i64,
+    pub uptime_pct: Option<f64>,
+}
+
+/// Daily uptime% derived from the hourly `heartbeat_rollups`, over the
+/// half-open `[since, until)` range, oldest first. Each day's percentage is
+/// `SUM(up_count) / SUM(sample_count) * 100` across that day's hourly
+/// buckets. Days with no rollup rows are absent from the result — the
+/// caller pivots into a dense series and fills the gaps.
+///
+/// This is the long-range path: rollups are retained ~1y (the `rollup_days`
+/// tier) so this answers uptime questions long after the high-resolution
+/// raw heartbeats have been pruned.
+pub async fn daily_uptime_from_rollups(
+    pool: &DbPool,
+    monitor: Uuid,
+    since: OffsetDateTime,
+    until: OffsetDateTime,
+) -> DbResult<Vec<DailyUptimePoint>> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT
+            (date_trunc('day', bucket_start AT TIME ZONE 'UTC'))::date AS "day!",
+            SUM(up_count)::bigint     AS "up_count!",
+            SUM(sample_count)::bigint AS "sample_count!"
+        FROM heartbeat_rollups
+        WHERE monitor_id = $1
+          AND bucket_start >= $2
+          AND bucket_start <  $3
+        GROUP BY 1
+        ORDER BY 1 ASC
+        "#,
+        monitor,
+        since,
+        until,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|r| DailyUptimePoint {
+            day: r.day,
+            up_count: r.up_count,
+            sample_count: r.sample_count,
+            uptime_pct: if r.sample_count > 0 {
+                Some(r.up_count as f64 / r.sample_count as f64 * 100.0)
+            } else {
+                None
+            },
+        })
+        .collect())
+}
+
+/// Daily uptime% derived from the high-resolution raw `heartbeats`, over the
+/// half-open `[since, until)` range, oldest first. Same per-day shape as
+/// [`daily_uptime_from_rollups`] so the two can be stitched into one series:
+/// raw covers the recent within-retention portion, rollups cover everything
+/// older. `up_count` counts `status = 'up'`; everything else is non-up.
+pub async fn daily_uptime_from_raw(
+    pool: &DbPool,
+    monitor: Uuid,
+    since: OffsetDateTime,
+    until: OffsetDateTime,
+) -> DbResult<Vec<DailyUptimePoint>> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT
+            (date_trunc('day', ts AT TIME ZONE 'UTC'))::date AS "day!",
+            COUNT(*) FILTER (WHERE status = 'up')::bigint    AS "up_count!",
+            COUNT(*)::bigint                                 AS "sample_count!"
+        FROM heartbeats
+        WHERE monitor_id = $1
+          AND ts >= $2
+          AND ts <  $3
+        GROUP BY 1
+        ORDER BY 1 ASC
+        "#,
+        monitor,
+        since,
+        until,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|r| DailyUptimePoint {
+            day: r.day,
+            up_count: r.up_count,
+            sample_count: r.sample_count,
+            uptime_pct: if r.sample_count > 0 {
+                Some(r.up_count as f64 / r.sample_count as f64 * 100.0)
+            } else {
+                None
+            },
+        })
+        .collect())
+}
+
 /// Fetch hourly rollups for a monitor over `[since, until)`, oldest first.
 pub async fn rollups_for_monitor(
     pool: &DbPool,
@@ -405,6 +512,61 @@ mod tests {
         .unwrap()
         .unwrap_or(0);
         assert_eq!(left, 1, "the 50-day-old bucket survives");
+    }
+
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn daily_uptime_from_rollups_aggregates_per_day(pool: PgPool) {
+        let m = crate::monitors::create(&pool, http_monitor("uphist"))
+            .await
+            .unwrap();
+
+        // Seed three hourly buckets on day -100 (well past raw retention) and
+        // two on day -101, so the daily aggregation must sum across buckets.
+        // Day -100: 9 up / 10 samples → 90%. Day -101: 1 up / 4 → 25%.
+        let day100 = OffsetDateTime::now_utc() - time::Duration::days(100);
+        let day101 = OffsetDateTime::now_utc() - time::Duration::days(101);
+        let seed = |ts: OffsetDateTime, up: i32, samples: i32| {
+            let pool = pool.clone();
+            let mid = m.id.0;
+            async move {
+                sqlx::query!(
+                    r#"INSERT INTO heartbeat_rollups
+                       (monitor_id, bucket_start, up_count, down_count,
+                        other_count, sample_count, avg_latency_ms)
+                       VALUES ($1, date_trunc('hour', $2::timestamptz),
+                               $3, $4, 0, $5, 10.0)"#,
+                    mid,
+                    ts,
+                    up,
+                    samples - up,
+                    samples,
+                )
+                .execute(&pool)
+                .await
+                .unwrap();
+            }
+        };
+        // Distinct hours within day -100 so each is its own bucket.
+        seed(day100, 4, 4).await;
+        seed(day100 + time::Duration::hours(1), 3, 3).await;
+        seed(day100 + time::Duration::hours(2), 2, 3).await;
+        // Distinct hours within day -101.
+        seed(day101, 1, 2).await;
+        seed(day101 + time::Duration::hours(1), 0, 2).await;
+
+        let since = OffsetDateTime::now_utc() - time::Duration::days(365);
+        let until = OffsetDateTime::now_utc();
+        let series = daily_uptime_from_rollups(&pool, m.id.0, since, until)
+            .await
+            .unwrap();
+        assert_eq!(series.len(), 2, "two distinct days");
+        // Oldest first: day -101 then day -100.
+        assert_eq!(series[0].sample_count, 4);
+        assert_eq!(series[0].up_count, 1);
+        assert!((series[0].uptime_pct.unwrap() - 25.0).abs() < 1e-9);
+        assert_eq!(series[1].sample_count, 10);
+        assert_eq!(series[1].up_count, 9);
+        assert!((series[1].uptime_pct.unwrap() - 90.0).abs() < 1e-9);
     }
 
     #[sqlx::test(migrations = "../../migrations")]
