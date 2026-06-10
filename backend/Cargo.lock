@@ -3527,6 +3527,8 @@ version = "0.4.0"
 dependencies = [
  "async-trait",
  "futures",
+ "hex",
+ "hmac 0.12.1",
  "rampart-checker",
  "rampart-core",
  "rampart-db",
@@ -3534,6 +3536,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "time",
  "tokio",
  "tracing",
