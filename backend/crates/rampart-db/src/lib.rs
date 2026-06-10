@@ -8,6 +8,7 @@
 
 pub mod api_keys;
 pub mod audit;
+pub mod delivery_log;
 pub mod digest_buffer;
 pub mod heartbeats;
 pub mod incident_templates;

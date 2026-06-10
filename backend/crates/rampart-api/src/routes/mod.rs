@@ -12,6 +12,7 @@
 pub mod api_keys;
 pub mod audit;
 pub mod auth;
+pub mod delivery_log;
 pub mod health;
 pub mod incident_templates;
 pub mod incidents;
@@ -137,6 +138,8 @@ pub fn v1_protected() -> Router<AppState> {
         .nest("/users", users::admin_router())
         // /v1/audit-log
         .nest("/audit-log", audit::router())
+        // /v1/delivery-log — recent notification delivery attempts (admin)
+        .nest("/delivery-log", delivery_log::router())
         // SMTP + retention settings.
         .merge(subscribers::settings_router())
         // /v1/api-keys — list/create/revoke
