@@ -372,6 +372,59 @@ paths:
                   allowed_downtime_secs: { type: integer, format: int64 }
                   points: { type: array, items: { type: object } }
         '404': { $ref: '#/components/responses/NotFound' }
+  /v1/monitors/{id}/rollups:
+    parameters:
+      - $ref: '#/components/parameters/MonitorId'
+      - { name: from, in: query, required: false, schema: { type: string, format: date-time } }
+      - { name: to, in: query, required: false, schema: { type: string, format: date-time } }
+    get:
+      tags: [Monitors]
+      summary: Hourly heartbeat rollups
+      description: >-
+        Downsampled hourly buckets retained past the raw-heartbeat tier
+        (default last 30 days). Same read RBAC + 404 contract as /heartbeats.
+      responses:
+        '200':
+          description: Hourly rollup rows.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    bucket_start: { type: string, format: date-time }
+                    up_count: { type: integer }
+                    down_count: { type: integer }
+                    other_count: { type: integer }
+                    sample_count: { type: integer }
+                    avg_latency_ms: { type: [number, 'null'], format: double }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/monitors/{id}/uptime-history:
+    parameters:
+      - $ref: '#/components/parameters/MonitorId'
+      - { name: range, in: query, required: false, schema: { type: string, enum: ['30d', '90d', '1y'], default: '30d' } }
+    get:
+      tags: [Monitors]
+      summary: Long-range daily uptime series
+      description: >-
+        Per-day uptime percentage over the range, stitched from raw heartbeats
+        within the raw-retention tier and from hourly rollups beyond it, so the
+        series extends past the raw horizon. Same read RBAC + 404 contract.
+      responses:
+        '200':
+          description: Daily uptime points.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    day: { type: string, format: date }
+                    uptime_pct: { type: number, format: double }
+                    sample_count: { type: integer }
+        '404': { $ref: '#/components/responses/NotFound' }
   /v1/monitors/{id}/test-notifications:
     parameters:
       - $ref: '#/components/parameters/MonitorId'
@@ -1335,6 +1388,18 @@ paths:
         '409':
           description: The original channel no longer exists, so it cannot be retried.
         '403': { $ref: '#/components/responses/Forbidden' }
+  /v1/delivery-log/export.csv:
+    get:
+      tags: [Audit]
+      summary: Export the delivery log as CSV
+      description: Admin only. Columns - sent_at, channel_kind, event_kind, monitor_id, ok, error.
+      responses:
+        '200':
+          description: CSV attachment.
+          content:
+            text/csv:
+              schema: { type: string }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /v1/audit-log:
     get:
       tags: [Audit]
@@ -2143,6 +2208,42 @@ paths:
       summary: Delete a monitor preset
       responses:
         '204': { description: Deleted. }
+  /v1/monitor-templates:
+    get:
+      tags: [Monitors]
+      summary: List monitor templates (reusable whole-monitor specs)
+      responses:
+        '200': { description: Templates. }
+    post:
+      tags: [Monitors]
+      summary: Create a monitor template
+      description: Editor or admin. `spec` is a monitor-creation body stored verbatim.
+      responses:
+        '201': { description: Created. }
+  /v1/monitor-templates/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Monitors]
+      summary: Get a monitor template
+      responses:
+        '200': { description: Template. }
+    delete:
+      tags: [Monitors]
+      summary: Delete a monitor template
+      responses:
+        '204': { description: Deleted. }
+  /v1/monitor-templates/{id}/instantiate:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Monitors]
+      summary: Create a monitor from a template
+      description: >-
+        Editor or admin. Builds a new monitor from the template's stored spec;
+        an optional `name` in the body overrides the spec name.
+      responses:
+        '201': { description: The created monitor. }
   /v1/scheduled-reports:
     get:
       tags: [Notifications]
