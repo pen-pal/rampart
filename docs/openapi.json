@@ -61,6 +61,10 @@
       "description": "External metric ingestion (Prometheus text format), series reads, and threshold alert rules. Editor writes; readonly reads."
     },
     {
+      "name": "Escalations",
+      "description": "Escalation policies (ordered notification ladders) and episode acknowledge. Editor."
+    },
+    {
       "name": "Users",
       "description": "User management + role assignment (admin); self-service password (any role)."
     },
@@ -2804,6 +2808,111 @@
         "responses": {
           "204": {
             "description": "Deleted."
+          }
+        }
+      }
+    },
+    "/v1/escalation-policies": {
+      "get": {
+        "tags": [
+          "Escalations"
+        ],
+        "summary": "List escalation policies",
+        "responses": {
+          "200": {
+            "description": "Policies with step ladders + monitor counts."
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Escalations"
+        ],
+        "summary": "Create an escalation policy",
+        "description": "steps = ordered [{wait_seconds, channel_ids}] (1\u201310 steps, every step needs channels, step 1 must be immediate). A monitor that references a policy routes its Down-flips through the ladder instead of regular channel fan-out; escalation pages bypass digest coalescing and quiet hours. See docs/ESCALATIONS.md.",
+        "responses": {
+          "201": {
+            "description": "Created policy."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/v1/escalation-policies/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "patch": {
+        "tags": [
+          "Escalations"
+        ],
+        "summary": "Update a policy",
+        "responses": {
+          "200": {
+            "description": "Updated policy."
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Escalations"
+        ],
+        "summary": "Delete a policy",
+        "description": "Monitors referencing it fall back to regular channel fan-out.",
+        "responses": {
+          "204": {
+            "description": "Deleted."
+          }
+        }
+      }
+    },
+    "/v1/monitors/{id}/escalation": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/MonitorId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Escalations"
+        ],
+        "summary": "The monitor's open escalation episode",
+        "responses": {
+          "200": {
+            "description": "Episode `{last_step, next_escalation_at, acked_at, \u2026}` or `null`."
+          }
+        }
+      }
+    },
+    "/v1/monitors/{id}/escalation/ack": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/MonitorId"
+        }
+      ],
+      "post": {
+        "tags": [
+          "Escalations"
+        ],
+        "summary": "Acknowledge the open episode",
+        "description": "Stops further ladder steps; records the acking user. Recovery still resolves and notifies.",
+        "responses": {
+          "200": {
+            "description": "Acked episode."
+          },
+          "404": {
+            "description": "Nothing open",
+            "or already acked.": null
           }
         }
       }
