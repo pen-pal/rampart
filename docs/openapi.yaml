@@ -1306,6 +1306,28 @@ paths:
       responses:
         '200': { description: Assigned monitors. }
         '401': { description: Unknown or revoked token. }
+  /v1/agent/metrics:
+    post:
+      tags: [Agents, Metrics]
+      summary: Push host/custom metrics (agent wire protocol)
+      description: >-
+        Bearer-token authed Prometheus text ingest. Every sample gets an
+        `agent="<name>"` label injected server-side before storage, so
+        dashboards and threshold rules can tell hosts apart. The
+        rampart-agent's built-in collector pushes host_cpu_pct,
+        host_mem_used_pct/total/used bytes, host_load1/5/15,
+        host_uptime_seconds, and per-mount host_disk_used_pct /
+        host_disk_total_bytes here every 60s.
+      security: []
+      requestBody:
+        required: true
+        content:
+          text/plain:
+            schema: { type: string, example: "host_cpu_pct 12.5" }
+      responses:
+        '200': { description: '`{ accepted, skipped }`.' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { description: Unknown or revoked token. }
   /v1/agent/heartbeats:
     post:
       tags: [Agents]
