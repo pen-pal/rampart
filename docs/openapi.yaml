@@ -67,6 +67,8 @@ tags:
     description: External metric ingestion (Prometheus text format), series reads, and threshold alert rules. Editor writes; readonly reads.
   - name: Escalations
     description: Escalation policies (ordered notification ladders) and episode acknowledge. Editor.
+  - name: Errors
+    description: Error tracking — projects (DSN), issues, and Sentry-compatible ingest.
   - name: Users
     description: User management + role assignment (admin); self-service password (any role).
   - name: Audit
@@ -1484,6 +1486,112 @@ paths:
       responses:
         '200': { description: Acked episode. }
         '404': { description: Nothing open, or already acked. }
+
+  # ─────────────────────────── Errors ───────────────────────────
+  /v1/error-projects:
+    get:
+      tags: [Errors]
+      summary: List error projects
+      responses:
+        '200': { description: Projects with DSN public key + alert channels. }
+    post:
+      tags: [Errors]
+      summary: Create an error project
+      description: >-
+        Mints a DSN public key. Assemble the SDK DSN as
+        `https://<public_key>@<host>/<id>`. Body: `{name, platform?,
+        alert_channel_ids?}`. See docs/design/ERROR-TRACKING.md.
+      responses:
+        '201': { description: Created project. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /v1/error-projects/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      tags: [Errors]
+      summary: Update a project
+      responses:
+        '200': { description: Updated project. }
+    delete:
+      tags: [Errors]
+      summary: Delete a project
+      description: Removes the project and all its issues + events.
+      responses:
+        '204': { description: Deleted. }
+  /v1/error-projects/{id}/issues:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: status, in: query, required: false, schema: { type: string, enum: [unresolved, resolved, ignored] } }
+    get:
+      tags: [Errors]
+      summary: Issues for a project
+      responses:
+        '200': { description: Issues, newest activity first (optionally filtered by status). }
+  /v1/error-issues/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Errors]
+      summary: Issue detail
+      responses:
+        '200': { description: 'Issue `{title, culprit, level, status, first_seen, last_seen, times_seen}`.' }
+        '404': { description: No such issue. }
+  /v1/error-issues/{id}/events:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Errors]
+      summary: Recent events for an issue
+      responses:
+        '200': { description: Up to 50 events, newest first, with stacktrace + context. }
+  /v1/error-issues/{id}/resolve:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Errors]
+      summary: Resolve an issue
+      responses:
+        '200': { description: Updated issue. }
+  /v1/error-issues/{id}/ignore:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Errors]
+      summary: Ignore an issue
+      responses:
+        '200': { description: Updated issue. }
+  /v1/error-issues/{id}/unresolve:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Errors]
+      summary: Unresolve an issue
+      responses:
+        '200': { description: Updated issue. }
+  /api/{project_id}/envelope:
+    parameters:
+      - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Errors]
+      summary: Sentry-compatible envelope ingest
+      description: >-
+        DSN-keyed (public; via `X-Sentry-Auth` or `?sentry_key=`), not
+        session-authed. Accepts gzip/deflate bodies. Parses the `event` item;
+        other item types are accepted and ignored. Also served at the
+        trailing-slash path `/api/{project_id}/envelope/`.
+      responses:
+        '200': { description: '`{ "id": "<event-id>" }`.' }
+        '404': { description: Unknown project or bad DSN key. }
+  /api/{project_id}/store:
+    parameters:
+      - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Errors]
+      summary: Sentry-compatible legacy store ingest
+      description: Single-event (non-envelope) transport for older SDKs. Same auth + response as envelope. Also at `/api/{project_id}/store/`.
+      responses:
+        '200': { description: '`{ "id": "<event-id>" }`.' }
+        '404': { description: Unknown project or bad DSN key. }
 
   # ─────────────────────────── Users ───────────────────────────
   /v1/users:
