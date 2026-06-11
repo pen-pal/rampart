@@ -2734,6 +2734,7 @@ components:
         - imap
         - ftp
         - pop3
+        - synthetic
 
     ChannelKind:
       type: string
