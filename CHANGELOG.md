@@ -17,6 +17,10 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+---
+
+## [0.6.0] — 2026-06-11
+
 ### Added
 
 - **Metrics: ingest, explore, alert** (migrations `0072`/`0073`) — push
@@ -590,7 +594,8 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 
 ---
 
-[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.6.0...HEAD
+[0.6.0]:      https://github.com/pen-pal/rampart/releases/tag/v0.6.0
 [0.5.0]:      https://github.com/pen-pal/rampart/releases/tag/v0.5.0
 [0.4.0]:      https://github.com/pen-pal/rampart/releases/tag/v0.4.0
 [0.3.0]:      https://github.com/pen-pal/rampart/releases/tag/v0.3.0
