@@ -57,6 +57,10 @@
       "description": "Remote probe agents \u2014 registration (admin), assignment list (editor reads), and the token-authed agent wire protocol."
     },
     {
+      "name": "Metrics",
+      "description": "External metric ingestion (Prometheus text format), series reads, and threshold alert rules. Editor writes; readonly reads."
+    },
+    {
       "name": "Users",
       "description": "User management + role assignment (admin); self-service password (any role)."
     },
@@ -2598,6 +2602,175 @@
           },
           "401": {
             "description": "Unknown or revoked token."
+          }
+        }
+      }
+    },
+    "/v1/metrics/ingest": {
+      "post": {
+        "tags": [
+          "Metrics"
+        ],
+        "summary": "Ingest metric samples (Prometheus text format)",
+        "description": "Pushgateway-style. The raw request body is Prometheus text exposition; samples are server-stamped (client timestamps in the payload are ignored). Returns `{ accepted, skipped }`. Max 10,000 samples per push. Editor sessions or write-scope API keys.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string",
+                "example": "queue_depth{queue=\"emails\"} 42"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`{ accepted, skipped }`."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/v1/metrics/series": {
+      "get": {
+        "tags": [
+          "Metrics"
+        ],
+        "summary": "List known metric series",
+        "description": "Distinct (name, label-set) pairs with freshness + sample counts, newest activity first (max 1000).",
+        "responses": {
+          "200": {
+            "description": "Series."
+          }
+        }
+      }
+    },
+    "/v1/metrics/query": {
+      "get": {
+        "tags": [
+          "Metrics"
+        ],
+        "summary": "Bucketed range query for one series",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "labels",
+            "in": "query",
+            "required": false,
+            "description": "JSON object of the exact label set (series identity, not a matcher). Default {}.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "step_seconds",
+            "in": "query",
+            "required": false,
+            "description": "Bucket width, clamped to [10, 86400]. Default 300.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Epoch-aligned `[{ts, avg, min, max, samples}]` buckets, ascending."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/v1/metrics/rules": {
+      "get": {
+        "tags": [
+          "Metrics"
+        ],
+        "summary": "List threshold alert rules",
+        "responses": {
+          "200": {
+            "description": "Rules",
+            "including live breach_since / firing_at state.": null
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Metrics"
+        ],
+        "summary": "Create a threshold alert rule",
+        "description": "A rule watches one series (metric + exact label set) and fires through its `channel_ids` when the latest sample breaches `op`/`threshold` continuously for `for_seconds` (0 = immediately). A series silent for 15+ minutes resolves rather than firing on stale data.",
+        "responses": {
+          "201": {
+            "description": "Created rule."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/v1/metrics/rules/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "patch": {
+        "tags": [
+          "Metrics"
+        ],
+        "summary": "Update a rule",
+        "description": "Any edit resets in-flight breach/firing state.",
+        "responses": {
+          "200": {
+            "description": "Updated rule."
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Metrics"
+        ],
+        "summary": "Delete a rule",
+        "responses": {
+          "204": {
+            "description": "Deleted."
           }
         }
       }
