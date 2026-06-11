@@ -19,18 +19,81 @@
 
 use crate::error::ApiError;
 use crate::state::AppState;
+use axum::extract::Path;
 use axum::extract::{Query, State};
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use rampart_core::ids::MetricRuleId;
+use rampart_core::metric_rule::{MetricRule, NewMetricRule, UpdateMetricRule};
 use rampart_core::promtext;
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 use time::OffsetDateTime;
+use uuid::Uuid;
+use validator::Validate;
 
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/ingest", post(ingest))
         .route("/series", get(series))
         .route("/query", get(query))
+        .route("/rules", get(list_rules).post(create_rule))
+        .route(
+            "/rules/{id}",
+            axum::routing::patch(update_rule).delete(delete_rule),
+        )
+}
+
+fn parse_rule_id(s: &str) -> Result<MetricRuleId, ApiError> {
+    Uuid::from_str(s)
+        .map(MetricRuleId::from_uuid)
+        .map_err(|_| ApiError::BadRequest("invalid rule id".into()))
+}
+
+async fn list_rules(State(s): State<AppState>) -> Result<Json<Vec<MetricRule>>, ApiError> {
+    Ok(Json(rampart_db::metric_rules::list(s.pool()).await?))
+}
+
+async fn create_rule(
+    State(s): State<AppState>,
+    Json(input): Json<NewMetricRule>,
+) -> Result<(axum::http::StatusCode, Json<MetricRule>), ApiError> {
+    input
+        .validate()
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    if !input.labels.is_object() {
+        return Err(ApiError::BadRequest("labels must be a JSON object".into()));
+    }
+    let rule = rampart_db::metric_rules::create(s.pool(), input).await?;
+    Ok((axum::http::StatusCode::CREATED, Json(rule)))
+}
+
+async fn update_rule(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+    Json(input): Json<UpdateMetricRule>,
+) -> Result<Json<MetricRule>, ApiError> {
+    let rule_id = parse_rule_id(&id)?;
+    input
+        .validate()
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    if let Some(l) = &input.labels {
+        if !l.is_object() {
+            return Err(ApiError::BadRequest("labels must be a JSON object".into()));
+        }
+    }
+    Ok(Json(
+        rampart_db::metric_rules::update(s.pool(), rule_id, input).await?,
+    ))
+}
+
+async fn delete_rule(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<axum::http::StatusCode, ApiError> {
+    let rule_id = parse_rule_id(&id)?;
+    rampart_db::metric_rules::delete(s.pool(), rule_id).await?;
+    Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
 #[derive(Serialize)]

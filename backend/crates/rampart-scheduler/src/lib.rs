@@ -167,6 +167,86 @@ impl Scheduler {
             // Stale-agent watchdog: agent-assigned monitors that stopped
             // reporting get a synthetic Down heartbeat + alert.
             self.check_stale_agents().await;
+            // Metric threshold rules: evaluate against latest samples,
+            // fan out fired/resolved transitions to the rules' channels.
+            self.check_metric_rules().await;
+        }
+    }
+
+    /// Evaluate metric threshold rules and send alerts for transitions.
+    /// State lives on the rule rows (rampart_db::metric_rules), so this
+    /// is restart-safe and never double-pages; this method only owns the
+    /// notification fan-out.
+    async fn check_metric_rules(&self) {
+        let events = match rampart_db::metric_rules::evaluate_tick(&self.pool).await {
+            Ok(ev) => ev,
+            Err(e) => {
+                warn!(error = %e, "metric rule evaluation failed");
+                return;
+            }
+        };
+        for ev in events {
+            let fired = ev.transition == rampart_core::metric_rule::RuleTransition::Fire;
+            let series = if ev
+                .rule
+                .labels
+                .as_object()
+                .map(|o| o.is_empty())
+                .unwrap_or(true)
+            {
+                ev.rule.metric.clone()
+            } else {
+                format!("{}{}", ev.rule.metric, ev.rule.labels)
+            };
+            let msg = match (fired, ev.value) {
+                (true, Some(v)) => format!(
+                    "{series} = {v} {} {} (sustained {}s)",
+                    ev.rule.op.symbol(),
+                    ev.rule.threshold,
+                    ev.rule.for_seconds
+                ),
+                (true, None) => format!("{series} breached {}", ev.rule.threshold),
+                (false, Some(v)) => format!(
+                    "{series} back within threshold: {v} (limit {} {})",
+                    ev.rule.op.symbol(),
+                    ev.rule.threshold
+                ),
+                (false, None) => format!("{series} stopped reporting; rule resolved"),
+            };
+            info!(rule = %ev.rule.name, fired, %msg, "metric rule transition");
+
+            let event = rampart_notifier::Event {
+                kind: if fired {
+                    rampart_notifier::EventKind::MetricRuleFired
+                } else {
+                    rampart_notifier::EventKind::MetricRuleResolved
+                },
+                monitor: metric_rule_monitor(&ev.rule),
+                heartbeat: Heartbeat {
+                    monitor_id: rampart_core::MonitorId::new(),
+                    ts: time::OffsetDateTime::now_utc(),
+                    status: if fired {
+                        MonitorStatus::Down
+                    } else {
+                        MonitorStatus::Up
+                    },
+                    latency_ms: None,
+                    status_code: None,
+                    msg: Some(msg),
+                    retries: 0,
+                    important: true,
+                },
+                prev_status: None,
+                slo_current_pct: None,
+            };
+            for ch in &ev.rule.channel_ids {
+                if let Err(e) =
+                    rampart_notifier::service::send_event_to_channel(&self.pool, *ch, &event).await
+                {
+                    warn!(rule = %ev.rule.name, channel = %ch.0, error = %e,
+                          "metric rule channel send failed (channel deleted?)");
+                }
+            }
         }
     }
 
@@ -1169,6 +1249,50 @@ async fn push_heartbeat(monitor: &Monitor, pool: &DbPool) -> Option<Heartbeat> {
         retries: 0,
         important: false,
     })
+}
+
+/// Synthetic monitor standing in for a metric rule in notifier events —
+/// gives the template renderer well-formed fields ({{ monitor.name }} is
+/// the rule name). Never persisted.
+fn metric_rule_monitor(rule: &rampart_core::MetricRule) -> Monitor {
+    let now = time::OffsetDateTime::now_utc();
+    Monitor {
+        id: rampart_core::MonitorId::new(),
+        name: rule.name.clone(),
+        kind: MonitorKind::Http,
+        url: None,
+        hostname: None,
+        port: None,
+        config: serde_json::Value::Null,
+        interval_seconds: 60,
+        retry_interval_sec: 60,
+        max_retries: 0,
+        timeout_seconds: 10,
+        resend_interval_sec: 0,
+        upside_down: false,
+        http_method: "GET".into(),
+        http_body: None,
+        http_headers: None,
+        accepted_statuses: vec![200],
+        follow_redirect: true,
+        ignore_tls: false,
+        proxy_id: None,
+        push_token: None,
+        last_push_at: None,
+        last_run_started_at: None,
+        active: true,
+        current_status: MonitorStatus::Up,
+        created_at: now,
+        updated_at: now,
+        tags: Vec::new(),
+        cert_days_left: None,
+        cert_subject: None,
+        cert_checked_at: None,
+        group_id: None,
+        slo_target_pct: None,
+        slo_window_days: None,
+        agent_id: None,
+    }
 }
 
 /// A scheduler-synthesized Down heartbeat for a broken cron expectation.

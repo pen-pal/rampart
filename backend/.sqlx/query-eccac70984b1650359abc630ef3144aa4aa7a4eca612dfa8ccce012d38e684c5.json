@@ -1,0 +1,158 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, name, metric, labels AS \"labels!\", op, threshold, for_seconds,\n               enabled, channel_ids AS \"channel_ids!\", breach_since, firing_at, created_at\n        FROM metric_rules\n        ORDER BY created_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "metric_rules",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "metric_rules",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "metric",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "metric_rules",
+            "name": "metric"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "labels!",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "metric_rules",
+            "name": "labels"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "op",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "metric_rules",
+            "name": "op"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "threshold",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "metric_rules",
+            "name": "threshold"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "for_seconds",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "metric_rules",
+            "name": "for_seconds"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "enabled",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "metric_rules",
+            "name": "enabled"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "channel_ids!",
+        "type_info": "UuidArray",
+        "origin": {
+          "Table": {
+            "table": "metric_rules",
+            "name": "channel_ids"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "breach_since",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "metric_rules",
+            "name": "breach_since"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "firing_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "metric_rules",
+            "name": "firing_at"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "metric_rules",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "eccac70984b1650359abc630ef3144aa4aa7a4eca612dfa8ccce012d38e684c5"
+}
