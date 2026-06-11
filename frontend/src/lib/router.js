@@ -27,6 +27,7 @@ export function parseRoute(hash) {
   if (h === '#/dependencies')       return { view: 'dependencies',  id: null };
   if (h === '#/api-keys')           return { view: 'api-keys',      id: null };
   if (h === '#/proxies')            return { view: 'proxies',       id: null };
+  if (h === '#/agents')             return { view: 'agents',        id: null };
   if (h === '#/security')           return { view: 'security',      id: null };
   if (h === '#/users')              return { view: 'users',         id: null };
   if (h === '#/folders')            return { view: 'folders',            id: null };

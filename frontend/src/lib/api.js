@@ -252,6 +252,17 @@ export const api = {
     remove:    (id)                => request(`/v1/proxies/${id}`, { method: 'DELETE' }),
     setActive: (id, active)        => request(`/v1/proxies/${id}/active`, { method: 'POST', body: { active } }),
   },
+  // ─── remote probe agents ─────────────────────────────────────────────────
+  // Self-hosted probe runners in other networks/regions. `create` returns
+  // { agent, token } — the bearer token is shown exactly once. PATCH with
+  // location "" clears it; DELETE makes the agent's monitors fall back to
+  // local probing.
+  agents: {
+    list:   ()          => request('/v1/agents'),
+    create: (input)     => request('/v1/agents', { method: 'POST', body: input }),
+    update: (id, patch) => request(`/v1/agents/${id}`, { method: 'PATCH', body: patch }),
+    remove: (id)        => request(`/v1/agents/${id}`, { method: 'DELETE' }),
+  },
   apiKeys: {
     list:   ()                  => request('/v1/api-keys'),
     // `rateLimit` is the optional per-hour request budget (integer, default

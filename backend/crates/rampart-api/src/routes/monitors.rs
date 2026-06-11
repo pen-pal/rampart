@@ -69,6 +69,16 @@ async fn create(
     Json(input): Json<NewMonitor>,
 ) -> Result<(StatusCode, Json<Monitor>), ApiError> {
     input.validate()?;
+    if let Some(aid) = input.agent_id {
+        if input.kind == rampart_core::MonitorKind::Push {
+            return Err(ApiError::BadRequest(
+                "push monitors are inbound-only and cannot be assigned to an agent".into(),
+            ));
+        }
+        rampart_db::agents::get(state.pool(), aid)
+            .await
+            .map_err(|_| ApiError::BadRequest("unknown agent".into()))?;
+    }
     let monitor = rampart_db::monitors::create(state.pool(), input).await?;
     state.poke_scheduler();
     crate::audit::record(
@@ -194,6 +204,17 @@ async fn update(
 ) -> Result<Json<Monitor>, ApiError> {
     let monitor_id = parse_monitor_id(&id)?;
     input.validate()?;
+    if let Some(Some(aid)) = input.agent_id {
+        let existing = rampart_db::monitors::get(state.pool(), monitor_id).await?;
+        if existing.kind == rampart_core::MonitorKind::Push {
+            return Err(ApiError::BadRequest(
+                "push monitors are inbound-only and cannot be assigned to an agent".into(),
+            ));
+        }
+        rampart_db::agents::get(state.pool(), aid)
+            .await
+            .map_err(|_| ApiError::BadRequest("unknown agent".into()))?;
+    }
     let monitor = rampart_db::monitors::update(state.pool(), monitor_id, input).await?;
     // Interval / url / proxy_id changes need the running probe task to
     // pick up the new config — poke triggers a reload diff.
@@ -966,6 +987,7 @@ async fn clone_one(
         group_id,
         slo_target_pct: src.slo_target_pct,
         slo_window_days: src.slo_window_days,
+        agent_id: src.agent_id,
     };
     let cloned = rampart_db::monitors::create(state.pool(), copy).await?;
     state.poke_scheduler();
@@ -1095,6 +1117,7 @@ async fn test_notifications(
         follow_redirect: true,
         ignore_tls: false,
         proxy_id: None,
+        agent_id: None,
         push_token: None,
         last_push_at: None,
         active: true,

@@ -61,6 +61,8 @@ tags:
     description: Personal bearer keys. Admin only.
   - name: Proxies
     description: Outbound HTTP/SOCKS proxies for probes. Admin only.
+  - name: Agents
+    description: Remote probe agents — registration (admin), assignment list (editor reads), and the token-authed agent wire protocol.
   - name: Users
     description: User management + role assignment (admin); self-service password (any role).
   - name: Audit
@@ -1241,6 +1243,98 @@ paths:
                 active: { type: boolean }
       responses:
         '200': { description: Updated. }
+
+  # ─────────────────────────── Agents ──────────────────────────
+  /v1/agents:
+    get:
+      tags: [Agents]
+      summary: List remote probe agents
+      description: >-
+        Editor+. Names, locations, self-reported versions, liveness
+        (`online` = polled within the last 90s) and assigned-monitor
+        counts. Token material never appears on reads.
+      responses:
+        '200': { description: Agents. }
+    post:
+      tags: [Agents]
+      summary: Register an agent
+      description: >-
+        Admin only. Returns the raw `rmpa_…` bearer token exactly once;
+        only its SHA-256 hash is stored.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:     { type: string, maxLength: 80 }
+                location: { type: string, maxLength: 120 }
+      responses:
+        '201': { description: 'Created. Body: `{ agent, token }` — the only time the token is shown.' }
+  /v1/agents/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      tags: [Agents]
+      summary: Rename / relocate an agent
+      description: Admin only. An empty-string `location` clears it.
+      responses:
+        '200': { description: Updated agent. }
+    delete:
+      tags: [Agents]
+      summary: Revoke an agent
+      description: >-
+        Admin only. The token dies immediately and the agent's monitors
+        fall back to local probing (`agent_id` → null via ON DELETE SET
+        NULL); the scheduler picks them up on the next reconcile.
+      responses:
+        '204': { description: Revoked. }
+  /v1/agent/monitors:
+    get:
+      tags: [Agents]
+      summary: Pull assigned monitors (agent wire protocol)
+      description: >-
+        Authenticated by `Authorization: Bearer rmpa_…` — no session. Returns
+        the full specs of the monitors assigned to the calling agent and
+        bumps its liveness (plus the self-reported
+        `X-Rampart-Agent-Version` header when present).
+      security: []
+      responses:
+        '200': { description: Assigned monitors. }
+        '401': { description: Unknown or revoked token. }
+  /v1/agent/heartbeats:
+    post:
+      tags: [Agents]
+      summary: Report probe results (agent wire protocol)
+      description: >-
+        Bearer-token authed batch ingestion (max 1000 results). Each entry
+        is validated independently — the monitor must exist and be assigned
+        to the reporting agent — so one bad row never sinks the batch.
+        Accepted results flow through the same pipeline as local probes
+        (status flips, notifications, SLO checks, result webhooks). The
+        server stamps receive time; agent clocks are not trusted.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                required: [monitor_id, status]
+                properties:
+                  monitor_id:  { type: string, format: uuid }
+                  status:      { type: string, enum: [up, down, warn] }
+                  latency_ms:  { type: integer }
+                  status_code: { type: integer }
+                  msg:         { type: string }
+                  retries:     { type: integer }
+      responses:
+        '200': { description: '`{ accepted, rejected: [{monitor_id, reason}] }`.' }
+        '401': { description: Unknown or revoked token. }
 
   # ─────────────────────────── Users ───────────────────────────
   /v1/users:

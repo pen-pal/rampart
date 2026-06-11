@@ -116,6 +116,31 @@ impl Scheduler {
         self.hb_broadcast.subscribe()
     }
 
+    /// Queue an externally-produced heartbeat (agent report) onto the
+    /// batched writer pipeline. It gets the identical downstream
+    /// treatment a local probe result does: batched INSERT, SSE
+    /// broadcast, current_status bounce when `important`, SLO breach
+    /// detection, and the per-monitor result webhook. Returns false if
+    /// the writer has shut down.
+    pub async fn submit_external(&self, hb: Heartbeat) -> bool {
+        self.hb_tx.send(hb).await.is_ok()
+    }
+
+    /// Fire a status-flip notification for an externally-detected
+    /// transition (agent ingest path). The caller does its own flip
+    /// detection against `monitors.current_status`; this just fans out.
+    pub fn notify_status_flip(&self, monitor: Monitor, heartbeat: Heartbeat, prev: MonitorStatus) {
+        if let Some(n) = self.notifier.as_ref() {
+            n.notify(Event {
+                kind: EventKind::StatusFlip,
+                monitor,
+                heartbeat,
+                prev_status: Some(prev),
+                slo_current_pct: None,
+            });
+        }
+    }
+
     /// Run forever. Reconciles the running task set against the DB on
     /// every reload signal, and on a slow timer as a fallback.
     pub async fn run(self: Arc<Self>) {
@@ -139,6 +164,65 @@ impl Scheduler {
             self.check_maintenance_transitions().await;
             // Scheduled weekly uptime reports, same best-effort contract.
             self.check_scheduled_reports().await;
+            // Stale-agent watchdog: agent-assigned monitors that stopped
+            // reporting get a synthetic Down heartbeat + alert.
+            self.check_stale_agents().await;
+        }
+    }
+
+    /// Watchdog for agent-assigned monitors that have gone quiet (no
+    /// heartbeat for 2× interval + 30s — see
+    /// `monitors::list_stale_agent_monitors`). Synthesizes a Down
+    /// heartbeat naming the dark agent and fires a StatusFlip on the
+    /// transition, so an unplugged agent pages exactly like a dead
+    /// service would. The synthetic heartbeat resets the staleness
+    /// clock, so a continuously-dark agent re-emits one Down heartbeat
+    /// per staleness window rather than one per tick.
+    async fn check_stale_agents(&self) {
+        let stale = match rampart_db::monitors::list_stale_agent_monitors(&self.pool).await {
+            Ok(v) => v,
+            Err(e) => {
+                warn!(error = %e, "stale-agent scan failed");
+                return;
+            }
+        };
+        for (monitor, agent_name) in stale {
+            // Same maintenance suppression as a local probe tick.
+            let in_maintenance =
+                rampart_db::maintenance::is_in_active_window(&self.pool, monitor.id)
+                    .await
+                    .unwrap_or(false);
+            if in_maintenance {
+                continue;
+            }
+            let prev = monitor.current_status;
+            let mut hb = Heartbeat {
+                monitor_id: monitor.id,
+                ts: time::OffsetDateTime::now_utc(),
+                status: MonitorStatus::Down,
+                latency_ms: None,
+                status_code: None,
+                msg: Some(format!("no report from agent \"{agent_name}\"")),
+                retries: 0,
+                important: false,
+            };
+            if prev != MonitorStatus::Down {
+                hb.important = true;
+                if prev != MonitorStatus::Maintenance {
+                    if let Some(n) = self.notifier.as_ref() {
+                        n.notify(Event {
+                            kind: EventKind::StatusFlip,
+                            monitor: monitor.clone(),
+                            heartbeat: hb.clone(),
+                            prev_status: Some(prev),
+                            slo_current_pct: None,
+                        });
+                    }
+                }
+            }
+            if self.hb_tx.send(hb).await.is_err() {
+                warn!(monitor = %monitor.id, "heartbeat channel closed; stale-agent heartbeat dropped");
+            }
         }
     }
 
@@ -285,9 +369,14 @@ impl Scheduler {
     /// monitors that have been deleted or deactivated.
     async fn reconcile(&self) -> Result<(), rampart_db::DbError> {
         let live = rampart_db::monitors::list(&self.pool).await?;
+        // Agent-assigned monitors are probed remotely — the agent reports
+        // heartbeats through the API ingest path. Running a local probe
+        // task too would double-probe (and double-alert), so they're
+        // filtered out exactly like inactive monitors. A reassignment to
+        // local (agent_id → NULL) brings the task back on the next poke.
         let live_active: HashMap<MonitorId, Monitor> = live
             .into_iter()
-            .filter(|m| m.active)
+            .filter(|m| m.active && m.agent_id.is_none())
             .map(|m| (m.id, m))
             .collect();
 

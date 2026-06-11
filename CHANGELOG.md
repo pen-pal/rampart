@@ -17,6 +17,26 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **Remote probe agents** (migration `0070`) — run a lightweight
+  `rampart-agent` worker in another region or a private network segment;
+  it pulls its assigned monitors over the API, probes them locally with
+  the same 38 probe runners the server uses, and reports heartbeats back
+  in batches. The agent always dials out (NAT/firewall friendly, no
+  inbound connectivity). Reported heartbeats ride the scheduler's writer
+  pipeline, so notifications, SLO breach detection, result webhooks, and
+  SSE streams behave identically to local probes; the local scheduler
+  skips agent-assigned monitors. A stale-agent watchdog synthesizes a
+  Down heartbeat (and pages) when an assigned monitor goes 2× its
+  interval + 30s without a report. Admin `/v1/agents` CRUD mints a
+  one-time `rmpa_…` bearer token (SHA-256 hash stored); the token-authed
+  wire protocol is `GET /v1/agent/monitors` + `POST /v1/agent/heartbeats`.
+  Dashboard: an Agents admin view (online badge, monitor counts, one-time
+  token reveal) and a "Probe agent" picker in the monitor wizard + edit
+  modal. Revoking an agent returns its monitors to local probing. See
+  [`docs/AGENTS.md`](docs/AGENTS.md).
+
 ### Changed
 
 - **Full ja/zh dashboard translations** — Japanese and Simplified Chinese

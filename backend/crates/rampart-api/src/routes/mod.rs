@@ -9,6 +9,7 @@
 //! - `v1_protected()` — everything else (monitors, summary, history).
 //!   The auth middleware is applied in main.rs.
 
+pub mod agents;
 pub mod api_keys;
 pub mod audit;
 pub mod auth;
@@ -71,6 +72,9 @@ pub fn v1_public(state: &AppState) -> Router<AppState> {
         // Public inbound webhook receivers (Alertmanager). The {token} in
         // the URL is the auth — no session.
         .nest("/public", ingest::public_router())
+        // Remote-agent wire protocol. The `Authorization: Bearer rmpa_…`
+        // token is the auth — agents are headless, no session.
+        .nest("/agent", agents::agent_router())
 }
 
 pub fn v1_protected() -> Router<AppState> {
@@ -132,6 +136,9 @@ pub fn v1_protected() -> Router<AppState> {
         .merge(subscribers::admin_router())
         // /v1/stream/heartbeats — Server-Sent Events fan-out (GET only).
         .nest("/stream", stream::router())
+        // /v1/agents read — feeds the probe-location picker (names +
+        // locations only; token material never leaves the create call).
+        .nest("/agents", agents::read_router())
         .route_layer(axum::middleware::from_fn(
             crate::auth::require_write_or_readonly_get,
         ));
@@ -149,6 +156,8 @@ pub fn v1_protected() -> Router<AppState> {
         .nest("/api-keys", api_keys::router())
         // /v1/proxies — list/create/delete/active
         .nest("/proxies", proxies::router())
+        // /v1/agents — register (token mint) / rename / revoke
+        .nest("/agents", agents::admin_router())
         // /v1/scheduled-reports — weekly uptime report CRUD (admin)
         .nest("/scheduled-reports", scheduled_reports::router())
         // /v1/status-pages/:id/ingest-tokens list+create (admin-managed)

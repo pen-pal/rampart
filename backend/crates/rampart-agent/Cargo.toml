@@ -1,0 +1,31 @@
+# rampart-agent — the remote probe worker.
+#
+# A single static binary an operator drops onto a box in another region /
+# network segment. It pulls its assigned monitors from the Rampart server,
+# probes them with the same `rampart-checker` runners the server uses, and
+# reports heartbeats back. Always dials out; needs no inbound connectivity.
+
+[package]
+name         = "rampart-agent"
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+
+[dependencies]
+rampart-core    = { path = "../rampart-core" }
+rampart-checker = { path = "../rampart-checker" }
+
+tokio   = { workspace = true }
+reqwest = { workspace = true }
+serde   = { workspace = true }
+serde_json = { workspace = true }
+time    = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow  = "1"
+
+# Same single decision point as rampart-api's main.rs: install ring as the
+# global rustls CryptoProvider before any client is built.
+rustls = { workspace = true }

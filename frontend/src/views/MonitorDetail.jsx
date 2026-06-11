@@ -1134,8 +1134,17 @@ function EditModal({ monitor, onCancel }) {
   const [err,         setErr]         = useState(null);
 
   const isHttpFamily = ['http', 'keyword', 'json_query'].includes(monitor.kind);
+  const isPush       = monitor.kind === 'push';
   const hasHostname  = monitor.hostname != null;
   const hasPort      = monitor.port != null;
+
+  // Remote probe agent assignment. Fetched only while the modal is open
+  // (this component mounts on open); on error or an empty list the select
+  // simply doesn't render. Push monitors can't be assigned to an agent.
+  const [agentId, setAgentId] = useState(monitor.agent_id || '');
+  const agentsState = useApi(() => (isPush ? Promise.resolve([]) : api.agents.list()), []);
+  const agents = agentsState.data || [];
+  const showAgents = !isPush && agents.length > 0;
 
   const save = async () => {
     setErr(null);
@@ -1177,6 +1186,10 @@ function EditModal({ monitor, onCancel }) {
       patch.http_body         = body || null;
       patch.http_headers      = headersJson;
     }
+    // Probe agent: empty string = local probing (null on the wire). Only
+    // sent when the select rendered so a failed agents fetch can't clear
+    // an existing assignment.
+    if (showAgents) patch.agent_id = agentId || null;
     // SLO fields use the Option<Option<…>> double-option pattern on the
     // backend: send `null` to clear, omit to leave unchanged. We always
     // send both (the form lets the user clear either one) so the patch
@@ -1330,6 +1343,18 @@ function EditModal({ monitor, onCancel }) {
                 <Toggle label={t('monitor.edit.ignore_tls')} on={ignoreTls} setOn={setIgnoreTls}/>
                 <Toggle label={t('monitor.edit.upside_down')}       on={upside}    setOn={setUpside}/>
               </div>
+              {showAgents && (
+                <div style={{ marginTop: 14 }}>
+                  <Field label={t('monitor.edit.agent')}>
+                    <select className="input" value={agentId} onChange={e => setAgentId(e.target.value)}>
+                      <option value="">{t('monitor.edit.agent_local')}</option>
+                      {agents.map(a => (
+                        <option key={a.id} value={a.id}>{a.name}{a.location ? ` — ${a.location}` : ''}</option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+              )}
             </>
           )}
 
@@ -1337,6 +1362,18 @@ function EditModal({ monitor, onCancel }) {
             <>
               <div className="modal-section">{t('monitor.edit.section.behaviour')}</div>
               <Toggle label={t('monitor.edit.upside_down')} on={upside} setOn={setUpside}/>
+              {showAgents && (
+                <div style={{ marginTop: 14 }}>
+                  <Field label={t('monitor.edit.agent')}>
+                    <select className="input" value={agentId} onChange={e => setAgentId(e.target.value)}>
+                      <option value="">{t('monitor.edit.agent_local')}</option>
+                      {agents.map(a => (
+                        <option key={a.id} value={a.id}>{a.name}{a.location ? ` — ${a.location}` : ''}</option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+              )}
             </>
           )}
 
