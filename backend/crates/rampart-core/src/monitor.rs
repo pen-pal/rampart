@@ -116,6 +116,11 @@ pub enum MonitorKind {
     Imap,
     Ftp,
     Pop3,
+    /// Synthetic transaction — an ordered sequence of HTTP steps with
+    /// per-step variable extraction and assertions, variables interpolated
+    /// into later steps via `{{name}}`. The step list lives in
+    /// `config.steps` (see [`crate::synthetic`]).
+    Synthetic,
 }
 
 /// Per-monitor backoff strategy applied *between* retry attempts after a
@@ -543,6 +548,7 @@ mod tests {
             (MonitorKind::Postgres, "postgres"),
             (MonitorKind::Mongodb, "mongodb"),
             (MonitorKind::Domain, "domain"),
+            (MonitorKind::Synthetic, "synthetic"),
         ];
         for (k, expected) in cases {
             let v = serde_json::to_string(&k).unwrap();
