@@ -6,6 +6,7 @@
 //! Single-tenant by design: no workspace_id scoping anywhere. AuthN/Z
 //! happens at the API layer.
 
+pub mod agents;
 pub mod api_keys;
 pub mod audit;
 pub mod delivery_log;

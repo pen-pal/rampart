@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE agents SET\n            last_seen_at = NOW(),\n            version      = COALESCE($2, version)\n        WHERE id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "412028e55b1df367f151195ad97d518a641b6a0265af9a672c78026be0fe9f15"
+}

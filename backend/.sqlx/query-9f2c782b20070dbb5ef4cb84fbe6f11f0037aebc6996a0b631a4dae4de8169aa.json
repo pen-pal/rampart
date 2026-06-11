@@ -1,0 +1,537 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO monitors (\n            id, name, kind, url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, group_id,\n            slo_target_pct, slo_window_days, agent_id\n        ) VALUES (\n            $1, $2, $3, $4, $5, $6, $7,\n            $8, $9, $10,\n            $11, $12, $13,\n            $14, $15, $16,\n            $17, $18, $19, $20,\n            $21, $22,\n            $23::float8::numeric, $24, $25\n        )\n        RETURNING\n            id, name,\n            kind   AS \"kind: MonitorKind\",\n            url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, last_push_at,\n            active,\n            current_status AS \"current_status: MonitorStatus\",\n            created_at, updated_at,\n            cert_days_left, cert_subject, cert_checked_at,\n            group_id,\n            slo_target_pct::float8 AS \"slo_target_pct?\",\n            slo_window_days, agent_id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "kind: MonitorKind",
+        "type_info": {
+          "Custom": {
+            "name": "monitor_kind",
+            "kind": {
+              "Enum": [
+                "http",
+                "keyword",
+                "json_query",
+                "tcp",
+                "ping",
+                "dns",
+                "push",
+                "grpc",
+                "tls",
+                "docker",
+                "steam",
+                "mqtt",
+                "radius",
+                "kafka",
+                "postgres",
+                "mysql",
+                "mssql",
+                "redis",
+                "mongodb",
+                "domain",
+                "browser",
+                "ssh",
+                "smtp",
+                "imap",
+                "ftp",
+                "pop3",
+                "memcached",
+                "ntp",
+                "websocket",
+                "nats",
+                "ldap",
+                "amqp",
+                "doh",
+                "rdap",
+                "snmp",
+                "cassandra",
+                "mdns",
+                "ssdp"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "url",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "url"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "hostname",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "hostname"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "port",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "port"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "config",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "config"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "interval_seconds",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "interval_seconds"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "retry_interval_sec",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "retry_interval_sec"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "max_retries",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "max_retries"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "timeout_seconds",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "timeout_seconds"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "resend_interval_sec",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "resend_interval_sec"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "upside_down",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "upside_down"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "http_method",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "http_method"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "http_body",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "http_body"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "http_headers",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "http_headers"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "accepted_statuses",
+        "type_info": "Int4Array",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "accepted_statuses"
+          }
+        }
+      },
+      {
+        "ordinal": 17,
+        "name": "follow_redirect",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "follow_redirect"
+          }
+        }
+      },
+      {
+        "ordinal": 18,
+        "name": "ignore_tls",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "ignore_tls"
+          }
+        }
+      },
+      {
+        "ordinal": 19,
+        "name": "proxy_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "proxy_id"
+          }
+        }
+      },
+      {
+        "ordinal": 20,
+        "name": "push_token",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "push_token"
+          }
+        }
+      },
+      {
+        "ordinal": 21,
+        "name": "last_push_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "last_push_at"
+          }
+        }
+      },
+      {
+        "ordinal": 22,
+        "name": "active",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "active"
+          }
+        }
+      },
+      {
+        "ordinal": 23,
+        "name": "current_status: MonitorStatus",
+        "type_info": {
+          "Custom": {
+            "name": "monitor_status",
+            "kind": {
+              "Enum": [
+                "up",
+                "down",
+                "warn",
+                "paused",
+                "pending",
+                "maintenance"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "current_status"
+          }
+        }
+      },
+      {
+        "ordinal": 24,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 25,
+        "name": "updated_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "updated_at"
+          }
+        }
+      },
+      {
+        "ordinal": 26,
+        "name": "cert_days_left",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "cert_days_left"
+          }
+        }
+      },
+      {
+        "ordinal": 27,
+        "name": "cert_subject",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "cert_subject"
+          }
+        }
+      },
+      {
+        "ordinal": 28,
+        "name": "cert_checked_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "cert_checked_at"
+          }
+        }
+      },
+      {
+        "ordinal": 29,
+        "name": "group_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "group_id"
+          }
+        }
+      },
+      {
+        "ordinal": 30,
+        "name": "slo_target_pct?",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 31,
+        "name": "slo_window_days",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "slo_window_days"
+          }
+        }
+      },
+      {
+        "ordinal": 32,
+        "name": "agent_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "agent_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        {
+          "Custom": {
+            "name": "monitor_kind",
+            "kind": {
+              "Enum": [
+                "http",
+                "keyword",
+                "json_query",
+                "tcp",
+                "ping",
+                "dns",
+                "push",
+                "grpc",
+                "tls",
+                "docker",
+                "steam",
+                "mqtt",
+                "radius",
+                "kafka",
+                "postgres",
+                "mysql",
+                "mssql",
+                "redis",
+                "mongodb",
+                "domain",
+                "browser",
+                "ssh",
+                "smtp",
+                "imap",
+                "ftp",
+                "pop3",
+                "memcached",
+                "ntp",
+                "websocket",
+                "nats",
+                "ldap",
+                "amqp",
+                "doh",
+                "rdap",
+                "snmp",
+                "cassandra",
+                "mdns",
+                "ssdp"
+              ]
+            }
+          }
+        },
+        "Text",
+        "Text",
+        "Int4",
+        "Jsonb",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Bool",
+        "Text",
+        "Text",
+        "Jsonb",
+        "Int4Array",
+        "Bool",
+        "Bool",
+        "Uuid",
+        "Text",
+        "Uuid",
+        "Float8",
+        "Int4",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      null,
+      true,
+      true
+    ]
+  },
+  "hash": "9f2c782b20070dbb5ef4cb84fbe6f11f0037aebc6996a0b631a4dae4de8169aa"
+}

@@ -193,6 +193,7 @@ fn map_one(row: &Row) -> Result<MappedMonitor, SkippedMonitor> {
         group_id: None,
         slo_target_pct: None,
         slo_window_days: None,
+        agent_id: None,
     };
 
     Ok(MappedMonitor {

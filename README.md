@@ -280,6 +280,7 @@ npx playwright test       # e2e on Chromium + Firefox + WebKit
 ## 📚 Documentation
 
 - [**docs/SETUP.md**](docs/SETUP.md) — Production install, TLS, reverse proxy, and backups.
+- [**docs/AGENTS.md**](docs/AGENTS.md) — Remote probe agents: multi-location checks + private-network monitoring.
 - [**docs/ARCHITECTURE.md**](docs/ARCHITECTURE.md) — Design decisions and their rationale.
 - [**docs/SECURITY-DEBT.md**](docs/SECURITY-DEBT.md) — Accepted RUSTSEC advisories with justification.
 - [**CONTRIBUTING.md**](CONTRIBUTING.md) — Scope rules, how to add a probe / channel / migration.

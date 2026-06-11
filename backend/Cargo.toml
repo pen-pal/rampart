@@ -22,6 +22,7 @@ members  = [
   "crates/rampart-scheduler",
   "crates/rampart-notifier",
   "crates/rampart-api",
+  "crates/rampart-agent",
 ]
 
 [workspace.package]

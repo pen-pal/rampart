@@ -5,7 +5,7 @@
 //! features. Twenty probe kinds covered, including a `domain` variant for
 //! WHOIS-based expiry checks.
 
-use crate::ids::{MonitorGroupId, MonitorId, ProxyId};
+use crate::ids::{AgentId, MonitorGroupId, MonitorId, ProxyId};
 use crate::tag::TagBrief;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
@@ -282,6 +282,11 @@ pub struct Monitor {
     /// `slo_target_pct` (both either set or unset together).
     #[serde(default)]
     pub slo_window_days: Option<i32>,
+    /// Remote probe agent this monitor is assigned to. NULL → probed
+    /// locally by the in-process scheduler (the default, and the
+    /// behaviour of every monitor that predates agents).
+    #[serde(default)]
+    pub agent_id: Option<AgentId>,
 }
 
 /// Payload accepted when creating a monitor. Kind/url/hostname validation
@@ -360,6 +365,10 @@ pub struct NewMonitor {
     #[validate(range(min = 1, max = 90))]
     #[serde(default)]
     pub slo_window_days: Option<i32>,
+
+    /// Assign to a remote probe agent at creation. Omit / null → local.
+    #[serde(default)]
+    pub agent_id: Option<AgentId>,
 }
 
 /// Partial update payload for PATCH /v1/monitors/:id. Every field is
@@ -425,6 +434,20 @@ pub struct UpdateMonitor {
     /// at the DB layer; route layer validates ahead.
     #[serde(default, deserialize_with = "deserialize_optional_i32")]
     pub slo_window_days: Option<Option<i32>>,
+
+    /// Reassign the probe agent. `null` returns the monitor to local
+    /// probing; omitted leaves the assignment unchanged. Same
+    /// Option<Option<…>> pattern as `group_id`.
+    #[serde(default, deserialize_with = "deserialize_optional_agent_id")]
+    pub agent_id: Option<Option<AgentId>>,
+}
+
+fn deserialize_optional_agent_id<'de, D>(de: D) -> Result<Option<Option<AgentId>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let v: Option<AgentId> = Option::deserialize(de)?;
+    Ok(Some(v))
 }
 
 fn deserialize_optional_group_id<'de, D>(de: D) -> Result<Option<Option<MonitorGroupId>>, D::Error>

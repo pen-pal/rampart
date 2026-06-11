@@ -96,6 +96,13 @@ impl AppState {
         self.0.scheduler.as_ref().map(|s| s.subscribe_heartbeats())
     }
 
+    /// Direct scheduler access for the agent ingest path (external
+    /// heartbeat submission + flip notification). `None` in test
+    /// harnesses constructed without a scheduler.
+    pub fn scheduler(&self) -> Option<&Arc<Scheduler>> {
+        self.0.scheduler.as_ref()
+    }
+
     /// Stash a pending TOTP challenge for `user`. Returns the opaque
     /// token to hand back to the browser. Challenges expire after 5
     /// minutes — long enough to handle the user fumbling for their

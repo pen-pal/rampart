@@ -350,6 +350,12 @@ export default function NewMonitorWizard() {
   const proxiesState = useApi(() => api.proxies.list(), []);
   const proxies = proxiesState.data || [];
 
+  // Remote probe agents for the picker. Falls back to [] on error so the
+  // form still renders; push monitors can't be assigned to an agent.
+  const [agentId, setAgentId] = useState('');
+  const agentsState = useApi(() => api.agents.list(), []);
+  const agents = agentsState.data || [];
+
   // Reusable config presets (saved header sets / TLS posture). Bumped via
   // presetReload after a save so a freshly-created preset shows up without
   // a full page reload.
@@ -566,6 +572,10 @@ export default function NewMonitorWizard() {
     // it on other kinds anyway, but we don't send it.
     if (['http', 'keyword', 'json_query'].includes(type) && proxyId) {
       payload.proxy_id = proxyId;
+    }
+    // Remote probe agent — push monitors are inbound and can't use one.
+    if (type !== 'push' && agentId) {
+      payload.agent_id = agentId;
     }
     // Drop undefined keys so the server defaults kick in.
     Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
@@ -1056,6 +1066,20 @@ export default function NewMonitorWizard() {
                         </select>
                         <div className="field-hint" style={{ marginTop: 4 }}>
                           {t('wizard.proxy_hint')} <a href="#/proxies" style={{ color: 'var(--accent)' }}>{t('proxies.title')}</a>.
+                        </div>
+                      </div>
+                    )}
+                    {type !== 'push' && agents.length > 0 && (
+                      <div style={{ padding: '12px 14px', border: '1px solid var(--border)', borderRadius: 8 }}>
+                        <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500, marginBottom: 6 }}>{t('wizard.field.agent')}</div>
+                        <select className="input" value={agentId} onChange={e => setAgentId(e.target.value)}>
+                          <option value="">{t('wizard.field.agent_local')}</option>
+                          {agents.map(a => (
+                            <option key={a.id} value={a.id}>{a.name}{a.location ? ` — ${a.location}` : ''}</option>
+                          ))}
+                        </select>
+                        <div className="field-hint" style={{ marginTop: 4 }}>
+                          {t('wizard.field.agent_hint')} <a href="#/agents" style={{ color: 'var(--accent)' }}>{t('agents.title')}</a>.
                         </div>
                       </div>
                     )}
