@@ -87,3 +87,4 @@ id!(ScheduledReportId);
 id!(AgentId);
 id!(MetricRuleId);
 id!(EscalationPolicyId);
+id!(OnCallScheduleId);

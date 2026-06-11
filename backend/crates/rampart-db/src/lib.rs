@@ -25,6 +25,7 @@ pub mod monitor_presets;
 pub mod monitor_templates;
 pub mod monitors;
 pub mod notifications;
+pub mod on_call;
 pub mod proxies;
 pub mod prune;
 pub mod rate_limit;

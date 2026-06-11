@@ -1,9 +1,10 @@
 //! Rampart · core domain types.
 //!
-//! Single tenant, multiple users, no multi-region, no SLO budgets, no
-//! on-call rotations. The bet is that the target audience (homelabs,
-//! indie devs, small teams) wants better reliability and a handful of
-//! long-asked features, not a different product class.
+//! Single tenant, multiple users, no multi-region, no SLO budgets. The
+//! bet is that the target audience (homelabs, indie devs, small teams)
+//! wants better reliability and a handful of long-asked features, not a
+//! different product class. On-call rotations rotate notification
+//! *channels* (Rampart has no user↔contact link), not people.
 //!
 //! All types are `Serialize + Deserialize`. Where they map directly to
 //! Postgres rows they're also `sqlx::Type`.
@@ -23,6 +24,7 @@ pub mod monitor;
 pub mod monitor_group;
 pub mod monitor_preset;
 pub mod notification;
+pub mod on_call;
 pub mod promtext;
 pub mod proxy;
 pub mod role;
@@ -45,8 +47,9 @@ pub use heartbeat::Heartbeat;
 pub use ids::{
     AgentId, ApiKeyId, BadgeId, IncidentId, IncidentTemplateId, IncidentUpdateId, IngestTokenId,
     MaintenanceId, MonitorGroupId, MonitorId, MonitorPresetId, MonitorTemplateId, NotificationId,
-    NotificationTemplateId, ProxyId, ScheduledReportId, SessionId, StatusPageComponentId,
-    StatusPageGroupId, StatusPageId, StatusPageSectionId, StatusPageSubscriberId, TagId, UserId,
+    NotificationTemplateId, OnCallScheduleId, ProxyId, ScheduledReportId, SessionId,
+    StatusPageComponentId, StatusPageGroupId, StatusPageId, StatusPageSectionId,
+    StatusPageSubscriberId, TagId, UserId,
 };
 pub use incident::{Incident, IncidentStyle, IncidentTemplate, IncidentUpdate};
 pub use ingest_token::{IngestToken, NewIngestToken};
@@ -58,6 +61,7 @@ pub use monitor::{
 pub use monitor_group::{MonitorGroup, NewMonitorGroup, UpdateMonitorGroup};
 pub use monitor_preset::{MonitorPreset, MonitorPresetKind, NewMonitorPreset};
 pub use notification::{ChannelKind, MonitorNotification, Notification, NotificationTemplate};
+pub use on_call::{NewOnCallSchedule, OnCallSchedule, UpdateOnCallSchedule};
 pub use promtext::{PromParseOutcome, PromSample};
 pub use proxy::{NewProxy, Proxy, ProxyProtocol};
 pub use role::Role;
