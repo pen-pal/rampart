@@ -53,6 +53,10 @@
       "description": "Outbound HTTP/SOCKS proxies for probes. Admin only."
     },
     {
+      "name": "Agents",
+      "description": "Remote probe agents \u2014 registration (admin), assignment list (editor reads), and the token-authed agent wire protocol."
+    },
+    {
       "name": "Users",
       "description": "User management + role assignment (admin); self-service password (any role)."
     },
@@ -670,6 +674,140 @@
         }
       }
     },
+    "/v1/monitors/{id}/rollups": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/MonitorId"
+        },
+        {
+          "name": "from",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        {
+          "name": "to",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Monitors"
+        ],
+        "summary": "Hourly heartbeat rollups",
+        "description": "Downsampled hourly buckets retained past the raw-heartbeat tier (default last 30 days). Same read RBAC + 404 contract as /heartbeats.",
+        "responses": {
+          "200": {
+            "description": "Hourly rollup rows.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "bucket_start": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "up_count": {
+                        "type": "integer"
+                      },
+                      "down_count": {
+                        "type": "integer"
+                      },
+                      "other_count": {
+                        "type": "integer"
+                      },
+                      "sample_count": {
+                        "type": "integer"
+                      },
+                      "avg_latency_ms": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "format": "double"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/monitors/{id}/uptime-history": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/MonitorId"
+        },
+        {
+          "name": "range",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "30d",
+              "90d",
+              "1y"
+            ],
+            "default": "30d"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Monitors"
+        ],
+        "summary": "Long-range daily uptime series",
+        "description": "Per-day uptime percentage over the range, stitched from raw heartbeats within the raw-retention tier and from hourly rollups beyond it, so the series extends past the raw horizon. Same read RBAC + 404 contract.",
+        "responses": {
+          "200": {
+            "description": "Daily uptime points.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "day": {
+                        "type": "string",
+                        "format": "date"
+                      },
+                      "uptime_pct": {
+                        "type": "number",
+                        "format": "double"
+                      },
+                      "sample_count": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
     "/v1/monitors/{id}/test-notifications": {
       "parameters": [
         {
@@ -777,8 +915,8 @@
         "tags": [
           "Monitors"
         ],
-        "summary": "Bulk-edit interval / timeout / tags",
-        "description": "Apply interval/timeout changes and tag add/remove across up to 500 monitors. Best-effort per id; `updated` counts monitors mutated without error.",
+        "summary": "Bulk-edit monitors",
+        "description": "Apply a patch to up to 500 monitors in one transaction. Each `patch` field is optional and omitting it leaves that attribute untouched; `tags` REPLACES the tag set; `group_id: null` clears the folder. Interval/timeout are range-checked up front via the shared validator, so an out-of-range value rejects the whole request. `updated` counts monitors mutated; `skipped` counts ids that matched no monitor.",
         "requestBody": {
           "required": true,
           "content": {
@@ -786,7 +924,8 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "ids"
+                  "ids",
+                  "patch"
                 ],
                 "properties": {
                   "ids": {
@@ -796,24 +935,34 @@
                       "format": "uuid"
                     }
                   },
-                  "interval_seconds": {
-                    "type": "integer"
-                  },
-                  "timeout_seconds": {
-                    "type": "integer"
-                  },
-                  "add_tag_ids": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "format": "uuid"
-                    }
-                  },
-                  "remove_tag_ids": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "format": "uuid"
+                  "patch": {
+                    "type": "object",
+                    "properties": {
+                      "interval_secs": {
+                        "type": "integer"
+                      },
+                      "timeout_secs": {
+                        "type": "integer"
+                      },
+                      "enabled": {
+                        "type": "boolean"
+                      },
+                      "group_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "uuid",
+                        "description": "null clears the folder assignment."
+                      },
+                      "tags": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "description": "Replaces the monitor's entire tag set."
+                      }
                     }
                   }
                 }
@@ -830,6 +979,9 @@
                   "type": "object",
                   "properties": {
                     "updated": {
+                      "type": "integer"
+                    },
+                    "skipped": {
                       "type": "integer"
                     }
                   }
@@ -1853,6 +2005,100 @@
         }
       }
     },
+    "/v1/incident-templates": {
+      "get": {
+        "tags": [
+          "Incidents"
+        ],
+        "summary": "List incident-update templates",
+        "description": "Reusable canned incident updates (editor/admin write, readonly GET).",
+        "responses": {
+          "200": {
+            "description": "Templates.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IncidentTemplate"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Incidents"
+        ],
+        "summary": "Create an incident template",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewIncidentTemplate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentTemplate"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/incident-templates/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "patch": {
+        "tags": [
+          "Incidents"
+        ],
+        "summary": "Update an incident template",
+        "responses": {
+          "200": {
+            "description": "Updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentTemplate"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Incidents"
+        ],
+        "summary": "Delete an incident template",
+        "responses": {
+          "204": {
+            "description": "Deleted."
+          }
+        }
+      }
+    },
     "/v1/monitors/{id}/tags/{tag_id}": {
       "parameters": [
         {
@@ -2191,6 +2437,171 @@
         }
       }
     },
+    "/v1/agents": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "List remote probe agents",
+        "description": "Editor+. Names, locations, self-reported versions, liveness (`online` = polled within the last 90s) and assigned-monitor counts. Token material never appears on reads.",
+        "responses": {
+          "200": {
+            "description": "Agents."
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Register an agent",
+        "description": "Admin only. Returns the raw `rmpa_\u2026` bearer token exactly once; only its SHA-256 hash is stored.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "location": {
+                    "type": "string",
+                    "maxLength": 120
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created. Body: `{ agent, token }` \u2014 the only time the token is shown."
+          }
+        }
+      }
+    },
+    "/v1/agents/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "patch": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Rename / relocate an agent",
+        "description": "Admin only. An empty-string `location` clears it.",
+        "responses": {
+          "200": {
+            "description": "Updated agent."
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Revoke an agent",
+        "description": "Admin only. The token dies immediately and the agent's monitors fall back to local probing (`agent_id` \u2192 null via ON DELETE SET NULL); the scheduler picks them up on the next reconcile.",
+        "responses": {
+          "204": {
+            "description": "Revoked."
+          }
+        }
+      }
+    },
+    "/v1/agent/monitors": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Pull assigned monitors (agent wire protocol)",
+        "description": "Authenticated by `Authorization: Bearer rmpa_\u2026` \u2014 no session. Returns the full specs of the monitors assigned to the calling agent and bumps its liveness (plus the self-reported `X-Rampart-Agent-Version` header when present).",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Assigned monitors."
+          },
+          "401": {
+            "description": "Unknown or revoked token."
+          }
+        }
+      }
+    },
+    "/v1/agent/heartbeats": {
+      "post": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Report probe results (agent wire protocol)",
+        "description": "Bearer-token authed batch ingestion (max 1000 results). Each entry is validated independently \u2014 the monitor must exist and be assigned to the reporting agent \u2014 so one bad row never sinks the batch. Accepted results flow through the same pipeline as local probes (status flips, notifications, SLO checks, result webhooks). The server stamps receive time; agent clocks are not trusted.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "monitor_id",
+                    "status"
+                  ],
+                  "properties": {
+                    "monitor_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "up",
+                        "down",
+                        "warn"
+                      ]
+                    },
+                    "latency_ms": {
+                      "type": "integer"
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "retries": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`{ accepted, rejected: [{monitor_id, reason}] }`."
+          },
+          "401": {
+            "description": "Unknown or revoked token."
+          }
+        }
+      }
+    },
     "/v1/users": {
       "get": {
         "tags": [
@@ -2388,6 +2799,121 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/delivery-log": {
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "summary": "List notification delivery attempts",
+        "description": "Admin only. Recent per-channel notification send attempts (success and failure), newest first. Paginated with the `before` RFC3339 cursor.",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Return entries strictly older than this timestamp."
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Delivery-log entries, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DeliveryLogEntry"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/v1/delivery-log/{id}/retry": {
+      "post": {
+        "tags": [
+          "Audit"
+        ],
+        "summary": "Retry a failed delivery",
+        "description": "Admin only. Re-send the notification recorded by this delivery-log entry through its original channel. Records a new delivery-log row for the retry attempt and returns it.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The new delivery attempt.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryLogEntry"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The original channel no longer exists, so it cannot be retried."
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/v1/delivery-log/export.csv": {
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "summary": "Export the delivery log as CSV",
+        "description": "Admin only. Columns - sent_at, channel_kind, event_kind, monitor_id, ok, error.",
+        "responses": {
+          "200": {
+            "description": "CSV attachment.",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
         }
       }
@@ -2714,6 +3240,1592 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/monitors/summary": {
+      "get": {
+        "tags": [
+          "Monitors"
+        ],
+        "summary": "Aggregate status summary across all monitors",
+        "responses": {
+          "200": {
+            "description": "Summary counts + per-monitor latest state."
+          }
+        }
+      }
+    },
+    "/v1/monitors/history": {
+      "get": {
+        "tags": [
+          "Monitors"
+        ],
+        "summary": "Recent heartbeat history across all monitors",
+        "responses": {
+          "200": {
+            "description": "Combined recent history."
+          }
+        }
+      }
+    },
+    "/v1/monitors/bulk": {
+      "post": {
+        "tags": [
+          "Monitors"
+        ],
+        "summary": "Bulk-create monitors",
+        "description": "Editor or admin.",
+        "responses": {
+          "200": {
+            "description": "Created monitors."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/v1/monitors/{id}/heartbeats.csv": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/MonitorId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Monitors"
+        ],
+        "summary": "Heartbeat history as CSV",
+        "responses": {
+          "200": {
+            "description": "CSV export.",
+            "content": {
+              "text/csv": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/monitors/{id}/pause": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/MonitorId"
+        }
+      ],
+      "post": {
+        "tags": [
+          "Monitors"
+        ],
+        "summary": "Pause a monitor",
+        "responses": {
+          "204": {
+            "description": "Paused."
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/monitors/{id}/resume": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/MonitorId"
+        }
+      ],
+      "post": {
+        "tags": [
+          "Monitors"
+        ],
+        "summary": "Resume a paused monitor",
+        "responses": {
+          "204": {
+            "description": "Resumed."
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/monitors/{id}/clone": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/MonitorId"
+        }
+      ],
+      "post": {
+        "tags": [
+          "Monitors"
+        ],
+        "summary": "Clone a monitor",
+        "responses": {
+          "201": {
+            "description": "The cloned monitor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Monitor"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/monitors/{id}/test-now": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/MonitorId"
+        }
+      ],
+      "post": {
+        "tags": [
+          "Monitors"
+        ],
+        "summary": "Run a probe immediately",
+        "responses": {
+          "200": {
+            "description": "Probe result."
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/monitors/{id}/regenerate-push-token": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/MonitorId"
+        }
+      ],
+      "post": {
+        "tags": [
+          "Monitors"
+        ],
+        "summary": "Regenerate a push monitor's secret token",
+        "responses": {
+          "200": {
+            "description": "New token."
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/monitors/{id}/notifications": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/MonitorId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "List notification channels attached to a monitor",
+        "responses": {
+          "200": {
+            "description": "Attached channel ids."
+          }
+        }
+      }
+    },
+    "/v1/monitors/{id}/notifications/{nid}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/MonitorId"
+        },
+        {
+          "name": "nid",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Attach a notification channel to a monitor",
+        "responses": {
+          "204": {
+            "description": "Attached."
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Detach a notification channel from a monitor",
+        "responses": {
+          "204": {
+            "description": "Detached."
+          }
+        }
+      }
+    },
+    "/v1/monitors/{id}/tags": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/MonitorId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Tags"
+        ],
+        "summary": "List a monitor's tags",
+        "responses": {
+          "200": {
+            "description": "Tag ids."
+          }
+        }
+      }
+    },
+    "/v1/monitors/{id}/dependencies": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/MonitorId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Folders"
+        ],
+        "summary": "List a monitor's dependencies",
+        "responses": {
+          "200": {
+            "description": "Dependency monitor ids."
+          }
+        }
+      }
+    },
+    "/v1/monitors/{id}/dependencies/{parent_id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/MonitorId"
+        },
+        {
+          "name": "parent_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Folders"
+        ],
+        "summary": "Add a dependency edge",
+        "responses": {
+          "204": {
+            "description": "Added."
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Folders"
+        ],
+        "summary": "Remove a dependency edge",
+        "responses": {
+          "204": {
+            "description": "Removed."
+          }
+        }
+      }
+    },
+    "/v1/monitors/{id}/effective-channels": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/MonitorId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Resolved notification channels that will fire for this monitor",
+        "responses": {
+          "200": {
+            "description": "Effective channel ids."
+          }
+        }
+      }
+    },
+    "/v1/monitors/{id}/excludes": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/MonitorId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "List per-monitor channel excludes",
+        "responses": {
+          "200": {
+            "description": "Excluded channel ids."
+          }
+        }
+      }
+    },
+    "/v1/monitors/{id}/excludes/{notif_id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/MonitorId"
+        },
+        {
+          "name": "notif_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Exclude a channel for a monitor",
+        "responses": {
+          "204": {
+            "description": "Excluded."
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Remove a channel exclude",
+        "responses": {
+          "204": {
+            "description": "Removed."
+          }
+        }
+      }
+    },
+    "/v1/tags/usage": {
+      "get": {
+        "tags": [
+          "Tags"
+        ],
+        "summary": "Tag usage counts",
+        "responses": {
+          "200": {
+            "description": "Per-tag usage counts."
+          }
+        }
+      }
+    },
+    "/v1/notifications/counts": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Notification channel counts",
+        "responses": {
+          "200": {
+            "description": "Channel counts by kind."
+          }
+        }
+      }
+    },
+    "/v1/notifications/{id}/tags": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "List tags on a notification channel",
+        "responses": {
+          "200": {
+            "description": "Tag ids."
+          }
+        }
+      }
+    },
+    "/v1/notifications/{id}/tags/{tag_id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        {
+          "name": "tag_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Tag a notification channel",
+        "responses": {
+          "204": {
+            "description": "Tagged."
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Untag a notification channel",
+        "responses": {
+          "204": {
+            "description": "Untagged."
+          }
+        }
+      }
+    },
+    "/v1/notification-templates/preview": {
+      "post": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Render a template against sample data",
+        "responses": {
+          "200": {
+            "description": "Rendered preview."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/v1/monitor-groups/{id}/tags": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Folders"
+        ],
+        "summary": "List a folder's tags",
+        "responses": {
+          "200": {
+            "description": "Tag ids."
+          }
+        }
+      }
+    },
+    "/v1/monitor-groups/{id}/tags/{tag_id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        {
+          "name": "tag_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Folders"
+        ],
+        "summary": "Tag a folder",
+        "responses": {
+          "204": {
+            "description": "Tagged."
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Folders"
+        ],
+        "summary": "Untag a folder",
+        "responses": {
+          "204": {
+            "description": "Untagged."
+          }
+        }
+      }
+    },
+    "/v1/monitor-groups/{id}/channels": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Folders"
+        ],
+        "summary": "List a folder's notification channels",
+        "responses": {
+          "200": {
+            "description": "Channel ids."
+          }
+        }
+      }
+    },
+    "/v1/monitor-groups/{id}/channels/{notif_id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        {
+          "name": "notif_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Folders"
+        ],
+        "summary": "Attach a channel to a folder",
+        "responses": {
+          "204": {
+            "description": "Attached."
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Folders"
+        ],
+        "summary": "Detach a channel from a folder",
+        "responses": {
+          "204": {
+            "description": "Detached."
+          }
+        }
+      }
+    },
+    "/v1/maintenance-windows/{id}/active": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Maintenance"
+        ],
+        "summary": "Toggle a maintenance window active/inactive",
+        "responses": {
+          "204": {
+            "description": "Updated."
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/auth/2fa/verify": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Verify a TOTP code during login",
+        "description": "Public step of the two-factor login flow. Rate-limited per IP.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Verified; session established."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/v1/auth/2fa/setup": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Begin TOTP enrolment",
+        "description": "Self-service. Returns the secret + provisioning URI.",
+        "responses": {
+          "200": {
+            "description": "Enrolment secret + otpauth URI."
+          }
+        }
+      }
+    },
+    "/v1/auth/2fa/enable": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Enable TOTP after confirming a code",
+        "description": "Self-service.",
+        "responses": {
+          "204": {
+            "description": "Enabled."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/v1/auth/2fa/disable": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Disable TOTP for the current user",
+        "description": "Self-service.",
+        "responses": {
+          "204": {
+            "description": "Disabled."
+          }
+        }
+      }
+    },
+    "/v1/webpush/vapid-key": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Fetch the server VAPID public key",
+        "responses": {
+          "200": {
+            "description": "VAPID public key."
+          }
+        }
+      }
+    },
+    "/v1/webpush/subscriptions": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Register a browser push subscription",
+        "description": "Self-service.",
+        "responses": {
+          "204": {
+            "description": "Subscribed."
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Remove a browser push subscription",
+        "description": "Self-service.",
+        "responses": {
+          "204": {
+            "description": "Unsubscribed."
+          }
+        }
+      }
+    },
+    "/v1/me/prefs": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Get the caller's dashboard preferences",
+        "responses": {
+          "200": {
+            "description": "Saved views + default folder."
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Replace the caller's dashboard preferences",
+        "responses": {
+          "204": {
+            "description": "Saved."
+          }
+        }
+      }
+    },
+    "/v1/stream/heartbeats": {
+      "get": {
+        "tags": [
+          "Monitors"
+        ],
+        "summary": "Server-Sent Events stream of live heartbeats",
+        "responses": {
+          "200": {
+            "description": "An SSE stream.",
+            "content": {
+              "text/event-stream": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/audit-log/csv": {
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "summary": "Audit log as CSV (inline)",
+        "description": "Admin only.",
+        "responses": {
+          "200": {
+            "description": "CSV body.",
+            "content": {
+              "text/csv": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/users/{id}/admin": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Grant or revoke admin on a user",
+        "description": "Admin only. Legacy alias for role assignment.",
+        "responses": {
+          "204": {
+            "description": "Updated."
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/settings/smtp": {
+      "get": {
+        "tags": [
+          "Ingest"
+        ],
+        "summary": "Get SMTP settings",
+        "description": "Admin only.",
+        "responses": {
+          "200": {
+            "description": "SMTP configuration."
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Ingest"
+        ],
+        "summary": "Update SMTP settings",
+        "description": "Admin only.",
+        "responses": {
+          "204": {
+            "description": "Saved."
+          }
+        }
+      }
+    },
+    "/v1/settings/retention": {
+      "get": {
+        "tags": [
+          "Ingest"
+        ],
+        "summary": "Get data-retention settings",
+        "description": "Admin only.",
+        "responses": {
+          "200": {
+            "description": "Retention configuration."
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Ingest"
+        ],
+        "summary": "Update data-retention settings",
+        "description": "Admin only.",
+        "responses": {
+          "204": {
+            "description": "Saved."
+          }
+        }
+      }
+    },
+    "/v1/ingest-tokens/{id}/mapping": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "patch": {
+        "tags": [
+          "Ingest"
+        ],
+        "summary": "Set or clear an ingest token's generic JSON mapping",
+        "description": "Admin only. A null mapping clears it.",
+        "responses": {
+          "204": {
+            "description": "Saved."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/v1/public/ingest/generic/{token}": {
+      "parameters": [
+        {
+          "name": "token",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Ingest"
+        ],
+        "summary": "Generic operator-mapped JSON receiver",
+        "description": "Public \u2014 the token IS the auth. Requires a configured mapping.",
+        "security": [],
+        "responses": {
+          "202": {
+            "description": "Accepted."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/v1/status-pages/{id}/subscribers": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Status Pages"
+        ],
+        "summary": "List subscribers for a status page",
+        "description": "Editor or admin.",
+        "responses": {
+          "200": {
+            "description": "Subscribers."
+          }
+        }
+      }
+    },
+    "/v1/subscribers/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "delete": {
+        "tags": [
+          "Status Pages"
+        ],
+        "summary": "Delete a subscriber",
+        "description": "Editor or admin.",
+        "responses": {
+          "204": {
+            "description": "Deleted."
+          }
+        }
+      }
+    },
+    "/v1/public/status-pages/{slug}/subscribe": {
+      "parameters": [
+        {
+          "name": "slug",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Status Pages"
+        ],
+        "summary": "Subscribe to a status page",
+        "description": "Public. Sends a confirmation email.",
+        "security": [],
+        "responses": {
+          "202": {
+            "description": "Confirmation email sent."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/v1/public/subscribe/unsubscribe/{token}": {
+      "parameters": [
+        {
+          "name": "token",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Status Pages"
+        ],
+        "summary": "One-click unsubscribe",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Unsubscribed (HTML confirmation)."
+          }
+        }
+      }
+    },
+    "/v1/public/subscribers/manage/{token}": {
+      "parameters": [
+        {
+          "name": "token",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Status Pages"
+        ],
+        "summary": "Subscriber self-management page",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Management page (HTML)."
+          }
+        }
+      }
+    },
+    "/v1/public/subscribers/manage/{token}/unsubscribe-all": {
+      "parameters": [
+        {
+          "name": "token",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Status Pages"
+        ],
+        "summary": "Unsubscribe from all status pages",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Unsubscribed from all."
+          }
+        }
+      }
+    },
+    "/v1/public/subscribers/manage/{token}/unsubscribe/{slug}": {
+      "parameters": [
+        {
+          "name": "token",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "slug",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Status Pages"
+        ],
+        "summary": "Unsubscribe from a single status page",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Unsubscribed from the page."
+          }
+        }
+      }
+    },
+    "/v1/public/status-pages/{slug}/day-latency": {
+      "parameters": [
+        {
+          "name": "slug",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Status Pages"
+        ],
+        "summary": "Per-day latency series for a public status page",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Latency buckets."
+          }
+        }
+      }
+    },
+    "/v1/public/status-pages/{slug}/incidents/{incident_id}/feed.atom": {
+      "parameters": [
+        {
+          "name": "slug",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "incident_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Status Pages"
+        ],
+        "summary": "Atom feed for a single incident",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Atom feed.",
+            "content": {
+              "application/atom+xml": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/public/status-pages/{slug}/incidents/{incident_id}/feed.rss": {
+      "parameters": [
+        {
+          "name": "slug",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "incident_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Status Pages"
+        ],
+        "summary": "RSS feed for a single incident",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "RSS feed.",
+            "content": {
+              "application/rss+xml": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/monitors/bulk-by-tag": {
+      "post": {
+        "tags": [
+          "Monitors"
+        ],
+        "summary": "Pause/resume all monitors carrying a tag",
+        "description": "Body { tag_id, action: pause|resume }. Editor/admin.",
+        "responses": {
+          "200": {
+            "description": "Affected count { affected }."
+          }
+        }
+      }
+    },
+    "/v1/monitors/presets": {
+      "get": {
+        "tags": [
+          "Monitors"
+        ],
+        "summary": "List monitor presets (reusable header/TLS bags)",
+        "responses": {
+          "200": {
+            "description": "Presets."
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Monitors"
+        ],
+        "summary": "Create a monitor preset",
+        "responses": {
+          "201": {
+            "description": "Created."
+          }
+        }
+      }
+    },
+    "/v1/monitors/presets/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Monitors"
+        ],
+        "summary": "Get a monitor preset",
+        "responses": {
+          "200": {
+            "description": "Preset."
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Monitors"
+        ],
+        "summary": "Delete a monitor preset",
+        "responses": {
+          "204": {
+            "description": "Deleted."
+          }
+        }
+      }
+    },
+    "/v1/monitor-templates": {
+      "get": {
+        "tags": [
+          "Monitors"
+        ],
+        "summary": "List monitor templates (reusable whole-monitor specs)",
+        "responses": {
+          "200": {
+            "description": "Templates."
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Monitors"
+        ],
+        "summary": "Create a monitor template",
+        "description": "Editor or admin. `spec` is a monitor-creation body stored verbatim.",
+        "responses": {
+          "201": {
+            "description": "Created."
+          }
+        }
+      }
+    },
+    "/v1/monitor-templates/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Monitors"
+        ],
+        "summary": "Get a monitor template",
+        "responses": {
+          "200": {
+            "description": "Template."
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Monitors"
+        ],
+        "summary": "Delete a monitor template",
+        "responses": {
+          "204": {
+            "description": "Deleted."
+          }
+        }
+      }
+    },
+    "/v1/monitor-templates/{id}/instantiate": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Monitors"
+        ],
+        "summary": "Create a monitor from a template",
+        "description": "Editor or admin. Builds a new monitor from the template's stored spec; an optional `name` in the body overrides the spec name.",
+        "responses": {
+          "201": {
+            "description": "The created monitor."
+          }
+        }
+      }
+    },
+    "/v1/scheduled-reports": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "List scheduled uptime reports",
+        "responses": {
+          "200": {
+            "description": "Reports."
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Create a scheduled report",
+        "responses": {
+          "201": {
+            "description": "Created."
+          }
+        }
+      }
+    },
+    "/v1/scheduled-reports/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "patch": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Update a scheduled report",
+        "responses": {
+          "200": {
+            "description": "Updated."
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Delete a scheduled report",
+        "responses": {
+          "204": {
+            "description": "Deleted."
+          }
+        }
+      }
+    },
+    "/v1/scheduled-reports/{id}/send": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Send a scheduled report now",
+        "description": "Admin only. Render and email the report immediately (out of band of its cadence) and stamp `last_sent_at`.",
+        "responses": {
+          "204": {
+            "description": "Sent."
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/status-pages/{id}/sections": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Status Pages"
+        ],
+        "summary": "List a page's component sections",
+        "responses": {
+          "200": {
+            "description": "Sections."
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Status Pages"
+        ],
+        "summary": "Create a component section",
+        "responses": {
+          "201": {
+            "description": "Created."
+          }
+        }
+      }
+    },
+    "/v1/status-pages/{id}/sections/{section_id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        {
+          "name": "section_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "patch": {
+        "tags": [
+          "Status Pages"
+        ],
+        "summary": "Rename / reorder a section",
+        "responses": {
+          "200": {
+            "description": "Updated."
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Status Pages"
+        ],
+        "summary": "Delete a section (its monitors become ungrouped)",
+        "responses": {
+          "204": {
+            "description": "Deleted."
+          }
+        }
+      }
+    },
+    "/v1/status-pages/{id}/monitors/{monitor_id}/section": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        {
+          "name": "monitor_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "put": {
+        "tags": [
+          "Status Pages"
+        ],
+        "summary": "Assign a monitor to a section (null = ungroup)",
+        "responses": {
+          "200": {
+            "description": "Assigned."
           }
         }
       }
@@ -4316,6 +6428,53 @@
           "color"
         ]
       },
+      "IncidentTemplate": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "style": {
+            "$ref": "#/components/schemas/IncidentStyle"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "body",
+          "style",
+          "created_at"
+        ]
+      },
+      "NewIncidentTemplate": {
+        "type": "object",
+        "required": [
+          "name",
+          "body"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "style": {
+            "$ref": "#/components/schemas/IncidentStyle"
+          }
+        }
+      },
       "NewTag": {
         "type": "object",
         "required": [
@@ -4696,6 +6855,53 @@
             ]
           },
           "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "DeliveryLogEntry": {
+        "type": "object",
+        "description": "One notification delivery attempt (success or failure) recorded by the notifier.",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "notification_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Source channel; null if the channel was since deleted (FK ON DELETE SET NULL)."
+          },
+          "channel_kind": {
+            "type": "string",
+            "example": "email"
+          },
+          "event_kind": {
+            "type": "string",
+            "example": "monitor_down"
+          },
+          "monitor_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Failure detail when ok=false."
+          },
+          "sent_at": {
             "type": "string",
             "format": "date-time"
           }

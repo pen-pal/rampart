@@ -5,7 +5,7 @@
 //! the SQL layer.
 
 use crate::{DbError, DbPool, DbResult};
-use rampart_core::ids::{MonitorGroupId, ProxyId, TagId};
+use rampart_core::ids::{AgentId, MonitorGroupId, ProxyId, TagId};
 use rampart_core::monitor::{NewMonitor, UpdateMonitor};
 use rampart_core::{Monitor, MonitorId, MonitorKind, MonitorStatus};
 use time::OffsetDateTime;
@@ -49,6 +49,7 @@ struct MonitorRow {
     // NUMERIC(5,3) so the SELECTs cast to float8 (see queries below).
     slo_target_pct: Option<f64>,
     slo_window_days: Option<i32>,
+    agent_id: Option<Uuid>,
 }
 
 impl From<MonitorRow> for Monitor {
@@ -87,7 +88,89 @@ impl From<MonitorRow> for Monitor {
             group_id: r.group_id.map(MonitorGroupId::from_uuid),
             slo_target_pct: r.slo_target_pct,
             slo_window_days: r.slo_window_days,
+            agent_id: r.agent_id.map(AgentId::from_uuid),
         }
+    }
+}
+
+/// `MonitorRow` plus the joined agent name — only used by the
+/// stale-agent watchdog query. Converts through `MonitorRow` so the
+/// field mapping lives in exactly one place.
+struct StaleAgentRow {
+    id: Uuid,
+    name: String,
+    kind: MonitorKind,
+    url: Option<String>,
+    hostname: Option<String>,
+    port: Option<i32>,
+    config: serde_json::Value,
+    interval_seconds: i32,
+    retry_interval_sec: i32,
+    max_retries: i32,
+    timeout_seconds: i32,
+    resend_interval_sec: i32,
+    upside_down: bool,
+    http_method: String,
+    http_body: Option<String>,
+    http_headers: Option<serde_json::Value>,
+    accepted_statuses: Vec<i32>,
+    follow_redirect: bool,
+    ignore_tls: bool,
+    proxy_id: Option<Uuid>,
+    push_token: Option<String>,
+    last_push_at: Option<OffsetDateTime>,
+    active: bool,
+    current_status: MonitorStatus,
+    created_at: OffsetDateTime,
+    updated_at: OffsetDateTime,
+    cert_days_left: Option<i32>,
+    cert_subject: Option<String>,
+    cert_checked_at: Option<OffsetDateTime>,
+    group_id: Option<Uuid>,
+    slo_target_pct: Option<f64>,
+    slo_window_days: Option<i32>,
+    agent_id: Option<Uuid>,
+    agent_name: String,
+}
+
+impl From<StaleAgentRow> for Monitor {
+    fn from(r: StaleAgentRow) -> Self {
+        MonitorRow {
+            id: r.id,
+            name: r.name,
+            kind: r.kind,
+            url: r.url,
+            hostname: r.hostname,
+            port: r.port,
+            config: r.config,
+            interval_seconds: r.interval_seconds,
+            retry_interval_sec: r.retry_interval_sec,
+            max_retries: r.max_retries,
+            timeout_seconds: r.timeout_seconds,
+            resend_interval_sec: r.resend_interval_sec,
+            upside_down: r.upside_down,
+            http_method: r.http_method,
+            http_body: r.http_body,
+            http_headers: r.http_headers,
+            accepted_statuses: r.accepted_statuses,
+            follow_redirect: r.follow_redirect,
+            ignore_tls: r.ignore_tls,
+            proxy_id: r.proxy_id,
+            push_token: r.push_token,
+            last_push_at: r.last_push_at,
+            active: r.active,
+            current_status: r.current_status,
+            created_at: r.created_at,
+            updated_at: r.updated_at,
+            cert_days_left: r.cert_days_left,
+            cert_subject: r.cert_subject,
+            cert_checked_at: r.cert_checked_at,
+            group_id: r.group_id,
+            slo_target_pct: r.slo_target_pct,
+            slo_window_days: r.slo_window_days,
+            agent_id: r.agent_id,
+        }
+        .into()
     }
 }
 
@@ -114,7 +197,7 @@ pub async fn create(pool: &DbPool, input: NewMonitor) -> DbResult<Monitor> {
             http_method, http_body, http_headers,
             accepted_statuses, follow_redirect, ignore_tls, proxy_id,
             push_token, group_id,
-            slo_target_pct, slo_window_days
+            slo_target_pct, slo_window_days, agent_id
         ) VALUES (
             $1, $2, $3, $4, $5, $6, $7,
             $8, $9, $10,
@@ -122,7 +205,7 @@ pub async fn create(pool: &DbPool, input: NewMonitor) -> DbResult<Monitor> {
             $14, $15, $16,
             $17, $18, $19, $20,
             $21, $22,
-            $23::float8::numeric, $24
+            $23::float8::numeric, $24, $25
         )
         RETURNING
             id, name,
@@ -139,7 +222,7 @@ pub async fn create(pool: &DbPool, input: NewMonitor) -> DbResult<Monitor> {
             cert_days_left, cert_subject, cert_checked_at,
             group_id,
             slo_target_pct::float8 AS "slo_target_pct?",
-            slo_window_days
+            slo_window_days, agent_id
         "#,
         id.0,
         input.name,
@@ -165,6 +248,7 @@ pub async fn create(pool: &DbPool, input: NewMonitor) -> DbResult<Monitor> {
         input.group_id.map(|g| g.0),
         input.slo_target_pct,
         input.slo_window_days,
+        input.agent_id.map(|a| a.0),
     )
     .fetch_one(pool)
     .await?;
@@ -286,7 +370,7 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<Monitor>> {
             cert_days_left, cert_subject, cert_checked_at,
             group_id,
             slo_target_pct::float8 AS "slo_target_pct?",
-            slo_window_days
+            slo_window_days, agent_id
         FROM monitors
         ORDER BY created_at DESC
         "#,
@@ -303,6 +387,87 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<Monitor>> {
         }
     }
     Ok(monitors)
+}
+
+/// Monitors assigned to one agent, active only — the agent pull feed.
+/// No tag hydration: the agent needs probe config, not cosmetics.
+pub async fn list_for_agent(pool: &DbPool, agent: AgentId) -> DbResult<Vec<Monitor>> {
+    let rows = sqlx::query_as!(
+        MonitorRow,
+        r#"
+        SELECT
+            id, name,
+            kind   AS "kind: MonitorKind",
+            url, hostname, port, config,
+            interval_seconds, retry_interval_sec, max_retries,
+            timeout_seconds, resend_interval_sec, upside_down,
+            http_method, http_body, http_headers,
+            accepted_statuses, follow_redirect, ignore_tls, proxy_id,
+            push_token, last_push_at,
+            active,
+            current_status AS "current_status: MonitorStatus",
+            created_at, updated_at,
+            cert_days_left, cert_subject, cert_checked_at,
+            group_id,
+            slo_target_pct::float8 AS "slo_target_pct?",
+            slo_window_days, agent_id
+        FROM monitors
+        WHERE agent_id = $1 AND active
+        ORDER BY created_at
+        "#,
+        agent.0,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(Monitor::from).collect())
+}
+
+/// Agent-assigned monitors that have gone quiet: active, assigned to an
+/// agent, and whose newest heartbeat is older than twice the monitor's
+/// interval plus a 30s grace (or that never produced one since
+/// assignment). Drives the scheduler's stale-agent watchdog; the row
+/// carries the agent name so the synthesized heartbeat can say which
+/// agent went dark.
+pub async fn list_stale_agent_monitors(pool: &DbPool) -> DbResult<Vec<(Monitor, String)>> {
+    let rows = sqlx::query_as!(
+        StaleAgentRow,
+        r#"
+        SELECT
+            m.id, m.name,
+            m.kind   AS "kind: MonitorKind",
+            m.url, m.hostname, m.port, m.config,
+            m.interval_seconds, m.retry_interval_sec, m.max_retries,
+            m.timeout_seconds, m.resend_interval_sec, m.upside_down,
+            m.http_method, m.http_body, m.http_headers,
+            m.accepted_statuses, m.follow_redirect, m.ignore_tls, m.proxy_id,
+            m.push_token, m.last_push_at,
+            m.active,
+            m.current_status AS "current_status: MonitorStatus",
+            m.created_at, m.updated_at,
+            m.cert_days_left, m.cert_subject, m.cert_checked_at,
+            m.group_id,
+            m.slo_target_pct::float8 AS "slo_target_pct?",
+            m.slo_window_days, m.agent_id,
+            a.name AS agent_name
+        FROM monitors m
+        JOIN agents a ON a.id = m.agent_id
+        WHERE m.active
+          AND m.current_status <> 'paused'
+          AND COALESCE(
+                (SELECT MAX(h.ts) FROM heartbeats h WHERE h.monitor_id = m.id),
+                m.updated_at
+              ) < NOW() - (m.interval_seconds * 2 + 30) * INTERVAL '1 second'
+        "#,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| {
+            let agent_name = r.agent_name.clone();
+            (r.into(), agent_name)
+        })
+        .collect())
 }
 
 pub async fn get(pool: &DbPool, id: MonitorId) -> DbResult<Monitor> {
@@ -324,7 +489,7 @@ pub async fn get(pool: &DbPool, id: MonitorId) -> DbResult<Monitor> {
             cert_days_left, cert_subject, cert_checked_at,
             group_id,
             slo_target_pct::float8 AS "slo_target_pct?",
-            slo_window_days
+            slo_window_days, agent_id
         FROM monitors
         WHERE id = $1
         "#,
@@ -427,6 +592,18 @@ pub async fn update(pool: &DbPool, id: MonitorId, patch: UpdateMonitor) -> DbRes
         sqlx::query!(
             r#"UPDATE monitors SET slo_window_days = $1 WHERE id = $2"#,
             w,
+            id.0,
+        )
+        .execute(pool)
+        .await?;
+    }
+
+    // Probe-agent assignment: Option<Option<…>> like group_id. `null`
+    // returns the monitor to local probing.
+    if let Some(a) = patch.agent_id {
+        sqlx::query!(
+            r#"UPDATE monitors SET agent_id = $1 WHERE id = $2"#,
+            a.map(|x| x.0),
             id.0,
         )
         .execute(pool)

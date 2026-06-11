@@ -8,6 +8,7 @@
 //! All types are `Serialize + Deserialize`. Where they map directly to
 //! Postgres rows they're also `sqlx::Type`.
 
+pub mod agent;
 pub mod api_key;
 pub mod error;
 pub mod heartbeat;
@@ -28,11 +29,12 @@ pub mod tag;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
 
+pub use agent::{Agent, AgentResult, IssuedAgent, NewAgent, UpdateAgent};
 pub use api_key::{ApiKey, IssuedApiKey, KeyScope, NewApiKey};
 pub use error::{CoreError, Result};
 pub use heartbeat::Heartbeat;
 pub use ids::{
-    ApiKeyId, BadgeId, IncidentId, IncidentTemplateId, IncidentUpdateId, IngestTokenId,
+    AgentId, ApiKeyId, BadgeId, IncidentId, IncidentTemplateId, IncidentUpdateId, IngestTokenId,
     MaintenanceId, MonitorGroupId, MonitorId, MonitorPresetId, MonitorTemplateId, NotificationId,
     NotificationTemplateId, ProxyId, ScheduledReportId, SessionId, StatusPageComponentId,
     StatusPageGroupId, StatusPageId, StatusPageSectionId, StatusPageSubscriberId, TagId, UserId,

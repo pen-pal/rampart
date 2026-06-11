@@ -84,3 +84,4 @@ id!(IngestTokenId);
 id!(MonitorPresetId);
 id!(MonitorTemplateId);
 id!(ScheduledReportId);
+id!(AgentId);

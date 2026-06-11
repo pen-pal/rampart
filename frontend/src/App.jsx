@@ -12,6 +12,7 @@ const Maintenance       = lazy(() => import('./views/Maintenance.jsx'));
 const DependencyGraph   = lazy(() => import('./views/DependencyGraph.jsx'));
 const ApiKeys           = lazy(() => import('./views/ApiKeys.jsx'));
 const Proxies           = lazy(() => import('./views/Proxies.jsx'));
+const Agents            = lazy(() => import('./views/Agents.jsx'));
 const Security          = lazy(() => import('./views/Security.jsx'));
 const Users             = lazy(() => import('./views/Users.jsx'));
 const SmtpSettings      = lazy(() => import('./views/SmtpSettings.jsx'));
@@ -56,6 +57,7 @@ const VIEW_LABEL = {
   'dependencies':  'Dependencies',
   'api-keys':      'API keys',
   'proxies':       'Proxies',
+  'agents':        'Probe agents',
   'security':      'Security',
   'users':         'Users',
   'smtp-settings':      'SMTP',
@@ -176,7 +178,7 @@ export default function App() {
   // this is just UX so they don't land on a dead screen. `role` is the
   // source of truth on `authState.user`.
   const ADMIN_ONLY_VIEWS = new Set([
-    'users', 'security', 'api-keys', 'proxies', 'audit',
+    'users', 'security', 'api-keys', 'proxies', 'agents', 'audit',
     'smtp-settings', 'retention-settings', 'reports', 'delivery-log',
   ]);
   if (
@@ -217,6 +219,7 @@ export default function App() {
     case 'dependencies':  view = <DependencyGraph />; break;
     case 'api-keys':      view = <ApiKeys user={user} />; break;
     case 'proxies':       view = <Proxies />; break;
+    case 'agents':        view = <Agents />; break;
     case 'security':      view = <Security />; break;
     case 'users':         view = <Users />; break;
     case 'smtp-settings':      view = <SmtpSettings />; break;
@@ -270,6 +273,7 @@ function ViewSwitcher({ current, user }) {
     { hash: '#/dependencies',  view: 'dependencies'  },
     { hash: '#/api-keys',      view: 'api-keys',     adminOnly: true },
     { hash: '#/proxies',       view: 'proxies',      adminOnly: true },
+    { hash: '#/agents',        view: 'agents',       adminOnly: true },
     { hash: '#/security',      view: 'security',     adminOnly: true },
     { hash: '#/users',         view: 'users',        adminOnly: true },
     { hash: '#/folders',            view: 'folders'           },
