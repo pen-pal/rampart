@@ -39,6 +39,7 @@ pub mod redis;
 pub mod snmp;
 pub mod ssdp;
 pub mod steam;
+pub mod synthetic;
 pub mod tcp;
 pub mod tls;
 pub mod websocket;
@@ -93,6 +94,7 @@ pub struct Probes {
     radius: radius::RadiusProbe,
     browser: browser::BrowserProbe,
     banner: banner::BannerProbe,
+    synthetic: synthetic::SyntheticProbe,
 }
 
 impl Probes {
@@ -129,6 +131,7 @@ impl Probes {
             radius: radius::RadiusProbe::new(),
             browser: browser::BrowserProbe::new(),
             banner: banner::BannerProbe::new(),
+            synthetic: synthetic::SyntheticProbe::new(),
         }
     }
 
@@ -186,6 +189,7 @@ impl Probes {
             | MonitorKind::Imap
             | MonitorKind::Ftp
             | MonitorKind::Pop3 => self.banner.run(monitor).await,
+            MonitorKind::Synthetic => self.synthetic.run(monitor).await,
             unsupported => unsupported_kind(monitor.id, unsupported),
         }
     }
