@@ -203,6 +203,16 @@ describe('api helpers', () => {
 
     await api.notifications.attach('m', 'n');
     expect(global.fetch.mock.calls[3][0]).toBe('/v1/monitors/m/notifications/n');
+
+    await api.onCallSchedules.list();
+    expect(global.fetch.mock.calls[4][0]).toBe('/v1/on-call-schedules');
+
+    await api.onCallSchedules.current('sc-id');
+    expect(global.fetch.mock.calls[5][0]).toBe('/v1/on-call-schedules/sc-id/current');
+
+    await api.onCallSchedules.remove('sc-id');
+    expect(global.fetch.mock.calls[6][0]).toBe('/v1/on-call-schedules/sc-id');
+    expect(global.fetch.mock.calls[6][1].method).toBe('DELETE');
   });
 
   it('serialises POST body and sets Content-Type', async () => {

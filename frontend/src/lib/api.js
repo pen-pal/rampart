@@ -420,6 +420,15 @@ export const api = {
     episode: (monitorId) => request(`/v1/monitors/${monitorId}/escalation`),
     ack:     (monitorId) => request(`/v1/monitors/${monitorId}/escalation/ack`, { method: 'POST' }),
   },
+  // On-call schedules — channel rotations referenced by escalation steps.
+  // `current` returns `{ on_call: <channel-id|null> }` for the live shift.
+  onCallSchedules: {
+    list:    ()          => request('/v1/on-call-schedules'),
+    create:  (input)     => request('/v1/on-call-schedules', { method: 'POST', body: input }),
+    update:  (id, patch) => request(`/v1/on-call-schedules/${id}`, { method: 'PATCH', body: patch }),
+    remove:  (id)        => request(`/v1/on-call-schedules/${id}`, { method: 'DELETE' }),
+    current: (id)        => request(`/v1/on-call-schedules/${id}/current`),
+  },
   maintenance: {
     list:        ()                  => request('/v1/maintenance-windows'),
     get:         (id)                => request(`/v1/maintenance-windows/${id}`),
