@@ -22,6 +22,7 @@ const Tags              = lazy(() => import('./views/Tags.jsx'));
 const AuditLog          = lazy(() => import('./views/AuditLog.jsx'));
 const ScheduledReports  = lazy(() => import('./views/ScheduledReports.jsx'));
 const DeliveryLog       = lazy(() => import('./views/DeliveryLog.jsx'));
+const Metrics           = lazy(() => import('./views/Metrics.jsx'));
 const MonitorTemplates  = lazy(() => import('./views/MonitorTemplates.jsx'));
 const StatusPageView    = lazy(() => import('./views/StatusPageView.jsx'));
 const ManageSubscription = lazy(() => import('./views/ManageSubscription.jsx'));
@@ -66,6 +67,7 @@ const VIEW_LABEL = {
   'audit':         'Audit log',
   'reports':       'Scheduled reports',
   'delivery-log':  'Delivery log',
+  'metrics':       'Metrics',
   'templates':     'Monitor templates',
   'public-status': 'Public view',
   'login':         'Login',
@@ -229,6 +231,7 @@ export default function App() {
     case 'audit':         view = <AuditLog />; break;
     case 'reports':       view = <ScheduledReports user={user} />; break;
     case 'delivery-log':  view = <DeliveryLog user={user} />; break;
+    case 'metrics':       view = <Metrics user={user} />; break;
     case 'templates':     view = <MonitorTemplates user={user} />; break;
     case 'public-status': view = <StatusPageView slug={route.id} />; break;
     case 'manage-subscription': view = <ManageSubscription token={route.id} />; break;
@@ -283,6 +286,7 @@ function ViewSwitcher({ current, user }) {
     { hash: '#/audit',         view: 'audit',        adminOnly: true },
     { hash: '#/reports',       view: 'reports',      adminOnly: true },
     { hash: '#/delivery-log',  view: 'delivery-log', adminOnly: true },
+    { hash: '#/metrics',       view: 'metrics'       },
     { hash: '#/templates',     view: 'templates',    writeOnly: true },
     { hash: '#/status-page',   view: 'status-page'   },
     { hash: '#/new-monitor',   view: 'new-monitor'   },
