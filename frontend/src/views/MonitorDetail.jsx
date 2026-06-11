@@ -381,6 +381,18 @@ export default function MonitorDetail({ monitorId, user }) {
   );
   const groupsState    = useApi(() => api.monitorGroups.list(),          [], { pollMs: 60_000 });
 
+  // Open escalation episode (or null). Polls on the same 15s cadence as
+  // the monitor itself; `escReload` forces an immediate refetch after an
+  // acknowledge so the banner flips without waiting for the next tick.
+  const [escReload, setEscReload] = useState(0);
+  const [acking,    setAcking]    = useState(false);
+  const episodeState = useApi(
+    () => monitorId ? api.escalation.episode(monitorId) : Promise.resolve(null),
+    [monitorId, escReload],
+    { pollMs: 15_000 },
+  );
+  const episode = episodeState.data;
+
   // Long-horizon uptime history — daily uptime% over a 30d / 90d / 1y range.
   // Reads from server-side rollups so it works past raw heartbeat retention,
   // complementing the 90-day strip (which is heartbeat-derived). Re-fetches
@@ -518,6 +530,16 @@ export default function MonitorDetail({ monitorId, user }) {
     } catch (e) {
       setNotifResult({ error: e.message });
     } finally { setTestingNotifs(false); }
+  };
+  // Acknowledge the open escalation episode — stops further steps from
+  // paging. The refetch flips the banner into its muted "acknowledged"
+  // state until the monitor recovers.
+  const doAckEscalation = async () => {
+    if (!monitor || acking) return;
+    setAcking(true);
+    try { await api.escalation.ack(monitor.id); }
+    catch (e) { alert(`Failed: ${e.message}`); }
+    finally { setAcking(false); setEscReload(k => k + 1); }
   };
   // Start a one-shot maintenance window covering [now, now+duration) for
   // THIS monitor only. Reuses the existing maintenance-create endpoint —
@@ -759,6 +781,44 @@ export default function MonitorDetail({ monitorId, user }) {
             <Calendar size={14}/>
             {t('monitor.maint_now.active', { until: maintActive.until.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) })}
           </div>
+        )}
+
+        {/* Open escalation episode. Loud while the ladder is still paging;
+            muted once someone acknowledges (stays until the monitor
+            recovers and the episode resolves server-side). */}
+        {episode && !episode.resolved_at && (
+          episode.acked_at ? (
+            <div role="status" style={{
+              marginBottom: 12, padding: '8px 12px', borderRadius: 8,
+              fontSize: 13, border: '1px solid var(--border)',
+              background: 'var(--surface-2)', color: 'var(--text-2)',
+              display: 'flex', alignItems: 'center', gap: 8,
+            }}>
+              <Check size={14}/>
+              {t('monitor.escalation.acked', { who: episode.acked_by || '—', when: formatRelative(episode.acked_at) })}
+            </div>
+          ) : (
+            <div role="status" style={{
+              marginBottom: 12, padding: '8px 12px', borderRadius: 8,
+              fontSize: 13, border: '1px solid var(--down)',
+              background: 'var(--down-soft)', color: 'var(--down-text)',
+              display: 'flex', alignItems: 'center', gap: 8,
+            }}>
+              <Bell size={14}/>
+              <span>
+                <strong>{t('monitor.escalation.running', { n: episode.last_step })}</strong>
+                {' · '}
+                {t('monitor.escalation.started', { when: formatRelative(episode.started_at) })}
+              </span>
+              {writable && (
+                <button className="btn" style={{ marginLeft: 'auto' }} onClick={doAckEscalation} disabled={acking}>
+                  {acking
+                    ? <><Loader2 size={13} className="spin"/> {t('monitor.escalation.acking')}</>
+                    : <><Check size={13}/> {t('monitor.escalation.ack')}</>}
+                </button>
+              )}
+            </div>
+          )
         )}
 
         <div className="tabs" style={{ marginBottom: -1 }}>
@@ -1146,6 +1206,14 @@ function EditModal({ monitor, onCancel }) {
   const agents = agentsState.data || [];
   const showAgents = !isPush && agents.length > 0;
 
+  // Escalation policy assignment. Same contract as the agent select: only
+  // rendered when policies exist, and only included in the PATCH when it
+  // rendered so a failed fetch can't silently detach an existing policy.
+  const [policyId, setPolicyId] = useState(monitor.escalation_policy_id || '');
+  const policiesState = useApi(() => api.escalation.list(), []);
+  const policies = policiesState.data || [];
+  const showPolicies = policies.length > 0;
+
   const save = async () => {
     setErr(null);
     if (!name.trim()) { setErr('Name is required.'); return; }
@@ -1190,6 +1258,9 @@ function EditModal({ monitor, onCancel }) {
     // sent when the select rendered so a failed agents fetch can't clear
     // an existing assignment.
     if (showAgents) patch.agent_id = agentId || null;
+    // Escalation policy: empty string = no policy (null detaches). Same
+    // "only when rendered" guard as the agent select above.
+    if (showPolicies) patch.escalation_policy_id = policyId || null;
     // SLO fields use the Option<Option<…>> double-option pattern on the
     // backend: send `null` to clear, omit to leave unchanged. We always
     // send both (the form lets the user clear either one) so the patch
@@ -1355,6 +1426,19 @@ function EditModal({ monitor, onCancel }) {
                   </Field>
                 </div>
               )}
+              {showPolicies && (
+                <div style={{ marginTop: 14 }}>
+                  <Field label={t('monitor.edit.escalation_policy')}>
+                    <select className="input" value={policyId} onChange={e => setPolicyId(e.target.value)}>
+                      <option value="">{t('monitor.edit.escalation_none')}</option>
+                      {policies.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                    <div className="modal-hint">{t('monitor.edit.escalation_hint')}</div>
+                  </Field>
+                </div>
+              )}
             </>
           )}
 
@@ -1371,6 +1455,19 @@ function EditModal({ monitor, onCancel }) {
                         <option key={a.id} value={a.id}>{a.name}{a.location ? ` — ${a.location}` : ''}</option>
                       ))}
                     </select>
+                  </Field>
+                </div>
+              )}
+              {showPolicies && (
+                <div style={{ marginTop: 14 }}>
+                  <Field label={t('monitor.edit.escalation_policy')}>
+                    <select className="input" value={policyId} onChange={e => setPolicyId(e.target.value)}>
+                      <option value="">{t('monitor.edit.escalation_none')}</option>
+                      {policies.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                    <div className="modal-hint">{t('monitor.edit.escalation_hint')}</div>
                   </Field>
                 </div>
               )}
