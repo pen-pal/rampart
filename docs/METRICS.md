@@ -40,6 +40,14 @@ Rules of the road:
 - A **series** is a metric name plus its exact label set. Keep label
   cardinality sane — every distinct label combination is its own series.
 
+### Host metrics from agents
+
+Every [remote probe agent](AGENTS.md) pushes its host's CPU / memory /
+disk / load to `POST /v1/agent/metrics` (its own bearer token, same text
+format) every 60s, and the server stamps each sample with an
+`agent="<name>"` label. No extra setup — register an agent and its host
+shows up in the explorer.
+
 ## Reading back
 
 - `GET /v1/metrics/series` — every known series with freshness and
