@@ -28,6 +28,7 @@ pub mod proxy;
 pub mod role;
 pub mod scheduled_report;
 pub mod status_page;
+pub mod synthetic;
 pub mod tag;
 
 #[cfg(any(test, feature = "testing"))]
@@ -66,5 +67,8 @@ pub use status_page::{
     MonitorAssignment, NewStatusPage, NewStatusPageSection, PublicIncident, PublicIncidentUpdate,
     PublicMaintenance, PublicSection, PublicStatusMonitor, PublicStatusPage, StatusPage,
     StatusPageSection, UpdateStatusPage, UpdateStatusPageSection,
+};
+pub use synthetic::{
+    Assertion, AssertKind, CompareOp, Extract, ExtractSource, SyntheticPlan, SyntheticStep,
 };
 pub use tag::{NewTag, Tag, TagBrief};
