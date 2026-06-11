@@ -354,3 +354,58 @@ async fn revoking_agent_returns_monitors_to_local(pool: PgPool) {
     let m: Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(m["agent_id"], json!(null));
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn agent_metrics_get_the_agent_label(pool: PgPool) {
+    let router = common::router(pool.clone());
+    let admin = register_admin(&router).await;
+    let (_id, token) = mint_agent(&router, &admin, "eu-west-1").await;
+
+    // Push host metrics with the agent token (raw text body).
+    let req = Request::builder()
+        .method(Method::POST)
+        .uri("/v1/agent/metrics")
+        .header("authorization", format!("Bearer {token}"))
+        .header("content-type", "text/plain")
+        .body(Body::from(
+            "host_cpu_pct 12.5\nhost_disk_used_pct{mount=\"/\"} 81\n",
+        ))
+        .unwrap();
+    let resp: Response<Body> = router.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+    let out: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(out["accepted"], json!(2));
+
+    // The server injected agent="<name>" into every stored sample —
+    // including ones that already carried labels.
+    let (status, _, body) = request(
+        &router,
+        Method::GET,
+        "/v1/metrics/series",
+        None,
+        Some(&admin),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let series: Vec<Value> = serde_json::from_slice(&body).unwrap();
+    assert_eq!(series.len(), 2);
+    for s in &series {
+        assert_eq!(s["labels"]["agent"], json!("eu-west-1"), "series: {s}");
+    }
+    let disk = series
+        .iter()
+        .find(|s| s["name"] == "host_disk_used_pct")
+        .unwrap();
+    assert_eq!(disk["labels"]["mount"], json!("/"));
+
+    // Garbage token → 401.
+    let req = Request::builder()
+        .method(Method::POST)
+        .uri("/v1/agent/metrics")
+        .header("authorization", "Bearer rmpa_bogus")
+        .body(Body::from("m 1"))
+        .unwrap();
+    let resp: Response<Body> = router.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
