@@ -67,6 +67,8 @@ tags:
     description: External metric ingestion (Prometheus text format), series reads, and threshold alert rules. Editor writes; readonly reads.
   - name: Escalations
     description: Escalation policies (ordered notification ladders) and episode acknowledge. Editor.
+  - name: On-call
+    description: On-call schedules — channel rotations resolved at page time by escalation steps. Editor.
   - name: Users
     description: User management + role assignment (admin); self-service password (any role).
   - name: Audit
@@ -1444,10 +1446,12 @@ paths:
       tags: [Escalations]
       summary: Create an escalation policy
       description: >-
-        steps = ordered [{wait_seconds, channel_ids}] (1–10 steps, every
-        step needs channels, step 1 must be immediate). A monitor that
-        references a policy routes its Down-flips through the ladder
-        instead of regular channel fan-out; escalation pages bypass
+        steps = ordered [{wait_seconds, channel_ids, schedule_ids}] (1–10
+        steps, every step needs at least one channel or on-call schedule,
+        step 1 must be immediate). A step's schedule_ids resolve to their
+        current on-call channel when the step fires (see /v1/on-call-schedules).
+        A monitor that references a policy routes its Down-flips through the
+        ladder instead of regular channel fan-out; escalation pages bypass
         digest coalescing and quiet hours. See docs/ESCALATIONS.md.
       responses:
         '201': { description: Created policy. }
@@ -1484,6 +1488,53 @@ paths:
       responses:
         '200': { description: Acked episode. }
         '404': { description: Nothing open, or already acked. }
+
+  # ─────────────────────────── On-call ───────────────────────────
+  /v1/on-call-schedules:
+    get:
+      tags: [On-call]
+      summary: List on-call schedules
+      responses:
+        '200': { description: Schedules with their rotation cadence + participant rings. }
+    post:
+      tags: [On-call]
+      summary: Create an on-call schedule
+      description: >-
+        A schedule rotates notification channels (Rampart addresses by
+        channel, not user). participant_ids is the rotation ring (1–50
+        channels); rotation_seconds is the handoff cadence (300–31536000,
+        i.e. 5 min–365 days); anchor is the UTC instant participant[0]'s
+        first shift begins. "Who is on call at T" is computed as
+        participant_ids[floor((T-anchor)/rotation_seconds) mod len]. An
+        escalation step references a schedule by id in its schedule_ids.
+        See docs/ON-CALL.md.
+      responses:
+        '201': { description: Created schedule. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /v1/on-call-schedules/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      tags: [On-call]
+      summary: Update a schedule
+      responses:
+        '200': { description: Updated schedule. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+    delete:
+      tags: [On-call]
+      summary: Delete a schedule
+      description: Escalation steps referencing it resolve to nothing and are skipped at page time.
+      responses:
+        '204': { description: Deleted. }
+  /v1/on-call-schedules/{id}/current:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [On-call]
+      summary: Who is on call right now
+      responses:
+        '200': { description: '`{ "on_call": "<channel-uuid>" }`, or `{ "on_call": null }` for an empty ring.' }
+        '404': { description: No such schedule. }
 
   # ─────────────────────────── Users ───────────────────────────
   /v1/users:
