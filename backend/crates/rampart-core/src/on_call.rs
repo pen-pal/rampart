@@ -36,6 +36,10 @@ pub struct NewOnCallSchedule {
     #[validate(length(min = 1, max = 120))]
     pub name: String,
     pub rotation_seconds: i64,
+    // Client-supplied, so it arrives as an RFC 3339 string (the dashboard
+    // sends `new Date(...).toISOString()`). Response structs keep the plain
+    // `OffsetDateTime`, which the `time` crate emits as an int array.
+    #[serde(with = "time::serde::rfc3339")]
     pub anchor: OffsetDateTime,
     pub participant_ids: Vec<NotificationId>,
 }
@@ -47,7 +51,7 @@ pub struct UpdateOnCallSchedule {
     pub name: Option<String>,
     #[serde(default)]
     pub rotation_seconds: Option<i64>,
-    #[serde(default)]
+    #[serde(default, with = "time::serde::rfc3339::option")]
     pub anchor: Option<OffsetDateTime>,
     #[serde(default)]
     pub participant_ids: Option<Vec<NotificationId>>,
