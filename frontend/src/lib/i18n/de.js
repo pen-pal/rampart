@@ -1141,6 +1141,16 @@ const de = {
   'templates.save.default_name':     '{name}-Vorlage',
   'templates.save.ok_goto':          'Vorlage gespeichert. Vorlagenbibliothek öffnen?',
   'templates.save.failed':           'Vorlage konnte nicht gespeichert werden: {msg}',
+  'templates.new': 'Neue Vorlage',
+  'templates.create_title': 'Neue Vorlage von Grund auf',
+  'templates.field_description': 'Beschreibung (optional)',
+  'templates.spec_label': 'Monitor-Spezifikation (JSON)',
+  'templates.spec_hint': 'Der Monitor-Erstellungsbody, den diese Vorlage instanziiert — gleiche Form wie POST /v1/monitors. "kind" ist erforderlich; das Beispiel kann frei angepasst werden.',
+  'templates.creating': 'Speichern…',
+  'templates.create': 'Vorlage speichern',
+  'templates.err_name': 'Bitte der Vorlage einen Namen geben.',
+  'templates.err_spec': 'Die Spezifikation muss ein JSON-Objekt mit mindestens "kind" sein.',
+  'templates.err_create': 'Vorlage konnte nicht erstellt werden.',
 
   // ── batch-16: push cron-job monitoring ───────────────────────────
   'wizard.field.cron_group':         'Cron-Job-Zeitplan',

@@ -1141,6 +1141,16 @@ const fr = {
   'templates.save.default_name':     'Modèle {name}',
   'templates.save.ok_goto':          'Modèle enregistré. Ouvrir la bibliothèque de modèles ?',
   'templates.save.failed':           'Échec de l’enregistrement du modèle : {msg}',
+  'templates.new': 'Nouveau modèle',
+  'templates.create_title': 'Nouveau modèle à partir de zéro',
+  'templates.field_description': 'Description (facultatif)',
+  'templates.spec_label': 'Spécification du moniteur (JSON)',
+  'templates.spec_hint': 'Le corps de création de moniteur que ce modèle instancie — même forme que POST /v1/monitors. « kind » est requis ; modifiez librement l’exemple.',
+  'templates.creating': 'Enregistrement…',
+  'templates.create': 'Enregistrer le modèle',
+  'templates.err_name': 'Donnez un nom au modèle.',
+  'templates.err_spec': 'La spécification doit être un objet JSON avec au moins « kind ».',
+  'templates.err_create': 'Échec de la création du modèle.',
 
   // ── batch-16: push cron-job monitoring ───────────────────────────
   'wizard.field.cron_group':         'Planification du job cron',
