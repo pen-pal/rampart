@@ -19,6 +19,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ### Added
 
+- **Cron-job monitoring** (migration `0071`) — push monitors grow
+  Cronitor-style run states: `/push/{token}/run` opens a duration clock
+  (no heartbeat recorded), `/complete` closes it Up with the run's
+  wall-clock duration recorded as the heartbeat latency (the
+  response-time chart doubles as a run-duration chart), `/fail` records
+  Down and notifies immediately (`?state=` works too; legacy
+  `?status=up|down|warn` unchanged). Declaring `config.cron` (5-field
+  UTC expression, parsed by a new zero-dependency parser in
+  rampart-core) switches the monitor to schedule-aware mode: the
+  scheduler synthesizes Down only for a **missed run**
+  (`cron_grace_seconds`, default 300) or an **overrun**
+  (`max_run_seconds`), and the healthy timeline belongs to the job's own
+  pings — so a fail ping's Down is no longer overwritten by the next
+  scheduler tick. Wizard fields for the schedule, copyable
+  run/complete/fail URLs + a crontab example on the monitor page, and a
+  read-only schedule card in the Config tab. See
+  [`docs/CRON-JOBS.md`](docs/CRON-JOBS.md).
+
 - **Remote probe agents** (migration `0070`) — run a lightweight
   `rampart-agent` worker in another region or a private network segment;
   it pulls its assigned monitors over the API, probes them locally with

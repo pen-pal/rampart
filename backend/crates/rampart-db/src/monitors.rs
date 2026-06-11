@@ -35,6 +35,7 @@ struct MonitorRow {
     proxy_id: Option<Uuid>,
     push_token: Option<String>,
     last_push_at: Option<OffsetDateTime>,
+    last_run_started_at: Option<OffsetDateTime>,
     active: bool,
     current_status: MonitorStatus,
     created_at: OffsetDateTime,
@@ -77,6 +78,7 @@ impl From<MonitorRow> for Monitor {
             proxy_id: r.proxy_id.map(ProxyId::from_uuid),
             push_token: r.push_token,
             last_push_at: r.last_push_at,
+            last_run_started_at: r.last_run_started_at,
             active: r.active,
             current_status: r.current_status,
             created_at: r.created_at,
@@ -119,6 +121,7 @@ struct StaleAgentRow {
     proxy_id: Option<Uuid>,
     push_token: Option<String>,
     last_push_at: Option<OffsetDateTime>,
+    last_run_started_at: Option<OffsetDateTime>,
     active: bool,
     current_status: MonitorStatus,
     created_at: OffsetDateTime,
@@ -158,6 +161,7 @@ impl From<StaleAgentRow> for Monitor {
             proxy_id: r.proxy_id,
             push_token: r.push_token,
             last_push_at: r.last_push_at,
+            last_run_started_at: r.last_run_started_at,
             active: r.active,
             current_status: r.current_status,
             created_at: r.created_at,
@@ -215,7 +219,7 @@ pub async fn create(pool: &DbPool, input: NewMonitor) -> DbResult<Monitor> {
             timeout_seconds, resend_interval_sec, upside_down,
             http_method, http_body, http_headers,
             accepted_statuses, follow_redirect, ignore_tls, proxy_id,
-            push_token, last_push_at,
+            push_token, last_push_at, last_run_started_at,
             active,
             current_status AS "current_status: MonitorStatus",
             created_at, updated_at,
@@ -341,6 +345,60 @@ pub async fn set_cert_info(
 }
 
 /// Bump last_push_at to NOW() on a successful push receipt.
+/// `state=run` ping: open a run. Overwrites any prior open run — a new
+/// start supersedes a crashed predecessor.
+pub async fn mark_run_started(pool: &DbPool, id: MonitorId) -> DbResult<()> {
+    sqlx::query!(
+        r#"UPDATE monitors SET last_run_started_at = NOW() WHERE id = $1"#,
+        id.0,
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Terminal ping (`complete` / `fail` / legacy `up` / `down`): stamp the
+/// liveness clock, close any open run, and hand back when that run
+/// started so the caller can compute the job's duration. Single
+/// statement so a concurrent ping can't observe a half-applied state.
+pub async fn close_run(pool: &DbPool, id: MonitorId) -> DbResult<Option<OffsetDateTime>> {
+    let row = sqlx::query!(
+        r#"
+        UPDATE monitors m SET
+            last_push_at        = NOW(),
+            last_run_started_at = NULL
+        FROM (
+            SELECT id, last_run_started_at AS prior
+            FROM monitors WHERE id = $1
+            FOR UPDATE
+        ) prev
+        WHERE m.id = prev.id
+        RETURNING prev.prior
+        "#,
+        id.0,
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or(DbError::NotFound)?;
+    Ok(row.prior)
+}
+
+/// Fresh (last_push_at, last_run_started_at) pair for the scheduler's
+/// push tick — read together so the two clocks can't tear.
+pub async fn push_state(
+    pool: &DbPool,
+    id: MonitorId,
+) -> DbResult<(Option<OffsetDateTime>, Option<OffsetDateTime>)> {
+    let row = sqlx::query!(
+        r#"SELECT last_push_at, last_run_started_at FROM monitors WHERE id = $1"#,
+        id.0,
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or(DbError::NotFound)?;
+    Ok((row.last_push_at, row.last_run_started_at))
+}
+
 pub async fn bump_push_at(pool: &DbPool, id: MonitorId) -> DbResult<()> {
     sqlx::query!(
         r#"UPDATE monitors SET last_push_at = NOW() WHERE id = $1"#,
@@ -363,7 +421,7 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<Monitor>> {
             timeout_seconds, resend_interval_sec, upside_down,
             http_method, http_body, http_headers,
             accepted_statuses, follow_redirect, ignore_tls, proxy_id,
-            push_token, last_push_at,
+            push_token, last_push_at, last_run_started_at,
             active,
             current_status AS "current_status: MonitorStatus",
             created_at, updated_at,
@@ -403,7 +461,7 @@ pub async fn list_for_agent(pool: &DbPool, agent: AgentId) -> DbResult<Vec<Monit
             timeout_seconds, resend_interval_sec, upside_down,
             http_method, http_body, http_headers,
             accepted_statuses, follow_redirect, ignore_tls, proxy_id,
-            push_token, last_push_at,
+            push_token, last_push_at, last_run_started_at,
             active,
             current_status AS "current_status: MonitorStatus",
             created_at, updated_at,
@@ -440,7 +498,7 @@ pub async fn list_stale_agent_monitors(pool: &DbPool) -> DbResult<Vec<(Monitor, 
             m.timeout_seconds, m.resend_interval_sec, m.upside_down,
             m.http_method, m.http_body, m.http_headers,
             m.accepted_statuses, m.follow_redirect, m.ignore_tls, m.proxy_id,
-            m.push_token, m.last_push_at,
+            m.push_token, m.last_push_at, m.last_run_started_at,
             m.active,
             m.current_status AS "current_status: MonitorStatus",
             m.created_at, m.updated_at,
@@ -482,7 +540,7 @@ pub async fn get(pool: &DbPool, id: MonitorId) -> DbResult<Monitor> {
             timeout_seconds, resend_interval_sec, upside_down,
             http_method, http_body, http_headers,
             accepted_statuses, follow_redirect, ignore_tls, proxy_id,
-            push_token, last_push_at,
+            push_token, last_push_at, last_run_started_at,
             active,
             current_status AS "current_status: MonitorStatus",
             created_at, updated_at,

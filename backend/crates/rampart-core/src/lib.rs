@@ -10,6 +10,7 @@
 
 pub mod agent;
 pub mod api_key;
+pub mod cron;
 pub mod error;
 pub mod heartbeat;
 pub mod ids;
@@ -31,6 +32,7 @@ pub mod testing;
 
 pub use agent::{Agent, AgentResult, IssuedAgent, NewAgent, UpdateAgent};
 pub use api_key::{ApiKey, IssuedApiKey, KeyScope, NewApiKey};
+pub use cron::{CronExpr, CronSchedule};
 pub use error::{CoreError, Result};
 pub use heartbeat::Heartbeat;
 pub use ids::{

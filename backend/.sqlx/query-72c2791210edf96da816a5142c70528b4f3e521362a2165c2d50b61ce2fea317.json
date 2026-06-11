@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE monitors m SET\n            last_push_at        = NOW(),\n            last_run_started_at = NULL\n        FROM (\n            SELECT id, last_run_started_at AS prior\n            FROM monitors WHERE id = $1\n            FOR UPDATE\n        ) prev\n        WHERE m.id = prev.id\n        RETURNING prev.prior\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "prior",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "last_run_started_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "72c2791210edf96da816a5142c70528b4f3e521362a2165c2d50b61ce2fea317"
+}

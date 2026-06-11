@@ -524,12 +524,16 @@ async fn run_once(
         maintenance_heartbeat(monitor)
     } else if monitor.kind == MonitorKind::Push {
         // Push monitors are inverted — the external job calls us, not
-        // the other way around. The scheduler's job here is just to
-        // check if a push has landed inside the expected interval.
-        // Probe crate doesn't touch the DB (layer rule), so we
-        // synthesize the heartbeat here. No retry: the "result" is a
-        // time-window read, not a flaky network probe.
-        push_heartbeat(monitor, pool).await
+        // the other way around. The scheduler's job here is to check
+        // whether the expected ping landed (interval mode) or whether a
+        // scheduled run was missed / overran (cron mode). Cron-mode
+        // ticks that find nothing wrong record nothing — the timeline
+        // belongs to the job's own pings. Probe crate doesn't touch
+        // the DB (layer rule), so we synthesize the heartbeat here.
+        match push_heartbeat(monitor, pool).await {
+            Some(h) => h,
+            None => return,
+        }
     } else {
         // Real probe path, with an optional retry-with-backoff curve.
         probe_with_retries(probes, monitor, pool).await
@@ -540,7 +544,18 @@ async fn run_once(
     // a monitor that's already up — that's just initialisation, not a
     // user-visible flip. Also suppress events for any flip *into* or
     // *out of* Maintenance: those are admin-driven, not real outages.
-    let prev = *last_status.read().await;
+    //
+    // Push monitors read `prev` from the refetched DB row instead of the
+    // in-memory cell: their flips are ALSO produced by the ping-ingest
+    // path (API), which compares against monitors.current_status. Using
+    // the same source keeps the two detectors coherent — otherwise a
+    // ping-driven recovery would be re-announced by the next tick, and
+    // a second missed run after a ping-driven recovery would be missed.
+    let prev = if monitor.kind == MonitorKind::Push {
+        monitor.current_status
+    } else {
+        *last_status.read().await
+    };
     let flipped = prev != hb.status;
     if flipped {
         hb.important = true;
@@ -1064,10 +1079,64 @@ fn maintenance_heartbeat(monitor: &Monitor) -> Heartbeat {
 /// seconds (with a small grace), Down otherwise. The grace covers the
 /// case where the external job is on its own cron and lands a moment
 /// after our tick — without it, perfectly-on-time pushes would flap.
-async fn push_heartbeat(monitor: &Monitor, pool: &DbPool) -> Heartbeat {
+async fn push_heartbeat(monitor: &Monitor, pool: &DbPool) -> Option<Heartbeat> {
     use time::OffsetDateTime;
 
     let now = OffsetDateTime::now_utc();
+
+    // Cron mode: `config.cron` declares WHEN the job is supposed to
+    // complete, so the tick only speaks up when expectations are broken
+    // (missed run / overrun). The job's own /run /complete /fail pings
+    // own the healthy timeline — synthesizing Up here would both pad the
+    // uptime stats and stomp a fail ping's Down, which is exactly the
+    // legacy-interval-mode quirk cron mode exists to fix.
+    if let Some(schedule) = rampart_core::CronSchedule::from_config(&monitor.config) {
+        let (last_push, run_started) = rampart_db::monitors::push_state(pool, monitor.id)
+            .await
+            .ok()?;
+
+        // Overrun: a /run ping opened a run that's been in flight longer
+        // than config.max_run_seconds allows.
+        if let (Some(started), Some(max)) = (
+            run_started,
+            rampart_core::cron::max_run_seconds(&monitor.config),
+        ) {
+            let running_for = (now - started).whole_seconds();
+            if running_for > max {
+                return Some(synthetic_down(
+                    monitor,
+                    now,
+                    format!("run exceeded max duration: {running_for}s (limit {max}s)"),
+                ));
+            }
+        }
+
+        // Missed run: the most recent scheduled slot plus grace passed
+        // with no terminal ping since the slot. Slots older than the
+        // monitor itself don't count — a monitor created at 10:05 isn't
+        // late for the 10:00 run.
+        let prev = schedule.expr.prev_occurrence(now)?;
+        if prev < monitor.created_at {
+            return None;
+        }
+        let deadline = prev + time::Duration::seconds(schedule.grace_seconds);
+        let satisfied = last_push.map(|ts| ts >= prev).unwrap_or(false);
+        if now > deadline && !satisfied {
+            return Some(synthetic_down(
+                monitor,
+                now,
+                format!(
+                    "missed scheduled run at {} UTC (grace {}s)",
+                    prev.format(&time::format_description::well_known::Rfc3339)
+                        .unwrap_or_else(|_| prev.to_string()),
+                    schedule.grace_seconds
+                ),
+            ));
+        }
+        return None;
+    }
+
+    // Interval mode — the original dead-man's-switch contract, unchanged.
     let last = rampart_db::monitors::fetch_last_push_at(pool, monitor.id)
         .await
         .ok()
@@ -1090,13 +1159,27 @@ async fn push_heartbeat(monitor: &Monitor, pool: &DbPool) -> Heartbeat {
         }
     };
 
-    Heartbeat {
+    Some(Heartbeat {
         monitor_id: monitor.id,
         ts: now,
         status,
         latency_ms: None,
         status_code: None,
         msg,
+        retries: 0,
+        important: false,
+    })
+}
+
+/// A scheduler-synthesized Down heartbeat for a broken cron expectation.
+fn synthetic_down(monitor: &Monitor, now: time::OffsetDateTime, msg: String) -> Heartbeat {
+    Heartbeat {
+        monitor_id: monitor.id,
+        ts: now,
+        status: MonitorStatus::Down,
+        latency_ms: None,
+        status_code: None,
+        msg: Some(msg),
         retries: 0,
         important: false,
     }

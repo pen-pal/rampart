@@ -46,6 +46,7 @@ pub fn sample_monitor() -> Monitor {
         slo_target_pct: None,
         slo_window_days: None,
         agent_id: None,
+        last_run_started_at: None,
     }
 }
 

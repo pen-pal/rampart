@@ -1645,10 +1645,17 @@ paths:
     get:
       tags: [Monitors]
       summary: Push heartbeat (GET)
-      description: Public — the token IS the auth. Records a heartbeat for the push monitor that owns the token. Optional `status`, `msg`, `ping` query params.
+      description: >-
+        Public — the token IS the auth. Records a heartbeat for the push
+        monitor that owns the token. Optional query params: `status`
+        (up | down | warn, default up), `state` (run | complete | fail —
+        overrides `status`), `msg` free text, `ping` latency/duration ms.
+        A fail (or `status=down`) flips the monitor and notifies
+        immediately.
       security: []
       responses:
         '200': { description: Recorded. }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '404': { $ref: '#/components/responses/NotFound' }
     post:
       tags: [Monitors]
@@ -1656,6 +1663,43 @@ paths:
       security: []
       responses:
         '200': { description: Recorded. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /push/{token}/{state}:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        description: A push monitor's secret token.
+        schema: { type: string }
+      - name: state
+        in: path
+        required: true
+        description: >-
+          Cron-job run state. `run` opens a duration clock and records no
+          heartbeat; `complete` closes the run (its wall-clock duration is
+          recorded as the heartbeat's latency_ms); `fail` closes the run,
+          records Down, and notifies immediately. Schedule expectations —
+          `config.cron` (5-field, UTC), `config.cron_grace_seconds`
+          (default 300), `config.max_run_seconds` — are enforced by the
+          scheduler: a missed or overrunning job synthesizes a Down
+          heartbeat. See docs/CRON-JOBS.md.
+        schema: { type: string, enum: [run, complete, fail] }
+    get:
+      tags: [Monitors]
+      summary: Cron-job run-state ping (GET)
+      security: []
+      responses:
+        '200': { description: Recorded. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Monitors]
+      summary: Cron-job run-state ping (POST)
+      security: []
+      responses:
+        '200': { description: Recorded. }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '404': { $ref: '#/components/responses/NotFound' }
 
   # ─────────────────────────── Monitors (extended) ───────────────────────────
