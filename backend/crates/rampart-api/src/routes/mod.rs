@@ -19,6 +19,7 @@ pub mod incident_templates;
 pub mod incidents;
 pub mod ingest;
 pub mod maintenance;
+pub mod metric_ingest;
 pub mod monitor_groups;
 pub mod monitor_templates;
 pub mod monitors;
@@ -136,6 +137,8 @@ pub fn v1_protected() -> Router<AppState> {
         .merge(subscribers::admin_router())
         // /v1/stream/heartbeats — Server-Sent Events fan-out (GET only).
         .nest("/stream", stream::router())
+        // /v1/metrics — external metric ingest (POST, write-gated) + reads.
+        .nest("/metrics", metric_ingest::router())
         // /v1/agents read — feeds the probe-location picker (names +
         // locations only; token material never leaves the create call).
         .nest("/agents", agents::read_router())
