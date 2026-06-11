@@ -14,6 +14,7 @@ pub mod api_keys;
 pub mod audit;
 pub mod auth;
 pub mod delivery_log;
+pub mod escalations;
 pub mod health;
 pub mod incident_templates;
 pub mod incidents;
@@ -105,7 +106,8 @@ pub fn v1_protected() -> Router<AppState> {
                 .merge(notifications::monitor_attach_router())
                 .merge(tags::monitor_tag_router())
                 .merge(monitor_groups::dep_router())
-                .merge(routing::monitor_router()),
+                .merge(routing::monitor_router())
+                .merge(escalations::monitor_router()),
         )
         // /v1/monitor-groups CRUD + folder tags/channels
         .nest(
@@ -123,6 +125,8 @@ pub fn v1_protected() -> Router<AppState> {
         )
         // /v1/notification-templates CRUD
         .nest("/notification-templates", templates::router())
+        // /v1/escalation-policies CRUD — notification ladders (editor)
+        .nest("/escalation-policies", escalations::router())
         // /v1/maintenance-windows CRUD + attach/detach
         .nest("/maintenance-windows", maintenance::router())
         // /v1/status-pages admin CRUD (public read sits in v1_public)
