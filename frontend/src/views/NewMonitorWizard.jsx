@@ -277,6 +277,7 @@ const fieldsFor = (kind) => {
   if (['tcp','grpc','mqtt','steam','kafka','radius','ntp'].includes(kind)) return { hostname: true, port: true };
   if (['postgres','mysql','mssql','redis','mongodb','memcached'].includes(kind)) return { hostname: true, port: true };
   if (kind === 'ping')   return { hostname: true };
+  if (kind === 'push')   return { cron: true };
   if (kind === 'dns')    return { hostname: true, dns: true };
   if (kind === 'tls')    return { url: true };
   if (kind === 'domain') return { url: true };
@@ -322,6 +323,12 @@ export default function NewMonitorWizard() {
   const [dnsResolver,   setDnsResolver]   = useState('');
   const [dnsExpected,   setDnsExpected]   = useState('');
   const [bannerExpect,  setBannerExpect]  = useState('');
+
+  // Push-monitor cron expectations. Blank cron = simple interval mode
+  // (dead-man's switch); set = the server expects a run per schedule.
+  const [cronExpr,  setCronExpr]  = useState('');
+  const [cronGrace, setCronGrace] = useState('');
+  const [maxRun,    setMaxRun]    = useState('');
 
   const [intervalSec, setIntervalSec] = useState('60');
   const [timeoutSec,  setTimeoutSec]  = useState('10');
@@ -379,6 +386,14 @@ export default function NewMonitorWizard() {
     } catch {
       return true;
     }
+  })();
+
+  // Light sanity check only — 5 whitespace-separated fields. The server
+  // owns real cron parsing; this just catches obvious typos early.
+  const cronInvalid = (() => {
+    const v = cronExpr.trim();
+    if (!v) return false;
+    return v.split(/\s+/).length !== 5;
   })();
 
   // Channels picked on step 3 — attached to the monitor after create.
@@ -521,6 +536,17 @@ export default function NewMonitorWizard() {
     if (fields.banner && bannerExpect.trim()) {
       config.expect = bannerExpect.trim();
     }
+    // Push cron expectations. Grace only means anything alongside a cron
+    // expression; max_run_seconds works with or without one.
+    if (fields.cron) {
+      if (cronExpr.trim()) {
+        config.cron = cronExpr.trim();
+        const grace = parseInt(cronGrace, 10);
+        if (Number.isFinite(grace) && grace >= 0) config.cron_grace_seconds = grace;
+      }
+      const maxRunSecs = parseInt(maxRun, 10);
+      if (Number.isFinite(maxRunSecs) && maxRunSecs > 0) config.max_run_seconds = maxRunSecs;
+    }
     // Optional per-monitor outbound result webhook (HTTP-family only). The
     // backend reads config.result_webhook; blank disables it.
     if (fields.httpExtras && resultWebhook.trim()) {
@@ -587,6 +613,7 @@ export default function NewMonitorWizard() {
     if (!name.trim()) { setErr(t('wizard.err_name')); return; }
     if (fields.url      && !url.trim())      { setErr(t('wizard.err_url')); return; }
     if (fields.hostname && !hostname.trim()) { setErr(t('wizard.err_hostname')); return; }
+    if (cronInvalid)                         { setErr(t('wizard.err_cron')); return; }
     setSubmitting(true);
     try {
       const created = await api.monitors.create(buildPayload());
@@ -922,6 +949,38 @@ export default function NewMonitorWizard() {
                     </div>
                   </div>
                 )}
+
+                {fields.cron && (
+                  <>
+                    <div style={{ margin: '18px 0 10px', fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                      {t('wizard.field.cron_group')}
+                    </div>
+                    <div className="field">
+                      <label className="field-label">{t('wizard.field.cron')}</label>
+                      <input className="input mono" value={cronExpr} onChange={e => setCronExpr(e.target.value)}
+                        style={cronInvalid ? { borderColor: 'var(--down)' } : undefined}
+                        placeholder="0 3 * * *"/>
+                      {cronInvalid
+                        ? <div className="field-hint" style={{ color: 'var(--down)' }}>{t('wizard.err_cron')}</div>
+                        : <div className="field-hint">{t('wizard.field.cron_hint')}</div>}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <div className="field">
+                        <label className="field-label">{t('wizard.field.cron_grace')}</label>
+                        <input className="input mono" value={cronGrace} onChange={e => setCronGrace(e.target.value)}
+                          disabled={!cronExpr.trim()}
+                          placeholder="300"/>
+                        <div className="field-hint">{t('wizard.field.cron_grace_hint')}</div>
+                      </div>
+                      <div className="field">
+                        <label className="field-label">{t('wizard.field.max_run')}</label>
+                        <input className="input mono" value={maxRun} onChange={e => setMaxRun(e.target.value)}
+                          placeholder="3600"/>
+                        <div className="field-hint">{t('wizard.field.max_run_hint')}</div>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </>
           )}
@@ -1103,7 +1162,7 @@ export default function NewMonitorWizard() {
               <ChevronLeft size={13}/> {t('wizard.back')}
             </button>
             {step < 3 ? (
-              <button className="btn btn-accent" onClick={() => setStep(s => s + 1)} disabled={submitting || resultWebhookInvalid}>
+              <button className="btn btn-accent" onClick={() => setStep(s => s + 1)} disabled={submitting || resultWebhookInvalid || cronInvalid}>
                 {t('wizard.continue')} <ChevronRight size={13}/>
               </button>
             ) : (

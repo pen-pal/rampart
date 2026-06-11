@@ -500,6 +500,18 @@ const en = {
   'monitor.config.kind_specific':    'Kind-specific config',
   'monitor.config.identity':         'Identity',
 
+  // ── monitor detail: push / cron-job pings ────────────────────────
+  'monitor.push.title':              'Cron job pings',
+  'monitor.push.ping_url':           'Ping URL (heartbeat)',
+  'monitor.push.run_url':            'Run started',
+  'monitor.push.complete_url':       'Run completed',
+  'monitor.push.fail_url':           'Run failed',
+  'monitor.push.crontab_example':    'Crontab example',
+  'monitor.push.section':            'Cron job schedule',
+  'monitor.push.schedule':           'Cron expression (UTC)',
+  'monitor.push.grace':              'Grace period',
+  'monitor.push.max_run':            'Max run duration',
+
   // ── login ────────────────────────────────────────────────────────
   'login.subtitle_signin':           'Sign in',
   'login.subtitle_setup':            'Create your admin account',
@@ -714,6 +726,14 @@ const en = {
   'wizard.field.result_webhook_invalid': 'Enter a valid http(s) URL, or leave blank to disable.',
   'wizard.field.result_webhook_secret':      'Signing secret (HMAC-SHA256)',
   'wizard.field.result_webhook_secret_hint': 'When set, each POST is signed with X-Rampart-Signature: sha256=… over <timestamp>.<body>. Only used when a URL is set.',
+  'wizard.field.cron_group':         'Cron job schedule',
+  'wizard.field.cron':               'Cron expression (UTC)',
+  'wizard.field.cron_hint':          'Leave blank for simple interval mode (a ping is expected every check interval). Set it to declare when the job is scheduled — the monitor goes Down if a run is missed.',
+  'wizard.field.cron_grace':         'Grace period (seconds)',
+  'wizard.field.cron_grace_hint':    'How late the completion may arrive before the run counts as missed. Default 300. Only used with a cron expression.',
+  'wizard.field.max_run':            'Max run duration (seconds)',
+  'wizard.field.max_run_hint':       'Alert if a started run (/run ping) hasn\'t completed within this many seconds. Leave blank to disable.',
+  'wizard.err_cron':                 'Cron expression must have 5 space-separated fields (e.g. "0 3 * * *").',
   'wizard.field.hostname':           'Hostname',
   'wizard.field.port':               'Port',
   'wizard.field.keyword':            'Keyword to require in body',

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            id, name,\n            kind   AS \"kind: MonitorKind\",\n            url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, last_push_at,\n            active,\n            current_status AS \"current_status: MonitorStatus\",\n            created_at, updated_at,\n            cert_days_left, cert_subject, cert_checked_at,\n            group_id,\n            slo_target_pct::float8 AS \"slo_target_pct?\",\n            slo_window_days, agent_id\n        FROM monitors\n        WHERE id = $1\n        ",
+  "query": "\n        SELECT\n            id, name,\n            kind   AS \"kind: MonitorKind\",\n            url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, last_push_at, last_run_started_at,\n            active,\n            current_status AS \"current_status: MonitorStatus\",\n            created_at, updated_at,\n            cert_days_left, cert_subject, cert_checked_at,\n            group_id,\n            slo_target_pct::float8 AS \"slo_target_pct?\",\n            slo_window_days, agent_id\n        FROM monitors\n        ORDER BY created_at DESC\n        ",
   "describe": {
     "columns": [
       {
@@ -293,6 +293,17 @@
       },
       {
         "ordinal": 22,
+        "name": "last_run_started_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "last_run_started_at"
+          }
+        }
+      },
+      {
+        "ordinal": 23,
         "name": "active",
         "type_info": "Bool",
         "origin": {
@@ -303,7 +314,7 @@
         }
       },
       {
-        "ordinal": 23,
+        "ordinal": 24,
         "name": "current_status: MonitorStatus",
         "type_info": {
           "Custom": {
@@ -328,7 +339,7 @@
         }
       },
       {
-        "ordinal": 24,
+        "ordinal": 25,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -339,7 +350,7 @@
         }
       },
       {
-        "ordinal": 25,
+        "ordinal": 26,
         "name": "updated_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -350,7 +361,7 @@
         }
       },
       {
-        "ordinal": 26,
+        "ordinal": 27,
         "name": "cert_days_left",
         "type_info": "Int4",
         "origin": {
@@ -361,7 +372,7 @@
         }
       },
       {
-        "ordinal": 27,
+        "ordinal": 28,
         "name": "cert_subject",
         "type_info": "Text",
         "origin": {
@@ -372,7 +383,7 @@
         }
       },
       {
-        "ordinal": 28,
+        "ordinal": 29,
         "name": "cert_checked_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -383,7 +394,7 @@
         }
       },
       {
-        "ordinal": 29,
+        "ordinal": 30,
         "name": "group_id",
         "type_info": "Uuid",
         "origin": {
@@ -394,13 +405,13 @@
         }
       },
       {
-        "ordinal": 30,
+        "ordinal": 31,
         "name": "slo_target_pct?",
         "type_info": "Float8",
         "origin": "Expression"
       },
       {
-        "ordinal": 31,
+        "ordinal": 32,
         "name": "slo_window_days",
         "type_info": "Int4",
         "origin": {
@@ -411,7 +422,7 @@
         }
       },
       {
-        "ordinal": 32,
+        "ordinal": 33,
         "name": "agent_id",
         "type_info": "Uuid",
         "origin": {
@@ -423,9 +434,7 @@
       }
     ],
     "parameters": {
-      "Left": [
-        "Uuid"
-      ]
+      "Left": []
     },
     "nullable": [
       false,
@@ -450,6 +459,7 @@
       true,
       true,
       true,
+      true,
       false,
       false,
       false,
@@ -463,5 +473,5 @@
       true
     ]
   },
-  "hash": "7ed81ef4e2a5d84112b2f9cf60382e769311ab025ceb74fe83008cf6fc570ec0"
+  "hash": "9b53fbf3468c94c6e261ba2b4f6d46da679f4be40537b342bb4b0f64a6fe5d40"
 }

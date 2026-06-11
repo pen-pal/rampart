@@ -1141,6 +1141,26 @@ const de = {
   'templates.save.default_name':     '{name}-Vorlage',
   'templates.save.ok_goto':          'Vorlage gespeichert. Vorlagenbibliothek öffnen?',
   'templates.save.failed':           'Vorlage konnte nicht gespeichert werden: {msg}',
+
+  // ── batch-16: push cron-job monitoring ───────────────────────────
+  'wizard.field.cron_group':         'Cron-Job-Zeitplan',
+  'wizard.field.cron':               'Cron-Ausdruck (UTC)',
+  'wizard.field.cron_hint':          'Leer lassen für den einfachen Intervallmodus (in jedem Prüfintervall wird ein Ping erwartet). Setzen, um den geplanten Zeitpunkt des Jobs festzulegen — der Monitor geht auf Ausgefallen, wenn ein Lauf verpasst wird.',
+  'wizard.field.cron_grace':         'Kulanzzeit (Sekunden)',
+  'wizard.field.cron_grace_hint':    'Wie spät der Abschluss eintreffen darf, bevor der Lauf als verpasst gilt. Standard 300. Nur mit Cron-Ausdruck wirksam.',
+  'wizard.field.max_run':            'Maximale Laufdauer (Sekunden)',
+  'wizard.field.max_run_hint':       'Alarmiert, wenn ein gestarteter Lauf (/run-Ping) nicht innerhalb dieser Sekunden abgeschlossen ist. Leer lassen zum Deaktivieren.',
+  'wizard.err_cron':                 'Der Cron-Ausdruck muss 5 durch Leerzeichen getrennte Felder haben (z. B. "0 3 * * *").',
+  'monitor.push.title':              'Cron-Job-Pings',
+  'monitor.push.ping_url':           'Ping-URL (Heartbeat)',
+  'monitor.push.run_url':            'Lauf gestartet',
+  'monitor.push.complete_url':       'Lauf abgeschlossen',
+  'monitor.push.fail_url':           'Lauf fehlgeschlagen',
+  'monitor.push.crontab_example':    'Crontab-Beispiel',
+  'monitor.push.section':            'Cron-Job-Zeitplan',
+  'monitor.push.schedule':           'Cron-Ausdruck (UTC)',
+  'monitor.push.grace':              'Kulanzzeit',
+  'monitor.push.max_run':            'Maximale Laufdauer',
 };
 
 export default de;

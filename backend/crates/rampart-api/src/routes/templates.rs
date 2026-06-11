@@ -115,6 +115,7 @@ async fn preview(Json(input): Json<PreviewBody>) -> Result<Json<PreviewResponse>
         agent_id: None,
         push_token: None,
         last_push_at: None,
+        last_run_started_at: None,
         active: true,
         current_status: MonitorStatus::Down,
         created_at: now,
