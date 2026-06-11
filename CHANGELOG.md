@@ -17,6 +17,17 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **Host metrics via the probe agent** — `rampart-agent` now samples its
+  host (CPU, memory, per-mount disk, load averages, uptime — `sysinfo`,
+  no C build deps) every 60s (`RAMPART_AGENT_HOST_METRICS_SECS`, 0
+  disables) and pushes through the new token-authed
+  `POST /v1/agent/metrics`. The server injects an `agent="<name>"`
+  label into every sample, so multi-host dashboards and per-host
+  threshold rules work with zero configuration. Register an agent and
+  its host appears in the Metrics explorer.
+
 ---
 
 ## [0.6.0] — 2026-06-11
