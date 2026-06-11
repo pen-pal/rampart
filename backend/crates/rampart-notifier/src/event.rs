@@ -27,6 +27,10 @@ pub enum EventKind {
     MetricRuleFired,
     /// A firing metric rule's series came back inside the threshold.
     MetricRuleResolved,
+    /// An escalation ladder step firing — step 0 at episode open, later
+    /// steps as the unacked episode ages. The heartbeat msg carries the
+    /// step detail.
+    Escalation,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,6 +46,9 @@ pub struct Event {
 }
 
 impl Event {
+    pub fn kind_is_status_flip(&self) -> bool {
+        matches!(self.kind, EventKind::StatusFlip)
+    }
     pub fn status_str(&self) -> &'static str {
         status_label(self.heartbeat.status)
     }

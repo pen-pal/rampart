@@ -339,6 +339,86 @@ pub async fn send_event_to_channel(
     Ok(ok)
 }
 
+/// Open/advance/resolve the escalation lifecycle for one status flip.
+/// Failures log and bail — a broken policy must never block the writer
+/// pipeline (the heartbeat is already persisted by this point).
+async fn handle_escalation_flip(
+    pool: &DbPool,
+    event: &Event,
+    policy_id: rampart_core::ids::EscalationPolicyId,
+) {
+    let policy = match rampart_db::escalations::get(pool, policy_id).await {
+        Ok(p) => p,
+        Err(e) => {
+            warn!(policy = %policy_id.0, error = %e, "escalation policy load failed");
+            return;
+        }
+    };
+
+    if event.heartbeat.status.is_down() {
+        // Open + page step 0. None = an episode is already open
+        // (flap / re-down while acked) — the ladder is already running,
+        // nothing new to page.
+        match rampart_db::escalations::open_episode(pool, event.monitor.id, &policy).await {
+            Ok(Some(_episode)) => {
+                fire_escalation_step(pool, event, &policy, 0).await;
+            }
+            Ok(None) => {}
+            Err(e) => warn!(monitor = %event.monitor.id, error = %e, "episode open failed"),
+        }
+    } else if event.heartbeat.status == rampart_core::MonitorStatus::Up {
+        // Recovery: close the episode and tell everyone already paged.
+        match rampart_db::escalations::resolve(pool, event.monitor.id).await {
+            Ok(Some(episode)) => {
+                let mut recovery = event.clone();
+                recovery.kind = EventKind::Escalation;
+                recovery.heartbeat.msg = Some(format!(
+                    "recovered — escalation closed at step {} of {}",
+                    episode.last_step + 1,
+                    policy.steps.len()
+                ));
+                for step in policy.steps.iter().take(episode.last_step as usize + 1) {
+                    for ch in &step.channel_ids {
+                        if let Err(e) = send_event_to_channel(pool, *ch, &recovery).await {
+                            warn!(channel = %ch.0, error = %e, "escalation recovery send failed");
+                        }
+                    }
+                }
+            }
+            Ok(None) => {}
+            Err(e) => warn!(monitor = %event.monitor.id, error = %e, "episode resolve failed"),
+        }
+    }
+}
+
+/// Page every channel on one ladder step. Direct per-channel dispatch —
+/// escalation pages bypass digest coalescing and quiet hours by design
+/// (a page that waits for a digest window is not a page).
+pub async fn fire_escalation_step(
+    pool: &DbPool,
+    event: &Event,
+    policy: &rampart_core::EscalationPolicy,
+    step_no: usize,
+) {
+    let Some(step) = policy.steps.get(step_no) else {
+        return;
+    };
+    let mut page = event.clone();
+    page.kind = EventKind::Escalation;
+    let base = event.heartbeat.msg.clone().unwrap_or_default();
+    page.heartbeat.msg = Some(format!(
+        "step {} of {} ({}): {base}",
+        step_no + 1,
+        policy.steps.len(),
+        policy.name
+    ));
+    for ch in &step.channel_ids {
+        if let Err(e) = send_event_to_channel(pool, *ch, &page).await {
+            warn!(channel = %ch.0, error = %e, "escalation step send failed");
+        }
+    }
+}
+
 /// How often the digest flush task wakes to drain due channel buffers.
 /// Each channel's own `digest_window_secs` gates whether it actually
 /// flushes on a given wake; this is just the resolution of the timer.
@@ -432,6 +512,20 @@ async fn dispatch_one(pool: &DbPool, event: Event) -> anyhow::Result<()> {
             // Fail open on dep-graph errors — better a duplicate page
             // than silence during a real outage. Log so it gets noticed.
             warn!(error = %e, "dependency check failed; firing anyway");
+        }
+    }
+
+    // Escalation routing. A monitor that references a policy hands its
+    // StatusFlip lifecycle to the ladder: a Down-ish flip opens an
+    // episode and pages step 0; recovery resolves the episode and pages
+    // every step already climbed. Either way the regular attached/tag
+    // fan-out below is SKIPPED for these flips — the ladder owns who
+    // hears about this monitor. Non-StatusFlip events (SLO, maintenance)
+    // keep their normal routing even with a policy attached.
+    if event.kind_is_status_flip() {
+        if let Some(policy_id) = event.monitor.escalation_policy_id {
+            handle_escalation_flip(pool, &event, policy_id).await;
+            return Ok(());
         }
     }
 
@@ -776,6 +870,12 @@ fn digest_event_line(ev: &Event) -> String {
         EventKind::MetricRuleResolved => {
             format!(
                 "{name} resolved: {}",
+                ev.heartbeat.msg.as_deref().unwrap_or("")
+            )
+        }
+        EventKind::Escalation => {
+            format!(
+                "{name} escalation: {}",
                 ev.heartbeat.msg.as_deref().unwrap_or("")
             )
         }

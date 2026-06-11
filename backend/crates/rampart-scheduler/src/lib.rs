@@ -170,6 +170,71 @@ impl Scheduler {
             // Metric threshold rules: evaluate against latest samples,
             // fan out fired/resolved transitions to the rules' channels.
             self.check_metric_rules().await;
+            // Escalation ladders: advance unacked episodes whose next
+            // step is due.
+            self.check_escalations().await;
+        }
+    }
+
+    /// Advance due escalation episodes. `advance` re-checks its
+    /// predicates atomically, so a racing tick (or an ack landing
+    /// mid-scan) loses cleanly. An episode whose monitor already
+    /// recovered (resolve missed, e.g. the process restarted between
+    /// the flip and the notifier) is closed instead of paged.
+    async fn check_escalations(&self) {
+        let due = match rampart_db::escalations::due(&self.pool).await {
+            Ok(d) => d,
+            Err(e) => {
+                warn!(error = %e, "escalation due scan failed");
+                return;
+            }
+        };
+        for episode in due {
+            let monitor = match rampart_db::monitors::get(&self.pool, episode.monitor_id).await {
+                Ok(m) => m,
+                Err(_) => continue, // monitor deleted; episode cascades away
+            };
+            if !monitor.current_status.is_down() {
+                let _ = rampart_db::escalations::resolve(&self.pool, episode.monitor_id).await;
+                continue;
+            }
+            let policy = match rampart_db::escalations::get(&self.pool, episode.policy_id).await {
+                Ok(p) => p,
+                Err(e) => {
+                    warn!(policy = %episode.policy_id.0, error = %e, "escalation policy load failed");
+                    continue;
+                }
+            };
+            let Ok(Some(advanced)) =
+                rampart_db::escalations::advance(&self.pool, episode.id, &policy).await
+            else {
+                continue;
+            };
+            let now = time::OffsetDateTime::now_utc();
+            let down_for = (now - advanced.started_at).whole_seconds();
+            let event = rampart_notifier::Event {
+                kind: rampart_notifier::EventKind::Escalation,
+                heartbeat: Heartbeat {
+                    monitor_id: monitor.id,
+                    ts: now,
+                    status: MonitorStatus::Down,
+                    latency_ms: None,
+                    status_code: None,
+                    msg: Some(format!("still down, unacknowledged for {down_for}s")),
+                    retries: 0,
+                    important: false,
+                },
+                monitor,
+                prev_status: None,
+                slo_current_pct: None,
+            };
+            rampart_notifier::service::fire_escalation_step(
+                &self.pool,
+                &event,
+                &policy,
+                advanced.last_step as usize,
+            )
+            .await;
         }
     }
 
