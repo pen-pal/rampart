@@ -29,3 +29,4 @@ anyhow  = "1"
 # Same single decision point as rampart-api's main.rs: install ring as the
 # global rustls CryptoProvider before any client is built.
 rustls = { workspace = true }
+sysinfo = { version = "0.38.4", default-features = false, features = ["system", "disk"] }
