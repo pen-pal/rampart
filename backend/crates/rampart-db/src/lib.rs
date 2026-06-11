@@ -16,6 +16,7 @@ pub mod incident_templates;
 pub mod incidents;
 pub mod ingest_tokens;
 pub mod maintenance;
+pub mod metric_samples;
 pub mod metrics;
 pub mod monitor_groups;
 pub mod monitor_presets;

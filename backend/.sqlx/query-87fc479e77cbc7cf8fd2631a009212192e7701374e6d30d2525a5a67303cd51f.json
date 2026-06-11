@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT value, ts\n        FROM metric_samples\n        WHERE name = $1 AND labels = $2\n        ORDER BY ts DESC\n        LIMIT 1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "value",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "metric_samples",
+            "name": "value"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "ts",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "metric_samples",
+            "name": "ts"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Jsonb"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "87fc479e77cbc7cf8fd2631a009212192e7701374e6d30d2525a5a67303cd51f"
+}

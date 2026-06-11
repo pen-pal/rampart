@@ -21,6 +21,7 @@ pub mod monitor;
 pub mod monitor_group;
 pub mod monitor_preset;
 pub mod notification;
+pub mod promtext;
 pub mod proxy;
 pub mod role;
 pub mod scheduled_report;
@@ -50,6 +51,7 @@ pub use monitor::{
 pub use monitor_group::{MonitorGroup, NewMonitorGroup, UpdateMonitorGroup};
 pub use monitor_preset::{MonitorPreset, MonitorPresetKind, NewMonitorPreset};
 pub use notification::{ChannelKind, MonitorNotification, Notification, NotificationTemplate};
+pub use promtext::{PromParseOutcome, PromSample};
 pub use proxy::{NewProxy, Proxy, ProxyProtocol};
 pub use role::Role;
 pub use scheduled_report::ScheduledReport;
