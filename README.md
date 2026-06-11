@@ -282,6 +282,7 @@ npx playwright test       # e2e on Chromium + Firefox + WebKit
 - [**docs/SETUP.md**](docs/SETUP.md) — Production install, TLS, reverse proxy, and backups.
 - [**docs/AGENTS.md**](docs/AGENTS.md) — Remote probe agents: multi-location checks + private-network monitoring.
 - [**docs/CRON-JOBS.md**](docs/CRON-JOBS.md) — Cron-job monitoring: run/complete/fail pings, schedule expectations, duration tracking.
+- [**docs/METRICS.md**](docs/METRICS.md) — Metric ingestion (Prometheus text format), range queries, threshold alert rules.
 - [**docs/ARCHITECTURE.md**](docs/ARCHITECTURE.md) — Design decisions and their rationale.
 - [**docs/SECURITY-DEBT.md**](docs/SECURITY-DEBT.md) — Accepted RUSTSEC advisories with justification.
 - [**CONTRIBUTING.md**](CONTRIBUTING.md) — Scope rules, how to add a probe / channel / migration.

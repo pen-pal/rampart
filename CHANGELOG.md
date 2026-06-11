@@ -19,6 +19,21 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ### Added
 
+- **Metrics: ingest, explore, alert** (migrations `0072`/`0073`) — push
+  any metric to Rampart in Prometheus text format
+  (`POST /v1/metrics/ingest`, Pushgateway-style, parsed by a
+  zero-dependency parser; samples server-stamped) and read it back as
+  series listings + bucketed range queries. **Threshold alert rules**
+  watch one series each (`op`/`threshold` with a `for_seconds` sustain
+  window) and page through explicitly-attached notification channels —
+  channel templates, quiet-hour-free direct dispatch, and the delivery
+  log all apply (`metric_rule_fired`/`metric_rule_resolved`). Restart-
+  safe single-fire/single-resolve lifecycle persisted on the rule row;
+  a series silent for 15 minutes resolves instead of alerting on stale
+  data. A Metrics dashboard view (explorer with SVG charts + rules
+  editor) and a `metrics_days` retention window (default 30). See
+  [`docs/METRICS.md`](docs/METRICS.md).
+
 - **Cron-job monitoring** (migration `0071`) — push monitors grow
   Cronitor-style run states: `/push/{token}/run` opens a duration clock
   (no heartbeat recorded), `/complete` closes it Up with the run's
