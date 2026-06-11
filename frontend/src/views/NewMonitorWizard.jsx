@@ -363,6 +363,12 @@ export default function NewMonitorWizard() {
   const agentsState = useApi(() => api.agents.list(), []);
   const agents = agentsState.data || [];
 
+  // Escalation policies for the picker. Falls back to [] on error so the
+  // form still renders; the select only shows when policies exist.
+  const [escalationPolicyId, setEscalationPolicyId] = useState('');
+  const policiesState = useApi(() => api.escalation.list(), []);
+  const policies = policiesState.data || [];
+
   // Reusable config presets (saved header sets / TLS posture). Bumped via
   // presetReload after a save so a freshly-created preset shows up without
   // a full page reload.
@@ -602,6 +608,10 @@ export default function NewMonitorWizard() {
     // Remote probe agent — push monitors are inbound and can't use one.
     if (type !== 'push' && agentId) {
       payload.agent_id = agentId;
+    }
+    // Escalation policy — only sent when the operator picked one.
+    if (escalationPolicyId) {
+      payload.escalation_policy_id = escalationPolicyId;
     }
     // Drop undefined keys so the server defaults kick in.
     Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
@@ -1139,6 +1149,20 @@ export default function NewMonitorWizard() {
                         </select>
                         <div className="field-hint" style={{ marginTop: 4 }}>
                           {t('wizard.field.agent_hint')} <a href="#/agents" style={{ color: 'var(--accent)' }}>{t('agents.title')}</a>.
+                        </div>
+                      </div>
+                    )}
+                    {policies.length > 0 && (
+                      <div style={{ padding: '12px 14px', border: '1px solid var(--border)', borderRadius: 8 }}>
+                        <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500, marginBottom: 6 }}>{t('wizard.field.escalation_policy')}</div>
+                        <select className="input" value={escalationPolicyId} onChange={e => setEscalationPolicyId(e.target.value)}>
+                          <option value="">{t('wizard.field.escalation_none')}</option>
+                          {policies.map(p => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </select>
+                        <div className="field-hint" style={{ marginTop: 4 }}>
+                          {t('wizard.field.escalation_hint')} <a href="#/escalations" style={{ color: 'var(--accent)' }}>{t('esc.title')}</a>.
                         </div>
                       </div>
                     )}

@@ -405,6 +405,21 @@ export const api = {
     attach:  (childId, parentId) => request(`/v1/monitors/${childId}/dependencies/${parentId}`, { method: 'POST' }),
     detach:  (childId, parentId) => request(`/v1/monitors/${childId}/dependencies/${parentId}`, { method: 'DELETE' }),
   },
+  // ─── escalation policies ─────────────────────────────────────────────────
+  // Multi-step alert ladders. A monitor with a policy routes its Down alerts
+  // through the ladder instead of its attached channels: step 1 pages
+  // immediately, each later step pages `wait_seconds` after the previous
+  // unless someone acknowledges or the monitor recovers. `episode` returns
+  // the monitor's open episode or null; `ack` stops further escalation
+  // (404 when nothing is open / already acked).
+  escalation: {
+    list:    ()          => request('/v1/escalation-policies'),
+    create:  (input)     => request('/v1/escalation-policies', { method: 'POST', body: input }),
+    update:  (id, patch) => request(`/v1/escalation-policies/${id}`, { method: 'PATCH', body: patch }),
+    remove:  (id)        => request(`/v1/escalation-policies/${id}`, { method: 'DELETE' }),
+    episode: (monitorId) => request(`/v1/monitors/${monitorId}/escalation`),
+    ack:     (monitorId) => request(`/v1/monitors/${monitorId}/escalation/ack`, { method: 'POST' }),
+  },
   maintenance: {
     list:        ()                  => request('/v1/maintenance-windows'),
     get:         (id)                => request(`/v1/maintenance-windows/${id}`),
