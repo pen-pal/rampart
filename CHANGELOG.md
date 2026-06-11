@@ -19,6 +19,25 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ### Added
 
+- **Escalation policies** (migration `0074`) — ordered notification
+  ladders with acknowledge. A monitor referencing a policy routes its
+  Down-flips through the ladder instead of the regular channel fan-out:
+  step 1 pages immediately, each later step pages `wait_seconds` after
+  the previous unless someone acknowledges
+  (`POST /v1/monitors/{id}/escalation/ack`, button on the monitor page)
+  or the monitor recovers — recovery notifies every step already paged.
+  Escalation pages bypass digest coalescing and quiet hours by design.
+  One episode per monitor is a database invariant (flap-proof);
+  restart-safe state on the episode row; sends are delivery-logged with
+  event kind `escalation`. Policy CRUD at `/v1/escalation-policies` +
+  an Escalations dashboard view with a step builder, policy pickers in
+  the wizard/edit modal, and an episode banner with Acknowledge. See
+  [`docs/ESCALATIONS.md`](docs/ESCALATIONS.md).
+
+- **Create monitor templates from scratch** — the Templates view grows
+  a "New template" form (name, description, spec editor) alongside the
+  existing "Save as template" capture path.
+
 - **Host metrics via the probe agent** — `rampart-agent` now samples its
   host (CPU, memory, per-mount disk, load averages, uptime — `sysinfo`,
   no C build deps) every 60s (`RAMPART_AGENT_HOST_METRICS_SECS`, 0
