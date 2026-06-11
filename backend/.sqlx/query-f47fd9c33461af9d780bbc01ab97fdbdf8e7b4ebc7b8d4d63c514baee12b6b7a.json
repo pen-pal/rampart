@@ -1,0 +1,71 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT p.id, p.name, p.steps AS \"steps!\", p.created_at,\n               COUNT(m.id) AS monitor_count\n        FROM escalation_policies p\n        LEFT JOIN monitors m ON m.escalation_policy_id = p.id\n        WHERE p.id = $1\n        GROUP BY p.id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "escalation_policies",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "escalation_policies",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "steps!",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "escalation_policies",
+            "name": "steps"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "escalation_policies",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "monitor_count",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "f47fd9c33461af9d780bbc01ab97fdbdf8e7b4ebc7b8d4d63c514baee12b6b7a"
+}

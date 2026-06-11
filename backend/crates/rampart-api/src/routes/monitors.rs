@@ -988,6 +988,7 @@ async fn clone_one(
         slo_target_pct: src.slo_target_pct,
         slo_window_days: src.slo_window_days,
         agent_id: src.agent_id,
+        escalation_policy_id: src.escalation_policy_id,
     };
     let cloned = rampart_db::monitors::create(state.pool(), copy).await?;
     state.poke_scheduler();
@@ -1118,6 +1119,7 @@ async fn test_notifications(
         ignore_tls: false,
         proxy_id: None,
         agent_id: None,
+        escalation_policy_id: None,
         push_token: None,
         last_push_at: None,
         last_run_started_at: None,

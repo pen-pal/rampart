@@ -1292,6 +1292,7 @@ fn metric_rule_monitor(rule: &rampart_core::MetricRule) -> Monitor {
         slo_target_pct: None,
         slo_window_days: None,
         agent_id: None,
+        escalation_policy_id: None,
     }
 }
 
