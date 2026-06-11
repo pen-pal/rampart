@@ -420,6 +420,22 @@ export const api = {
     episode: (monitorId) => request(`/v1/monitors/${monitorId}/escalation`),
     ack:     (monitorId) => request(`/v1/monitors/${monitorId}/escalation/ack`, { method: 'POST' }),
   },
+  // Error tracking — projects hold the DSN key + alert channels; issues group
+  // events by fingerprint.
+  errorProjects: {
+    list:   ()          => request('/v1/error-projects'),
+    create: (input)     => request('/v1/error-projects', { method: 'POST', body: input }),
+    update: (id, patch) => request(`/v1/error-projects/${id}`, { method: 'PATCH', body: patch }),
+    remove: (id)        => request(`/v1/error-projects/${id}`, { method: 'DELETE' }),
+    issues: (id, status) => request(`/v1/error-projects/${id}/issues${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+  },
+  errorIssues: {
+    get:       (id) => request(`/v1/error-issues/${id}`),
+    events:    (id) => request(`/v1/error-issues/${id}/events`),
+    resolve:   (id) => request(`/v1/error-issues/${id}/resolve`,   { method: 'POST' }),
+    ignore:    (id) => request(`/v1/error-issues/${id}/ignore`,    { method: 'POST' }),
+    unresolve: (id) => request(`/v1/error-issues/${id}/unresolve`, { method: 'POST' }),
+  },
   maintenance: {
     list:        ()                  => request('/v1/maintenance-windows'),
     get:         (id)                => request(`/v1/maintenance-windows/${id}`),

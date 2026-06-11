@@ -203,6 +203,16 @@ describe('api helpers', () => {
 
     await api.notifications.attach('m', 'n');
     expect(global.fetch.mock.calls[3][0]).toBe('/v1/monitors/m/notifications/n');
+
+    await api.errorProjects.list();
+    expect(global.fetch.mock.calls[4][0]).toBe('/v1/error-projects');
+
+    await api.errorProjects.issues('p1', 'unresolved');
+    expect(global.fetch.mock.calls[5][0]).toBe('/v1/error-projects/p1/issues?status=unresolved');
+
+    await api.errorIssues.resolve('i1');
+    expect(global.fetch.mock.calls[6][0]).toBe('/v1/error-issues/i1/resolve');
+    expect(global.fetch.mock.calls[6][1].method).toBe('POST');
   });
 
   it('serialises POST body and sets Content-Type', async () => {
