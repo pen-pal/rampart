@@ -251,6 +251,11 @@ pub struct Monitor {
     pub push_token: Option<String>,
     #[serde(default)]
     pub last_push_at: Option<OffsetDateTime>,
+    /// Open run started by a `state=run` ping and not yet closed by
+    /// `complete`/`fail`. Lets the completion ping compute the job's
+    /// duration and the scheduler flag overruns. Server-managed.
+    #[serde(default)]
+    pub last_run_started_at: Option<OffsetDateTime>,
     // State
     pub active: bool,
     pub current_status: MonitorStatus,

@@ -818,7 +818,7 @@ export default function MonitorDetail({ monitorId, user }) {
         )}
 
         {monitor.kind === 'push' && monitor.push_token && (
-          <PushUrlCard monitorId={monitor.id} token={monitor.push_token} lastPushAt={monitor.last_push_at} interval={monitor.interval_seconds}/>
+          <PushUrlCard monitorId={monitor.id} token={monitor.push_token} lastPushAt={monitor.last_push_at} interval={monitor.interval_seconds} config={monitor.config}/>
         )}
 
         {(monitor.kind === 'http' || monitor.kind === 'keyword' || monitor.kind === 'json_query')
@@ -1528,6 +1528,17 @@ function ConfigPanel({ monitor }) {
           {row('Ignore TLS errors', monitor.ignore_tls ? 'yes (insecure)' : 'no')}
           {row('Headers',           monitor.http_headers ? JSON.stringify(monitor.http_headers) : null, true)}
           {row('Body',              monitor.http_body, true)}
+        </div>
+      )}
+
+      {monitor.kind === 'push' && monitor.config?.cron && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
+          <div style={{ padding: '16px 22px' }}>
+            <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{t('monitor.push.section')}</h3>
+          </div>
+          {row(t('monitor.push.schedule'), monitor.config.cron, true)}
+          {row(t('monitor.push.grace'),    `${monitor.config.cron_grace_seconds ?? 300}s`, true)}
+          {row(t('monitor.push.max_run'),  monitor.config.max_run_seconds ? `${monitor.config.max_run_seconds}s` : null, true)}
         </div>
       )}
 
@@ -2241,17 +2252,18 @@ function UptimeHistoryCard({ data, loading, range, onRangeChange }) {
   );
 }
 
-function PushUrlCard({ monitorId, token, lastPushAt, interval }) {
+function PushUrlCard({ monitorId, token, lastPushAt, interval, config }) {
   const [currentToken, setCurrentToken] = useState(token);
-  const [copied, setCopied]   = useState(false);
+  const [copiedKey, setCopiedKey] = useState(null);
   const [rotating, setRotating] = useState(false);
-  const url = `${window.location.origin}/push/${currentToken}?status=up&msg=ok`;
+  const base = `${window.location.origin}/push/${currentToken}`;
+  const cron = config?.cron;
 
-  const copy = async () => {
+  const copy = async (key, text) => {
     try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1600);
+      await navigator.clipboard.writeText(text);
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(null), 1600);
     } catch { /* clipboard refused — silently no-op */ }
   };
 
@@ -2270,31 +2282,51 @@ function PushUrlCard({ monitorId, token, lastPushAt, interval }) {
     } finally { setRotating(false); }
   };
 
+  // /run and /complete bracket the job; the trailing || /fail pages
+  // immediately on a non-zero exit anywhere in the chain.
+  const crontab = `${cron || '0 3 * * *'} curl -fsS -m 10 ${base}/run && backup.sh && curl -fsS -m 10 ${base}/complete || curl -fsS -m 10 ${base}/fail`;
+
+  const rows = [
+    { key: 'ping',     label: t('monitor.push.ping_url'),        value: base },
+    { key: 'run',      label: t('monitor.push.run_url'),         value: `${base}/run` },
+    { key: 'complete', label: t('monitor.push.complete_url'),    value: `${base}/complete` },
+    { key: 'fail',     label: t('monitor.push.fail_url'),        value: `${base}/fail` },
+    { key: 'crontab',  label: t('monitor.push.crontab_example'), value: crontab },
+  ];
+
   const lastPushDate = lastPushAt ? offsetDateTimeArrayToDate(lastPushAt) : null;
   return (
     <div className="card" style={{ padding: '18px 22px', marginBottom: 20, borderLeft: '3px solid var(--accent)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <Zap size={14} color="var(--accent)"/>
-        <h3 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>Push endpoint</h3>
-      </div>
-      <p style={{ fontSize: 12, color: 'var(--text-2)', margin: '0 0 12px', lineHeight: 1.5 }}>
-        Have your cron / CI / backup job call this URL on each successful run.
-        If we don't hear from it within {interval}s (plus grace), the monitor flips to Down.
-      </p>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', flexWrap: 'wrap' }}>
-        <code className="mono" style={{
-          flex: '1 1 320px', padding: '8px 10px', fontSize: 12, background: 'var(--surface-2)',
-          border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)',
-          overflow: 'auto', whiteSpace: 'nowrap',
-        }}>{url}</code>
-        <button className="btn btn-ghost" onClick={copy} style={{ padding: '0 12px', fontSize: 12 }}>
-          {copied ? <><Check size={12}/> Copied</> : <><Copy size={12}/> Copy</>}
-        </button>
-        <button className="btn btn-ghost" onClick={regenerate} disabled={rotating} style={{ padding: '0 12px', fontSize: 12 }}
+        <h3 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>{t('monitor.push.title')}</h3>
+        <button className="btn btn-ghost" onClick={regenerate} disabled={rotating} style={{ marginLeft: 'auto', padding: '0 12px', fontSize: 12 }}
           title="Issue a new token; the current URL stops working immediately">
           {rotating ? 'Rotating…' : 'Regenerate'}
         </button>
       </div>
+      <p style={{ fontSize: 12, color: 'var(--text-2)', margin: '0 0 12px', lineHeight: 1.5 }}>
+        {cron
+          ? <>Wrap your job: hit /run when it starts, /complete on success, /fail on error.
+              Scheduled <code className="mono">{cron}</code> (UTC) — a missed or overrunning run flips the monitor to Down.</>
+          : <>Have your cron / CI / backup job call this URL on each successful run.
+              If we don't hear from it within {interval}s (plus grace), the monitor flips to Down.</>}
+      </p>
+      {rows.map(r => (
+        <div key={r.key} style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 3 }}>{r.label}</div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', flexWrap: 'wrap' }}>
+            <code className="mono" style={{
+              flex: '1 1 320px', padding: '8px 10px', fontSize: 12, background: 'var(--surface-2)',
+              border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)',
+              overflow: 'auto', whiteSpace: 'nowrap',
+            }}>{r.value}</code>
+            <button className="btn btn-ghost" onClick={() => copy(r.key, r.value)} style={{ padding: '0 12px', fontSize: 12 }}>
+              {copiedKey === r.key ? <><Check size={12}/> Copied</> : <><Copy size={12}/> Copy</>}
+            </button>
+          </div>
+        </div>
+      ))}
       <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-3)' }}>
         Last push: {lastPushDate ? formatRelative(lastPushDate) : 'never'}
       </div>

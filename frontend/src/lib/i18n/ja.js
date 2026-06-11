@@ -501,6 +501,18 @@ const ja = {
   'monitor.config.kind_specific':    '種類別の設定',
   'monitor.config.identity':         '識別情報',
 
+  // ── monitor detail: push / cron-job pings ────────────────────────
+  'monitor.push.title':              'cron ジョブ ping',
+  'monitor.push.ping_url':           'ping URL（ハートビート）',
+  'monitor.push.run_url':            '実行開始',
+  'monitor.push.complete_url':       '実行完了',
+  'monitor.push.fail_url':           '実行失敗',
+  'monitor.push.crontab_example':    'crontab の例',
+  'monitor.push.section':            'cron ジョブのスケジュール',
+  'monitor.push.schedule':           'cron 式（UTC）',
+  'monitor.push.grace':              '猶予期間',
+  'monitor.push.max_run':            '最大実行時間',
+
   // ── login ────────────────────────────────────────────────────────
   'login.subtitle_signin':           'サインイン',
   'login.subtitle_setup':            '管理者アカウントを作成',
@@ -715,6 +727,14 @@ const ja = {
   'wizard.field.result_webhook_invalid': '有効な http(s) URL を入力するか、無効にするには空欄にしてください。',
   'wizard.field.result_webhook_secret':      '署名シークレット（HMAC-SHA256）',
   'wizard.field.result_webhook_secret_hint': '設定すると、各 POST は <タイムスタンプ>.<本文> に対して X-Rampart-Signature: sha256=… で署名されます。URL が設定されている場合のみ有効です。',
+  'wizard.field.cron_group':         'cron ジョブのスケジュール',
+  'wizard.field.cron':               'cron 式（UTC）',
+  'wizard.field.cron_hint':          '空欄の場合はシンプルな間隔モード（チェック間隔ごとに ping を期待）。設定するとジョブの実行予定を宣言し、実行が漏れるとモニターは停止（Down）になります。',
+  'wizard.field.cron_grace':         '猶予期間（秒）',
+  'wizard.field.cron_grace_hint':    '完了がどれだけ遅れても実行漏れと見なされないかの猶予。デフォルトは 300。cron 式が設定されている場合のみ有効です。',
+  'wizard.field.max_run':            '最大実行時間（秒）',
+  'wizard.field.max_run_hint':       '開始した実行（/run ping）がこの秒数以内に完了しない場合にアラートします。空欄で無効になります。',
+  'wizard.err_cron':                 'cron 式は空白区切りの 5 フィールドが必要です（例: "0 3 * * *"）。',
   'wizard.field.hostname':           'ホスト名',
   'wizard.field.port':               'ポート',
   'wizard.field.keyword':            '本文に必須のキーワード',

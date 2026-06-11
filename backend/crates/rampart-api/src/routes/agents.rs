@@ -29,11 +29,10 @@ use axum::routing::{get, patch};
 use axum::{Json, Router};
 use rampart_core::agent::{Agent, AgentResult, IssuedAgent, NewAgent, UpdateAgent};
 use rampart_core::ids::AgentId;
-use rampart_core::{Heartbeat, Monitor, MonitorKind, MonitorStatus};
+use rampart_core::{Monitor, MonitorKind};
 use rampart_db::users::User;
 use serde::Serialize;
 use std::str::FromStr;
-use time::OffsetDateTime;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -252,70 +251,20 @@ async fn report_heartbeats(
     Ok(Json(ReportOutcome { accepted, rejected }))
 }
 
-/// Apply one agent-reported result with the same semantics a local probe
-/// tick has: maintenance suppression, flip detection (against the DB's
-/// `current_status` — there is no local task holding state), notifier
-/// fan-out on user-visible flips, then into the writer pipeline.
+/// Apply one agent-reported result through the shared external-ingest
+/// path (maintenance suppression, flip detection, notifier fan-out,
+/// writer pipeline).
 async fn ingest(s: &AppState, monitor: &Monitor, r: AgentResult) -> Result<(), ApiError> {
-    let in_maintenance = rampart_db::maintenance::is_in_active_window(s.pool(), monitor.id)
-        .await
-        .unwrap_or(false);
-
-    let mut hb = if in_maintenance {
-        Heartbeat {
-            monitor_id: monitor.id,
-            ts: OffsetDateTime::now_utc(),
-            status: MonitorStatus::Maintenance,
-            latency_ms: None,
-            status_code: None,
-            msg: Some("in maintenance".into()),
-            retries: 0,
-            important: false,
-        }
-    } else {
-        Heartbeat {
-            monitor_id: monitor.id,
-            ts: OffsetDateTime::now_utc(),
+    crate::external_ingest::ingest(
+        s,
+        monitor,
+        crate::external_ingest::ExternalResult {
             status: r.status,
             latency_ms: r.latency_ms,
             status_code: r.status_code,
             msg: r.msg,
             retries: r.retries,
-            important: false,
-        }
-    };
-
-    let prev = monitor.current_status;
-    if prev != hb.status {
-        hb.important = true;
-        // Same visibility rule as the scheduler: initialisation
-        // (Pending→Up) and admin-driven maintenance transitions don't
-        // page anyone.
-        let user_visible = !(prev == MonitorStatus::Pending && hb.status == MonitorStatus::Up)
-            && hb.status != MonitorStatus::Maintenance
-            && prev != MonitorStatus::Maintenance;
-        if user_visible {
-            if let Some(sched) = s.scheduler() {
-                sched.notify_status_flip(monitor.clone(), hb.clone(), prev);
-            }
-        }
-    }
-
-    match s.scheduler() {
-        Some(sched) => {
-            if !sched.submit_external(hb).await {
-                return Err(ApiError::Conflict("heartbeat writer unavailable".into()));
-            }
-        }
-        // Test harnesses build AppState without a scheduler — fall back to
-        // a direct insert so the ingest contract stays testable. No SSE /
-        // SLO / webhook side-effects on this path, mirroring push.rs.
-        None => {
-            rampart_db::heartbeats::insert_many(s.pool(), std::slice::from_ref(&hb)).await?;
-            if hb.important {
-                rampart_db::monitors::set_status(s.pool(), monitor.id, hb.status).await?;
-            }
-        }
-    }
-    Ok(())
+        },
+    )
+    .await
 }

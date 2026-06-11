@@ -501,6 +501,18 @@ const zh = {
   'monitor.config.kind_specific':    '特定类型配置',
   'monitor.config.identity':         '标识信息',
 
+  // ── monitor detail: push / cron-job pings ────────────────────────
+  'monitor.push.title':              'Cron 任务 ping',
+  'monitor.push.ping_url':           'Ping URL（心跳）',
+  'monitor.push.run_url':            '运行开始',
+  'monitor.push.complete_url':       '运行完成',
+  'monitor.push.fail_url':           '运行失败',
+  'monitor.push.crontab_example':    'Crontab 示例',
+  'monitor.push.section':            'Cron 任务计划',
+  'monitor.push.schedule':           'Cron 表达式（UTC）',
+  'monitor.push.grace':              '宽限期',
+  'monitor.push.max_run':            '最长运行时长',
+
   // ── login ────────────────────────────────────────────────────────
   'login.subtitle_signin':           '登录',
   'login.subtitle_setup':            '创建你的管理员账户',
@@ -715,6 +727,14 @@ const zh = {
   'wizard.field.result_webhook_invalid': '请输入有效的 http(s) URL，或留空以禁用。',
   'wizard.field.result_webhook_secret':      '签名密钥（HMAC-SHA256）',
   'wizard.field.result_webhook_secret_hint': '设置后，每次 POST 都会使用 X-Rampart-Signature: sha256=… 对 <时间戳>.<正文> 进行签名。仅在设置了 URL 时生效。',
+  'wizard.field.cron_group':         'Cron 任务计划',
+  'wizard.field.cron':               'Cron 表达式（UTC）',
+  'wizard.field.cron_hint':          '留空使用简单间隔模式（每个检查间隔都应收到一次 ping）。设置后声明任务的计划运行时间——如果错过一次运行，监控项将变为宕机。',
+  'wizard.field.cron_grace':         '宽限期（秒）',
+  'wizard.field.cron_grace_hint':    '完成 ping 最多可以迟到多少秒，超过则该次运行计为错过。默认 300。仅在设置了 Cron 表达式时生效。',
+  'wizard.field.max_run':            '最长运行时长（秒）',
+  'wizard.field.max_run_hint':       '已开始的运行（/run ping）在该秒数内未完成时发出警报。留空则禁用。',
+  'wizard.err_cron':                 'Cron 表达式必须包含 5 个以空格分隔的字段（例如 "0 3 * * *"）。',
   'wizard.field.hostname':           '主机名',
   'wizard.field.port':               '端口',
   'wizard.field.keyword':            '正文必须包含的关键词',

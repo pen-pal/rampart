@@ -7,6 +7,7 @@
 pub mod audit;
 pub mod auth;
 pub mod error;
+pub mod external_ingest;
 pub mod http_metrics;
 pub mod importers;
 pub mod rate_limit;

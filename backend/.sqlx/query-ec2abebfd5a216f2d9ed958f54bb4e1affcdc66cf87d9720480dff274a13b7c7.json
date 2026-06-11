@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT last_push_at, last_run_started_at FROM monitors WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "last_push_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "last_push_at"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "last_run_started_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "last_run_started_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "ec2abebfd5a216f2d9ed958f54bb4e1affcdc66cf87d9720480dff274a13b7c7"
+}

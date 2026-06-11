@@ -1141,6 +1141,26 @@ const es = {
   'templates.save.default_name':     'Plantilla de {name}',
   'templates.save.ok_goto':          'Plantilla guardada. ¿Abrir la biblioteca de plantillas?',
   'templates.save.failed':           'No se pudo guardar la plantilla: {msg}',
+
+  // ── batch-16: push cron-job monitoring ───────────────────────────
+  'wizard.field.cron_group':         'Programación del trabajo cron',
+  'wizard.field.cron':               'Expresión cron (UTC)',
+  'wizard.field.cron_hint':          'Déjala en blanco para el modo de intervalo simple (se espera un ping en cada intervalo de comprobación). Defínela para declarar cuándo está programado el trabajo: el monitor pasa a Caído si se pierde una ejecución.',
+  'wizard.field.cron_grace':         'Periodo de gracia (segundos)',
+  'wizard.field.cron_grace_hint':    'Cuánto puede retrasarse la finalización antes de que la ejecución cuente como perdida. Por defecto 300. Solo se usa con una expresión cron.',
+  'wizard.field.max_run':            'Duración máxima de ejecución (segundos)',
+  'wizard.field.max_run_hint':       'Alerta si una ejecución iniciada (ping /run) no se ha completado en este número de segundos. Déjalo en blanco para desactivarlo.',
+  'wizard.err_cron':                 'La expresión cron debe tener 5 campos separados por espacios (p. ej. "0 3 * * *").',
+  'monitor.push.title':              'Pings de trabajo cron',
+  'monitor.push.ping_url':           'URL de ping (latido)',
+  'monitor.push.run_url':            'Ejecución iniciada',
+  'monitor.push.complete_url':       'Ejecución completada',
+  'monitor.push.fail_url':           'Ejecución fallida',
+  'monitor.push.crontab_example':    'Ejemplo de crontab',
+  'monitor.push.section':            'Programación del trabajo cron',
+  'monitor.push.schedule':           'Expresión cron (UTC)',
+  'monitor.push.grace':              'Periodo de gracia',
+  'monitor.push.max_run':            'Duración máxima de ejecución',
 };
 
 export default es;
