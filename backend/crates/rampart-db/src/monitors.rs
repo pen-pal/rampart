@@ -5,7 +5,7 @@
 //! the SQL layer.
 
 use crate::{DbError, DbPool, DbResult};
-use rampart_core::ids::{AgentId, MonitorGroupId, ProxyId, TagId};
+use rampart_core::ids::{AgentId, EscalationPolicyId, MonitorGroupId, ProxyId, TagId};
 use rampart_core::monitor::{NewMonitor, UpdateMonitor};
 use rampart_core::{Monitor, MonitorId, MonitorKind, MonitorStatus};
 use time::OffsetDateTime;
@@ -51,6 +51,7 @@ struct MonitorRow {
     slo_target_pct: Option<f64>,
     slo_window_days: Option<i32>,
     agent_id: Option<Uuid>,
+    escalation_policy_id: Option<Uuid>,
 }
 
 impl From<MonitorRow> for Monitor {
@@ -91,6 +92,7 @@ impl From<MonitorRow> for Monitor {
             slo_target_pct: r.slo_target_pct,
             slo_window_days: r.slo_window_days,
             agent_id: r.agent_id.map(AgentId::from_uuid),
+            escalation_policy_id: r.escalation_policy_id.map(EscalationPolicyId::from_uuid),
         }
     }
 }
@@ -133,6 +135,7 @@ struct StaleAgentRow {
     slo_target_pct: Option<f64>,
     slo_window_days: Option<i32>,
     agent_id: Option<Uuid>,
+    escalation_policy_id: Option<Uuid>,
     agent_name: String,
 }
 
@@ -173,6 +176,7 @@ impl From<StaleAgentRow> for Monitor {
             slo_target_pct: r.slo_target_pct,
             slo_window_days: r.slo_window_days,
             agent_id: r.agent_id,
+            escalation_policy_id: r.escalation_policy_id,
         }
         .into()
     }
@@ -201,7 +205,7 @@ pub async fn create(pool: &DbPool, input: NewMonitor) -> DbResult<Monitor> {
             http_method, http_body, http_headers,
             accepted_statuses, follow_redirect, ignore_tls, proxy_id,
             push_token, group_id,
-            slo_target_pct, slo_window_days, agent_id
+            slo_target_pct, slo_window_days, agent_id, escalation_policy_id
         ) VALUES (
             $1, $2, $3, $4, $5, $6, $7,
             $8, $9, $10,
@@ -209,7 +213,7 @@ pub async fn create(pool: &DbPool, input: NewMonitor) -> DbResult<Monitor> {
             $14, $15, $16,
             $17, $18, $19, $20,
             $21, $22,
-            $23::float8::numeric, $24, $25
+            $23::float8::numeric, $24, $25, $26
         )
         RETURNING
             id, name,
@@ -226,7 +230,7 @@ pub async fn create(pool: &DbPool, input: NewMonitor) -> DbResult<Monitor> {
             cert_days_left, cert_subject, cert_checked_at,
             group_id,
             slo_target_pct::float8 AS "slo_target_pct?",
-            slo_window_days, agent_id
+            slo_window_days, agent_id, escalation_policy_id
         "#,
         id.0,
         input.name,
@@ -253,6 +257,7 @@ pub async fn create(pool: &DbPool, input: NewMonitor) -> DbResult<Monitor> {
         input.slo_target_pct,
         input.slo_window_days,
         input.agent_id.map(|a| a.0),
+        input.escalation_policy_id.map(|e| e.0),
     )
     .fetch_one(pool)
     .await?;
@@ -428,7 +433,7 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<Monitor>> {
             cert_days_left, cert_subject, cert_checked_at,
             group_id,
             slo_target_pct::float8 AS "slo_target_pct?",
-            slo_window_days, agent_id
+            slo_window_days, agent_id, escalation_policy_id
         FROM monitors
         ORDER BY created_at DESC
         "#,
@@ -468,7 +473,7 @@ pub async fn list_for_agent(pool: &DbPool, agent: AgentId) -> DbResult<Vec<Monit
             cert_days_left, cert_subject, cert_checked_at,
             group_id,
             slo_target_pct::float8 AS "slo_target_pct?",
-            slo_window_days, agent_id
+            slo_window_days, agent_id, escalation_policy_id
         FROM monitors
         WHERE agent_id = $1 AND active
         ORDER BY created_at
@@ -505,7 +510,7 @@ pub async fn list_stale_agent_monitors(pool: &DbPool) -> DbResult<Vec<(Monitor, 
             m.cert_days_left, m.cert_subject, m.cert_checked_at,
             m.group_id,
             m.slo_target_pct::float8 AS "slo_target_pct?",
-            m.slo_window_days, m.agent_id,
+            m.slo_window_days, m.agent_id, m.escalation_policy_id,
             a.name AS agent_name
         FROM monitors m
         JOIN agents a ON a.id = m.agent_id
@@ -547,7 +552,7 @@ pub async fn get(pool: &DbPool, id: MonitorId) -> DbResult<Monitor> {
             cert_days_left, cert_subject, cert_checked_at,
             group_id,
             slo_target_pct::float8 AS "slo_target_pct?",
-            slo_window_days, agent_id
+            slo_window_days, agent_id, escalation_policy_id
         FROM monitors
         WHERE id = $1
         "#,
@@ -662,6 +667,17 @@ pub async fn update(pool: &DbPool, id: MonitorId, patch: UpdateMonitor) -> DbRes
         sqlx::query!(
             r#"UPDATE monitors SET agent_id = $1 WHERE id = $2"#,
             a.map(|x| x.0),
+            id.0,
+        )
+        .execute(pool)
+        .await?;
+    }
+
+    // Escalation policy: same pattern. `null` detaches.
+    if let Some(e) = patch.escalation_policy_id {
+        sqlx::query!(
+            r#"UPDATE monitors SET escalation_policy_id = $1 WHERE id = $2"#,
+            e.map(|x| x.0),
             id.0,
         )
         .execute(pool)

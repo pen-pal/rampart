@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE escalation_policies SET\n            name  = COALESCE($2, name),\n            steps = COALESCE($3, steps)\n        WHERE id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9b2a843eab41ff381ee537f9b5ba6b0c92ad86cce62540256b67a32eb464eb53"
+}

@@ -5,7 +5,7 @@
 //! features. Twenty probe kinds covered, including a `domain` variant for
 //! WHOIS-based expiry checks.
 
-use crate::ids::{AgentId, MonitorGroupId, MonitorId, ProxyId};
+use crate::ids::{AgentId, EscalationPolicyId, MonitorGroupId, MonitorId, ProxyId};
 use crate::tag::TagBrief;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
@@ -292,6 +292,10 @@ pub struct Monitor {
     /// behaviour of every monitor that predates agents).
     #[serde(default)]
     pub agent_id: Option<AgentId>,
+    /// Escalation policy routing this monitor's Down-flips. NULL →
+    /// regular attached/tag-routed channel fan-out (the default).
+    #[serde(default)]
+    pub escalation_policy_id: Option<EscalationPolicyId>,
 }
 
 /// Payload accepted when creating a monitor. Kind/url/hostname validation
@@ -374,6 +378,11 @@ pub struct NewMonitor {
     /// Assign to a remote probe agent at creation. Omit / null → local.
     #[serde(default)]
     pub agent_id: Option<AgentId>,
+
+    /// Route Down-flips through an escalation policy. Omit / null →
+    /// regular channel fan-out.
+    #[serde(default)]
+    pub escalation_policy_id: Option<EscalationPolicyId>,
 }
 
 /// Partial update payload for PATCH /v1/monitors/:id. Every field is
@@ -445,6 +454,21 @@ pub struct UpdateMonitor {
     /// Option<Option<…>> pattern as `group_id`.
     #[serde(default, deserialize_with = "deserialize_optional_agent_id")]
     pub agent_id: Option<Option<AgentId>>,
+
+    /// Attach/detach an escalation policy. `null` detaches; omitted
+    /// leaves unchanged. Option<Option<…>> like `group_id`.
+    #[serde(default, deserialize_with = "deserialize_optional_policy_id")]
+    pub escalation_policy_id: Option<Option<EscalationPolicyId>>,
+}
+
+fn deserialize_optional_policy_id<'de, D>(
+    de: D,
+) -> Result<Option<Option<EscalationPolicyId>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let v: Option<EscalationPolicyId> = Option::deserialize(de)?;
+    Ok(Some(v))
 }
 
 fn deserialize_optional_agent_id<'de, D>(de: D) -> Result<Option<Option<AgentId>>, D::Error>

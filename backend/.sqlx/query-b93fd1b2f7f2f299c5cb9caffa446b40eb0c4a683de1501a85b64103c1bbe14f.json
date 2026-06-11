@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            id, name,\n            kind   AS \"kind: MonitorKind\",\n            url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, last_push_at, last_run_started_at,\n            active,\n            current_status AS \"current_status: MonitorStatus\",\n            created_at, updated_at,\n            cert_days_left, cert_subject, cert_checked_at,\n            group_id,\n            slo_target_pct::float8 AS \"slo_target_pct?\",\n            slo_window_days, agent_id\n        FROM monitors\n        WHERE agent_id = $1 AND active\n        ORDER BY created_at\n        ",
+  "query": "\n        SELECT\n            id, name,\n            kind   AS \"kind: MonitorKind\",\n            url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, last_push_at, last_run_started_at,\n            active,\n            current_status AS \"current_status: MonitorStatus\",\n            created_at, updated_at,\n            cert_days_left, cert_subject, cert_checked_at,\n            group_id,\n            slo_target_pct::float8 AS \"slo_target_pct?\",\n            slo_window_days, agent_id, escalation_policy_id\n        FROM monitors\n        WHERE id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -431,6 +431,17 @@
             "name": "agent_id"
           }
         }
+      },
+      {
+        "ordinal": 34,
+        "name": "escalation_policy_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "escalation_policy_id"
+          }
+        }
       }
     ],
     "parameters": {
@@ -472,8 +483,9 @@
       true,
       null,
       true,
+      true,
       true
     ]
   },
-  "hash": "8c739e08338b4684c4d21b80413c6968c6976219c068a956ca1390c8396a9f9d"
+  "hash": "b93fd1b2f7f2f299c5cb9caffa446b40eb0c4a683de1501a85b64103c1bbe14f"
 }
