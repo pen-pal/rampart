@@ -378,11 +378,7 @@ async fn handle_escalation_flip(
                     policy.steps.len()
                 ));
                 for step in policy.steps.iter().take(episode.last_step as usize + 1) {
-                    for ch in &step.channel_ids {
-                        if let Err(e) = send_event_to_channel(pool, *ch, &recovery).await {
-                            warn!(channel = %ch.0, error = %e, "escalation recovery send failed");
-                        }
-                    }
+                    dispatch_step_targets(pool, step, &recovery).await;
                 }
             }
             Ok(None) => {}
@@ -412,9 +408,30 @@ pub async fn fire_escalation_step(
         policy.steps.len(),
         policy.name
     ));
+    dispatch_step_targets(pool, step, &page).await;
+}
+
+/// Page one ladder step's targets: its fixed `channel_ids` plus the current
+/// on-call channel of each schedule in `schedule_ids`. A schedule that no
+/// longer resolves (deleted, emptied) is logged and skipped — same as an
+/// unresolvable channel id, never a hard failure of the page.
+async fn dispatch_step_targets(pool: &DbPool, step: &rampart_core::EscalationStep, event: &Event) {
     for ch in &step.channel_ids {
-        if let Err(e) = send_event_to_channel(pool, *ch, &page).await {
+        if let Err(e) = send_event_to_channel(pool, *ch, event).await {
             warn!(channel = %ch.0, error = %e, "escalation step send failed");
+        }
+    }
+    let now = time::OffsetDateTime::now_utc();
+    for sid in &step.schedule_ids {
+        match rampart_db::on_call::current_channel(pool, *sid, now).await {
+            Ok(Some(ch)) => {
+                if let Err(e) = send_event_to_channel(pool, ch, event).await {
+                    warn!(channel = %ch.0, schedule = %sid.0, error = %e,
+                          "escalation on-call send failed");
+                }
+            }
+            Ok(None) => warn!(schedule = %sid.0, "on-call schedule has no one on call; skipped"),
+            Err(e) => warn!(schedule = %sid.0, error = %e, "on-call schedule lookup failed"),
         }
     }
 }
