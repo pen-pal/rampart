@@ -196,6 +196,7 @@ fn map_one(raw: &Value) -> Result<MappedMonitor, SkippedMonitor> {
         slo_target_pct: None,
         slo_window_days: None,
         agent_id: None,
+        escalation_policy_id: None,
     };
 
     Ok(MappedMonitor {

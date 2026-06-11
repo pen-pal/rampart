@@ -222,6 +222,7 @@ async fn send_test(
         ignore_tls: false,
         proxy_id: None,
         agent_id: None,
+        escalation_policy_id: None,
         push_token: None,
         last_push_at: None,
         last_run_started_at: None,

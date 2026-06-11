@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            id, name,\n            kind   AS \"kind: MonitorKind\",\n            url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, last_push_at, last_run_started_at,\n            active,\n            current_status AS \"current_status: MonitorStatus\",\n            created_at, updated_at,\n            cert_days_left, cert_subject, cert_checked_at,\n            group_id,\n            slo_target_pct::float8 AS \"slo_target_pct?\",\n            slo_window_days, agent_id\n        FROM monitors\n        WHERE id = $1\n        ",
+  "query": "\n        INSERT INTO monitors (\n            id, name, kind, url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, group_id,\n            slo_target_pct, slo_window_days, agent_id, escalation_policy_id\n        ) VALUES (\n            $1, $2, $3, $4, $5, $6, $7,\n            $8, $9, $10,\n            $11, $12, $13,\n            $14, $15, $16,\n            $17, $18, $19, $20,\n            $21, $22,\n            $23::float8::numeric, $24, $25, $26\n        )\n        RETURNING\n            id, name,\n            kind   AS \"kind: MonitorKind\",\n            url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, last_push_at, last_run_started_at,\n            active,\n            current_status AS \"current_status: MonitorStatus\",\n            created_at, updated_at,\n            cert_days_left, cert_subject, cert_checked_at,\n            group_id,\n            slo_target_pct::float8 AS \"slo_target_pct?\",\n            slo_window_days, agent_id, escalation_policy_id\n        ",
   "describe": {
     "columns": [
       {
@@ -431,10 +431,92 @@
             "name": "agent_id"
           }
         }
+      },
+      {
+        "ordinal": 34,
+        "name": "escalation_policy_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "escalation_policy_id"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
+        "Uuid",
+        "Text",
+        {
+          "Custom": {
+            "name": "monitor_kind",
+            "kind": {
+              "Enum": [
+                "http",
+                "keyword",
+                "json_query",
+                "tcp",
+                "ping",
+                "dns",
+                "push",
+                "grpc",
+                "tls",
+                "docker",
+                "steam",
+                "mqtt",
+                "radius",
+                "kafka",
+                "postgres",
+                "mysql",
+                "mssql",
+                "redis",
+                "mongodb",
+                "domain",
+                "browser",
+                "ssh",
+                "smtp",
+                "imap",
+                "ftp",
+                "pop3",
+                "memcached",
+                "ntp",
+                "websocket",
+                "nats",
+                "ldap",
+                "amqp",
+                "doh",
+                "rdap",
+                "snmp",
+                "cassandra",
+                "mdns",
+                "ssdp"
+              ]
+            }
+          }
+        },
+        "Text",
+        "Text",
+        "Int4",
+        "Jsonb",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Bool",
+        "Text",
+        "Text",
+        "Jsonb",
+        "Int4Array",
+        "Bool",
+        "Bool",
+        "Uuid",
+        "Text",
+        "Uuid",
+        "Float8",
+        "Int4",
+        "Uuid",
         "Uuid"
       ]
     },
@@ -472,8 +554,9 @@
       true,
       null,
       true,
+      true,
       true
     ]
   },
-  "hash": "413b4c4e602eeede078c8eb4e6c907c2ab99af49cd4a68c5f269f38d36890d4a"
+  "hash": "99d8424a593497040fe92ef9f9cfd7728f71ed2380bcf977484a89e9a1844ba8"
 }

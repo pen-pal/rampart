@@ -30,6 +30,7 @@ fn http_monitor(name: &str, url: &str) -> NewMonitor {
         slo_target_pct: None,
         slo_window_days: None,
         agent_id: None,
+        escalation_policy_id: None,
     }
 }
 
