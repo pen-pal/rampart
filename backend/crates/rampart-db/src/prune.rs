@@ -28,6 +28,11 @@ pub struct RetentionConfig {
     /// high-resolution raw heartbeats have been pruned.
     #[serde(default = "default_rollup")]
     pub rollup_days: i32,
+    /// How long externally-ingested metric samples are retained, in
+    /// days. Defaults to 30 — metrics are operational telemetry, not
+    /// the uptime record.
+    #[serde(default = "default_metrics")]
+    pub metrics_days: i32,
 }
 fn default_hb() -> i32 {
     365
@@ -38,6 +43,12 @@ fn default_audit() -> i32 {
 fn default_rollup() -> i32 {
     DEFAULT_ROLLUP_DAYS
 }
+fn default_metrics() -> i32 {
+    DEFAULT_METRICS_DAYS
+}
+
+/// Default metric-sample retention when the setting predates the field.
+pub const DEFAULT_METRICS_DAYS: i32 = 30;
 
 /// Default rollup-tier retention when no `retention_days` setting is
 /// present (or the row predates this field).
@@ -49,6 +60,7 @@ impl Default for RetentionConfig {
             heartbeats: 365,
             audit_log: 365,
             rollup_days: DEFAULT_ROLLUP_DAYS,
+            metrics_days: DEFAULT_METRICS_DAYS,
         }
     }
 }
@@ -58,6 +70,8 @@ impl Default for RetentionConfig {
 pub struct PruneStats {
     /// Hourly rollup buckets created or updated this sweep.
     pub rollups_upserted: u64,
+    /// External metric samples dropped past their retention window.
+    pub metrics_deleted: u64,
     /// Raw heartbeats folded into rollups and deleted.
     pub heartbeats_rolled: u64,
     /// Rollup buckets dropped past the rollup tier.
@@ -72,6 +86,7 @@ impl PruneStats {
             && self.heartbeats_rolled == 0
             && self.rollups_deleted == 0
             && self.audit_deleted == 0
+            && self.metrics_deleted == 0
     }
 }
 
@@ -317,6 +332,16 @@ pub async fn run_once(pool: &DbPool) -> DbResult<PruneStats> {
     stats.audit_deleted = sqlx::query!(
         "DELETE FROM audit_log WHERE ts < NOW() - make_interval(days => $1)",
         cfg.audit_log,
+    )
+    .execute(pool)
+    .await?
+    .rows_affected();
+
+    // External metric samples: flat age-based tier, no rollup — telemetry
+    // past its window is just gone, like audit rows.
+    stats.metrics_deleted = sqlx::query!(
+        "DELETE FROM metric_samples WHERE ts < NOW() - make_interval(days => $1)",
+        cfg.metrics_days,
     )
     .execute(pool)
     .await?
