@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE metric_rules SET breach_since = COALESCE(breach_since, $2), firing_at = $2 WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "acfb461f8e84259c2a192c40e6f47edd3c20f36d65b483a03dc83bd4e2326022"
+}

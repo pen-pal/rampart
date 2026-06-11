@@ -277,6 +277,67 @@ pub async fn resend_delivery(
     Ok(new_entry)
 }
 
+/// Send one event directly to ONE channel, bypassing monitor routing —
+/// the metric-rule path (rules carry explicit channel ids; tag/folder
+/// routing is monitor machinery). Renders with the channel's template
+/// when set, records the attempt in the delivery log, and returns
+/// whether the send succeeded. Channel ids that no longer resolve are
+/// the caller's problem to skip.
+pub async fn send_event_to_channel(
+    pool: &DbPool,
+    channel_id: NotificationId,
+    event: &Event,
+) -> anyhow::Result<bool> {
+    let chan = rampart_db::notifications::get(pool, channel_id).await?;
+
+    let subject = template::default_subject(event);
+    let body = match chan.template_id {
+        None => template::default_body(event),
+        Some(tid) => match rampart_db::templates::get_render_strings(pool, tid).await {
+            Ok(t) => template::render(&t.body, event),
+            Err(e) => {
+                warn!(channel = %chan.name, template = %tid.0, error = %e,
+                      "metric-rule template lookup failed; falling back to default body");
+                template::default_body(event)
+            }
+        },
+    };
+
+    let (ok, err) = match channels::dispatch(
+        chan.kind,
+        &chan.config,
+        &subject,
+        &body,
+        event,
+        pool,
+        channel_id,
+    )
+    .await
+    {
+        Ok(()) => (true, None),
+        Err(e) => {
+            warn!(channel = %chan.name, kind = ?chan.kind, error = %e, "metric-rule send failed");
+            (false, Some(e.to_string()))
+        }
+    };
+
+    // monitor_id stays NULL — the event's monitor is a synthetic stand-in
+    // for the rule, not a real row.
+    let _ = rampart_db::delivery_log::record(
+        pool,
+        rampart_db::delivery_log::NewDelivery {
+            notification_id: Some(channel_id),
+            channel_kind: &kind_str(&chan.kind),
+            event_kind: &kind_str(&event.kind),
+            monitor_id: None,
+            ok,
+            error: err.as_deref(),
+        },
+    )
+    .await;
+    Ok(ok)
+}
+
 /// How often the digest flush task wakes to drain due channel buffers.
 /// Each channel's own `digest_window_secs` gates whether it actually
 /// flushes on a given wake; this is just the resolution of the timer.
@@ -705,6 +766,18 @@ fn digest_event_line(ev: &Event) -> String {
         EventKind::SloRecovered => format!("{name} SLO recovered"),
         EventKind::MaintenanceStarted => format!("{name} maintenance started"),
         EventKind::MaintenanceEnded => format!("{name} maintenance ended"),
+        EventKind::MetricRuleFired => {
+            format!(
+                "{name} firing: {}",
+                ev.heartbeat.msg.as_deref().unwrap_or("")
+            )
+        }
+        EventKind::MetricRuleResolved => {
+            format!(
+                "{name} resolved: {}",
+                ev.heartbeat.msg.as_deref().unwrap_or("")
+            )
+        }
         EventKind::Test => format!("{name} test"),
     }
 }

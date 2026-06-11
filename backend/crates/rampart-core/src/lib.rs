@@ -17,6 +17,7 @@ pub mod ids;
 pub mod incident;
 pub mod ingest_token;
 pub mod maintenance;
+pub mod metric_rule;
 pub mod monitor;
 pub mod monitor_group;
 pub mod monitor_preset;
@@ -45,6 +46,7 @@ pub use ids::{
 pub use incident::{Incident, IncidentStyle, IncidentTemplate, IncidentUpdate};
 pub use ingest_token::{IngestToken, NewIngestToken};
 pub use maintenance::{MaintenanceWindow, NewMaintenanceWindow};
+pub use metric_rule::{MetricRule, NewMetricRule, RuleOp, RuleTransition, UpdateMetricRule};
 pub use monitor::{
     BackoffStrategy, Monitor, MonitorKind, MonitorStatus, NewMonitor, RetryBackoff, UpdateMonitor,
 };

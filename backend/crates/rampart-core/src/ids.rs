@@ -85,3 +85,4 @@ id!(MonitorPresetId);
 id!(MonitorTemplateId);
 id!(ScheduledReportId);
 id!(AgentId);
+id!(MetricRuleId);

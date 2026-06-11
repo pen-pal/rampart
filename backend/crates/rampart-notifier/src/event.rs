@@ -22,6 +22,11 @@ pub enum EventKind {
     /// A scheduled maintenance window just ended. Fired once per window
     /// transition (de-duped by `maintenance_windows.notified_end_at`).
     MaintenanceEnded,
+    /// A metric threshold rule started firing (breach outlasted its
+    /// sustain window). De-duped by `metric_rules.firing_at`.
+    MetricRuleFired,
+    /// A firing metric rule's series came back inside the threshold.
+    MetricRuleResolved,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
