@@ -66,6 +66,8 @@ export default function MonitorTemplates({ user }) {
   const [err,  setErr]  = useState(null);
   // Instantiate dialog: null when closed, else { template, name, busy }.
   const [instState, setInstState] = useState(null);
+  // From-scratch create form: null when closed.
+  const [createState, setCreateState] = useState(null);
 
   const reload = () => window.location.reload();
 
@@ -95,6 +97,44 @@ export default function MonitorTemplates({ user }) {
     }
   };
 
+  const openCreate = () => {
+    setErr(null);
+    setCreateState({
+      name: '', description: '', busy: false, specErr: null,
+      spec: JSON.stringify({
+        name: 'Example',
+        kind: 'http',
+        url: 'https://example.com',
+        interval_seconds: 60,
+        timeout_seconds: 16,
+      }, null, 2),
+    });
+  };
+
+  const submitCreate = async () => {
+    if (!createState || createState.busy) return;
+    if (!createState.name.trim()) { setCreateState(s => ({ ...s, specErr: t('templates.err_name') })); return; }
+    let spec;
+    try {
+      spec = JSON.parse(createState.spec);
+      if (!spec || typeof spec !== 'object' || Array.isArray(spec) || !spec.kind) throw new Error();
+    } catch {
+      setCreateState(s => ({ ...s, specErr: t('templates.err_spec') }));
+      return;
+    }
+    setCreateState(s => ({ ...s, busy: true, specErr: null }));
+    try {
+      await api.monitorTemplates.create({
+        name: createState.name.trim(),
+        description: createState.description.trim() || undefined,
+        spec,
+      });
+      reload();
+    } catch (e) {
+      setCreateState(s => s && ({ ...s, busy: false, specErr: e.message || t('templates.err_create') }));
+    }
+  };
+
   const templates = templatesState.data || [];
 
   return (
@@ -110,9 +150,51 @@ export default function MonitorTemplates({ user }) {
             <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 4px', letterSpacing: '-.02em' }}>{t('templates.title')}</h1>
             <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 0 }}>{t('templates.subtitle')}</p>
           </div>
+          {writable && (
+            <button className="btn btn-accent" onClick={openCreate}>
+              <Plus size={13}/> {t('templates.new')}
+            </button>
+          )}
         </div>
 
         {err && <div className="banner-err"><AlertCircle size={14} style={{ verticalAlign: '-2px', marginRight: 6 }}/>{err}</div>}
+
+        {createState && (
+          <div className="card" style={{ padding: 20, marginBottom: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>{t('templates.create_title')}</h3>
+              <button className="btn btn-ghost" onClick={() => setCreateState(null)} disabled={createState.busy}><X size={14}/></button>
+            </div>
+            {createState.specErr && <div className="banner-err">{createState.specErr}</div>}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+              <div>
+                <label className="field-label">{t('common.name')}</label>
+                <input className="input" value={createState.name} autoFocus
+                  onChange={e => setCreateState(s => ({ ...s, name: e.target.value }))}/>
+              </div>
+              <div>
+                <label className="field-label">{t('templates.field_description')}</label>
+                <input className="input" value={createState.description}
+                  onChange={e => setCreateState(s => ({ ...s, description: e.target.value }))}/>
+              </div>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label className="field-label">{t('templates.spec_label')}</label>
+              <textarea className="input mono" rows={10} value={createState.spec} spellCheck={false}
+                style={{ resize: 'vertical', fontSize: 12 }}
+                onChange={e => setCreateState(s => ({ ...s, spec: e.target.value }))}/>
+              <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 6 }}>{t('templates.spec_hint')}</div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button className="btn btn-ghost" onClick={() => setCreateState(null)} disabled={createState.busy}>{t('common.cancel')}</button>
+              <button className="btn btn-accent" onClick={submitCreate} disabled={createState.busy}>
+                {createState.busy
+                  ? <><Loader2 size={13} className="spin"/> {t('templates.creating')}</>
+                  : <><Plus size={13}/> {t('templates.create')}</>}
+              </button>
+            </div>
+          </div>
+        )}
 
         {instState && (
           <div className="card" style={{ padding: 20, marginBottom: 18 }}>
@@ -151,6 +233,11 @@ export default function MonitorTemplates({ user }) {
               <FileStack size={28} style={{ marginBottom: 10, opacity: .5 }}/>
               <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-2)', marginBottom: 4 }}>{t('templates.empty.title')}</div>
               <div style={{ fontSize: 12.5 }}>{t('templates.empty.cta')}</div>
+              {writable && (
+                <button className="btn btn-accent" style={{ marginTop: 14 }} onClick={openCreate}>
+                  <Plus size={13}/> {t('templates.new')}
+                </button>
+              )}
             </div>
           ) : templates.map(tpl => (
             <div className="row" key={tpl.id}>

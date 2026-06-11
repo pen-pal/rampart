@@ -1141,6 +1141,16 @@ const es = {
   'templates.save.default_name':     'Plantilla de {name}',
   'templates.save.ok_goto':          'Plantilla guardada. ¿Abrir la biblioteca de plantillas?',
   'templates.save.failed':           'No se pudo guardar la plantilla: {msg}',
+  'templates.new': 'Nueva plantilla',
+  'templates.create_title': 'Nueva plantilla desde cero',
+  'templates.field_description': 'Descripción (opcional)',
+  'templates.spec_label': 'Especificación del monitor (JSON)',
+  'templates.spec_hint': 'El cuerpo de creación de monitor que esta plantilla instancia — misma forma que POST /v1/monitors. "kind" es obligatorio; modifica el ejemplo libremente.',
+  'templates.creating': 'Guardando…',
+  'templates.create': 'Guardar plantilla',
+  'templates.err_name': 'Pon un nombre a la plantilla.',
+  'templates.err_spec': 'La especificación debe ser un objeto JSON con al menos "kind".',
+  'templates.err_create': 'No se pudo crear la plantilla.',
 
   // ── batch-16: push cron-job monitoring ───────────────────────────
   'wizard.field.cron_group':         'Programación del trabajo cron',
