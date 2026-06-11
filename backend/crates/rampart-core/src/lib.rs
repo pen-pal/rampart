@@ -12,6 +12,7 @@ pub mod agent;
 pub mod api_key;
 pub mod cron;
 pub mod error;
+pub mod error_tracking;
 pub mod escalation;
 pub mod heartbeat;
 pub mod ids;
@@ -37,16 +38,20 @@ pub use agent::{Agent, AgentResult, IssuedAgent, NewAgent, UpdateAgent};
 pub use api_key::{ApiKey, IssuedApiKey, KeyScope, NewApiKey};
 pub use cron::{CronExpr, CronSchedule};
 pub use error::{CoreError, Result};
+pub use error_tracking::{
+    ErrorEvent, ErrorIssue, ErrorProject, Frame, NewErrorProject, ParsedEvent, UpdateErrorProject,
+};
 pub use escalation::{
     EscalationEpisode, EscalationPolicy, EscalationStep, NewEscalationPolicy,
     UpdateEscalationPolicy,
 };
 pub use heartbeat::Heartbeat;
 pub use ids::{
-    AgentId, ApiKeyId, BadgeId, IncidentId, IncidentTemplateId, IncidentUpdateId, IngestTokenId,
-    MaintenanceId, MonitorGroupId, MonitorId, MonitorPresetId, MonitorTemplateId, NotificationId,
-    NotificationTemplateId, ProxyId, ScheduledReportId, SessionId, StatusPageComponentId,
-    StatusPageGroupId, StatusPageId, StatusPageSectionId, StatusPageSubscriberId, TagId, UserId,
+    AgentId, ApiKeyId, BadgeId, ErrorIssueId, ErrorProjectId, IncidentId, IncidentTemplateId,
+    IncidentUpdateId, IngestTokenId, MaintenanceId, MonitorGroupId, MonitorId, MonitorPresetId,
+    MonitorTemplateId, NotificationId, NotificationTemplateId, ProxyId, ScheduledReportId,
+    SessionId, StatusPageComponentId, StatusPageGroupId, StatusPageId, StatusPageSectionId,
+    StatusPageSubscriberId, TagId, UserId,
 };
 pub use incident::{Incident, IncidentStyle, IncidentTemplate, IncidentUpdate};
 pub use ingest_token::{IngestToken, NewIngestToken};
