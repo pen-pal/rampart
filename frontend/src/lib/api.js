@@ -212,6 +212,27 @@ export const api = {
     /// 404 if the id is unknown. Admin-only on the backend.
     retry: (id) => request(`/v1/delivery-log/${id}/retry`, { method: 'POST' }),
   },
+  // ─── external metrics + alert rules ──────────────────────────────────────
+  // Prometheus-style samples pushed to /v1/metrics/ingest. `series` lists the
+  // known {name, labels} pairs (newest activity first, max 1000); `query`
+  // returns step-bucketed {ts, avg, min, max, samples} aggregates for one of
+  // them. Rules fire notification channels when a metric breaches a threshold
+  // for `for_seconds`.
+  metrics: {
+    series: () => request('/v1/metrics/series'),
+    query: (name, { labels, from, to, stepSeconds } = {}) => {
+      const qs = new URLSearchParams({ name });
+      if (labels && Object.keys(labels).length) qs.set('labels', JSON.stringify(labels));
+      if (from)        qs.set('from', from);
+      if (to)          qs.set('to',   to);
+      if (stepSeconds) qs.set('step_seconds', String(stepSeconds));
+      return request(`/v1/metrics/query?${qs.toString()}`);
+    },
+    listRules:  ()          => request('/v1/metrics/rules'),
+    createRule: (input)     => request('/v1/metrics/rules', { method: 'POST', body: input }),
+    updateRule: (id, patch) => request(`/v1/metrics/rules/${id}`, { method: 'PATCH', body: patch }),
+    removeRule: (id)        => request(`/v1/metrics/rules/${id}`, { method: 'DELETE' }),
+  },
   scheduledReports: {
     list:    ()          => request('/v1/scheduled-reports'),
     get:     (id)        => request(`/v1/scheduled-reports/${id}`),
