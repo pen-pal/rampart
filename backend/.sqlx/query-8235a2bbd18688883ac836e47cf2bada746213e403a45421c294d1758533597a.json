@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE metric_rules SET breach_since = NULL, firing_at = NULL WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8235a2bbd18688883ac836e47cf2bada746213e403a45421c294d1758533597a"
+}
