@@ -61,6 +61,7 @@ pub fn agent_router() -> Router<AppState> {
     Router::new()
         .route("/monitors", get(pull_monitors))
         .route("/heartbeats", axum::routing::post(report_heartbeats))
+        .route("/metrics", axum::routing::post(report_metrics))
 }
 
 fn parse(s: &str) -> Result<AgentId, ApiError> {
@@ -267,4 +268,43 @@ async fn ingest(s: &AppState, monitor: &Monitor, r: AgentResult) -> Result<(), A
         },
     )
     .await
+}
+
+#[derive(Serialize)]
+struct MetricsOutcome {
+    accepted: usize,
+    skipped: usize,
+}
+
+/// `POST /v1/agent/metrics` — host/custom metrics from an agent, in
+/// Prometheus text format. Every sample gets an `agent="<name>"` label
+/// injected server-side before storage, so dashboards and threshold
+/// rules can tell hosts apart without the agent ever knowing its own
+/// name (renames apply retroactively to nothing — old samples keep the
+/// old label, which is the honest reading of history). Bumps liveness
+/// like any other agent call.
+async fn report_metrics(
+    State(s): State<AppState>,
+    headers: HeaderMap,
+    body: String,
+) -> Result<Json<MetricsOutcome>, ApiError> {
+    let agent = authenticate(&s, &headers).await?;
+    let _ = rampart_db::agents::touch_seen(s.pool(), agent.id, None).await;
+
+    let mut parsed = rampart_core::promtext::parse(&body);
+    if parsed.samples.is_empty() && parsed.skipped > 0 {
+        return Err(ApiError::BadRequest(
+            "no parseable samples in payload (expected Prometheus text format)".into(),
+        ));
+    }
+    for sample in &mut parsed.samples {
+        sample
+            .labels
+            .insert("agent".to_string(), agent.name.clone());
+    }
+    rampart_db::metric_samples::insert_many(s.pool(), &parsed.samples).await?;
+    Ok(Json(MetricsOutcome {
+        accepted: parsed.samples.len(),
+        skipped: parsed.skipped,
+    }))
 }
