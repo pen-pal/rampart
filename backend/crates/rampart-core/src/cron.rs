@@ -54,7 +54,7 @@ impl CronExpr {
             dow = (dow & !(1 << 7)) | 1;
         }
         Some(CronExpr {
-            minutes: minutes as u64,
+            minutes,
             hours: hours as u32,
             dom: dom as u32,
             months: months as u16,
