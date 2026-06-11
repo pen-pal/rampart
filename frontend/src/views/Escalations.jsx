@@ -73,6 +73,7 @@ const stepsToForm = (steps) =>
   (steps || []).map(s => ({
     waitMin: String(Math.round((s.wait_seconds || 0) / 60)),
     channelIds: [...(s.channel_ids || [])],
+    scheduleIds: [...(s.schedule_ids || [])],
   }));
 
 // "3 steps · pages 4 channels" — channel count is the distinct set across
@@ -80,11 +81,15 @@ const stepsToForm = (steps) =>
 const uniqueChannelCount = (steps) =>
   new Set((steps || []).flatMap(s => s.channel_ids || [])).size;
 
+const uniqueScheduleCount = (steps) =>
+  new Set((steps || []).flatMap(s => s.schedule_ids || [])).size;
+
 export default function Escalations({ user }) {
   const writable = canWrite(user);
   const [reloadKey, setReloadKey] = useState(0);
   const policiesState = useApi(() => api.escalation.list(), [reloadKey]);
   const channelsState = useApi(() => api.notifications.list(), []);
+  const schedulesState = useApi(() => api.onCallSchedules.list(), []);
   const [creating, setCreating] = useState(false);
   const [editing,  setEditing]  = useState(null); // policy id being edited
   const [busy,     setBusy]     = useState(null);
@@ -93,6 +98,7 @@ export default function Escalations({ user }) {
   const reload = () => { setCreating(false); setEditing(null); setReloadKey(k => k + 1); };
   const policies = policiesState.data || [];
   const channels = channelsState.data || [];
+  const schedules = schedulesState.data || [];
 
   const remove = async (id) => {
     if (!confirm(t('esc.delete_confirm'))) return;
@@ -133,7 +139,7 @@ export default function Escalations({ user }) {
         )}
 
         {creating && (
-          <PolicyForm channels={channels} onCancel={() => setCreating(false)} onSaved={reload}/>
+          <PolicyForm channels={channels} schedules={schedules} onCancel={() => setCreating(false)} onSaved={reload}/>
         )}
 
         <div className="card" style={{ overflow: 'hidden' }}>
@@ -150,7 +156,7 @@ export default function Escalations({ user }) {
           ) : policies.map(p => (
             editing === p.id ? (
               <div key={p.id} style={{ padding: 18, borderTop: '1px solid var(--border)' }}>
-                <PolicyForm policy={p} channels={channels}
+                <PolicyForm policy={p} channels={channels} schedules={schedules}
                   onCancel={() => setEditing(null)} onSaved={reload}/>
               </div>
             ) : (
@@ -162,6 +168,9 @@ export default function Escalations({ user }) {
                   </div>
                   <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
                     {t('esc.steps_summary', { n: (p.steps || []).length, c: uniqueChannelCount(p.steps) })}
+                    {uniqueScheduleCount(p.steps) > 0 && (
+                      <> · {t('esc.schedules_count', { s: uniqueScheduleCount(p.steps) })}</>
+                    )}
                   </div>
                 </div>
                 {writable && (
@@ -187,11 +196,11 @@ export default function Escalations({ user }) {
 // it POSTs a new one. Steps are edited as ordered rows — step 1 always
 // fires immediately (wait locked to 0), later steps wait N minutes after
 // the previous step.
-function PolicyForm({ policy, channels, onCancel, onSaved }) {
+function PolicyForm({ policy, channels, schedules, onCancel, onSaved }) {
   const editing = !!policy;
   const [name,  setName]  = useState(policy?.name || '');
   const [steps, setSteps] = useState(() =>
-    editing ? stepsToForm(policy.steps) : [{ waitMin: '0', channelIds: [] }],
+    editing ? stepsToForm(policy.steps) : [{ waitMin: '0', channelIds: [], scheduleIds: [] }],
   );
   const [busy, setBusy] = useState(false);
   const [err,  setErr]  = useState(null);
@@ -204,8 +213,16 @@ function PolicyForm({ policy, channels, onCancel, onSaved }) {
         ? steps[i].channelIds.filter(x => x !== id)
         : [...steps[i].channelIds, id],
     });
-  const addStep    = () => setSteps(ss => [...ss, { waitMin: '5', channelIds: [] }]);
+  const toggleSchedule = (i, id) =>
+    patchStep(i, {
+      scheduleIds: steps[i].scheduleIds.includes(id)
+        ? steps[i].scheduleIds.filter(x => x !== id)
+        : [...steps[i].scheduleIds, id],
+    });
+  const addStep    = () => setSteps(ss => [...ss, { waitMin: '5', channelIds: [], scheduleIds: [] }]);
   const removeStep = (i) => setSteps(ss => ss.filter((_, j) => j !== i));
+
+  const stepHasNoTarget = (s) => s.channelIds.length === 0 && s.scheduleIds.length === 0;
 
   // Per-step wait validity (step 1 is locked to 0 so always valid).
   const waitInvalid = (s, i) => {
@@ -220,13 +237,14 @@ function PolicyForm({ policy, channels, onCancel, onSaved }) {
     if (steps.length < 1 || steps.length > MAX_STEPS) { setErr(t('esc.err_steps')); return; }
     for (let i = 0; i < steps.length; i++) {
       if (waitInvalid(steps[i], i)) { setErr(t('esc.err_step_wait', { n: i + 1, max: MAX_WAIT_MIN })); return; }
-      if (steps[i].channelIds.length === 0) { setErr(t('esc.err_step_channels', { n: i + 1 })); return; }
+      if (stepHasNoTarget(steps[i])) { setErr(t('esc.err_step_targets', { n: i + 1 })); return; }
     }
     const body = {
       name: name.trim(),
       steps: steps.map((s, i) => ({
         wait_seconds: i === 0 ? 0 : Number(s.waitMin) * 60,
         channel_ids: s.channelIds,
+        schedule_ids: s.scheduleIds,
       })),
     };
     setBusy(true);
@@ -286,21 +304,41 @@ function PolicyForm({ policy, channels, onCancel, onSaved }) {
                   </button>
                 )}
               </div>
-              {channels.length === 0 ? (
+              {channels.length === 0 && schedules.length === 0 ? (
                 <div className="field-hint" style={{ marginTop: 0 }}>{t('esc.step.channels_empty')}</div>
               ) : (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px' }}>
-                  {channels.map(c => (
-                    <label key={c.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
-                      <input type="checkbox" checked={s.channelIds.includes(c.id)} onChange={() => toggleChannel(i, c.id)}/>
-                      {c.name}
-                    </label>
-                  ))}
-                </div>
+                <>
+                  {channels.length > 0 && (
+                    <>
+                      <div className="field-label" style={{ marginBottom: 4 }}>{t('esc.step.channels_label')}</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px' }}>
+                        {channels.map(c => (
+                          <label key={c.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                            <input type="checkbox" checked={s.channelIds.includes(c.id)} onChange={() => toggleChannel(i, c.id)}/>
+                            {c.name}
+                          </label>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  {schedules.length > 0 && (
+                    <>
+                      <div className="field-label" style={{ margin: '10px 0 4px' }}>{t('esc.step.schedules_label')}</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px' }}>
+                        {schedules.map(sc => (
+                          <label key={sc.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                            <input type="checkbox" checked={s.scheduleIds.includes(sc.id)} onChange={() => toggleSchedule(i, sc.id)}/>
+                            {sc.name}
+                          </label>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </>
               )}
               {waitInvalid(s, i) && <div className="field-err">{t('esc.err_step_wait', { n: i + 1, max: MAX_WAIT_MIN })}</div>}
-              {s.channelIds.length === 0 && channels.length > 0 && (
-                <div className="field-err">{t('esc.err_step_channels', { n: i + 1 })}</div>
+              {stepHasNoTarget(s) && (channels.length > 0 || schedules.length > 0) && (
+                <div className="field-err">{t('esc.err_step_targets', { n: i + 1 })}</div>
               )}
             </div>
           </React.Fragment>
