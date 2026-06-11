@@ -23,6 +23,7 @@ export function parseRoute(hash) {
   if (h === '#/import')             return { view: 'import',        id: null };
   if (h === '#/status-page')        return { view: 'status-page',   id: null };
   if (h === '#/notifications')      return { view: 'notifications', id: null };
+  if (h === '#/escalations')        return { view: 'escalations',   id: null };
   if (h === '#/maintenance')        return { view: 'maintenance',   id: null };
   if (h === '#/dependencies')       return { view: 'dependencies',  id: null };
   if (h === '#/api-keys')           return { view: 'api-keys',      id: null };

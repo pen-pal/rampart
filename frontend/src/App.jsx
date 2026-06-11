@@ -8,6 +8,7 @@ const NewMonitorWizard  = lazy(() => import('./views/NewMonitorWizard.jsx'));
 const ImportMonitors    = lazy(() => import('./views/ImportMonitors.jsx'));
 const Login             = lazy(() => import('./views/Login.jsx'));
 const Notifications     = lazy(() => import('./views/Notifications.jsx'));
+const Escalations       = lazy(() => import('./views/Escalations.jsx'));
 const Maintenance       = lazy(() => import('./views/Maintenance.jsx'));
 const DependencyGraph   = lazy(() => import('./views/DependencyGraph.jsx'));
 const ApiKeys           = lazy(() => import('./views/ApiKeys.jsx'));
@@ -53,6 +54,7 @@ const VIEW_LABEL = {
   'import':        'Import CSV',
   'status-page':   'Status pages',
   'notifications': 'Notifications',
+  'escalations':   'Escalations',
   'tags':          'Tags',
   'maintenance':   'Maintenance',
   'dependencies':  'Dependencies',
@@ -217,6 +219,7 @@ export default function App() {
     case 'import':        view = <ImportMonitors user={user} />; break;
     case 'status-page':   view = <StatusPageBuilder user={user} />; break;
     case 'notifications': view = <Notifications user={user} />; break;
+    case 'escalations':   view = <Escalations user={user} />; break;
     case 'maintenance':   view = <Maintenance user={user} />; break;
     case 'dependencies':  view = <DependencyGraph />; break;
     case 'api-keys':      view = <ApiKeys user={user} />; break;
@@ -272,6 +275,7 @@ function ViewSwitcher({ current, user }) {
     { hash: '#/',              view: 'dashboard'     },
     { hash: '#/monitor',       view: 'monitor'       },
     { hash: '#/notifications', view: 'notifications' },
+    { hash: '#/escalations',   view: 'escalations'   },
     { hash: '#/maintenance',   view: 'maintenance'   },
     { hash: '#/dependencies',  view: 'dependencies'  },
     { hash: '#/api-keys',      view: 'api-keys',     adminOnly: true },
