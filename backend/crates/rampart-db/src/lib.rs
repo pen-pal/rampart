@@ -37,6 +37,7 @@ pub mod status_pages;
 pub mod subscribers;
 pub mod tags;
 pub mod templates;
+pub mod traces;
 pub mod users;
 pub mod webpush;
 

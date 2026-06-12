@@ -26,6 +26,7 @@ pub mod monitor_templates;
 pub mod monitors;
 pub mod notifications;
 pub mod openapi;
+pub mod otlp;
 pub mod prefs;
 pub mod proxies;
 pub mod push;
@@ -37,6 +38,7 @@ pub mod subscribers;
 pub mod tags;
 pub mod templates;
 pub mod totp;
+pub mod traces;
 pub mod users;
 pub mod webpush;
 
@@ -127,6 +129,8 @@ pub fn v1_protected() -> Router<AppState> {
         .nest("/notification-templates", templates::router())
         // /v1/escalation-policies CRUD — notification ladders (editor)
         .nest("/escalation-policies", escalations::router())
+        // /v1/traces read views (list / detail / service-map)
+        .nest("/traces", traces::router())
         // /v1/maintenance-windows CRUD + attach/detach
         .nest("/maintenance-windows", maintenance::router())
         // /v1/status-pages admin CRUD (public read sits in v1_public)
