@@ -1,0 +1,33 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO error_issues (id, project_id, fingerprint, title, culprit, level, times_seen, last_seen)\n        VALUES ($1, $2, $3, $4, $5, $6, 1, now())\n        ON CONFLICT (project_id, fingerprint) DO NOTHING\n        RETURNING id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "error_issues",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "fe5c288fd0f738f9be9aced0f3c572ac1d9b7a69f05be98e2a7abc4b1fc92755"
+}

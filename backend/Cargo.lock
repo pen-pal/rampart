@@ -3428,6 +3428,7 @@ dependencies = [
  "axum-extra",
  "base32",
  "csv",
+ "flate2",
  "futures",
  "http-body-util",
  "lettre",
@@ -3502,10 +3503,12 @@ dependencies = [
 name = "rampart-core"
 version = "0.7.0"
 dependencies = [
+ "hex",
  "once_cell",
  "regex",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "sqlx",
  "thiserror 2.0.18",
  "time",
