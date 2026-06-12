@@ -33,6 +33,7 @@ pub mod role;
 pub mod rum;
 pub mod scheduled_report;
 pub mod status_page;
+pub mod synthetic;
 pub mod tag;
 pub mod trace;
 
@@ -83,6 +84,9 @@ pub use status_page::{
     MonitorAssignment, NewStatusPage, NewStatusPageSection, PublicIncident, PublicIncidentUpdate,
     PublicMaintenance, PublicSection, PublicStatusMonitor, PublicStatusPage, StatusPage,
     StatusPageSection, UpdateStatusPage, UpdateStatusPageSection,
+};
+pub use synthetic::{
+    AssertKind, Assertion, CompareOp, Extract, ExtractSource, SyntheticPlan, SyntheticStep,
 };
 pub use tag::{NewTag, Tag, TagBrief};
 pub use trace::{parse_otlp_traces_json, ParsedSpan, ServiceEdge, Span, TraceSummary};

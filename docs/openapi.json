@@ -6094,7 +6094,8 @@
           "smtp",
           "imap",
           "ftp",
-          "pop3"
+          "pop3",
+          "synthetic"
         ]
       },
       "ChannelKind": {

@@ -1,0 +1,13 @@
+-- Synthetic transaction monitors (synthetics tier, batch-22).
+--
+-- A `synthetic` monitor runs an ordered sequence of HTTP steps: each step
+-- makes a request, optionally extracts values from the response into named
+-- variables, and asserts on the response. Variables interpolate into later
+-- steps via {{name}}, so a "login → grab token → call API → assert" flow
+-- works. The whole step list lives in the existing monitors.config JSONB
+-- (config.steps) — no new columns — mirroring how cron / json_query / the
+-- HTTP extras store their kind-specific settings.
+--
+-- This migration only registers the new enum value; the variant is added to
+-- the Rust MonitorKind enum and executed by rampart-checker's synthetic probe.
+ALTER TYPE monitor_kind ADD VALUE IF NOT EXISTS 'synthetic';
