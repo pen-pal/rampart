@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                UPDATE error_issues SET\n                    times_seen = times_seen + 1,\n                    last_seen  = now(),\n                    title      = $2,\n                    level      = $3,\n                    culprit    = $4,\n                    status     = CASE WHEN status = 'resolved' THEN 'unresolved' ELSE status END\n                WHERE id = $1\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "93b4e65aa6abce70fa4ad7ed3ddca1ec0fb7e79c196a8417d506190924da0605"
+}

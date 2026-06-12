@@ -17,6 +17,89 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **Cross-tier correlation** — the observability tiers now link to each other.
+  A trace's detail view shows the **logs** emitted under that `trace_id`
+  (and deep-links to the Logs view filtered to it); log lines link back to
+  their trace; and an error issue whose event carries a trace context links
+  straight to that **trace** and its **logs**. Traces + logs are now
+  deep-linkable (`#/traces/{id}`, `#/logs/trace/{id}`).
+
+### Added
+
+- **Log ingestion — OTLP (Tier 3)** (migration `0079`) — ingest OpenTelemetry
+  logs over OTLP and serve a filtered log stream. `POST /otlp/v1/logs` accepts
+  an OTLP `ExportLogsServiceRequest` as both OTLP/JSON and OTLP/protobuf, so any
+  OTel SDK/Collector logs exporter works by pointing at `http://<host>/otlp`.
+  Each log stores its OTLP severity, message body, service, attributes, and the
+  optional `trace_id`/`span_id` so logs correlate with the traces tier (table
+  `logs`). Read API at `/v1/logs` filters by service, minimum level, body
+  substring, or trace id; `/v1/logs/services` feeds the filter UI. A dashboard
+  **Logs** view provides a service/level/search filter bar over a level-coloured
+  stream with expandable per-line attributes + trace ids. Logs age out via a
+  `logs_days` retention window (default 7) folded into the prune sweep. JSON log
+  parsing is pure + unit-tested in rampart-core, reusing the trace tier's OTLP
+  helpers. See [`docs/design/LOGS.md`](docs/design/LOGS.md). v1: ingest is
+  network-scoped, uncompressed, unsampled; body search is substring (FTS is a
+  follow-up).
+
+### Added
+
+- **Distributed tracing — OTLP (Tier 2 / APM)** (migration `0078`) — ingest
+  OpenTelemetry spans and assemble them into traces. `POST /otlp/v1/traces`
+  accepts an OTLP `ExportTraceServiceRequest` as **both** OTLP/JSON and
+  OTLP/protobuf (content-type negotiated), so any OTel SDK or Collector works
+  by pointing its OTLP/HTTP exporter at `http://<host>/otlp` — no
+  Rampart-specific agent. A trace is the set of spans sharing a `trace_id`,
+  assembled on read; spans store service, operation, kind, timing, status, and
+  attributes (migration `0078`, table `spans`). Read API at `/v1/traces`:
+  recent traces (root service/op, duration, span + error counts), a trace's
+  spans for the waterfall, and a service dependency map from cross-service
+  parent/child pairs. Dashboard **Traces** view with a trace list, a span
+  waterfall, and a service-map tab. Spans age out via a `traces_days`
+  retention window (default 7) folded into the prune sweep. JSON span parsing
+  is pure + unit-tested in rampart-core. See
+  [`docs/design/TRACES.md`](docs/design/TRACES.md). v1: ingest is
+  network-scoped (unauthenticated), uncompressed, and unsampled — all
+  follow-ups.
+- **Error & exception tracking** (migration `0077`) — a self-hosted, Sentry-
+  compatible error tier. Create an **error project** to mint a DSN; point any
+  official Sentry SDK at it (`https://<key>@<host>/<id>`) and exceptions flow
+  in — no Rampart-specific SDK. Ingest speaks the Sentry **envelope** and
+  legacy **store** protocols (`POST /api/{id}/envelope/`, `/store/`), DSN-keyed
+  and gzip/deflate-aware. Events are grouped into **issues** by fingerprint
+  (explicit SDK fingerprint → exception type + in-app `(module, function)`
+  frames with line numbers/paths dropped → normalized message), so a crash loop
+  is one issue with a counter, not a flood. A resolved issue that recurs
+  **reopens (regression)**. New + regressed issues alert through the existing
+  notifier (new `error_new` / `error_regressed` event kinds) to the project's
+  channels — off the ingest path, so the SDK response isn't blocked. Issues
+  carry `unresolved`/`resolved`/`ignored` status; events age out per a
+  per-project retention window (the issue persists). Admin API at
+  `/v1/error-projects` + `/v1/error-issues`, a dashboard **Errors** view
+  (projects → issues → stack-trace detail, with the DSN to copy), and event
+  pruning folded into the retention sweep. Fingerprinting + Sentry-event
+  parsing are pure + unit-tested in `rampart-core`. See
+  [`docs/design/ERROR-TRACKING.md`](docs/design/ERROR-TRACKING.md). v1: no
+  source-map de-minification, no auto cookie/breadcrumb UI, no post-create
+  step editing of fingerprint rules.
+- **Real User Monitoring (Tier 4)** (migration `0080`) — Core Web Vitals from
+  real browsers, completing the observability platform. Rampart serves a tiny
+  self-installing collector at `GET /rum/snippet.js`; one
+  `<script src=".../rum/snippet.js" data-app="web">` tag collects LCP, INP, CLS,
+  FCP, TTFB, and load time via PerformanceObserver + Navigation Timing and sends
+  one beacon per page view on hide (`navigator.sendBeacon`, no dependency, no
+  CORS preflight). Beacons land at `POST /rum/v1/events` (public; body parsed as
+  JSON; useless beacons dropped). Read API at `/v1/rum`: `summary` (p75 per
+  metric — the Web Vitals statistic — via `percentile_cont`), `pages` (per-URL
+  rollup), and `apps`. A dashboard **RUM** view shows Web Vitals cards coloured
+  good/needs-improvement/poor against the official thresholds, a per-page table,
+  an app + window filter, and the copyable snippet. Events age out via a
+  `rum_days` retention window (default 14). Beacon parsing is pure + unit-tested.
+  See [`docs/design/RUM.md`](docs/design/RUM.md). v1: keyed by an app name (no
+  per-app CRUD), INP approximated, no JS-error capture yet.
+
 ---
 
 ## [0.7.0] — 2026-06-11

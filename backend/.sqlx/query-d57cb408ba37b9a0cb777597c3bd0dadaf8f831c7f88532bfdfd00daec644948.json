@@ -1,0 +1,128 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, ts, severity, severity_text, service_name, body,\n               trace_id, span_id, attributes\n        FROM logs\n        WHERE ($1::text IS NULL OR service_name = $1)\n          AND ($2::int2 IS NULL OR severity >= $2)\n          AND ($3::text IS NULL OR body ILIKE '%' || $3 || '%')\n          AND ($4::text IS NULL OR trace_id = $4)\n        ORDER BY ts DESC\n        LIMIT $5\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "logs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "ts",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "logs",
+            "name": "ts"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "severity",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "logs",
+            "name": "severity"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "severity_text",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "logs",
+            "name": "severity_text"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "service_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "logs",
+            "name": "service_name"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "body",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "logs",
+            "name": "body"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "trace_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "logs",
+            "name": "trace_id"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "span_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "logs",
+            "name": "span_id"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "attributes",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "logs",
+            "name": "attributes"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int2",
+        "Text",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "d57cb408ba37b9a0cb777597c3bd0dadaf8f831c7f88532bfdfd00daec644948"
+}

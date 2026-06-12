@@ -170,6 +170,48 @@ fn synthetic_monitor() -> rampart_core::Monitor {
     }
 }
 
+/// Dispatch an error-tracking issue alert to a project's channels. Errors have
+/// no monitor row, so this mirrors the metric-rule path: a synthetic monitor
+/// stand-in (named after the project) carries the summary in its heartbeat msg,
+/// and each channel is sent directly via [`send_event_to_channel`]. Channel
+/// ids that no longer resolve are logged and skipped. Fire-and-forget — the
+/// ingest handler spawns this so the SDK response isn't blocked on delivery.
+pub async fn dispatch_error_alert(
+    pool: &DbPool,
+    project_name: &str,
+    channel_ids: &[NotificationId],
+    regressed: bool,
+    summary: &str,
+) {
+    let mut monitor = synthetic_monitor();
+    monitor.name = project_name.to_string();
+    let event = Event {
+        kind: if regressed {
+            EventKind::ErrorRegressed
+        } else {
+            EventKind::ErrorNew
+        },
+        monitor,
+        heartbeat: rampart_core::Heartbeat {
+            monitor_id: rampart_core::ids::MonitorId::new(),
+            ts: time::OffsetDateTime::now_utc(),
+            status: rampart_core::MonitorStatus::Down,
+            latency_ms: None,
+            status_code: None,
+            msg: Some(summary.to_string()),
+            retries: 0,
+            important: true,
+        },
+        prev_status: None,
+        slo_current_pct: None,
+    };
+    for ch in channel_ids {
+        if let Err(e) = send_event_to_channel(pool, *ch, &event).await {
+            warn!(channel = %ch.0, error = %e, "error-alert send failed");
+        }
+    }
+}
+
 /// Re-send a single past delivery through its ORIGINAL channel and record a
 /// NEW delivery_log row for the retry attempt (returned to the caller).
 ///
@@ -876,6 +918,18 @@ fn digest_event_line(ev: &Event) -> String {
         EventKind::Escalation => {
             format!(
                 "{name} escalation: {}",
+                ev.heartbeat.msg.as_deref().unwrap_or("")
+            )
+        }
+        EventKind::ErrorNew => {
+            format!(
+                "{name} new error: {}",
+                ev.heartbeat.msg.as_deref().unwrap_or("")
+            )
+        }
+        EventKind::ErrorRegressed => {
+            format!(
+                "{name} error regressed: {}",
                 ev.heartbeat.msg.as_deref().unwrap_or("")
             )
         }

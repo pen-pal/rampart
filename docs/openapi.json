@@ -65,6 +65,22 @@
       "description": "Escalation policies (ordered notification ladders) and episode acknowledge. Editor."
     },
     {
+      "name": "Traces",
+      "description": "Distributed tracing \u2014 OTLP span ingest + trace read views."
+    },
+    {
+      "name": "Logs",
+      "description": "Log ingestion \u2014 OTLP log ingest + filtered read."
+    },
+    {
+      "name": "Errors",
+      "description": "Error tracking \u2014 projects (DSN), issues, and Sentry-compatible ingest."
+    },
+    {
+      "name": "RUM",
+      "description": "Real User Monitoring \u2014 browser Core Web Vitals ingest + read."
+    },
+    {
       "name": "Users",
       "description": "User management + role assignment (admin); self-service password (any role)."
     },
@@ -2913,6 +2929,578 @@
           "404": {
             "description": "Nothing open",
             "or already acked.": null
+          }
+        }
+      }
+    },
+    "/otlp/v1/traces": {
+      "post": {
+        "tags": [
+          "Traces"
+        ],
+        "summary": "OTLP trace ingest",
+        "description": "Accepts an OTLP ExportTraceServiceRequest as OTLP/JSON (application/json) or OTLP/protobuf (application/x-protobuf). Public (network-scoped, no session) \u2014 point an OTel SDK/Collector OTLP/HTTP exporter at http://<host>/otlp. See docs/design/TRACES.md.",
+        "responses": {
+          "200": {
+            "description": "Empty ExportTraceServiceResponse `{}` = full success."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/v1/traces": {
+      "get": {
+        "tags": [
+          "Traces"
+        ],
+        "summary": "Recent traces",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One row per trace_id \u2014 root service/op",
+            "duration": null,
+            "span + error counts.": null
+          }
+        }
+      }
+    },
+    "/v1/traces/service-map": {
+      "get": {
+        "tags": [
+          "Traces"
+        ],
+        "summary": "Service dependency map",
+        "parameters": [
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Edges `[{from_service, to_service, calls}]` from cross-service spans."
+          }
+        }
+      }
+    },
+    "/v1/traces/{trace_id}": {
+      "parameters": [
+        {
+          "name": "trace_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Traces"
+        ],
+        "summary": "Spans of a trace (waterfall)",
+        "responses": {
+          "200": {
+            "description": "All spans for the trace",
+            "ordered by start time.": null
+          },
+          "404": {
+            "description": "No spans for that trace_id."
+          }
+        }
+      }
+    },
+    "/otlp/v1/logs": {
+      "post": {
+        "tags": [
+          "Logs"
+        ],
+        "summary": "OTLP log ingest",
+        "description": "Accepts an OTLP ExportLogsServiceRequest as OTLP/JSON or OTLP/protobuf. Public (network-scoped). See docs/design/LOGS.md.",
+        "responses": {
+          "200": {
+            "description": "Empty ExportLogsServiceResponse `{}` = success."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/v1/logs": {
+      "get": {
+        "tags": [
+          "Logs"
+        ],
+        "summary": "Recent logs (filtered)",
+        "parameters": [
+          {
+            "name": "service",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "trace",
+                "debug",
+                "info",
+                "warn",
+                "error",
+                "fatal"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "trace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Logs newest-first; level is a minimum",
+            "q is a body substring.": null
+          }
+        }
+      }
+    },
+    "/v1/logs/services": {
+      "get": {
+        "tags": [
+          "Logs"
+        ],
+        "summary": "Distinct recent service names",
+        "responses": {
+          "200": {
+            "description": "Service names for the filter dropdown."
+          }
+        }
+      }
+    },
+    "/v1/error-projects": {
+      "get": {
+        "tags": [
+          "Errors"
+        ],
+        "summary": "List error projects",
+        "responses": {
+          "200": {
+            "description": "Projects with DSN public key + alert channels."
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Errors"
+        ],
+        "summary": "Create an error project",
+        "description": "Mints a DSN public key. Assemble the SDK DSN as `https://<public_key>@<host>/<id>`. Body: `{name, platform?, alert_channel_ids?}`. See docs/design/ERROR-TRACKING.md.",
+        "responses": {
+          "201": {
+            "description": "Created project."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/v1/error-projects/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "patch": {
+        "tags": [
+          "Errors"
+        ],
+        "summary": "Update a project",
+        "responses": {
+          "200": {
+            "description": "Updated project."
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Errors"
+        ],
+        "summary": "Delete a project",
+        "description": "Removes the project and all its issues + events.",
+        "responses": {
+          "204": {
+            "description": "Deleted."
+          }
+        }
+      }
+    },
+    "/v1/error-projects/{id}/issues": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        {
+          "name": "status",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "unresolved",
+              "resolved",
+              "ignored"
+            ]
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Errors"
+        ],
+        "summary": "Issues for a project",
+        "responses": {
+          "200": {
+            "description": "Issues",
+            "newest activity first (optionally filtered by status).": null
+          }
+        }
+      }
+    },
+    "/v1/error-issues/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Errors"
+        ],
+        "summary": "Issue detail",
+        "responses": {
+          "200": {
+            "description": "Issue `{title, culprit, level, status, first_seen, last_seen, times_seen}`."
+          },
+          "404": {
+            "description": "No such issue."
+          }
+        }
+      }
+    },
+    "/v1/error-issues/{id}/events": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Errors"
+        ],
+        "summary": "Recent events for an issue",
+        "responses": {
+          "200": {
+            "description": "Up to 50 events",
+            "newest first": null,
+            "with stacktrace + context.": null
+          }
+        }
+      }
+    },
+    "/v1/error-issues/{id}/resolve": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Errors"
+        ],
+        "summary": "Resolve an issue",
+        "responses": {
+          "200": {
+            "description": "Updated issue."
+          }
+        }
+      }
+    },
+    "/v1/error-issues/{id}/ignore": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Errors"
+        ],
+        "summary": "Ignore an issue",
+        "responses": {
+          "200": {
+            "description": "Updated issue."
+          }
+        }
+      }
+    },
+    "/v1/error-issues/{id}/unresolve": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Errors"
+        ],
+        "summary": "Unresolve an issue",
+        "responses": {
+          "200": {
+            "description": "Updated issue."
+          }
+        }
+      }
+    },
+    "/api/{project_id}/envelope": {
+      "parameters": [
+        {
+          "name": "project_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Errors"
+        ],
+        "summary": "Sentry-compatible envelope ingest",
+        "description": "DSN-keyed (public; via `X-Sentry-Auth` or `?sentry_key=`), not session-authed. Accepts gzip/deflate bodies. Parses the `event` item; other item types are accepted and ignored. Also served at the trailing-slash path `/api/{project_id}/envelope/`.",
+        "responses": {
+          "200": {
+            "description": "`{ \"id\": \"<event-id>\" }`."
+          },
+          "404": {
+            "description": "Unknown project or bad DSN key."
+          }
+        }
+      }
+    },
+    "/api/{project_id}/store": {
+      "parameters": [
+        {
+          "name": "project_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Errors"
+        ],
+        "summary": "Sentry-compatible legacy store ingest",
+        "description": "Single-event (non-envelope) transport for older SDKs. Same auth + response as envelope. Also at `/api/{project_id}/store/`.",
+        "responses": {
+          "200": {
+            "description": "`{ \"id\": \"<event-id>\" }`."
+          },
+          "404": {
+            "description": "Unknown project or bad DSN key."
+          }
+        }
+      }
+    },
+    "/rum/snippet.js": {
+      "get": {
+        "tags": [
+          "RUM"
+        ],
+        "summary": "The browser RUM collector script",
+        "responses": {
+          "200": {
+            "description": "JavaScript; install via <script src=\".../rum/snippet.js\" data-app=\"web\">."
+          }
+        }
+      }
+    },
+    "/rum/v1/events": {
+      "post": {
+        "tags": [
+          "RUM"
+        ],
+        "summary": "RUM beacon ingest",
+        "description": "One page-view beacon `{app, url, session?, ua?, metrics:{lcp,fcp,cls,inp,ttfb,load}}`, sent by the snippet via sendBeacon. Public; body parsed as JSON. Useless beacons are dropped. See docs/design/RUM.md.",
+        "responses": {
+          "204": {
+            "description": "Accepted (always",
+            "even if dropped).": null
+          }
+        }
+      }
+    },
+    "/v1/rum/summary": {
+      "get": {
+        "tags": [
+          "RUM"
+        ],
+        "summary": "Web Vitals p75 summary",
+        "parameters": [
+          {
+            "name": "app",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "p75 of each metric + view count over the window."
+          }
+        }
+      }
+    },
+    "/v1/rum/pages": {
+      "get": {
+        "tags": [
+          "RUM"
+        ],
+        "summary": "Per-page Web Vitals",
+        "parameters": [
+          {
+            "name": "app",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Per-URL views + p75 LCP/INP/CLS, busiest first."
+          }
+        }
+      }
+    },
+    "/v1/rum/apps": {
+      "get": {
+        "tags": [
+          "RUM"
+        ],
+        "summary": "Distinct app/site names",
+        "responses": {
+          "200": {
+            "description": "App names for the filter dropdown."
           }
         }
       }
