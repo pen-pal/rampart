@@ -33,6 +33,9 @@ pub struct RetentionConfig {
     /// the uptime record.
     #[serde(default = "default_metrics")]
     pub metrics_days: i32,
+    /// How long RUM events are retained, in days. Defaults to 14.
+    #[serde(default = "default_rum")]
+    pub rum_days: i32,
 }
 fn default_hb() -> i32 {
     365
@@ -46,9 +49,14 @@ fn default_rollup() -> i32 {
 fn default_metrics() -> i32 {
     DEFAULT_METRICS_DAYS
 }
+fn default_rum() -> i32 {
+    DEFAULT_RUM_DAYS
+}
 
 /// Default metric-sample retention when the setting predates the field.
 pub const DEFAULT_METRICS_DAYS: i32 = 30;
+/// Default RUM-event retention when the setting predates the field.
+pub const DEFAULT_RUM_DAYS: i32 = 14;
 
 /// Default rollup-tier retention when no `retention_days` setting is
 /// present (or the row predates this field).
@@ -61,6 +69,7 @@ impl Default for RetentionConfig {
             audit_log: 365,
             rollup_days: DEFAULT_ROLLUP_DAYS,
             metrics_days: DEFAULT_METRICS_DAYS,
+            rum_days: DEFAULT_RUM_DAYS,
         }
     }
 }
@@ -72,6 +81,8 @@ pub struct PruneStats {
     pub rollups_upserted: u64,
     /// External metric samples dropped past their retention window.
     pub metrics_deleted: u64,
+    /// RUM events dropped past the RUM-retention window.
+    pub rum_deleted: u64,
     /// Raw heartbeats folded into rollups and deleted.
     pub heartbeats_rolled: u64,
     /// Rollup buckets dropped past the rollup tier.
@@ -87,6 +98,7 @@ impl PruneStats {
             && self.rollups_deleted == 0
             && self.audit_deleted == 0
             && self.metrics_deleted == 0
+            && self.rum_deleted == 0
     }
 }
 
@@ -346,6 +358,8 @@ pub async fn run_once(pool: &DbPool) -> DbResult<PruneStats> {
     .execute(pool)
     .await?
     .rows_affected();
+
+    stats.rum_deleted = crate::rum::prune(pool, cfg.rum_days).await?;
 
     Ok(stats)
 }
