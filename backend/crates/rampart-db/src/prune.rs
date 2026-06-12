@@ -101,6 +101,8 @@ pub struct PruneStats {
     pub rollups_deleted: u64,
     /// Audit-log rows dropped past the audit tier.
     pub audit_deleted: u64,
+    /// Error-tracking events dropped past each project's retention window.
+    pub errors_deleted: u64,
 }
 
 impl PruneStats {
@@ -112,6 +114,7 @@ impl PruneStats {
             && self.metrics_deleted == 0
             && self.spans_deleted == 0
             && self.logs_deleted == 0
+            && self.errors_deleted == 0
     }
 }
 
@@ -375,6 +378,9 @@ pub async fn run_once(pool: &DbPool) -> DbResult<PruneStats> {
     // Trace spans: flat age-based tier, like metric samples.
     stats.spans_deleted = crate::traces::prune(pool, cfg.traces_days).await?;
     stats.logs_deleted = crate::logs::prune(pool, cfg.logs_days).await?;
+    // Error-tracking events: per-project retention (the window lives on each
+    // error_projects row, so the delete joins rather than reading cfg).
+    stats.errors_deleted = crate::error_tracking::prune(pool).await?;
 
     Ok(stats)
 }

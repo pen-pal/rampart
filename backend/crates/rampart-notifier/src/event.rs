@@ -31,6 +31,12 @@ pub enum EventKind {
     /// steps as the unacked episode ages. The heartbeat msg carries the
     /// step detail.
     Escalation,
+    /// A new error-tracking issue was seen for the first time. The heartbeat
+    /// msg carries the issue title + project. Dispatched directly to the
+    /// project's alert channels (no monitor row).
+    ErrorNew,
+    /// A resolved error issue recurred (regression). Same dispatch path.
+    ErrorRegressed,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

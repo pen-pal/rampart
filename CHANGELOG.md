@@ -54,6 +54,27 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
   [`docs/design/TRACES.md`](docs/design/TRACES.md). v1: ingest is
   network-scoped (unauthenticated), uncompressed, and unsampled — all
   follow-ups.
+- **Error & exception tracking** (migration `0077`) — a self-hosted, Sentry-
+  compatible error tier. Create an **error project** to mint a DSN; point any
+  official Sentry SDK at it (`https://<key>@<host>/<id>`) and exceptions flow
+  in — no Rampart-specific SDK. Ingest speaks the Sentry **envelope** and
+  legacy **store** protocols (`POST /api/{id}/envelope/`, `/store/`), DSN-keyed
+  and gzip/deflate-aware. Events are grouped into **issues** by fingerprint
+  (explicit SDK fingerprint → exception type + in-app `(module, function)`
+  frames with line numbers/paths dropped → normalized message), so a crash loop
+  is one issue with a counter, not a flood. A resolved issue that recurs
+  **reopens (regression)**. New + regressed issues alert through the existing
+  notifier (new `error_new` / `error_regressed` event kinds) to the project's
+  channels — off the ingest path, so the SDK response isn't blocked. Issues
+  carry `unresolved`/`resolved`/`ignored` status; events age out per a
+  per-project retention window (the issue persists). Admin API at
+  `/v1/error-projects` + `/v1/error-issues`, a dashboard **Errors** view
+  (projects → issues → stack-trace detail, with the DSN to copy), and event
+  pruning folded into the retention sweep. Fingerprinting + Sentry-event
+  parsing are pure + unit-tested in `rampart-core`. See
+  [`docs/design/ERROR-TRACKING.md`](docs/design/ERROR-TRACKING.md). v1: no
+  source-map de-minification, no auto cookie/breadcrumb UI, no post-create
+  step editing of fingerprint rules.
 
 ---
 

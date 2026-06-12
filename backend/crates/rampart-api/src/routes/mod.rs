@@ -14,6 +14,8 @@ pub mod api_keys;
 pub mod audit;
 pub mod auth;
 pub mod delivery_log;
+pub mod error_ingest;
+pub mod error_tracking;
 pub mod escalations;
 pub mod health;
 pub mod incident_templates;
@@ -134,6 +136,9 @@ pub fn v1_protected() -> Router<AppState> {
         .nest("/traces", traces::router())
         // /v1/logs read views (filtered stream + service list)
         .nest("/logs", logs::router())
+        // /v1/error-projects CRUD + issues; /v1/error-issues detail + status
+        .nest("/error-projects", error_tracking::project_router())
+        .nest("/error-issues", error_tracking::issue_router())
         // /v1/maintenance-windows CRUD + attach/detach
         .nest("/maintenance-windows", maintenance::router())
         // /v1/status-pages admin CRUD (public read sits in v1_public)

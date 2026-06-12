@@ -187,6 +187,10 @@ pub fn build_router(state: AppState) -> Router {
         .nest("/push", routes::push::router())
         // OTLP trace ingest — public like /push (operator controls exposure).
         .nest("/otlp", routes::otlp::router())
+        // /api/:project_id/{envelope,store} — Sentry-compatible error ingest.
+        // Public like /push; the DSN key is the auth. Outside /v1 so SDK DSNs
+        // (which append /api/N/...) point straight at it.
+        .nest("/api", routes::error_ingest::router())
         .nest("/v1", routes::v1_public(&state).merge(protected_v1))
         .with_state(state)
         .fallback(static_assets::handler)
