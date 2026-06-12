@@ -16,6 +16,7 @@ pub mod heartbeats;
 pub mod incident_templates;
 pub mod incidents;
 pub mod ingest_tokens;
+pub mod logs;
 pub mod maintenance;
 pub mod metric_rules;
 pub mod metric_samples;
