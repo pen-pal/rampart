@@ -17,6 +17,7 @@ pub mod heartbeat;
 pub mod ids;
 pub mod incident;
 pub mod ingest_token;
+pub mod log;
 pub mod maintenance;
 pub mod metric_rule;
 pub mod monitor;
@@ -51,6 +52,7 @@ pub use ids::{
 };
 pub use incident::{Incident, IncidentStyle, IncidentTemplate, IncidentUpdate};
 pub use ingest_token::{IngestToken, NewIngestToken};
+pub use log::{coarse_level, level_min_severity, parse_otlp_logs_json, LogEntry, ParsedLog};
 pub use maintenance::{MaintenanceWindow, NewMaintenanceWindow};
 pub use metric_rule::{MetricRule, NewMetricRule, RuleOp, RuleTransition, UpdateMetricRule};
 pub use monitor::{

@@ -1,13 +1,12 @@
-//! OTLP/protobuf trace decode → [`ParsedSpan`].
-//!
-//! Decodes an `ExportTraceServiceRequest` protobuf (the default OTLP/HTTP
-//! encoding) using the `opentelemetry-proto` generated messages, then lowers
-//! it to the same `ParsedSpan` the JSON path produces (`rampart_core::trace`).
+//! OTLP/protobuf decode for traces + logs → the same `ParsedSpan` / `ParsedLog`
+//! the JSON paths produce. Uses the `opentelemetry-proto` generated messages.
 //! OTLP ids are bytes here, so they're hex-encoded to match the JSON form.
 
+use opentelemetry_proto::tonic::collector::logs::v1::ExportLogsServiceRequest;
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
 use opentelemetry_proto::tonic::common::v1::{any_value, AnyValue, KeyValue};
 use prost::Message;
+use rampart_core::log::ParsedLog;
 use rampart_core::trace::ParsedSpan;
 
 pub fn parse_otlp_traces_protobuf(bytes: &[u8]) -> Result<Vec<ParsedSpan>, prost::DecodeError> {
@@ -86,5 +85,60 @@ fn any_to_json(v: &AnyValue) -> Option<serde_json::Value> {
         any_value::Value::IntValue(i) => Some(serde_json::Value::from(*i)),
         any_value::Value::DoubleValue(d) => Some(serde_json::Value::from(*d)),
         _ => None,
+    }
+}
+
+/// Decode an OTLP/protobuf `ExportLogsServiceRequest` into [`ParsedLog`]s
+/// (lowered to the same shape as the JSON path in `rampart_core::log`).
+pub fn parse_otlp_logs_protobuf(bytes: &[u8]) -> Result<Vec<ParsedLog>, prost::DecodeError> {
+    let req = ExportLogsServiceRequest::decode(bytes)?;
+    let mut out = Vec::new();
+    for rl in req.resource_logs {
+        let service_name = rl
+            .resource
+            .as_ref()
+            .and_then(|r| attr_string(&r.attributes, "service.name"))
+            .unwrap_or_else(|| "unknown".to_string());
+        for sl in rl.scope_logs {
+            for lr in sl.log_records {
+                let time_ns = if lr.time_unix_nano > 0 {
+                    lr.time_unix_nano as i64
+                } else {
+                    lr.observed_time_unix_nano as i64
+                };
+                out.push(ParsedLog {
+                    time_ns,
+                    severity: lr.severity_number as i16,
+                    severity_text: if lr.severity_text.is_empty() {
+                        None
+                    } else {
+                        Some(lr.severity_text)
+                    },
+                    service_name: service_name.clone(),
+                    body: lr.body.as_ref().map(any_value_string).unwrap_or_default(),
+                    trace_id: hex_id(&lr.trace_id),
+                    span_id: hex_id(&lr.span_id),
+                    attributes: attrs_to_object(&lr.attributes),
+                });
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// A log body's string form (StringValue, else a compact rendering).
+fn any_value_string(v: &AnyValue) -> String {
+    match v.value.as_ref() {
+        Some(any_value::Value::StringValue(s)) => s.clone(),
+        Some(other) => format!("{other:?}"),
+        None => String::new(),
+    }
+}
+
+fn hex_id(bytes: &[u8]) -> Option<String> {
+    if bytes.is_empty() {
+        None
+    } else {
+        Some(hex::encode(bytes))
     }
 }

@@ -131,13 +131,13 @@ pub fn parse_otlp_traces_json(v: &serde_json::Value) -> Vec<ParsedSpan> {
     out
 }
 
-fn array(v: Option<&serde_json::Value>) -> impl Iterator<Item = &serde_json::Value> {
+pub(crate) fn array(v: Option<&serde_json::Value>) -> impl Iterator<Item = &serde_json::Value> {
     v.and_then(|x| x.as_array()).into_iter().flatten()
 }
 
 /// Read an OTLP attribute list (`[{key, value:{stringValue|intValue|…}}]`) for
 /// a single string-valued key.
-fn attr_str(attrs: Option<&serde_json::Value>, key: &str) -> Option<String> {
+pub(crate) fn attr_str(attrs: Option<&serde_json::Value>, key: &str) -> Option<String> {
     for a in array(attrs) {
         if a.get("key").and_then(|k| k.as_str()) == Some(key) {
             return a
@@ -151,7 +151,7 @@ fn attr_str(attrs: Option<&serde_json::Value>, key: &str) -> Option<String> {
 }
 
 /// Flatten an OTLP attribute list to a plain JSON object of scalar values.
-fn attrs_to_object(attrs: Option<&serde_json::Value>) -> serde_json::Value {
+pub(crate) fn attrs_to_object(attrs: Option<&serde_json::Value>) -> serde_json::Value {
     let mut map = serde_json::Map::new();
     for a in array(attrs) {
         let Some(key) = a.get("key").and_then(|k| k.as_str()) else {
@@ -165,7 +165,7 @@ fn attrs_to_object(attrs: Option<&serde_json::Value>) -> serde_json::Value {
 }
 
 /// Lower an OTLP `AnyValue` to a plain JSON scalar (best-effort).
-fn otlp_any_value(v: &serde_json::Value) -> serde_json::Value {
+pub(crate) fn otlp_any_value(v: &serde_json::Value) -> serde_json::Value {
     if let Some(s) = v.get("stringValue").and_then(|x| x.as_str()) {
         return serde_json::Value::String(s.to_string());
     }
@@ -188,7 +188,7 @@ fn otlp_any_value(v: &serde_json::Value) -> serde_json::Value {
 }
 
 /// OTLP unsigned 64-bit fields are JSON strings (or sometimes numbers).
-fn u64_field(v: Option<&serde_json::Value>) -> i64 {
+pub(crate) fn u64_field(v: Option<&serde_json::Value>) -> i64 {
     match v {
         Some(serde_json::Value::String(s)) => s.parse::<i64>().unwrap_or(0),
         Some(serde_json::Value::Number(n)) => n.as_i64().unwrap_or(0),

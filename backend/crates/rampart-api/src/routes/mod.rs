@@ -19,6 +19,7 @@ pub mod health;
 pub mod incident_templates;
 pub mod incidents;
 pub mod ingest;
+pub mod logs;
 pub mod maintenance;
 pub mod metric_ingest;
 pub mod monitor_groups;
@@ -131,6 +132,8 @@ pub fn v1_protected() -> Router<AppState> {
         .nest("/escalation-policies", escalations::router())
         // /v1/traces read views (list / detail / service-map)
         .nest("/traces", traces::router())
+        // /v1/logs read views (filtered stream + service list)
+        .nest("/logs", logs::router())
         // /v1/maintenance-windows CRUD + attach/detach
         .nest("/maintenance-windows", maintenance::router())
         // /v1/status-pages admin CRUD (public read sits in v1_public)

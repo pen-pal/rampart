@@ -37,6 +37,9 @@ pub struct RetentionConfig {
     /// traces are high-volume, short-lived debugging data.
     #[serde(default = "default_traces")]
     pub traces_days: i32,
+    /// How long ingested logs are retained, in days. Defaults to 7.
+    #[serde(default = "default_logs")]
+    pub logs_days: i32,
 }
 fn default_hb() -> i32 {
     365
@@ -53,11 +56,16 @@ fn default_metrics() -> i32 {
 fn default_traces() -> i32 {
     DEFAULT_TRACES_DAYS
 }
+fn default_logs() -> i32 {
+    DEFAULT_LOGS_DAYS
+}
 
 /// Default metric-sample retention when the setting predates the field.
 pub const DEFAULT_METRICS_DAYS: i32 = 30;
 /// Default trace-span retention when the setting predates the field.
 pub const DEFAULT_TRACES_DAYS: i32 = 7;
+/// Default log retention when the setting predates the field.
+pub const DEFAULT_LOGS_DAYS: i32 = 7;
 
 /// Default rollup-tier retention when no `retention_days` setting is
 /// present (or the row predates this field).
@@ -71,6 +79,7 @@ impl Default for RetentionConfig {
             rollup_days: DEFAULT_ROLLUP_DAYS,
             metrics_days: DEFAULT_METRICS_DAYS,
             traces_days: DEFAULT_TRACES_DAYS,
+            logs_days: DEFAULT_LOGS_DAYS,
         }
     }
 }
@@ -84,6 +93,8 @@ pub struct PruneStats {
     pub metrics_deleted: u64,
     /// Trace spans dropped past the trace-retention window.
     pub spans_deleted: u64,
+    /// Logs dropped past the log-retention window.
+    pub logs_deleted: u64,
     /// Raw heartbeats folded into rollups and deleted.
     pub heartbeats_rolled: u64,
     /// Rollup buckets dropped past the rollup tier.
@@ -100,6 +111,7 @@ impl PruneStats {
             && self.audit_deleted == 0
             && self.metrics_deleted == 0
             && self.spans_deleted == 0
+            && self.logs_deleted == 0
     }
 }
 
@@ -362,6 +374,7 @@ pub async fn run_once(pool: &DbPool) -> DbResult<PruneStats> {
 
     // Trace spans: flat age-based tier, like metric samples.
     stats.spans_deleted = crate::traces::prune(pool, cfg.traces_days).await?;
+    stats.logs_deleted = crate::logs::prune(pool, cfg.logs_days).await?;
 
     Ok(stats)
 }
