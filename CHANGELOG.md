@@ -99,6 +99,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
   `rum_days` retention window (default 14). Beacon parsing is pure + unit-tested.
   See [`docs/design/RUM.md`](docs/design/RUM.md). v1: keyed by an app name (no
   per-app CRUD), INP approximated, no JS-error capture yet.
+- **Synthetic transaction monitors** (migration `0076`) — a new `synthetic`
+  monitor kind runs an ordered sequence of HTTP steps instead of one request.
+  Each step makes a request, optionally extracts values from the response
+  into named variables (`from`: a JSON path, a response header, or the status
+  code), and asserts on the response (`status` / `json` / `header` /
+  `body_contains` with `eq`/`ne`/`lt`/`lte`/`gt`/`gte`/`contains`). Variables
+  interpolate into later steps via `{{name}}` — in the URL, header values, or
+  body — so a "log in → capture token → call API → assert" flow works. The
+  run stops at the first failed assertion and reports the failing step
+  (`step 2 (login): json data.active == "true" (got "false")`); a clean sweep
+  is Up with total wall-clock as latency. The step list lives in the existing
+  `config.steps` JSONB (no schema churn); it rides the normal probe pipeline
+  (retries, notifications, SLO, result webhooks). Wizard step-builder for
+  creation; `timeout_seconds` applies per step. Zero new dependencies (the
+  `{{var}}` interpolation and JSON-path lookup are hand-rolled). See
+  [`docs/SYNTHETICS.md`](docs/SYNTHETICS.md). v1 carries no automatic cookie
+  jar (carry session via extract → `{{var}}`) and no post-create step editing
+  in the monitor modal yet.
 
 ---
 
