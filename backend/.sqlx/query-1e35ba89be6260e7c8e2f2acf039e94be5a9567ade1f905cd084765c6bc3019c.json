@@ -1,0 +1,66 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            count(*) AS \"views!\",\n            percentile_cont(0.75) WITHIN GROUP (ORDER BY lcp_ms)  AS \"lcp_p75\",\n            percentile_cont(0.75) WITHIN GROUP (ORDER BY fcp_ms)  AS \"fcp_p75\",\n            percentile_cont(0.75) WITHIN GROUP (ORDER BY cls)     AS \"cls_p75\",\n            percentile_cont(0.75) WITHIN GROUP (ORDER BY inp_ms)  AS \"inp_p75\",\n            percentile_cont(0.75) WITHIN GROUP (ORDER BY ttfb_ms) AS \"ttfb_p75\",\n            percentile_cont(0.75) WITHIN GROUP (ORDER BY load_ms) AS \"load_p75\"\n        FROM rum_events\n        WHERE ($1::text IS NULL OR app = $1)\n          AND received_at > now() - make_interval(hours => $2)\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "views!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "lcp_p75",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "fcp_p75",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "cls_p75",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "inp_p75",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "ttfb_p75",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "load_p75",
+        "type_info": "Float8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "1e35ba89be6260e7c8e2f2acf039e94be5a9567ade1f905cd084765c6bc3019c"
+}
