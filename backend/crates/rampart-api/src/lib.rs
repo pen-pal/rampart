@@ -191,6 +191,8 @@ pub fn build_router(state: AppState) -> Router {
         // Public like /push; the DSN key is the auth. Outside /v1 so SDK DSNs
         // (which append /api/N/...) point straight at it.
         .nest("/api", routes::error_ingest::router())
+        // RUM beacon ingest + collector snippet — public (browsers).
+        .nest("/rum", routes::rum::ingest_router())
         .nest("/v1", routes::v1_public(&state).merge(protected_v1))
         .with_state(state)
         .fallback(static_assets::handler)

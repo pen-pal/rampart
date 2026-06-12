@@ -12,6 +12,7 @@ const Escalations       = lazy(() => import('./views/Escalations.jsx'));
 const Traces            = lazy(() => import('./views/Traces.jsx'));
 const Logs              = lazy(() => import('./views/Logs.jsx'));
 const Errors            = lazy(() => import('./views/Errors.jsx'));
+const Rum               = lazy(() => import('./views/Rum.jsx'));
 const Maintenance       = lazy(() => import('./views/Maintenance.jsx'));
 const DependencyGraph   = lazy(() => import('./views/DependencyGraph.jsx'));
 const ApiKeys           = lazy(() => import('./views/ApiKeys.jsx'));
@@ -61,6 +62,7 @@ const VIEW_LABEL = {
   'traces':        'Traces',
   'logs':          'Logs',
   'errors':        'Errors',
+  'rum':           'RUM',
   'tags':          'Tags',
   'maintenance':   'Maintenance',
   'dependencies':  'Dependencies',
@@ -229,6 +231,7 @@ export default function App() {
     case 'traces':        view = <Traces />; break;
     case 'logs':          view = <Logs />; break;
     case 'errors':        view = <Errors user={user} />; break;
+    case 'rum':           view = <Rum />; break;
     case 'maintenance':   view = <Maintenance user={user} />; break;
     case 'dependencies':  view = <DependencyGraph />; break;
     case 'api-keys':      view = <ApiKeys user={user} />; break;
@@ -288,6 +291,7 @@ function ViewSwitcher({ current, user }) {
     { hash: '#/traces',        view: 'traces'        },
     { hash: '#/logs',          view: 'logs'          },
     { hash: '#/errors',        view: 'errors'        },
+    { hash: '#/rum',           view: 'rum'           },
     { hash: '#/maintenance',   view: 'maintenance'   },
     { hash: '#/dependencies',  view: 'dependencies'  },
     { hash: '#/api-keys',      view: 'api-keys',     adminOnly: true },
