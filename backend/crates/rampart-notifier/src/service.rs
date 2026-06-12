@@ -922,10 +922,16 @@ fn digest_event_line(ev: &Event) -> String {
             )
         }
         EventKind::ErrorNew => {
-            format!("{name} new error: {}", ev.heartbeat.msg.as_deref().unwrap_or(""))
+            format!(
+                "{name} new error: {}",
+                ev.heartbeat.msg.as_deref().unwrap_or("")
+            )
         }
         EventKind::ErrorRegressed => {
-            format!("{name} error regressed: {}", ev.heartbeat.msg.as_deref().unwrap_or(""))
+            format!(
+                "{name} error regressed: {}",
+                ev.heartbeat.msg.as_deref().unwrap_or("")
+            )
         }
         EventKind::Test => format!("{name} test"),
     }

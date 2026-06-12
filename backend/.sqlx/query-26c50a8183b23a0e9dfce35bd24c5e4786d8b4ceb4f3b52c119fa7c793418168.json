@@ -1,0 +1,148 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, project_id, fingerprint, title, culprit, level, status,\n               first_seen, last_seen, times_seen, assignee\n        FROM error_issues\n        WHERE id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "error_issues",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "project_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "error_issues",
+            "name": "project_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "fingerprint",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "error_issues",
+            "name": "fingerprint"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "title",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "error_issues",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "culprit",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "error_issues",
+            "name": "culprit"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "level",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "error_issues",
+            "name": "level"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "status",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "error_issues",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "first_seen",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "error_issues",
+            "name": "first_seen"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "last_seen",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "error_issues",
+            "name": "last_seen"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "times_seen",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "error_issues",
+            "name": "times_seen"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "assignee",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "error_issues",
+            "name": "assignee"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "26c50a8183b23a0e9dfce35bd24c5e4786d8b4ceb4f3b52c119fa7c793418168"
+}
