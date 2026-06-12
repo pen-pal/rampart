@@ -420,6 +420,12 @@ export const api = {
     episode: (monitorId) => request(`/v1/monitors/${monitorId}/escalation`),
     ack:     (monitorId) => request(`/v1/monitors/${monitorId}/escalation/ack`, { method: 'POST' }),
   },
+  // Distributed tracing — OTLP spans grouped into traces by trace_id.
+  traces: {
+    list:       (limit) => request(`/v1/traces${limit ? `?limit=${limit}` : ''}`),
+    detail:     (id)    => request(`/v1/traces/${id}`),
+    serviceMap: (hours) => request(`/v1/traces/service-map${hours ? `?hours=${hours}` : ''}`),
+  },
   maintenance: {
     list:        ()                  => request('/v1/maintenance-windows'),
     get:         (id)                => request(`/v1/maintenance-windows/${id}`),
