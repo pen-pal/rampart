@@ -131,12 +131,21 @@ mod tests {
 
         // At the anchor and partway through the first shift → participant 0.
         assert_eq!(on_call_channel(&s, at(0)), Some(s.participant_ids[0]));
-        assert_eq!(on_call_channel(&s, at(weekly - 1)), Some(s.participant_ids[0]));
+        assert_eq!(
+            on_call_channel(&s, at(weekly - 1)),
+            Some(s.participant_ids[0])
+        );
         // Each subsequent week advances one slot.
         assert_eq!(on_call_channel(&s, at(weekly)), Some(s.participant_ids[1]));
-        assert_eq!(on_call_channel(&s, at(2 * weekly)), Some(s.participant_ids[2]));
+        assert_eq!(
+            on_call_channel(&s, at(2 * weekly)),
+            Some(s.participant_ids[2])
+        );
         // Ring wraps after the last participant.
-        assert_eq!(on_call_channel(&s, at(3 * weekly)), Some(s.participant_ids[0]));
+        assert_eq!(
+            on_call_channel(&s, at(3 * weekly)),
+            Some(s.participant_ids[0])
+        );
     }
 
     #[test]
@@ -176,7 +185,9 @@ mod tests {
         assert!(validate_rotation(3600, &[]).is_err()); // empty ring
         assert!(validate_rotation(60, &three).is_err()); // too fast
         assert!(validate_rotation(MAX_ROTATION_SECONDS + 1, &three).is_err()); // too slow
-        let too_many: Vec<_> = (0..=MAX_PARTICIPANTS).map(|_| NotificationId::new()).collect();
+        let too_many: Vec<_> = (0..=MAX_PARTICIPANTS)
+            .map(|_| NotificationId::new())
+            .collect();
         assert!(validate_rotation(3600, &too_many).is_err());
     }
 }
