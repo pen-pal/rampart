@@ -209,6 +209,12 @@ describe('api helpers', () => {
 
     await api.traces.serviceMap(24);
     expect(global.fetch.mock.calls[5][0]).toBe('/v1/traces/service-map?hours=24');
+
+    await api.logs.services();
+    expect(global.fetch.mock.calls[6][0]).toBe('/v1/logs/services');
+
+    await api.logs.query({ service: 'api', level: 'warn' });
+    expect(global.fetch.mock.calls[7][0]).toBe('/v1/logs?service=api&level=warn');
   });
 
   it('serialises POST body and sets Content-Type', async () => {
