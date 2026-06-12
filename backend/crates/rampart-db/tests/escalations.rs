@@ -16,10 +16,12 @@ async fn fixture(pool: &PgPool) -> (rampart_core::MonitorId, rampart_core::Escal
                 EscalationStep {
                     wait_seconds: 0,
                     channel_ids: vec![NotificationId::new()],
+                    schedule_ids: vec![],
                 },
                 EscalationStep {
                     wait_seconds: 600,
                     channel_ids: vec![NotificationId::new()],
+                    schedule_ids: vec![],
                 },
             ],
         },
