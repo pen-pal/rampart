@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE metric_samples SET ts = NOW() - INTERVAL '20 minutes'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "a34a3db81ce33f8a2ca219e1779856a8ea8d7a96bc6557cd5e8c7059180a4f60"
+}

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE metric_rules SET breach_since = NOW() - INTERVAL '301 seconds' WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c0f8009e9996cd3fcffd7df235c39565bf52cc40e6396ef182c0012d208c682f"
+}
