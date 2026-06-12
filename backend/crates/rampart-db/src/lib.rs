@@ -30,6 +30,7 @@ pub mod prune;
 pub mod rate_limit;
 pub mod recovery_codes;
 pub mod routing;
+pub mod rum;
 pub mod scheduled_reports;
 pub mod sessions;
 pub mod settings;
