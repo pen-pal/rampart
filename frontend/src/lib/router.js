@@ -24,7 +24,9 @@ export function parseRoute(hash) {
   if (h === '#/status-page')        return { view: 'status-page',   id: null };
   if (h === '#/notifications')      return { view: 'notifications', id: null };
   if (h === '#/escalations')        return { view: 'escalations',   id: null };
+  if (h.startsWith('#/traces/'))    return { view: 'traces',        id: h.slice('#/traces/'.length) };
   if (h === '#/traces')             return { view: 'traces',        id: null };
+  if (h.startsWith('#/logs/trace/')) return { view: 'logs',         id: h.slice('#/logs/trace/'.length) };
   if (h === '#/logs')               return { view: 'logs',          id: null };
   if (h === '#/errors')             return { view: 'errors',        id: null };
   if (h === '#/rum')                return { view: 'rum',           id: null };

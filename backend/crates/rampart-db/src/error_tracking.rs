@@ -11,7 +11,7 @@ use rampart_core::error_tracking::{
     fingerprint, ErrorEvent, ErrorIssue, ErrorProject, NewErrorProject, ParsedEvent,
     UpdateErrorProject,
 };
-use rampart_core::ids::{ErrorIssueId, ErrorProjectId, NotificationId};
+use rampart_core::ids::{ErrorIssueId, ErrorProjectId};
 use time::OffsetDateTime;
 use uuid::Uuid;
 

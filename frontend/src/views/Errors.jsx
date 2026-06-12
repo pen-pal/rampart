@@ -283,6 +283,9 @@ function IssueDetail({ issueId, user, onBack }) {
 
   const latest = events[0];
   const frames = latest && Array.isArray(latest.stacktrace) ? latest.stacktrace : [];
+  // Cross-tier: Sentry events carry a trace context, stored verbatim in the
+  // event's `context`. If present, link to the trace + its logs.
+  const traceId = latest?.context?.contexts?.trace?.trace_id || null;
 
   return (
     <>
@@ -310,6 +313,15 @@ function IssueDetail({ issueId, user, onBack }) {
           {latest.environment && <span>{t('errors.environment')}: <b>{latest.environment}</b></span>}
           {latest.release && <span>{t('errors.release')}: <b>{latest.release}</b></span>}
           {latest.server_name && <span>{t('errors.server')}: <b>{latest.server_name}</b></span>}
+        </div>
+      )}
+
+      {traceId && (
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16, padding: '8px 12px', background: 'var(--accent-soft)', borderRadius: 8, fontSize: 12.5 }}>
+          <span style={{ color: 'var(--accent-2)' }}>{t('errors.trace_context')}</span>
+          <a href={`#/traces/${traceId}`} style={{ color: 'var(--accent-2)', fontWeight: 500 }}>{t('errors.view_trace')}</a>
+          <a href={`#/logs/trace/${traceId}`} style={{ color: 'var(--accent-2)', fontWeight: 500 }}>{t('errors.view_logs')}</a>
+          <span className="mono" style={{ color: 'var(--text-3)', marginLeft: 'auto', overflow: 'hidden', textOverflow: 'ellipsis' }}>{traceId}</span>
         </div>
       )}
 
