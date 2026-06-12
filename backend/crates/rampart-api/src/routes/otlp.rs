@@ -14,11 +14,37 @@ use axum::extract::State;
 use axum::http::HeaderMap;
 use axum::routing::post;
 use axum::{Json, Router};
+use rampart_core::log::ParsedLog;
 use rampart_core::trace::ParsedSpan;
 use serde_json::Value;
 
 pub fn router() -> Router<AppState> {
-    Router::new().route("/v1/traces", post(ingest_traces))
+    Router::new()
+        .route("/v1/traces", post(ingest_traces))
+        .route("/v1/logs", post(ingest_logs))
+}
+
+async fn ingest_logs(
+    State(s): State<AppState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<Json<Value>, ApiError> {
+    let content_type = headers
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    let logs: Vec<ParsedLog> = if content_type.contains("protobuf") {
+        crate::otlp_proto::parse_otlp_logs_protobuf(&body)
+            .map_err(|e| ApiError::BadRequest(format!("invalid OTLP protobuf: {e}")))?
+    } else {
+        let v: Value = serde_json::from_slice(&body)
+            .map_err(|_| ApiError::BadRequest("invalid OTLP JSON body".into()))?;
+        rampart_core::log::parse_otlp_logs_json(&v)
+    };
+
+    rampart_db::logs::insert_logs(s.pool(), &logs).await?;
+    Ok(Json(serde_json::json!({})))
 }
 
 async fn ingest_traces(
