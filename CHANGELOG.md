@@ -17,6 +17,26 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **Distributed tracing — OTLP (Tier 2 / APM)** (migration `0078`) — ingest
+  OpenTelemetry spans and assemble them into traces. `POST /otlp/v1/traces`
+  accepts an OTLP `ExportTraceServiceRequest` as **both** OTLP/JSON and
+  OTLP/protobuf (content-type negotiated), so any OTel SDK or Collector works
+  by pointing its OTLP/HTTP exporter at `http://<host>/otlp` — no
+  Rampart-specific agent. A trace is the set of spans sharing a `trace_id`,
+  assembled on read; spans store service, operation, kind, timing, status, and
+  attributes (migration `0078`, table `spans`). Read API at `/v1/traces`:
+  recent traces (root service/op, duration, span + error counts), a trace's
+  spans for the waterfall, and a service dependency map from cross-service
+  parent/child pairs. Dashboard **Traces** view with a trace list, a span
+  waterfall, and a service-map tab. Spans age out via a `traces_days`
+  retention window (default 7) folded into the prune sweep. JSON span parsing
+  is pure + unit-tested in rampart-core. See
+  [`docs/design/TRACES.md`](docs/design/TRACES.md). v1: ingest is
+  network-scoped (unauthenticated), uncompressed, and unsampled — all
+  follow-ups.
+
 ---
 
 ## [0.7.0] — 2026-06-11
