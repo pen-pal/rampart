@@ -1,0 +1,89 @@
+# Reasoning-layer security review — the part cargo-deny and CodeQL can't do.
+#
+# Runs Claude Code weekly over the trailing week's diff and files findings
+# as GitHub issues. It NEVER modifies code (the job has only `contents:
+# read`, so it physically cannot push) — a human triages and fixes. See
+# docs/SECURITY-REVIEW-AGENT.md for scope + rationale.
+name: security-review
+
+on:
+  schedule:
+    - cron: "0 8 * * 1"   # weekly, Monday 08:00 UTC
+  workflow_dispatch:        # on-demand from the Actions tab
+
+permissions:
+  contents: read            # read the code + git history; cannot push
+  issues: write             # file findings
+
+jobs:
+  review:
+    name: Claude security review
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0    # full history so the agent can diff the last week
+
+      # Ensure the dedupe/triage label exists before the agent files issues.
+      - name: Ensure security-review label
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create security-review \
+            --color B60205 \
+            --description "Automated weekly security-review finding" \
+            || true
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: |
+            --model claude-sonnet-4-6
+            --max-turns 40
+            --allowedTools Bash,Read,Grep,Glob
+          prompt: |
+            You are a security reviewer for Rampart, a single-tenant, self-hosted
+            Rust (axum) + React uptime-monitoring platform. Review ONLY the changes
+            from the trailing 7 days — review cost should scale with change, not
+            codebase size. Get that diff with:
+              git log --since="7 days ago" --oneline
+              git diff "@{7 days ago}" HEAD   # (fall back to the last ~20 commits if that ref fails)
+
+            Do NOT re-run dependency/advisory scanning — `cargo deny` (security-audit.yml)
+            and CodeQL (codeql.yml) already own that. Your job is the REASONING layer.
+            In the diff, prioritise in this order:
+              1. Authorization / RBAC — the require_admin / require_editor /
+                 require_write_or_readonly_get middleware and read/write/admin API-key
+                 scopes. Did a new route land in the wrong RBAC group or skip the layer?
+              2. Token-auth surfaces — agent tokens (rmpa_…), push tokens, ingest tokens,
+                 API keys: CSPRNG generation, hashing at rest, constant-time comparison,
+                 revocation.
+              3. Broken object-level authorization (IDOR) — single-tenant means the guard
+                 is "may this actor act on this resource id"; check new CRUD handlers.
+              4. Unauthenticated surface — public status pages, /push, metric/heartbeat
+                 ingest: injection, unbounded input, information disclosure.
+              5. SSRF — Rampart fetches operator-supplied URLs (HTTP probes, result
+                 webhooks); flag new code that requests a user-controlled URL.
+              6. Secrets handling — encrypted at rest, never logged, never in API responses.
+
+            Then re-check docs/SECURITY-DEBT.md: for each accepted advisory, has the
+            upstream blocker shipped its fix (e.g. rumqttc on rustls 0.23, a scylla
+            ring-only feature)? Note any status change.
+
+            REPORTING — use the `gh` CLI (GH_TOKEN is set in the environment):
+              - First run `gh issue list --label security-review --state open` and do
+                NOT re-file a finding already captured by an open issue; comment on it
+                if there's a material update instead.
+              - Open ONE new issue (label: security-review) ONLY if there is at least
+                one finding at Medium severity or above, OR a SECURITY-DEBT blocker
+                status changed. Title it "Security review: <YYYY-MM-DD>". In the body,
+                list each finding with: severity (Critical/High/Medium/Low), file:line,
+                the reasoning or a concrete repro, and a suggested remediation.
+              - If nothing meets that bar, open NO issue — just print a short "clean"
+                summary. Do not file noise.
+
+            HARD RULES: Do not modify, create, or delete any tracked source file. Do not
+            commit, push, or open a pull request. You are producing findings only.
+        env:
+          GH_TOKEN: ${{ github.token }}
