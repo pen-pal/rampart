@@ -89,3 +89,4 @@ id!(MetricRuleId);
 id!(EscalationPolicyId);
 id!(ErrorProjectId);
 id!(ErrorIssueId);
+id!(OnCallScheduleId);

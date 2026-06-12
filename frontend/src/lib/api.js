@@ -457,6 +457,14 @@ export const api = {
     summary: (app, hours) => request(`/v1/rum/summary?${new URLSearchParams({ ...(app ? { app } : {}), hours: hours || 24 })}`),
     pages:   (app, hours) => request(`/v1/rum/pages?${new URLSearchParams({ ...(app ? { app } : {}), hours: hours || 24 })}`),
     apps:    ()           => request('/v1/rum/apps'),
+  // On-call schedules — channel rotations referenced by escalation steps.
+  // `current` returns `{ on_call: <channel-id|null> }` for the live shift.
+  onCallSchedules: {
+    list:    ()          => request('/v1/on-call-schedules'),
+    create:  (input)     => request('/v1/on-call-schedules', { method: 'POST', body: input }),
+    update:  (id, patch) => request(`/v1/on-call-schedules/${id}`, { method: 'PATCH', body: patch }),
+    remove:  (id)        => request(`/v1/on-call-schedules/${id}`, { method: 'DELETE' }),
+    current: (id)        => request(`/v1/on-call-schedules/${id}/current`),
   },
   maintenance: {
     list:        ()                  => request('/v1/maintenance-windows'),

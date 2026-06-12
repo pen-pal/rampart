@@ -1,6 +1,6 @@
 //! Escalation policies — ordered notification ladders with acknowledge.
 
-use crate::ids::{EscalationPolicyId, MonitorId, NotificationId, UserId};
+use crate::ids::{EscalationPolicyId, MonitorId, NotificationId, OnCallScheduleId, UserId};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use validator::Validate;
@@ -8,10 +8,19 @@ use validator::Validate;
 /// One rung of the ladder. `wait_seconds` is the delay after the
 /// PREVIOUS step before this one fires (ignored on step 0, which fires
 /// at episode open).
+///
+/// A step pages its fixed `channel_ids` plus the current on-call channel
+/// of each schedule in `schedule_ids` (resolved when the step fires). At
+/// least one of the two must be non-empty.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EscalationStep {
     pub wait_seconds: i64,
+    #[serde(default)]
     pub channel_ids: Vec<NotificationId>,
+    /// On-call schedules paged at this step, each resolved to its current
+    /// on-call channel at fire time. Additive to `channel_ids`.
+    #[serde(default)]
+    pub schedule_ids: Vec<OnCallScheduleId>,
 }
 
 pub const MAX_STEPS: usize = 10;
@@ -55,8 +64,8 @@ pub fn validate_steps(steps: &[EscalationStep]) -> Result<(), String> {
         return Err(format!("at most {MAX_STEPS} steps"));
     }
     for (i, s) in steps.iter().enumerate() {
-        if s.channel_ids.is_empty() {
-            return Err(format!("step {} has no channels", i + 1));
+        if s.channel_ids.is_empty() && s.schedule_ids.is_empty() {
+            return Err(format!("step {} has no channels or schedules", i + 1));
         }
         if !(0..=MAX_STEP_WAIT_SECONDS).contains(&s.wait_seconds) {
             return Err(format!(
@@ -95,6 +104,7 @@ mod tests {
         EscalationStep {
             wait_seconds: wait,
             channel_ids: (0..n).map(|_| NotificationId::new()).collect(),
+            schedule_ids: vec![],
         }
     }
 
@@ -104,7 +114,7 @@ mod tests {
         assert!(validate_steps(&[step(0, 1), step(600, 2)]).is_ok());
 
         assert!(validate_steps(&[]).is_err());
-        assert!(validate_steps(&[step(0, 0)]).is_err()); // no channels
+        assert!(validate_steps(&[step(0, 0)]).is_err()); // no channels or schedules
         assert!(validate_steps(&[step(60, 1)]).is_err()); // step 0 must be immediate
         assert!(validate_steps(&[step(0, 1), step(-5, 1)]).is_err());
         assert!(validate_steps(&[step(0, 1), step(90_000, 1)]).is_err());
@@ -112,5 +122,15 @@ mod tests {
             .map(|i| step(if i == 0 { 0 } else { 60 }, 1))
             .collect();
         assert!(validate_steps(&too_many).is_err());
+    }
+
+    #[test]
+    fn step_with_only_a_schedule_is_valid() {
+        let sched_step = EscalationStep {
+            wait_seconds: 0,
+            channel_ids: vec![],
+            schedule_ids: vec![OnCallScheduleId::new()],
+        };
+        assert!(validate_steps(&[sched_step]).is_ok());
     }
 }
