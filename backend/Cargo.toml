@@ -151,6 +151,8 @@ mongodb          = "3"
 tonic            = { version = "0.14", default-features = false, features = ["transport", "codegen", "tls-ring", "tls-webpki-roots"] }
 tonic-health     = "0.14"
 prost            = "0.14"
+# OTLP protobuf message types (trace ingest). Pure-Rust (prost); no C.
+opentelemetry-proto = { version = "0.30", default-features = false, features = ["gen-tonic-messages", "trace"] }
 rumqttc          = { version = "0.24", default-features = false, features = ["use-rustls"] }
 tokio-tungstenite = { version = "0.29", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
 # NATS client. `server_2_10` enables the modern protocol surface; we

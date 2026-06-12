@@ -1,0 +1,94 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            s.trace_id AS \"trace_id!\",\n            r.service_name AS \"root_service\",\n            r.name AS \"root_name\",\n            MIN(s.start_ns) AS \"start_ns\",\n            (MAX(s.end_ns) - MIN(s.start_ns))::float8 / 1000000.0 AS \"duration_ms\",\n            COUNT(*) AS \"span_count\",\n            COUNT(*) FILTER (WHERE s.status_code = 2) AS \"error_count\",\n            ARRAY_AGG(DISTINCT s.service_name) AS \"services\",\n            MIN(s.received_at) AS \"started_at\"\n        FROM spans s\n        LEFT JOIN LATERAL (\n            SELECT service_name, name FROM spans rr\n            WHERE rr.trace_id = s.trace_id AND rr.parent_span_id IS NULL\n            ORDER BY rr.start_ns LIMIT 1\n        ) r ON true\n        GROUP BY s.trace_id, r.service_name, r.name\n        ORDER BY MIN(s.received_at) DESC\n        LIMIT $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "trace_id!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "spans",
+            "name": "trace_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "root_service",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "spans",
+            "name": "service_name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "root_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "spans",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "start_ns",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "duration_ms",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "span_count",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "error_count",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
+        "name": "services",
+        "type_info": "TextArray",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
+        "name": "started_at",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "6056ec8ff9343b349843a26cdd81e49cb3b09e983f9df04af968c60d868479d4"
+}

@@ -29,6 +29,7 @@ pub mod role;
 pub mod scheduled_report;
 pub mod status_page;
 pub mod tag;
+pub mod trace;
 
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
@@ -68,3 +69,4 @@ pub use status_page::{
     StatusPageSection, UpdateStatusPage, UpdateStatusPageSection,
 };
 pub use tag::{NewTag, Tag, TagBrief};
+pub use trace::{parse_otlp_traces_json, ParsedSpan, ServiceEdge, Span, TraceSummary};
