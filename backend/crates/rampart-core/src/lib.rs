@@ -26,6 +26,7 @@ pub mod notification;
 pub mod promtext;
 pub mod proxy;
 pub mod role;
+pub mod rum;
 pub mod scheduled_report;
 pub mod status_page;
 pub mod tag;
@@ -61,6 +62,7 @@ pub use notification::{ChannelKind, MonitorNotification, Notification, Notificat
 pub use promtext::{PromParseOutcome, PromSample};
 pub use proxy::{NewProxy, Proxy, ProxyProtocol};
 pub use role::Role;
+pub use rum::{cwv_good_threshold, RumBeacon, RumMetrics, RumPage, RumVitals};
 pub use scheduled_report::ScheduledReport;
 pub use status_page::{
     MonitorAssignment, NewStatusPage, NewStatusPageSection, PublicIncident, PublicIncidentUpdate,
