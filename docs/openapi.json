@@ -65,6 +65,10 @@
       "description": "Escalation policies (ordered notification ladders) and episode acknowledge. Editor."
     },
     {
+      "name": "RUM",
+      "description": "Real User Monitoring \u2014 browser Core Web Vitals ingest + read."
+    },
+    {
       "name": "Users",
       "description": "User management + role assignment (admin); self-service password (any role)."
     },
@@ -2913,6 +2917,109 @@
           "404": {
             "description": "Nothing open",
             "or already acked.": null
+          }
+        }
+      }
+    },
+    "/rum/snippet.js": {
+      "get": {
+        "tags": [
+          "RUM"
+        ],
+        "summary": "The browser RUM collector script",
+        "responses": {
+          "200": {
+            "description": "JavaScript; install via <script src=\".../rum/snippet.js\" data-app=\"web\">."
+          }
+        }
+      }
+    },
+    "/rum/v1/events": {
+      "post": {
+        "tags": [
+          "RUM"
+        ],
+        "summary": "RUM beacon ingest",
+        "description": "One page-view beacon `{app, url, session?, ua?, metrics:{lcp,fcp,cls,inp,ttfb,load}}`, sent by the snippet via sendBeacon. Public; body parsed as JSON. Useless beacons are dropped. See docs/design/RUM.md.",
+        "responses": {
+          "204": {
+            "description": "Accepted (always",
+            "even if dropped).": null
+          }
+        }
+      }
+    },
+    "/v1/rum/summary": {
+      "get": {
+        "tags": [
+          "RUM"
+        ],
+        "summary": "Web Vitals p75 summary",
+        "parameters": [
+          {
+            "name": "app",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "p75 of each metric + view count over the window."
+          }
+        }
+      }
+    },
+    "/v1/rum/pages": {
+      "get": {
+        "tags": [
+          "RUM"
+        ],
+        "summary": "Per-page Web Vitals",
+        "parameters": [
+          {
+            "name": "app",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Per-URL views + p75 LCP/INP/CLS, busiest first."
+          }
+        }
+      }
+    },
+    "/v1/rum/apps": {
+      "get": {
+        "tags": [
+          "RUM"
+        ],
+        "summary": "Distinct app/site names",
+        "responses": {
+          "200": {
+            "description": "App names for the filter dropdown."
           }
         }
       }

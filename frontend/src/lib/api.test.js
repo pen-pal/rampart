@@ -203,6 +203,12 @@ describe('api helpers', () => {
 
     await api.notifications.attach('m', 'n');
     expect(global.fetch.mock.calls[3][0]).toBe('/v1/monitors/m/notifications/n');
+
+    await api.rum.apps();
+    expect(global.fetch.mock.calls[4][0]).toBe('/v1/rum/apps');
+
+    await api.rum.summary('web', 24);
+    expect(global.fetch.mock.calls[5][0]).toBe('/v1/rum/summary?app=web&hours=24');
   });
 
   it('serialises POST body and sets Content-Type', async () => {
