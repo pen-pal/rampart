@@ -420,6 +420,44 @@ export const api = {
     episode: (monitorId) => request(`/v1/monitors/${monitorId}/escalation`),
     ack:     (monitorId) => request(`/v1/monitors/${monitorId}/escalation/ack`, { method: 'POST' }),
   },
+  // Distributed tracing — OTLP spans grouped into traces by trace_id.
+  traces: {
+    list:       (limit) => request(`/v1/traces${limit ? `?limit=${limit}` : ''}`),
+    detail:     (id)    => request(`/v1/traces/${id}`),
+    serviceMap: (hours) => request(`/v1/traces/service-map${hours ? `?hours=${hours}` : ''}`),
+  },
+  // Log ingestion — OTLP logs, filtered recent-logs stream.
+  logs: {
+    query: (params = {}) => {
+      const qs = new URLSearchParams();
+      for (const [k, v] of Object.entries(params)) if (v != null && v !== '') qs.set(k, v);
+      const s = qs.toString();
+      return request(`/v1/logs${s ? '?' + s : ''}`);
+    },
+    services: () => request('/v1/logs/services'),
+  },
+  // Error tracking — projects hold the DSN key + alert channels; issues group
+  // events by fingerprint.
+  errorProjects: {
+    list:   ()          => request('/v1/error-projects'),
+    create: (input)     => request('/v1/error-projects', { method: 'POST', body: input }),
+    update: (id, patch) => request(`/v1/error-projects/${id}`, { method: 'PATCH', body: patch }),
+    remove: (id)        => request(`/v1/error-projects/${id}`, { method: 'DELETE' }),
+    issues: (id, status) => request(`/v1/error-projects/${id}/issues${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+  },
+  errorIssues: {
+    get:       (id) => request(`/v1/error-issues/${id}`),
+    events:    (id) => request(`/v1/error-issues/${id}/events`),
+    resolve:   (id) => request(`/v1/error-issues/${id}/resolve`,   { method: 'POST' }),
+    ignore:    (id) => request(`/v1/error-issues/${id}/ignore`,    { method: 'POST' }),
+    unresolve: (id) => request(`/v1/error-issues/${id}/unresolve`, { method: 'POST' }),
+  },
+  // Real User Monitoring — Core Web Vitals from the browser snippet.
+  rum: {
+    summary: (app, hours) => request(`/v1/rum/summary?${new URLSearchParams({ ...(app ? { app } : {}), hours: hours || 24 })}`),
+    pages:   (app, hours) => request(`/v1/rum/pages?${new URLSearchParams({ ...(app ? { app } : {}), hours: hours || 24 })}`),
+    apps:    ()           => request('/v1/rum/apps'),
+  },
   maintenance: {
     list:        ()                  => request('/v1/maintenance-windows'),
     get:         (id)                => request(`/v1/maintenance-windows/${id}`),
