@@ -1,0 +1,140 @@
+import React, { useState } from 'react';
+import { ChevronLeft, Loader2, AlertCircle, Gauge, Copy, Check } from 'lucide-react';
+import { api, useApi } from '../lib/api.js';
+import { t } from '../lib/i18n.js';
+
+const css = `
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+  .rampart {
+    --bg:#fafaf9; --surface:#ffffff; --surface-2:#f5f5f4; --border:#e7e5e4; --border-2:#d6d3d1;
+    --text:#1c1917; --text-2:#57534e; --text-3:#a8a29e; --accent:#14b8a6; --accent-2:#0d9488; --accent-soft:#ccfbf1;
+    --good:#16a34a; --good-soft:#dcfce7; --amber:#b45309; --amber-soft:#fef3c7; --poor:#ef4444; --poor-soft:#fee2e2;
+    background: var(--bg); color: var(--text); font-family: Inter, ui-sans-serif, system-ui, sans-serif; min-height: 100vh;
+  }
+  .rampart * { box-sizing: border-box; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; line-height: 1; background: var(--surface); border: 1px solid var(--border); color: var(--text-2); font-family: inherit; }
+  .btn:hover { background: var(--surface-2); color: var(--text); }
+  .btn-ghost { background: transparent; border-color: transparent; }
+  .select { padding: 8px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); font-size: 13px; color: var(--text); outline: none; font-family: inherit; }
+  .banner-err { background: var(--poor-soft); color: #b91c1c; border: 1px solid #fecaca; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
+  .vital { border-radius: 12px; padding: 16px 18px; border: 1px solid var(--border); }
+  .vital .lbl { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-3); }
+  .vital .val { font-size: 26px; font-weight: 700; margin-top: 4px; }
+  .v-good { background: var(--good-soft); border-color: #bbf7d0; } .v-good .val { color: var(--good); }
+  .v-amber { background: var(--amber-soft); border-color: #fde68a; } .v-amber .val { color: var(--amber); }
+  .v-poor { background: var(--poor-soft); border-color: #fecaca; } .v-poor .val { color: var(--poor); }
+  .v-none { background: var(--surface-2); } .v-none .val { color: var(--text-3); }
+  .row { display: grid; grid-template-columns: 1fr 70px 90px 90px 80px; gap: 10px; align-items: center; padding: 11px 16px; border-top: 1px solid var(--border); font-size: 12.5px; }
+  .row:first-child { border-top: none; }
+  .codeblock { background:#1c1917; color:#e7e5e4; border-radius:8px; padding:12px 14px; font-family:'JetBrains Mono',monospace; font-size:12px; overflow-x:auto; display:flex; justify-content:space-between; gap:10px; align-items:center; }
+`;
+
+// p75 thresholds: [good <=, poor >]. ms except cls.
+const THRESH = { lcp: [2500, 4000], inp: [200, 500], cls: [0.1, 0.25], fcp: [1800, 3000], ttfb: [800, 1800] };
+
+function rating(metric, v) {
+  if (v == null) return 'none';
+  const th = THRESH[metric];
+  if (!th) return 'none';
+  if (v <= th[0]) return 'good';
+  if (v > th[1]) return 'poor';
+  return 'amber';
+}
+function fmtVital(metric, v) {
+  if (v == null) return '—';
+  if (metric === 'cls') return v.toFixed(2);
+  return v < 1000 ? `${Math.round(v)}ms` : `${(v / 1000).toFixed(2)}s`;
+}
+
+export default function Rum() {
+  const [app, setApp] = useState('');
+  const [hours, setHours] = useState(24);
+  const [copied, setCopied] = useState(false);
+  const appsState = useApi(() => api.rum.apps(), []);
+  const sumState = useApi(() => api.rum.summary(app, hours), [app, hours]);
+  const pagesState = useApi(() => api.rum.pages(app, hours), [app, hours]);
+  const apps = appsState.data || [];
+  const sum = sumState.data;
+  const pages = pagesState.data || [];
+
+  const snippet = `<script src="${window.location.origin}/rum/snippet.js" data-app="web"></script>`;
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(snippet); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* visible to copy manually */ }
+  };
+
+  const VITALS = [['lcp', sum?.lcp_p75], ['inp', sum?.inp_p75], ['cls', sum?.cls_p75], ['fcp', sum?.fcp_p75], ['ttfb', sum?.ttfb_p75]];
+
+  return (
+    <div className="rampart">
+      <style>{css}</style>
+      <div style={{ maxWidth: 1000, margin: '0 auto', padding: '32px 32px 64px' }}>
+        <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}><ChevronLeft size={14}/> {t('rum.back')}</a>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 14, marginBottom: 18, flexWrap: 'wrap' }}>
+          <div>
+            <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 4px', letterSpacing: '-.02em' }}>{t('rum.title')}</h1>
+            <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 0 }}>{t('rum.subtitle')}</p>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <select className="select" value={app} onChange={e => setApp(e.target.value)}>
+              <option value="">{t('rum.all_apps')}</option>
+              {apps.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+            <select className="select" value={hours} onChange={e => setHours(Number(e.target.value))}>
+              <option value={24}>{t('rum.last_24h')}</option>
+              <option value={168}>{t('rum.last_7d')}</option>
+            </select>
+          </div>
+        </div>
+
+        {sumState.error && <div className="banner-err"><AlertCircle size={14} style={{ verticalAlign: '-2px', marginRight: 6 }}/>{t('rum.load_error')}</div>}
+
+        {sumState.loading ? (
+          <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-3)' }}><Loader2 size={16}/> {t('rum.loading')}</div>
+        ) : !sum || sum.views === 0 ? (
+          <div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--text-3)', marginBottom: 18 }}>
+            <Gauge size={28} style={{ marginBottom: 10, opacity: .5 }}/>
+            <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-2)', marginBottom: 4 }}>{t('rum.empty.title')}</div>
+            <div style={{ fontSize: 12.5 }}>{t('rum.empty.cta')}</div>
+          </div>
+        ) : (
+          <>
+            <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginBottom: 10 }}>{t('rum.pageviews', { n: sum.views })}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 24 }}>
+              {VITALS.map(([metric, v]) => (
+                <div className={`vital v-${rating(metric, v)}`} key={metric}>
+                  <div className="lbl">{metric.toUpperCase()}</div>
+                  <div className="val">{fmtVital(metric, v)}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="field-label" style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', marginBottom: 8 }}>{t('rum.pages')}</div>
+            <div className="card" style={{ overflow: 'hidden', marginBottom: 24 }}>
+              <div className="row" style={{ fontWeight: 600, color: 'var(--text-3)', fontSize: 11 }}>
+                <span>{t('rum.page')}</span><span>{t('rum.views')}</span><span>LCP</span><span>INP</span><span>CLS</span>
+              </div>
+              {pages.map(p => (
+                <div className="row" key={p.url}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.url}>{p.url}</span>
+                  <span>{p.views}</span>
+                  <span style={{ color: `var(--${rating('lcp', p.lcp_p75) === 'none' ? 'text-3' : rating('lcp', p.lcp_p75)})` }}>{fmtVital('lcp', p.lcp_p75)}</span>
+                  <span style={{ color: `var(--${rating('inp', p.inp_p75) === 'none' ? 'text-3' : rating('inp', p.inp_p75)})` }}>{fmtVital('inp', p.inp_p75)}</span>
+                  <span style={{ color: `var(--${rating('cls', p.cls_p75) === 'none' ? 'text-3' : rating('cls', p.cls_p75)})` }}>{fmtVital('cls', p.cls_p75)}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        <div className="field-label" style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', marginBottom: 8 }}>{t('rum.install')}</div>
+        <div className="codeblock">
+          <code style={{ wordBreak: 'break-all' }}>{snippet}</code>
+          <button className="btn btn-ghost" style={{ color: '#e7e5e4', flexShrink: 0 }} onClick={copy}>{copied ? <Check size={14}/> : <Copy size={14}/>}</button>
+        </div>
+        <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 6 }}>{t('rum.install_hint')}</div>
+      </div>
+    </div>
+  );
+}

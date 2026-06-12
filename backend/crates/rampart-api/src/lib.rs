@@ -10,6 +10,7 @@ pub mod error;
 pub mod external_ingest;
 pub mod http_metrics;
 pub mod importers;
+pub mod otlp_proto;
 pub mod rate_limit;
 pub mod routes;
 pub mod smtp;
@@ -184,6 +185,14 @@ pub fn build_router(state: AppState) -> Router {
         // /push/:token is intentionally public — the token IS the auth.
         // Sits outside /v1 to keep external cron snippets short.
         .nest("/push", routes::push::router())
+        // OTLP trace ingest — public like /push (operator controls exposure).
+        .nest("/otlp", routes::otlp::router())
+        // /api/:project_id/{envelope,store} — Sentry-compatible error ingest.
+        // Public like /push; the DSN key is the auth. Outside /v1 so SDK DSNs
+        // (which append /api/N/...) point straight at it.
+        .nest("/api", routes::error_ingest::router())
+        // RUM beacon ingest + collector snippet — public (browsers).
+        .nest("/rum", routes::rum::ingest_router())
         .nest("/v1", routes::v1_public(&state).merge(protected_v1))
         .with_state(state)
         .fallback(static_assets::handler)

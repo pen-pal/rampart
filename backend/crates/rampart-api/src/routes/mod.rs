@@ -14,11 +14,14 @@ pub mod api_keys;
 pub mod audit;
 pub mod auth;
 pub mod delivery_log;
+pub mod error_ingest;
+pub mod error_tracking;
 pub mod escalations;
 pub mod health;
 pub mod incident_templates;
 pub mod incidents;
 pub mod ingest;
+pub mod logs;
 pub mod maintenance;
 pub mod metric_ingest;
 pub mod monitor_groups;
@@ -26,10 +29,12 @@ pub mod monitor_templates;
 pub mod monitors;
 pub mod notifications;
 pub mod openapi;
+pub mod otlp;
 pub mod prefs;
 pub mod proxies;
 pub mod push;
 pub mod routing;
+pub mod rum;
 pub mod scheduled_reports;
 pub mod status_pages;
 pub mod stream;
@@ -37,6 +42,7 @@ pub mod subscribers;
 pub mod tags;
 pub mod templates;
 pub mod totp;
+pub mod traces;
 pub mod users;
 pub mod webpush;
 
@@ -127,6 +133,15 @@ pub fn v1_protected() -> Router<AppState> {
         .nest("/notification-templates", templates::router())
         // /v1/escalation-policies CRUD — notification ladders (editor)
         .nest("/escalation-policies", escalations::router())
+        // /v1/traces read views (list / detail / service-map)
+        .nest("/traces", traces::router())
+        // /v1/logs read views (filtered stream + service list)
+        .nest("/logs", logs::router())
+        // /v1/error-projects CRUD + issues; /v1/error-issues detail + status
+        .nest("/error-projects", error_tracking::project_router())
+        .nest("/error-issues", error_tracking::issue_router())
+        // /v1/rum read views (web-vitals summary, per-page, apps)
+        .nest("/rum", rum::router())
         // /v1/maintenance-windows CRUD + attach/detach
         .nest("/maintenance-windows", maintenance::router())
         // /v1/status-pages admin CRUD (public read sits in v1_public)

@@ -203,6 +203,32 @@ describe('api helpers', () => {
 
     await api.notifications.attach('m', 'n');
     expect(global.fetch.mock.calls[3][0]).toBe('/v1/monitors/m/notifications/n');
+
+    await api.traces.list(100);
+    expect(global.fetch.mock.calls.at(-1)[0]).toBe('/v1/traces?limit=100');
+
+    await api.traces.serviceMap(24);
+    expect(global.fetch.mock.calls.at(-1)[0]).toBe('/v1/traces/service-map?hours=24');
+
+    await api.logs.services();
+    expect(global.fetch.mock.calls.at(-1)[0]).toBe('/v1/logs/services');
+
+    await api.logs.query({ service: 'api', level: 'warn' });
+    expect(global.fetch.mock.calls.at(-1)[0]).toBe('/v1/logs?service=api&level=warn');
+    await api.errorProjects.list();
+    expect(global.fetch.mock.calls.at(-1)[0]).toBe('/v1/error-projects');
+
+    await api.errorProjects.issues('p1', 'unresolved');
+    expect(global.fetch.mock.calls.at(-1)[0]).toBe('/v1/error-projects/p1/issues?status=unresolved');
+
+    await api.errorIssues.resolve('i1');
+    expect(global.fetch.mock.calls.at(-1)[0]).toBe('/v1/error-issues/i1/resolve');
+    expect(global.fetch.mock.calls.at(-1)[1].method).toBe('POST');
+    await api.rum.apps();
+    expect(global.fetch.mock.calls.at(-1)[0]).toBe('/v1/rum/apps');
+
+    await api.rum.summary('web', 24);
+    expect(global.fetch.mock.calls.at(-1)[0]).toBe('/v1/rum/summary?app=web&hours=24');
   });
 
   it('serialises POST body and sets Content-Type', async () => {
