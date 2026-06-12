@@ -420,6 +420,12 @@ export const api = {
     episode: (monitorId) => request(`/v1/monitors/${monitorId}/escalation`),
     ack:     (monitorId) => request(`/v1/monitors/${monitorId}/escalation/ack`, { method: 'POST' }),
   },
+  // Real User Monitoring — Core Web Vitals from the browser snippet.
+  rum: {
+    summary: (app, hours) => request(`/v1/rum/summary?${new URLSearchParams({ ...(app ? { app } : {}), hours: hours || 24 })}`),
+    pages:   (app, hours) => request(`/v1/rum/pages?${new URLSearchParams({ ...(app ? { app } : {}), hours: hours || 24 })}`),
+    apps:    ()           => request('/v1/rum/apps'),
+  },
   maintenance: {
     list:        ()                  => request('/v1/maintenance-windows'),
     get:         (id)                => request(`/v1/maintenance-windows/${id}`),
