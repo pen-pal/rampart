@@ -34,6 +34,7 @@ pub mod prefs;
 pub mod proxies;
 pub mod push;
 pub mod routing;
+pub mod rum;
 pub mod scheduled_reports;
 pub mod status_pages;
 pub mod stream;
@@ -139,6 +140,8 @@ pub fn v1_protected() -> Router<AppState> {
         // /v1/error-projects CRUD + issues; /v1/error-issues detail + status
         .nest("/error-projects", error_tracking::project_router())
         .nest("/error-issues", error_tracking::issue_router())
+        // /v1/rum read views (web-vitals summary, per-page, apps)
+        .nest("/rum", rum::router())
         // /v1/maintenance-windows CRUD + attach/detach
         .nest("/maintenance-windows", maintenance::router())
         // /v1/status-pages admin CRUD (public read sits in v1_public)

@@ -31,6 +31,7 @@ describe('parseRoute', () => {
     expect(parseRoute('#/traces'))        .toEqual({ view: 'traces',        id: null });
     expect(parseRoute('#/logs'))          .toEqual({ view: 'logs',          id: null });
     expect(parseRoute('#/errors'))        .toEqual({ view: 'errors',        id: null });
+    expect(parseRoute('#/rum'))           .toEqual({ view: 'rum',           id: null });
     expect(parseRoute('#/maintenance'))   .toEqual({ view: 'maintenance',   id: null });
     expect(parseRoute('#/s/acme'))        .toEqual({ view: 'public-status', id: 'acme' });
     expect(parseRoute('#/s/acme-corp'))   .toEqual({ view: 'public-status', id: 'acme-corp' });

@@ -435,6 +435,7 @@ export const api = {
       return request(`/v1/logs${s ? '?' + s : ''}`);
     },
     services: () => request('/v1/logs/services'),
+  },
   // Error tracking — projects hold the DSN key + alert channels; issues group
   // events by fingerprint.
   errorProjects: {
@@ -450,6 +451,12 @@ export const api = {
     resolve:   (id) => request(`/v1/error-issues/${id}/resolve`,   { method: 'POST' }),
     ignore:    (id) => request(`/v1/error-issues/${id}/ignore`,    { method: 'POST' }),
     unresolve: (id) => request(`/v1/error-issues/${id}/unresolve`, { method: 'POST' }),
+  },
+  // Real User Monitoring — Core Web Vitals from the browser snippet.
+  rum: {
+    summary: (app, hours) => request(`/v1/rum/summary?${new URLSearchParams({ ...(app ? { app } : {}), hours: hours || 24 })}`),
+    pages:   (app, hours) => request(`/v1/rum/pages?${new URLSearchParams({ ...(app ? { app } : {}), hours: hours || 24 })}`),
+    apps:    ()           => request('/v1/rum/apps'),
   },
   maintenance: {
     list:        ()                  => request('/v1/maintenance-windows'),
