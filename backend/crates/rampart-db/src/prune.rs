@@ -33,6 +33,10 @@ pub struct RetentionConfig {
     /// the uptime record.
     #[serde(default = "default_metrics")]
     pub metrics_days: i32,
+    /// How long ingested trace spans are retained, in days. Defaults to 7 —
+    /// traces are high-volume, short-lived debugging data.
+    #[serde(default = "default_traces")]
+    pub traces_days: i32,
 }
 fn default_hb() -> i32 {
     365
@@ -46,9 +50,14 @@ fn default_rollup() -> i32 {
 fn default_metrics() -> i32 {
     DEFAULT_METRICS_DAYS
 }
+fn default_traces() -> i32 {
+    DEFAULT_TRACES_DAYS
+}
 
 /// Default metric-sample retention when the setting predates the field.
 pub const DEFAULT_METRICS_DAYS: i32 = 30;
+/// Default trace-span retention when the setting predates the field.
+pub const DEFAULT_TRACES_DAYS: i32 = 7;
 
 /// Default rollup-tier retention when no `retention_days` setting is
 /// present (or the row predates this field).
@@ -61,6 +70,7 @@ impl Default for RetentionConfig {
             audit_log: 365,
             rollup_days: DEFAULT_ROLLUP_DAYS,
             metrics_days: DEFAULT_METRICS_DAYS,
+            traces_days: DEFAULT_TRACES_DAYS,
         }
     }
 }
@@ -72,6 +82,8 @@ pub struct PruneStats {
     pub rollups_upserted: u64,
     /// External metric samples dropped past their retention window.
     pub metrics_deleted: u64,
+    /// Trace spans dropped past the trace-retention window.
+    pub spans_deleted: u64,
     /// Raw heartbeats folded into rollups and deleted.
     pub heartbeats_rolled: u64,
     /// Rollup buckets dropped past the rollup tier.
@@ -87,6 +99,7 @@ impl PruneStats {
             && self.rollups_deleted == 0
             && self.audit_deleted == 0
             && self.metrics_deleted == 0
+            && self.spans_deleted == 0
     }
 }
 
@@ -346,6 +359,9 @@ pub async fn run_once(pool: &DbPool) -> DbResult<PruneStats> {
     .execute(pool)
     .await?
     .rows_affected();
+
+    // Trace spans: flat age-based tier, like metric samples.
+    stats.spans_deleted = crate::traces::prune(pool, cfg.traces_days).await?;
 
     Ok(stats)
 }
