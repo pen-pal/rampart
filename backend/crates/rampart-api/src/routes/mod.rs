@@ -28,6 +28,7 @@ pub mod monitor_groups;
 pub mod monitor_templates;
 pub mod monitors;
 pub mod notifications;
+pub mod on_call;
 pub mod openapi;
 pub mod otlp;
 pub mod prefs;
@@ -142,6 +143,8 @@ pub fn v1_protected() -> Router<AppState> {
         .nest("/error-issues", error_tracking::issue_router())
         // /v1/rum read views (web-vitals summary, per-page, apps)
         .nest("/rum", rum::router())
+        // /v1/on-call-schedules CRUD — channel rotations for ladder steps
+        .nest("/on-call-schedules", on_call::router())
         // /v1/maintenance-windows CRUD + attach/detach
         .nest("/maintenance-windows", maintenance::router())
         // /v1/status-pages admin CRUD (public read sits in v1_public)

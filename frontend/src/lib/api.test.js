@@ -229,6 +229,15 @@ describe('api helpers', () => {
 
     await api.rum.summary('web', 24);
     expect(global.fetch.mock.calls.at(-1)[0]).toBe('/v1/rum/summary?app=web&hours=24');
+    await api.onCallSchedules.list();
+    expect(global.fetch.mock.calls.at(-1)[0]).toBe('/v1/on-call-schedules');
+
+    await api.onCallSchedules.current('sc-id');
+    expect(global.fetch.mock.calls.at(-1)[0]).toBe('/v1/on-call-schedules/sc-id/current');
+
+    await api.onCallSchedules.remove('sc-id');
+    expect(global.fetch.mock.calls.at(-1)[0]).toBe('/v1/on-call-schedules/sc-id');
+    expect(global.fetch.mock.calls.at(-1)[1].method).toBe('DELETE');
   });
 
   it('serialises POST body and sets Content-Type', async () => {
