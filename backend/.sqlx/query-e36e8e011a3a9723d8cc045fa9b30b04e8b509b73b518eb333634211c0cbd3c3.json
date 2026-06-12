@@ -70,7 +70,8 @@
                 "snmp",
                 "cassandra",
                 "mdns",
-                "ssdp"
+                "ssdp",
+                "synthetic"
               ]
             }
           }
