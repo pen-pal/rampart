@@ -50,8 +50,8 @@ function fmtMs(ms) {
   return `${(ms / 1000).toFixed(2)}s`;
 }
 
-export default function Traces() {
-  const [traceId, setTraceId] = useState(null);
+export default function Traces({ openTraceId }) {
+  const [traceId, setTraceId] = useState(openTraceId || null);
   const [tab, setTab] = useState('traces'); // traces | map
 
   return (
@@ -187,6 +187,32 @@ function TraceDetail({ traceId, onBack }) {
           );
         })}
       </div>
+
+      <TraceLogs traceId={traceId} />
     </>
+  );
+}
+
+// Correlated logs — logs the apps emitted carrying this trace_id. The cross-tier
+// link: jump from a span waterfall to the matching log lines.
+function TraceLogs({ traceId }) {
+  const state = useApi(() => api.logs.query({ trace_id: traceId, limit: 100 }), [traceId]);
+  const logs = state.data || [];
+  if (state.loading || logs.length === 0) return null;
+  return (
+    <div style={{ marginTop: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)' }}>{t('traces.correlated_logs', { n: logs.length })}</span>
+        <a href={`#/logs/trace/${traceId}`} style={{ fontSize: 12, color: 'var(--accent)' }}>{t('traces.open_in_logs')}</a>
+      </div>
+      <div className="card mono" style={{ padding: '8px 12px', fontSize: 12, maxHeight: 240, overflowY: 'auto' }}>
+        {logs.map(l => (
+          <div key={l.id} style={{ padding: '3px 0', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            <span style={{ color: l.level === 'error' || l.level === 'fatal' ? 'var(--down)' : 'var(--text-3)', fontWeight: 600 }}>{l.level}</span>{' '}
+            <span style={{ color: 'var(--text-3)' }}>{l.service_name}</span>{' '}{l.body}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
