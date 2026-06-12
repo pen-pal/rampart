@@ -65,6 +65,10 @@
       "description": "Escalation policies (ordered notification ladders) and episode acknowledge. Editor."
     },
     {
+      "name": "Traces",
+      "description": "Distributed tracing \u2014 OTLP span ingest + trace read views."
+    },
+    {
       "name": "Users",
       "description": "User management + role assignment (admin); self-service password (any role)."
     },
@@ -2913,6 +2917,98 @@
           "404": {
             "description": "Nothing open",
             "or already acked.": null
+          }
+        }
+      }
+    },
+    "/otlp/v1/traces": {
+      "post": {
+        "tags": [
+          "Traces"
+        ],
+        "summary": "OTLP trace ingest",
+        "description": "Accepts an OTLP ExportTraceServiceRequest as OTLP/JSON (application/json) or OTLP/protobuf (application/x-protobuf). Public (network-scoped, no session) \u2014 point an OTel SDK/Collector OTLP/HTTP exporter at http://<host>/otlp. See docs/design/TRACES.md.",
+        "responses": {
+          "200": {
+            "description": "Empty ExportTraceServiceResponse `{}` = full success."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/v1/traces": {
+      "get": {
+        "tags": [
+          "Traces"
+        ],
+        "summary": "Recent traces",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One row per trace_id \u2014 root service/op",
+            "duration": null,
+            "span + error counts.": null
+          }
+        }
+      }
+    },
+    "/v1/traces/service-map": {
+      "get": {
+        "tags": [
+          "Traces"
+        ],
+        "summary": "Service dependency map",
+        "parameters": [
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Edges `[{from_service, to_service, calls}]` from cross-service spans."
+          }
+        }
+      }
+    },
+    "/v1/traces/{trace_id}": {
+      "parameters": [
+        {
+          "name": "trace_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Traces"
+        ],
+        "summary": "Spans of a trace (waterfall)",
+        "responses": {
+          "200": {
+            "description": "All spans for the trace",
+            "ordered by start time.": null
+          },
+          "404": {
+            "description": "No spans for that trace_id."
           }
         }
       }
