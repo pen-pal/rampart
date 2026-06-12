@@ -1394,6 +1394,12 @@ const en = {
   'traces.calls':                    '{n} calls',
   'traces.no_edges':                 'No cross-service calls seen in the last 24h.',
   'traces.back_list':                'Back to traces',
+  'traces.correlated_logs':          'Correlated logs ({n})',
+  'traces.open_in_logs':             'Open in Logs →',
+  'logs.for_trace':                  'Filtered to trace',
+  'logs.open_trace':                 'View trace →',
+  'logs.clear_trace':                'Clear',
+
   'logs.back':                       'Dashboard',
   'logs.title':                      'Logs',
   'logs.subtitle':                   'Logs ingested via OpenTelemetry (OTLP), correlated to traces. Send OTLP logs to /otlp/v1/logs.',
@@ -1413,6 +1419,9 @@ const en = {
   'logs.empty.title':                'No logs yet',
   'logs.empty.cta':                  'Point an OTel logs exporter at /otlp/v1/logs (this host).',
 
+  'errors.trace_context':            'This error has a trace:',
+  'errors.view_trace':               'View trace →',
+  'errors.view_logs':                'View logs →',
   'errors.back':                     'Dashboard',
   'errors.title':                    'Error tracking',
   'errors.subtitle':                 'Capture exceptions from your apps, grouped into issues. Point any Sentry SDK at a project’s DSN.',

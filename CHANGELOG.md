@@ -19,6 +19,15 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ### Added
 
+- **Cross-tier correlation** — the observability tiers now link to each other.
+  A trace's detail view shows the **logs** emitted under that `trace_id`
+  (and deep-links to the Logs view filtered to it); log lines link back to
+  their trace; and an error issue whose event carries a trace context links
+  straight to that **trace** and its **logs**. Traces + logs are now
+  deep-linkable (`#/traces/{id}`, `#/logs/trace/{id}`).
+
+### Added
+
 - **Log ingestion — OTLP (Tier 3)** (migration `0079`) — ingest OpenTelemetry
   logs over OTLP and serve a filtered log stream. `POST /otlp/v1/logs` accepts
   an OTLP `ExportLogsServiceRequest` as both OTLP/JSON and OTLP/protobuf, so any

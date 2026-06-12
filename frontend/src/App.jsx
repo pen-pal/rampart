@@ -228,8 +228,8 @@ export default function App() {
     case 'status-page':   view = <StatusPageBuilder user={user} />; break;
     case 'notifications': view = <Notifications user={user} />; break;
     case 'escalations':   view = <Escalations user={user} />; break;
-    case 'traces':        view = <Traces />; break;
-    case 'logs':          view = <Logs />; break;
+    case 'traces':        view = <Traces openTraceId={route.id} />; break;
+    case 'logs':          view = <Logs traceId={route.id} />; break;
     case 'errors':        view = <Errors user={user} />; break;
     case 'rum':           view = <Rum />; break;
     case 'maintenance':   view = <Maintenance user={user} />; break;

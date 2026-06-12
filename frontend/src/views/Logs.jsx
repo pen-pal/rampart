@@ -36,7 +36,7 @@ const css = `
 
 const LEVELS = ['', 'trace', 'debug', 'info', 'warn', 'error', 'fatal'];
 
-export default function Logs() {
+export default function Logs({ traceId }) {
   const [service, setService] = useState('');
   const [level, setLevel] = useState('');
   const [q, setQ] = useState('');
@@ -46,8 +46,8 @@ export default function Logs() {
 
   const svcState = useApi(() => api.logs.services(), []);
   const logsState = useApi(
-    () => api.logs.query({ service: applied.service, level: applied.level, q: applied.q, limit: 300 }),
-    [applied, reloadKey],
+    () => api.logs.query({ service: applied.service, level: applied.level, q: applied.q, trace_id: traceId || undefined, limit: 300 }),
+    [applied, reloadKey, traceId],
   );
   const services = svcState.data || [];
   const logs = logsState.data || [];
@@ -63,6 +63,14 @@ export default function Logs() {
           <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 4px', letterSpacing: '-.02em' }}>{t('logs.title')}</h1>
           <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 0 }}>{t('logs.subtitle')}</p>
         </div>
+
+        {traceId && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, padding: '8px 12px', background: 'var(--accent-soft)', borderRadius: 8, fontSize: 12.5 }}>
+            <span>{t('logs.for_trace')} <span className="mono">{traceId}</span></span>
+            <a href={`#/traces/${traceId}`} style={{ color: 'var(--accent-2)', fontWeight: 500 }}>{t('logs.open_trace')}</a>
+            <a href="#/logs" style={{ color: 'var(--text-3)', marginLeft: 'auto' }}>{t('logs.clear_trace')}</a>
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
           <select className="select" value={service} onChange={e => setService(e.target.value)}>
@@ -100,7 +108,7 @@ export default function Logs() {
               <span className="log-body mono">{l.body}</span>
               {expanded === l.id && (
                 <div className="log-attrs mono">
-                  {l.trace_id && <div>trace_id: {l.trace_id}{l.span_id ? ` · span_id: ${l.span_id}` : ''}</div>}
+                  {l.trace_id && <div>trace_id: <a href={`#/traces/${l.trace_id}`} style={{ color: 'var(--accent-2)' }} onClick={e => e.stopPropagation()}>{l.trace_id}</a>{l.span_id ? ` · span_id: ${l.span_id}` : ''}</div>}
                   {l.severity_text && <div>severity: {l.severity_text} ({l.severity})</div>}
                   {l.attributes && Object.keys(l.attributes).length > 0 &&
                     <div style={{ marginTop: 4 }}>{JSON.stringify(l.attributes, null, 0)}</div>}
