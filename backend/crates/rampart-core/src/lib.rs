@@ -69,6 +69,6 @@ pub use status_page::{
     StatusPageSection, UpdateStatusPage, UpdateStatusPageSection,
 };
 pub use synthetic::{
-    Assertion, AssertKind, CompareOp, Extract, ExtractSource, SyntheticPlan, SyntheticStep,
+    AssertKind, Assertion, CompareOp, Extract, ExtractSource, SyntheticPlan, SyntheticStep,
 };
 pub use tag::{NewTag, Tag, TagBrief};

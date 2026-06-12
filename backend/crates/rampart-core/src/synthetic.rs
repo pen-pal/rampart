@@ -139,7 +139,9 @@ impl SyntheticPlan {
                 return Err(format!("step {n} has no URL"));
             }
             if s.extract.len() + s.assert.len() > MAX_RULES_PER_STEP {
-                return Err(format!("step {n} has too many rules (max {MAX_RULES_PER_STEP})"));
+                return Err(format!(
+                    "step {n} has too many rules (max {MAX_RULES_PER_STEP})"
+                ));
             }
             for e in &s.extract {
                 if e.var.trim().is_empty() {
@@ -243,7 +245,10 @@ mod tests {
     use serde_json::json;
 
     fn vars(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
-        pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
     }
 
     #[test]
@@ -252,7 +257,7 @@ mod tests {
         assert_eq!(interpolate("Bearer {{token}}", &v), "Bearer abc");
         assert_eq!(interpolate("/u/{{id}}/x", &v), "/u/7/x");
         assert_eq!(interpolate("{{ token }}", &v), "abc"); // trims inside braces
-        // Unknown var is left literal so the miss is visible.
+                                                           // Unknown var is left literal so the miss is visible.
         assert_eq!(interpolate("{{nope}}", &v), "{{nope}}");
         // No placeholders — untouched.
         assert_eq!(interpolate("plain", &v), "plain");

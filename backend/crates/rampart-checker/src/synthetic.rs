@@ -69,7 +69,15 @@ impl Probe for SyntheticProbe {
 
         let client = match build_client(monitor) {
             Ok(c) => c,
-            Err(e) => return down(monitor, ts, started, None, &format!("client build failed: {e}")),
+            Err(e) => {
+                return down(
+                    monitor,
+                    ts,
+                    started,
+                    None,
+                    &format!("client build failed: {e}"),
+                )
+            }
         };
 
         let mut vars: BTreeMap<String, String> = BTreeMap::new();
@@ -78,8 +86,13 @@ impl Probe for SyntheticProbe {
         for (i, step) in plan.steps.iter().enumerate() {
             let label = step_label(i, step);
 
-            let method = Method::from_str(interpolate(&step.method, &vars).trim().to_uppercase().as_str())
-                .unwrap_or(Method::GET);
+            let method = Method::from_str(
+                interpolate(&step.method, &vars)
+                    .trim()
+                    .to_uppercase()
+                    .as_str(),
+            )
+            .unwrap_or(Method::GET);
             let url = interpolate(&step.url, &vars);
             let mut req = client.request(method, &url);
             for (k, v) in &step.headers {
@@ -92,10 +105,22 @@ impl Probe for SyntheticProbe {
             let resp = match req.send().await {
                 Ok(r) => r,
                 Err(e) if e.is_timeout() => {
-                    return down(monitor, ts, started, last_status, &format!("{label}: request timed out"))
+                    return down(
+                        monitor,
+                        ts,
+                        started,
+                        last_status,
+                        &format!("{label}: request timed out"),
+                    )
                 }
                 Err(e) => {
-                    return down(monitor, ts, started, last_status, &format!("{label}: request failed: {e}"))
+                    return down(
+                        monitor,
+                        ts,
+                        started,
+                        last_status,
+                        &format!("{label}: request failed: {e}"),
+                    )
                 }
             };
 
@@ -105,9 +130,19 @@ impl Probe for SyntheticProbe {
             let headers: BTreeMap<String, String> = resp
                 .headers()
                 .iter()
-                .filter_map(|(k, v)| v.to_str().ok().map(|s| (k.as_str().to_ascii_lowercase(), s.to_string())))
+                .filter_map(|(k, v)| {
+                    v.to_str()
+                        .ok()
+                        .map(|s| (k.as_str().to_ascii_lowercase(), s.to_string()))
+                })
                 .collect();
-            let body: String = resp.text().await.unwrap_or_default().chars().take(MAX_BODY_BYTES).collect();
+            let body: String = resp
+                .text()
+                .await
+                .unwrap_or_default()
+                .chars()
+                .take(MAX_BODY_BYTES)
+                .collect();
             let json_body: Option<Value> = serde_json::from_str(&body).ok();
 
             // Extractions feed later steps. A miss leaves the var unset (the
@@ -131,8 +166,15 @@ impl Probe for SyntheticProbe {
 
             // First failed assertion stops the run.
             for a in &step.assert {
-                if let Some(reason) = assertion_failure(a, status_code, &headers, &json_body, &body) {
-                    return down(monitor, ts, started, Some(status_code), &format!("{label}: {reason}"));
+                if let Some(reason) = assertion_failure(a, status_code, &headers, &json_body, &body)
+                {
+                    return down(
+                        monitor,
+                        ts,
+                        started,
+                        Some(status_code),
+                        &format!("{label}: {reason}"),
+                    );
                 }
             }
         }
@@ -192,11 +234,17 @@ fn assertion_failure(
         AssertKind::Status => (Some(status.to_string()), "status".to_string()),
         AssertKind::Header => {
             let name = a.path.clone().unwrap_or_default();
-            (headers.get(&name.to_ascii_lowercase()).cloned(), format!("header {name}"))
+            (
+                headers.get(&name.to_ascii_lowercase()).cloned(),
+                format!("header {name}"),
+            )
         }
         AssertKind::Json => {
             let path = a.path.clone().unwrap_or_default();
-            (json_body.as_ref().and_then(|j| json_lookup(j, &path)), format!("json {path}"))
+            (
+                json_body.as_ref().and_then(|j| json_lookup(j, &path)),
+                format!("json {path}"),
+            )
         }
         AssertKind::BodyContains => unreachable!("handled above"),
     };
@@ -204,7 +252,12 @@ fn assertion_failure(
     match actual {
         None => Some(format!("{target} not found")),
         Some(got) if compare(&got, a.op, &a.value) => None,
-        Some(got) => Some(format!("{target} {} {:?} (got {:?})", op_word(a.op), a.value, got)),
+        Some(got) => Some(format!(
+            "{target} {} {:?} (got {:?})",
+            op_word(a.op),
+            a.value,
+            got
+        )),
     }
 }
 
