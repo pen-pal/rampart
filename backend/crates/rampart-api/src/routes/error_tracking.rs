@@ -155,7 +155,9 @@ async fn get_issue(
     Path(id): Path<String>,
 ) -> Result<Json<ErrorIssue>, ApiError> {
     let iid = issue_id(&id)?;
-    Ok(Json(rampart_db::error_tracking::get_issue(s.pool(), iid).await?))
+    Ok(Json(
+        rampart_db::error_tracking::get_issue(s.pool(), iid).await?,
+    ))
 }
 
 async fn list_events(

@@ -175,7 +175,11 @@ impl ParsedEvent {
         let fingerprint_override = raw
             .get("fingerprint")
             .and_then(|f| f.as_array())
-            .map(|arr| arr.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect::<Vec<_>>())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                    .collect::<Vec<_>>()
+            })
             .filter(|v| !v.is_empty());
 
         ParsedEvent {
@@ -200,10 +204,7 @@ impl ParsedEvent {
         let t = match (&self.exception_type, &self.exception_value) {
             (Some(ty), Some(val)) if !val.trim().is_empty() => format!("{ty}: {val}"),
             (Some(ty), _) => ty.clone(),
-            _ => self
-                .message
-                .clone()
-                .unwrap_or_else(|| "Error".to_string()),
+            _ => self.message.clone().unwrap_or_else(|| "Error".to_string()),
         };
         truncate(&t, TITLE_MAX)
     }
@@ -250,7 +251,10 @@ pub fn fingerprint(ev: &ParsedEvent) -> String {
         }
         return hash(&key);
     }
-    hash(&format!("msg:{}", normalize_message(ev.message.as_deref().unwrap_or(""))))
+    hash(&format!(
+        "msg:{}",
+        normalize_message(ev.message.as_deref().unwrap_or(""))
+    ))
 }
 
 /// Collapse variable bits (digit runs) so messages like "user 4821 not found"
@@ -353,14 +357,16 @@ mod tests {
 
     #[test]
     fn fingerprint_groups_same_exception_ignoring_line_numbers() {
-        let mk = |lineno: i64| ev(json!({
-            "exception": { "values": [{
-                "type": "ValueError",
-                "stacktrace": { "frames": [
-                    { "module": "app.views", "function": "list_users", "lineno": lineno, "in_app": true }
-                ] }
-            }] }
-        }));
+        let mk = |lineno: i64| {
+            ev(json!({
+                "exception": { "values": [{
+                    "type": "ValueError",
+                    "stacktrace": { "frames": [
+                        { "module": "app.views", "function": "list_users", "lineno": lineno, "in_app": true }
+                    ] }
+                }] }
+            }))
+        };
         // Same type + frame (module/function), different line → same group.
         assert_eq!(fingerprint(&mk(42)), fingerprint(&mk(99)));
     }
@@ -374,8 +380,12 @@ mod tests {
 
     #[test]
     fn fingerprint_respects_explicit_override() {
-        let a = ev(json!({ "fingerprint": ["my-group"], "exception": { "values": [{ "type": "ValueError" }] } }));
-        let b = ev(json!({ "fingerprint": ["my-group"], "exception": { "values": [{ "type": "KeyError" }] } }));
+        let a = ev(
+            json!({ "fingerprint": ["my-group"], "exception": { "values": [{ "type": "ValueError" }] } }),
+        );
+        let b = ev(
+            json!({ "fingerprint": ["my-group"], "exception": { "values": [{ "type": "KeyError" }] } }),
+        );
         // Different exceptions, same explicit fingerprint → same group.
         assert_eq!(fingerprint(&a), fingerprint(&b));
     }

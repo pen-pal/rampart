@@ -89,7 +89,9 @@ async fn ingest(
     let Some(event_json) = event_json else {
         // No event item (e.g. a session-only envelope) — accept silently so
         // the SDK doesn't retry, but record nothing.
-        return Ok(Json(serde_json::json!({ "id": Uuid::nil().simple().to_string() })));
+        return Ok(Json(
+            serde_json::json!({ "id": Uuid::nil().simple().to_string() }),
+        ));
     };
 
     let parsed = ParsedEvent::from_sentry_json(event_json);
@@ -103,12 +105,16 @@ async fn ingest(
         let title = outcome.title.clone();
         let regressed = outcome.regressed;
         tokio::spawn(async move {
-            rampart_notifier::service::dispatch_error_alert(&pool, &name, &channels, regressed, &title)
-                .await;
+            rampart_notifier::service::dispatch_error_alert(
+                &pool, &name, &channels, regressed, &title,
+            )
+            .await;
         });
     }
 
-    Ok(Json(serde_json::json!({ "id": outcome.event_id.simple().to_string() })))
+    Ok(Json(
+        serde_json::json!({ "id": outcome.event_id.simple().to_string() }),
+    ))
 }
 
 /// Pull the DSN public key from `?sentry_key=` (browser transport) or the
