@@ -19,6 +19,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ### Added
 
+- **Log ingestion — OTLP (Tier 3)** (migration `0079`) — ingest OpenTelemetry
+  logs over OTLP and serve a filtered log stream. `POST /otlp/v1/logs` accepts
+  an OTLP `ExportLogsServiceRequest` as both OTLP/JSON and OTLP/protobuf, so any
+  OTel SDK/Collector logs exporter works by pointing at `http://<host>/otlp`.
+  Each log stores its OTLP severity, message body, service, attributes, and the
+  optional `trace_id`/`span_id` so logs correlate with the traces tier (table
+  `logs`). Read API at `/v1/logs` filters by service, minimum level, body
+  substring, or trace id; `/v1/logs/services` feeds the filter UI. A dashboard
+  **Logs** view provides a service/level/search filter bar over a level-coloured
+  stream with expandable per-line attributes + trace ids. Logs age out via a
+  `logs_days` retention window (default 7) folded into the prune sweep. JSON log
+  parsing is pure + unit-tested in rampart-core, reusing the trace tier's OTLP
+  helpers. See [`docs/design/LOGS.md`](docs/design/LOGS.md). v1: ingest is
+  network-scoped, uncompressed, unsampled; body search is substring (FTS is a
+  follow-up).
+
+### Added
+
 - **Distributed tracing — OTLP (Tier 2 / APM)** (migration `0078`) — ingest
   OpenTelemetry spans and assemble them into traces. `POST /otlp/v1/traces`
   accepts an OTLP `ExportTraceServiceRequest` as **both** OTLP/JSON and
