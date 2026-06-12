@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO heartbeat_rollups\n                       (monitor_id, bucket_start, up_count, down_count,\n                        other_count, sample_count, avg_latency_ms)\n                       VALUES ($1, date_trunc('hour', $2::timestamptz),\n                               $3, $4, 0, $5, 10.0)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz",
+        "Int4",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5e3625cd5bbc06bcad62ab7d8a7eaaaeedb8e34b50a0f000518a080d54d7ae95"
+}
