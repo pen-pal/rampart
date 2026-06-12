@@ -131,6 +131,10 @@ pub fn default_subject(event: &Event) -> String {
         EventKind::MetricRuleFired => render("[metric alert] {{ monitor.name }}", event),
         EventKind::MetricRuleResolved => render("[metric ok] {{ monitor.name }}", event),
         EventKind::Escalation => render("[escalation] {{ monitor.name }} is {{ status }}", event),
+        EventKind::ErrorNew => render("[new error] {{ monitor.name }}: {{ msg }}", event),
+        EventKind::ErrorRegressed => {
+            render("[error regressed] {{ monitor.name }}: {{ msg }}", event)
+        }
         _ => render("[{{ status }}] {{ monitor.name }}", event),
     }
 }
@@ -153,7 +157,11 @@ pub fn default_body(event: &Event) -> String {
             "{{ monitor.name }}: scheduled maintenance ended.\nMonitor: {{ monitor.id }}\nTime:    {{ ts }}\n",
             event,
         ),
-        EventKind::MetricRuleFired | EventKind::MetricRuleResolved | EventKind::Escalation => {
+        EventKind::MetricRuleFired
+        | EventKind::MetricRuleResolved
+        | EventKind::Escalation
+        | EventKind::ErrorNew
+        | EventKind::ErrorRegressed => {
             render("{{ monitor.name }}: {{ msg }}\nTime: {{ ts }}\n", event)
         }
         _ => {
