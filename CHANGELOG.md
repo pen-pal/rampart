@@ -17,6 +17,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **Real User Monitoring (Tier 4)** (migration `0080`) — Core Web Vitals from
+  real browsers, completing the observability platform. Rampart serves a tiny
+  self-installing collector at `GET /rum/snippet.js`; one
+  `<script src=".../rum/snippet.js" data-app="web">` tag collects LCP, INP, CLS,
+  FCP, TTFB, and load time via PerformanceObserver + Navigation Timing and sends
+  one beacon per page view on hide (`navigator.sendBeacon`, no dependency, no
+  CORS preflight). Beacons land at `POST /rum/v1/events` (public; body parsed as
+  JSON; useless beacons dropped). Read API at `/v1/rum`: `summary` (p75 per
+  metric — the Web Vitals statistic — via `percentile_cont`), `pages` (per-URL
+  rollup), and `apps`. A dashboard **RUM** view shows Web Vitals cards coloured
+  good/needs-improvement/poor against the official thresholds, a per-page table,
+  an app + window filter, and the copyable snippet. Events age out via a
+  `rum_days` retention window (default 14). Beacon parsing is pure + unit-tested.
+  See [`docs/design/RUM.md`](docs/design/RUM.md). v1: keyed by an app name (no
+  per-app CRUD), INP approximated, no JS-error capture yet.
+
 ---
 
 ## [0.7.0] — 2026-06-11
