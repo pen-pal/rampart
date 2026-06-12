@@ -426,6 +426,16 @@ export const api = {
     detail:     (id)    => request(`/v1/traces/${id}`),
     serviceMap: (hours) => request(`/v1/traces/service-map${hours ? `?hours=${hours}` : ''}`),
   },
+  // Log ingestion — OTLP logs, filtered recent-logs stream.
+  logs: {
+    query: (params = {}) => {
+      const qs = new URLSearchParams();
+      for (const [k, v] of Object.entries(params)) if (v != null && v !== '') qs.set(k, v);
+      const s = qs.toString();
+      return request(`/v1/logs${s ? '?' + s : ''}`);
+    },
+    services: () => request('/v1/logs/services'),
+  },
   maintenance: {
     list:        ()                  => request('/v1/maintenance-windows'),
     get:         (id)                => request(`/v1/maintenance-windows/${id}`),

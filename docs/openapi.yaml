@@ -69,6 +69,8 @@ tags:
     description: Escalation policies (ordered notification ladders) and episode acknowledge. Editor.
   - name: Traces
     description: Distributed tracing — OTLP span ingest + trace read views.
+  - name: Logs
+    description: Log ingestion — OTLP log ingest + filtered read.
   - name: Users
     description: User management + role assignment (admin); self-service password (any role).
   - name: Audit
@@ -1525,6 +1527,36 @@ paths:
       responses:
         '200': { description: All spans for the trace, ordered by start time. }
         '404': { description: No spans for that trace_id. }
+
+  # ─────────────────────────── Logs ───────────────────────────
+  /otlp/v1/logs:
+    post:
+      tags: [Logs]
+      summary: OTLP log ingest
+      description: >-
+        Accepts an OTLP ExportLogsServiceRequest as OTLP/JSON or
+        OTLP/protobuf. Public (network-scoped). See docs/design/LOGS.md.
+      responses:
+        '200': { description: 'Empty ExportLogsServiceResponse `{}` = success.' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /v1/logs:
+    get:
+      tags: [Logs]
+      summary: Recent logs (filtered)
+      parameters:
+        - { name: service,  in: query, required: false, schema: { type: string } }
+        - { name: level,    in: query, required: false, schema: { type: string, enum: [trace, debug, info, warn, error, fatal] } }
+        - { name: q,        in: query, required: false, schema: { type: string } }
+        - { name: trace_id, in: query, required: false, schema: { type: string } }
+        - { name: limit,    in: query, required: false, schema: { type: integer } }
+      responses:
+        '200': { description: Logs newest-first; level is a minimum, q is a body substring. }
+  /v1/logs/services:
+    get:
+      tags: [Logs]
+      summary: Distinct recent service names
+      responses:
+        '200': { description: Service names for the filter dropdown. }
 
   # ─────────────────────────── Users ───────────────────────────
   /v1/users:
