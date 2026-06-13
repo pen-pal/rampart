@@ -10,18 +10,19 @@ Before opening an issue or a PR, please read the scope section below carefully �
 
 ## 🎯 Scope (Read This First)
 
-Rampart is **not** an enterprise observability platform. We have a strict focus.
+Rampart is a **single-tenant, small-team observability platform** — uptime + status pages plus error tracking, traces, logs, and RUM, all in one binary. It is **not** a hyperscale, multi-tenant enterprise platform, and we keep a strict focus on that line.
 
 ### 🚫 Out of Scope
-The following features were considered and deliberately removed during the v1 → v2 design pivot. PRs or issues for these will be closed as `wontfix`:
+The following are deliberately excluded. PRs or issues for these will be closed as `wontfix`:
 
 - Multi-region distributed probing
 - SLO targets / error budgets
-- On-call rotations + escalation policies
 - AI anomaly detection, AI-generated post-mortems, AIOps
 - Workspace multi-tenancy (no `workspace_id` columns anywhere)
-- APM tracing, RUM, log management, server-agent metrics
+- Hyperscale APM (tail sampling, columnar/object span stores, span metrics pipelines) — the trace/log tiers target small-team volumes on Postgres, not Datadog scale
 - Kubernetes / cloud-provider scanners
+
+> **Now in scope (shipped since this list was first written):** on-call rotations, escalation policies, multi-step synthetics, and the four observability tiers — error tracking (Sentry-wire), traces/APM (OTLP), logs (OTLP), and RUM. The bar they cleared: each speaks an existing open wire format (no proprietary agent) and reuses the alert/notify/escalation spine rather than reinventing it.
 
 > **The Litmus Test:** *"Would a solo operator or a small-team SRE say 'that's not what I came here for'?"* If yes, it doesn't belong here.
 >

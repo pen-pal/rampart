@@ -1,5 +1,13 @@
 # Distributed tracing (Tier 2 — APM)
 
+![Recent traces](../assets/screenshots/13-traces.png)
+
+The per-trace **waterfall** and the **service map**:
+
+![Trace waterfall across services](../assets/screenshots/14-trace-waterfall.png)
+![Service dependency map](../assets/screenshots/15-service-map.png)
+
+
 Status: **implemented (v1)**. See [`docs/ROADMAP.md`](../ROADMAP.md) Tier 2.
 
 Rampart ingests OpenTelemetry spans over OTLP and assembles them into traces —
