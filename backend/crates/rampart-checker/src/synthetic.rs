@@ -94,6 +94,21 @@ impl Probe for SyntheticProbe {
             )
             .unwrap_or(Method::GET);
             let url = interpolate(&step.url, &vars);
+            // SSRF guard each step's (interpolated) URL before issuing it.
+            if let Ok(parsed) = reqwest::Url::parse(&url) {
+                if let Some(host) = parsed.host_str() {
+                    let port = parsed.port_or_known_default().unwrap_or(80);
+                    if let Err(blocked) = crate::ssrf::resolve_guarded(
+                        host,
+                        port,
+                        crate::ssrf::block_private_enabled(),
+                    )
+                    .await
+                    {
+                        return down(monitor, ts, started, None, &blocked.to_string());
+                    }
+                }
+            }
             let mut req = client.request(method, &url);
             for (k, v) in &step.headers {
                 req = req.header(k, interpolate(v, &vars));

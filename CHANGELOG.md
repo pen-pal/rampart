@@ -17,6 +17,19 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Security
+
+- **SSRF guard on outbound probes.** Probes that take a user-supplied target
+  (HTTP/keyword/JSON, raw TCP, multi-step synthetics) now resolve the host and
+  refuse to connect to loopback, link-local and the cloud **metadata IP
+  (169.254.169.254)** + their IPv6 equivalents — always. Private/internal
+  ranges (RFC1918, CGNAT 100.64/10, IPv6 ULA) are additionally blocked when
+  `RAMPART_SSRF_BLOCK_PRIVATE` is set (opt-in: homelabs legitimately monitor
+  private IPs; recommended on for multi-user / internet-exposed installs). The
+  TCP probe pins the vetted addresses so a DNS rebind can't swap in a blocked
+  IP after the check. Stops Rampart being used to reach cloud metadata or
+  internal-only services via a crafted monitor.
+
 ### Added
 
 - **Leader election for safe multi-replica / HA.** The scheduler, notifier
