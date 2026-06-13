@@ -1,0 +1,42 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "rampart.fullname" . }}
+  labels:
+    {{- include "rampart.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "rampart.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    {{- if .Values.networkPolicy.ingress.enabled }}
+    - Ingress
+    {{- end }}
+    {{- if .Values.networkPolicy.egress.enabled }}
+    - Egress
+    {{- end }}
+  {{- if .Values.networkPolicy.ingress.enabled }}
+  ingress:
+    - ports:
+        - port: http
+          protocol: TCP
+      {{- with .Values.networkPolicy.ingress.from }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  {{- end }}
+  {{- if .Values.networkPolicy.egress.enabled }}
+  # WARNING: Rampart is a monitor — it probes arbitrary user-defined targets and
+  # posts to arbitrary notification webhooks, and needs DNS + Postgres. If this
+  # list does not cover every such destination, monitoring/alerting will break.
+  egress:
+    {{- with .Values.networkPolicy.egress.to }}
+    {{- toYaml . | nindent 4 }}
+    {{- else }}
+    # No rules supplied while egress is enabled => default-deny all egress.
+    # This WILL break Rampart. Populate networkPolicy.egress.to.
+    []
+    {{- end }}
+  {{- end }}
+{{- end }}
