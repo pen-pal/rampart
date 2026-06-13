@@ -135,6 +135,8 @@ pub fn default_subject(event: &Event) -> String {
         EventKind::ErrorRegressed => {
             render("[error regressed] {{ monitor.name }}: {{ msg }}", event)
         }
+        EventKind::TelemetryRuleFired => render("[alert] {{ monitor.name }}", event),
+        EventKind::TelemetryRuleResolved => render("[resolved] {{ monitor.name }}", event),
         _ => render("[{{ status }}] {{ monitor.name }}", event),
     }
 }
@@ -161,7 +163,9 @@ pub fn default_body(event: &Event) -> String {
         | EventKind::MetricRuleResolved
         | EventKind::Escalation
         | EventKind::ErrorNew
-        | EventKind::ErrorRegressed => {
+        | EventKind::ErrorRegressed
+        | EventKind::TelemetryRuleFired
+        | EventKind::TelemetryRuleResolved => {
             render("{{ monitor.name }}: {{ msg }}\nTime: {{ ts }}\n", event)
         }
         _ => {

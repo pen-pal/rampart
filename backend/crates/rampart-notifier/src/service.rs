@@ -950,6 +950,18 @@ fn digest_event_line(ev: &Event) -> String {
                 ev.heartbeat.msg.as_deref().unwrap_or("")
             )
         }
+        EventKind::TelemetryRuleFired => {
+            format!(
+                "{name} firing: {}",
+                ev.heartbeat.msg.as_deref().unwrap_or("")
+            )
+        }
+        EventKind::TelemetryRuleResolved => {
+            format!(
+                "{name} resolved: {}",
+                ev.heartbeat.msg.as_deref().unwrap_or("")
+            )
+        }
         EventKind::Test => format!("{name} test"),
     }
 }

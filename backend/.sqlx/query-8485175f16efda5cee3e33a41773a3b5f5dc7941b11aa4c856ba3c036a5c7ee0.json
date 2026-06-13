@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE telemetry_alert_rules SET breach_since = NULL WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8485175f16efda5cee3e33a41773a3b5f5dc7941b11aa4c856ba3c036a5c7ee0"
+}
