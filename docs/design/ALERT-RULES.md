@@ -1,5 +1,8 @@
 # Telemetry alert rules
 
+![Alert rules across the error/trace/log tiers](../assets/screenshots/19-alert-rules.png)
+
+
 Threshold alerts over the observability tiers (errors / traces / logs),
 complementing the existing **metric rules** (which watch ingested Prometheus
 metrics) and the error tier's built-in new/regressed-issue paging.

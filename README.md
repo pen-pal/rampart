@@ -4,10 +4,11 @@
 
 # Rampart
 
-### Self-hosted uptime monitoring you can actually trust.
+### Self-hosted uptime monitoring **and** observability you can actually trust.
 
 **One Rust binary. One Postgres. 38 probe kinds. 130 notification channels.**<br/>
-Public status pages • Live SSE updates • Folder & tag routing • Dependency-aware alerts • 2FA • Audit logs.
+Uptime + status pages, **error tracking, distributed traces, logs, and RUM** — one binary, no SaaS.<br/>
+Tier alerting • On-call rotations • Multi-step synthetics • Live SSE updates • Tag routing • 2FA • Audit logs.
 
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 [![Built with Rust](https://img.shields.io/badge/built%20with-Rust-dea584.svg?logo=rust)](https://www.rust-lang.org/)
@@ -63,6 +64,7 @@ We built Rampart because we were tired of choosing between bloated SaaS tools an
 - **vs. SaaS (Datadog / Pingdom / Site24x7)** — Lives on your hardware, no per-monitor pricing, no log-volume bills, no data leaving your perimeter.
 - **vs. other self-hosted dashboards** — Broader probe catalog (DBs, banner protocols, Kafka, RADIUS, NTP), proper tag routing with folder ancestor inheritance, real audit log, Postgres instead of SQLite, a single Rust binary instead of a Node runtime + headless Chromium.
 - **vs. roll-your-own Prometheus blackbox** — Out of the box: status pages, incident posting, maintenance windows, dependency-aware alerting, and 130 outbound channels.
+- **vs. a separate APM/error stack (Datadog / Sentry / Grafana LGTM)** — Error tracking, traces, logs, and RUM live in the *same* binary as your uptime checks, speak OpenTelemetry + Sentry wire formats (no proprietary agent), and alert through the same channels — instead of standing up and paying for a second platform.
 
 ---
 
@@ -108,6 +110,33 @@ Liquid-templated subject + body, per-channel cooldown, HMAC-signed Generic Webho
 
 </details>
 
+### 📊 Observability Platform
+
+More than uptime — Rampart bundles the four observability tiers a small team
+actually needs, each wired into the same alert/notify/escalation spine. A
+self-hostable alternative to Datadog / Sentry / Site24x7 / ScoutAPM, in one binary.
+
+| Tier | What it does | Wire-compatible with |
+| :--- | :--- | :--- |
+| 🐞 **Error tracking** | DSN-keyed event ingest, group-by-fingerprint into issues, new/regressed alerts, stack traces. | **Sentry SDKs** (point the DSN at Rampart — no Rampart SDK) |
+| 🧵 **Traces / APM** | Span ingest, per-trace waterfall, service dependency map. | **OpenTelemetry** OTLP/HTTP (JSON + protobuf, gzip) |
+| 📃 **Logs** | Severity + service filtering, full-text body search (`tsvector`), trace correlation. | **OpenTelemetry** OTLP logs |
+| 👁️ **RUM** | Browser snippet → Core Web Vitals (p75 LCP/INP/CLS), per-page vitals, and **JS error capture** into the error tier. | drop-in `<script>`, no build step |
+
+Cross-tier by design: a trace links to the logs emitted under its `trace_id`,
+an error issue jumps to its trace, and a browser exception becomes an error issue.
+
+| Alerting & response | What it does |
+| :--- | :--- |
+| 🔔 **Tier alert rules** | Threshold rules over the tiers — error-rate, trace p95 latency, trace error-rate, log volume — paging the same channels. |
+| 📈 **Metric rules** | Prometheus-text metric ingest + threshold alerts on any series. |
+| 🪜 **Escalations** | Ordered notification ladders with acknowledge + episode lifecycle. |
+| 📟 **On-call rotations** | Rotating channel schedules feeding ladder steps. |
+| 🔐 **Ingest auth** | Optional shared token gating the OTLP + RUM endpoints; gzip/deflate decode for stock collectors. |
+
+> Telemetry ingest is OpenTelemetry- and Sentry-wire-compatible, so you point
+> existing SDKs/collectors at Rampart instead of adopting a proprietary agent.
+
 ### 🛠️ Beyond the Probe
 
 | Capability | What it does |
@@ -146,7 +175,7 @@ rampart/
 └── backend/compose.yaml                  # dev stack (postgres only)
 ```
 
-> **Out of scope (deliberate):** Multi-region distributed probing, SLO budgets, on-call rotations, workspace multi-tenancy, APM / RUM / log management. See [CONTRIBUTING.md](CONTRIBUTING.md#scope-read-this-first) for why.
+> **Out of scope (deliberate):** Multi-region distributed probing, SLO error budgets, workspace multi-tenancy (Rampart is single-tenant by design). The observability tiers (error tracking, traces, logs, RUM) are scoped for small-team self-hosting, not hyperscale APM. See [CONTRIBUTING.md](CONTRIBUTING.md#scope-read-this-first) for the philosophy.
 
 ---
 
@@ -279,13 +308,35 @@ npx playwright test       # e2e on Chromium + Firefox + WebKit
 
 ## 📚 Documentation
 
+📖 **Full documentation site: [pen-pal.github.io/rampart](https://pen-pal.github.io/rampart/)** — searchable, dark-mode, organized by topic. The source lives in [`docs/`](docs/) and the highlights are linked below.
+
+**Getting started & operations**
 - [**docs/SETUP.md**](docs/SETUP.md) — Production install, TLS, reverse proxy, and backups.
-- [**docs/AGENTS.md**](docs/AGENTS.md) — Remote probe agents: multi-location checks + private-network monitoring.
-- [**docs/CRON-JOBS.md**](docs/CRON-JOBS.md) — Cron-job monitoring: run/complete/fail pings, schedule expectations, duration tracking.
-- [**docs/METRICS.md**](docs/METRICS.md) — Metric ingestion (Prometheus text format), range queries, threshold alert rules.
-- [**docs/ESCALATIONS.md**](docs/ESCALATIONS.md) — Escalation policies: notification ladders, acknowledge, episode lifecycle.
+- [**docs/WALKTHROUGH.md**](docs/WALKTHROUGH.md) — First-run tour with a screenshot per step.
 - [**docs/ARCHITECTURE.md**](docs/ARCHITECTURE.md) — Design decisions and their rationale.
 - [**docs/SECURITY-DEBT.md**](docs/SECURITY-DEBT.md) — Accepted RUSTSEC advisories with justification.
+
+**Monitoring**
+- [**docs/AGENTS.md**](docs/AGENTS.md) — Remote probe agents: multi-location checks + private-network monitoring.
+- [**docs/CRON-JOBS.md**](docs/CRON-JOBS.md) — Cron-job monitoring: run/complete/fail pings, schedule expectations, duration tracking.
+- [**docs/SYNTHETICS.md**](docs/SYNTHETICS.md) — Multi-step HTTP transactions: variable extraction + assertions.
+
+**Observability**
+- [**docs/design/ERROR-TRACKING.md**](docs/design/ERROR-TRACKING.md) — Sentry-compatible error tracking.
+- [**docs/design/TRACES.md**](docs/design/TRACES.md) — OTLP traces / APM, waterfall, service map.
+- [**docs/design/LOGS.md**](docs/design/LOGS.md) — OTLP log ingest, full-text search, trace correlation.
+- [**docs/design/RUM.md**](docs/design/RUM.md) — Real User Monitoring + browser error capture.
+- [**docs/INGEST.md**](docs/INGEST.md) — Inbound webhooks + the optional telemetry ingest token.
+
+**Alerting & response**
+- [**docs/METRICS.md**](docs/METRICS.md) — Metric ingestion (Prometheus text format), range queries, threshold alert rules.
+- [**docs/design/ALERT-RULES.md**](docs/design/ALERT-RULES.md) — Telemetry alert rules over the error/trace/log tiers.
+- [**docs/ESCALATIONS.md**](docs/ESCALATIONS.md) — Escalation policies: notification ladders, acknowledge, episode lifecycle.
+- [**docs/ON-CALL.md**](docs/ON-CALL.md) — On-call rotations feeding escalation ladders.
+
+**Reference & contributing**
+- [**docs/API.md**](docs/API.md) — REST API + the OpenAPI spec (`/openapi.yaml`).
+- [**docs/NOTIFICATIONS.md**](docs/NOTIFICATIONS.md) — Notification channels + templating.
 - [**CONTRIBUTING.md**](CONTRIBUTING.md) — Scope rules, how to add a probe / channel / migration.
 - [**MAINTAINERS.md**](MAINTAINERS.md) — Release workflow and repo settings.
 

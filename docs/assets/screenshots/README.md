@@ -14,7 +14,7 @@ cd ../frontend
 npm ci                                          # one-time
 npm run build                                   # embed assets the api will serve
 npx playwright install --with-deps chromium     # one-time
-npm run screenshots                             # 60–90s, writes PNGs into this dir
+npm run screenshots                             # 60–90s, writes 21 PNGs into this dir
 ```
 
 The script:
@@ -22,7 +22,7 @@ The script:
 - Resets and migrates the `rampart_test` database (via `e2e/start-api.sh`).
 - Brings up `rampart-api` on `:3001`.
 - Drives the first-run journey through Playwright in Chromium at 1440×900 with `deviceScaleFactor=2` (so the PNGs are sharp on retina renders).
-- Writes 11 numbered PNGs into `docs/assets/screenshots/` plus the two README hero shots (`docs/assets/dashboard.png`, `docs/assets/dashboard-dark.png`).
+- Writes 21 numbered PNGs into `docs/assets/screenshots/` plus the two README hero shots (`docs/assets/dashboard.png`, `docs/assets/dashboard-dark.png`).
 
 Commit the result. The CI matrix does **not** run this spec — it's explicitly excluded via `testIgnore` in `playwright.config.js` and re-enabled only when `SCREENSHOTS_RUN=1` is set by the npm script.
 
@@ -41,6 +41,16 @@ Commit the result. The CI matrix does **not** run this spec — it's explicitly 
 | `09-notifications.png`            | Notification channels list with one webhook channel attached   |
 | `10-status-pages.png`             | Status page builder view                                       |
 | `11-dashboard-dark.png`           | Dashboard in dark theme                                        |
+| `12-errors.png`                   | Error tracking — project + grouped issues                      |
+| `13-traces.png`                   | Traces — recent traces list (service, spans, errors, duration) |
+| `14-trace-waterfall.png`          | Trace detail — span waterfall across services                  |
+| `15-service-map.png`              | Traces — service dependency map (`checkout → payments`)        |
+| `16-logs.png`                     | Logs — severity/service-filtered stream                        |
+| `17-rum.png`                      | RUM — Core Web Vitals (p75) + per-page table                   |
+| `18-on-call.png`                  | On-call rotation schedule                                      |
+| `19-alert-rules.png`              | Telemetry alert rules across the error/trace/log tiers         |
+| `20-ingest-token.png`             | Settings — optional telemetry ingest token                     |
+| `21-synthetics.png`               | Synthetic-transaction multi-step builder                       |
 
 ## Updating the walkthrough copy
 

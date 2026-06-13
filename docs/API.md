@@ -2,7 +2,7 @@
 
 The Rampart HTTP API serves the embedded React dashboard, the public status pages, the push-monitor heartbeat sink, and Prometheus / health checkers. This document is a hand-curated catalogue of every endpoint surfaced by the binary at the time of the last release; every entry below cross-references the source file where the contract is canonical.
 
-If you want a deep dive into request / response shapes, open the named route file in [`backend/crates/rampart-api/src/routes/`](../backend/crates/rampart-api/src/routes/) and read the `#[derive(Serialize, Deserialize)]` types adjacent to the handler — they document themselves.
+If you want a deep dive into request / response shapes, open the named route file in [`backend/crates/rampart-api/src/routes/`](https://github.com/pen-pal/rampart/blob/main/backend/crates/rampart-api/src/routes/) and read the `#[derive(Serialize, Deserialize)]` types adjacent to the handler — they document themselves.
 
 ## OpenAPI spec
 
@@ -15,7 +15,7 @@ The running binary serves both files at root level, unauthenticated:
 | `GET /openapi.yaml`  | the spec, `text/yaml`            |
 | `GET /openapi.json`  | the spec, `application/json`     |
 
-Wired in [`routes/openapi.rs`](../backend/crates/rampart-api/src/routes/openapi.rs); both files are embedded via `include_str!` so the served spec always matches the built source tree. There is no in-app Swagger-UI: the app CSP is `default-src 'self'`, which a CDN-hosted Swagger-UI bundle would violate.
+Wired in [`routes/openapi.rs`](https://github.com/pen-pal/rampart/blob/main/backend/crates/rampart-api/src/routes/openapi.rs); both files are embedded via `include_str!` so the served spec always matches the built source tree. There is no in-app Swagger-UI: the app CSP is `default-src 'self'`, which a CDN-hosted Swagger-UI bundle would violate.
 
 **View it rendered** with any local previewer pointed at the served YAML (or the file directly), e.g.:
 
@@ -54,7 +54,7 @@ The session cookie is named `rampart_session`, is HTTP-only, same-site `Strict`,
 
 | Method · path | Returns | Source |
 | :--- | :--- | :--- |
-| `GET /healthz`    | `{"status":"alive","version":"<x.y.z>"}` — liveness probe; always 200 if the process can answer | [`routes/health.rs`](../backend/crates/rampart-api/src/routes/health.rs) |
+| `GET /healthz`    | `{"status":"alive","version":"<x.y.z>"}` — liveness probe; always 200 if the process can answer | [`routes/health.rs`](https://github.com/pen-pal/rampart/blob/main/backend/crates/rampart-api/src/routes/health.rs) |
 | `GET /readyz`     | 200 once the database is reachable                                                              | (same) |
 | `GET /metrics`    | Prometheus text exposition: `rampart_build_info`, `rampart_monitors{status}`, `rampart_monitors_by_kind{kind}`, `rampart_channels_active`, `rampart_webpush_subscribers`, `rampart_heartbeats_24h{status}`, `rampart_incidents_open` | (same) |
 
@@ -66,15 +66,15 @@ The version baked into `/healthz` is the source of truth for "what build is runn
 
 | Method · path                       | Body / params                            | Source |
 | :--- | :--- | :--- |
-| `GET  /v1/auth/me`                  | —                                        | [`routes/auth.rs`](../backend/crates/rampart-api/src/routes/auth.rs) |
+| `GET  /v1/auth/me`                  | —                                        | [`routes/auth.rs`](https://github.com/pen-pal/rampart/blob/main/backend/crates/rampart-api/src/routes/auth.rs) |
 | `POST /v1/auth/register`            | `{email, name, password}` (first-run only) | (same) |
 | `POST /v1/auth/login`               | `{email, password}` → `{challenge_token?}` on 2FA gate | (same) |
 | `POST /v1/auth/logout`              | —                                        | (same) |
-| `POST /v1/auth/2fa/setup`           | — → `{secret, otpauth_uri}`              | [`routes/totp.rs`](../backend/crates/rampart-api/src/routes/totp.rs) |
+| `POST /v1/auth/2fa/setup`           | — → `{secret, otpauth_uri}`              | [`routes/totp.rs`](https://github.com/pen-pal/rampart/blob/main/backend/crates/rampart-api/src/routes/totp.rs) |
 | `POST /v1/auth/2fa/enable`          | `{code}` → `{recovery_codes}`            | (same) |
 | `POST /v1/auth/2fa/verify`          | `{challenge_token, code}` (login completion) | (same) |
 | `POST /v1/auth/2fa/disable`         | `{password, code}`                       | (same) |
-| `POST /v1/users/me/password`        | `{old_password, new_password}`           | [`routes/users.rs`](../backend/crates/rampart-api/src/routes/users.rs) |
+| `POST /v1/users/me/password`        | `{old_password, new_password}`           | [`routes/users.rs`](https://github.com/pen-pal/rampart/blob/main/backend/crates/rampart-api/src/routes/users.rs) |
 
 Failed-login costs a constant-time Argon2 hash compare regardless of whether the user exists — defends against user-enumeration via timing.
 
@@ -100,7 +100,7 @@ Failed-login costs a constant-time Argon2 hash compare regardless of whether the
 | `GET    /v1/monitors/history`                    | Per-monitor 60-minute history for the dashboard chart. |
 | `POST   /v1/monitors/bulk`                       | `{monitor_ids[], action: pause|resume|delete|move|attach_channel|detach_channel}` |
 
-Source: [`routes/monitors.rs`](../backend/crates/rampart-api/src/routes/monitors.rs).
+Source: [`routes/monitors.rs`](https://github.com/pen-pal/rampart/blob/main/backend/crates/rampart-api/src/routes/monitors.rs).
 
 ### Push monitor
 
@@ -109,7 +109,7 @@ Source: [`routes/monitors.rs`](../backend/crates/rampart-api/src/routes/monitors
 | `POST /push/{token}`           | —    | Cron-friendly heartbeat sink — the token IS the auth (rotate via the regenerate route above). |
 | `GET  /push/{token}`           | —    | Same as POST for shell clients that can't easily POST. |
 
-Source: [`routes/push.rs`](../backend/crates/rampart-api/src/routes/push.rs).
+Source: [`routes/push.rs`](https://github.com/pen-pal/rampart/blob/main/backend/crates/rampart-api/src/routes/push.rs).
 
 ---
 
@@ -130,7 +130,7 @@ Source: [`routes/push.rs`](../backend/crates/rampart-api/src/routes/push.rs).
 
 Routing logic (tag union, folder inheritance, per-monitor excludes) lives in `rampart-db::routing`; the resolver is called once per alert by `rampart-notifier`.
 
-Sources: [`routes/notifications.rs`](../backend/crates/rampart-api/src/routes/notifications.rs), [`routes/templates.rs`](../backend/crates/rampart-api/src/routes/templates.rs), [`routes/routing.rs`](../backend/crates/rampart-api/src/routes/routing.rs).
+Sources: [`routes/notifications.rs`](https://github.com/pen-pal/rampart/blob/main/backend/crates/rampart-api/src/routes/notifications.rs), [`routes/templates.rs`](https://github.com/pen-pal/rampart/blob/main/backend/crates/rampart-api/src/routes/templates.rs), [`routes/routing.rs`](https://github.com/pen-pal/rampart/blob/main/backend/crates/rampart-api/src/routes/routing.rs).
 
 ---
 
@@ -145,7 +145,7 @@ Sources: [`routes/notifications.rs`](../backend/crates/rampart-api/src/routes/no
 | `GET  /v1/tags/usage`                          | Tag → monitor-count rollup. |
 | `GET / POST / DELETE /v1/monitors/{id}/tags[/{tag_id}]` | Per-monitor tag attach. |
 
-Sources: [`routes/monitor_groups.rs`](../backend/crates/rampart-api/src/routes/monitor_groups.rs), [`routes/tags.rs`](../backend/crates/rampart-api/src/routes/tags.rs).
+Sources: [`routes/monitor_groups.rs`](https://github.com/pen-pal/rampart/blob/main/backend/crates/rampart-api/src/routes/monitor_groups.rs), [`routes/tags.rs`](https://github.com/pen-pal/rampart/blob/main/backend/crates/rampart-api/src/routes/tags.rs).
 
 ---
 
@@ -163,7 +163,7 @@ Sources: [`routes/monitor_groups.rs`](../backend/crates/rampart-api/src/routes/m
 | `GET  /v1/public/subscribe/unsubscribe/{token}`               | none    | Tokened unsub URL emailed to the subscriber. |
 | `GET / DELETE /v1/status-pages/{id}/subscribers[/{sub_id}]`   | session | Admin sub list + revoke. |
 
-Sources: [`routes/status_pages.rs`](../backend/crates/rampart-api/src/routes/status_pages.rs), [`routes/incidents.rs`](../backend/crates/rampart-api/src/routes/incidents.rs), [`routes/subscribers.rs`](../backend/crates/rampart-api/src/routes/subscribers.rs).
+Sources: [`routes/status_pages.rs`](https://github.com/pen-pal/rampart/blob/main/backend/crates/rampart-api/src/routes/status_pages.rs), [`routes/incidents.rs`](https://github.com/pen-pal/rampart/blob/main/backend/crates/rampart-api/src/routes/incidents.rs), [`routes/subscribers.rs`](https://github.com/pen-pal/rampart/blob/main/backend/crates/rampart-api/src/routes/subscribers.rs).
 
 ---
 
@@ -176,7 +176,7 @@ Sources: [`routes/status_pages.rs`](../backend/crates/rampart-api/src/routes/sta
 | `POST /v1/maintenance-windows/{id}/active`                    | Toggle a window on / off. |
 | `POST / DELETE /v1/maintenance-windows/{id}/monitors/{monitor_id}` | Attach / detach a monitor. |
 
-Sources: [`routes/maintenance.rs`](../backend/crates/rampart-api/src/routes/maintenance.rs).
+Sources: [`routes/maintenance.rs`](https://github.com/pen-pal/rampart/blob/main/backend/crates/rampart-api/src/routes/maintenance.rs).
 
 ---
 
@@ -187,7 +187,7 @@ Sources: [`routes/maintenance.rs`](../backend/crates/rampart-api/src/routes/main
 | `GET  /v1/public/webpush/vapid-key`     | Public VAPID applicationServerKey for the dashboard / status-page subscribe button. |
 | `POST /v1/public/webpush/subscriptions` | `{endpoint, keys:{p256dh, auth}}` — subscriber persists into `webpush_subscriptions`. |
 
-Source: [`routes/webpush.rs`](../backend/crates/rampart-api/src/routes/webpush.rs). The VAPID + payload encryption stack is pure-Rust (`p256` ECDH + `aes-gcm` + `hkdf`); RFC 8291 §5 known-answer test pinned in `rampart-notifier::channels::webpush_crypto::tests::rfc8291_section5_roundtrip`.
+Source: [`routes/webpush.rs`](https://github.com/pen-pal/rampart/blob/main/backend/crates/rampart-api/src/routes/webpush.rs). The VAPID + payload encryption stack is pure-Rust (`p256` ECDH + `aes-gcm` + `hkdf`); RFC 8291 §5 known-answer test pinned in `rampart-notifier::channels::webpush_crypto::tests::rfc8291_section5_roundtrip`.
 
 ---
 
@@ -204,7 +204,7 @@ Source: [`routes/webpush.rs`](../backend/crates/rampart-api/src/routes/webpush.r
 | `GET / DELETE /v1/users[/{id}]`        | Admin user CRUD. |
 | `POST /v1/users/{id}/admin`            | Promote / demote admin flag. |
 
-Sources: [`routes/stream.rs`](../backend/crates/rampart-api/src/routes/stream.rs), [`routes/audit.rs`](../backend/crates/rampart-api/src/routes/audit.rs), [`routes/api_keys.rs`](../backend/crates/rampart-api/src/routes/api_keys.rs), [`routes/proxies.rs`](../backend/crates/rampart-api/src/routes/proxies.rs), [`routes/users.rs`](../backend/crates/rampart-api/src/routes/users.rs).
+Sources: [`routes/stream.rs`](https://github.com/pen-pal/rampart/blob/main/backend/crates/rampart-api/src/routes/stream.rs), [`routes/audit.rs`](https://github.com/pen-pal/rampart/blob/main/backend/crates/rampart-api/src/routes/audit.rs), [`routes/api_keys.rs`](https://github.com/pen-pal/rampart/blob/main/backend/crates/rampart-api/src/routes/api_keys.rs), [`routes/proxies.rs`](https://github.com/pen-pal/rampart/blob/main/backend/crates/rampart-api/src/routes/proxies.rs), [`routes/users.rs`](https://github.com/pen-pal/rampart/blob/main/backend/crates/rampart-api/src/routes/users.rs).
 
 ---
 
@@ -215,7 +215,7 @@ Sources: [`routes/stream.rs`](../backend/crates/rampart-api/src/routes/stream.rs
 | `GET / PUT /v1/settings/smtp`       | Per-deploy SMTP credentials for the email channel. |
 | `GET / PUT /v1/settings/retention`  | `{heartbeats, audit_log}` in days; the prune loop honours it on the next hourly tick. |
 
-Sources: [`routes/health.rs`](../backend/crates/rampart-api/src/routes/health.rs)-adjacent settings handlers (see `mod.rs` for the nest path).
+Sources: [`routes/health.rs`](https://github.com/pen-pal/rampart/blob/main/backend/crates/rampart-api/src/routes/health.rs)-adjacent settings handlers (see `mod.rs` for the nest path).
 
 ---
 
@@ -250,7 +250,7 @@ Error responses use a stable JSON envelope:
 | `internal`         | 500 | Caught DB / channel-send failure. |
 | `service_unavailable` | 503 | DB pool exhausted. |
 
-Source: [`error.rs`](../backend/crates/rampart-api/src/error.rs).
+Source: [`error.rs`](https://github.com/pen-pal/rampart/blob/main/backend/crates/rampart-api/src/error.rs).
 
 ---
 
