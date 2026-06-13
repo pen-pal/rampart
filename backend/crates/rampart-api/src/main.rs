@@ -14,6 +14,8 @@
 //!   RAMPART_SSRF_BLOCK_PRIVATE  "1"/"true" → probes also refuse private/
 //!                         internal IP ranges (off by default; metadata +
 //!                         loopback + link-local are always blocked).
+//!   RAMPART_REQUIRE_INGEST_AUTH "1"/"true" → OTLP/RUM ingest is refused
+//!                         unless a telemetry token is configured + presented.
 
 use rampart_api::{build_router, state::AppState, static_assets};
 use std::net::SocketAddr;
