@@ -61,6 +61,10 @@
       "description": "External metric ingestion (Prometheus text format), series reads, and threshold alert rules. Editor writes; readonly reads."
     },
     {
+      "name": "Alerting",
+      "description": "Threshold alert rules over the error/trace/log observability tiers. Editor writes; readonly reads."
+    },
+    {
       "name": "Escalations",
       "description": "Escalation policies (ordered notification ladders) and episode acknowledge. Editor."
     },
@@ -2832,6 +2836,71 @@
         }
       }
     },
+    "/v1/telemetry-rules": {
+      "get": {
+        "tags": [
+          "Alerting"
+        ],
+        "summary": "List telemetry alert rules",
+        "responses": {
+          "200": {
+            "description": "Rules",
+            "including live breach_since / firing_at state.": null
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Alerting"
+        ],
+        "summary": "Create a telemetry alert rule",
+        "description": "A rule evaluates a rolling-window aggregate over one observability tier and fires through its `channel_ids` when it breaches `op`/`threshold` continuously for `for_seconds` (0 = immediately). `kind` selects the aggregate: `error_rate` (error events / window, optional project in `target`), `trace_latency` (p95 span duration_ms, optional service in `target`), `trace_error_rate` (percent of error spans), `log_volume` (matching log count, with `min_level` and an optional body `match_text`). `window_seconds` is the rolling window; empty `target` = all. See docs/design/ALERT-RULES.md.",
+        "responses": {
+          "201": {
+            "description": "Created rule."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/v1/telemetry-rules/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "patch": {
+        "tags": [
+          "Alerting"
+        ],
+        "summary": "Update a telemetry alert rule",
+        "description": "Any edit resets in-flight breach/firing state.",
+        "responses": {
+          "200": {
+            "description": "Updated rule."
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Alerting"
+        ],
+        "summary": "Delete a telemetry alert rule",
+        "responses": {
+          "204": {
+            "description": "Deleted."
+          }
+        }
+      }
+    },
     "/v1/escalation-policies": {
       "get": {
         "tags": [
@@ -3430,6 +3499,24 @@
           "204": {
             "description": "Accepted (always",
             "even if dropped).": null
+          }
+        }
+      }
+    },
+    "/rum/v1/errors": {
+      "post": {
+        "tags": [
+          "RUM"
+        ],
+        "summary": "RUM browser-error ingest",
+        "description": "One captured browser exception `{app, kind?, message, url?, stack?}`, sent by the snippet's window.onerror / unhandledrejection hooks. Public (subject to the optional shared ingest token). The server records it in the error-tracking tier under a project auto-named after `app`, so JS errors group + alert like backend SDK errors. Empty/garbled bodies are dropped. See docs/design/RUM.md.",
+        "responses": {
+          "204": {
+            "description": "Accepted (always",
+            "even if dropped).": null
+          },
+          "401": {
+            "description": "Ingest token configured and missing/incorrect."
           }
         }
       }
@@ -5202,6 +5289,32 @@
         ],
         "summary": "Update data-retention settings",
         "description": "Admin only.",
+        "responses": {
+          "204": {
+            "description": "Saved."
+          }
+        }
+      }
+    },
+    "/v1/settings/telemetry-token": {
+      "get": {
+        "tags": [
+          "Ingest"
+        ],
+        "summary": "Get the telemetry ingest token",
+        "description": "Admin only. Returns `{token}` (empty string when unset). The optional shared secret guarding the OTLP trace/log and RUM ingest endpoints \u2014 blank leaves them open (the operator controls network exposure).",
+        "responses": {
+          "200": {
+            "description": "Current token, `{token: \"<value or empty>\"}`."
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Ingest"
+        ],
+        "summary": "Set or clear the telemetry ingest token",
+        "description": "Admin only. Body `{token}`; an empty/blank token clears it (re-opening the OTLP + RUM ingest surfaces). Once set, collectors must present it as `Authorization: Bearer <token>` / `X-Rampart-Token`, and the RUM snippet forwards it via `data-token` (`?k=`).",
         "responses": {
           "204": {
             "description": "Saved."
