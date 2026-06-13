@@ -225,3 +225,214 @@ test('11 dashboard-dark — dark theme', async ({ page }) => {
   await page.screenshot({ path: shot('11-dashboard-dark.png'), fullPage: false });
   await page.screenshot({ path: path.join(REPO_ROOT, 'docs/assets/dashboard-dark.png'), fullPage: false });
 });
+
+// ══════════════════════════════════════════════════════════════════════
+// Observability tiers (12–21). Each step seeds realistic data through the
+// tier's own public ingest endpoint (OTLP / Sentry / RUM beacon) or admin
+// API, then screenshots the rendered view. Seeding is best-effort: a view
+// still captures (empty) if an ingest shape drifts.
+// ══════════════════════════════════════════════════════════════════════
+
+// OTLP timestamps are unix-nanos as strings. Anchor everything a few
+// seconds ago so the spans sit inside any recent-window read.
+const NS = (offsetMs) => String((BigInt(Date.now()) - 5000n + BigInt(offsetMs)) * 1_000_000n);
+const hex = (n, len) => n.toString(16).padStart(len, '0');
+const svc = (name) => ({ attributes: [{ key: 'service.name', value: { stringValue: name } }] });
+
+// A realistic checkout→payments trace: root + 4 children, one error span,
+// one cross-service edge (so the service map + error-rate populate).
+function buildTrace(seed) {
+  const traceId = hex(seed, 8).repeat(4);          // 32 hex chars
+  const sid = (n) => hex(seed * 16 + n, 16);       // 16 hex chars
+  const span = (n, parent, service, name, t0, t1, errCode = 1) => ({
+    traceId, spanId: sid(n), parentSpanId: parent ? sid(parent) : undefined,
+    name, kind: 2, startTimeUnixNano: NS(t0), endTimeUnixNano: NS(t1),
+    status: { code: errCode },
+  });
+  return {
+    traceId,
+    body: {
+      resourceSpans: [
+        { resource: svc('checkout'), scopeSpans: [{ spans: [
+          span(1, 0, 'checkout', 'POST /checkout', 0, 240),
+          span(2, 1, 'checkout', 'validate cart', 10, 40),
+          span(3, 1, 'checkout', 'SELECT orders', 45, 95),
+        ] }] },
+        { resource: svc('payments'), scopeSpans: [{ spans: [
+          span(4, 1, 'payments', 'charge card', 100, 220),
+          span(5, 4, 'payments', 'POST api.stripe.com', 110, 205, seed % 3 === 0 ? 2 : 1),
+        ] }] },
+      ],
+    },
+  };
+}
+
+// 12 — Errors: a Sentry-keyed project with a few grouped issues.
+test('12 errors — issues list', async ({ page }) => {
+  await ensureLoggedIn(page);
+  try {
+    const proj = await api(page, 'POST', '/v1/error-projects', { name: 'web-frontend' });
+    const events = [
+      { type: 'TypeError', value: "Cannot read properties of undefined (reading 'id')", tx: '/checkout' },
+      { type: 'TypeError', value: "Cannot read properties of undefined (reading 'id')", tx: '/checkout' },
+      { type: 'NetworkError', value: 'Failed to fetch /api/cart', tx: '/cart' },
+      { type: 'RangeError', value: 'Maximum call stack size exceeded', tx: '/dashboard' },
+    ];
+    for (let i = 0; i < events.length; i++) {
+      const e = events[i];
+      await api(page, 'POST', `/api/${proj.id}/store/?sentry_key=${proj.public_key}`, {
+        event_id: hex(0x1000 + i, 8).repeat(4),
+        level: 'error', platform: 'javascript', transaction: e.tx,
+        exception: { values: [{ type: e.type, value: e.value, stacktrace: { frames: [
+          { filename: 'app://bundle.js', function: 'render', lineno: 142 + i },
+          { filename: 'app://bundle.js', function: 'onClick', lineno: 88 },
+        ] } }] },
+      }).catch(() => {});
+    }
+  } catch { /* project may already exist on re-run */ }
+  await gotoView(page, '#/errors', 'h1, h2, [class*="page-title"]');
+  await page.waitForTimeout(700);
+  // Best-effort: open the first project to reveal its issue list.
+  const proj = page.getByText(/web-frontend/i).first();
+  if (await proj.isVisible().catch(() => false)) { await proj.click().catch(() => {}); await page.waitForTimeout(600); }
+  await page.screenshot({ path: shot('12-errors.png'), fullPage: false });
+});
+
+// 13–15 — Traces: list, waterfall, service map.
+test('13 traces — recent traces + 14 waterfall + 15 service map', async ({ page }) => {
+  await ensureLoggedIn(page);
+  let firstTrace = null;
+  for (let s = 1; s <= 6; s++) {
+    const t = buildTrace(s);
+    if (!firstTrace) firstTrace = t.traceId;
+    await api(page, 'POST', '/otlp/v1/traces', t.body).catch(() => {});
+  }
+  await page.waitForTimeout(400);
+  await gotoView(page, '#/traces', 'h1, h2, [class*="page-title"]');
+  await page.waitForTimeout(700);
+  await page.screenshot({ path: shot('13-traces.png'), fullPage: false });
+
+  // 14 — waterfall: deep-link to a known trace. The detail view has no
+  // generic page-title heading, so navigate + settle rather than wait on a
+  // selector (a miss here must not abort the rest of the serial sweep).
+  if (firstTrace) {
+    await gotoView(page, `#/traces/${firstTrace}`);
+    await page.waitForTimeout(1200);
+    await page.screenshot({ path: shot('14-trace-waterfall.png'), fullPage: false });
+  }
+
+  // 15 — service map tab (best-effort click).
+  await gotoView(page, '#/traces', 'h1, h2, [class*="page-title"]');
+  const mapTab = page.getByRole('button', { name: /service map/i })
+    .or(page.getByText(/service map/i)).first();
+  if (await mapTab.isVisible().catch(() => false)) {
+    await mapTab.click().catch(() => {});
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: shot('15-service-map.png'), fullPage: false });
+  }
+});
+
+// 16 — Logs: severity-mixed records, one correlated to a trace.
+test('16 logs — filtered stream', async ({ page }) => {
+  await ensureLoggedIn(page);
+  const rec = (sevNum, sevText, body, traceId) => ({
+    timeUnixNano: NS(0), severityNumber: sevNum, severityText: sevText,
+    body: { stringValue: body }, ...(traceId ? { traceId } : {}),
+  });
+  const payload = {
+    resourceLogs: [
+      { resource: svc('checkout'), scopeLogs: [{ logRecords: [
+        rec(9, 'INFO', 'order 4821 placed'),
+        rec(9, 'INFO', 'cart validated for user 91'),
+        rec(13, 'WARN', 'retrying payment gateway (attempt 2)'),
+        rec(17, 'ERROR', 'payment gateway timeout after 30s', buildTrace(3).traceId),
+      ] }] },
+      { resource: svc('payments'), scopeLogs: [{ logRecords: [
+        rec(9, 'INFO', 'charge authorized: $42.00'),
+        rec(17, 'ERROR', 'stripe 502 Bad Gateway'),
+      ] }] },
+    ],
+  };
+  await api(page, 'POST', '/otlp/v1/logs', payload).catch(() => {});
+  await page.waitForTimeout(400);
+  await gotoView(page, '#/logs');
+  await page.waitForTimeout(700);
+  await page.screenshot({ path: shot('16-logs.png'), fullPage: false });
+});
+
+// 17 — RUM: web-vitals beacons across a couple of pages.
+test('17 rum — web vitals', async ({ page }) => {
+  await ensureLoggedIn(page);
+  const beacon = (url, m) => api(page, 'POST', '/rum/v1/events', {
+    app: 'storefront', url, session: Math.random().toString(36).slice(2),
+    ua: 'Mozilla/5.0', metrics: m,
+  }).catch(() => {});
+  for (let i = 0; i < 5; i++) {
+    await beacon('/', { lcp: 1800 + i * 120, fcp: 900 + i * 40, cls: 0.04 + i * 0.01, inp: 120 + i * 15, ttfb: 210, load: 2400 });
+    await beacon('/product/42', { lcp: 2600 + i * 90, fcp: 1300, cls: 0.11, inp: 240, ttfb: 320, load: 3200 });
+  }
+  await page.waitForTimeout(400);
+  await gotoView(page, '#/rum');
+  await page.waitForTimeout(700);
+  await page.screenshot({ path: shot('17-rum.png'), fullPage: false });
+});
+
+// 18 — On-call: a rotation over two channels.
+test('18 on-call — rotation schedule', async ({ page, browserName }) => {
+  await ensureLoggedIn(page);
+  try {
+    const c1 = await api(page, 'POST', '/v1/notifications', { kind: 'webhook', name: uniq('primary', browserName), config: { url: 'https://hooks.example.com/primary' }, active: true });
+    const c2 = await api(page, 'POST', '/v1/notifications', { kind: 'webhook', name: uniq('secondary', browserName), config: { url: 'https://hooks.example.com/secondary' }, active: true });
+    await api(page, 'POST', '/v1/on-call-schedules', {
+      name: 'Platform on-call', rotation_seconds: 604800,
+      anchor: new Date().toISOString(), participant_ids: [c1.id, c2.id],
+    }).catch(() => {});
+  } catch { /* ignore */ }
+  await gotoView(page, '#/on-call');
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: shot('18-on-call.png'), fullPage: false });
+});
+
+// 19 — Alert rules: a few telemetry threshold rules across tiers.
+test('19 alert-rules — telemetry thresholds', async ({ page }) => {
+  await ensureLoggedIn(page);
+  const rules = [
+    { name: 'Checkout error spike', kind: 'error_rate', target: 'web-frontend', op: 'gt', threshold: 10, window_seconds: 300 },
+    { name: 'API p95 latency', kind: 'trace_latency', target: 'checkout', op: 'gt', threshold: 500, window_seconds: 600 },
+    { name: 'Payments error rate', kind: 'trace_error_rate', target: 'payments', op: 'gt', threshold: 5, window_seconds: 600 },
+    { name: 'Error-log flood', kind: 'log_volume', target: '', min_level: 17, op: 'gt', threshold: 50, window_seconds: 300 },
+  ];
+  for (const r of rules) await api(page, 'POST', '/v1/telemetry-rules', r).catch(() => {});
+  await gotoView(page, '#/alert-rules');
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: shot('19-alert-rules.png'), fullPage: false });
+});
+
+// 20 — Ingest token settings (populated field).
+test('20 ingest-settings — telemetry token', async ({ page }) => {
+  await ensureLoggedIn(page);
+  await api(page, 'PUT', '/v1/settings/telemetry-token', { token: 'rmp_demo_ingest_token_5f3c9a' }).catch(() => {});
+  await gotoView(page, '#/settings/ingest');
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: shot('20-ingest-token.png'), fullPage: false });
+  // Clear it again so it doesn't gate the other shots / reruns.
+  await api(page, 'PUT', '/v1/settings/telemetry-token', { token: '' }).catch(() => {});
+});
+
+// 21 — Synthetics: the multi-step builder in the monitor wizard. Every
+// interaction uses a short timeout + catch so a selector miss can't hang the
+// 30s test budget; we screenshot whatever state we reach.
+test('21 synthetics — step builder', async ({ page }) => {
+  await ensureLoggedIn(page);
+  await gotoView(page, '#/new-monitor');
+  await expect(page.getByText(/Pick a check type/i)).toBeVisible();
+  try {
+    await page.getByText('Synthetic transaction', { exact: false })
+      .first().click({ timeout: 4000 });
+    await page.getByRole('button', { name: /continue/i })
+      .click({ timeout: 4000 });
+    // Step 2 of the synthetic flow is the ordered HTTP-step builder.
+    await page.waitForTimeout(900);
+  } catch { /* fall back to whatever rendered */ }
+  await page.screenshot({ path: shot('21-synthetics.png'), fullPage: false });
+});

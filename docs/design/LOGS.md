@@ -1,5 +1,8 @@
 # Log ingestion (Tier 3)
 
+![Logs — severity/service-filtered stream](../assets/screenshots/16-logs.png)
+
+
 Status: **implemented (v1)**. See [`docs/ROADMAP.md`](../ROADMAP.md) Tier 3.
 Builds on the OTLP ingest foundation from the traces tier.
 

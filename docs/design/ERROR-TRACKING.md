@@ -1,6 +1,8 @@
 # Design: error & exception tracking (Tier 1)
 
-Status: **proposed** (design spec for the next build; not yet implemented).
+![Error tracking — project with grouped issues](../assets/screenshots/12-errors.png)
+
+Status: **shipped** (v0.8.0). This page is the design spec; the feature is live.
 See [`docs/ROADMAP.md`](../ROADMAP.md) for where this sits.
 
 Goal: capture exceptions from running applications, group them into **issues**

@@ -1,5 +1,8 @@
 # Real User Monitoring (Tier 4)
 
+![RUM — Core Web Vitals p75 + per-page table](../assets/screenshots/17-rum.png)
+
+
 Status: **implemented (v1)**. See [`docs/ROADMAP.md`](../ROADMAP.md) Tier 4 —
 the last tier, completing the observability platform.
 
