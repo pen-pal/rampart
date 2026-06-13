@@ -43,7 +43,7 @@ test('public status page accepts a subscriber via the SubscribeBox', async ({ pa
   //    type=email so we target it by placeholder.
   const email = `subscriber-${browserName}-${Date.now()}@example.com`;
   await page.getByPlaceholder(/you@example\.com/i).fill(email);
-  await page.getByRole('button', { name: /subscribe to updates/i }).click();
+  await page.getByRole('button', { name: /^subscribe$/i }).click();
 
   // 4. Success message renders inline — `state === 'ok'` branch in
   //    SubscribeBox.
