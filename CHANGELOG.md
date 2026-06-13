@@ -17,6 +17,10 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+---
+
+## [0.8.0] — 2026-06-13
+
 ### Added
 
 - **Cross-tier correlation** — the observability tiers now link to each other.
@@ -26,7 +30,6 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
   straight to that **trace** and its **logs**. Traces + logs are now
   deep-linkable (`#/traces/{id}`, `#/logs/trace/{id}`).
 
-### Added
 
 - **Log ingestion — OTLP (Tier 3)** (migration `0079`) — ingest OpenTelemetry
   logs over OTLP and serve a filtered log stream. `POST /otlp/v1/logs` accepts
@@ -44,7 +47,6 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
   network-scoped, uncompressed, unsampled; body search is substring (FTS is a
   follow-up).
 
-### Added
 
 - **Distributed tracing — OTLP (Tier 2 / APM)** (migration `0078`) — ingest
   OpenTelemetry spans and assemble them into traces. `POST /otlp/v1/traces`
@@ -729,7 +731,8 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 
 ---
 
-[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.8.0...HEAD
+[0.8.0]:      https://github.com/pen-pal/rampart/releases/tag/v0.8.0
 [0.7.0]:      https://github.com/pen-pal/rampart/releases/tag/v0.7.0
 [0.6.0]:      https://github.com/pen-pal/rampart/releases/tag/v0.6.0
 [0.5.0]:      https://github.com/pen-pal/rampart/releases/tag/v0.5.0
