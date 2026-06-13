@@ -19,8 +19,10 @@ shared OTLP attribute helpers) and OTLP/protobuf (`application/x-protobuf`, via
 controls exposure). Point an OTel SDK/Collector logs exporter at
 `http://<host>/otlp`.
 
-> v1 limitations match the traces tier: unauthenticated (network-scoped),
-> uncompressed, unsampled.
+`Content-Encoding: gzip`/`deflate` bodies are transparently inflated, and the
+optional shared **ingest token** (Settings → Ingest token) gates this endpoint
+the same way as the traces tier (`Authorization: Bearer`/`X-Rampart-Token`).
+Unsampled — all records are stored, bounded by retention.
 
 ## Storage & model
 
@@ -51,6 +53,5 @@ severity text, and attributes.
 - Full-text search (Postgres `tsvector`) instead of `ILIKE` substring.
 - Live tail (SSE), and cross-tier nav: trace detail → its logs (by `trace_id`),
   error issue → correlated logs.
-- A plain-JSON bulk ingest for non-OTel sources; ingest auth + gzip; volume
-  controls (sampling / drop rules) and an opt-in columnar/object store if
-  Postgres is outgrown.
+- A plain-JSON bulk ingest for non-OTel sources; volume controls (sampling /
+  drop rules) and an opt-in columnar/object store if Postgres is outgrown.

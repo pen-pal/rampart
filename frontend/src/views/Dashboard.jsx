@@ -1838,6 +1838,7 @@ function NavMenu({ writable } = {}) {
     { sep: true },
     { href: '#/settings/smtp',      label: 'SMTP settings',    Icon: Mail },
     { href: '#/settings/retention', label: 'Retention',        Icon: DbIcon },
+    { href: '#/settings/ingest',    label: 'Ingest token',     Icon: Key },
   ];
 
   return (

@@ -23,9 +23,12 @@ like a Prometheus scrape target. Point any OTel SDK or Collector's OTLP/HTTP
 exporter at `http://<rampart-host>/otlp` (the exporter appends `/v1/traces`).
 The response is an empty `ExportTraceServiceResponse` (`{}` = full success).
 
-> v1 limitations: ingest is unauthenticated (network-scoped) and uncompressed
-> (no gzip request decode); both are planned follow-ups. No tail sampling —
-> all spans are stored, bounded by retention.
+Requests with `Content-Encoding: gzip` or `deflate` are transparently
+inflated (OTel exporters gzip by default). Ingest auth is **optional**: when
+the operator sets a shared **ingest token** (Settings → Ingest token) it must
+be presented as `Authorization: Bearer <token>` or `X-Rampart-Token`; left
+blank, the surface stays open (network-scoped, single-tenant). No tail
+sampling — all spans are stored, bounded by retention.
 
 ## Storage & model
 
@@ -57,7 +60,6 @@ offset + duration, errors in red, span kind tagged), and a **service map** tab
 
 ## Follow-ups (deferred)
 
-- Ingest auth (a token like the error-tracking DSN) + gzip request decode.
 - Tail/head sampling for high volume; an opt-in columnar span store if Postgres
   is outgrown (consistent with the metrics/logs storage stance).
 - Trace ↔ error-issue and trace ↔ log correlation by ids (cross-tier nav).

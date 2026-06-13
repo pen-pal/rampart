@@ -17,6 +17,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **Ingest compression + optional auth.** The OTLP trace/log endpoints
+  (`/otlp/v1/traces`, `/otlp/v1/logs`) and the RUM beacon endpoint
+  (`/rum/v1/events`) now transparently inflate `Content-Encoding: gzip` and
+  `deflate` bodies — stock OpenTelemetry SDKs/Collectors gzip their OTLP/HTTP
+  exports by default, so this is required for them to work out of the box. An
+  optional shared **ingest token** (Settings → Ingest token, admin-only)
+  guards these root-level surfaces: leave it blank to keep them open (the
+  operator controls network exposure), or set it and have collectors present
+  it via `Authorization: Bearer <token>` / `X-Rampart-Token`, or the RUM
+  snippet's `data-token` attribute (`?k=` query param). The gzip/deflate
+  helper is now shared with the Sentry error-ingest path.
+
 ---
 
 ## [0.8.0] — 2026-06-13
