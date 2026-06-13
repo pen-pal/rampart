@@ -11,6 +11,9 @@
 //!   BIND_ADDR             default 0.0.0.0:3000
 //!   RUST_LOG              default "rampart=info,tower_http=info,info"
 //!   DATABASE_POOL_SIZE    default 16
+//!   RAMPART_SSRF_BLOCK_PRIVATE  "1"/"true" → probes also refuse private/
+//!                         internal IP ranges (off by default; metadata +
+//!                         loopback + link-local are always blocked).
 
 use rampart_api::{build_router, state::AppState, static_assets};
 use std::net::SocketAddr;

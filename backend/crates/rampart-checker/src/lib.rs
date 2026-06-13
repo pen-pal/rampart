@@ -38,6 +38,7 @@ pub mod rdap;
 pub mod redis;
 pub mod snmp;
 pub mod ssdp;
+pub mod ssrf;
 pub mod steam;
 pub mod synthetic;
 pub mod tcp;
