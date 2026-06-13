@@ -262,7 +262,9 @@ async fn retention_put(
 // exposure). Admin-only; the value is returned in the clear so the operator
 // can paste it into their collector/exporter config (like an ingest token).
 
-async fn telemetry_token_get(State(s): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
+async fn telemetry_token_get(
+    State(s): State<AppState>,
+) -> Result<Json<serde_json::Value>, ApiError> {
     let token = crate::ingest_util::configured_token(s.pool())
         .await?
         .unwrap_or_default();

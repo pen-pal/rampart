@@ -127,8 +127,7 @@ pub async fn update(
     id: TelemetryRuleId,
     patch: UpdateTelemetryRule,
 ) -> DbResult<TelemetryRule> {
-    let channel_ids: Option<Vec<Uuid>> =
-        patch.channel_ids.map(|v| v.iter().map(|c| c.0).collect());
+    let channel_ids: Option<Vec<Uuid>> = patch.channel_ids.map(|v| v.iter().map(|c| c.0).collect());
     let result = sqlx::query!(
         r#"
         UPDATE telemetry_alert_rules SET
@@ -312,7 +311,11 @@ pub async fn evaluate_tick(pool: &DbPool) -> DbResult<Vec<RuleEvent>> {
                 )
                 .execute(pool)
                 .await?;
-                out.push(RuleEvent { rule, transition, value });
+                out.push(RuleEvent {
+                    rule,
+                    transition,
+                    value,
+                });
             }
             RuleTransition::Resolve => {
                 sqlx::query!(
@@ -321,7 +324,11 @@ pub async fn evaluate_tick(pool: &DbPool) -> DbResult<Vec<RuleEvent>> {
                 )
                 .execute(pool)
                 .await?;
-                out.push(RuleEvent { rule, transition, value });
+                out.push(RuleEvent {
+                    rule,
+                    transition,
+                    value,
+                });
             }
         }
     }

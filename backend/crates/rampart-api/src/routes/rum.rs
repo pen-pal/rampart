@@ -145,11 +145,11 @@ async fn ingest_error(
         } },
     });
     let parsed = rampart_core::error_tracking::ParsedEvent::from_sentry_json(sentry);
-    let outcome = match rampart_db::error_tracking::record_event(s.pool(), project.id, &parsed).await
-    {
-        Ok(o) => o,
-        Err(_) => return StatusCode::NO_CONTENT,
-    };
+    let outcome =
+        match rampart_db::error_tracking::record_event(s.pool(), project.id, &parsed).await {
+            Ok(o) => o,
+            Err(_) => return StatusCode::NO_CONTENT,
+        };
 
     // Alert on new / regressed issues only, off the request path (mirrors the
     // Sentry ingest route).

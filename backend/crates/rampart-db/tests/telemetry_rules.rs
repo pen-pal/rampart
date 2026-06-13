@@ -74,7 +74,10 @@ async fn log_volume_fires_and_resolves(pool: PgPool) {
     // Below threshold (2 warns) → no fire.
     insert_log(&pool, "api", 13, "slow").await;
     insert_log(&pool, "api", 17, "boom").await; // error
-    assert!(telemetry_rules::evaluate_tick(&pool).await.unwrap().is_empty());
+    assert!(telemetry_rules::evaluate_tick(&pool)
+        .await
+        .unwrap()
+        .is_empty());
 
     // Third warn+ crosses the threshold → fire.
     insert_log(&pool, "api", 17, "boom again").await;
@@ -82,10 +85,17 @@ async fn log_volume_fires_and_resolves(pool: PgPool) {
     assert_eq!(ev.len(), 1);
     assert_eq!(ev[0].transition, RuleTransition::Fire);
     assert_eq!(ev[0].value, Some(3.0));
-    assert!(telemetry_rules::get(&pool, r.id).await.unwrap().firing_at.is_some());
+    assert!(telemetry_rules::get(&pool, r.id)
+        .await
+        .unwrap()
+        .firing_at
+        .is_some());
 
     // Still firing → no repeat page.
-    assert!(telemetry_rules::evaluate_tick(&pool).await.unwrap().is_empty());
+    assert!(telemetry_rules::evaluate_tick(&pool)
+        .await
+        .unwrap()
+        .is_empty());
 
     // Age every log out of the window → count falls to 0 → resolve.
     sqlx::query!("UPDATE logs SET ts = now() - interval '20 minutes'")
@@ -95,7 +105,11 @@ async fn log_volume_fires_and_resolves(pool: PgPool) {
     let ev = telemetry_rules::evaluate_tick(&pool).await.unwrap();
     assert_eq!(ev.len(), 1);
     assert_eq!(ev[0].transition, RuleTransition::Resolve);
-    assert!(telemetry_rules::get(&pool, r.id).await.unwrap().firing_at.is_none());
+    assert!(telemetry_rules::get(&pool, r.id)
+        .await
+        .unwrap()
+        .firing_at
+        .is_none());
 }
 
 #[sqlx::test(migrations = "../../migrations")]
@@ -114,7 +128,10 @@ async fn log_volume_min_level_and_body_filter(pool: PgPool) {
     // A warn (below min_level) and an error without the substring → no match.
     insert_log(&pool, "api", 13, "connection timeout").await;
     insert_log(&pool, "api", 17, "disk full").await;
-    assert!(telemetry_rules::evaluate_tick(&pool).await.unwrap().is_empty());
+    assert!(telemetry_rules::evaluate_tick(&pool)
+        .await
+        .unwrap()
+        .is_empty());
 
     // An error containing "timeout" → fires.
     insert_log(&pool, "api", 17, "upstream timeout after 30s").await;
@@ -134,7 +151,10 @@ async fn trace_latency_p95_and_no_data_resolves(pool: PgPool) {
     .unwrap();
 
     // No spans → no data → not breached → nothing.
-    assert!(telemetry_rules::evaluate_tick(&pool).await.unwrap().is_empty());
+    assert!(telemetry_rules::evaluate_tick(&pool)
+        .await
+        .unwrap()
+        .is_empty());
 
     // A batch whose p95 is well over 500ms → fire.
     for _ in 0..19 {
@@ -155,7 +175,11 @@ async fn trace_latency_p95_and_no_data_resolves(pool: PgPool) {
     assert_eq!(ev.len(), 1);
     assert_eq!(ev[0].transition, RuleTransition::Resolve);
     assert_eq!(ev[0].value, None);
-    assert!(telemetry_rules::get(&pool, r.id).await.unwrap().firing_at.is_none());
+    assert!(telemetry_rules::get(&pool, r.id)
+        .await
+        .unwrap()
+        .firing_at
+        .is_none());
 }
 
 #[sqlx::test(migrations = "../../migrations")]
@@ -173,7 +197,10 @@ async fn trace_error_rate_percent(pool: PgPool) {
         insert_span(&pool, "api", 10.0, 1).await;
     }
     insert_span(&pool, "api", 10.0, 2).await; // error
-    assert!(telemetry_rules::evaluate_tick(&pool).await.unwrap().is_empty());
+    assert!(telemetry_rules::evaluate_tick(&pool)
+        .await
+        .unwrap()
+        .is_empty());
 
     // Add another error → 2/5 = 40% → fire.
     insert_span(&pool, "api", 10.0, 2).await;
@@ -195,5 +222,8 @@ async fn disabled_rule_is_never_evaluated(pool: PgPool) {
     .await
     .unwrap();
     insert_log(&pool, "api", 17, "boom").await;
-    assert!(telemetry_rules::evaluate_tick(&pool).await.unwrap().is_empty());
+    assert!(telemetry_rules::evaluate_tick(&pool)
+        .await
+        .unwrap()
+        .is_empty());
 }

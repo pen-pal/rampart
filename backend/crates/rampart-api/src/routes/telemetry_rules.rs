@@ -20,10 +20,7 @@ use validator::Validate;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list).post(create))
-        .route(
-            "/{id}",
-            axum::routing::patch(update).delete(delete_rule),
-        )
+        .route("/{id}", axum::routing::patch(update).delete(delete_rule))
 }
 
 fn parse_id(s: &str) -> Result<TelemetryRuleId, ApiError> {
