@@ -1,0 +1,123 @@
+site_name: Rampart
+site_description: >-
+  Self-hosted uptime monitoring and observability — one Rust binary. Status
+  pages, error tracking, traces, logs, RUM, and tier alerting, no SaaS.
+site_url: https://pen-pal.github.io/rampart/
+repo_url: https://github.com/pen-pal/rampart
+repo_name: pen-pal/rampart
+edit_uri: edit/main/docs/
+copyright: AGPL-3.0 · self-hosted, single-tenant, zero telemetry
+
+docs_dir: docs
+
+# Several docs intentionally link to repo-root files (CHANGELOG, README,
+# .github/*, backend sources) for the GitHub view — those live outside
+# docs_dir, so don't fail the strict site build over them. Nav/config
+# errors still fail under --strict.
+validation:
+  nav:
+    omitted_files: info
+  links:
+    not_found: ignore
+    absolute_links: ignore
+    unrecognized_links: ignore
+
+theme:
+  name: material
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - navigation.indexes
+    - navigation.footer
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+    - content.action.edit
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - footnotes
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+plugins:
+  - search
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/pen-pal/rampart
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Install & setup: SETUP.md
+      - First-run walkthrough: WALKTHROUGH.md
+  - Monitoring:
+      - Remote probe agents: AGENTS.md
+      - Cron-job monitoring: CRON-JOBS.md
+      - Synthetic transactions: SYNTHETICS.md
+      - Importers: IMPORTERS.md
+  - Observability:
+      - Error tracking: design/ERROR-TRACKING.md
+      - Traces / APM: design/TRACES.md
+      - Logs: design/LOGS.md
+      - RUM: design/RUM.md
+  - Alerting & response:
+      - Metric rules: METRICS.md
+      - Telemetry alert rules: design/ALERT-RULES.md
+      - Escalation policies: ESCALATIONS.md
+      - On-call rotations: ON-CALL.md
+  - Ingest & API:
+      - Inbound webhooks & ingest tokens: INGEST.md
+      - Notifications & templating: NOTIFICATIONS.md
+      - Result webhooks: RESULT-WEBHOOKS.md
+      - REST API & OpenAPI: API.md
+  - Operations:
+      - Architecture: ARCHITECTURE.md
+      - Dependencies: DEPENDENCIES.md
+      - Security debt: SECURITY-DEBT.md
+      - Security-review agent: SECURITY-REVIEW-AGENT.md
+      - Releasing: RELEASING.md
+      - Maintainers: MAINTAINERS.md
+  - Project:
+      - Roadmap & vision: ROADMAP.md
+      - Original design notes: DESIGN-ORIGINAL.md
