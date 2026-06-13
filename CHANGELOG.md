@@ -19,6 +19,15 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ### Added
 
+- **Leader election for safe multi-replica / HA.** The scheduler, notifier
+  digest-flush, escalation timers and retention prune now run only on the one
+  replica holding a Postgres session **advisory lock** (`rampart_db::leader`).
+  Previously every replica ran its own scheduler, so scaling past one pod
+  meant N× probing and **duplicate alerts**; now extra replicas serve HTTP
+  while a single leader owns the background work, and a follower takes over
+  within ~10s of the leader exiting (active-passive HA + safe HorizontalPod
+  Autoscaling — the Helm chart's autoscaling is now genuinely safe). Single
+  replica is unchanged (lock acquired immediately).
 - **Browser error capture (RUM → error tier).** The RUM snippet now hooks
   `window.onerror` + `unhandledrejection` and forwards uncaught front-end
   exceptions to `POST /rum/v1/errors`. The server records them in the
@@ -54,6 +63,14 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
   it via `Authorization: Bearer <token>` / `X-Rampart-Token`, or the RUM
   snippet's `data-token` attribute (`?k=` query param). The gzip/deflate
   helper is now shared with the Sentry error-ingest path.
+
+### Fixed
+
+- **Container image build** (`exit 101`). `routes/openapi.rs` `include_str!`s
+  `docs/openapi.{yaml,json}` at compile time, but the Dockerfile only copied
+  `backend/` — so the in-container release build couldn't read the spec. Copy
+  the OpenAPI files into the build context. (Root cause was a missing file, not
+  the memory pressure earlier suspected.)
 
 ---
 

@@ -47,11 +47,19 @@ async fn main() -> anyhow::Result<()> {
     rampart_db::migrate(&pool).await?;
     info!("migrations applied");
 
+    // Leader election. Only the replica holding the Postgres advisory lock
+    // runs the scheduler / notifier digest flush / retention prune, so a
+    // multi-replica deployment never double-probes or double-pages. On a
+    // single replica the lock is acquired immediately (no behaviour change).
+    // The HTTP API below runs on every replica regardless.
+    let leadership = rampart_db::leader::spawn(database_url.clone());
+
     // Bring up the notifier service first so the scheduler can hand
     // events to it as soon as a monitor flips status.
     let (notifier_service, notifier_handle) = rampart_notifier::NotifierService::new(pool.clone());
+    let notifier_leadership = leadership.clone();
     tokio::spawn(async move {
-        notifier_service.run().await;
+        notifier_service.run(notifier_leadership).await;
     });
     info!("notifier service started");
 
@@ -65,8 +73,9 @@ async fn main() -> anyhow::Result<()> {
     ));
     let reload_handle = scheduler.reload_handle();
     let scheduler_for_run = scheduler.clone();
+    let scheduler_leadership = leadership.clone();
     tokio::spawn(async move {
-        scheduler_for_run.run().await;
+        scheduler_for_run.run(scheduler_leadership).await;
     });
     info!("scheduler started");
 
@@ -75,8 +84,14 @@ async fn main() -> anyhow::Result<()> {
     // days by default). Best-effort; failures log but don't kill the
     // task.
     let prune_pool = pool.clone();
+    let prune_leadership = leadership.clone();
     tokio::spawn(async move {
-        rampart_db::prune::run_loop(prune_pool, std::time::Duration::from_secs(3600)).await;
+        rampart_db::prune::run_loop(
+            prune_pool,
+            std::time::Duration::from_secs(3600),
+            prune_leadership,
+        )
+        .await;
     });
     info!("retention prune loop started");
 
