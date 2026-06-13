@@ -1003,6 +1003,17 @@ const en = {
   'settings.retention.err_positive': 'Both windows must be a positive number of days.',
   'settings.retention.err_save':     'Save failed.',
 
+  // ── ingest token ─────────────────────────────────────────────────
+  'settings.ingest.title':           'Ingest token',
+  'settings.ingest.subtitle':        'Optional shared secret guarding the OTLP trace/log and RUM beacon ingest endpoints. Leave blank to keep them open (the operator controls network exposure). Once set, collectors must present it.',
+  'settings.ingest.saved':           'Ingest token saved.',
+  'settings.ingest.token_label':     'Token',
+  'settings.ingest.token_placeholder': 'blank = ingest open',
+  'settings.ingest.token_hint':      'Send it from an OTel exporter as an Authorization: Bearer <token> header (or X-Rampart-Token). For the RUM snippet, add data-token="<token>" to the script tag — note that a browser token is necessarily public, so it is an anti-abuse gate, not a secret.',
+  'settings.ingest.show':            'Show',
+  'settings.ingest.hide':            'Hide',
+  'settings.ingest.err_save':        'Save failed.',
+
   // ── security ─────────────────────────────────────────────────────
   'security.title':                  'Security',
   'security.subtitle':               'Account-level protections. Two-factor auth gates the password login with a one-time code from your authenticator app.',

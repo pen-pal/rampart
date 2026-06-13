@@ -1,0 +1,182 @@
+//! Shared helpers for the public ingest surfaces (OTLP, RUM, Sentry).
+//!
+//! Two concerns live here because every external-telemetry endpoint needs
+//! them and they were previously duplicated:
+//!
+//!  - [`decompress`] — transparent `Content-Encoding: gzip|deflate` decode.
+//!    Stock OpenTelemetry SDKs/Collectors gzip their OTLP/HTTP exports by
+//!    default and Sentry SDKs gzip envelopes, so an ingest endpoint that
+//!    only reads the raw body silently rejects real-world traffic.
+//!
+//!  - [`require_telemetry_token`] — optional shared-secret auth for the
+//!    root-level ingest endpoints. Single-tenant Rampart leans on the
+//!    operator controlling network exposure, so auth is *opt-in*: if the
+//!    `telemetry_token` setting is empty/unset the endpoints stay open
+//!    (unchanged behaviour); once the operator sets a token, OTLP + RUM
+//!    ingest require it. The token is matched against, in order, an
+//!    `Authorization: Bearer <tok>` header, an `X-Rampart-Token` header,
+//!    or a `?k=<tok>` query param (the last is for `navigator.sendBeacon`,
+//!    which can't set request headers).
+
+use crate::error::ApiError;
+use axum::http::HeaderMap;
+use rampart_db::DbPool;
+use std::io::Read;
+
+/// Setting key holding the optional shared ingest secret (a JSON string).
+pub const TELEMETRY_TOKEN_KEY: &str = "telemetry_token";
+
+/// Decode `body` per its `Content-Encoding` header. Unknown/absent encodings
+/// pass through unchanged; `gzip` and `deflate` (zlib) are inflated.
+pub fn decompress(headers: &HeaderMap, body: &[u8]) -> Result<Vec<u8>, ApiError> {
+    let enc = headers
+        .get("content-encoding")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if enc.contains("gzip") {
+        let mut out = Vec::new();
+        flate2::read::GzDecoder::new(body)
+            .read_to_end(&mut out)
+            .map_err(|_| ApiError::BadRequest("invalid gzip body".into()))?;
+        Ok(out)
+    } else if enc.contains("deflate") {
+        let mut out = Vec::new();
+        flate2::read::ZlibDecoder::new(body)
+            .read_to_end(&mut out)
+            .map_err(|_| ApiError::BadRequest("invalid deflate body".into()))?;
+        Ok(out)
+    } else {
+        Ok(body.to_vec())
+    }
+}
+
+/// Read the configured telemetry token, if any. `None` means auth is
+/// disabled (the endpoints stay open). An empty-string setting is treated
+/// the same as unset so clearing the field in the UI re-opens the surface.
+pub async fn configured_token(pool: &DbPool) -> Result<Option<String>, ApiError> {
+    let raw = rampart_db::settings::get(pool, TELEMETRY_TOKEN_KEY).await?;
+    Ok(raw
+        .and_then(|v| v.as_str().map(str::to_owned))
+        .filter(|s| !s.is_empty()))
+}
+
+/// Extract the caller-presented token from the request: `Authorization:
+/// Bearer <tok>`, then `X-Rampart-Token: <tok>`, then `?k=<tok>`.
+pub fn presented_token<'a>(headers: &'a HeaderMap, query_k: Option<&'a str>) -> Option<&'a str> {
+    if let Some(bearer) = headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer ").or_else(|| v.strip_prefix("bearer ")))
+    {
+        let bearer = bearer.trim();
+        if !bearer.is_empty() {
+            return Some(bearer);
+        }
+    }
+    if let Some(h) = headers.get("x-rampart-token").and_then(|v| v.to_str().ok()) {
+        let h = h.trim();
+        if !h.is_empty() {
+            return Some(h);
+        }
+    }
+    query_k.map(str::trim).filter(|s| !s.is_empty())
+}
+
+/// Enforce telemetry auth. Returns `Ok(())` when no token is configured
+/// (auth disabled) or when the presented token matches; `Err(Unauthorized)`
+/// otherwise. Comparison is constant-time to avoid leaking the secret via
+/// timing.
+pub async fn require_telemetry_token(
+    pool: &DbPool,
+    headers: &HeaderMap,
+    query_k: Option<&str>,
+) -> Result<(), ApiError> {
+    let Some(expected) = configured_token(pool).await? else {
+        return Ok(());
+    };
+    let presented = presented_token(headers, query_k).unwrap_or("");
+    if constant_time_eq(presented.as_bytes(), expected.as_bytes()) {
+        Ok(())
+    } else {
+        Err(ApiError::Unauthorized)
+    }
+}
+
+/// Length-independent constant-time byte comparison. Mismatched lengths
+/// still walk the longer buffer so timing doesn't reveal the secret length.
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    let mut diff = (a.len() ^ b.len()) as u8;
+    let n = a.len().max(b.len());
+    for i in 0..n {
+        let x = a.get(i).copied().unwrap_or(0);
+        let y = b.get(i).copied().unwrap_or(0);
+        diff |= x ^ y;
+    }
+    diff == 0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::{HeaderMap, HeaderValue};
+    use std::io::Write;
+
+    #[test]
+    fn decompress_passthrough_when_unencoded() {
+        let h = HeaderMap::new();
+        assert_eq!(decompress(&h, b"hello").unwrap(), b"hello");
+    }
+
+    #[test]
+    fn decompress_gzip_roundtrip() {
+        let mut enc = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        enc.write_all(b"payload-body").unwrap();
+        let gz = enc.finish().unwrap();
+        let mut h = HeaderMap::new();
+        h.insert("content-encoding", HeaderValue::from_static("gzip"));
+        assert_eq!(decompress(&h, &gz).unwrap(), b"payload-body");
+    }
+
+    #[test]
+    fn decompress_deflate_roundtrip() {
+        let mut enc = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+        enc.write_all(b"deflated").unwrap();
+        let z = enc.finish().unwrap();
+        let mut h = HeaderMap::new();
+        h.insert("content-encoding", HeaderValue::from_static("deflate"));
+        assert_eq!(decompress(&h, &z).unwrap(), b"deflated");
+    }
+
+    #[test]
+    fn decompress_bad_gzip_is_bad_request() {
+        let mut h = HeaderMap::new();
+        h.insert("content-encoding", HeaderValue::from_static("gzip"));
+        assert!(decompress(&h, b"not-actually-gzip").is_err());
+    }
+
+    #[test]
+    fn presented_prefers_bearer_then_header_then_query() {
+        let mut h = HeaderMap::new();
+        h.insert("authorization", HeaderValue::from_static("Bearer abc"));
+        assert_eq!(presented_token(&h, Some("zzz")), Some("abc"));
+
+        let mut h = HeaderMap::new();
+        h.insert("x-rampart-token", HeaderValue::from_static("hdr"));
+        assert_eq!(presented_token(&h, Some("zzz")), Some("hdr"));
+
+        let h = HeaderMap::new();
+        assert_eq!(presented_token(&h, Some("qry")), Some("qry"));
+        assert_eq!(presented_token(&h, None), None);
+        assert_eq!(presented_token(&h, Some("")), None);
+    }
+
+    #[test]
+    fn constant_time_eq_matches_std_eq() {
+        assert!(constant_time_eq(b"secret", b"secret"));
+        assert!(!constant_time_eq(b"secret", b"secrxt"));
+        assert!(!constant_time_eq(b"secret", b"secre"));
+        assert!(!constant_time_eq(b"", b"x"));
+        assert!(constant_time_eq(b"", b""));
+    }
+}

@@ -8,8 +8,9 @@
 
 use crate::error::ApiError;
 use crate::state::AppState;
+use axum::body::Bytes;
 use axum::extract::{Query, State};
-use axum::http::{header, StatusCode};
+use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -31,12 +32,37 @@ pub fn router() -> Router<AppState> {
         .route("/apps", get(apps))
 }
 
+#[derive(Deserialize)]
+struct BeaconQuery {
+    /// Optional ingest token, forwarded by the snippet's `data-token`. The
+    /// beacon path uses a query param because `navigator.sendBeacon` can't
+    /// set request headers. This token is necessarily public (it ships in
+    /// the browser snippet) — it's an anti-abuse gate, not a secret.
+    k: Option<String>,
+}
+
 /// Accept a beacon. Body is JSON (sent as text/plain by sendBeacon, so we
-/// parse the raw string regardless of content-type). A malformed or empty
-/// beacon is silently accepted (204) — browsers ignore the response and we
-/// don't want ingest noise.
-async fn ingest(State(s): State<AppState>, body: String) -> StatusCode {
-    if let Ok(beacon) = serde_json::from_str::<RumBeacon>(&body) {
+/// parse the raw bytes regardless of content-type; gzip/deflate is inflated
+/// for the rare client that compresses). A malformed or empty beacon is
+/// silently accepted (204) — browsers ignore the response and we don't want
+/// ingest noise. If a telemetry token is configured it is enforced first.
+async fn ingest(
+    State(s): State<AppState>,
+    Query(q): Query<BeaconQuery>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> StatusCode {
+    if crate::ingest_util::require_telemetry_token(s.pool(), &headers, q.k.as_deref())
+        .await
+        .is_err()
+    {
+        return StatusCode::UNAUTHORIZED;
+    }
+    let raw = match crate::ingest_util::decompress(&headers, &body) {
+        Ok(r) => r,
+        Err(_) => return StatusCode::NO_CONTENT,
+    };
+    if let Ok(beacon) = serde_json::from_slice::<RumBeacon>(&raw) {
         if let Some(clean) = beacon.clean() {
             let _ = rampart_db::rum::insert_event(s.pool(), &clean).await;
         }
@@ -88,7 +114,8 @@ async fn snippet() -> impl IntoResponse {
 const SNIPPET: &str = r#"(function(){
   var s=document.currentScript, app=(s&&s.getAttribute('data-app'))||'web';
   var base=(s&&s.getAttribute('data-endpoint'))||(s&&new URL(s.src).origin)||location.origin;
-  var ep=base.replace(/\/$/,'')+'/rum/v1/events';
+  var tok=(s&&s.getAttribute('data-token'))||'';
+  var ep=base.replace(/\/$/,'')+'/rum/v1/events'+(tok?('?k='+encodeURIComponent(tok)):'');
   var m={}, sid=Math.random().toString(36).slice(2);
   function obs(type,cb){try{new PerformanceObserver(cb).observe({type:type,buffered:true});}catch(e){}}
   obs('largest-contentful-paint',function(l){var e=l.getEntries();if(e.length)m.lcp=e[e.length-1].startTime;});

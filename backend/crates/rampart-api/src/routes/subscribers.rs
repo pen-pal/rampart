@@ -48,6 +48,10 @@ pub fn settings_router() -> Router<AppState> {
     Router::new()
         .route("/settings/smtp", get(smtp_get).put(smtp_put))
         .route("/settings/retention", get(retention_get).put(retention_put))
+        .route(
+            "/settings/telemetry-token",
+            get(telemetry_token_get).put(telemetry_token_put),
+        )
 }
 
 #[derive(Deserialize)]
@@ -249,5 +253,42 @@ async fn retention_put(
         "audit_log":  input.audit_log,
     });
     rampart_db::settings::put(s.pool(), "retention_days", &value).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// ── Telemetry ingest token ────────────────────────────────────────────────
+// Optional shared secret guarding the root-level OTLP + RUM ingest surfaces.
+// Empty/absent => those endpoints stay open (the operator controls network
+// exposure). Admin-only; the value is returned in the clear so the operator
+// can paste it into their collector/exporter config (like an ingest token).
+
+async fn telemetry_token_get(State(s): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
+    let token = crate::ingest_util::configured_token(s.pool())
+        .await?
+        .unwrap_or_default();
+    Ok(Json(serde_json::json!({ "token": token })))
+}
+
+#[derive(Deserialize)]
+struct TelemetryTokenPut {
+    token: String,
+}
+
+async fn telemetry_token_put(
+    State(s): State<AppState>,
+    Json(input): Json<TelemetryTokenPut>,
+) -> Result<StatusCode, ApiError> {
+    let trimmed = input.token.trim();
+    if trimmed.is_empty() {
+        // Clear => disable auth (re-open the ingest surfaces).
+        rampart_db::settings::delete(s.pool(), crate::ingest_util::TELEMETRY_TOKEN_KEY).await?;
+    } else {
+        rampart_db::settings::put(
+            s.pool(),
+            crate::ingest_util::TELEMETRY_TOKEN_KEY,
+            &serde_json::Value::String(trimmed.to_owned()),
+        )
+        .await?;
+    }
     Ok(StatusCode::NO_CONTENT)
 }
