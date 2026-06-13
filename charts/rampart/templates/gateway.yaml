@@ -1,0 +1,35 @@
+{{- if and .Values.istio.enabled .Values.istio.gateway.enabled }}
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: {{ include "rampart.fullname" . }}
+  labels:
+    {{- include "rampart.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- toYaml .Values.istio.gateway.selector | nindent 4 }}
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        {{- toYaml .Values.istio.gateway.hosts | nindent 8 }}
+      {{- if and .Values.istio.gateway.tls.enabled .Values.istio.gateway.tls.httpsRedirect }}
+      tls:
+        httpsRedirect: true
+      {{- end }}
+    {{- if .Values.istio.gateway.tls.enabled }}
+    - port:
+        number: 443
+        name: https
+        protocol: HTTPS
+      hosts:
+        {{- toYaml .Values.istio.gateway.hosts | nindent 8 }}
+      tls:
+        mode: {{ .Values.istio.gateway.tls.mode | default "SIMPLE" }}
+        {{- if .Values.istio.gateway.tls.credentialName }}
+        credentialName: {{ .Values.istio.gateway.tls.credentialName }}
+        {{- end }}
+    {{- end }}
+{{- end }}

@@ -76,7 +76,17 @@ Resolve the database URL used by the app.
 {{- if .Values.postgres.embedded -}}
 postgres://{{ .Values.postgres.user }}:$(POSTGRES_PASSWORD)@{{ include "rampart.postgres.fullname" . }}:5432/{{ .Values.postgres.database }}
 {{- else -}}
-{{ required "externalDatabase.url is required when postgres.embedded=false" .Values.externalDatabase.url }}
+{{ required "Set externalDatabase.existingSecret (recommended) or externalDatabase.url, or postgres.embedded=true." .Values.externalDatabase.url }}
+{{- end -}}
+{{- end }}
+
+{{/*
+True when the DSN comes from a caller-supplied Secret — the chart then must NOT
+emit DATABASE_URL itself; the Deployment wires it via valueFrom instead.
+*/}}
+{{- define "rampart.usesExternalSecret" -}}
+{{- if and (not .Values.postgres.embedded) .Values.externalDatabase.existingSecret -}}
+true
 {{- end -}}
 {{- end }}
 

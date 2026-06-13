@@ -1,0 +1,88 @@
+# Lint the Helm chart on every change, and publish it as an OCI artifact to
+# GitHub Container Registry on a release tag.
+#
+#   Install:  helm install rampart oci://ghcr.io/pen-pal/charts/rampart --version <chart-version>
+#
+# Chart version is read from charts/rampart/Chart.yaml (independent of the app
+# version). Publishing fires on:
+#   - any v* tag (chart ships alongside an app release), and
+#   - any chart-v* tag (standalone chart bump), and
+#   - manual workflow_dispatch.
+name: helm
+
+on:
+  pull_request:
+    paths:
+      - charts/**
+      - .github/workflows/helm.yml
+  push:
+    branches: [main]
+    paths:
+      - charts/**
+      - .github/workflows/helm.yml
+    tags:
+      - "v*"
+      - "chart-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.3
+      - name: helm lint
+        run: helm lint charts/rampart --set externalDatabase.url='postgres://u:p@db:5432/rampart'
+      - name: helm template (default)
+        run: helm template r charts/rampart --set externalDatabase.url='postgres://u:p@db:5432/rampart' >/dev/null
+      - name: helm template (all features on)
+        run: |
+          helm template r charts/rampart \
+            --set externalDatabase.url='postgres://u:p@db:5432/rampart' \
+            --set autoscaling.enabled=true \
+            --set podDisruptionBudget.enabled=true \
+            --set networkPolicy.enabled=true,networkPolicy.egress.enabled=true \
+            --set istio.enabled=true,istio.gateway.tls.enabled=true,istio.gateway.tls.credentialName=tls \
+            --set serviceMonitor.enabled=true \
+            --set persistence.enabled=true \
+            --set ingress.enabled=true,ingress.certManager.enabled=true \
+            >/dev/null
+
+  publish:
+    # Only on a tag push or manual dispatch — never on PRs.
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    needs: lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write   # push the OCI chart to ghcr.io
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.3
+      - name: Log in to GHCR
+        run: helm registry login ghcr.io -u ${{ github.actor }} --password-stdin <<<"${{ secrets.GITHUB_TOKEN }}"
+      - name: Package
+        id: pkg
+        run: |
+          helm package charts/rampart --destination dist
+          echo "tgz=$(ls dist/*.tgz)" >> "$GITHUB_OUTPUT"
+      - name: Push to GHCR (OCI)
+        run: |
+          helm push "${{ steps.pkg.outputs.tgz }}" oci://ghcr.io/${{ github.repository_owner }}/charts
+      - name: Summary
+        run: |
+          ver=$(helm show chart charts/rampart | awk '/^version:/{print $2}')
+          {
+            echo "### Helm chart published 📦"
+            echo ""
+            echo '```'
+            echo "helm install rampart oci://ghcr.io/${{ github.repository_owner }}/charts/rampart --version ${ver}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

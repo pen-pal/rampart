@@ -90,6 +90,7 @@ nav:
   - Home: index.md
   - Getting started:
       - Install & setup: SETUP.md
+      - Kubernetes (Helm): KUBERNETES.md
       - First-run walkthrough: WALKTHROUGH.md
   - Monitoring:
       - Remote probe agents: AGENTS.md
