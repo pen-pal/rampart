@@ -79,11 +79,26 @@ jobs:
           cp "$BIN" "dist/${OUT}"
           (cd dist && shasum -a 256 "${OUT}" > "${OUT}.sha256")
 
+      # Use the curated CHANGELOG section for this version as the release
+      # body (the changelog is authoritative; the release page mirrors it —
+      # see docs/RELEASING.md). Falls back to a stub if the section is missing.
+      - name: Extract changelog notes
+        shell: bash
+        run: |
+          VER="${{ github.event.inputs.tag || github.ref_name }}"
+          VER="${VER#v}"
+          awk -v v="$VER" '
+            $0 ~ ("^## \\[" v "\\]") {f=1; next}
+            f && /^## \[/ {exit}
+            f {print}
+          ' CHANGELOG.md > "$RUNNER_TEMP/relnotes.md"
+          [ -s "$RUNNER_TEMP/relnotes.md" ] || echo "Rampart $VER" > "$RUNNER_TEMP/relnotes.md"
+
       - name: Upload to release
         uses: softprops/action-gh-release@v3
         with:
           files: |
             dist/rampart-${{ matrix.target }}
             dist/rampart-${{ matrix.target }}.sha256
-          generate_release_notes: true
+          body_path: ${{ runner.temp }}/relnotes.md
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
