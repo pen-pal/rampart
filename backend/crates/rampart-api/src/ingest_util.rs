@@ -67,7 +67,10 @@ pub fn presented_token<'a>(headers: &'a HeaderMap, query_k: Option<&'a str>) -> 
     if let Some(bearer) = headers
         .get("authorization")
         .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.strip_prefix("Bearer ").or_else(|| v.strip_prefix("bearer ")))
+        .and_then(|v| {
+            v.strip_prefix("Bearer ")
+                .or_else(|| v.strip_prefix("bearer "))
+        })
     {
         let bearer = bearer.trim();
         if !bearer.is_empty() {

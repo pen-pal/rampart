@@ -86,7 +86,5 @@ pub use synthetic::{
     AssertKind, Assertion, CompareOp, Extract, ExtractSource, SyntheticPlan, SyntheticStep,
 };
 pub use tag::{NewTag, Tag, TagBrief};
-pub use telemetry_rule::{
-    NewTelemetryRule, TelemetryRule, TelemetryRuleKind, UpdateTelemetryRule,
-};
+pub use telemetry_rule::{NewTelemetryRule, TelemetryRule, TelemetryRuleKind, UpdateTelemetryRule};
 pub use trace::{parse_otlp_traces_json, ParsedSpan, ServiceEdge, Span, TraceSummary};
