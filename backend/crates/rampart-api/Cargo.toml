@@ -39,7 +39,7 @@ serde              = { workspace = true }
 serde_json         = { workspace = true }
 csv                = { workspace = true }
 opentelemetry-proto = { workspace = true }
-prost              = "0.13"  # match opentelemetry-proto (its Message trait)
+prost              = "0.14"  # match opentelemetry-proto (its Message trait)
 hex                = { workspace = true }
 flate2             = { workspace = true }
 tracing            = { workspace = true }
