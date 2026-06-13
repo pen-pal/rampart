@@ -86,7 +86,13 @@ postgres:
   password: ""
 
 externalDatabase:
-  # Required when postgres.embedded=false.
+  # RECOMMENDED: reference an existing Secret holding the DSN. The app reads
+  # DATABASE_URL straight from it (valueFrom), so the connection string never
+  # lands in Helm values/release history.
+  existingSecret: ""
+  existingSecretKey: DATABASE_URL
+  # Inline DSN (eval only — ends up in values + the chart-managed Secret).
+  # Used when existingSecret is empty and postgres.embedded=false.
   # Format: postgres://user:pass@host:5432/dbname
   url: ""
 
@@ -140,3 +146,144 @@ podLabels: {}
 nodeSelector: {}
 tolerations: []
 affinity: {}
+
+# Spread replicas across zones/nodes (works with replicaCount > 1 or autoscaling).
+topologySpreadConstraints: []
+# - maxSkew: 1
+#   topologyKey: topology.kubernetes.io/zone
+#   whenUnsatisfiable: ScheduleAnyway
+#   labelSelector:
+#     matchLabels: {}   # auto-filled with the chart selector labels
+
+priorityClassName: ""
+
+# Rolling-update strategy for the Deployment.
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+# Startup probe — gives the process time to run migrations on first boot before
+# the liveness probe starts killing it. Shares the liveness path (/healthz).
+startupProbe:
+  enabled: true
+  httpGet:
+    path: /healthz
+    port: http
+  periodSeconds: 3
+  timeoutSeconds: 3
+  failureThreshold: 30   # ~90s for migrations on a cold DB
+
+# --- Horizontal Pod Autoscaler -------------------------------------------------
+# Rampart's API tier is stateless (all state in Postgres), so it scales
+# horizontally. The scheduler/notifier run in-process per pod but are
+# DB-coordinated + idempotent, so multiple replicas are safe.
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+  # behavior: {}   # optional scaleUp/scaleDown stabilization windows
+
+# --- Pod Disruption Budget -----------------------------------------------------
+# Protects availability during voluntary disruptions (node drains, upgrades).
+# Set ONE of minAvailable / maxUnavailable. Only meaningful with >1 replica.
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+  # maxUnavailable: ""
+
+# --- Persistence (optional) ----------------------------------------------------
+# Rampart is stateless — all data lives in Postgres — so persistence is OFF by
+# default. Enable it only if you mount something at a custom path (e.g. an
+# on-disk export dir). It does NOT replace the database.
+persistence:
+  enabled: false
+  existingClaim: ""
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 1Gi
+  mountPath: /var/lib/rampart
+  annotations: {}
+
+# Arbitrary extra volumes + mounts (config files, CA bundles, etc.).
+extraVolumes: []
+# - name: ca-bundle
+#   configMap:
+#     name: my-ca-bundle
+extraVolumeMounts: []
+# - name: ca-bundle
+#   mountPath: /etc/ssl/certs/extra-ca.pem
+#   subPath: ca.pem
+#   readOnly: true
+
+# --- Service mesh (Istio) ------------------------------------------------------
+# For clusters that route via a mesh instead of a Kubernetes Ingress. Emits an
+# Istio Gateway + VirtualService bound to an existing ingress-gateway. Pair with
+# `ingress.enabled=false`. Requires the Istio CRDs.
+istio:
+  enabled: false
+  gateway:
+    enabled: true
+    # Label selector of the istio ingress-gateway deployment to attach to.
+    selector:
+      istio: ingressgateway
+    hosts:
+      - rampart.example.com
+    tls:
+      enabled: false
+      mode: SIMPLE          # SIMPLE | MUTUAL | PASSTHROUGH
+      credentialName: ""    # K8s TLS secret name (in the gateway's namespace)
+      httpsRedirect: true   # redirect :80 -> :443 when TLS is on
+  virtualService:
+    enabled: true
+    # Gateways to bind. Empty => the gateway this chart creates.
+    gateways: []
+    hosts:
+      - rampart.example.com
+    timeout: ""
+    retries: {}
+
+# --- NetworkPolicy -------------------------------------------------------------
+# Ingress policy restricts who can reach Rampart's port. Egress is OFF by
+# default ON PURPOSE: Rampart is a monitor — it makes outbound probes to
+# arbitrary user-defined targets (HTTP, DBs, TCP, ...) and posts to arbitrary
+# notification webhooks, plus reaches Postgres + DNS. A restrictive egress
+# policy will silently break monitoring/alerting, so only enable it if you
+# know exactly which destinations you must allow.
+networkPolicy:
+  enabled: false
+  ingress:
+    enabled: true
+    # Sources allowed to reach the app port. Empty => allow from anywhere.
+    from: []
+    # - namespaceSelector:
+    #     matchLabels:
+    #       kubernetes.io/metadata.name: ingress-nginx
+  egress:
+    enabled: false
+    # When enabled you MUST allow at least DNS + Postgres + every probe/webhook
+    # destination, or monitoring breaks. See the chart README for a skeleton.
+    to: []
+
+# --- Prometheus ServiceMonitor -------------------------------------------------
+# Scrapes Rampart's built-in /metrics endpoint. Requires the Prometheus
+# Operator (kube-prometheus-stack) CRDs.
+serviceMonitor:
+  enabled: false
+  namespace: ""        # default: release namespace
+  path: /metrics
+  port: http
+  interval: 30s
+  scrapeTimeout: 10s
+  labels: {}           # so your Prometheus serviceMonitorSelector matches
+  relabelings: []
+  metricRelabelings: []
+
+# Stakater Reloader: when true, annotates the Deployment so it restarts on
+# ConfigMap/Secret change (requires the Reloader controller).
+configReloader:
+  enabled: false

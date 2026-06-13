@@ -1,17 +1,36 @@
 apiVersion: v2
 name: rampart
-description: A Helm chart for deploying Rampart — a Rust-based status/incident service
+description: >-
+  Self-hosted uptime monitoring and observability — one Rust binary. Status
+  pages, error tracking, traces, logs, RUM, and tier alerting, backed by Postgres.
 type: application
-version: 0.1.0
-appVersion: "0.2.0"
+# Chart version (SemVer) — bump on chart changes; CI publishes this as the OCI
+# artifact tag. Independent of appVersion.
+version: 0.2.0
+# The Rampart release this chart's defaults target.
+appVersion: "0.8.0"
+kubeVersion: ">=1.23.0-0"
 home: https://github.com/pen-pal/rampart
 sources:
   - https://github.com/pen-pal/rampart
 maintainers:
-  - name: penpal
+  - name: Manish Khadka
+    email: unameme@proton.me
 keywords:
-  - rampart
+  - monitoring
+  - uptime
+  - observability
   - status-page
   - incident
+  - opentelemetry
+  - sentry
+  - self-hosted
   - rust
-icon: https://raw.githubusercontent.com/pen-pal/rampart/main/docs/logo.png
+icon: https://raw.githubusercontent.com/pen-pal/rampart/main/docs/assets/logo.svg
+annotations:
+  artifacthub.io/license: AGPL-3.0-only
+  artifacthub.io/links: |
+    - name: Documentation
+      url: https://pen-pal.github.io/rampart/
+    - name: Source
+      url: https://github.com/pen-pal/rampart

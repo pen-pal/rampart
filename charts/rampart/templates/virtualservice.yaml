@@ -1,0 +1,30 @@
+{{- if and .Values.istio.enabled .Values.istio.virtualService.enabled }}
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: {{ include "rampart.fullname" . }}
+  labels:
+    {{- include "rampart.labels" . | nindent 4 }}
+spec:
+  hosts:
+    {{- toYaml .Values.istio.virtualService.hosts | nindent 4 }}
+  gateways:
+    {{- if .Values.istio.virtualService.gateways }}
+    {{- toYaml .Values.istio.virtualService.gateways | nindent 4 }}
+    {{- else }}
+    - {{ include "rampart.fullname" . }}
+    {{- end }}
+  http:
+    - route:
+        - destination:
+            host: {{ include "rampart.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+            port:
+              number: {{ .Values.service.port }}
+      {{- with .Values.istio.virtualService.timeout }}
+      timeout: {{ . }}
+      {{- end }}
+      {{- with .Values.istio.virtualService.retries }}
+      retries:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
