@@ -16,8 +16,9 @@ One tag installs it:
 <script src="https://<rampart-host>/rum/snippet.js" data-app="web"></script>
 ```
 
-It reads `data-app` (names the site; default `web`) and optional
-`data-endpoint`, collects vitals via `PerformanceObserver` (LCP, CLS, INP) +
+It reads `data-app` (names the site; default `web`), optional `data-endpoint`,
+and optional `data-token` (forwarded as `?k=` when an ingest token is
+configured — see below), collects vitals via `PerformanceObserver` (LCP, CLS, INP) +
 Navigation Timing (TTFB, FCP, load), and sends **one beacon on page hide** via
 `navigator.sendBeacon` — no dependency, no build step, ~1 KB. Because
 `sendBeacon` uses a simple `text/plain` request, there's no CORS preflight.
@@ -28,9 +29,28 @@ Navigation Timing (TTFB, FCP, load), and sends **one beacon on page hide** via
 where `metrics` is any subset of `{ lcp, fcp, cls, inp, ttfb, load }`. Public
 (beacons come from arbitrary browsers); the body is parsed as JSON regardless
 of content-type. A beacon with no URL or no metric is silently dropped (204) —
-browsers ignore the response, so ingest never errors. Stored one row per view
+browsers ignore the response, so ingest never errors. `gzip`/`deflate` bodies
+are inflated for the rare client that compresses. Stored one row per view
 (`rum_events`, migration 0080) with a `rum_days` retention window (default 14)
 in the prune sweep.
+
+If the operator sets the optional shared **ingest token** (Settings → Ingest
+token), the beacon must carry it — the snippet appends it as `?k=<token>` from
+its `data-token` attribute (`sendBeacon` can't set request headers). A browser
+token is necessarily public, so this is an anti-abuse gate, not a secret; the
+same token on the OTLP endpoints, sent server-side, *is* a real credential.
+
+### Browser error capture (cross-tier)
+
+The snippet also hooks `window`'s `error` and `unhandledrejection` events and
+forwards each uncaught exception to **`POST /rum/v1/errors`**
+(`{ app, kind, message, url, stack }`, same token gate). The server funnels it
+into the **error-tracking tier**: it finds-or-creates an error project named
+after the beacon's `app` (platform `javascript`) and records the exception
+through the same group-by-fingerprint path as a backend SDK event — so
+front-end errors show up in the Errors view and fire the project's new/regressed
+alerts exactly like server errors. The raw JS stack is kept in the event
+context (frames aren't parsed/symbolicated yet — see follow-ups).
 
 ## Read API (`/v1/rum`, editor/readonly)
 
@@ -53,7 +73,8 @@ copyable install snippet.
 ## Follow-ups (deferred)
 
 - Per-app keys/CRUD (v1 keys by an `app` name in the beacon, no table).
-- JS-error capture feeding the error-tracking tier; session/user dimensions;
-  geo/device breakdowns; histograms beyond p75.
+- Source-map symbolication of the captured JS stacks (today the raw stack is
+  stored in the event context; frames aren't parsed).
+- Session/user dimensions; geo/device breakdowns; histograms beyond p75.
 - INP is approximated (max event duration) — the full INP algorithm is a
   follow-up.

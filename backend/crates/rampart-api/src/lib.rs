@@ -10,6 +10,7 @@ pub mod error;
 pub mod external_ingest;
 pub mod http_metrics;
 pub mod importers;
+pub mod ingest_util;
 pub mod otlp_proto;
 pub mod rate_limit;
 pub mod routes;

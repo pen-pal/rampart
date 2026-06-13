@@ -323,6 +323,10 @@ export const api = {
     get: () => request('/v1/settings/retention'),
     put: (heartbeats, auditLog) => request('/v1/settings/retention', { method: 'PUT', body: { heartbeats: Number(heartbeats), audit_log: Number(auditLog) } }),
   },
+  telemetryToken: {
+    get: () => request('/v1/settings/telemetry-token'),
+    put: (token) => request('/v1/settings/telemetry-token', { method: 'PUT', body: { token } }),
+  },
   incidents: {
     listForPage:  (pageId)              => request(`/v1/status-pages/${pageId}/incidents`),
     create:       (pageId, input)       => request(`/v1/status-pages/${pageId}/incidents`, { method: 'POST', body: input }),
@@ -466,6 +470,12 @@ export const api = {
     update:  (id, patch) => request(`/v1/on-call-schedules/${id}`, { method: 'PATCH', body: patch }),
     remove:  (id)        => request(`/v1/on-call-schedules/${id}`, { method: 'DELETE' }),
     current: (id)        => request(`/v1/on-call-schedules/${id}/current`),
+  },
+  telemetryRules: {
+    list:    ()          => request('/v1/telemetry-rules'),
+    create:  (input)     => request('/v1/telemetry-rules', { method: 'POST', body: input }),
+    update:  (id, patch) => request(`/v1/telemetry-rules/${id}`, { method: 'PATCH', body: patch }),
+    remove:  (id)        => request(`/v1/telemetry-rules/${id}`, { method: 'DELETE' }),
   },
   maintenance: {
     list:        ()                  => request('/v1/maintenance-windows'),

@@ -19,8 +19,10 @@ shared OTLP attribute helpers) and OTLP/protobuf (`application/x-protobuf`, via
 controls exposure). Point an OTel SDK/Collector logs exporter at
 `http://<host>/otlp`.
 
-> v1 limitations match the traces tier: unauthenticated (network-scoped),
-> uncompressed, unsampled.
+`Content-Encoding: gzip`/`deflate` bodies are transparently inflated, and the
+optional shared **ingest token** (Settings → Ingest token) gates this endpoint
+the same way as the traces tier (`Authorization: Bearer`/`X-Rampart-Token`).
+Unsampled — all records are stored, bounded by retention.
 
 ## Storage & model
 
@@ -35,8 +37,10 @@ into the prune sweep — the highest-volume tier, so retention is short.
 
 - `GET /v1/logs?service=&level=&q=&trace_id=&limit=` — recent logs, newest
   first. `level` is a *minimum* coarse level (e.g. `warn` → warn+error+fatal,
-  translated to a severity-number threshold); `q` is a case-insensitive
-  substring match on the body; `trace_id` pulls a single trace's logs.
+  translated to a severity-number threshold); `q` is a full-text query over
+  the body (a generated `tsvector` column + GIN index, queried with
+  `websearch_to_tsquery` — bare words, `"quoted phrases"`, `or`, `-exclude`);
+  `trace_id` pulls a single trace's logs.
 - `GET /v1/logs/services` — distinct recent service names for the filter UI.
 
 ## Dashboard
@@ -48,9 +52,9 @@ severity text, and attributes.
 
 ## Follow-ups (deferred)
 
-- Full-text search (Postgres `tsvector`) instead of `ILIKE` substring.
+- Ranked full-text results + highlighting (today it's a boolean match filter,
+  ordered by time — the `tsvector` + GIN index is in place, migration 0082).
 - Live tail (SSE), and cross-tier nav: trace detail → its logs (by `trace_id`),
   error issue → correlated logs.
-- A plain-JSON bulk ingest for non-OTel sources; ingest auth + gzip; volume
-  controls (sampling / drop rules) and an opt-in columnar/object store if
-  Postgres is outgrown.
+- A plain-JSON bulk ingest for non-OTel sources; volume controls (sampling /
+  drop rules) and an opt-in columnar/object store if Postgres is outgrown.

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE telemetry_alert_rules SET breach_since = COALESCE(breach_since, $2), firing_at = $2 WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a3e7b98fd47b2353f33747d489d2f038309a624ba9f089db07b1c16f68ed0958"
+}

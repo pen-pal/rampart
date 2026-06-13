@@ -1829,6 +1829,7 @@ function NavMenu({ writable } = {}) {
     { href: '#/folders',          label: 'Folders',        Icon: Folder },
     { href: '#/tags',             label: 'Tags',           Icon: TagIcon },
     ...(writable ? [{ href: '#/templates', label: t('templates.nav'), Icon: FileStack }] : []),
+    ...(writable ? [{ href: '#/alert-rules', label: t('alertrules.nav'), Icon: Bell }] : []),
     { href: '#/maintenance',      label: 'Maintenance',    Icon: CalIcon },
     { href: '#/proxies',          label: 'Proxies',        Icon: Network },
     { href: '#/api-keys',         label: 'API keys',       Icon: Key },
@@ -1838,6 +1839,7 @@ function NavMenu({ writable } = {}) {
     { sep: true },
     { href: '#/settings/smtp',      label: 'SMTP settings',    Icon: Mail },
     { href: '#/settings/retention', label: 'Retention',        Icon: DbIcon },
+    { href: '#/settings/ingest',    label: 'Ingest token',     Icon: Key },
   ];
 
   return (
