@@ -29,22 +29,13 @@ RUN apt-get update \
 # Copy workspace + embedded frontend so the macro path resolves.
 COPY backend/         ./backend/
 COPY --from=frontend  /src/dist/  ./frontend/dist/
+# routes/openapi.rs include_str!s docs/openapi.{yaml,json} at compile time
+# (path resolves to <repo-root>/docs/ → /src/docs/ here). Without these the
+# release build fails with `couldn't read .../docs/openapi.yaml` (exit 101).
+COPY docs/openapi.yaml docs/openapi.json ./docs/
 
 WORKDIR /src/backend
-# Build the release binary. The repo's [profile.release] uses thin-LTO +
-# codegen-units=1 for the smallest/fastest *standalone* binaries (release.yml).
-# That profile's peak memory OOM-kills rustc during final codegen on the CI
-# image runners (exit 101) for this large dependency graph. Override the
-# profile for the IMAGE build only — LTO off + more codegen units sheds the
-# memory peak (and parallelizes), at a negligible runtime cost for an
-# I/O-bound service. Cargo.toml is untouched, so the bare-binary releases keep
-# full optimization.
-ENV SQLX_OFFLINE=true \
-    CARGO_TERM_COLOR=never \
-    CARGO_PROFILE_RELEASE_LTO=false \
-    CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 \
-    CARGO_PROFILE_RELEASE_INCREMENTAL=false \
-    CARGO_NET_RETRY=5
+ENV SQLX_OFFLINE=true CARGO_TERM_COLOR=never
 RUN cargo build --release -p rampart-api
 RUN strip target/release/rampart-api
 
