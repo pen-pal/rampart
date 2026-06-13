@@ -101,6 +101,12 @@ externalDatabase:
 # not rotate the key.
 sessionKey: ""
 
+# At-rest encryption key for notification channel secrets (webhook tokens,
+# SMTP passwords, channel API keys). A 32-byte key as 64 hex chars or base64.
+# If empty, helm auto-generates + persists one (encryption ON by default) —
+# back it up. Losing it makes existing encrypted channel configs unreadable.
+secretKey: ""
+
 # Application config exposed via ConfigMap (non-secret).
 config:
   bindAddr: "0.0.0.0:3000"

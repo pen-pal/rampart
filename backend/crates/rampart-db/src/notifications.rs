@@ -154,7 +154,7 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<Notification>> {
             id: NotificationId::from_uuid(r.id),
             kind: r.kind,
             name: r.name,
-            config: r.config,
+            config: crate::secrets::open(r.config),
             active: r.active,
             template_id: r.template_id.map(NotificationTemplateId::from_uuid),
             created_at: r.created_at,
@@ -197,7 +197,7 @@ pub async fn get(pool: &DbPool, id: NotificationId) -> DbResult<Notification> {
         id: nid,
         kind: row.kind,
         name: row.name,
-        config: row.config,
+        config: crate::secrets::open(row.config),
         active: row.active,
         template_id: row.template_id.map(NotificationTemplateId::from_uuid),
         created_at: row.created_at,
@@ -213,6 +213,8 @@ pub async fn get(pool: &DbPool, id: NotificationId) -> DbResult<Notification> {
 
 pub async fn create(pool: &DbPool, input: NewNotification) -> DbResult<Notification> {
     let id = Uuid::now_v7();
+    // Encrypt the credential-bearing config at rest (no-op without a key).
+    let config_sealed = crate::secrets::seal(&input.config);
     let row = sqlx::query!(
         r#"
         INSERT INTO notifications (id, kind, name, config, active, template_id, cooldown_seconds, digest_window_secs,
@@ -225,7 +227,7 @@ pub async fn create(pool: &DbPool, input: NewNotification) -> DbResult<Notificat
         id,
         input.kind as ChannelKind,
         input.name,
-        input.config,
+        config_sealed,
         input.active,
         input.template_id.map(|t| t.0),
         input.cooldown_seconds,
@@ -240,7 +242,7 @@ pub async fn create(pool: &DbPool, input: NewNotification) -> DbResult<Notificat
         id: NotificationId::from_uuid(row.id),
         kind: row.kind,
         name: row.name,
-        config: row.config,
+        config: crate::secrets::open(row.config),
         active: row.active,
         template_id: row.template_id.map(NotificationTemplateId::from_uuid),
         created_at: row.created_at,
@@ -283,6 +285,7 @@ pub async fn update(
         Some(v) => v,
     });
     let new_rate = clamp_rate(input.rate_limit_per_hour.unwrap_or(cur.rate_limit_per_hour));
+    let config_sealed = crate::secrets::seal(&new_config);
 
     let row = sqlx::query!(
         r#"
@@ -297,7 +300,7 @@ pub async fn update(
         "#,
         id.0,
         new_name,
-        new_config,
+        config_sealed,
         new_active,
         new_template_id,
         new_cooldown,
@@ -312,7 +315,7 @@ pub async fn update(
         id: NotificationId::from_uuid(row.id),
         kind: row.kind,
         name: row.name,
-        config: row.config,
+        config: crate::secrets::open(row.config),
         active: row.active,
         template_id: row.template_id.map(NotificationTemplateId::from_uuid),
         created_at: row.created_at,
@@ -411,7 +414,7 @@ pub async fn for_monitor(pool: &DbPool, monitor: MonitorId) -> DbResult<Vec<Noti
             id: NotificationId::from_uuid(r.id),
             kind: r.kind,
             name: r.name,
-            config: r.config,
+            config: crate::secrets::open(r.config),
             active: r.active,
             template_id: r.template_id.map(NotificationTemplateId::from_uuid),
             created_at: r.created_at,

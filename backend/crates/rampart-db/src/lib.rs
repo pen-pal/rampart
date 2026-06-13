@@ -19,6 +19,7 @@ pub mod incidents;
 pub mod ingest_tokens;
 pub mod leader;
 pub mod logs;
+pub mod secrets;
 pub mod maintenance;
 pub mod metric_rules;
 pub mod metric_samples;
