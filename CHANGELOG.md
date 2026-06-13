@@ -19,6 +19,12 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ### Security
 
+- **Ingest rate limiting + optional mandatory auth.** The public telemetry
+  surfaces (`/otlp`, `/rum`, `/api` Sentry) now sit behind a per-IP token
+  bucket (240 burst, 4/s refill) so a single source can't flood the tiers or
+  fill the disk — legitimate collectors are unaffected. Setting
+  `RAMPART_REQUIRE_INGEST_AUTH` makes ingest auth mandatory: an open
+  (token-less) ingest surface is refused outright, forcing a configured token.
 - **SSRF guard on outbound probes.** Probes that take a user-supplied target
   (HTTP/keyword/JSON, raw TCP, multi-step synthetics) now resolve the host and
   refuse to connect to loopback, link-local and the cloud **metadata IP
