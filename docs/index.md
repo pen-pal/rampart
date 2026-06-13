@@ -49,6 +49,44 @@ Rampart agent to adopt.
 - **130 notification channels** — chat, SMS, push, incident/on-call, issue
   trackers, webhooks. See [Notifications](NOTIFICATIONS.md).
 
+## A look around
+
+<div class="grid cards" markdown>
+
+-   __Dashboard__
+
+    ![Dashboard](assets/screenshots/08-dashboard-populated.png)
+
+-   __Error tracking__
+
+    ![Errors](assets/screenshots/12-errors.png)
+
+-   __Traces (waterfall)__
+
+    ![Trace waterfall](assets/screenshots/14-trace-waterfall.png)
+
+-   __Service map__
+
+    ![Service map](assets/screenshots/15-service-map.png)
+
+-   __Logs__
+
+    ![Logs](assets/screenshots/16-logs.png)
+
+-   __RUM — Web Vitals__
+
+    ![RUM](assets/screenshots/17-rum.png)
+
+-   __Tier alert rules__
+
+    ![Alert rules](assets/screenshots/19-alert-rules.png)
+
+-   __Synthetics builder__
+
+    ![Synthetics](assets/screenshots/21-synthetics.png)
+
+</div>
+
 ## Run it
 
 ```bash
