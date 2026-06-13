@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE spans SET received_at = now() - interval '20 minutes'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "b67973224fe1829b4469cec8d6b3ebb4a831898a04efd900bfdb968f63f89412"
+}

@@ -14,6 +14,7 @@ const Logs              = lazy(() => import('./views/Logs.jsx'));
 const Errors            = lazy(() => import('./views/Errors.jsx'));
 const Rum               = lazy(() => import('./views/Rum.jsx'));
 const OnCall            = lazy(() => import('./views/OnCall.jsx'));
+const AlertRules        = lazy(() => import('./views/AlertRules.jsx'));
 const Maintenance       = lazy(() => import('./views/Maintenance.jsx'));
 const DependencyGraph   = lazy(() => import('./views/DependencyGraph.jsx'));
 const ApiKeys           = lazy(() => import('./views/ApiKeys.jsx'));
@@ -23,6 +24,7 @@ const Security          = lazy(() => import('./views/Security.jsx'));
 const Users             = lazy(() => import('./views/Users.jsx'));
 const SmtpSettings      = lazy(() => import('./views/SmtpSettings.jsx'));
 const RetentionSettings = lazy(() => import('./views/RetentionSettings.jsx'));
+const IngestSettings    = lazy(() => import('./views/IngestSettings.jsx'));
 const Folders           = lazy(() => import('./views/Folders.jsx'));
 const Tags              = lazy(() => import('./views/Tags.jsx'));
 const AuditLog          = lazy(() => import('./views/AuditLog.jsx'));
@@ -65,6 +67,7 @@ const VIEW_LABEL = {
   'errors':        'Errors',
   'rum':           'RUM',
   'on-call':       'On-call',
+  'alert-rules':   'Alert rules',
   'tags':          'Tags',
   'maintenance':   'Maintenance',
   'dependencies':  'Dependencies',
@@ -75,6 +78,7 @@ const VIEW_LABEL = {
   'users':         'Users',
   'smtp-settings':      'SMTP',
   'retention-settings': 'Retention',
+  'ingest-settings':    'Ingest',
   'folders':            'Folders',
   'audit':         'Audit log',
   'reports':       'Scheduled reports',
@@ -193,7 +197,7 @@ export default function App() {
   // source of truth on `authState.user`.
   const ADMIN_ONLY_VIEWS = new Set([
     'users', 'security', 'api-keys', 'proxies', 'agents', 'audit',
-    'smtp-settings', 'retention-settings', 'reports', 'delivery-log',
+    'smtp-settings', 'retention-settings', 'ingest-settings', 'reports', 'delivery-log',
   ]);
   if (
     !authState.loading
@@ -235,6 +239,7 @@ export default function App() {
     case 'errors':        view = <Errors user={user} />; break;
     case 'rum':           view = <Rum />; break;
     case 'on-call':       view = <OnCall user={user} />; break;
+    case 'alert-rules':   view = <AlertRules />; break;
     case 'maintenance':   view = <Maintenance user={user} />; break;
     case 'dependencies':  view = <DependencyGraph />; break;
     case 'api-keys':      view = <ApiKeys user={user} />; break;
@@ -244,6 +249,7 @@ export default function App() {
     case 'users':         view = <Users />; break;
     case 'smtp-settings':      view = <SmtpSettings />; break;
     case 'retention-settings': view = <RetentionSettings />; break;
+    case 'ingest-settings':    view = <IngestSettings />; break;
     case 'folders':            view = <Folders />; break;
     case 'tags':               view = <Tags />; break;
     case 'audit':         view = <AuditLog />; break;
@@ -296,6 +302,7 @@ function ViewSwitcher({ current, user }) {
     { hash: '#/errors',        view: 'errors'        },
     { hash: '#/rum',           view: 'rum'           },
     { hash: '#/on-call',       view: 'on-call'       },
+    { hash: '#/alert-rules',   view: 'alert-rules'   },
     { hash: '#/maintenance',   view: 'maintenance'   },
     { hash: '#/dependencies',  view: 'dependencies'  },
     { hash: '#/api-keys',      view: 'api-keys',     adminOnly: true },
@@ -307,6 +314,7 @@ function ViewSwitcher({ current, user }) {
     { hash: '#/tags',               view: 'tags'              },
     { hash: '#/settings/smtp',      view: 'smtp-settings',      adminOnly: true },
     { hash: '#/settings/retention', view: 'retention-settings', adminOnly: true },
+    { hash: '#/settings/ingest',    view: 'ingest-settings',    adminOnly: true },
     { hash: '#/audit',         view: 'audit',        adminOnly: true },
     { hash: '#/reports',       view: 'reports',      adminOnly: true },
     { hash: '#/delivery-log',  view: 'delivery-log', adminOnly: true },

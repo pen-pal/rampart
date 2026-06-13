@@ -90,3 +90,4 @@ id!(EscalationPolicyId);
 id!(ErrorProjectId);
 id!(ErrorIssueId);
 id!(OnCallScheduleId);
+id!(TelemetryRuleId);

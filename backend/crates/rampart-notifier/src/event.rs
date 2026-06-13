@@ -37,6 +37,14 @@ pub enum EventKind {
     ErrorNew,
     /// A resolved error issue recurred (regression). Same dispatch path.
     ErrorRegressed,
+    /// A telemetry alert rule (error-rate / trace latency / trace error-rate
+    /// / log volume) started firing. De-duped by
+    /// `telemetry_alert_rules.firing_at`. The heartbeat msg carries the
+    /// observed value + threshold.
+    TelemetryRuleFired,
+    /// A firing telemetry alert rule's tier aggregate came back inside the
+    /// threshold (or its tier went quiet).
+    TelemetryRuleResolved,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

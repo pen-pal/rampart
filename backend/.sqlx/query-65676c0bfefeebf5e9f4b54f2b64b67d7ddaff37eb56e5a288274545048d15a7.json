@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO telemetry_alert_rules\n            (id, name, kind, target, match_text, min_level, op, threshold,\n             window_seconds, for_seconds, enabled, channel_ids)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int2",
+        "Text",
+        "Float8",
+        "Int4",
+        "Int4",
+        "Bool",
+        "UuidArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "65676c0bfefeebf5e9f4b54f2b64b67d7ddaff37eb56e5a288274545048d15a7"
+}

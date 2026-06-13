@@ -17,6 +17,44 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **Browser error capture (RUM → error tier).** The RUM snippet now hooks
+  `window.onerror` + `unhandledrejection` and forwards uncaught front-end
+  exceptions to `POST /rum/v1/errors`. The server records them in the
+  error-tracking tier under a project auto-named after the beacon's app, so
+  JavaScript errors group by fingerprint, appear in the Errors view, and fire
+  the project's new/regressed alerts exactly like backend SDK errors. The raw
+  stack is preserved in the event context (symbolication is a follow-up).
+- **Full-text log search.** The logs view's body filter moved from an
+  unindexed `ILIKE` substring scan to Postgres full-text search — a generated
+  `body_tsv tsvector` column + GIN index (migration 0082), queried with
+  `websearch_to_tsquery` so the search box understands bare words,
+  `"quoted phrases"`, `or`, and `-exclude`.
+- **Alerting on the observability tiers.** A new **telemetry alert rule** kind
+  fires notifications when a rolling-window aggregate over the error, trace or
+  log tier crosses a threshold — `error_rate` (error events/window),
+  `trace_latency` (p95 span duration), `trace_error_rate` (% error spans) and
+  `log_volume` (matching log count, with optional minimum severity and a body
+  substring). Rules reuse the metric-rule state machine (the `for_seconds`
+  sustain window, restart-safe fire/resolve dedup on persisted state) and page
+  the same notification channels. Managed under **Alert rules** in the nav,
+  evaluated on the scheduler tick alongside metric rules. New table
+  `telemetry_alert_rules` (migration 0081); CRUD at `/v1/telemetry-rules`.
+  (Error tracking already paged on new/regressed issues; this adds the
+  rate/latency/volume dimension across all three tiers.)
+- **Ingest compression + optional auth.** The OTLP trace/log endpoints
+  (`/otlp/v1/traces`, `/otlp/v1/logs`) and the RUM beacon endpoint
+  (`/rum/v1/events`) now transparently inflate `Content-Encoding: gzip` and
+  `deflate` bodies — stock OpenTelemetry SDKs/Collectors gzip their OTLP/HTTP
+  exports by default, so this is required for them to work out of the box. An
+  optional shared **ingest token** (Settings → Ingest token, admin-only)
+  guards these root-level surfaces: leave it blank to keep them open (the
+  operator controls network exposure), or set it and have collectors present
+  it via `Authorization: Bearer <token>` / `X-Rampart-Token`, or the RUM
+  snippet's `data-token` attribute (`?k=` query param). The gzip/deflate
+  helper is now shared with the Sentry error-ingest path.
+
 ---
 
 ## [0.8.0] — 2026-06-13

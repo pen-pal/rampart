@@ -29,10 +29,14 @@ async fn ingest_logs(
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Json<Value>, ApiError> {
+    crate::ingest_util::require_telemetry_token(s.pool(), &headers, None).await?;
     let content_type = headers
         .get("content-type")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
+
+    // OTel SDKs/Collectors gzip OTLP/HTTP exports by default — inflate first.
+    let body = crate::ingest_util::decompress(&headers, &body)?;
 
     let logs: Vec<ParsedLog> = if content_type.contains("protobuf") {
         crate::otlp_proto::parse_otlp_logs_protobuf(&body)
@@ -52,10 +56,14 @@ async fn ingest_traces(
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Json<Value>, ApiError> {
+    crate::ingest_util::require_telemetry_token(s.pool(), &headers, None).await?;
     let content_type = headers
         .get("content-type")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
+
+    // OTel SDKs/Collectors gzip OTLP/HTTP exports by default — inflate first.
+    let body = crate::ingest_util::decompress(&headers, &body)?;
 
     let spans: Vec<ParsedSpan> = if content_type.contains("protobuf") {
         crate::otlp_proto::parse_otlp_traces_protobuf(&body)

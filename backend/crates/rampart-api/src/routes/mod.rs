@@ -41,6 +41,7 @@ pub mod status_pages;
 pub mod stream;
 pub mod subscribers;
 pub mod tags;
+pub mod telemetry_rules;
 pub mod templates;
 pub mod totp;
 pub mod traces;
@@ -145,6 +146,8 @@ pub fn v1_protected() -> Router<AppState> {
         .nest("/rum", rum::router())
         // /v1/on-call-schedules CRUD — channel rotations for ladder steps
         .nest("/on-call-schedules", on_call::router())
+        // /v1/telemetry-rules CRUD — threshold alerts over errors/traces/logs
+        .nest("/telemetry-rules", telemetry_rules::router())
         // /v1/maintenance-windows CRUD + attach/detach
         .nest("/maintenance-windows", maintenance::router())
         // /v1/status-pages admin CRUD (public read sits in v1_public)

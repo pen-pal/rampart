@@ -1,0 +1,112 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, name, slug, public_key, platform, retention_days,\n               alert_channel_ids AS \"alert_channel_ids!\", created_at\n        FROM error_projects\n        WHERE name = $1\n        ORDER BY created_at\n        LIMIT 1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "error_projects",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "error_projects",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "slug",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "error_projects",
+            "name": "slug"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "public_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "error_projects",
+            "name": "public_key"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "platform",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "error_projects",
+            "name": "platform"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "retention_days",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "error_projects",
+            "name": "retention_days"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "alert_channel_ids!",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "error_projects",
+            "name": "alert_channel_ids"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "error_projects",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "e0eb29628e5edcf648b90644ed5cf1a0ee3addbb5ded7b01b4827ceefe773346"
+}

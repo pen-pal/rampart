@@ -31,6 +31,7 @@ export function parseRoute(hash) {
   if (h === '#/errors')             return { view: 'errors',        id: null };
   if (h === '#/rum')                return { view: 'rum',           id: null };
   if (h === '#/on-call')            return { view: 'on-call',       id: null };
+  if (h === '#/alert-rules')        return { view: 'alert-rules',   id: null };
   if (h === '#/maintenance')        return { view: 'maintenance',   id: null };
   if (h === '#/dependencies')       return { view: 'dependencies',  id: null };
   if (h === '#/api-keys')           return { view: 'api-keys',      id: null };
@@ -42,6 +43,7 @@ export function parseRoute(hash) {
   if (h === '#/tags')               return { view: 'tags',               id: null };
   if (h === '#/settings/smtp')      return { view: 'smtp-settings',      id: null };
   if (h === '#/settings/retention') return { view: 'retention-settings', id: null };
+  if (h === '#/settings/ingest')    return { view: 'ingest-settings',    id: null };
   if (h === '#/audit')              return { view: 'audit',         id: null };
   if (h === '#/reports')            return { view: 'reports',       id: null };
   if (h === '#/templates')          return { view: 'templates',     id: null };

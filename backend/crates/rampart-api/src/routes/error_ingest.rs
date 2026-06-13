@@ -21,7 +21,6 @@ use rampart_core::error_tracking::ParsedEvent;
 use rampart_core::ids::ErrorProjectId;
 use serde::Deserialize;
 use serde_json::Value;
-use std::io::Read;
 use std::str::FromStr;
 use uuid::Uuid;
 
@@ -80,7 +79,7 @@ async fn ingest(
         return Err(ApiError::NotFound);
     }
 
-    let raw = decompress(&headers, &body)?;
+    let raw = crate::ingest_util::decompress(&headers, &body)?;
     let event_json = if envelope {
         extract_envelope_event(&raw)
     } else {
@@ -128,30 +127,6 @@ fn sentry_key(headers: &HeaderMap, q: &IngestQuery) -> Option<String> {
     let auth = headers.get("x-sentry-auth").and_then(|v| v.to_str().ok())?;
     auth.split([',', ' '])
         .find_map(|p| p.trim().strip_prefix("sentry_key=").map(|s| s.to_string()))
-}
-
-/// Decode the body per `Content-Encoding` (Sentry SDKs gzip by default).
-fn decompress(headers: &HeaderMap, body: &[u8]) -> Result<Vec<u8>, ApiError> {
-    let enc = headers
-        .get("content-encoding")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("")
-        .to_ascii_lowercase();
-    if enc.contains("gzip") {
-        let mut out = Vec::new();
-        flate2::read::GzDecoder::new(body)
-            .read_to_end(&mut out)
-            .map_err(|_| ApiError::BadRequest("invalid gzip body".into()))?;
-        Ok(out)
-    } else if enc.contains("deflate") {
-        let mut out = Vec::new();
-        flate2::read::ZlibDecoder::new(body)
-            .read_to_end(&mut out)
-            .map_err(|_| ApiError::BadRequest("invalid deflate body".into()))?;
-        Ok(out)
-    } else {
-        Ok(body.to_vec())
-    }
 }
 
 /// Find the first `event` item in a Sentry envelope and return its payload.

@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT CASE WHEN COUNT(*) = 0 THEN NULL\n                       ELSE 100.0 * (COUNT(*) FILTER (WHERE status_code = 2))::double precision\n                            / COUNT(*) END\n                FROM spans\n                WHERE received_at >= now() - make_interval(secs => $1)\n                  AND ($2 = '' OR service_name = $2)\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "case",
+        "type_info": "Float8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Float8",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "1489b08e0a5502431f3de9017b1498f32474d2b35c6af6c663217747fddf32be"
+}
