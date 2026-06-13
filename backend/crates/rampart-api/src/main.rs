@@ -16,6 +16,8 @@
 //!                         loopback + link-local are always blocked).
 //!   RAMPART_REQUIRE_INGEST_AUTH "1"/"true" → OTLP/RUM ingest is refused
 //!                         unless a telemetry token is configured + presented.
+//!   RAMPART_SECRET_KEY    32-byte key (64 hex / base64). When set, notification
+//!                         channel secrets are AES-256-GCM encrypted at rest.
 
 use rampart_api::{build_router, state::AppState, static_assets};
 use std::net::SocketAddr;

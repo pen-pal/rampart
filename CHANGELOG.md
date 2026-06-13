@@ -19,6 +19,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ### Security
 
+- **Notification secrets encrypted at rest.** Channel `config` blobs hold live
+  credentials (webhook bearer tokens, SMTP passwords, the API keys of 130
+  channels) and were stored as plaintext JSONB — a DB read leaked every
+  outbound credential. They're now AES-256-GCM envelope-encrypted at the DB
+  layer (`rampart_db::secrets`): sealed on write, transparently opened on read
+  (so the notifier dispatch path is unaffected). Opt-in + backward compatible
+  via `RAMPART_SECRET_KEY` (32-byte key, hex/base64) — key-less installs keep
+  plaintext; setting a key encrypts lazily on next write while still reading
+  old rows. The Helm chart **auto-generates + persists** a key, so K8s installs
+  encrypt by default.
 - **Ingest rate limiting + optional mandatory auth.** The public telemetry
   surfaces (`/otlp`, `/rum`, `/api` Sentry) now sit behind a per-IP token
   bucket (240 burst, 4/s refill) so a single source can't flood the tiers or
