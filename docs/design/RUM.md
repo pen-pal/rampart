@@ -40,6 +40,18 @@ its `data-token` attribute (`sendBeacon` can't set request headers). A browser
 token is necessarily public, so this is an anti-abuse gate, not a secret; the
 same token on the OTLP endpoints, sent server-side, *is* a real credential.
 
+### Browser error capture (cross-tier)
+
+The snippet also hooks `window`'s `error` and `unhandledrejection` events and
+forwards each uncaught exception to **`POST /rum/v1/errors`**
+(`{ app, kind, message, url, stack }`, same token gate). The server funnels it
+into the **error-tracking tier**: it finds-or-creates an error project named
+after the beacon's `app` (platform `javascript`) and records the exception
+through the same group-by-fingerprint path as a backend SDK event — so
+front-end errors show up in the Errors view and fire the project's new/regressed
+alerts exactly like server errors. The raw JS stack is kept in the event
+context (frames aren't parsed/symbolicated yet — see follow-ups).
+
 ## Read API (`/v1/rum`, editor/readonly)
 
 - `GET /v1/rum/summary?app=&hours=` — **p75** of each metric over the window
@@ -61,7 +73,8 @@ copyable install snippet.
 ## Follow-ups (deferred)
 
 - Per-app keys/CRUD (v1 keys by an `app` name in the beacon, no table).
-- JS-error capture feeding the error-tracking tier; session/user dimensions;
-  geo/device breakdowns; histograms beyond p75.
+- Source-map symbolication of the captured JS stacks (today the raw stack is
+  stored in the event context; frames aren't parsed).
+- Session/user dimensions; geo/device breakdowns; histograms beyond p75.
 - INP is approximated (max event duration) — the full INP algorithm is a
   follow-up.

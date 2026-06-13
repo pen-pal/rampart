@@ -19,6 +19,18 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ### Added
 
+- **Browser error capture (RUM → error tier).** The RUM snippet now hooks
+  `window.onerror` + `unhandledrejection` and forwards uncaught front-end
+  exceptions to `POST /rum/v1/errors`. The server records them in the
+  error-tracking tier under a project auto-named after the beacon's app, so
+  JavaScript errors group by fingerprint, appear in the Errors view, and fire
+  the project's new/regressed alerts exactly like backend SDK errors. The raw
+  stack is preserved in the event context (symbolication is a follow-up).
+- **Full-text log search.** The logs view's body filter moved from an
+  unindexed `ILIKE` substring scan to Postgres full-text search — a generated
+  `body_tsv tsvector` column + GIN index (migration 0082), queried with
+  `websearch_to_tsquery` so the search box understands bare words,
+  `"quoted phrases"`, `or`, and `-exclude`.
 - **Alerting on the observability tiers.** A new **telemetry alert rule** kind
   fires notifications when a rolling-window aggregate over the error, trace or
   log tier crosses a threshold — `error_rate` (error events/window),

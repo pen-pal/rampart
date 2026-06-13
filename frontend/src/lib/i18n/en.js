@@ -1477,7 +1477,7 @@ const en = {
   'logs.level.warn':                 'Warn',
   'logs.level.error':                'Error',
   'logs.level.fatal':                'Fatal',
-  'logs.search_ph':                  'Search message…',
+  'logs.search_ph':                  'Full-text search (words, "phrases", -exclude)…',
   'logs.apply':                      'Apply',
   'logs.refresh':                    'Refresh',
   'logs.loading':                    'Loading…',

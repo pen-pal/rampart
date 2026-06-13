@@ -107,6 +107,39 @@ pub async fn get_opt(pool: &DbPool, id: ErrorProjectId) -> DbResult<Option<Error
     Ok(row.map(Into::into))
 }
 
+/// Find an existing project by exact name, or auto-provision one. Used by the
+/// RUM browser-error capture path, which has no DSN: a beacon names its app
+/// and we want its JS errors to land in a project named after that app,
+/// creating it on first sight. Returns the oldest match if names collide.
+pub async fn find_or_create_by_name(pool: &DbPool, name: &str) -> DbResult<ErrorProject> {
+    let existing = sqlx::query_as!(
+        ProjectRow,
+        r#"
+        SELECT id, name, slug, public_key, platform, retention_days,
+               alert_channel_ids AS "alert_channel_ids!", created_at
+        FROM error_projects
+        WHERE name = $1
+        ORDER BY created_at
+        LIMIT 1
+        "#,
+        name,
+    )
+    .fetch_optional(pool)
+    .await?;
+    if let Some(row) = existing {
+        return Ok(row.into());
+    }
+    create(
+        pool,
+        rampart_core::error_tracking::NewErrorProject {
+            name: name.to_string(),
+            platform: Some("javascript".to_string()),
+            alert_channel_ids: Vec::new(),
+        },
+    )
+    .await
+}
+
 pub async fn create(pool: &DbPool, input: NewErrorProject) -> DbResult<ErrorProject> {
     let id = ErrorProjectId::new();
     let slug = slugify(&input.name);

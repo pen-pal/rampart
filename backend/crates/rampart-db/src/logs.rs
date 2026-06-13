@@ -84,7 +84,8 @@ pub struct LogFilter<'a> {
     pub service: Option<&'a str>,
     /// Minimum OTLP severity number (e.g. 13 for warn+).
     pub min_severity: Option<i16>,
-    /// Case-insensitive substring match on the body.
+    /// Full-text search over the body (Postgres `websearch_to_tsquery` —
+    /// supports bare words, "quoted phrases", OR and -negation).
     pub query: Option<&'a str>,
     pub trace_id: Option<&'a str>,
     pub limit: i64,
@@ -100,7 +101,7 @@ pub async fn query_logs(pool: &DbPool, f: LogFilter<'_>) -> DbResult<Vec<LogEntr
         FROM logs
         WHERE ($1::text IS NULL OR service_name = $1)
           AND ($2::int2 IS NULL OR severity >= $2)
-          AND ($3::text IS NULL OR body ILIKE '%' || $3 || '%')
+          AND ($3::text IS NULL OR body_tsv @@ websearch_to_tsquery('english', $3))
           AND ($4::text IS NULL OR trace_id = $4)
         ORDER BY ts DESC
         LIMIT $5
