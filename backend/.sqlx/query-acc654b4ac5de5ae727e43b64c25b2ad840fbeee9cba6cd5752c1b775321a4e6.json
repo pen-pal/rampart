@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE logs SET ts = now() - interval '20 minutes'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "acc654b4ac5de5ae727e43b64c25b2ad840fbeee9cba6cd5752c1b775321a4e6"
+}
