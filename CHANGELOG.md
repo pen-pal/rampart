@@ -19,6 +19,18 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ### Added
 
+- **Alerting on the observability tiers.** A new **telemetry alert rule** kind
+  fires notifications when a rolling-window aggregate over the error, trace or
+  log tier crosses a threshold — `error_rate` (error events/window),
+  `trace_latency` (p95 span duration), `trace_error_rate` (% error spans) and
+  `log_volume` (matching log count, with optional minimum severity and a body
+  substring). Rules reuse the metric-rule state machine (the `for_seconds`
+  sustain window, restart-safe fire/resolve dedup on persisted state) and page
+  the same notification channels. Managed under **Alert rules** in the nav,
+  evaluated on the scheduler tick alongside metric rules. New table
+  `telemetry_alert_rules` (migration 0081); CRUD at `/v1/telemetry-rules`.
+  (Error tracking already paged on new/regressed issues; this adds the
+  rate/latency/volume dimension across all three tiers.)
 - **Ingest compression + optional auth.** The OTLP trace/log endpoints
   (`/otlp/v1/traces`, `/otlp/v1/logs`) and the RUM beacon endpoint
   (`/rum/v1/events`) now transparently inflate `Content-Encoding: gzip` and

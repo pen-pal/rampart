@@ -170,6 +170,9 @@ impl Scheduler {
             // Metric threshold rules: evaluate against latest samples,
             // fan out fired/resolved transitions to the rules' channels.
             self.check_metric_rules().await;
+            // Telemetry alert rules: windowed aggregates over the error /
+            // trace / log tiers, same fire/resolve fan-out as metric rules.
+            self.check_telemetry_rules().await;
             // Escalation ladders: advance unacked episodes whose next
             // step is due.
             self.check_escalations().await;
@@ -310,6 +313,86 @@ impl Scheduler {
                 {
                     warn!(rule = %ev.rule.name, channel = %ch.0, error = %e,
                           "metric rule channel send failed (channel deleted?)");
+                }
+            }
+        }
+    }
+
+    /// Evaluate telemetry alert rules (error-rate / trace latency / trace
+    /// error-rate / log volume) and fan out fired/resolved transitions. State
+    /// lives on the rule rows (`rampart_db::telemetry_rules`), so this is
+    /// restart-safe and never double-pages — like `check_metric_rules`.
+    async fn check_telemetry_rules(&self) {
+        let events = match rampart_db::telemetry_rules::evaluate_tick(&self.pool).await {
+            Ok(ev) => ev,
+            Err(e) => {
+                warn!(error = %e, "telemetry rule evaluation failed");
+                return;
+            }
+        };
+        for ev in events {
+            let fired = ev.transition == rampart_core::metric_rule::RuleTransition::Fire;
+            let kind = ev.rule.kind;
+            let unit = kind.unit();
+            let scope = if ev.rule.target.is_empty() {
+                "all".to_string()
+            } else {
+                ev.rule.target.clone()
+            };
+            let metric_label = match kind {
+                rampart_core::TelemetryRuleKind::ErrorRate => "error events",
+                rampart_core::TelemetryRuleKind::TraceLatency => "p95 latency",
+                rampart_core::TelemetryRuleKind::TraceErrorRate => "trace error rate",
+                rampart_core::TelemetryRuleKind::LogVolume => "log volume",
+            };
+            let msg = match (fired, ev.value) {
+                (true, Some(v)) => format!(
+                    "{metric_label} ({scope}) = {v:.1} {unit} {} {} {unit} (window {}s, sustained {}s)",
+                    ev.rule.op.symbol(),
+                    ev.rule.threshold,
+                    ev.rule.window_seconds,
+                    ev.rule.for_seconds,
+                ),
+                (true, None) => format!("{metric_label} ({scope}) breached {}", ev.rule.threshold),
+                (false, Some(v)) => format!(
+                    "{metric_label} ({scope}) back within threshold: {v:.1} {unit} (limit {} {} {unit})",
+                    ev.rule.op.symbol(),
+                    ev.rule.threshold,
+                ),
+                (false, None) => format!("{metric_label} ({scope}) quiet; rule resolved"),
+            };
+            info!(rule = %ev.rule.name, fired, %msg, "telemetry rule transition");
+
+            let event = rampart_notifier::Event {
+                kind: if fired {
+                    rampart_notifier::EventKind::TelemetryRuleFired
+                } else {
+                    rampart_notifier::EventKind::TelemetryRuleResolved
+                },
+                monitor: alert_monitor(ev.rule.name.clone()),
+                heartbeat: Heartbeat {
+                    monitor_id: rampart_core::MonitorId::new(),
+                    ts: time::OffsetDateTime::now_utc(),
+                    status: if fired {
+                        MonitorStatus::Down
+                    } else {
+                        MonitorStatus::Up
+                    },
+                    latency_ms: None,
+                    status_code: None,
+                    msg: Some(msg),
+                    retries: 0,
+                    important: true,
+                },
+                prev_status: None,
+                slo_current_pct: None,
+            };
+            for ch in &ev.rule.channel_ids {
+                if let Err(e) =
+                    rampart_notifier::service::send_event_to_channel(&self.pool, *ch, &event).await
+                {
+                    warn!(rule = %ev.rule.name, channel = %ch.0, error = %e,
+                          "telemetry rule channel send failed (channel deleted?)");
                 }
             }
         }
@@ -1320,10 +1403,18 @@ async fn push_heartbeat(monitor: &Monitor, pool: &DbPool) -> Option<Heartbeat> {
 /// gives the template renderer well-formed fields ({{ monitor.name }} is
 /// the rule name). Never persisted.
 fn metric_rule_monitor(rule: &rampart_core::MetricRule) -> Monitor {
+    alert_monitor(rule.name.clone())
+}
+
+/// A throwaway `Monitor` carrying just a display name, used as the
+/// notification subject for rule-based alerts (metric + telemetry) that have
+/// no real monitor row behind them. Every other field is an inert default —
+/// the channel templates only read `monitor.name` (+ the heartbeat `msg`).
+fn alert_monitor(name: String) -> Monitor {
     let now = time::OffsetDateTime::now_utc();
     Monitor {
         id: rampart_core::MonitorId::new(),
-        name: rule.name.clone(),
+        name,
         kind: MonitorKind::Http,
         url: None,
         hostname: None,

@@ -35,6 +35,7 @@ pub mod scheduled_report;
 pub mod status_page;
 pub mod synthetic;
 pub mod tag;
+pub mod telemetry_rule;
 pub mod trace;
 
 #[cfg(any(test, feature = "testing"))]
@@ -57,7 +58,7 @@ pub use ids::{
     IncidentUpdateId, IngestTokenId, MaintenanceId, MonitorGroupId, MonitorId, MonitorPresetId,
     MonitorTemplateId, NotificationId, NotificationTemplateId, OnCallScheduleId, ProxyId,
     ScheduledReportId, SessionId, StatusPageComponentId, StatusPageGroupId, StatusPageId,
-    StatusPageSectionId, StatusPageSubscriberId, TagId, UserId,
+    StatusPageSectionId, StatusPageSubscriberId, TagId, TelemetryRuleId, UserId,
 };
 pub use incident::{Incident, IncidentStyle, IncidentTemplate, IncidentUpdate};
 pub use ingest_token::{IngestToken, NewIngestToken};
@@ -85,4 +86,7 @@ pub use synthetic::{
     AssertKind, Assertion, CompareOp, Extract, ExtractSource, SyntheticPlan, SyntheticStep,
 };
 pub use tag::{NewTag, Tag, TagBrief};
+pub use telemetry_rule::{
+    NewTelemetryRule, TelemetryRule, TelemetryRuleKind, UpdateTelemetryRule,
+};
 pub use trace::{parse_otlp_traces_json, ParsedSpan, ServiceEdge, Span, TraceSummary};

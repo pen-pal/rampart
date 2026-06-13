@@ -471,6 +471,12 @@ export const api = {
     remove:  (id)        => request(`/v1/on-call-schedules/${id}`, { method: 'DELETE' }),
     current: (id)        => request(`/v1/on-call-schedules/${id}/current`),
   },
+  telemetryRules: {
+    list:    ()          => request('/v1/telemetry-rules'),
+    create:  (input)     => request('/v1/telemetry-rules', { method: 'POST', body: input }),
+    update:  (id, patch) => request(`/v1/telemetry-rules/${id}`, { method: 'PATCH', body: patch }),
+    remove:  (id)        => request(`/v1/telemetry-rules/${id}`, { method: 'DELETE' }),
+  },
   maintenance: {
     list:        ()                  => request('/v1/maintenance-windows'),
     get:         (id)                => request(`/v1/maintenance-windows/${id}`),

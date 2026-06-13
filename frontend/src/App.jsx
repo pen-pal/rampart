@@ -14,6 +14,7 @@ const Logs              = lazy(() => import('./views/Logs.jsx'));
 const Errors            = lazy(() => import('./views/Errors.jsx'));
 const Rum               = lazy(() => import('./views/Rum.jsx'));
 const OnCall            = lazy(() => import('./views/OnCall.jsx'));
+const AlertRules        = lazy(() => import('./views/AlertRules.jsx'));
 const Maintenance       = lazy(() => import('./views/Maintenance.jsx'));
 const DependencyGraph   = lazy(() => import('./views/DependencyGraph.jsx'));
 const ApiKeys           = lazy(() => import('./views/ApiKeys.jsx'));
@@ -66,6 +67,7 @@ const VIEW_LABEL = {
   'errors':        'Errors',
   'rum':           'RUM',
   'on-call':       'On-call',
+  'alert-rules':   'Alert rules',
   'tags':          'Tags',
   'maintenance':   'Maintenance',
   'dependencies':  'Dependencies',
@@ -237,6 +239,7 @@ export default function App() {
     case 'errors':        view = <Errors user={user} />; break;
     case 'rum':           view = <Rum />; break;
     case 'on-call':       view = <OnCall user={user} />; break;
+    case 'alert-rules':   view = <AlertRules />; break;
     case 'maintenance':   view = <Maintenance user={user} />; break;
     case 'dependencies':  view = <DependencyGraph />; break;
     case 'api-keys':      view = <ApiKeys user={user} />; break;
@@ -299,6 +302,7 @@ function ViewSwitcher({ current, user }) {
     { hash: '#/errors',        view: 'errors'        },
     { hash: '#/rum',           view: 'rum'           },
     { hash: '#/on-call',       view: 'on-call'       },
+    { hash: '#/alert-rules',   view: 'alert-rules'   },
     { hash: '#/maintenance',   view: 'maintenance'   },
     { hash: '#/dependencies',  view: 'dependencies'  },
     { hash: '#/api-keys',      view: 'api-keys',     adminOnly: true },
