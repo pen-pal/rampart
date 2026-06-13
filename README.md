@@ -208,6 +208,23 @@ DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
   ./backend/target/release/rampart-api
 ```
 
+### ☸️ Kubernetes (Helm)
+
+Production-grade chart published to GHCR (OCI) — HPA, PDB, topology spread,
+Ingress (+ cert-manager), Istio service mesh, NetworkPolicy, Prometheus
+ServiceMonitor, non-root/read-only-rootfs. Bring your own Postgres.
+
+```bash
+kubectl create secret generic rampart-db \
+  --from-literal=DATABASE_URL='postgres://user:pass@pg-host:5432/rampart'
+
+helm install rampart oci://ghcr.io/pen-pal/charts/rampart \
+  --version 0.2.0 \
+  --set externalDatabase.existingSecret=rampart-db
+```
+
+Full guide: [**docs/KUBERNETES.md**](docs/KUBERNETES.md) · chart: [`charts/rampart`](charts/rampart).
+
 ### 🛠️ Dev Mode (Hot Reload)
 
 ```bash
@@ -312,6 +329,7 @@ npx playwright test       # e2e on Chromium + Firefox + WebKit
 
 **Getting started & operations**
 - [**docs/SETUP.md**](docs/SETUP.md) — Production install, TLS, reverse proxy, and backups.
+- [**docs/KUBERNETES.md**](docs/KUBERNETES.md) — Helm chart (OCI), HPA/PDB, service mesh, NetworkPolicy, Prometheus.
 - [**docs/WALKTHROUGH.md**](docs/WALKTHROUGH.md) — First-run tour with a screenshot per step.
 - [**docs/ARCHITECTURE.md**](docs/ARCHITECTURE.md) — Design decisions and their rationale.
 - [**docs/SECURITY-DEBT.md**](docs/SECURITY-DEBT.md) — Accepted RUSTSEC advisories with justification.
