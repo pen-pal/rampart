@@ -1,0 +1,4 @@
+# Python deps for building the MkDocs documentation site (docs.yml).
+# Kept here (not in the Rust/Node toolchains) so the docs build is the only
+# thing that pulls them.
+mkdocs-material>=9.5,<10
