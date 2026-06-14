@@ -120,6 +120,21 @@ impl HttpProbe {
             None => return err(monitor, ts, started, "monitor missing url"),
         };
 
+        // SSRF guard: resolve the target and refuse loopback/link-local/cloud
+        // metadata (always) + private ranges (when RAMPART_SSRF_BLOCK_PRIVATE
+        // is set) before issuing the request.
+        if let Ok(parsed) = reqwest::Url::parse(&url) {
+            if let Some(host) = parsed.host_str() {
+                let port = parsed.port_or_known_default().unwrap_or(80);
+                if let Err(blocked) =
+                    crate::ssrf::resolve_guarded(host, port, crate::ssrf::block_private_enabled())
+                        .await
+                {
+                    return err(monitor, ts, started, &blocked.to_string());
+                }
+            }
+        }
+
         let method = Method::from_str(&monitor.http_method).unwrap_or(Method::GET);
         let timeout = Duration::from_secs(monitor.timeout_seconds as u64);
 

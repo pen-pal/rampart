@@ -566,6 +566,8 @@ const en = {
   'login.password':                  'Password',
   'login.password_placeholder_setup': 'At least 10 characters',
   'login.sign_in':                   'Sign in',
+  'login.sso_or':                    'or',
+  'login.sso_button':                'Sign in with SSO',
   'login.create_admin':              'Create admin account',
   'login.working':                   'Working…',
   'login.totp_code':                 'Code',

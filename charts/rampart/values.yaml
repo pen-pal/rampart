@@ -101,6 +101,12 @@ externalDatabase:
 # not rotate the key.
 sessionKey: ""
 
+# At-rest encryption key for notification channel secrets (webhook tokens,
+# SMTP passwords, channel API keys). A 32-byte key as 64 hex chars or base64.
+# If empty, helm auto-generates + persists one (encryption ON by default) —
+# back it up. Losing it makes existing encrypted channel configs unreadable.
+secretKey: ""
+
 # Application config exposed via ConfigMap (non-secret).
 config:
   bindAddr: "0.0.0.0:3000"
@@ -176,9 +182,14 @@ startupProbe:
   failureThreshold: 30   # ~90s for migrations on a cold DB
 
 # --- Horizontal Pod Autoscaler -------------------------------------------------
-# Rampart's API tier is stateless (all state in Postgres), so it scales
-# horizontally. The scheduler/notifier run in-process per pod but are
-# DB-coordinated + idempotent, so multiple replicas are safe.
+# Safe to scale: the API tier is stateless (all state in Postgres), and the
+# scheduler / notifier / prune run only on the ONE replica that holds the
+# Postgres advisory lock (leader election, rampart_db::leader). So extra
+# replicas serve HTTP without duplicating probes or alerts; on the leader's
+# exit a follower takes over within ~10s (active-passive HA for the background
+# work, active-active for the API). Caveat: the live SSE heartbeat stream is
+# per-process, so real-time dashboard updates come from the leader replica;
+# all REST/data works on every replica.
 autoscaling:
   enabled: false
   minReplicas: 2

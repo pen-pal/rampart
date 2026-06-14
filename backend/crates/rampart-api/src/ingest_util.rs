@@ -86,17 +86,23 @@ pub fn presented_token<'a>(headers: &'a HeaderMap, query_k: Option<&'a str>) -> 
     query_k.map(str::trim).filter(|s| !s.is_empty())
 }
 
-/// Enforce telemetry auth. Returns `Ok(())` when no token is configured
-/// (auth disabled) or when the presented token matches; `Err(Unauthorized)`
-/// otherwise. Comparison is constant-time to avoid leaking the secret via
-/// timing.
+/// Enforce telemetry auth. With no token configured, ingest is open unless
+/// `RAMPART_REQUIRE_INGEST_AUTH` is set — then a token MUST be configured and
+/// presented (an open ingest surface is refused outright). With a token
+/// configured it is always enforced. Comparison is constant-time.
 pub async fn require_telemetry_token(
     pool: &DbPool,
     headers: &HeaderMap,
     query_k: Option<&str>,
 ) -> Result<(), ApiError> {
-    let Some(expected) = configured_token(pool).await? else {
-        return Ok(());
+    let configured = configured_token(pool).await?;
+    let Some(expected) = configured else {
+        // No token set: open by default; refuse if the operator mandated auth.
+        return if require_ingest_auth() {
+            Err(ApiError::Unauthorized)
+        } else {
+            Ok(())
+        };
     };
     let presented = presented_token(headers, query_k).unwrap_or("");
     if constant_time_eq(presented.as_bytes(), expected.as_bytes()) {
@@ -104,6 +110,14 @@ pub async fn require_telemetry_token(
     } else {
         Err(ApiError::Unauthorized)
     }
+}
+
+/// Whether ingest auth is mandatory (`RAMPART_REQUIRE_INGEST_AUTH=1`/`true`).
+pub fn require_ingest_auth() -> bool {
+    matches!(
+        std::env::var("RAMPART_REQUIRE_INGEST_AUTH").as_deref(),
+        Ok("1") | Ok("true") | Ok("TRUE") | Ok("yes")
+    )
 }
 
 /// Length-independent constant-time byte comparison. Mismatched lengths

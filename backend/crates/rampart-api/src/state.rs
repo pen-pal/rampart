@@ -38,6 +38,10 @@ struct Inner {
     /// router (login / register / 2fa verify) to cap brute-force
     /// attempts. Cloning is cheap (Arc-shared).
     auth_rate_limiter: IpRateLimiter,
+    /// Per-IP limiter on the public ingest surface (OTLP / RUM / Sentry).
+    /// Higher burst + refill than the auth limiter — legitimate telemetry is
+    /// frequent — but still caps a single source from flooding the tiers.
+    ingest_rate_limiter: IpRateLimiter,
 }
 
 pub struct TotpChallenge {
@@ -54,6 +58,7 @@ impl AppState {
             totp_challenges: Mutex::new(HashMap::new()),
             http_metrics: Arc::new(HttpMetrics::new()),
             auth_rate_limiter: IpRateLimiter::new(),
+            ingest_rate_limiter: IpRateLimiter::with_params(240.0, 4.0),
         }))
     }
 
@@ -69,6 +74,7 @@ impl AppState {
             totp_challenges: Mutex::new(HashMap::new()),
             http_metrics: Arc::new(HttpMetrics::new()),
             auth_rate_limiter: IpRateLimiter::new(),
+            ingest_rate_limiter: IpRateLimiter::with_params(240.0, 4.0),
         }))
     }
 
@@ -78,6 +84,10 @@ impl AppState {
 
     pub fn auth_rate_limiter(&self) -> IpRateLimiter {
         self.0.auth_rate_limiter.clone()
+    }
+
+    pub fn ingest_rate_limiter(&self) -> IpRateLimiter {
+        self.0.ingest_rate_limiter.clone()
     }
 
     pub fn pool(&self) -> &DbPool {

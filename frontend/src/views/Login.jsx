@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { LogIn, UserPlus, Loader2 } from 'lucide-react';
+import { LogIn, UserPlus, Loader2, KeyRound } from 'lucide-react';
 import { api, useApi } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
 
@@ -62,6 +62,15 @@ const css = `
   }
   .btn-primary:hover { background: var(--accent-2); }
   .btn-primary:disabled { opacity: .55; cursor: not-allowed; }
+  .btn-sso {
+    width: 100%; display: inline-flex; align-items: center; justify-content: center;
+    gap: 8px; padding: 11px 16px; border-radius: 8px; cursor: pointer;
+    font-size: 14px; font-weight: 600; font-family: inherit;
+    background: var(--surface); color: var(--text); border: 1px solid var(--border-2);
+  }
+  .btn-sso:hover { background: var(--surface-2); border-color: var(--accent); }
+  .sso-divider { display: flex; align-items: center; gap: 12px; margin: 16px 0; color: var(--text-3); font-size: 12px; }
+  .sso-divider::before, .sso-divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
 
   .banner-err {
     padding: 10px 14px; margin-bottom: 14px;
@@ -86,6 +95,11 @@ export default function Login() {
   // { totp_required, challenge_token }, we swap the form for a code prompt.
   const [challengeToken, setChallengeToken] = useState(null);
   const [totpCode,       setTotpCode]       = useState('');
+
+  // SSO (OIDC) availability — shows a "Sign in with SSO" button when the
+  // operator configured an identity provider via env.
+  const ssoState = useApi(() => api.auth.oidcConfig(), []);
+  const ssoEnabled = ssoState.data?.enabled === true;
 
   // Determine mode from /v1/auth/me. While loading, show a tiny spinner.
   const needsSetup = meState.data?.needs_setup === true;
@@ -246,6 +260,16 @@ export default function Login() {
               : <><LogIn size={14}/> {t('login.sign_in')}</>}
           </button>
         </form>
+        )}
+
+        {ssoEnabled && !needsSetup && !challengeToken && (
+          <>
+            <div className="sso-divider"><span>{t('login.sso_or')}</span></div>
+            <button type="button" className="btn-sso"
+              onClick={() => { window.location.href = '/v1/auth/oidc/login'; }}>
+              <KeyRound size={14}/> {t('login.sso_button')}
+            </button>
+          </>
         )}
 
         <div className="hint">

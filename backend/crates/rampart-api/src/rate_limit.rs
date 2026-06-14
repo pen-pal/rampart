@@ -51,9 +51,9 @@ struct Bucket {
 }
 
 impl Bucket {
-    fn new(now: Instant) -> Self {
+    fn new(now: Instant, capacity: f64) -> Self {
         Self {
-            tokens: BUCKET_CAPACITY,
+            tokens: capacity,
             last_refill: now,
             last_touched: now,
         }
@@ -62,11 +62,11 @@ impl Bucket {
     /// Returns true if a request is allowed. Refills the bucket
     /// according to elapsed time, then deducts one token. Returning
     /// false means the caller should reject with 429.
-    fn take(&mut self, now: Instant) -> bool {
+    fn take(&mut self, now: Instant, capacity: f64, refill: f64) -> bool {
         let elapsed = now
             .saturating_duration_since(self.last_refill)
             .as_secs_f64();
-        self.tokens = (self.tokens + elapsed * REFILL_PER_SECOND).min(BUCKET_CAPACITY);
+        self.tokens = (self.tokens + elapsed * refill).min(capacity);
         self.last_refill = now;
         self.last_touched = now;
         if self.tokens >= 1.0 {
@@ -87,6 +87,8 @@ pub struct IpRateLimiter {
 struct Inner {
     buckets: HashMap<IpAddr, Bucket>,
     last_gc: Instant,
+    capacity: f64,
+    refill: f64,
 }
 
 impl Default for IpRateLimiter {
@@ -96,11 +98,21 @@ impl Default for IpRateLimiter {
 }
 
 impl IpRateLimiter {
+    /// Brute-force-defence shape (auth surface): 10 burst, ~10/min refill.
     pub fn new() -> Self {
+        Self::with_params(BUCKET_CAPACITY, REFILL_PER_SECOND)
+    }
+
+    /// A limiter with custom bucket params — e.g. the ingest surface uses a
+    /// much larger burst + faster refill since legitimate telemetry is
+    /// frequent, while still capping a single IP's flood.
+    pub fn with_params(capacity: f64, refill: f64) -> Self {
         Self {
             inner: Arc::new(Mutex::new(Inner {
                 buckets: HashMap::new(),
                 last_gc: Instant::now(),
+                capacity,
+                refill,
             })),
         }
     }
@@ -119,8 +131,9 @@ impl IpRateLimiter {
             g.last_gc = now;
         }
 
-        let bucket = g.buckets.entry(ip).or_insert_with(|| Bucket::new(now));
-        bucket.take(now)
+        let (capacity, refill) = (g.capacity, g.refill);
+        let bucket = g.buckets.entry(ip).or_insert_with(|| Bucket::new(now, capacity));
+        bucket.take(now, capacity, refill)
     }
 
     #[cfg(test)]

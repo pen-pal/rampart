@@ -141,41 +141,62 @@ impl Scheduler {
         }
     }
 
-    /// Run forever. Reconciles the running task set against the DB on
-    /// every reload signal, and on a slow timer as a fallback.
-    pub async fn run(self: Arc<Self>) {
-        // Initial reconcile so existing monitors start probing immediately.
-        if let Err(e) = self.reconcile().await {
-            error!(error = %e, "initial reconcile failed");
-        }
+    /// Run forever, but only drive probes + periodic checks while this
+    /// process holds scheduler leadership (see [`rampart_db::leader`]). On a
+    /// single-replica deploy leadership is acquired immediately and this
+    /// behaves exactly as before. With multiple replicas only the leader
+    /// probes + alerts, so there are no duplicate probes/pages; a follower
+    /// idles, polling for leadership, and takes over on the leader's exit.
+    ///
+    /// Pass [`Leadership::always`] in tests/single-process harnesses.
+    pub async fn run(self: Arc<Self>, leadership: Arc<rampart_db::leader::Leadership>) {
         let slow_tick = Duration::from_secs(30);
+        // While a follower, poll for leadership more eagerly than the slow
+        // tick so failover is quick.
+        let idle_tick = Duration::from_secs(5);
+        let mut leading = false;
 
         loop {
+            let now_leader = leadership.is_leader();
+            if leading && !now_leader {
+                // Lost the lock (e.g. DB connection drop) — stop probing so
+                // another replica can take over without double-probing.
+                warn!("scheduler lost leadership; stopping probe tasks");
+                self.stop_all().await;
+                leading = false;
+            }
+            if now_leader {
+                if !leading {
+                    info!("scheduler assumed leadership; reconciling");
+                    leading = true;
+                }
+                if let Err(e) = self.reconcile().await {
+                    error!(error = %e, "reconcile failed");
+                }
+                // Best-effort periodic checks, leader-only so they never
+                // duplicate across replicas. Failures are logged inside each
+                // scan — they must never stall the loop.
+                self.check_maintenance_transitions().await;
+                self.check_scheduled_reports().await;
+                self.check_stale_agents().await;
+                self.check_metric_rules().await;
+                self.check_telemetry_rules().await;
+                self.check_escalations().await;
+            }
+
             tokio::select! {
                 _ = self.reload.notified() => {}
-                _ = tokio::time::sleep(slow_tick) => {}
+                _ = tokio::time::sleep(if leading { slow_tick } else { idle_tick }) => {}
             }
-            if let Err(e) = self.reconcile().await {
-                error!(error = %e, "reconcile failed");
-            }
-            // Best-effort maintenance start/end notifications, riding the
-            // same slow tick. Failures are logged inside the scan — they
-            // must never stall the reconcile loop.
-            self.check_maintenance_transitions().await;
-            // Scheduled weekly uptime reports, same best-effort contract.
-            self.check_scheduled_reports().await;
-            // Stale-agent watchdog: agent-assigned monitors that stopped
-            // reporting get a synthetic Down heartbeat + alert.
-            self.check_stale_agents().await;
-            // Metric threshold rules: evaluate against latest samples,
-            // fan out fired/resolved transitions to the rules' channels.
-            self.check_metric_rules().await;
-            // Telemetry alert rules: windowed aggregates over the error /
-            // trace / log tiers, same fire/resolve fan-out as metric rules.
-            self.check_telemetry_rules().await;
-            // Escalation ladders: advance unacked episodes whose next
-            // step is due.
-            self.check_escalations().await;
+        }
+    }
+
+    /// Cancel every running probe task. Used when leadership is lost so a
+    /// follower doesn't keep probing behind the new leader's back.
+    async fn stop_all(&self) {
+        let ids: Vec<MonitorId> = { self.tasks.read().await.keys().copied().collect() };
+        for id in ids {
+            self.stop_task(id).await;
         }
     }
 
