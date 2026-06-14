@@ -28,6 +28,7 @@ pub mod monitor_groups;
 pub mod monitor_templates;
 pub mod monitors;
 pub mod notifications;
+pub mod oidc;
 pub mod on_call;
 pub mod openapi;
 pub mod otlp;
@@ -85,6 +86,10 @@ pub fn v1_public(state: &AppState) -> Router<AppState> {
         // Remote-agent wire protocol. The `Authorization: Bearer rmpa_…`
         // token is the auth — agents are headless, no session.
         .nest("/agent", agents::agent_router())
+        // OIDC SSO login flow (config probe + redirect + callback). Public,
+        // and outside the brute-force auth rate-limiter — it's a browser
+        // redirect dance, not password attempts.
+        .nest("/auth/oidc", oidc::router())
 }
 
 pub fn v1_protected() -> Router<AppState> {

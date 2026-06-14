@@ -180,6 +180,7 @@ export const api = {
     totpEnable:  (code)                   => request('/v1/auth/2fa/enable',  { method: 'POST', body: { code } }),
     totpDisable: (password, code)         => request('/v1/auth/2fa/disable', { method: 'POST', body: { password, code } }),
     totpVerify:  (challengeToken, code)   => request('/v1/auth/2fa/verify',  { method: 'POST', body: { challenge_token: challengeToken, code } }),
+    oidcConfig:  ()                       => request('/v1/auth/oidc/config'),
   },
   notifications: {
     list:        ()                                  => request('/v1/notifications'),

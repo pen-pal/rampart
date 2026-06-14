@@ -48,6 +48,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ### Added
 
+- **OIDC / SSO login.** Rampart can sit behind your identity provider (Google,
+  Okta, Keycloak, Authentik, Entra, …) instead of local password accounts —
+  the #1 blocker for org adoption. Generic OpenID Connect via the Authorization
+  Code flow with **PKCE**; identity is read from the provider's userinfo
+  endpoint (server-to-server over TLS, so there's no JWT-signature handling to
+  get wrong). Users are auto-provisioned by email on first login (the very
+  first user bootstraps as admin; thereafter `RAMPART_OIDC_DEFAULT_ROLE`).
+  Configured via env (`RAMPART_OIDC_ISSUER` / `CLIENT_ID` / `CLIENT_SECRET` /
+  `REDIRECT_URL`); the login page shows a **Sign in with SSO** button when
+  enabled. Routes under `/v1/auth/oidc`. Local password + 2FA still work.
 - **Leader election for safe multi-replica / HA.** The scheduler, notifier
   digest-flush, escalation timers and retention prune now run only on the one
   replica holding a Postgres session **advisory lock** (`rampart_db::leader`).

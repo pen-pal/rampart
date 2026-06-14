@@ -18,6 +18,9 @@
 //!                         unless a telemetry token is configured + presented.
 //!   RAMPART_SECRET_KEY    32-byte key (64 hex / base64). When set, notification
 //!                         channel secrets are AES-256-GCM encrypted at rest.
+//!   RAMPART_OIDC_ISSUER / _CLIENT_ID / _CLIENT_SECRET / _REDIRECT_URL
+//!                         when all set, enables OIDC SSO login. Optional
+//!                         RAMPART_OIDC_DEFAULT_ROLE = admin|editor|readonly.
 
 use rampart_api::{build_router, state::AppState, static_assets};
 use std::net::SocketAddr;
