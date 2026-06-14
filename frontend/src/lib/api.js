@@ -305,6 +305,7 @@ export const api = {
       const s = qs.toString();
       return request(`/v1/audit-log${s ? '?' + s : ''}`);
     },
+    verify: () => request('/v1/audit-log/verify'),
   },
   subscribers: {
     subscribe:   (slug, email) => request(`/v1/public/status-pages/${slug}/subscribe`, { method: 'POST', body: { email } }),

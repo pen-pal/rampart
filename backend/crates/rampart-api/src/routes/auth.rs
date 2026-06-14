@@ -139,6 +139,17 @@ async fn login(
     };
 
     if !ok || user_id.is_none() {
+        // Security event: failed password auth. No trusted identity, so
+        // record anonymously — the source IP + attempted email are the
+        // forensic signal for brute-force / credential-stuffing review.
+        crate::audit::record_anon(
+            state.pool(),
+            &headers,
+            "auth.login_failed",
+            "session",
+            Some(json!({ "email": input.email })),
+        )
+        .await;
         return Err(ApiError::Unauthorized);
     }
     let user_id = user_id.unwrap();
@@ -161,6 +172,16 @@ async fn login(
         .await
         .ok();
     let user = rampart_db::users::get(state.pool(), user_id).await?;
+    crate::audit::record(
+        state.pool(),
+        &user,
+        &headers,
+        "auth.login",
+        "session",
+        None,
+        None,
+    )
+    .await;
 
     let session = rampart_db::sessions::create(
         state.pool(),
