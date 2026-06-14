@@ -124,8 +124,39 @@ async fn ingest_pprof(
     Ok(Json(serde_json::json!({})))
 }
 
+/// OTLP profiles ingest. Mounted on the `/otlp` surface (so an OTLP/HTTP
+/// exporter pointed at `http://host/otlp` reaches `…/v1development/profiles`).
+/// One request can carry many profiles (multiple resources/scopes); each is
+/// lowered and stored independently.
+pub async fn ingest_otlp(
+    State(s): State<AppState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    crate::ingest_util::require_telemetry_token(s.pool(), &headers, None).await?;
+    let body = crate::ingest_util::decompress(&headers, &body)?;
+    let profiles =
+        crate::otlp_profiles::parse_otlp_profiles(&body).map_err(ApiError::BadRequest)?;
+    for p in profiles {
+        if p.folded.is_empty() {
+            continue;
+        }
+        let profile_type = non_empty(p.type_name.as_deref()).unwrap_or("cpu");
+        store(
+            &s,
+            &p.service,
+            profile_type,
+            p.period_ns,
+            p.duration_ns,
+            p.folded,
+        )
+        .await?;
+    }
+    Ok(Json(serde_json::json!({})))
+}
+
 /// Lower a folded map to storage: canonical text → gzip → insert. Shared by
-/// every ingest format — folded text and pprof now, OTLP profiles next.
+/// every ingest format — folded text, pprof, and OTLP profiles.
 async fn store(
     s: &AppState,
     service: &str,
