@@ -107,9 +107,16 @@ function Flamegraph({ root, unit }) {
   );
 }
 
+// Read a query param off the hash (e.g. #/profiling?service=api) — the
+// trace→profile pivot deep-links the span's service here.
+function hashParam(name) {
+  const q = (window.location.hash.split('?')[1] || '');
+  return new URLSearchParams(q).get(name) || '';
+}
+
 export default function Profiling({ profileId }) {
   const single = profileId != null;
-  const [service, setService] = useState('');
+  const [service, setService] = useState(() => hashParam('service'));
   const [type, setType] = useState('');
   const [hours, setHours] = useState(24);
   const [reloadKey, setReloadKey] = useState(0);
