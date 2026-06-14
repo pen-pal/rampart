@@ -17,6 +17,25 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **Active-session management.** `GET /v1/sessions` lists your logged-in devices
+  (IP / user-agent / age, current flagged); revoke one (`DELETE /v1/sessions/{id}`)
+  or sign out all others (`POST /v1/sessions/revoke-others`). On the Security page.
+- **2FA-enforcement policy.** Admins can require two-factor org-wide or for
+  admins only (`settings.require_2fa` via `/v1/settings/security`); a user it
+  applies to is forced to enrol before using the app.
+
+### Security
+
+- **Stronger password policy.** A shared validator now rejects too-common
+  passwords, passwords containing the email name, and single-repeated-character
+  passwords (on top of the length minimum) — applied to register, admin
+  user-create, and password change.
+- **Syslog-over-TCP SIEM sink** (`syslog_tcp`) for reliable streaming / a
+  TLS-terminating sidecar, alongside UDP syslog and webhook. The `siem_export`
+  config is now encrypted at rest with the other secret settings.
+
 ---
 
 ## [0.15.0] — 2026-06-14

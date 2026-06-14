@@ -5910,6 +5910,87 @@
         }
       }
     },
+    "/v1/settings/security": {
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "summary": "Get the 2FA-enforcement policy",
+        "responses": {
+          "200": {
+            "description": "`{ require_2fa: \"off\"|\"admins\"|\"all\" }`."
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Audit"
+        ],
+        "summary": "Set the 2FA-enforcement policy",
+        "description": "Admin only. Body `{ require_2fa }`. Users it applies to must enrol 2FA before using the app.",
+        "responses": {
+          "204": {
+            "description": "Saved."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/v1/sessions": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "List the caller's active sessions",
+        "responses": {
+          "200": {
+            "description": "`[{ id, ip_addr, user_agent, created_at, expires_at, current }]`."
+          }
+        }
+      }
+    },
+    "/v1/sessions/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "delete": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Revoke one of the caller's sessions",
+        "responses": {
+          "204": {
+            "description": "Revoked."
+          },
+          "404": {
+            "description": "No such session for the caller."
+          }
+        }
+      }
+    },
+    "/v1/sessions/revoke-others": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Sign out the caller's other devices",
+        "responses": {
+          "200": {
+            "description": "`{ revoked }` \u2014 count of other sessions ended; current kept."
+          }
+        }
+      }
+    },
     "/v1/ingest-tokens/{id}/mapping": {
       "parameters": [
         {
