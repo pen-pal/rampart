@@ -365,6 +365,42 @@ pub async fn list(pool: &DbPool, limit: i64, filter: AuditFilter<'_>) -> DbResul
         .collect())
 }
 
+/// Audit rows with `id > after_id`, oldest first — the forward cursor the SIEM
+/// exporter tails. `after_id = 0` starts from the beginning.
+pub async fn fetch_since(pool: &DbPool, after_id: i64, limit: i64) -> DbResult<Vec<AuditEntry>> {
+    let limit = limit.clamp(1, 1000);
+    let rows = sqlx::query!(
+        r#"
+        SELECT id, actor_user_id, actor_api_key_id, action, resource_kind,
+               resource_id, payload, ip_addr, user_agent, ts
+        FROM audit_log
+        WHERE id > $1
+        ORDER BY id ASC
+        LIMIT $2
+        "#,
+        after_id,
+        limit,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|r| AuditEntry {
+            id: r.id,
+            actor_user_id: r.actor_user_id.map(UserId::from_uuid),
+            actor_api_key_id: r.actor_api_key_id.map(ApiKeyId::from_uuid),
+            action: r.action,
+            resource_kind: r.resource_kind,
+            resource_id: r.resource_id,
+            payload: r.payload,
+            ip_addr: r.ip_addr.map(|n| n.network().to_string()),
+            user_agent: r.user_agent,
+            ts: r.ts,
+        })
+        .collect())
+}
+
 /// One row of the CSV export, with the actor already resolved to a human
 /// label: the user's email when the action was performed by a logged-in
 /// admin, otherwise the api-key id. The `payload` is intentionally absent —
