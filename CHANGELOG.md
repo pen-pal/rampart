@@ -17,6 +17,10 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+---
+
+## [0.13.0] — 2026-06-14
+
 ### Added
 
 - **Profile-type alerting.** A new telemetry-rule kind `profile_samples` fires
@@ -940,7 +944,8 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 
 ---
 
-[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.13.0...HEAD
+[0.13.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.13.0
 [0.12.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.12.0
 [0.11.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.11.0
 [0.10.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.10.0
