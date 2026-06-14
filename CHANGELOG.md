@@ -17,6 +17,10 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+---
+
+## [0.18.0] — 2026-06-14
+
 ### Added
 - Error-issue statistics: distinct users affected plus breakdowns by release and
   environment, on a new `GET /v1/error-issues/{id}/stats` endpoint and an issue
@@ -1054,7 +1058,8 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 
 ---
 
-[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.18.0...HEAD
+[0.18.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.18.0
 [0.17.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.17.0
 [0.16.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.16.0
 [0.15.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.15.0
