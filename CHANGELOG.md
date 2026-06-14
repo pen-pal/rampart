@@ -19,6 +19,10 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ### Added
 
+- **Logging depth — live tail + severity-volume breakdown.** The logs view gains
+  a **Live** toggle (DB-backed polling, so it works across replicas) and a
+  per-level **volume bar** (`GET /v1/logs/levels`) with click-to-filter chips.
+  (Log→trace pivot already shipped — a log's `trace_id` links to the waterfall.)
 - **APM depth — per-operation latency/throughput/error rollup.** The traces
   tier gains an **Operations** tab + `GET /v1/traces/operations`: spans grouped
   by `(service, operation)` with call volume, error rate, and p50/p95/p99/avg/

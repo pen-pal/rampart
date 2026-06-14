@@ -45,19 +45,23 @@ into the prune sweep — the highest-volume tier, so retention is short.
   `websearch_to_tsquery` — bare words, `"quoted phrases"`, `or`, `-exclude`);
   `trace_id` pulls a single trace's logs.
 - `GET /v1/logs/services` — distinct recent service names for the filter UI.
+- `GET /v1/logs/levels?service=&hours=24` — record count per coarse level over
+  the window (the severity-volume breakdown shown as clickable chips).
 
 ## Dashboard
 
 A `#/logs` view: a filter bar (service dropdown, minimum-level dropdown, body
-search) over a compact log stream — timestamp, level (colour-coded), service,
-body — with a click-to-expand row revealing `trace_id`/`span_id`, the exporter
-severity text, and attributes.
+search) + a **live-tail** toggle (polls every 3s — DB-backed, so it works
+across replicas) and a **severity-volume bar** (per-level counts, click to
+filter). The compact log stream shows timestamp, level (colour-coded),
+service, body — with a click-to-expand row revealing `trace_id`/`span_id` (the
+trace id links straight to the **waterfall**), the exporter severity text, and
+attributes.
 
 ## Follow-ups (deferred)
 
 - Ranked full-text results + highlighting (today it's a boolean match filter,
   ordered by time — the `tsvector` + GIN index is in place, migration 0082).
-- Live tail (SSE), and cross-tier nav: trace detail → its logs (by `trace_id`),
-  error issue → correlated logs.
+- SSE push tail (today's tail polls); volume sparkline over time.
 - A plain-JSON bulk ingest for non-OTel sources; volume controls (sampling /
   drop rules) and an opt-in columnar/object store if Postgres is outgrown.
