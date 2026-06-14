@@ -165,6 +165,27 @@ Errors flow through the **existing notifier**, not a parallel alert system:
   event of an already-known issue. (A later "spike" rule — N events in M
   minutes — is a natural follow-up but out of v1.)
 
+## Symbolication (source maps)
+
+Minified JS frames (`main.abc123.js:1:48210`) are unreadable. Upload the build's
+**source map** and Rampart resolves frames to the original function / file / line
+on read — server-side, so nothing changes in how SDKs send events.
+
+- **Store** (migration `0086`, table `source_maps`): keyed by
+  `(project_id, release, filename)`, where `filename` is the **basename** of the
+  minified file. The map JSON lives in a `jsonb` column.
+- **Capture:** the ingest parser now keeps each frame's `colno` (a fully-minified
+  bundle is one line, so the column is what disambiguates — line-only lookup is
+  useless there). Old events without a column resolve approximately or not at all.
+- **Resolve:** on `GET /v1/error-issues/{id}/events`, for each frame whose file
+  has an uploaded map for the event's `release`, the `sourcemap` crate maps
+  `(line, col)` → original, attached as a `resolved` block on the frame (the
+  minified original is preserved alongside). Maps are cached per `(release, file)`
+  for the page — one lookup per unique file, not per frame.
+- **Manage:** upload / list / delete maps per project in the dashboard (paste the
+  `.js.map` contents). Native (DWARF) symbolication is a deferred follow-up;
+  this v1 covers the common JS source-map case.
+
 ## API surface
 
 Admin (session-authed, editor/admin, mounted under `/v1`):
