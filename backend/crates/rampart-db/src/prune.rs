@@ -43,6 +43,10 @@ pub struct RetentionConfig {
     /// How long RUM events are retained, in days. Defaults to 14.
     #[serde(default = "default_rum")]
     pub rum_days: i32,
+    /// How long profiles are retained, in days. Defaults to 7 — profiles are
+    /// the heaviest tier per row.
+    #[serde(default = "default_profiles")]
+    pub profiles_days: i32,
 }
 fn default_hb() -> i32 {
     365
@@ -65,6 +69,9 @@ fn default_logs() -> i32 {
 fn default_rum() -> i32 {
     DEFAULT_RUM_DAYS
 }
+fn default_profiles() -> i32 {
+    DEFAULT_PROFILES_DAYS
+}
 
 /// Default metric-sample retention when the setting predates the field.
 pub const DEFAULT_METRICS_DAYS: i32 = 30;
@@ -74,6 +81,8 @@ pub const DEFAULT_TRACES_DAYS: i32 = 7;
 pub const DEFAULT_LOGS_DAYS: i32 = 7;
 /// Default RUM-event retention when the setting predates the field.
 pub const DEFAULT_RUM_DAYS: i32 = 14;
+/// Default profile retention when the setting predates the field.
+pub const DEFAULT_PROFILES_DAYS: i32 = 7;
 
 /// Default rollup-tier retention when no `retention_days` setting is
 /// present (or the row predates this field).
@@ -89,6 +98,7 @@ impl Default for RetentionConfig {
             traces_days: DEFAULT_TRACES_DAYS,
             logs_days: DEFAULT_LOGS_DAYS,
             rum_days: DEFAULT_RUM_DAYS,
+            profiles_days: DEFAULT_PROFILES_DAYS,
         }
     }
 }
@@ -106,6 +116,8 @@ pub struct PruneStats {
     pub logs_deleted: u64,
     /// RUM events dropped past the RUM-retention window.
     pub rum_deleted: u64,
+    /// Profiles dropped past the profile-retention window.
+    pub profiles_deleted: u64,
     /// Raw heartbeats folded into rollups and deleted.
     pub heartbeats_rolled: u64,
     /// Rollup buckets dropped past the rollup tier.
@@ -127,6 +139,7 @@ impl PruneStats {
             && self.logs_deleted == 0
             && self.errors_deleted == 0
             && self.rum_deleted == 0
+            && self.profiles_deleted == 0
     }
 }
 
@@ -394,6 +407,7 @@ pub async fn run_once(pool: &DbPool) -> DbResult<PruneStats> {
     // error_projects row, so the delete joins rather than reading cfg).
     stats.errors_deleted = crate::error_tracking::prune(pool).await?;
     stats.rum_deleted = crate::rum::prune(pool, cfg.rum_days).await?;
+    stats.profiles_deleted = crate::profiles::prune(pool, cfg.profiles_days).await?;
 
     Ok(stats)
 }
