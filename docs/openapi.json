@@ -5814,6 +5814,35 @@
         }
       }
     },
+    "/v1/settings/siem-export": {
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "summary": "Get the SIEM export config",
+        "description": "Admin only. `{ enabled, kind, target }`. Streams the audit log to an external sink (webhook or syslog). See docs/design/SIEM.md.",
+        "responses": {
+          "200": {
+            "description": "`{ enabled, kind: \"webhook\"|\"syslog\", target }`."
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Audit"
+        ],
+        "summary": "Set the SIEM export config",
+        "description": "Admin only. Body `{ enabled, kind, target }`. `kind` is `webhook` (HTTP POST a JSON array) or `syslog` (UDP RFC5424 line/event); `target` is the URL or `host:port`. Forwarding is leader-gated.",
+        "responses": {
+          "204": {
+            "description": "Saved."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
     "/v1/ingest-tokens/{id}/mapping": {
       "parameters": [
         {
