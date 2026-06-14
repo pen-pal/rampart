@@ -17,6 +17,17 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Security
+
+- **SSRF guard extended to all connect-based probes.** A central guard in the
+  probe dispatch now vets every protocol/DB/banner probe (Postgres, MySQL,
+  MSSQL, Redis, Mongo, Memcached, Cassandra, NATS, LDAP, AMQP, MQTT, Kafka,
+  gRPC, SNMP, RADIUS, NTP, WebSocket, TLS, SSH/SMTP/IMAP/FTP/POP3 banners,
+  Steam) against the same loopback/link-local/metadata (+ opt-in private)
+  blocklist — closing the gap where those kinds could reach internal hosts.
+  HTTP/TCP/synthetic keep their own (address-pinning) guards; DNS/Domain/RDAP/
+  DoH and hostless kinds are exempt by design.
+
 ---
 
 ## [0.9.0] — 2026-06-14
