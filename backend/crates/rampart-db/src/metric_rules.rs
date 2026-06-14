@@ -20,6 +20,8 @@ use uuid::Uuid;
 /// stopped reporting resolves (and stays quiet) rather than firing
 /// forever on its last breached value.
 pub const SAMPLE_FRESHNESS_SECONDS: i64 = 900;
+/// Trailing window the anomaly op computes its mean/stddev baseline over (6h).
+pub const ANOMALY_BASELINE_SECONDS: i64 = 6 * 3600;
 
 struct RuleRow {
     id: Uuid,
@@ -185,9 +187,26 @@ pub async fn evaluate_tick(pool: &DbPool) -> DbResult<Vec<RuleEvent>> {
         let fresh_value = latest.and_then(|(v, ts)| {
             ((now - ts).whole_seconds() < SAMPLE_FRESHNESS_SECONDS).then_some(v)
         });
-        let breached = fresh_value
-            .map(|v| rule.op.breached(v, rule.threshold))
-            .unwrap_or(false);
+        let breached = match fresh_value {
+            // Anomaly: z-score against a rolling baseline (threshold = σ).
+            Some(v) if rule.op.is_anomaly() => {
+                match crate::metric_samples::baseline(
+                    pool,
+                    &rule.metric,
+                    &rule.labels,
+                    ANOMALY_BASELINE_SECONDS,
+                )
+                .await?
+                {
+                    Some((mean, stddev)) => {
+                        RuleOp::anomaly_breached(v, mean, stddev, rule.threshold)
+                    }
+                    None => false,
+                }
+            }
+            Some(v) => rule.op.breached(v, rule.threshold),
+            None => false,
+        };
 
         let transition = rule_transition(
             rule.breach_since,
