@@ -19,6 +19,14 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ### Security
 
+- **Tamper-evident audit log.** Audit rows are now linked in a hash chain —
+  each row stores `HMAC-SHA256(RAMPART_SECRET_KEY, prev_hash ‖ row)` (SHA-256
+  fallback with no key). Because the MAC key lives outside the database, a party
+  who can write to the DB can't edit, delete or reorder history without breaking
+  the chain undetectably. `GET /v1/audit-log/verify` (admin) re-walks it and
+  reports the first tampered row. Appends are serialized (advisory lock) so the
+  chain stays linear; pre-existing rows are exempt (chain covers entries written
+  after the upgrade).
 - **SMTP + ingest secrets encrypted at rest.** Extends the at-rest encryption
   to the credential-bearing `settings` rows — the SMTP password and the
   telemetry ingest token are now sealed with the same AES-GCM envelope,
