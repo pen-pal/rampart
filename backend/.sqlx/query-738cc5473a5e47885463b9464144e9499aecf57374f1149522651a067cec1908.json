@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO source_maps (project_id, release, filename, map)\n        VALUES ($1, $2, $3, $4)\n        ON CONFLICT (project_id, release, filename)\n        DO UPDATE SET map = EXCLUDED.map, uploaded_at = now()\n        RETURNING id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "source_maps",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Jsonb"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "738cc5473a5e47885463b9464144e9499aecf57374f1149522651a067cec1908"
+}
