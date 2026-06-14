@@ -29,6 +29,12 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
   behind failed logins, and a per-hour failed-login sparkline over the last 24h
   (`GET /v1/audit-log/insights`). A security-event surface over the existing
   tamper-evident audit log — not an inline WAF.
+- **Server-side symbolication (JS source maps).** Upload a build's source map
+  per `(release, file)` on an error project; minified stack frames resolve to the
+  original function / file / line on read (`GET /v1/error-issues/{id}/events`)
+  via the `sourcemap` crate. The ingest parser now captures each frame's column
+  (essential for fully-minified single-line bundles). Manage maps in the
+  dashboard; migration `0086`. Native (DWARF) symbolication is deferred.
 
 ### Documentation
 
