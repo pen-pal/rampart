@@ -23,6 +23,7 @@ selected by the rule's `kind`.
 | `trace_latency` | p95 span `duration_ms` | service name |
 | `trace_error_rate` | percent of spans with `status_code = 2` | service name |
 | `log_volume` | COUNT of logs at/above `min_level` | service name (+ `match_text` body substring) |
+| `profile_samples` | SUM of profile `sample_count` | service name |
 
 `target` empty = no scope filter (all projects/services). `op` + `threshold`
 compare the aggregate (`gt`/`lt`/`gte`/`lte`); `window_seconds` is the rolling
