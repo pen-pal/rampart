@@ -1523,6 +1523,9 @@ const en = {
   'profiling.fn':                    'Function',
   'profiling.self':                  'Self',
   'profiling.total':                 'Total',
+  'profiling.diff':                  'Diff',
+  'profiling.diff_hint':             'Compare this window against the preceding one — red = hotter, blue = colder',
+  'profiling.diff_legend':           'Δ vs preceding window (red hotter · blue colder)',
 
   'errors.trace_context':            'This error has a trace:',
   'errors.view_trace':               'View trace →',

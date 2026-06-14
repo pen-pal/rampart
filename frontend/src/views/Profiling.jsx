@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ChevronLeft, Loader2, AlertCircle, Flame, RefreshCw } from 'lucide-react';
+import { ChevronLeft, Loader2, AlertCircle, Flame, RefreshCw, GitCompare } from 'lucide-react';
 import { api, useApi } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
 
@@ -41,6 +41,14 @@ function frameColor(name) {
   return `hsl(${hue}, ${sat}%, 58%)`;
 }
 
+// Diff coloring: red = hotter (positive delta), blue = colder, grey = ~unchanged.
+// Lightness scales with |delta| relative to the biggest mover in view.
+function diffColor(delta, maxAbs) {
+  if (!delta || maxAbs === 0) return 'hsl(40, 6%, 80%)';
+  const light = 76 - Math.min(1, Math.abs(delta) / maxAbs) * 30; // 76% → 46%
+  return delta > 0 ? `hsl(8, 78%, ${light}%)` : `hsl(210, 70%, ${light}%)`;
+}
+
 // Flatten a tree into absolutely-positioned cells. x/width are percentages of
 // the (zoom) root's value, so the root spans full width and a node's share of
 // its parent reads off directly. Children that don't sum to the parent leave a
@@ -67,12 +75,16 @@ function layout(root) {
   return { cells, maxDepth };
 }
 
-function Flamegraph({ root, unit }) {
+function Flamegraph({ root, unit, diff }) {
   const [zoom, setZoom] = useState(root);
   // Reset the zoom whenever the underlying data changes.
   useEffect(() => setZoom(root), [root]);
   const { cells, maxDepth } = useMemo(() => layout(zoom), [zoom]);
   const grandTotal = root.value || 1;
+  const maxAbs = useMemo(
+    () => (diff ? Math.max(1, ...cells.map(c => Math.abs(c.node.delta || 0))) : 0),
+    [diff, cells],
+  );
 
   return (
     <div>
@@ -84,18 +96,22 @@ function Flamegraph({ root, unit }) {
       <div style={{ position: 'relative', height: (maxDepth + 1) * ROW_H, width: '100%' }}>
         {cells.map((c, i) => {
           const pct = ((c.node.value / grandTotal) * 100).toFixed(1);
+          const delta = c.node.delta || 0;
+          const title = diff
+            ? `${c.node.name}\nΔ ${delta > 0 ? '+' : ''}${delta.toLocaleString()} ${unit} (after ${c.node.value.toLocaleString()})`
+            : `${c.node.name}\n${c.node.value.toLocaleString()} ${unit} · ${pct}% of total`;
           return (
             <div
               key={i}
               className="flame-cell"
-              title={`${c.node.name}\n${c.node.value.toLocaleString()} ${unit} · ${pct}% of total`}
+              title={title}
               onClick={() => (c.node.children && c.node.children.length ? setZoom(c.node) : null)}
               style={{
                 left: `${c.x}%`,
                 width: `${c.w}%`,
                 top: c.depth * ROW_H,
                 height: ROW_H - 1,
-                background: frameColor(c.node.name),
+                background: diff ? diffColor(delta, maxAbs) : frameColor(c.node.name),
               }}
             >
               {c.w > 4 ? c.node.name : ''}
@@ -120,6 +136,7 @@ export default function Profiling({ profileId }) {
   const [type, setType] = useState('');
   const [hours, setHours] = useState(24);
   const [reloadKey, setReloadKey] = useState(0);
+  const [diff, setDiff] = useState(false);
 
   const svcState = useApi(() => (single ? Promise.resolve([]) : api.profiles.services()), [single]);
   const services = svcState.data || [];
@@ -139,12 +156,19 @@ export default function Profiling({ profileId }) {
 
   const flameState = useApi(() => {
     if (single) return api.profiles.flamegraphOne(profileId);
-    if (service && type) return api.profiles.flamegraph(service, type, hours);
+    if (service && type) {
+      return diff
+        ? api.profiles.flamegraphDiff(service, type, hours)
+        : api.profiles.flamegraph(service, type, hours);
+    }
     return Promise.resolve(null);
-  }, [single, profileId, service, type, hours, reloadKey]);
+  }, [single, profileId, service, type, hours, diff, reloadKey]);
 
   const data = flameState.data;
   const unit = 'samples'; // values are summed sample weights regardless of type
+  // Sample total spans both response shapes (flat vs diff).
+  const samples = data ? (data.sample_count ?? (data.after_samples || 0) + (data.before_samples || 0)) : 0;
+  const isDiff = diff && !single;
 
   return (
     <div className="rampart">
@@ -173,6 +197,9 @@ export default function Profiling({ profileId }) {
               <option value={24}>{t('profiling.window_24h')}</option>
               <option value={168}>{t('profiling.window_7d')}</option>
             </select>
+            <button className={`btn ${diff ? '' : 'btn-ghost'}`} onClick={() => setDiff(v => !v)} title={t('profiling.diff_hint')}>
+              <GitCompare size={14} /> {t('profiling.diff')}
+            </button>
             <button className="btn btn-ghost" onClick={() => setReloadKey(k => k + 1)} title={t('profiling.refresh')}><RefreshCw size={14} /></button>
           </div>
         )}
@@ -183,7 +210,7 @@ export default function Profiling({ profileId }) {
         <div className="card" style={{ padding: 16, marginBottom: 18 }}>
           {flameState.loading ? (
             <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-3)' }}><Loader2 size={16} /> {t('profiling.loading')}</div>
-          ) : !data || !data.tree || data.sample_count === 0 ? (
+          ) : !data || !data.tree || samples === 0 ? (
             <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-3)' }}>
               <Flame size={28} style={{ marginBottom: 10, opacity: .5 }} />
               <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-2)', marginBottom: 4 }}>{t('profiling.empty.title')}</div>
@@ -192,9 +219,11 @@ export default function Profiling({ profileId }) {
           ) : (
             <>
               <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 10 }}>
-                {data.sample_count.toLocaleString()} {t('profiling.samples_merged')}
+                {isDiff
+                  ? `${t('profiling.diff_legend')} · after ${(data.after_samples || 0).toLocaleString()} · before ${(data.before_samples || 0).toLocaleString()}`
+                  : `${samples.toLocaleString()} ${t('profiling.samples_merged')}`}
               </div>
-              <Flamegraph root={data.tree} unit={unit} />
+              <Flamegraph root={data.tree} unit={unit} diff={isDiff} />
             </>
           )}
         </div>
