@@ -17,6 +17,12 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+- SIEM export now forwards **detection findings** alongside the audit log, over
+  the same webhook/syslog sink (own `created_at` cursor, RFC5424 APP-NAME
+  `detection`). The blue team's SIEM gets Rampart's findings, not just its audit
+  trail.
+
 ---
 
 ## [0.21.0] — 2026-06-14

@@ -1,16 +1,19 @@
 # SIEM / syslog export
 
-Rampart is **not** a SIEM (no detection-rule engine, threat intel, or
-correlation — see [TUNNELING.md](TUNNELING.md) for the same stance on staying in
-our lane). But it *is* the security-event source a blue team wants to feed into
-their SIEM: the **audit log** records logins, failed logins, 2FA failures, and
-every config change, in a tamper-evident hash chain. This feature streams that
-log out to an external sink.
+Rampart is a security-event source a blue team feeds into their SIEM: the
+**audit log** records logins, failed logins, 2FA failures, and every config
+change in a tamper-evident hash chain, and the [detection engine](DETECTION.md)
+raises **findings** from log patterns. This feature streams both out to an
+external sink. (Correlation, threat intel and long-term retention stay in the
+real SIEM — see [TUNNELING.md](TUNNELING.md) for the same stay-in-our-lane
+stance.)
 
 ## Model
 
-A single leader-gated background loop tails the audit log forward and forwards
-new rows to the configured sink. Off by default.
+A single leader-gated background loop runs two forward tails — the audit log and
+detection findings — to the one configured sink. Off by default. Each event is
+tagged with its source (RFC5424 APP-NAME `audit` or `detection`; the webhook
+JSON is shaped per source) so a collector can route by origin.
 
 - **Config** (`settings.siem_export`): `{ enabled, kind, target }`.
   - `kind = "webhook"` → HTTP `POST` a JSON array of audit entries to `target`
@@ -19,10 +22,13 @@ new rows to the configured sink. Off by default.
   - `kind = "syslog"` → send one **RFC5424** line per entry over **UDP** to
     `target` (`host:port`), pri `134` (local0.info), with the audit JSON as the
     message. The classic path into rsyslog / syslog-ng / a SIEM syslog input.
-- **Cursor** (`settings.siem_export_cursor`): the id of the last successfully
-  forwarded row. The loop fetches `audit_log WHERE id > cursor ORDER BY id ASC`
-  in batches and advances the cursor **only after a successful send** — so a
-  down sink is retried, never skipped, and a backlog drains in one tick.
+- **Cursors**: `settings.siem_export_cursor` holds the id of the last forwarded
+  audit row (`audit_log WHERE id > cursor ORDER BY id ASC`);
+  `settings.siem_export_findings_cursor` holds the `created_at` of the last
+  forwarded finding (`detection_findings WHERE created_at > cursor ORDER BY
+  created_at ASC`, since the findings PK is a UUID). Both advance **only after a
+  successful send** — so a down sink is retried, never skipped, and a backlog
+  drains in one tick.
 - **Leader-gated**: only the elected leader forwards (same `Leadership` as the
   scheduler / prune loop), so an HA deployment doesn't double-ship.
 - **Best-effort**: a failing send logs a warning and retries next tick (15s);
