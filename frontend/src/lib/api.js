@@ -343,6 +343,11 @@ export const api = {
     get: () => request('/v1/settings/security'),
     put: (cfg) => request('/v1/settings/security', { method: 'PUT', body: cfg }),
   },
+  silences: {
+    list: () => request('/v1/silences'),
+    create: (body) => request('/v1/silences', { method: 'POST', body }),
+    remove: (id) => request(`/v1/silences/${id}`, { method: 'DELETE' }),
+  },
   incidents: {
     listForPage:  (pageId)              => request(`/v1/status-pages/${pageId}/incidents`),
     create:       (pageId, input)       => request(`/v1/status-pages/${pageId}/incidents`, { method: 'POST', body: input }),
