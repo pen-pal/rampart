@@ -17,6 +17,15 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Security
+
+- **Sessions are revoked on credential / role / 2FA change.** A password change,
+  role/admin change, or 2FA-disable now deletes that user's sessions — a reset,
+  demotion, or compromise can no longer leave a stale (still-privileged) session
+  alive for its full 14-day TTL. A self-service password change re-issues the
+  current device's cookie, so you stay signed in here while every other device
+  is signed out. (`sessions::delete_for_user`, called from the user mutators.)
+
 ---
 
 ## [0.14.0] — 2026-06-14
