@@ -1122,6 +1122,12 @@ const en = {
   'audit.verify_ok':                 'Chain intact — {n} entries verified, no tampering detected.',
   'audit.verify_bad':                'Tampering detected: the hash chain breaks at entry #{id}. Rows may have been altered or deleted.',
   'audit.verify_err':                'Could not verify the audit chain.',
+  'audit.insights_title':            'Security insights · last 24h',
+  'audit.insights_failed':           'Failed logins',
+  'audit.insights_ok':               'Successful logins',
+  'audit.insights_totp':             '2FA failures',
+  'audit.insights_sparkline':        'Failed logins / hour',
+  'audit.insights_top_ips':          'Top source IPs (failed)',
 
   // ── status page: public (unauthenticated #/s/:slug view) ─────────
   'statuspage.public.live_refresh':         'live · auto-refresh 30s',

@@ -215,6 +215,96 @@ pub async fn verify_chain(pool: &DbPool) -> DbResult<VerifyReport> {
     })
 }
 
+#[derive(Debug, Serialize)]
+pub struct IpCount {
+    pub ip: String,
+    pub count: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct HourCount {
+    pub hour: OffsetDateTime,
+    pub count: i64,
+}
+
+/// Aggregate security signal from the audit log over the last `hours`: auth
+/// outcomes, the source IPs behind failed logins, and a per-hour failed-login
+/// series for a sparkline. The audit log is the security-event store, so this is
+/// "security insights" without a separate SIEM.
+#[derive(Debug, Serialize)]
+pub struct SecurityInsights {
+    pub failed_logins: i64,
+    pub successful_logins: i64,
+    pub totp_failures: i64,
+    pub top_ips: Vec<IpCount>,
+    pub by_hour: Vec<HourCount>,
+}
+
+pub async fn security_insights(pool: &DbPool, hours: i32) -> DbResult<SecurityInsights> {
+    let counts = sqlx::query!(
+        r#"
+        SELECT
+            COUNT(*) FILTER (WHERE action = 'auth.login_failed') AS "failed!",
+            COUNT(*) FILTER (WHERE action = 'auth.login')        AS "ok!",
+            COUNT(*) FILTER (WHERE action = 'auth.totp_failed')  AS "totp!"
+        FROM audit_log
+        WHERE ts >= now() - make_interval(hours => $1)
+        "#,
+        hours,
+    )
+    .fetch_one(pool)
+    .await?;
+
+    let top = sqlx::query!(
+        r#"
+        SELECT host(ip_addr) AS "ip!", COUNT(*) AS "count!"
+        FROM audit_log
+        WHERE action = 'auth.login_failed' AND ip_addr IS NOT NULL
+          AND ts >= now() - make_interval(hours => $1)
+        GROUP BY ip_addr
+        ORDER BY COUNT(*) DESC
+        LIMIT 10
+        "#,
+        hours,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let hourly = sqlx::query!(
+        r#"
+        SELECT date_trunc('hour', ts) AS "hour!", COUNT(*) AS "count!"
+        FROM audit_log
+        WHERE action = 'auth.login_failed'
+          AND ts >= now() - make_interval(hours => $1)
+        GROUP BY 1
+        ORDER BY 1
+        "#,
+        hours,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(SecurityInsights {
+        failed_logins: counts.failed,
+        successful_logins: counts.ok,
+        totp_failures: counts.totp,
+        top_ips: top
+            .into_iter()
+            .map(|r| IpCount {
+                ip: r.ip,
+                count: r.count,
+            })
+            .collect(),
+        by_hour: hourly
+            .into_iter()
+            .map(|r| HourCount {
+                hour: r.hour,
+                count: r.count,
+            })
+            .collect(),
+    })
+}
+
 pub struct AuditFilter<'a> {
     pub before_id: Option<i64>,
     pub kind: Option<&'a str>,
@@ -366,4 +456,47 @@ pub async fn export_batch(
             }
         })
         .collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::PgPool;
+
+    fn entry<'a>(action: &'a str, ip: Option<IpNetwork>) -> NewEntry<'a> {
+        NewEntry {
+            actor_user_id: None,
+            actor_api_key_id: None,
+            action,
+            resource_kind: "session",
+            resource_id: None,
+            payload: None,
+            ip_addr: ip,
+            user_agent: None,
+        }
+    }
+
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn security_insights_aggregates(pool: PgPool) {
+        let ip: IpNetwork = "1.2.3.4".parse().unwrap();
+        insert(&pool, entry("auth.login_failed", Some(ip)))
+            .await
+            .unwrap();
+        insert(&pool, entry("auth.login_failed", Some(ip)))
+            .await
+            .unwrap();
+        insert(&pool, entry("auth.login", None)).await.unwrap();
+        insert(&pool, entry("auth.totp_failed", None))
+            .await
+            .unwrap();
+
+        let i = security_insights(&pool, 24).await.unwrap();
+        assert_eq!(i.failed_logins, 2);
+        assert_eq!(i.successful_logins, 1);
+        assert_eq!(i.totp_failures, 1);
+        assert_eq!(i.top_ips.len(), 1);
+        assert_eq!(i.top_ips[0].ip, "1.2.3.4");
+        assert_eq!(i.top_ips[0].count, 2);
+        assert!(!i.by_hour.is_empty());
+    }
 }
