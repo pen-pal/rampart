@@ -45,6 +45,7 @@ pub fn router() -> Router<AppState> {
         .route("/services", get(services))
         .route("/types", get(types))
         .route("/flamegraph", get(flamegraph_window))
+        .route("/flamegraph/diff", get(flamegraph_diff))
         .route("/{id}/flamegraph", get(flamegraph_one))
 }
 
@@ -256,6 +257,50 @@ async fn flamegraph_window(
             .await?;
     let merged = merge_blobs(&blobs)?;
     Ok(Json(build_response(&q.service, merged)))
+}
+
+/// A diff flamegraph: the after-window tree annotated with after−before deltas,
+/// plus both windows' sample totals.
+#[derive(Serialize)]
+struct DiffResponse {
+    tree: profile::DiffNode,
+    after_samples: i64,
+    before_samples: i64,
+}
+
+async fn flamegraph_diff(
+    State(s): State<AppState>,
+    Query(q): Query<FlameQuery>,
+) -> Result<Json<DiffResponse>, ApiError> {
+    let hours = q.hours.unwrap_or(24).clamp(1, 24 * 90);
+    let span = time::Duration::hours(hours as i64);
+    let now = OffsetDateTime::now_utc();
+    // after = the most recent window; before = the window immediately preceding.
+    let after = merge_blobs(
+        &rampart_db::profiles::folded_in_window(
+            s.pool(),
+            &q.service,
+            &q.profile_type,
+            now - span,
+            now,
+        )
+        .await?,
+    )?;
+    let before = merge_blobs(
+        &rampart_db::profiles::folded_in_window(
+            s.pool(),
+            &q.service,
+            &q.profile_type,
+            now - span - span,
+            now - span,
+        )
+        .await?,
+    )?;
+    Ok(Json(DiffResponse {
+        after_samples: after.values().sum(),
+        before_samples: before.values().sum(),
+        tree: profile::fold_to_diff_tree(&before, &after, &q.service),
+    }))
 }
 
 async fn flamegraph_one(
