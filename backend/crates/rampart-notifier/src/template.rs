@@ -137,6 +137,7 @@ pub fn default_subject(event: &Event) -> String {
         }
         EventKind::TelemetryRuleFired => render("[alert] {{ monitor.name }}", event),
         EventKind::TelemetryRuleResolved => render("[resolved] {{ monitor.name }}", event),
+        EventKind::DetectionFinding => render("[detection] {{ monitor.name }}: {{ msg }}", event),
         _ => render("[{{ status }}] {{ monitor.name }}", event),
     }
 }
@@ -165,7 +166,8 @@ pub fn default_body(event: &Event) -> String {
         | EventKind::ErrorNew
         | EventKind::ErrorRegressed
         | EventKind::TelemetryRuleFired
-        | EventKind::TelemetryRuleResolved => {
+        | EventKind::TelemetryRuleResolved
+        | EventKind::DetectionFinding => {
             render("{{ monitor.name }}: {{ msg }}\nTime: {{ ts }}\n", event)
         }
         _ => {
