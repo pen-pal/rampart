@@ -35,6 +35,8 @@ pub fn router() -> Router<AppState> {
         .route("/presets/{id}", get(get_preset).delete(delete_preset))
         .route("/summary", get(summary))
         .route("/history", get(history_all))
+        .route("/export", get(export_monitors))
+        .route("/apply", post(apply_monitors))
         .route("/{id}", get(get_one).patch(update).delete(delete_one))
         .route("/{id}/heartbeats", get(heartbeats))
         .route("/{id}/heartbeats.csv", get(heartbeats_csv))
@@ -60,6 +62,151 @@ fn parse_monitor_id(s: &str) -> Result<MonitorId, ApiError> {
 async fn list(State(state): State<AppState>) -> Result<Json<Vec<Monitor>>, ApiError> {
     let monitors = rampart_db::monitors::list(state.pool()).await?;
     Ok(Json(monitors))
+}
+
+// ─────────────────── monitors-as-code (export / apply) ───────────────────
+
+/// Server-managed fields stripped from an exported spec — everything a spec
+/// shouldn't carry (ids, timestamps, runtime status, cert probe results, the
+/// push token). What remains round-trips back through `apply`.
+const SPEC_STRIP: &[&str] = &[
+    "id",
+    "push_token",
+    "last_push_at",
+    "last_run_started_at",
+    "current_status",
+    "created_at",
+    "updated_at",
+    "cert_days_left",
+    "cert_subject",
+    "cert_checked_at",
+    "tags",
+];
+
+/// `GET /v1/monitors/export` — every monitor as a declarative spec (no ids /
+/// timestamps / runtime). Keep the output in git; feed it back to `apply`.
+async fn export_monitors(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let monitors = rampart_db::monitors::list(state.pool()).await?;
+    let specs: Vec<serde_json::Value> = monitors
+        .iter()
+        .map(|m| {
+            let mut v = serde_json::to_value(m).unwrap_or(serde_json::Value::Null);
+            if let Some(obj) = v.as_object_mut() {
+                for k in SPEC_STRIP {
+                    obj.remove(*k);
+                }
+            }
+            v
+        })
+        .collect();
+    Ok(Json(serde_json::json!({ "monitors": specs })))
+}
+
+#[derive(Deserialize)]
+struct ApplyInput {
+    monitors: Vec<serde_json::Value>,
+    /// Delete monitors whose name isn't in the spec. Off by default.
+    #[serde(default)]
+    prune: bool,
+}
+
+#[derive(Serialize, Default)]
+struct ApplyResult {
+    created: u32,
+    updated: u32,
+    deleted: u32,
+    unchanged: u32,
+    errors: Vec<String>,
+}
+
+/// `POST /v1/monitors/apply` — declarative GitOps apply, keyed by **name**.
+/// Each spec creates (new name) or updates (existing name); `prune` deletes
+/// unlisted monitors. Names must be unique; a duplicate name is reported, not
+/// guessed. Per-item errors are collected so one bad spec doesn't abort the run.
+async fn apply_monitors(
+    State(state): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
+    Json(input): Json<ApplyInput>,
+) -> Result<Json<ApplyResult>, ApiError> {
+    use std::collections::{HashMap, HashSet};
+    let existing = rampart_db::monitors::list(state.pool()).await?;
+    let mut by_name: HashMap<String, MonitorId> = HashMap::new();
+    let mut dups: HashSet<String> = HashSet::new();
+    for m in &existing {
+        if by_name.insert(m.name.clone(), m.id).is_some() {
+            dups.insert(m.name.clone());
+        }
+    }
+
+    let mut res = ApplyResult::default();
+    let mut seen: HashSet<String> = HashSet::new();
+    for spec in &input.monitors {
+        let Some(name) = spec.get("name").and_then(|v| v.as_str()).map(String::from) else {
+            res.errors.push("a spec is missing `name`".into());
+            continue;
+        };
+        seen.insert(name.clone());
+        if dups.contains(&name) {
+            res.errors.push(format!(
+                "{name}: duplicate name in DB — rename so it's unique"
+            ));
+            continue;
+        }
+        if let Some(&id) = by_name.get(&name) {
+            match serde_json::from_value::<UpdateMonitor>(spec.clone())
+                .map_err(|e| e.to_string())
+                .and_then(|p| p.validate().map(|_| p).map_err(|e| e.to_string()))
+            {
+                Ok(patch) => match rampart_db::monitors::update(state.pool(), id, patch).await {
+                    Ok(_) => res.updated += 1,
+                    Err(e) => res.errors.push(format!("{name}: {e}")),
+                },
+                Err(e) => res.errors.push(format!("{name}: {e}")),
+            }
+        } else {
+            match serde_json::from_value::<NewMonitor>(spec.clone())
+                .map_err(|e| e.to_string())
+                .and_then(|n| n.validate().map(|_| n).map_err(|e| e.to_string()))
+            {
+                Ok(nm) => match rampart_db::monitors::create(state.pool(), nm).await {
+                    Ok(_) => res.created += 1,
+                    Err(e) => res.errors.push(format!("{name}: {e}")),
+                },
+                Err(e) => res.errors.push(format!("{name}: {e}")),
+            }
+        }
+    }
+
+    if input.prune {
+        for m in &existing {
+            if !seen.contains(&m.name)
+                && !dups.contains(&m.name)
+                && rampart_db::monitors::delete(state.pool(), m.id)
+                    .await
+                    .is_ok()
+            {
+                res.deleted += 1;
+            }
+        }
+    }
+
+    crate::audit::record(
+        state.pool(),
+        &user,
+        &headers,
+        "monitors.apply",
+        "monitor",
+        None,
+        Some(serde_json::json!({
+            "created": res.created, "updated": res.updated,
+            "deleted": res.deleted, "errors": res.errors.len(),
+        })),
+    )
+    .await;
+    Ok(Json(res))
 }
 
 async fn create(
