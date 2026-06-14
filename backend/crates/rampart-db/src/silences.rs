@@ -1,0 +1,146 @@
+//! Alert silences (migration 0088).
+//!
+//! A silence suppresses notifications while active. `monitor_id = NULL` is a
+//! global mute (covers monitor *and* rule alerts); a set `monitor_id` mutes just
+//! that monitor. The notifier checks [`is_silenced`] at its single dispatch
+//! chokepoint, so every alert path (status flip, SLO, metric/telemetry rules,
+//! escalation) honours it. See `docs/design/ALERT-RULES.md`.
+
+use crate::{DbPool, DbResult};
+use serde::Serialize;
+use time::OffsetDateTime;
+use uuid::Uuid;
+
+pub struct NewSilence<'a> {
+    /// None = global (mute everything).
+    pub monitor_id: Option<Uuid>,
+    pub reason: &'a str,
+    pub created_by: Option<Uuid>,
+    /// None = until manually removed.
+    pub expires_at: Option<OffsetDateTime>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct Silence {
+    pub id: Uuid,
+    pub monitor_id: Option<Uuid>,
+    pub monitor_name: Option<String>,
+    pub reason: String,
+    pub created_at: OffsetDateTime,
+    pub expires_at: Option<OffsetDateTime>,
+}
+
+/// Is an alert for `monitor` currently silenced? `None` (a rule / non-monitor
+/// alert) matches only global silences; `Some(id)` matches global + that
+/// monitor's silences. One indexed EXISTS.
+pub async fn is_silenced(pool: &DbPool, monitor: Option<Uuid>) -> DbResult<bool> {
+    let row = sqlx::query!(
+        r#"
+        SELECT EXISTS(
+            SELECT 1 FROM silences
+            WHERE (expires_at IS NULL OR expires_at > now())
+              AND (monitor_id IS NULL OR monitor_id = $1)
+        ) AS "silenced!"
+        "#,
+        monitor,
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(row.silenced)
+}
+
+pub async fn create(pool: &DbPool, s: NewSilence<'_>) -> DbResult<Uuid> {
+    let row = sqlx::query!(
+        r#"
+        INSERT INTO silences (monitor_id, reason, created_by, expires_at)
+        VALUES ($1, $2, $3, $4)
+        RETURNING id
+        "#,
+        s.monitor_id,
+        s.reason,
+        s.created_by,
+        s.expires_at,
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(row.id)
+}
+
+/// Active (unexpired) silences, newest first, with the monitor name resolved.
+pub async fn list_active(pool: &DbPool) -> DbResult<Vec<Silence>> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT s.id, s.monitor_id, m.name AS "monitor_name?",
+               s.reason, s.created_at, s.expires_at
+        FROM silences s
+        LEFT JOIN monitors m ON m.id = s.monitor_id
+        WHERE s.expires_at IS NULL OR s.expires_at > now()
+        ORDER BY s.created_at DESC
+        "#,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| Silence {
+            id: r.id,
+            monitor_id: r.monitor_id,
+            monitor_name: r.monitor_name,
+            reason: r.reason,
+            created_at: r.created_at,
+            expires_at: r.expires_at,
+        })
+        .collect())
+}
+
+pub async fn delete(pool: &DbPool, id: Uuid) -> DbResult<bool> {
+    let r = sqlx::query!("DELETE FROM silences WHERE id = $1", id)
+        .execute(pool)
+        .await?;
+    Ok(r.rows_affected() > 0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::PgPool;
+
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn global_and_scoped_silences(pool: PgPool) {
+        let mon = uuid::Uuid::new_v4();
+        // Nothing silenced initially.
+        assert!(!is_silenced(&pool, Some(mon)).await.unwrap());
+        assert!(!is_silenced(&pool, None).await.unwrap());
+
+        // A global silence mutes the monitor AND rules (None).
+        let g = create(
+            &pool,
+            NewSilence {
+                monitor_id: None,
+                reason: "deploy",
+                created_by: None,
+                expires_at: None,
+            },
+        )
+        .await
+        .unwrap();
+        assert!(is_silenced(&pool, Some(mon)).await.unwrap());
+        assert!(is_silenced(&pool, None).await.unwrap());
+        assert!(delete(&pool, g).await.unwrap());
+        assert!(!is_silenced(&pool, None).await.unwrap());
+
+        // An expired silence doesn't count.
+        create(
+            &pool,
+            NewSilence {
+                monitor_id: None,
+                reason: "old",
+                created_by: None,
+                expires_at: Some(OffsetDateTime::now_utc() - time::Duration::hours(1)),
+            },
+        )
+        .await
+        .unwrap();
+        assert!(!is_silenced(&pool, None).await.unwrap());
+    }
+}
