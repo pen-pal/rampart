@@ -64,6 +64,10 @@ pub struct DetectionRule {
     /// Case-insensitive POSIX regex matched against the log body with Postgres
     /// `~*`; empty = match any body. Validated against Postgres on write.
     pub body_regex: String,
+    /// Optional structured match: require `attributes->>attr_key = attr_val`.
+    /// Empty `attr_key` = no attribute constraint.
+    pub attr_key: String,
+    pub attr_val: String,
     /// Raise a finding when at least this many new matches land in a tick.
     pub threshold: i32,
     /// How far back a tick looks when it has no prior checkpoint (seconds).
@@ -94,6 +98,12 @@ pub struct NewDetectionRule {
     #[validate(length(max = 500))]
     #[serde(default)]
     pub body_regex: String,
+    #[validate(length(max = 200))]
+    #[serde(default)]
+    pub attr_key: String,
+    #[validate(length(max = 500))]
+    #[serde(default)]
+    pub attr_val: String,
     #[validate(range(min = 1, max = 100_000))]
     #[serde(default = "default_threshold")]
     pub threshold: i32,
@@ -135,6 +145,12 @@ pub struct UpdateDetectionRule {
     #[validate(length(max = 500))]
     #[serde(default)]
     pub body_regex: Option<String>,
+    #[validate(length(max = 200))]
+    #[serde(default)]
+    pub attr_key: Option<String>,
+    #[validate(length(max = 500))]
+    #[serde(default)]
+    pub attr_val: Option<String>,
     #[validate(range(min = 1, max = 100_000))]
     #[serde(default)]
     pub threshold: Option<i32>,

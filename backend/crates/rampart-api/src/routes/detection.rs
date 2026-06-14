@@ -122,6 +122,10 @@ struct PreviewBody {
     min_level: i16,
     #[serde(default)]
     body_regex: String,
+    #[serde(default)]
+    attr_key: String,
+    #[serde(default)]
+    attr_val: String,
     #[serde(default = "default_preview_window")]
     window_seconds: i32,
 }
@@ -141,7 +145,15 @@ async fn preview(
     let window = b.window_seconds.clamp(1, 86_400);
     let min_level = b.min_level.clamp(0, 24);
     Ok(Json(
-        rampart_db::detection::preview(s.pool(), &b.service, min_level, &b.body_regex, window)
-            .await?,
+        rampart_db::detection::preview(
+            s.pool(),
+            &b.service,
+            min_level,
+            &b.body_regex,
+            &b.attr_key,
+            &b.attr_val,
+            window,
+        )
+        .await?,
     ))
 }

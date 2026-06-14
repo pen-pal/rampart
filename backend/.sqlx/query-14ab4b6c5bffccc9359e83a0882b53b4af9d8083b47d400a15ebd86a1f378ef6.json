@@ -1,0 +1,43 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH bounds AS (\n                SELECT COALESCE($1::timestamptz, now() - make_interval(secs => $2)) AS wfrom,\n                       now() AS wto\n            )\n            SELECT b.wfrom AS \"wfrom!\", b.wto AS \"wto!\", COUNT(l.id) AS \"cnt!\"\n            FROM bounds b\n            LEFT JOIN logs l\n              ON l.ts > b.wfrom AND l.ts <= b.wto\n             AND ($3 = '' OR l.service_name = $3)\n             AND l.severity >= $4\n             AND ($5 = '' OR l.body ~* $5)\n             AND ($6 = '' OR l.attributes->>$6 = $7)\n            GROUP BY b.wfrom, b.wto\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "wfrom!",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "wto!",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "cnt!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Float8",
+        "Text",
+        "Int2",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "14ab4b6c5bffccc9359e83a0882b53b4af9d8083b47d400a15ebd86a1f378ef6"
+}

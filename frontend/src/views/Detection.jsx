@@ -60,7 +60,8 @@ function sevStyle(sev) {
 
 const emptyForm = () => ({
   name: '', description: '', severity: 'medium', service: '', min_level: 0,
-  body_regex: '', threshold: 1, window_seconds: 300, enabled: true, channel_ids: [],
+  body_regex: '', attr_key: '', attr_val: '', threshold: 1, window_seconds: 300,
+  enabled: true, channel_ids: [],
 });
 
 export default function Detection({ user }) {
@@ -232,6 +233,7 @@ function RuleRow({ rule, writable, onEdit, onChanged, setErr }) {
           {(rule.service || t('detection.any_service'))}
           {rule.min_level > 0 ? ` · ≥sev ${rule.min_level}` : ''}
           {rule.body_regex ? ` · /${rule.body_regex}/` : ''}
+          {rule.attr_key ? ` · ${rule.attr_key}=${rule.attr_val}` : ''}
           {` · ≥${rule.threshold} / ${rule.window_seconds}s`}
           {` · ${(rule.channel_ids || []).length} ${t('detection.channels')}`}
         </div>
@@ -252,6 +254,7 @@ function RuleForm({ rule, channels, onSaved, onCancel, setErr }) {
   const [f, setF] = useState(rule ? {
     name: rule.name, description: rule.description || '', severity: rule.severity,
     service: rule.service || '', min_level: rule.min_level || 0, body_regex: rule.body_regex || '',
+    attr_key: rule.attr_key || '', attr_val: rule.attr_val || '',
     threshold: rule.threshold, window_seconds: rule.window_seconds,
     enabled: rule.enabled, channel_ids: [...(rule.channel_ids || [])],
   } : emptyForm());
@@ -266,7 +269,8 @@ function RuleForm({ rule, channels, onSaved, onCancel, setErr }) {
     try {
       const r = await api.detection.preview({
         service: f.service.trim(), min_level: Number(f.min_level) || 0,
-        body_regex: f.body_regex.trim(), window_seconds: Number(f.window_seconds) || 300,
+        body_regex: f.body_regex.trim(), attr_key: f.attr_key.trim(), attr_val: f.attr_val.trim(),
+        window_seconds: Number(f.window_seconds) || 300,
       });
       setPreview(r);
     } catch (e) { setErr(e.message); }
@@ -280,6 +284,7 @@ function RuleForm({ rule, channels, onSaved, onCancel, setErr }) {
     const body = {
       name: f.name.trim(), description: f.description.trim(), severity: f.severity,
       service: f.service.trim(), min_level: Number(f.min_level) || 0, body_regex: f.body_regex.trim(),
+      attr_key: f.attr_key.trim(), attr_val: f.attr_val.trim(),
       threshold: Number(f.threshold), window_seconds: Number(f.window_seconds),
       enabled: f.enabled, channel_ids: f.channel_ids,
     };
@@ -323,6 +328,16 @@ function RuleForm({ rule, channels, onSaved, onCancel, setErr }) {
         <label className="field-label">{t('detection.f.body_regex')} <span style={{ textTransform: 'none', color: 'var(--text-3)' }}>({t('detection.f.optional')})</span></label>
         <input className="input mono" value={f.body_regex} onChange={e => set('body_regex', e.target.value)} placeholder={t('detection.f.body_regex_ph')}/>
         <div className="field-hint">{t('detection.f.body_regex_hint')}</div>
+      </div>
+      <div className="grid2">
+        <div className="field">
+          <label className="field-label">{t('detection.f.attr_key')} <span style={{ textTransform: 'none', color: 'var(--text-3)' }}>({t('detection.f.optional')})</span></label>
+          <input className="input mono" value={f.attr_key} onChange={e => set('attr_key', e.target.value)} placeholder={t('detection.f.attr_key_ph')}/>
+        </div>
+        <div className="field">
+          <label className="field-label">{t('detection.f.attr_val')}</label>
+          <input className="input mono" value={f.attr_val} onChange={e => set('attr_val', e.target.value)} placeholder={t('detection.f.attr_val_ph')}/>
+        </div>
       </div>
       <div className="grid2">
         <div className="field">

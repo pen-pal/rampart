@@ -17,6 +17,12 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+- Detection rules: optional **attribute-key match** (`attr_key` = `attr_val`
+  against a log's JSONB `attributes`), so a rule can key off a structured field
+  (e.g. `event.action = user.delete`) rather than a body regex. Migration 0091;
+  honoured by evaluation + preview; editable on the rule form.
+
 ---
 
 ## [0.22.0] — 2026-06-14
