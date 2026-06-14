@@ -40,6 +40,7 @@ pub mod routing;
 pub mod rum;
 pub mod scheduled_reports;
 pub mod sessions;
+pub mod silences;
 pub mod status_pages;
 pub mod stream;
 pub mod subscribers;
@@ -157,6 +158,8 @@ pub fn v1_protected() -> Router<AppState> {
         .nest("/on-call-schedules", on_call::router())
         // /v1/telemetry-rules CRUD — threshold alerts over errors/traces/logs
         .nest("/telemetry-rules", telemetry_rules::router())
+        // /v1/silences — mute alerts during deploys / known noise (editor)
+        .nest("/silences", silences::router())
         // /v1/maintenance-windows CRUD + attach/detach
         .nest("/maintenance-windows", maintenance::router())
         // /v1/status-pages admin CRUD (public read sits in v1_public)
