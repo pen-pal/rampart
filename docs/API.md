@@ -56,7 +56,7 @@ The session cookie is named `rampart_session`, is HTTP-only, same-site `Strict`,
 | :--- | :--- | :--- |
 | `GET /healthz`    | `{"status":"alive","version":"<x.y.z>"}` — liveness probe; always 200 if the process can answer | [`routes/health.rs`](https://github.com/pen-pal/rampart/blob/main/backend/crates/rampart-api/src/routes/health.rs) |
 | `GET /readyz`     | 200 once the database is reachable                                                              | (same) |
-| `GET /metrics`    | Prometheus text exposition: `rampart_build_info`, `rampart_monitors{status}`, `rampart_monitors_by_kind{kind}`, `rampart_channels_active`, `rampart_webpush_subscribers`, `rampart_heartbeats_24h{status}`, `rampart_incidents_open` | (same) |
+| `GET /metrics`    | Prometheus text exposition: `rampart_build_info`, `rampart_monitors{status}`, `rampart_monitors_by_kind{kind}`, `rampart_channels_active`, `rampart_webpush_subscribers`, `rampart_heartbeats_24h{status}`, `rampart_incidents_open`, alerting-pipeline gauges (`rampart_metric_rules`, `rampart_metric_rules_firing`, `rampart_telemetry_rules`, `rampart_telemetry_rules_firing`, `rampart_detection_rules_enabled`, `rampart_detection_findings_open`, `rampart_escalations_open`, `rampart_error_issues_unresolved`) and `rampart_ingest_24h{tier}` | (same) |
 
 The version baked into `/healthz` is the source of truth for "what build is running"; the dashboard reads it from there to render the header pill.
 
