@@ -49,6 +49,55 @@ pub fn hash_password(plaintext: &str) -> Result<String, ApiError> {
         .map_err(|e| ApiError::BadRequest(format!("could not hash password: {e}")))
 }
 
+/// A small set of obviously-weak passwords to reject outright (lowercased).
+/// Not a full HIBP corpus — just enough to stop the embarrassing ones.
+const WEAK_PASSWORDS: &[&str] = &[
+    "password",
+    "password1",
+    "password123",
+    "passw0rd",
+    "1234567890",
+    "12345678",
+    "123456789",
+    "qwerty123",
+    "letmein123",
+    "changeme123",
+    "admin12345",
+    "welcome123",
+    "iloveyou123",
+    "rampart123",
+];
+
+/// Validate a new password against the account policy. `Err(reason)` on failure:
+/// ≥10 chars, not a known-weak password, not derived from the email's local
+/// part, and not a single repeated character. Dependency-free; used by register,
+/// admin user-create, and self-service password change so the rule is uniform.
+pub fn validate_password(pw: &str, email: &str) -> Result<(), ApiError> {
+    let bad = |m: &str| Err(ApiError::BadRequest(m.to_string()));
+    if pw.chars().count() < 10 {
+        return bad("password must be at least 10 characters");
+    }
+    let lower = pw.to_lowercase();
+    if WEAK_PASSWORDS.contains(&lower.as_str()) {
+        return bad("password is too common — choose something less guessable");
+    }
+    if let Some(local) = email.split('@').next() {
+        let local = local.to_lowercase();
+        if local.len() >= 3 && lower.contains(&local) {
+            return bad("password must not contain your email name");
+        }
+    }
+    if pw
+        .chars()
+        .collect::<std::collections::BTreeSet<char>>()
+        .len()
+        <= 1
+    {
+        return bad("password must not be a single repeated character");
+    }
+    Ok(())
+}
+
 /// Verify a plaintext password against a previously-hashed string. Never
 /// short-circuits on length so we don't leak timing info.
 pub fn verify_password(plaintext: &str, hashed: &str) -> bool {
@@ -264,4 +313,23 @@ pub fn is_secure(headers: &axum::http::HeaderMap) -> bool {
         .and_then(|v| v.to_str().ok())
         .map(|s| s.eq_ignore_ascii_case("https"))
         .unwrap_or(false)
+}
+
+#[cfg(test)]
+mod password_tests {
+    use super::validate_password;
+
+    #[test]
+    fn password_policy() {
+        // Good.
+        assert!(validate_password("correct-horse-battery", "alice@example.com").is_ok());
+        // Too short.
+        assert!(validate_password("short", "a@b.com").is_err());
+        // Common.
+        assert!(validate_password("password123", "a@b.com").is_err());
+        // Contains email local part.
+        assert!(validate_password("alice-rampart-2026", "alice@example.com").is_err());
+        // Single repeated char.
+        assert!(validate_password("aaaaaaaaaaaa", "a@b.com").is_err());
+    }
 }

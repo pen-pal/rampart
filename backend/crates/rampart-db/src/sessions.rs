@@ -7,6 +7,7 @@
 
 use crate::{DbError, DbPool, DbResult};
 use rampart_core::ids::UserId;
+use serde::Serialize;
 use std::net::IpAddr;
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -88,6 +89,65 @@ pub async fn delete_for_user(pool: &DbPool, user_id: UserId) -> DbResult<u64> {
     let r = sqlx::query!(r#"DELETE FROM sessions WHERE user_id = $1"#, user_id.0)
         .execute(pool)
         .await?;
+    Ok(r.rows_affected())
+}
+
+/// One row of the "where am I logged in" list.
+#[derive(Debug, Serialize)]
+pub struct SessionInfo {
+    pub id: Uuid,
+    pub ip_addr: Option<String>,
+    pub user_agent: Option<String>,
+    pub created_at: OffsetDateTime,
+    pub expires_at: OffsetDateTime,
+}
+
+/// Active (unexpired) sessions for a user, newest first.
+pub async fn list_for_user(pool: &DbPool, user_id: UserId) -> DbResult<Vec<SessionInfo>> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT id, host(ip_addr) AS ip_addr, user_agent, created_at, expires_at
+        FROM sessions
+        WHERE user_id = $1 AND expires_at > now()
+        ORDER BY created_at DESC
+        "#,
+        user_id.0,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| SessionInfo {
+            id: r.id,
+            ip_addr: r.ip_addr,
+            user_agent: r.user_agent,
+            created_at: r.created_at,
+            expires_at: r.expires_at,
+        })
+        .collect())
+}
+
+/// Revoke one session, scoped to its owner (a user can't kill another's).
+pub async fn delete_one_for_user(pool: &DbPool, user_id: UserId, id: Uuid) -> DbResult<bool> {
+    let r = sqlx::query!(
+        "DELETE FROM sessions WHERE id = $1 AND user_id = $2",
+        id,
+        user_id.0,
+    )
+    .execute(pool)
+    .await?;
+    Ok(r.rows_affected() > 0)
+}
+
+/// Revoke all of a user's sessions except `keep` — "sign out other devices".
+pub async fn delete_others(pool: &DbPool, user_id: UserId, keep: Uuid) -> DbResult<u64> {
+    let r = sqlx::query!(
+        "DELETE FROM sessions WHERE user_id = $1 AND id <> $2",
+        user_id.0,
+        keep,
+    )
+    .execute(pool)
+    .await?;
     Ok(r.rows_affected())
 }
 
