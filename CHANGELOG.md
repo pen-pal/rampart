@@ -31,6 +31,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ### Security
 
+- **Authentication events audited.** Logins, failed logins and 2FA failures
+  now land in the tamper-evident audit log: `auth.login` on success (password
+  and TOTP paths), `auth.login_failed` on a bad password (recorded anonymously
+  with source IP + attempted email — the brute-force / credential-stuffing
+  signal), and `auth.totp_failed` on a correct password but wrong second factor.
+  The audit view adds a one-click **Security** filter (scopes to `auth.*`) and a
+  **Verify integrity** button that re-walks the hash chain (`GET /v1/audit-log/
+  verify`) and flags a broken or deleted link inline — a security-event surface
+  without a separate SIEM. Login attempts are bounded by the existing login rate
+  limiter, so the chain can't be flooded.
 - **Tamper-evident audit log.** Audit rows are now linked in a hash chain —
   each row stores `HMAC-SHA256(RAMPART_SECRET_KEY, prev_hash ‖ row)` (SHA-256
   fallback with no key). Because the MAC key lives outside the database, a party

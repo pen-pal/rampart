@@ -148,7 +148,7 @@ an error issue jumps to its trace, and a browser exception becomes an error issu
 | 🏷️ **Tags** | Colored chips. Dashboard filter (AND semantics, persistent). Inline editor on monitor detail. |
 | 📦 **Bulk & Clone** | Multi-select dashboard actions (pause/resume/delete/move). One-click monitor clone. Per-monitor heartbeat CSV export. |
 | ⚡ **Live UI** | Dark / light / system theme. Server-Sent Events live heartbeat stream. Responsive mobile layout. |
-| 🔐 **Auth & Security** | Session cookie + 2FA (TOTP + 10 recovery codes), **SSO via OIDC** (Google/Okta/Keycloak/Authentik…), API keys (`rmp_…`), multi-user RBAC, and a **tamper-evident audit log** (HMAC hash chain). |
+| 🔐 **Auth & Security** | Session cookie + 2FA (TOTP + 10 recovery codes), **SSO via OIDC** (Google/Okta/Keycloak/Authentik…), API keys (`rmp_…`), multi-user RBAC, and a **tamper-evident audit log** (HMAC hash chain) that now records **auth events** (login, failed login, 2FA failure) with a one-click security filter + in-UI **integrity verification**. |
 | 🛡️ **Hardening** | **SSRF guard** on every outbound probe (blocks cloud-metadata/internal), notification + SMTP **secrets encrypted at rest** (AES-256-GCM), rate-limited + optionally-authenticated ingest. |
 | 🧬 **High availability** | Postgres advisory-lock **leader election** — run multiple replicas; one owns the scheduler, the rest serve the API, automatic failover. No duplicate probes or alerts. |
 | 🗑️ **Retention** | Hourly prune loop for heartbeats + audit log. Windows configurable in the admin UI. |
@@ -300,7 +300,8 @@ POST   /v1/public/status-pages/:slug/subscribe
 # Incidents & Audit
 GET    /v1/incidents/...
 POST   /v1/incidents/:id/resolve
-GET    /v1/audit-log?limit=&before=&kind=         # admin only
+GET    /v1/audit-log?limit=&before=&kind=&action= # admin only (action=auth. for security events)
+GET    /v1/audit-log/verify                       # admin only — re-walk the hash chain
 ```
 *Full reference available under `backend/crates/rampart-api/src/routes/`.*
 
