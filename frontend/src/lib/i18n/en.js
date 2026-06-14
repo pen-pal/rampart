@@ -1114,6 +1114,13 @@ const en = {
   'audit.actor_system':              'system',
   'audit.expand':                    'Click to expand',
   'audit.collapse':                  'Click to collapse',
+  'audit.security_preset':           'Security',
+  'audit.security_hint':             'Filter to authentication events — logins, failed logins, and 2FA failures',
+  'audit.verify':                    'Verify integrity',
+  'audit.verify_hint':               'Recompute the tamper-evident hash chain and report any broken or deleted entries',
+  'audit.verify_ok':                 'Chain intact — {n} entries verified, no tampering detected.',
+  'audit.verify_bad':                'Tampering detected: the hash chain breaks at entry #{id}. Rows may have been altered or deleted.',
+  'audit.verify_err':                'Could not verify the audit chain.',
 
   // ── status page: public (unauthenticated #/s/:slug view) ─────────
   'statuspage.public.live_refresh':         'live · auto-refresh 30s',
