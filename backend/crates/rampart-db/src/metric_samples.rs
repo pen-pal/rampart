@@ -124,6 +124,34 @@ pub async fn range_query(
         .collect())
 }
 
+/// Rolling baseline (mean + sample stddev) for a series over the trailing
+/// `window_secs` — the anomaly op's read. None when the window has fewer than
+/// two samples (sample stddev is undefined).
+pub async fn baseline(
+    pool: &PgPool,
+    name: &str,
+    labels: &serde_json::Value,
+    window_secs: i64,
+) -> DbResult<Option<(f64, f64)>> {
+    let since = OffsetDateTime::now_utc() - time::Duration::seconds(window_secs);
+    let row = sqlx::query!(
+        r#"
+        SELECT AVG(value) AS "mean", STDDEV_SAMP(value) AS "stddev", COUNT(*) AS "n!"
+        FROM metric_samples
+        WHERE name = $1 AND labels = $2 AND ts >= $3
+        "#,
+        name,
+        labels,
+        since,
+    )
+    .fetch_one(pool)
+    .await?;
+    match (row.n, row.mean, row.stddev) {
+        (n, Some(mean), Some(stddev)) if n >= 2 => Ok(Some((mean, stddev))),
+        _ => Ok(None),
+    }
+}
+
 /// Latest sample for one series, with its age — the threshold-rule
 /// evaluator's read. None when the series has never reported.
 pub async fn latest(

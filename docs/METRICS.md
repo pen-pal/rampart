@@ -76,7 +76,12 @@ POST /v1/metrics/rules
 }
 ```
 
-- `op` — `gt` / `lt` / `gte` / `lte`.
+- `op` — `gt` / `lt` / `gte` / `lte`, or **`anomaly`** for adaptive alerting:
+  instead of a fixed threshold, the rule fires when the latest sample deviates
+  more than `threshold` **standard deviations** (σ) from the series' rolling
+  mean over the trailing 6h baseline. Use it when "normal" drifts and a static
+  number would either nag or miss — `threshold: 3` (3σ) is a sensible start. A
+  flat series (σ≈0) never alarms, and a baseline needs ≥2 samples in the window.
 - `for_seconds` — sustain window: the breach must hold continuously this
   long before the rule fires. `0` fires on the first breached evaluation.
   Evaluation runs on the scheduler's ~30s tick.

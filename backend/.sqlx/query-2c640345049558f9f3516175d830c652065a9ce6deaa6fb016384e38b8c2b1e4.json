@@ -1,0 +1,39 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT AVG(value) AS \"mean\", STDDEV_SAMP(value) AS \"stddev\", COUNT(*) AS \"n!\"\n        FROM metric_samples\n        WHERE name = $1 AND labels = $2 AND ts >= $3\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "mean",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "stddev",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "n!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Jsonb",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "2c640345049558f9f3516175d830c652065a9ce6deaa6fb016384e38b8c2b1e4"
+}
