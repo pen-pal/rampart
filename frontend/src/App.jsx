@@ -16,6 +16,7 @@ const Errors            = lazy(() => import('./views/Errors.jsx'));
 const Rum               = lazy(() => import('./views/Rum.jsx'));
 const OnCall            = lazy(() => import('./views/OnCall.jsx'));
 const AlertRules        = lazy(() => import('./views/AlertRules.jsx'));
+const Detection         = lazy(() => import('./views/Detection.jsx'));
 const Silences          = lazy(() => import('./views/Silences.jsx'));
 const Maintenance       = lazy(() => import('./views/Maintenance.jsx'));
 const DependencyGraph   = lazy(() => import('./views/DependencyGraph.jsx'));
@@ -71,6 +72,7 @@ const VIEW_LABEL = {
   'rum':           'RUM',
   'on-call':       'On-call',
   'alert-rules':   'Alert rules',
+  'detection':     'Detection',
   'silences':      'Silences',
   'tags':          'Tags',
   'maintenance':   'Maintenance',
@@ -255,6 +257,7 @@ export default function App() {
     case 'rum':           view = <Rum />; break;
     case 'on-call':       view = <OnCall user={user} />; break;
     case 'alert-rules':   view = <AlertRules />; break;
+    case 'detection':     view = <Detection user={user} />; break;
     case 'silences':      view = <Silences />; break;
     case 'maintenance':   view = <Maintenance user={user} />; break;
     case 'dependencies':  view = <DependencyGraph />; break;
@@ -320,6 +323,7 @@ function ViewSwitcher({ current, user }) {
     { hash: '#/rum',           view: 'rum'           },
     { hash: '#/on-call',       view: 'on-call'       },
     { hash: '#/alert-rules',   view: 'alert-rules'   },
+    { hash: '#/detection',     view: 'detection'     },
     { hash: '#/silences',      view: 'silences'      },
     { hash: '#/maintenance',   view: 'maintenance'   },
     { hash: '#/dependencies',  view: 'dependencies'  },
