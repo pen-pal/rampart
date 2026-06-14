@@ -306,6 +306,7 @@ export const api = {
       return request(`/v1/audit-log${s ? '?' + s : ''}`);
     },
     verify: () => request('/v1/audit-log/verify'),
+    insights: (hours) => request(`/v1/audit-log/insights${hours ? `?hours=${hours}` : ''}`),
   },
   subscribers: {
     subscribe:   (slug, email) => request(`/v1/public/status-pages/${slug}/subscribe`, { method: 'POST', body: { email } }),
