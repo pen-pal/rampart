@@ -117,6 +117,34 @@ pub async fn query_logs(pool: &DbPool, f: LogFilter<'_>) -> DbResult<Vec<LogEntr
     Ok(rows.into_iter().map(Into::into).collect())
 }
 
+/// Count of log records per coarse level over the last `hours`, optionally
+/// scoped to one service. Folds OTLP severity numbers into the coarse buckets
+/// (trace/debug/info/warn/error/fatal) for an at-a-glance volume breakdown.
+pub async fn level_counts(
+    pool: &DbPool,
+    service: Option<&str>,
+    hours: i32,
+) -> DbResult<Vec<(String, i64)>> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT severity, COUNT(*) AS "count!"
+        FROM logs
+        WHERE received_at > now() - make_interval(hours => $1)
+          AND ($2::text IS NULL OR service_name = $2)
+        GROUP BY severity
+        "#,
+        hours.clamp(1, 720),
+        service,
+    )
+    .fetch_all(pool)
+    .await?;
+    let mut acc: std::collections::BTreeMap<&'static str, i64> = std::collections::BTreeMap::new();
+    for r in rows {
+        *acc.entry(coarse_level(r.severity)).or_default() += r.count;
+    }
+    Ok(acc.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
+}
+
 /// Distinct service names seen recently (for the filter dropdown).
 pub async fn list_services(pool: &DbPool) -> DbResult<Vec<String>> {
     let rows = sqlx::query_scalar!(
