@@ -13,6 +13,10 @@ pub enum RuleOp {
     Lt,
     Gte,
     Lte,
+    /// Z-score anomaly: fire when `|value - mean| / stddev` exceeds the
+    /// threshold (in σ) over a rolling baseline. Needs the baseline stats, so
+    /// it's evaluated specially, not via [`RuleOp::breached`].
+    Anomaly,
 }
 
 impl RuleOp {
@@ -22,6 +26,7 @@ impl RuleOp {
             RuleOp::Lt => "lt",
             RuleOp::Gte => "gte",
             RuleOp::Lte => "lte",
+            RuleOp::Anomaly => "anomaly",
         }
     }
 
@@ -32,6 +37,7 @@ impl RuleOp {
             RuleOp::Lt => "<",
             RuleOp::Gte => "≥",
             RuleOp::Lte => "≤",
+            RuleOp::Anomaly => "σ",
         }
     }
 
@@ -42,6 +48,7 @@ impl RuleOp {
             "lt" => RuleOp::Lt,
             "gte" => RuleOp::Gte,
             "lte" => RuleOp::Lte,
+            "anomaly" => RuleOp::Anomaly,
             _ => RuleOp::Gt,
         }
     }
@@ -52,7 +59,19 @@ impl RuleOp {
             RuleOp::Lt => value < threshold,
             RuleOp::Gte => value >= threshold,
             RuleOp::Lte => value <= threshold,
+            // Anomaly needs baseline stats; the evaluator handles it.
+            RuleOp::Anomaly => false,
         }
+    }
+
+    pub fn is_anomaly(&self) -> bool {
+        matches!(self, RuleOp::Anomaly)
+    }
+
+    /// Z-score breach for the anomaly op: `|value - mean| / stddev > sigma`.
+    /// No deviation when stddev is ~0 (a flat series never alarms).
+    pub fn anomaly_breached(value: f64, mean: f64, stddev: f64, sigma: f64) -> bool {
+        stddev > f64::EPSILON && ((value - mean).abs() / stddev) > sigma
     }
 }
 
@@ -186,6 +205,21 @@ mod tests {
         assert!(RuleOp::Gte.breached(40.0, 40.0));
         assert!(RuleOp::Lt.breached(1.0, 2.0));
         assert!(RuleOp::Lte.breached(2.0, 2.0));
+        // Anomaly never breaches via the plain compare (evaluator handles it).
+        assert!(!RuleOp::Anomaly.breached(999.0, 1.0));
+    }
+
+    #[test]
+    fn anomaly_zscore() {
+        // mean 10, stddev 2: a value 18 is 4σ out → breaches at 3σ, not at 5σ.
+        assert!(RuleOp::anomaly_breached(18.0, 10.0, 2.0, 3.0));
+        assert!(!RuleOp::anomaly_breached(18.0, 10.0, 2.0, 5.0));
+        // Within band.
+        assert!(!RuleOp::anomaly_breached(11.0, 10.0, 2.0, 3.0));
+        // Flat series (stddev 0) never alarms.
+        assert!(!RuleOp::anomaly_breached(100.0, 10.0, 0.0, 3.0));
+        assert_eq!(RuleOp::from_db("anomaly"), RuleOp::Anomaly);
+        assert!(RuleOp::Anomaly.is_anomaly());
     }
 
     #[test]
