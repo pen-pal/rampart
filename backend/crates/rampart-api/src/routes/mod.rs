@@ -39,6 +39,7 @@ pub mod push;
 pub mod routing;
 pub mod rum;
 pub mod scheduled_reports;
+pub mod sessions;
 pub mod status_pages;
 pub mod stream;
 pub mod subscribers;
@@ -210,7 +211,9 @@ pub fn v1_protected() -> Router<AppState> {
         // /v1/webpush — the caller's own browser push subscription.
         .nest("/webpush", webpush::router())
         // /v1/me/prefs — the caller's own dashboard views + default folder.
-        .nest("/me", prefs::router());
+        .nest("/me", prefs::router())
+        // /v1/sessions — list + revoke the caller's OWN sessions (any role).
+        .nest("/sessions", sessions::router());
 
     Router::new()
         .merge(editor_or_read)

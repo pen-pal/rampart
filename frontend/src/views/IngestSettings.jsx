@@ -173,6 +173,7 @@ function SiemExport() {
         <select className="input" value={cfg.kind} onChange={e => setCfg({ ...cfg, kind: e.target.value })}>
           <option value="webhook">Webhook (HTTP POST)</option>
           <option value="syslog">Syslog (UDP)</option>
+          <option value="syslog_tcp">Syslog (TCP)</option>
         </select>
       </div>
       <div className="field">

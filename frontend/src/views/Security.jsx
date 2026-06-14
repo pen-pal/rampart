@@ -74,9 +74,83 @@ export default function Security() {
             <Totp user={me}/>
             <div style={{ height: 18 }}/>
             <PasswordChange/>
+            <div style={{ height: 18 }}/>
+            <Sessions/>
+            {me.is_admin && (<><div style={{ height: 18 }}/><Require2fa/></>)}
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+// Admin-only org policy: require 2FA (off / admins / all). When it applies to a
+// user who hasn't enrolled, the app forces them to /security on next load.
+function Require2fa() {
+  const [val, setVal] = useState('off');
+  const [busy, setBusy] = useState(false);
+  const [ok, setOk] = useState(false);
+  useEffect(() => {
+    (async () => { try { const r = await api.securitySettings.get(); if (r) setVal(r.require_2fa || 'off'); } catch { /* default off */ } })();
+  }, []);
+  const save = async () => {
+    setBusy(true); setOk(false);
+    try { await api.securitySettings.put({ require_2fa: val }); setOk(true); } catch { /* ignore */ } finally { setBusy(false); }
+  };
+  return (
+    <div className="card" style={{ padding: 22 }}>
+      <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 4px' }}>{t('security.policy.title')}</h2>
+      <p style={{ fontSize: 12.5, color: 'var(--text-2)', margin: '0 0 12px' }}>{t('security.policy.subtitle')}</p>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <select className="input" value={val} onChange={e => setVal(e.target.value)} style={{ maxWidth: 240 }}>
+          <option value="off">{t('security.policy.off')}</option>
+          <option value="admins">{t('security.policy.admins')}</option>
+          <option value="all">{t('security.policy.all')}</option>
+        </select>
+        <button className="btn btn-accent" disabled={busy} onClick={save}>
+          {ok ? <Check size={14}/> : null} {t('common.save')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Active sessions: list devices + revoke. The current session is labelled and
+// kept by "revoke others".
+function Sessions() {
+  const [rows, setRows] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const load = async () => { try { setRows(await api.sessions.list()); } catch { /* none */ } };
+  useEffect(() => { load(); }, []);
+  const revoke = async (id) => { setBusy(true); try { await api.sessions.revoke(id); await load(); } finally { setBusy(false); } };
+  const revokeOthers = async () => { setBusy(true); try { await api.sessions.revokeOthers(); await load(); } finally { setBusy(false); } };
+  const fmt = (s) => { try { return new Date(s).toLocaleString(); } catch { return s; } };
+  const others = rows.filter(r => !r.current).length;
+
+  return (
+    <div className="card" style={{ padding: 22 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>{t('security.sessions.title')}</h2>
+        {others > 0 && (
+          <button className="btn" disabled={busy} onClick={revokeOthers}>{t('security.sessions.revoke_others', { n: others })}</button>
+        )}
+      </div>
+      {rows.length === 0 ? (
+        <div style={{ fontSize: 12.5, color: 'var(--text-3)' }}>{t('security.sessions.none')}</div>
+      ) : rows.map(r => (
+        <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderTop: '1px solid var(--border)', fontSize: 12.5 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 500 }}>
+              <span className="mono">{r.ip_addr || '—'}</span>
+              {r.current && <span className="pill" style={{ marginLeft: 8 }}>{t('security.sessions.current')}</span>}
+            </div>
+            <div style={{ color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {r.user_agent || t('security.sessions.unknown_device')} · {t('security.sessions.expires', { d: fmt(r.expires_at) })}
+            </div>
+          </div>
+          {!r.current && <button className="btn btn-ghost" disabled={busy} onClick={() => revoke(r.id)} title={t('security.sessions.revoke')}><X size={14}/></button>}
+        </div>
+      ))}
     </div>
   );
 }

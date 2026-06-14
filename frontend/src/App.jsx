@@ -146,7 +146,7 @@ export default function App() {
         const r = await api.auth.me();
         if (cancelled) return;
         if (r?.needs_setup)      setAuthState({ loading: false, user: null, needsSetup: true });
-        else if (r?.user)        setAuthState({ loading: false, user: r.user, needsSetup: false });
+        else if (r?.user)        setAuthState({ loading: false, user: r.user, needsSetup: false, mustSetup2fa: !!r.must_setup_2fa });
         else                     setAuthState({ loading: false, user: null, needsSetup: false });
       } catch (e) {
         if (cancelled) return;
@@ -157,6 +157,16 @@ export default function App() {
     })();
     return () => { cancelled = true; };
   }, [route.view]);
+
+  // 2FA enrollment gate. When an org policy requires 2FA and this user hasn't
+  // enrolled, force them to the Security view until they do — they can't use
+  // the rest of the app first.
+  useEffect(() => {
+    if (authState.user && authState.mustSetup2fa
+        && route.view !== 'security' && route.view !== 'login') {
+      window.location.hash = '#/security';
+    }
+  }, [authState.user, authState.mustSetup2fa, route.view]);
 
   // Host-header routing. While the boot probe is in flight (bare hash only),
   // hold the render so we don't flash the dashboard/login before learning this
