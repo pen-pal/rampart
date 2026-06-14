@@ -19,6 +19,27 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list))
         .route("/services", get(services))
+        .route("/levels", get(levels))
+}
+
+#[derive(Deserialize)]
+struct LevelsQuery {
+    service: Option<String>,
+    hours: Option<i32>,
+}
+
+async fn levels(
+    State(s): State<AppState>,
+    Query(q): Query<LevelsQuery>,
+) -> Result<Json<Vec<(String, i64)>>, ApiError> {
+    Ok(Json(
+        rampart_db::logs::level_counts(
+            s.pool(),
+            q.service.as_deref().filter(|s| !s.is_empty()),
+            q.hours.unwrap_or(24),
+        )
+        .await?,
+    ))
 }
 
 #[derive(Deserialize)]

@@ -120,7 +120,7 @@ self-hostable alternative to Datadog / Sentry / Site24x7 / ScoutAPM, in one bina
 | :--- | :--- | :--- |
 | 🐞 **Error tracking** | DSN-keyed event ingest, group-by-fingerprint into issues, new/regressed alerts, stack traces. | **Sentry SDKs** (point the DSN at Rampart — no Rampart SDK) |
 | 🧵 **Traces / APM** | Span ingest, per-trace waterfall, service dependency map, and a per-operation **APM rollup** (calls, error rate, p50/p95/p99 latency). | **OpenTelemetry** OTLP/HTTP (JSON + protobuf, gzip) |
-| 📃 **Logs** | Severity + service filtering, full-text body search (`tsvector`), trace correlation. | **OpenTelemetry** OTLP logs |
+| 📃 **Logs** | Severity + service filtering, full-text body search (`tsvector`), **live tail**, per-level volume bar, and trace↔log correlation. | **OpenTelemetry** OTLP logs |
 | 👁️ **RUM** | Browser snippet → Core Web Vitals (p75 LCP/INP/CLS), per-page vitals, and **JS error capture** into the error tier. | drop-in `<script>`, no build step |
 
 Cross-tier by design: a trace links to the logs emitted under its `trace_id`,

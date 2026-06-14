@@ -1657,6 +1657,15 @@ paths:
       summary: Distinct recent service names
       responses:
         '200': { description: Service names for the filter dropdown. }
+  /v1/logs/levels:
+    get:
+      tags: [Logs]
+      summary: Log volume per coarse level
+      parameters:
+        - { name: service, in: query, required: false, schema: { type: string } }
+        - { name: hours, in: query, required: false, schema: { type: integer } }
+      responses:
+        '200': { description: '`[[level, count], …]` over the window (severity-volume bar).' }
   # ─────────────────────────── Errors ───────────────────────────
   /v1/error-projects:
     get:
