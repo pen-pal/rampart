@@ -17,6 +17,14 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **Trace search / filtering.** The traces list now filters by service, minimum
+  duration, errors-only, and a substring on root operation / service / trace_id
+  (`GET /v1/traces?service=&min_duration_ms=&errors_only=&q=`), with a filter bar
+  in the UI. Previously the list was an unfiltered most-recent-100 — the #1 APM
+  usability gap from the audit.
+
 ### Fixed
 
 - **`max_retries` now works on its own.** Previously a monitor only retried a
