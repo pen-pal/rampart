@@ -3152,6 +3152,38 @@
         }
       }
     },
+    "/v1/traces/operations": {
+      "get": {
+        "tags": [
+          "Traces"
+        ],
+        "summary": "APM rollup per service+operation",
+        "description": "Spans grouped by `(service, operation)` over the window with call volume, error count + rate, and p50/p95/p99/avg/max latency.",
+        "parameters": [
+          {
+            "name": "service",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`[{service, operation, calls, errors, error_rate, p50_ms, p95_ms, p99_ms, avg_ms, max_ms}]`."
+          }
+        }
+      }
+    },
     "/v1/traces/{trace_id}": {
       "parameters": [
         {
@@ -4131,6 +4163,20 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/v1/audit-log/verify": {
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "summary": "Verify the audit hash chain",
+        "description": "Admin only. Re-walks the tamper-evident hash chain and reports whether it's intact. `ok: false` with `first_bad_id` means a row at/after that id was edited, deleted or reordered.",
+        "responses": {
+          "200": {
+            "description": "`{ ok, checked, first_bad_id }`."
           }
         }
       }
