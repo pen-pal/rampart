@@ -401,12 +401,21 @@ pub async fn run_once(pool: &DbPool) -> DbResult<PruneStats> {
 /// Spawnable loop — call once at startup, runs forever. Default cadence
 /// is one sweep per hour; tunable via the `interval` arg if a deployment
 /// runs hot enough to need shorter windows.
-pub async fn run_loop(pool: DbPool, interval: Duration) {
+pub async fn run_loop(
+    pool: DbPool,
+    interval: Duration,
+    leadership: std::sync::Arc<crate::leader::Leadership>,
+) {
     let mut ticker = tokio::time::interval(interval);
     // Skip the immediate tick — let the scheduler warm up first.
     ticker.tick().await;
     loop {
         ticker.tick().await;
+        // Leader-only: a single prune pass across the cluster, no duplicate
+        // DELETEs racing each other.
+        if !leadership.is_leader() {
+            continue;
+        }
         match run_once(&pool).await {
             Ok(s) if !s.is_empty() => {
                 tracing::info!(

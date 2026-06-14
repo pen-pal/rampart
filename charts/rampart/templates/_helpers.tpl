@@ -109,6 +109,26 @@ Prefer a user-provided value; otherwise reuse an existing one from the cluster
 {{- end }}
 
 {{/*
+Resolve / persist RAMPART_SECRET_KEY (at-rest encryption of channel secrets).
+User value wins; else reuse the existing one (so upgrades keep decrypting
+existing rows); else auto-generate a 32-byte key as 64 hex chars
+(sha256sum of random) so encryption is on by default. Set secretKey="" AND
+keep no prior Secret only if you explicitly want plaintext.
+*/}}
+{{- define "rampart.secretKey" -}}
+{{- if .Values.secretKey -}}
+{{ .Values.secretKey }}
+{{- else -}}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace (include "rampart.fullname" .) -}}
+{{- if and $existing $existing.data (index $existing.data "RAMPART_SECRET_KEY") -}}
+{{ index $existing.data "RAMPART_SECRET_KEY" | b64dec }}
+{{- else -}}
+{{ sha256sum (randAlphaNum 64) }}
+{{- end -}}
+{{- end -}}
+{{- end }}
+
+{{/*
 Resolve / persist the embedded-postgres password.
 */}}
 {{- define "rampart.postgresPassword" -}}

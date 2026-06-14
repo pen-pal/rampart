@@ -521,20 +521,24 @@ impl NotifierService {
         (NotifierService { rx, pool }, NotifierHandle(tx))
     }
 
-    pub async fn run(mut self) {
+    pub async fn run(mut self, leadership: std::sync::Arc<rampart_db::leader::Leadership>) {
         info!("notifier service started");
 
         // Background flush task: every tick, drain any channel whose window
         // has elapsed and send its combined message. The buffer is backed
         // by the `digest_buffer` table, so on startup this task naturally
         // picks up any rows left by a previous process — pending coalesced
-        // alerts survive a restart.
+        // alerts survive a restart. Leader-only so replicas don't double-send
+        // a coalesced digest.
         let flush_pool = self.pool.clone();
+        let flush_leadership = leadership.clone();
         tokio::spawn(async move {
             let mut tick = tokio::time::interval(DIGEST_FLUSH_TICK);
             loop {
                 tick.tick().await;
-                flush_due_digests(&flush_pool).await;
+                if flush_leadership.is_leader() {
+                    flush_due_digests(&flush_pool).await;
+                }
             }
         });
 

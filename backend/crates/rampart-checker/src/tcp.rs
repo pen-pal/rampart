@@ -45,9 +45,31 @@ impl Probe for TcpProbe {
                 }
             }
         };
-        let addr = format!("{host}:{port}");
+        // SSRF guard: vet the resolved IP(s) before connecting, and connect to
+        // the vetted addresses (pinned) so a rebind can't swap in a blocked IP.
+        let addrs = match crate::ssrf::resolve_guarded(
+            &host,
+            port as u16,
+            crate::ssrf::block_private_enabled(),
+        )
+        .await
+        {
+            Ok(a) => a,
+            Err(blocked) => {
+                return Heartbeat {
+                    monitor_id: monitor.id,
+                    ts,
+                    status: MonitorStatus::Down,
+                    latency_ms: Some(ms_i32(started.elapsed())),
+                    status_code: None,
+                    msg: Some(blocked.to_string()),
+                    retries: 0,
+                    important: false,
+                }
+            }
+        };
 
-        match timeout(to, TcpStream::connect(&addr)).await {
+        match timeout(to, TcpStream::connect(&addrs[..])).await {
             Ok(Ok(_stream)) => Heartbeat {
                 monitor_id: monitor.id,
                 ts,

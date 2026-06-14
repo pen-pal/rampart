@@ -178,6 +178,24 @@ pub fn build_router(state: AppState) -> Router {
     // AppState — keeps the middleware allocation-free per request.
     let metrics_handle = state.http_metrics().clone();
 
+    // Public telemetry-ingest surfaces, grouped so one per-IP rate-limit layer
+    // covers all of them (anti-DoS — these are unauthenticated by default and
+    // accept arbitrary volumes of errors/traces/logs/beacons). The limiter is
+    // generous (240 burst, 4/s refill per IP) so real collectors aren't
+    // throttled, but a single source can't flood the tiers / fill the disk.
+    let ingest = Router::new()
+        // OTLP trace+log ingest — public like /push (operator controls exposure).
+        .nest("/otlp", routes::otlp::router())
+        // /api/:project_id/{envelope,store} — Sentry-compatible error ingest.
+        // The DSN key is the auth. Outside /v1 so SDK DSNs point straight at it.
+        .nest("/api", routes::error_ingest::router())
+        // RUM beacon ingest + collector snippet — public (browsers).
+        .nest("/rum", routes::rum::ingest_router())
+        .route_layer(axum::middleware::from_fn_with_state(
+            state.ingest_rate_limiter(),
+            crate::rate_limit::enforce_ip_rate_limit,
+        ));
+
     Router::new()
         .merge(routes::health::router())
         // OpenAPI spec — public, root-level (not under /v1). Served as raw
@@ -186,14 +204,7 @@ pub fn build_router(state: AppState) -> Router {
         // /push/:token is intentionally public — the token IS the auth.
         // Sits outside /v1 to keep external cron snippets short.
         .nest("/push", routes::push::router())
-        // OTLP trace ingest — public like /push (operator controls exposure).
-        .nest("/otlp", routes::otlp::router())
-        // /api/:project_id/{envelope,store} — Sentry-compatible error ingest.
-        // Public like /push; the DSN key is the auth. Outside /v1 so SDK DSNs
-        // (which append /api/N/...) point straight at it.
-        .nest("/api", routes::error_ingest::router())
-        // RUM beacon ingest + collector snippet — public (browsers).
-        .nest("/rum", routes::rum::ingest_router())
+        .merge(ingest)
         .nest("/v1", routes::v1_public(&state).merge(protected_v1))
         .with_state(state)
         .fallback(static_assets::handler)

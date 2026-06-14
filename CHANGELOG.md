@@ -17,8 +17,56 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Security
+
+- **Notification secrets encrypted at rest.** Channel `config` blobs hold live
+  credentials (webhook bearer tokens, SMTP passwords, the API keys of 130
+  channels) and were stored as plaintext JSONB — a DB read leaked every
+  outbound credential. They're now AES-256-GCM envelope-encrypted at the DB
+  layer (`rampart_db::secrets`): sealed on write, transparently opened on read
+  (so the notifier dispatch path is unaffected). Opt-in + backward compatible
+  via `RAMPART_SECRET_KEY` (32-byte key, hex/base64) — key-less installs keep
+  plaintext; setting a key encrypts lazily on next write while still reading
+  old rows. The Helm chart **auto-generates + persists** a key, so K8s installs
+  encrypt by default.
+- **Ingest rate limiting + optional mandatory auth.** The public telemetry
+  surfaces (`/otlp`, `/rum`, `/api` Sentry) now sit behind a per-IP token
+  bucket (240 burst, 4/s refill) so a single source can't flood the tiers or
+  fill the disk — legitimate collectors are unaffected. Setting
+  `RAMPART_REQUIRE_INGEST_AUTH` makes ingest auth mandatory: an open
+  (token-less) ingest surface is refused outright, forcing a configured token.
+- **SSRF guard on outbound probes.** Probes that take a user-supplied target
+  (HTTP/keyword/JSON, raw TCP, multi-step synthetics) now resolve the host and
+  refuse to connect to loopback, link-local and the cloud **metadata IP
+  (169.254.169.254)** + their IPv6 equivalents — always. Private/internal
+  ranges (RFC1918, CGNAT 100.64/10, IPv6 ULA) are additionally blocked when
+  `RAMPART_SSRF_BLOCK_PRIVATE` is set (opt-in: homelabs legitimately monitor
+  private IPs; recommended on for multi-user / internet-exposed installs). The
+  TCP probe pins the vetted addresses so a DNS rebind can't swap in a blocked
+  IP after the check. Stops Rampart being used to reach cloud metadata or
+  internal-only services via a crafted monitor.
+
 ### Added
 
+- **OIDC / SSO login.** Rampart can sit behind your identity provider (Google,
+  Okta, Keycloak, Authentik, Entra, …) instead of local password accounts —
+  the #1 blocker for org adoption. Generic OpenID Connect via the Authorization
+  Code flow with **PKCE**; identity is read from the provider's userinfo
+  endpoint (server-to-server over TLS, so there's no JWT-signature handling to
+  get wrong). Users are auto-provisioned by email on first login (the very
+  first user bootstraps as admin; thereafter `RAMPART_OIDC_DEFAULT_ROLE`).
+  Configured via env (`RAMPART_OIDC_ISSUER` / `CLIENT_ID` / `CLIENT_SECRET` /
+  `REDIRECT_URL`); the login page shows a **Sign in with SSO** button when
+  enabled. Routes under `/v1/auth/oidc`. Local password + 2FA still work.
+- **Leader election for safe multi-replica / HA.** The scheduler, notifier
+  digest-flush, escalation timers and retention prune now run only on the one
+  replica holding a Postgres session **advisory lock** (`rampart_db::leader`).
+  Previously every replica ran its own scheduler, so scaling past one pod
+  meant N× probing and **duplicate alerts**; now extra replicas serve HTTP
+  while a single leader owns the background work, and a follower takes over
+  within ~10s of the leader exiting (active-passive HA + safe HorizontalPod
+  Autoscaling — the Helm chart's autoscaling is now genuinely safe). Single
+  replica is unchanged (lock acquired immediately).
 - **Browser error capture (RUM → error tier).** The RUM snippet now hooks
   `window.onerror` + `unhandledrejection` and forwards uncaught front-end
   exceptions to `POST /rum/v1/errors`. The server records them in the
@@ -54,6 +102,14 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
   it via `Authorization: Bearer <token>` / `X-Rampart-Token`, or the RUM
   snippet's `data-token` attribute (`?k=` query param). The gzip/deflate
   helper is now shared with the Sentry error-ingest path.
+
+### Fixed
+
+- **Container image build** (`exit 101`). `routes/openapi.rs` `include_str!`s
+  `docs/openapi.{yaml,json}` at compile time, but the Dockerfile only copied
+  `backend/` — so the in-container release build couldn't read the spec. Copy
+  the OpenAPI files into the build context. (Root cause was a missing file, not
+  the memory pressure earlier suspected.)
 
 ---
 
