@@ -102,6 +102,7 @@ nav:
       - Traces / APM: design/TRACES.md
       - Logs: design/LOGS.md
       - RUM: design/RUM.md
+      - Profiling (proposed): design/PROFILING.md
   - Alerting & response:
       - Metric rules: METRICS.md
       - Telemetry alert rules: design/ALERT-RULES.md
