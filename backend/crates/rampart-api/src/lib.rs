@@ -19,6 +19,7 @@ pub mod routes;
 pub mod smtp;
 pub mod state;
 pub mod static_assets;
+pub mod symbolicate;
 pub mod totp;
 
 use axum::http::{header, HeaderName, HeaderValue};

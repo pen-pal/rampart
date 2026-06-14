@@ -33,6 +33,14 @@ pub fn project_router() -> Router<AppState> {
             axum::routing::patch(update_project).delete(delete_project),
         )
         .route("/{id}/issues", get(list_issues))
+        .route(
+            "/{id}/sourcemaps",
+            get(list_sourcemaps).post(upload_sourcemap),
+        )
+        .route(
+            "/{id}/sourcemaps/{map_id}",
+            axum::routing::delete(delete_sourcemap),
+        )
 }
 
 pub fn issue_router() -> Router<AppState> {
@@ -165,9 +173,132 @@ async fn list_events(
     Path(id): Path<String>,
 ) -> Result<Json<Vec<ErrorEvent>>, ApiError> {
     let iid = issue_id(&id)?;
-    Ok(Json(
-        rampart_db::error_tracking::list_events(s.pool(), iid, 50).await?,
-    ))
+    let mut events = rampart_db::error_tracking::list_events(s.pool(), iid, 50).await?;
+    symbolicate_events(s.pool(), &mut events).await;
+    Ok(Json(events))
+}
+
+/// Attach a `resolved` block to each minified frame that has an uploaded source
+/// map for its event's release + file basename. Best-effort: a missing/garbage
+/// map just leaves the frame as-is. Maps are cached per (release, file) for the
+/// batch so a 50-event page does one lookup per unique file.
+async fn symbolicate_events(pool: &rampart_db::DbPool, events: &mut [ErrorEvent]) {
+    use std::collections::HashMap;
+    let mut cache: HashMap<(String, String), Option<serde_json::Value>> = HashMap::new();
+    for ev in events.iter_mut() {
+        let Some(release) = ev.release.clone() else {
+            continue;
+        };
+        let pid = ev.project_id.0;
+        let Some(frames) = ev.stacktrace.as_mut().and_then(|v| v.as_array_mut()) else {
+            continue;
+        };
+        for frame in frames {
+            let base = {
+                let Some(file) = frame.get("filename").and_then(|v| v.as_str()) else {
+                    continue;
+                };
+                crate::symbolicate::basename(file).to_string()
+            };
+            let Some(lineno) = frame.get("lineno").and_then(|v| v.as_i64()) else {
+                continue;
+            };
+            let colno = frame.get("colno").and_then(|v| v.as_i64());
+            let key = (release.clone(), base);
+            if !cache.contains_key(&key) {
+                let m = rampart_db::source_maps::get(pool, pid, &key.0, &key.1)
+                    .await
+                    .ok()
+                    .flatten();
+                cache.insert(key.clone(), m);
+            }
+            let Some(Some(map)) = cache.get(&key) else {
+                continue;
+            };
+            if let Some(r) = crate::symbolicate::resolve(map, lineno, colno) {
+                if let Some(obj) = frame.as_object_mut() {
+                    if let Ok(v) = serde_json::to_value(r) {
+                        obj.insert("resolved".into(), v);
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[derive(Deserialize)]
+struct UploadSourceMap {
+    release: String,
+    filename: String,
+    map: serde_json::Value,
+}
+
+async fn upload_sourcemap(
+    State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(input): Json<UploadSourceMap>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let pid = project_id(&id)?;
+    if input.release.trim().is_empty() || input.filename.trim().is_empty() {
+        return Err(ApiError::BadRequest(
+            "release and filename are required".into(),
+        ));
+    }
+    let base = crate::symbolicate::basename(&input.filename).to_string();
+    let map_id = rampart_db::source_maps::upsert(
+        s.pool(),
+        rampart_db::source_maps::NewSourceMap {
+            project_id: pid.0,
+            release: input.release.trim(),
+            filename: &base,
+            map: input.map,
+        },
+    )
+    .await?;
+    crate::audit::record(
+        s.pool(),
+        &user,
+        &headers,
+        "error_sourcemap.upload",
+        "error_project",
+        Some(pid.0),
+        Some(serde_json::json!({ "release": input.release, "filename": base })),
+    )
+    .await;
+    Ok(Json(serde_json::json!({ "id": map_id })))
+}
+
+async fn list_sourcemaps(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<Vec<rampart_db::source_maps::SourceMapMeta>>, ApiError> {
+    let pid = project_id(&id)?;
+    Ok(Json(rampart_db::source_maps::list(s.pool(), pid.0).await?))
+}
+
+async fn delete_sourcemap(
+    State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
+    Path((id, map_id)): Path<(String, i64)>,
+) -> Result<StatusCode, ApiError> {
+    let pid = project_id(&id)?;
+    if !rampart_db::source_maps::delete(s.pool(), pid.0, map_id).await? {
+        return Err(ApiError::NotFound);
+    }
+    crate::audit::record(
+        s.pool(),
+        &user,
+        &headers,
+        "error_sourcemap.delete",
+        "error_project",
+        Some(pid.0),
+        Some(serde_json::json!({ "map_id": map_id })),
+    )
+    .await;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn set_status(
