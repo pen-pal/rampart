@@ -441,6 +441,7 @@ export const api = {
       return request(`/v1/logs${s ? '?' + s : ''}`);
     },
     services: () => request('/v1/logs/services'),
+    levels: (service) => request(`/v1/logs/levels${service ? `?service=${encodeURIComponent(service)}` : ''}`),
   },
   // Error tracking — projects hold the DSN key + alert channels; issues group
   // events by fingerprint.
