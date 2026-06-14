@@ -119,20 +119,7 @@ async fn export_csv(State(s): State<AppState>) -> Result<impl IntoResponse, ApiE
     ))
 }
 
-/// Minimal CSV escape: double embedded quotes and wrap the field if it
-/// contains a comma, quote, or newline. Local copy of the same helper from
-/// routes/audit.rs — small enough that duplicating is cheaper than carving
-/// out a shared module.
-fn csv_escape(s: &str) -> String {
-    if s.is_empty() {
-        return String::new();
-    }
-    if !(s.contains(',') || s.contains('"') || s.contains('\n') || s.contains('\r')) {
-        return s.to_string();
-    }
-    let escaped = s.replace('"', "\"\"");
-    format!("\"{escaped}\"")
-}
+use crate::csv::csv_escape;
 
 #[cfg(test)]
 mod tests {

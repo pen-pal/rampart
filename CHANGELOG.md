@@ -22,6 +22,11 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
   event context) now renders as a category/message/level/time timeline on the
   issue detail.
 
+### Changed
+- Internal: CSV field escaping for all export endpoints (audit, delivery log,
+  monitors, logs, traces) now lives in one shared `csv` module instead of being
+  duplicated per route.
+
 ---
 
 ## [0.18.0] — 2026-06-14
