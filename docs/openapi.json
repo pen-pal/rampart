@@ -3674,6 +3674,80 @@
         }
       }
     },
+    "/v1/error-projects/{id}/sourcemaps": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Errors"
+        ],
+        "summary": "List uploaded source maps",
+        "responses": {
+          "200": {
+            "description": "`[{ id, release, filename, uploaded_at }]` (metadata only)."
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Errors"
+        ],
+        "summary": "Upload a source map",
+        "description": "Store a JS source map for `(release, filename)` \u2014 used to symbolicate minified stack frames on read. `filename` is reduced to its basename. Body `{ release, filename, map }`.",
+        "responses": {
+          "200": {
+            "description": "`{ id }` of the stored map."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/v1/error-projects/{id}/sourcemaps/{map_id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        {
+          "name": "map_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "delete": {
+        "tags": [
+          "Errors"
+        ],
+        "summary": "Delete a source map",
+        "responses": {
+          "204": {
+            "description": "Deleted."
+          },
+          "404": {
+            "description": "No such map for this project."
+          }
+        }
+      }
+    },
     "/v1/error-issues/{id}": {
       "parameters": [
         {
