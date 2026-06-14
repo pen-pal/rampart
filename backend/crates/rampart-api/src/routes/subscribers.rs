@@ -53,6 +53,38 @@ pub fn settings_router() -> Router<AppState> {
             get(telemetry_token_get).put(telemetry_token_put),
         )
         .route("/settings/siem-export", get(siem_get).put(siem_put))
+        .route("/settings/security", get(security_get).put(security_put))
+}
+
+async fn security_get(State(s): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
+    let raw = rampart_db::settings::get(s.pool(), "require_2fa").await?;
+    let require_2fa = raw
+        .and_then(|v| v.as_str().map(str::to_string))
+        .unwrap_or_else(|| "off".to_string());
+    Ok(Json(serde_json::json!({ "require_2fa": require_2fa })))
+}
+
+#[derive(Deserialize)]
+struct SecurityPut {
+    require_2fa: String,
+}
+
+async fn security_put(
+    State(s): State<AppState>,
+    Json(input): Json<SecurityPut>,
+) -> Result<StatusCode, ApiError> {
+    if !matches!(input.require_2fa.as_str(), "off" | "admins" | "all") {
+        return Err(ApiError::BadRequest(
+            "require_2fa must be one of: off, admins, all".into(),
+        ));
+    }
+    rampart_db::settings::put(
+        s.pool(),
+        "require_2fa",
+        &serde_json::json!(input.require_2fa),
+    )
+    .await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn siem_get(State(s): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {

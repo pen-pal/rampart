@@ -339,6 +339,10 @@ export const api = {
     revoke: (id) => request(`/v1/sessions/${id}`, { method: 'DELETE' }),
     revokeOthers: () => request('/v1/sessions/revoke-others', { method: 'POST' }),
   },
+  securitySettings: {
+    get: () => request('/v1/settings/security'),
+    put: (cfg) => request('/v1/settings/security', { method: 'PUT', body: cfg }),
+  },
   incidents: {
     listForPage:  (pageId)              => request(`/v1/status-pages/${pageId}/incidents`),
     create:       (pageId, input)       => request(`/v1/status-pages/${pageId}/incidents`, { method: 'POST', body: input }),
