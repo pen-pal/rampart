@@ -204,8 +204,10 @@ describe('api helpers', () => {
     await api.notifications.attach('m', 'n');
     expect(global.fetch.mock.calls[3][0]).toBe('/v1/monitors/m/notifications/n');
 
-    await api.traces.list(100);
+    await api.traces.list({ limit: 100 });
     expect(global.fetch.mock.calls.at(-1)[0]).toBe('/v1/traces?limit=100');
+    await api.traces.list({ limit: 100, service: 'api', errors_only: true });
+    expect(global.fetch.mock.calls.at(-1)[0]).toBe('/v1/traces?limit=100&service=api&errors_only=true');
 
     await api.traces.serviceMap(24);
     expect(global.fetch.mock.calls.at(-1)[0]).toBe('/v1/traces/service-map?hours=24');

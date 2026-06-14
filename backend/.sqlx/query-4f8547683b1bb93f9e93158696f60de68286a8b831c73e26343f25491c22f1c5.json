@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            s.trace_id AS \"trace_id!\",\n            r.service_name AS \"root_service\",\n            r.name AS \"root_name\",\n            MIN(s.start_ns) AS \"start_ns\",\n            (MAX(s.end_ns) - MIN(s.start_ns))::float8 / 1000000.0 AS \"duration_ms\",\n            COUNT(*) AS \"span_count\",\n            COUNT(*) FILTER (WHERE s.status_code = 2) AS \"error_count\",\n            ARRAY_AGG(DISTINCT s.service_name) AS \"services\",\n            MIN(s.received_at) AS \"started_at\"\n        FROM spans s\n        LEFT JOIN LATERAL (\n            SELECT service_name, name FROM spans rr\n            WHERE rr.trace_id = s.trace_id AND rr.parent_span_id IS NULL\n            ORDER BY rr.start_ns LIMIT 1\n        ) r ON true\n        GROUP BY s.trace_id, r.service_name, r.name\n        ORDER BY MIN(s.received_at) DESC\n        LIMIT $1\n        ",
+  "query": "\n        SELECT\n            s.trace_id AS \"trace_id!\",\n            r.service_name AS \"root_service\",\n            r.name AS \"root_name\",\n            MIN(s.start_ns) AS \"start_ns\",\n            (MAX(s.end_ns) - MIN(s.start_ns))::float8 / 1000000.0 AS \"duration_ms\",\n            COUNT(*) AS \"span_count\",\n            COUNT(*) FILTER (WHERE s.status_code = 2) AS \"error_count\",\n            ARRAY_AGG(DISTINCT s.service_name) AS \"services\",\n            MIN(s.received_at) AS \"started_at\"\n        FROM spans s\n        LEFT JOIN LATERAL (\n            SELECT service_name, name FROM spans rr\n            WHERE rr.trace_id = s.trace_id AND rr.parent_span_id IS NULL\n            ORDER BY rr.start_ns LIMIT 1\n        ) r ON true\n        GROUP BY s.trace_id, r.service_name, r.name\n        HAVING ($2::text IS NULL OR bool_or(s.service_name = $2))\n           AND ($3::float8 IS NULL\n                OR (MAX(s.end_ns) - MIN(s.start_ns))::float8 / 1000000.0 >= $3)\n           AND (NOT $4 OR COUNT(*) FILTER (WHERE s.status_code = 2) > 0)\n           AND ($5::text IS NULL\n                OR r.name ILIKE '%' || $5 || '%'\n                OR r.service_name ILIKE '%' || $5 || '%'\n                OR s.trace_id ILIKE '%' || $5 || '%')\n        ORDER BY MIN(s.received_at) DESC\n        LIMIT $1\n        ",
   "describe": {
     "columns": [
       {
@@ -75,7 +75,11 @@
     ],
     "parameters": {
       "Left": [
-        "Int8"
+        "Int8",
+        "Text",
+        "Float8",
+        "Bool",
+        "Text"
       ]
     },
     "nullable": [
@@ -90,5 +94,5 @@
       null
     ]
   },
-  "hash": "6056ec8ff9343b349843a26cdd81e49cb3b09e983f9df04af968c60d868479d4"
+  "hash": "4f8547683b1bb93f9e93158696f60de68286a8b831c73e26343f25491c22f1c5"
 }
