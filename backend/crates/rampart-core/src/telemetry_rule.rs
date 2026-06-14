@@ -26,6 +26,9 @@ pub enum TelemetryRuleKind {
     TraceErrorRate,
     /// COUNT of log records at/above `min_level` in the window.
     LogVolume,
+    /// SUM of profile `sample_count` in the window (optionally one service).
+    /// A profiling-volume signal — e.g. CPU sampling spiking under load.
+    ProfileSamples,
 }
 
 impl TelemetryRuleKind {
@@ -35,6 +38,7 @@ impl TelemetryRuleKind {
             TelemetryRuleKind::TraceLatency => "trace_latency",
             TelemetryRuleKind::TraceErrorRate => "trace_error_rate",
             TelemetryRuleKind::LogVolume => "log_volume",
+            TelemetryRuleKind::ProfileSamples => "profile_samples",
         }
     }
 
@@ -45,6 +49,7 @@ impl TelemetryRuleKind {
             "trace_latency" => TelemetryRuleKind::TraceLatency,
             "trace_error_rate" => TelemetryRuleKind::TraceErrorRate,
             "log_volume" => TelemetryRuleKind::LogVolume,
+            "profile_samples" => TelemetryRuleKind::ProfileSamples,
             _ => TelemetryRuleKind::ErrorRate,
         }
     }
@@ -56,6 +61,7 @@ impl TelemetryRuleKind {
             TelemetryRuleKind::TraceLatency => "ms",
             TelemetryRuleKind::TraceErrorRate => "%",
             TelemetryRuleKind::LogVolume => "logs",
+            TelemetryRuleKind::ProfileSamples => "samples",
         }
     }
 }

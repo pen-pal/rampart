@@ -261,6 +261,21 @@ async fn observe(pool: &DbPool, rule: &TelemetryRule) -> DbResult<Option<f64>> {
             .await?;
             Ok(Some(n as f64))
         }
+        TelemetryRuleKind::ProfileSamples => {
+            let n = sqlx::query_scalar!(
+                r#"
+                SELECT COALESCE(SUM(sample_count), 0)::bigint AS "count!"
+                FROM profiles
+                WHERE received_at >= now() - make_interval(secs => $1)
+                  AND ($2 = '' OR service_name = $2)
+                "#,
+                window,
+                rule.target,
+            )
+            .fetch_one(pool)
+            .await?;
+            Ok(Some(n as f64))
+        }
     }
 }
 

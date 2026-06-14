@@ -17,6 +17,14 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **Profile-type alerting.** A new telemetry-rule kind `profile_samples` fires
+  when a service's profiling sample volume crosses a threshold over a window —
+  e.g. CPU sampling spiking under load. Reuses the existing rule engine,
+  notifier fan-out, and Alert-rules UI; migration `0085` extends the kind
+  constraint.
+
 ---
 
 ## [0.12.0] — 2026-06-14
