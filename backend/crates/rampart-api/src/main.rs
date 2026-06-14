@@ -105,6 +105,20 @@ async fn main() -> anyhow::Result<()> {
     });
     info!("retention prune loop started");
 
+    // SIEM / syslog export — leader-gated forward tail of the audit log to an
+    // external sink (configured in settings; disabled by default).
+    let siem_pool = pool.clone();
+    let siem_leadership = leadership.clone();
+    tokio::spawn(async move {
+        rampart_notifier::siem::run_loop(
+            siem_pool,
+            siem_leadership,
+            std::time::Duration::from_secs(15),
+        )
+        .await;
+    });
+    info!("siem export loop started");
+
     static_assets::log_state();
     let state = AppState::with_scheduler(pool, reload_handle, scheduler.clone());
     let app = build_router(state);
