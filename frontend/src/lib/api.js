@@ -532,6 +532,20 @@ export const api = {
     update:  (id, patch) => request(`/v1/telemetry-rules/${id}`, { method: 'PATCH', body: patch }),
     remove:  (id)        => request(`/v1/telemetry-rules/${id}`, { method: 'DELETE' }),
   },
+  detection: {
+    list:    ()          => request('/v1/detection-rules'),
+    create:  (input)     => request('/v1/detection-rules', { method: 'POST', body: input }),
+    update:  (id, patch) => request(`/v1/detection-rules/${id}`, { method: 'PATCH', body: patch }),
+    remove:  (id)        => request(`/v1/detection-rules/${id}`, { method: 'DELETE' }),
+    findings: ({ open, limit } = {}) => {
+      const p = new URLSearchParams();
+      if (open) p.set('open', 'true');
+      if (limit) p.set('limit', String(limit));
+      const s = p.toString();
+      return request(`/v1/detection-rules/findings${s ? '?' + s : ''}`);
+    },
+    ackFinding: (id) => request(`/v1/detection-rules/findings/${id}/ack`, { method: 'POST' }),
+  },
   maintenance: {
     list:        ()                  => request('/v1/maintenance-windows'),
     get:         (id)                => request(`/v1/maintenance-windows/${id}`),
