@@ -545,6 +545,7 @@ export const api = {
       return request(`/v1/detection-rules/findings${s ? '?' + s : ''}`);
     },
     ackFinding: (id) => request(`/v1/detection-rules/findings/${id}/ack`, { method: 'POST' }),
+    preview: (spec) => request('/v1/detection-rules/preview', { method: 'POST', body: spec }),
   },
   maintenance: {
     list:        ()                  => request('/v1/maintenance-windows'),

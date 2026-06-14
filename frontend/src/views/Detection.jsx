@@ -256,8 +256,22 @@ function RuleForm({ rule, channels, onSaved, onCancel, setErr }) {
     enabled: rule.enabled, channel_ids: [...(rule.channel_ids || [])],
   } : emptyForm());
   const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const [previewing, setPreviewing] = useState(false);
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
   const toggleCh = (id) => set('channel_ids', f.channel_ids.includes(id) ? f.channel_ids.filter(x => x !== id) : [...f.channel_ids, id]);
+
+  const runPreview = async () => {
+    setPreviewing(true); setPreview(null); setErr(null);
+    try {
+      const r = await api.detection.preview({
+        service: f.service.trim(), min_level: Number(f.min_level) || 0,
+        body_regex: f.body_regex.trim(), window_seconds: Number(f.window_seconds) || 300,
+      });
+      setPreview(r);
+    } catch (e) { setErr(e.message); }
+    finally { setPreviewing(false); }
+  };
 
   const save = async () => {
     setErr(null);
@@ -338,7 +352,20 @@ function RuleForm({ rule, channels, onSaved, onCancel, setErr }) {
       <label className="chk" style={{ marginBottom: 14 }}>
         <input type="checkbox" checked={f.enabled} onChange={e => set('enabled', e.target.checked)}/> {t('detection.f.enabled')}
       </label>
+      {preview && (
+        <div className="card" style={{ padding: 12, marginBottom: 14, background: 'var(--surface-2)' }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: preview.samples.length ? 8 : 0 }}>
+            {t('detection.preview_result', { n: preview.count, w: Number(f.window_seconds) || 300 })}
+          </div>
+          {preview.samples.map((s, i) => (
+            <div key={i} className="mono" style={{ fontSize: 11.5, color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s}</div>
+          ))}
+        </div>
+      )}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        <button className="btn btn-ghost" onClick={runPreview} disabled={busy || previewing}>
+          {previewing ? <Loader2 size={13}/> : null} {t('detection.preview')}
+        </button>
         <button className="btn btn-ghost" onClick={onCancel} disabled={busy}>{t('common.cancel')}</button>
         <button className="btn btn-accent" onClick={save} disabled={busy}>
           {busy ? <><Loader2 size={13}/> {t('common.saving')}</> : <><Save size={13}/> {t('common.save')}</>}

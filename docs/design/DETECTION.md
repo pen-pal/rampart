@@ -60,6 +60,10 @@ other alert (so [silences](../../README.md) apply) with `EventKind::DetectionFin
 - `GET /v1/detection-rules/findings?open=&limit=` — findings feed, newest first;
   `open=true` is the unacknowledged triage queue.
 - `POST /v1/detection-rules/findings/{id}/ack` — acknowledge (idempotent).
+- `POST /v1/detection-rules/preview` — dry-run a spec (`service` / `min_level` /
+  `body_regex` / `window_seconds`) over recent logs without saving; returns the
+  match count + up to 5 sample lines. Drives the **Preview** button on the rule
+  form so an author can tune a pattern before enabling it.
 
 ## Dashboard
 

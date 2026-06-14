@@ -1589,6 +1589,18 @@ paths:
       responses:
         '200': { description: The acknowledged finding. }
         '404': { description: No such finding. }
+  /v1/detection-rules/preview:
+    post:
+      tags: [Detection]
+      summary: Dry-run a rule spec over recent logs
+      description: >-
+        Run a match spec (`service`, `min_level`, `body_regex`,
+        `window_seconds`) over the trailing window without saving a rule or
+        raising a finding — the "test rule" path for authoring. An invalid
+        `body_regex` is a 400.
+      responses:
+        '200': { description: '`{count, samples[]}` — match count + up to 5 newest matching log lines.' }
+        '400': { $ref: '#/components/responses/BadRequest' }
   /v1/detection-rules/{id}:
     parameters:
       - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
