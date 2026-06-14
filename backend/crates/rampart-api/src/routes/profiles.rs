@@ -33,7 +33,9 @@ use time::OffsetDateTime;
 
 /// Public ingest surface — mounted at `/profiles`, behind the ingest rate limit.
 pub fn ingest_router() -> Router<AppState> {
-    Router::new().route("/v1/folded", post(ingest_folded))
+    Router::new()
+        .route("/v1/folded", post(ingest_folded))
+        .route("/v1/pprof", post(ingest_pprof))
 }
 
 /// Protected read surface — mounted at `/v1/profiles`.
@@ -74,16 +76,64 @@ async fn ingest_folded(
             "no valid folded-stack lines (expected `frame;frame value` per line)".into(),
         ));
     }
-    store(&s, &q, map).await?;
+    let service = non_empty(q.service.as_deref()).unwrap_or("unknown");
+    let profile_type = non_empty(q.profile_type.as_deref()).unwrap_or("cpu");
+    store(
+        &s,
+        service,
+        profile_type,
+        q.period_ns.unwrap_or(0),
+        q.duration_ns.unwrap_or(0),
+        map,
+    )
+    .await?;
+    Ok(Json(serde_json::json!({})))
+}
+
+async fn ingest_pprof(
+    State(s): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<IngestQuery>,
+    body: Bytes,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    crate::ingest_util::require_telemetry_token(s.pool(), &headers, None).await?;
+    // Strip any HTTP Content-Encoding first; the pprof payload is itself usually
+    // gzipped (parse_pprof inflates that inner layer).
+    let body = crate::ingest_util::decompress(&headers, &body)?;
+    let parsed = crate::pprof::parse_pprof(&body, None).map_err(ApiError::BadRequest)?;
+    if parsed.folded.is_empty() {
+        return Err(ApiError::BadRequest(
+            "pprof contained no samples with a positive value".into(),
+        ));
+    }
+    // Type precedence: explicit query param, else the pprof sample-type name,
+    // else "cpu".
+    let profile_type = non_empty(q.profile_type.as_deref())
+        .or(parsed.type_name.as_deref())
+        .unwrap_or("cpu");
+    let service = non_empty(q.service.as_deref()).unwrap_or("unknown");
+    store(
+        &s,
+        service,
+        profile_type,
+        parsed.period_ns,
+        parsed.duration_ns,
+        parsed.folded,
+    )
+    .await?;
     Ok(Json(serde_json::json!({})))
 }
 
 /// Lower a folded map to storage: canonical text → gzip → insert. Shared by
-/// every ingest format (folded now; pprof / OTLP-profiles convert to a map and
-/// call this too).
-async fn store(s: &AppState, q: &IngestQuery, map: FoldedMap) -> Result<(), ApiError> {
-    let service = non_empty(q.service.as_deref()).unwrap_or("unknown");
-    let profile_type = non_empty(q.profile_type.as_deref()).unwrap_or("cpu");
+/// every ingest format — folded text and pprof now, OTLP profiles next.
+async fn store(
+    s: &AppState,
+    service: &str,
+    profile_type: &str,
+    period_ns: i64,
+    duration_ns: i64,
+    map: FoldedMap,
+) -> Result<(), ApiError> {
     let sample_count = map.values().sum::<i64>().clamp(0, i32::MAX as i64) as i32;
     let gz = gzip(profile::to_folded_text(&map).as_bytes())?;
     rampart_db::profiles::insert(
@@ -91,8 +141,8 @@ async fn store(s: &AppState, q: &IngestQuery, map: FoldedMap) -> Result<(), ApiE
         NewProfile {
             service_name: service,
             profile_type,
-            period_ns: q.period_ns.unwrap_or(0),
-            duration_ns: q.duration_ns.unwrap_or(0),
+            period_ns,
+            duration_ns,
             sample_count,
             labels: serde_json::json!({}),
             folded_gz: &gz,
