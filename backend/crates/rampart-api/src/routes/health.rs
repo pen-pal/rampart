@@ -178,6 +178,53 @@ async fn metrics(State(state): State<AppState>) -> impl IntoResponse {
         }
     }
 
+    // ── alerting-pipeline gauges (rules / firing / findings / escalations) ─
+    match rampart_db::metrics::pipeline_gauges(pool).await {
+        Ok(g) => {
+            let _ = writeln!(body, "# HELP rampart_metric_rules Configured metric threshold rules.");
+            let _ = writeln!(body, "# TYPE rampart_metric_rules gauge");
+            let _ = writeln!(body, "rampart_metric_rules {}", g.metric_rules);
+            let _ = writeln!(body, "# HELP rampart_metric_rules_firing Metric rules currently firing.");
+            let _ = writeln!(body, "# TYPE rampart_metric_rules_firing gauge");
+            let _ = writeln!(body, "rampart_metric_rules_firing {}", g.metric_rules_firing);
+            let _ = writeln!(body, "# HELP rampart_telemetry_rules Configured telemetry alert rules.");
+            let _ = writeln!(body, "# TYPE rampart_telemetry_rules gauge");
+            let _ = writeln!(body, "rampart_telemetry_rules {}", g.telemetry_rules);
+            let _ = writeln!(body, "# HELP rampart_telemetry_rules_firing Telemetry rules currently firing.");
+            let _ = writeln!(body, "# TYPE rampart_telemetry_rules_firing gauge");
+            let _ = writeln!(body, "rampart_telemetry_rules_firing {}", g.telemetry_rules_firing);
+            let _ = writeln!(body, "# HELP rampart_detection_rules_enabled Enabled SIEM detection rules.");
+            let _ = writeln!(body, "# TYPE rampart_detection_rules_enabled gauge");
+            let _ = writeln!(body, "rampart_detection_rules_enabled {}", g.detection_rules_enabled);
+            let _ = writeln!(body, "# HELP rampart_detection_findings_open Unacknowledged detection findings.");
+            let _ = writeln!(body, "# TYPE rampart_detection_findings_open gauge");
+            let _ = writeln!(body, "rampart_detection_findings_open {}", g.detection_findings_open);
+            let _ = writeln!(body, "# HELP rampart_escalations_open Unresolved escalation episodes.");
+            let _ = writeln!(body, "# TYPE rampart_escalations_open gauge");
+            let _ = writeln!(body, "rampart_escalations_open {}", g.escalations_open);
+            let _ = writeln!(body, "# HELP rampart_error_issues_unresolved Unresolved error-tracking issues.");
+            let _ = writeln!(body, "# TYPE rampart_error_issues_unresolved gauge");
+            let _ = writeln!(body, "rampart_error_issues_unresolved {}", g.error_issues_unresolved);
+        }
+        Err(e) => {
+            let _ = writeln!(body, "# error querying pipeline_gauges: {e}");
+        }
+    }
+
+    // ── ingest volume (trailing 24h, by tier) ──────────────────────
+    match rampart_db::metrics::ingest_gauges(pool).await {
+        Ok(g) => {
+            let _ = writeln!(body, "# HELP rampart_ingest_24h Telemetry records ingested in the trailing 24h, by tier.");
+            let _ = writeln!(body, "# TYPE rampart_ingest_24h gauge");
+            let _ = writeln!(body, "rampart_ingest_24h{{tier=\"logs\"}} {}", g.logs_24h);
+            let _ = writeln!(body, "rampart_ingest_24h{{tier=\"spans\"}} {}", g.spans_24h);
+            let _ = writeln!(body, "rampart_ingest_24h{{tier=\"error_events\"}} {}", g.error_events_24h);
+        }
+        Err(e) => {
+            let _ = writeln!(body, "# error querying ingest_gauges: {e}");
+        }
+    }
+
     // ── HTTP request counter + latency histogram ───────────────────
     // Lives in AppState; populated by the `record_http_metrics`
     // middleware layered above the router in `lib.rs::build_router`.

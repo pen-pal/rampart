@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n          (SELECT COUNT(*) FROM metric_rules)                                  AS \"metric_rules!\",\n          (SELECT COUNT(*) FROM metric_rules WHERE firing_at IS NOT NULL)      AS \"metric_rules_firing!\",\n          (SELECT COUNT(*) FROM telemetry_alert_rules)                         AS \"telemetry_rules!\",\n          (SELECT COUNT(*) FROM telemetry_alert_rules WHERE firing_at IS NOT NULL) AS \"telemetry_rules_firing!\",\n          (SELECT COUNT(*) FROM detection_rules WHERE enabled)                 AS \"detection_rules_enabled!\",\n          (SELECT COUNT(*) FROM detection_findings WHERE acknowledged_at IS NULL) AS \"detection_findings_open!\",\n          (SELECT COUNT(*) FROM escalation_episodes WHERE resolved_at IS NULL) AS \"escalations_open!\",\n          (SELECT COUNT(*) FROM error_issues WHERE status = 'unresolved')      AS \"error_issues_unresolved!\"\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "metric_rules!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "metric_rules_firing!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "telemetry_rules!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "telemetry_rules_firing!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "detection_rules_enabled!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "detection_findings_open!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "escalations_open!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
+        "name": "error_issues_unresolved!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "b00c45cbf32dff04d6ec78cee59f0a9c0c068077f3f232dec51447d5ac1dac60"
+}

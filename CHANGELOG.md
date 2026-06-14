@@ -21,6 +21,12 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 - Detection rule preview: `POST /v1/detection-rules/preview` and a **Preview**
   button on the rule form dry-run a match spec over recent logs (match count +
   sample lines) without saving — tune a pattern before enabling it.
+- Alerting-pipeline & ingest metrics on `/metrics`: `rampart_metric_rules`,
+  `rampart_metric_rules_firing`, `rampart_telemetry_rules`,
+  `rampart_telemetry_rules_firing`, `rampart_detection_rules_enabled`,
+  `rampart_detection_findings_open`, `rampart_escalations_open`,
+  `rampart_error_issues_unresolved`, and `rampart_ingest_24h{tier}` — so an
+  operator can alert on Rampart's own alerting and ingest health.
 
 ---
 

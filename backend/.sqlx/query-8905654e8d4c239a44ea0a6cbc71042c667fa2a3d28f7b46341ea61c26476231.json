@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n          (SELECT COUNT(*) FROM logs   WHERE ts >= now() - interval '24 hours')          AS \"logs_24h!\",\n          (SELECT COUNT(*) FROM spans  WHERE received_at >= now() - interval '24 hours')  AS \"spans_24h!\",\n          (SELECT COUNT(*) FROM error_events WHERE ts >= now() - interval '24 hours')     AS \"error_events_24h!\"\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "logs_24h!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "spans_24h!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "error_events_24h!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "8905654e8d4c239a44ea0a6cbc71042c667fa2a3d28f7b46341ea61c26476231"
+}

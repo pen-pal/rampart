@@ -94,3 +94,73 @@ pub async fn incidents_open(pool: &PgPool) -> Result<i64, DbError> {
         .await?;
     Ok(row.count)
 }
+
+/// Alerting-pipeline gauges in one round-trip: how many alert rules of each
+/// kind exist and how many are currently firing, plus open escalation episodes
+/// and unresolved error issues. Scraped by `/metrics` so an operator can alert
+/// on Rampart's own alerting (e.g. "no rules firing for 10m" or a stuck
+/// escalation).
+pub struct PipelineGauges {
+    pub metric_rules: i64,
+    pub metric_rules_firing: i64,
+    pub telemetry_rules: i64,
+    pub telemetry_rules_firing: i64,
+    pub detection_rules_enabled: i64,
+    pub detection_findings_open: i64,
+    pub escalations_open: i64,
+    pub error_issues_unresolved: i64,
+}
+
+pub async fn pipeline_gauges(pool: &PgPool) -> Result<PipelineGauges, DbError> {
+    let row = sqlx::query!(
+        r#"
+        SELECT
+          (SELECT COUNT(*) FROM metric_rules)                                  AS "metric_rules!",
+          (SELECT COUNT(*) FROM metric_rules WHERE firing_at IS NOT NULL)      AS "metric_rules_firing!",
+          (SELECT COUNT(*) FROM telemetry_alert_rules)                         AS "telemetry_rules!",
+          (SELECT COUNT(*) FROM telemetry_alert_rules WHERE firing_at IS NOT NULL) AS "telemetry_rules_firing!",
+          (SELECT COUNT(*) FROM detection_rules WHERE enabled)                 AS "detection_rules_enabled!",
+          (SELECT COUNT(*) FROM detection_findings WHERE acknowledged_at IS NULL) AS "detection_findings_open!",
+          (SELECT COUNT(*) FROM escalation_episodes WHERE resolved_at IS NULL) AS "escalations_open!",
+          (SELECT COUNT(*) FROM error_issues WHERE status = 'unresolved')      AS "error_issues_unresolved!"
+        "#,
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(PipelineGauges {
+        metric_rules: row.metric_rules,
+        metric_rules_firing: row.metric_rules_firing,
+        telemetry_rules: row.telemetry_rules,
+        telemetry_rules_firing: row.telemetry_rules_firing,
+        detection_rules_enabled: row.detection_rules_enabled,
+        detection_findings_open: row.detection_findings_open,
+        escalations_open: row.escalations_open,
+        error_issues_unresolved: row.error_issues_unresolved,
+    })
+}
+
+/// Telemetry-ingest volume over the trailing 24h, by tier — a freshness/load
+/// signal for the observability pipeline. One round-trip.
+pub struct IngestGauges {
+    pub logs_24h: i64,
+    pub spans_24h: i64,
+    pub error_events_24h: i64,
+}
+
+pub async fn ingest_gauges(pool: &PgPool) -> Result<IngestGauges, DbError> {
+    let row = sqlx::query!(
+        r#"
+        SELECT
+          (SELECT COUNT(*) FROM logs   WHERE ts >= now() - interval '24 hours')          AS "logs_24h!",
+          (SELECT COUNT(*) FROM spans  WHERE received_at >= now() - interval '24 hours')  AS "spans_24h!",
+          (SELECT COUNT(*) FROM error_events WHERE ts >= now() - interval '24 hours')     AS "error_events_24h!"
+        "#,
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(IngestGauges {
+        logs_24h: row.logs_24h,
+        spans_24h: row.spans_24h,
+        error_events_24h: row.error_events_24h,
+    })
+}
