@@ -28,6 +28,8 @@ export function parseRoute(hash) {
   if (h === '#/traces')             return { view: 'traces',        id: null };
   if (h.startsWith('#/logs/trace/')) return { view: 'logs',         id: h.slice('#/logs/trace/'.length) };
   if (h === '#/logs')               return { view: 'logs',          id: null };
+  if (h.startsWith('#/profiling/')) return { view: 'profiling',     id: h.slice('#/profiling/'.length) };
+  if (h === '#/profiling')          return { view: 'profiling',     id: null };
   if (h === '#/errors')             return { view: 'errors',        id: null };
   if (h === '#/rum')                return { view: 'rum',           id: null };
   if (h === '#/on-call')            return { view: 'on-call',       id: null };
