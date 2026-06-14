@@ -65,6 +65,10 @@
       "description": "Threshold alert rules over the error/trace/log observability tiers. Editor writes; readonly reads."
     },
     {
+      "name": "Detection",
+      "description": "SIEM-style log detection rules + their findings (occurrence-based matching with regex). Editor writes; readonly reads."
+    },
+    {
       "name": "Escalations",
       "description": "Escalation policies (ordered notification ladders) and episode acknowledge. Editor."
     },
@@ -3038,6 +3042,150 @@
         }
       }
     },
+    "/v1/detection-rules": {
+      "get": {
+        "tags": [
+          "Detection"
+        ],
+        "summary": "List detection rules",
+        "responses": {
+          "200": {
+            "description": "Rules, incl. `last_checked_at` watermark."
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Detection"
+        ],
+        "summary": "Create a detection rule",
+        "description": "A SIEM-style rule over the log tier. Each scheduler tick counts NEW log records matching the rule (`service` scope, `min_level` OTLP severity floor, optional `body_regex` case-insensitive POSIX regex); when the count reaches `threshold` it raises a finding and notifies `channel_ids`. `severity` is one of low/medium/high/critical. An invalid `body_regex` is a 400. See docs/design/DETECTION.md.",
+        "responses": {
+          "201": {
+            "description": "Created rule."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/v1/detection-rules/findings": {
+      "get": {
+        "tags": [
+          "Detection"
+        ],
+        "summary": "List detection findings",
+        "parameters": [
+          {
+            "name": "open",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Only unacknowledged findings."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Max rows (default 100",
+            "capped 1000).": null
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Findings newest-first `{rule_name, severity, match_count, sample, service, window_from, window_to, acknowledged_at}`."
+          }
+        }
+      }
+    },
+    "/v1/detection-rules/findings/{id}/ack": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Detection"
+        ],
+        "summary": "Acknowledge a finding",
+        "responses": {
+          "200": {
+            "description": "The acknowledged finding."
+          },
+          "404": {
+            "description": "No such finding."
+          }
+        }
+      }
+    },
+    "/v1/detection-rules/preview": {
+      "post": {
+        "tags": [
+          "Detection"
+        ],
+        "summary": "Dry-run a rule spec over recent logs",
+        "description": "Run a match spec (`service`, `min_level`, `body_regex`, `window_seconds`) over the trailing window without saving a rule or raising a finding \u2014 the \"test rule\" path for authoring. An invalid `body_regex` is a 400.",
+        "responses": {
+          "200": {
+            "description": "`{count, samples[]}` \u2014 match count + up to 5 newest matching log lines."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/v1/detection-rules/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "patch": {
+        "tags": [
+          "Detection"
+        ],
+        "summary": "Update a detection rule",
+        "responses": {
+          "200": {
+            "description": "Updated rule."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Detection"
+        ],
+        "summary": "Delete a detection rule",
+        "responses": {
+          "204": {
+            "description": "Deleted (its findings cascade)."
+          }
+        }
+      }
+    },
     "/v1/escalation-policies": {
       "get": {
         "tags": [
@@ -3276,6 +3424,62 @@
         }
       }
     },
+    "/v1/traces/export.csv": {
+      "get": {
+        "tags": [
+          "Traces"
+        ],
+        "summary": "Export traces as CSV",
+        "description": "Same filters as `/v1/traces`, one row per trace. `limit` is clamped to 50,000 rows. Returns `text/csv` as a file attachment.",
+        "parameters": [
+          {
+            "name": "service",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "min_duration_ms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "errors_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "CSV: started_at,trace_id,root_service,root_name,duration_ms,span_count,error_count,services."
+          }
+        }
+      }
+    },
     "/v1/traces/{trace_id}": {
       "parameters": [
         {
@@ -3424,6 +3628,70 @@
         "responses": {
           "200": {
             "description": "`[[level, count], \u2026]` over the window (severity-volume bar)."
+          }
+        }
+      }
+    },
+    "/v1/logs/export.csv": {
+      "get": {
+        "tags": [
+          "Logs"
+        ],
+        "summary": "Export logs as CSV",
+        "description": "Same `service` / `level` / `q` / `trace_id` filters as `/v1/logs`. `limit` is clamped to 50,000 rows. Returns `text/csv` as a file attachment. For continuous forwarding use the syslog/SIEM export sink.",
+        "parameters": [
+          {
+            "name": "service",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "trace",
+                "debug",
+                "info",
+                "warn",
+                "error",
+                "fatal"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "trace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "CSV: ts,level,severity,service,trace_id,span_id,body,attributes."
           }
         }
       }
@@ -3885,6 +4153,33 @@
             "description": "Up to 50 events",
             "newest first": null,
             "with stacktrace + context.": null
+          }
+        }
+      }
+    },
+    "/v1/error-issues/{id}/stats": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Errors"
+        ],
+        "summary": "Issue statistics",
+        "responses": {
+          "200": {
+            "description": "Issue stats `{users_affected, by_release[[name,count]], by_environment[[name,count]]}`."
+          },
+          "404": {
+            "description": "No such issue."
           }
         }
       }
