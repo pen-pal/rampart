@@ -331,6 +331,27 @@ pub async fn send_event_to_channel(
     channel_id: NotificationId,
     event: &Event,
 ) -> anyhow::Result<bool> {
+    // Silence suppression — the single chokepoint every alert path flows
+    // through. A manual channel Test always sends. Monitor-scoped kinds match
+    // that monitor's (or a global) silence; rule/error kinds match only global.
+    if !matches!(event.kind, EventKind::Test) {
+        let scoped = matches!(
+            event.kind,
+            EventKind::StatusFlip
+                | EventKind::SloBreached
+                | EventKind::SloRecovered
+                | EventKind::MaintenanceStarted
+                | EventKind::MaintenanceEnded
+        );
+        let mon = scoped.then_some(event.monitor.id.0);
+        if rampart_db::silences::is_silenced(pool, mon)
+            .await
+            .unwrap_or(false)
+        {
+            tracing::info!(channel = %channel_id.0, "alert suppressed by active silence");
+            return Ok(false);
+        }
+    }
     let chan = rampart_db::notifications::get(pool, channel_id).await?;
 
     let subject = template::default_subject(event);
@@ -441,6 +462,13 @@ pub async fn fire_escalation_step(
     let Some(step) = policy.steps.get(step_no) else {
         return;
     };
+    // An active silence on the monitor stops the escalation ladder too.
+    if rampart_db::silences::is_silenced(pool, Some(event.monitor.id.0))
+        .await
+        .unwrap_or(false)
+    {
+        return;
+    }
     let mut page = event.clone();
     page.kind = EventKind::Escalation;
     let base = event.heartbeat.msg.clone().unwrap_or_default();

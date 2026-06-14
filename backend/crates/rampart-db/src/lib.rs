@@ -40,6 +40,7 @@ pub mod scheduled_reports;
 pub mod secrets;
 pub mod sessions;
 pub mod settings;
+pub mod silences;
 pub mod source_maps;
 pub mod status_pages;
 pub mod subscribers;
