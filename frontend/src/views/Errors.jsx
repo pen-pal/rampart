@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ChevronLeft, Plus, Trash2, AlertCircle, Loader2, X, Check, Bug, Copy,
 } from 'lucide-react';
@@ -227,6 +227,8 @@ function ProjectIssues({ project, onBack, onOpenIssue }) {
         <button className="btn btn-ghost" onClick={copyDsn}>{copied ? <Check size={13}/> : <Copy size={13}/>}</button>
       </div>
 
+      <SourceMaps projectId={project.id} />
+
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
         {STATUSES.map(s => (
           <button key={s} className={`btn ${status === s ? 'btn-accent' : ''}`} onClick={() => setStatus(s)}>{t(`errors.status.${s}`)}</button>
@@ -255,6 +257,63 @@ function ProjectIssues({ project, onBack, onOpenIssue }) {
         ))}
       </div>
     </>
+  );
+}
+
+// Source-map management for a project: list uploaded maps + upload (paste JSON)
+// + delete. Feeds the server-side symbolication of minified stack frames.
+function SourceMaps({ projectId }) {
+  const [maps, setMaps] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [release, setRelease] = useState('');
+  const [filename, setFilename] = useState('');
+  const [mapText, setMapText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const load = async () => { try { setMaps(await api.sourcemaps.list(projectId)); } catch { /* none yet */ } };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [projectId]);
+
+  const upload = async () => {
+    setErr(null); setBusy(true);
+    try {
+      const map = JSON.parse(mapText);
+      await api.sourcemaps.upload(projectId, { release: release.trim(), filename: filename.trim(), map });
+      setRelease(''); setFilename(''); setMapText(''); setOpen(false); await load();
+    } catch (e) { setErr(e.message || t('errors.sm_err')); }
+    finally { setBusy(false); }
+  };
+  const remove = async (id) => { try { await api.sourcemaps.remove(projectId, id); await load(); } catch { /* ignore */ } };
+
+  return (
+    <div className="card" style={{ padding: '12px 14px', marginBottom: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span className="field-label" style={{ margin: 0 }}>{t('errors.sourcemaps')}</span>
+        <button className="btn btn-ghost" onClick={() => setOpen(o => !o)}><Plus size={13}/> {t('errors.sm_upload')}</button>
+      </div>
+      {maps.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          {maps.map(m => (
+            <div key={m.id} style={{ display: 'flex', gap: 10, fontSize: 12, padding: '3px 0', alignItems: 'center' }}>
+              <span className="pill pill-muted">{m.release}</span>
+              <span className="mono" style={{ color: 'var(--text-2)' }}>{m.filename}</span>
+              <button className="btn btn-ghost" style={{ marginLeft: 'auto' }} onClick={() => remove(m.id)} title={t('common.delete')}><Trash2 size={12}/></button>
+            </div>
+          ))}
+        </div>
+      )}
+      {open && (
+        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <input className="input" placeholder={t('errors.sm_release')} value={release} onChange={e => setRelease(e.target.value)}/>
+          <input className="input" placeholder={t('errors.sm_filename')} value={filename} onChange={e => setFilename(e.target.value)}/>
+          <textarea className="input" rows={4} placeholder={t('errors.sm_json')} value={mapText} onChange={e => setMapText(e.target.value)} style={{ fontFamily: 'monospace', fontSize: 11 }}/>
+          {err && <span style={{ color: 'var(--down)', fontSize: 12 }}>{err}</span>}
+          <button className="btn btn-accent" disabled={busy || !release.trim() || !filename.trim() || !mapText.trim()} onClick={upload} style={{ alignSelf: 'flex-start' }}>
+            {busy ? <Loader2 size={13}/> : <Check size={13}/>} {t('errors.sm_save')}
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -329,9 +388,14 @@ function IssueDetail({ issueId, user, onBack }) {
         <>
           <div className="field-label">{t('errors.stacktrace')}</div>
           <div className="codeblock" style={{ marginBottom: 16 }}>
-            {frames.slice().reverse().map(f => (
-              `  at ${f.function || '?'} (${f.module || f.filename || '?'}${f.lineno ? ':' + f.lineno : ''})`
-            )).join('\n')}
+            {frames.slice().reverse().map(f => {
+              const r = f.resolved;
+              const fn = (r && r.function) || f.function || '?';
+              const loc = r && r.filename
+                ? `${r.filename}${r.lineno ? ':' + r.lineno : ''}`
+                : `${f.module || f.filename || '?'}${f.lineno ? ':' + f.lineno : ''}`;
+              return `  at ${fn} (${loc})${r ? '   ← ' + t('errors.symbolicated') : ''}`;
+            }).join('\n')}
           </div>
         </>
       )}
