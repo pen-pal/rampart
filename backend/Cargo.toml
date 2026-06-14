@@ -105,6 +105,7 @@ lettre = { version = "0.11", default-features = false, features = ["tokio1-rustl
 # gzip/deflate decode for Sentry-compatible error ingest (SDKs gzip envelopes
 # by default). Pure-Rust miniz_oxide backend — no C toolchain (DEPENDENCIES.md).
 flate2      = { version = "1", default-features = false, features = ["rust_backend"] }
+sourcemap   = "9"
 async-trait = "0.1"
 validator   = { version = "0.20", features = ["derive"] }
 argon2      = "0.5"
