@@ -24,6 +24,7 @@ selected by the rule's `kind`.
 | `trace_error_rate` | percent of spans with `status_code = 2` | service name |
 | `log_volume` | COUNT of logs at/above `min_level` | service name (+ `match_text` body substring) |
 | `profile_samples` | SUM of profile `sample_count` | service name |
+| `rum_lcp_p75` | p75 of RUM `lcp_ms` (Largest Contentful Paint) | app name |
 
 `target` empty = no scope filter (all projects/services). `op` + `threshold`
 compare the aggregate (`gt`/`lt`/`gte`/`lte`); `window_seconds` is the rolling

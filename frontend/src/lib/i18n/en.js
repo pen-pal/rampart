@@ -289,6 +289,7 @@ const en = {
   'alertrules.kind.trace_error_rate': 'Trace error rate',
   'alertrules.kind.log_volume':       'Log volume',
   'alertrules.kind.profile_samples':  'Profile samples',
+  'alertrules.kind.rum_lcp_p75':      'RUM p75 LCP',
   'alertrules.f.name':               'Name',
   'alertrules.f.name_ph':            'e.g. checkout errors spiking',
   'alertrules.f.kind':               'Rule kind',

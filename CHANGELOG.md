@@ -21,6 +21,9 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 - Error-issue statistics: distinct users affected plus breakdowns by release and
   environment, on a new `GET /v1/error-issues/{id}/stats` endpoint and an issue
   detail panel.
+- RUM Core-Web-Vitals alerting: a `rum_lcp_p75` telemetry-rule kind that fires on
+  the p75 of real-user Largest-Contentful-Paint (`lcp_ms`) over a rolling window,
+  optionally scoped to an app.
 
 ---
 

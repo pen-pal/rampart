@@ -49,6 +49,7 @@ const KINDS = [
   { v: 'trace_error_rate', unit: '%',      targetLabel: 'Service name', logFields: false },
   { v: 'log_volume',       unit: 'logs',   targetLabel: 'Service name', logFields: true  },
   { v: 'profile_samples',  unit: 'samples', targetLabel: 'Service name', logFields: false },
+  { v: 'rum_lcp_p75',      unit: 'ms',      targetLabel: 'App name',     logFields: false },
 ];
 const kindMeta = (v) => KINDS.find(k => k.v === v) || KINDS[0];
 
