@@ -87,4 +87,6 @@ pub use synthetic::{
 };
 pub use tag::{NewTag, Tag, TagBrief};
 pub use telemetry_rule::{NewTelemetryRule, TelemetryRule, TelemetryRuleKind, UpdateTelemetryRule};
-pub use trace::{parse_otlp_traces_json, ParsedSpan, ServiceEdge, Span, TraceSummary};
+pub use trace::{
+    parse_otlp_traces_json, OperationStat, ParsedSpan, ServiceEdge, Span, TraceSummary,
+};

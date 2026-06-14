@@ -75,6 +75,23 @@ pub struct ServiceEdge {
     pub calls: i64,
 }
 
+/// Per-(service, operation) APM rollup over a time window — the "services /
+/// resources" numbers (latency percentiles, throughput, error rate).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OperationStat {
+    pub service: String,
+    pub operation: String,
+    pub calls: i64,
+    pub errors: i64,
+    /// Error rate as a percentage (0–100).
+    pub error_rate: f64,
+    pub p50_ms: f64,
+    pub p95_ms: f64,
+    pub p99_ms: f64,
+    pub avg_ms: f64,
+    pub max_ms: f64,
+}
+
 // ─────────────────────────── OTLP/JSON parsing ───────────────────────────
 
 /// Parse an OTLP/HTTP JSON `ExportTraceServiceRequest` into spans. Tolerant:
