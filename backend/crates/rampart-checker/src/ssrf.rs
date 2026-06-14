@@ -142,7 +142,12 @@ mod tests {
 
     #[test]
     fn public_ips_allowed() {
-        for s in ["1.1.1.1", "8.8.8.8", "93.184.216.34", "2606:4700:4700::1111"] {
+        for s in [
+            "1.1.1.1",
+            "8.8.8.8",
+            "93.184.216.34",
+            "2606:4700:4700::1111",
+        ] {
             assert!(!is_always_blocked(&ip(s)), "{s} should be allowed");
             assert!(!is_private(&ip(s)), "{s} not private");
         }
@@ -150,7 +155,13 @@ mod tests {
 
     #[test]
     fn private_ranges_detected() {
-        for s in ["10.0.0.5", "192.168.1.1", "172.16.0.1", "100.64.0.1", "fc00::1"] {
+        for s in [
+            "10.0.0.5",
+            "192.168.1.1",
+            "172.16.0.1",
+            "100.64.0.1",
+            "fc00::1",
+        ] {
             assert!(is_private(&ip(s)), "{s} should be private");
             assert!(!is_always_blocked(&ip(s)), "{s} private != always-blocked");
         }

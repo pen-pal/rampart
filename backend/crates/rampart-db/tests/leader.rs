@@ -24,7 +24,10 @@ async fn advisory_lock_is_mutually_exclusive_and_transfers(pool: PgPool) {
         .fetch_one(&mut *b)
         .await
         .unwrap();
-    assert!(!got_b, "second session must NOT acquire while the first holds it");
+    assert!(
+        !got_b,
+        "second session must NOT acquire while the first holds it"
+    );
 
     // Leader 'a' exits → releases the lock.
     sqlx::query("SELECT pg_advisory_unlock($1)")
