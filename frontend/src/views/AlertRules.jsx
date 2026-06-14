@@ -48,6 +48,7 @@ const KINDS = [
   { v: 'trace_latency',    unit: 'ms',     targetLabel: 'Service name', logFields: false },
   { v: 'trace_error_rate', unit: '%',      targetLabel: 'Service name', logFields: false },
   { v: 'log_volume',       unit: 'logs',   targetLabel: 'Service name', logFields: true  },
+  { v: 'profile_samples',  unit: 'samples', targetLabel: 'Service name', logFields: false },
 ];
 const kindMeta = (v) => KINDS.find(k => k.v === v) || KINDS[0];
 
