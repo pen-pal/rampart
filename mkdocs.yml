@@ -97,6 +97,7 @@ nav:
       - Tunneling & private networks: design/TUNNELING.md
       - Cron-job monitoring: CRON-JOBS.md
       - Synthetic transactions: SYNTHETICS.md
+      - Monitors-as-code: design/MONITORS-AS-CODE.md
       - Importers: IMPORTERS.md
   - Observability:
       - Error tracking: design/ERROR-TRACKING.md
