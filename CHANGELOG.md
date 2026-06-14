@@ -17,6 +17,11 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+- Error breadcrumbs: the SDK trail leading up to an error (kept verbatim in the
+  event context) now renders as a category/message/level/time timeline on the
+  issue detail.
+
 ---
 
 ## [0.18.0] — 2026-06-14

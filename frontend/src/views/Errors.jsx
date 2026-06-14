@@ -347,6 +347,23 @@ function IssueDetail({ issueId, user, onBack }) {
   // Cross-tier: Sentry events carry a trace context, stored verbatim in the
   // event's `context`. If present, link to the trace + its logs.
   const traceId = latest?.context?.contexts?.trace?.trace_id || null;
+  // Breadcrumbs: the SDK trail leading up to the error, stored verbatim in the
+  // event `context`. Sentry sends either `breadcrumbs.values[]` (current) or a
+  // bare `breadcrumbs[]` (older SDKs) — accept both.
+  const crumbsRaw = latest?.context?.breadcrumbs;
+  const crumbs = Array.isArray(crumbsRaw)
+    ? crumbsRaw
+    : Array.isArray(crumbsRaw?.values) ? crumbsRaw.values : [];
+  const crumbPill = (lvl) => {
+    if (lvl === 'error' || lvl === 'fatal' || lvl === 'critical') return 'pill-fail';
+    if (lvl === 'warning' || lvl === 'warn') return 'pill-warn';
+    return 'pill-muted';
+  };
+  const crumbTime = (ts) => {
+    if (ts == null) return '';
+    const d = typeof ts === 'number' ? new Date(ts * 1000) : new Date(ts);
+    return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString();
+  };
 
   return (
     <>
@@ -427,6 +444,23 @@ function IssueDetail({ issueId, user, onBack }) {
                 : `${f.module || f.filename || '?'}${f.lineno ? ':' + f.lineno : ''}`;
               return `  at ${fn} (${loc})${r ? '   ← ' + t('errors.symbolicated') : ''}`;
             }).join('\n')}
+          </div>
+        </>
+      )}
+
+      {crumbs.length > 0 && (
+        <>
+          <div className="field-label">{t('errors.breadcrumbs')}</div>
+          <div className="card" style={{ overflow: 'hidden', marginBottom: 16 }}>
+            {crumbs.slice(-25).map((c, i) => (
+              <div className="row" key={i} style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
+                <span className={`pill ${crumbPill(c.level)}`} style={{ flexShrink: 0 }}>{c.category || c.type || c.level || 'info'}</span>
+                <span style={{ minWidth: 0, fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {c.message || (c.data && typeof c.data === 'object' ? JSON.stringify(c.data) : c.data) || ''}
+                </span>
+                <span className="mono" style={{ marginLeft: 'auto', color: 'var(--text-3)', fontSize: 11, flexShrink: 0 }}>{crumbTime(c.timestamp)}</span>
+              </div>
+            ))}
           </div>
         </>
       )}
