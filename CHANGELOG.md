@@ -24,6 +24,11 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
   e.g. CPU sampling spiking under load. Reuses the existing rule engine,
   notifier fan-out, and Alert-rules UI; migration `0085` extends the kind
   constraint.
+- **Security insights.** The audit view's **Security** filter now shows an
+  insights strip — failed / successful logins, 2FA failures, the top source IPs
+  behind failed logins, and a per-hour failed-login sparkline over the last 24h
+  (`GET /v1/audit-log/insights`). A security-event surface over the existing
+  tamper-evident audit log — not an inline WAF.
 
 ---
 
