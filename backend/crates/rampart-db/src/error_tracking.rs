@@ -403,6 +403,61 @@ pub async fn get_issue(pool: &DbPool, id: ErrorIssueId) -> DbResult<ErrorIssue> 
     Ok(row.into())
 }
 
+/// Aggregate stats for an issue's events: distinct affected users (from the
+/// Sentry `user` context — id, else email, else username) and the top releases
+/// and environments by event count. Read-side over stored events; no extra
+/// columns. The "who/where is this hitting" view next to the stack trace.
+#[derive(Debug, serde::Serialize)]
+pub struct IssueStats {
+    pub users_affected: i64,
+    pub by_release: Vec<(String, i64)>,
+    pub by_environment: Vec<(String, i64)>,
+}
+
+pub async fn issue_stats(pool: &DbPool, id: ErrorIssueId) -> DbResult<IssueStats> {
+    let users = sqlx::query_scalar!(
+        r#"
+        SELECT COUNT(DISTINCT COALESCE(
+                 context->'user'->>'id',
+                 context->'user'->>'email',
+                 context->'user'->>'username')) AS "n!"
+        FROM error_events
+        WHERE issue_id = $1 AND context->'user' IS NOT NULL
+        "#,
+        id.0,
+    )
+    .fetch_one(pool)
+    .await?;
+
+    let releases = sqlx::query!(
+        r#"
+        SELECT COALESCE(NULLIF(release, ''), '(none)') AS "k!", COUNT(*) AS "n!"
+        FROM error_events WHERE issue_id = $1
+        GROUP BY 1 ORDER BY 2 DESC LIMIT 10
+        "#,
+        id.0,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let envs = sqlx::query!(
+        r#"
+        SELECT COALESCE(NULLIF(environment, ''), '(none)') AS "k!", COUNT(*) AS "n!"
+        FROM error_events WHERE issue_id = $1
+        GROUP BY 1 ORDER BY 2 DESC LIMIT 10
+        "#,
+        id.0,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(IssueStats {
+        users_affected: users,
+        by_release: releases.into_iter().map(|r| (r.k, r.n)).collect(),
+        by_environment: envs.into_iter().map(|r| (r.k, r.n)).collect(),
+    })
+}
+
 /// `status` must be one of `unresolved` | `resolved` | `ignored` (validated
 /// at the route layer).
 pub async fn set_issue_status(
