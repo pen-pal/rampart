@@ -17,6 +17,10 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+---
+
+## [0.9.0] — 2026-06-14
+
 ### Security
 
 - **Notification secrets encrypted at rest.** Channel `config` blobs hold live
@@ -825,7 +829,8 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 
 ---
 
-[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.9.0...HEAD
+[0.9.0]:      https://github.com/pen-pal/rampart/releases/tag/v0.9.0
 [0.8.0]:      https://github.com/pen-pal/rampart/releases/tag/v0.8.0
 [0.7.0]:      https://github.com/pen-pal/rampart/releases/tag/v0.7.0
 [0.6.0]:      https://github.com/pen-pal/rampart/releases/tag/v0.6.0
