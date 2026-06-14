@@ -29,6 +29,9 @@ pub enum TelemetryRuleKind {
     /// SUM of profile `sample_count` in the window (optionally one service).
     /// A profiling-volume signal — e.g. CPU sampling spiking under load.
     ProfileSamples,
+    /// p75 of RUM `lcp_ms` (Largest Contentful Paint) in the window, optionally
+    /// one app. Alert when real-user load performance regresses.
+    RumLcpP75,
 }
 
 impl TelemetryRuleKind {
@@ -39,6 +42,7 @@ impl TelemetryRuleKind {
             TelemetryRuleKind::TraceErrorRate => "trace_error_rate",
             TelemetryRuleKind::LogVolume => "log_volume",
             TelemetryRuleKind::ProfileSamples => "profile_samples",
+            TelemetryRuleKind::RumLcpP75 => "rum_lcp_p75",
         }
     }
 
@@ -50,6 +54,7 @@ impl TelemetryRuleKind {
             "trace_error_rate" => TelemetryRuleKind::TraceErrorRate,
             "log_volume" => TelemetryRuleKind::LogVolume,
             "profile_samples" => TelemetryRuleKind::ProfileSamples,
+            "rum_lcp_p75" => TelemetryRuleKind::RumLcpP75,
             _ => TelemetryRuleKind::ErrorRate,
         }
     }
@@ -62,6 +67,7 @@ impl TelemetryRuleKind {
             TelemetryRuleKind::TraceErrorRate => "%",
             TelemetryRuleKind::LogVolume => "logs",
             TelemetryRuleKind::ProfileSamples => "samples",
+            TelemetryRuleKind::RumLcpP75 => "ms",
         }
     }
 }

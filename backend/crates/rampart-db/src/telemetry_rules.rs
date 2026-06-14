@@ -276,6 +276,22 @@ async fn observe(pool: &DbPool, rule: &TelemetryRule) -> DbResult<Option<f64>> {
             .await?;
             Ok(Some(n as f64))
         }
+        TelemetryRuleKind::RumLcpP75 => {
+            let p = sqlx::query_scalar!(
+                r#"
+                SELECT percentile_cont(0.75) WITHIN GROUP (ORDER BY lcp_ms)
+                FROM rum_events
+                WHERE received_at >= now() - make_interval(secs => $1)
+                  AND lcp_ms IS NOT NULL
+                  AND ($2 = '' OR app = $2)
+                "#,
+                window,
+                rule.target,
+            )
+            .fetch_one(pool)
+            .await?;
+            Ok(p)
+        }
     }
 }
 
