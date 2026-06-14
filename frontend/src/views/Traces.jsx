@@ -81,10 +81,32 @@ export default function Traces({ openTraceId }) {
 }
 
 function TraceList({ onOpen }) {
-  const state = useApi(() => api.traces.list(100), []);
+  const [service, setService] = useState('');
+  const [q, setQ] = useState('');
+  const [minDur, setMinDur] = useState('');
+  const [errorsOnly, setErrorsOnly] = useState(false);
+  const [applied, setApplied] = useState({ service: '', q: '', min_duration_ms: '', errors_only: false });
+  const state = useApi(
+    () => api.traces.list({ limit: 100, ...applied }),
+    [applied],
+  );
   const traces = state.data || [];
+  const apply = () => setApplied({ service, q, min_duration_ms: minDur, errors_only: errorsOnly });
   return (
     <>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+        <input className="input" style={{ flex: '1 1 180px' }} placeholder={t('traces.filter.search')}
+          value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && apply()}/>
+        <input className="input" style={{ width: 150 }} placeholder={t('traces.filter.service')}
+          value={service} onChange={e => setService(e.target.value)} onKeyDown={e => e.key === 'Enter' && apply()}/>
+        <input className="input" style={{ width: 130 }} type="number" placeholder={t('traces.filter.min_ms')}
+          value={minDur} onChange={e => setMinDur(e.target.value)} onKeyDown={e => e.key === 'Enter' && apply()}/>
+        <button className={`btn ${errorsOnly ? 'btn-accent' : ''}`}
+          onClick={() => { const v = !errorsOnly; setErrorsOnly(v); setApplied(a => ({ ...a, errors_only: v })); }}>
+          {t('traces.filter.errors_only')}
+        </button>
+        <button className="btn" onClick={apply}>{t('traces.filter.apply')}</button>
+      </div>
       {state.error && <div className="banner-err"><AlertCircle size={14} style={{ verticalAlign: '-2px', marginRight: 6 }}/>{t('traces.load_error')}</div>}
       <div className="card" style={{ overflow: 'hidden' }}>
         {state.loading ? (
