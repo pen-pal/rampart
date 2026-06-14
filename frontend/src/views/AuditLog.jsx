@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   ChevronLeft, Loader2, AlertCircle, ScrollText, ChevronDown, Download,
+  ShieldCheck, ShieldAlert, Shield,
 } from 'lucide-react';
 
 // Local "YYYY-MM-DDTHH:MM" from <input type="datetime-local"> → UTC ISO 8601.
@@ -100,6 +101,8 @@ export default function AuditLog() {
   const [from,    setFrom]    = useState('');
   const [to,      setTo]      = useState('');
   const [done,    setDone]    = useState(false);
+  const [vrf,     setVrf]     = useState(null);   // chain-integrity report
+  const [vrfBusy, setVrfBusy] = useState(false);
 
   // Hydrate actor user names so rows can show "alice" not the raw uuid.
   // Users list is admin-only and tiny; fetch once.
@@ -122,6 +125,16 @@ export default function AuditLog() {
       if (rows.length < 100) setDone(true);
     } catch (e) { setErr(e.message || t('audit.err_load')); }
     finally { setLoading(false); }
+  };
+
+  // Recompute the HMAC hash-chain server-side and report the first broken
+  // link (if any). Proves the append-only log hasn't been edited or had
+  // rows deleted out from under it.
+  const verifyChain = async () => {
+    setVrfBusy(true);
+    try { setVrf(await api.audit.verify()); }
+    catch (e) { setVrf({ error: e.message || t('audit.verify_err') }); }
+    finally { setVrfBusy(false); }
   };
 
   // initial + on filter change. Debounce the free-text action filter so
@@ -192,8 +205,33 @@ export default function AuditLog() {
               title={t('audit.export_csv')}>
               <Download size={13}/> {t('audit.export_csv')}
             </a>
+            <button className="btn"
+              onClick={() => setAction(action === 'auth.' ? '' : 'auth.')}
+              title={t('audit.security_hint')}>
+              <Shield size={13}/> {t('audit.security_preset')}
+            </button>
+            <button className="btn" onClick={verifyChain} disabled={vrfBusy}
+              title={t('audit.verify_hint')}>
+              {vrfBusy ? <Loader2 size={13}/> : <ShieldCheck size={13}/>} {t('audit.verify')}
+            </button>
           </div>
         </div>
+
+        {vrf && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16,
+            padding: '10px 14px', borderRadius: 8, fontSize: 13,
+            background: vrf.error || !vrf.ok ? '#fee2e2' : '#dcfce7',
+            color:      vrf.error || !vrf.ok ? '#b91c1c' : '#15803d',
+            border: `1px solid ${vrf.error || !vrf.ok ? '#fecaca' : '#bbf7d0'}`,
+          }}>
+            {vrf.error
+              ? <><ShieldAlert size={15}/> {vrf.error}</>
+              : vrf.ok
+                ? <><ShieldCheck size={15}/> {t('audit.verify_ok', { n: vrf.checked })}</>
+                : <><ShieldAlert size={15}/> {t('audit.verify_bad', { id: vrf.first_bad_id })}</>}
+          </div>
+        )}
 
         {err && <div className="banner-err"><AlertCircle size={14} style={{ verticalAlign: '-2px', marginRight: 6 }}/>{err}</div>}
 
