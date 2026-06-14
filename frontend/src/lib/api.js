@@ -479,6 +479,12 @@ export const api = {
     ignore:    (id) => request(`/v1/error-issues/${id}/ignore`,    { method: 'POST' }),
     unresolve: (id) => request(`/v1/error-issues/${id}/unresolve`, { method: 'POST' }),
   },
+  // Source maps for server-side symbolication of minified JS stack frames.
+  sourcemaps: {
+    list:   (projectId)       => request(`/v1/error-projects/${projectId}/sourcemaps`),
+    upload: (projectId, body) => request(`/v1/error-projects/${projectId}/sourcemaps`, { method: 'POST', body }),
+    remove: (projectId, id)   => request(`/v1/error-projects/${projectId}/sourcemaps/${id}`, { method: 'DELETE' }),
+  },
   // Real User Monitoring — Core Web Vitals from the browser snippet.
   rum: {
     summary: (app, hours) => request(`/v1/rum/summary?${new URLSearchParams({ ...(app ? { app } : {}), hours: hours || 24 })}`),
