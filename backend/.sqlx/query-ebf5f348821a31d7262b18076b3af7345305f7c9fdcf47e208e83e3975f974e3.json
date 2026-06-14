@@ -1,0 +1,148 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE detection_findings\n        SET acknowledged_at = COALESCE(acknowledged_at, now())\n        WHERE id = $1\n        RETURNING id, rule_id, rule_name, severity, match_count, sample, service,\n                  window_from, window_to, created_at, acknowledged_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "detection_findings",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "rule_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "detection_findings",
+            "name": "rule_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "rule_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "detection_findings",
+            "name": "rule_name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "severity",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "detection_findings",
+            "name": "severity"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "match_count",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "detection_findings",
+            "name": "match_count"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "sample",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "detection_findings",
+            "name": "sample"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "service",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "detection_findings",
+            "name": "service"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "window_from",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "detection_findings",
+            "name": "window_from"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "window_to",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "detection_findings",
+            "name": "window_to"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "detection_findings",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "acknowledged_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "detection_findings",
+            "name": "acknowledged_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "ebf5f348821a31d7262b18076b3af7345305f7c9fdcf47e208e83e3975f974e3"
+}

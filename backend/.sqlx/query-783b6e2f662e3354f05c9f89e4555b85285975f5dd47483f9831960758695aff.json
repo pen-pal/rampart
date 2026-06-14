@@ -1,0 +1,156 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO detection_findings\n                    (id, rule_id, rule_name, severity, match_count, sample,\n                     service, window_from, window_to)\n                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)\n                RETURNING id, rule_id, rule_name, severity, match_count, sample,\n                          service, window_from, window_to, created_at,\n                          acknowledged_at\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "detection_findings",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "rule_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "detection_findings",
+            "name": "rule_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "rule_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "detection_findings",
+            "name": "rule_name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "severity",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "detection_findings",
+            "name": "severity"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "match_count",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "detection_findings",
+            "name": "match_count"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "sample",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "detection_findings",
+            "name": "sample"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "service",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "detection_findings",
+            "name": "service"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "window_from",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "detection_findings",
+            "name": "window_from"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "window_to",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "detection_findings",
+            "name": "window_to"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "detection_findings",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "acknowledged_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "detection_findings",
+            "name": "acknowledged_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Int8",
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "783b6e2f662e3354f05c9f89e4555b85285975f5dd47483f9831960758695aff"
+}
