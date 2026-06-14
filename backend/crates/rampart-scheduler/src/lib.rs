@@ -25,12 +25,13 @@
 //!   accordingly. Called from the API after monitor create/delete/edit.
 
 use rampart_checker::Probes;
+use rampart_core::monitor::BackoffStrategy;
 use rampart_core::{Heartbeat, Monitor, MonitorId, MonitorKind, MonitorStatus, RetryBackoff};
 use rampart_db::DbPool;
 use rampart_notifier::{Event, EventKind, NotifierHandle};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::{broadcast, mpsc, Notify, RwLock};
 use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
@@ -657,11 +658,14 @@ impl Scheduler {
     async fn start_task(&self, monitor: Monitor) {
         let cancel = Arc::new(Notify::new());
         let last_status = Arc::new(RwLock::new(monitor.current_status));
+        // In-memory resend timer (per task): last time we (re)alerted while down.
+        let last_alert: Arc<RwLock<Option<Instant>>> = Arc::new(RwLock::new(None));
 
         let cancel_in_task = cancel.clone();
         let probes = self.probes.clone();
         let hb_tx = self.hb_tx.clone();
         let last_status_in_task = last_status.clone();
+        let last_alert_in_task = last_alert.clone();
         let notifier = self.notifier.clone();
         let pool_in_task = self.pool.clone();
         let monitor_id = monitor.id;
@@ -677,6 +681,7 @@ impl Scheduler {
                 &probes,
                 &monitor,
                 &last_status_in_task,
+                &last_alert_in_task,
                 &hb_tx,
                 notifier.as_ref(),
                 &pool_in_task,
@@ -706,7 +711,7 @@ impl Scheduler {
                                     return;
                                 }
                                 run_once(&probes, &fresh, &last_status_in_task,
-                                         &hb_tx, notifier.as_ref(), &pool_in_task).await;
+                                         &last_alert_in_task, &hb_tx, notifier.as_ref(), &pool_in_task).await;
                                 interval = Duration::from_secs(fresh.interval_seconds as u64);
                             }
                             Err(rampart_db::DbError::NotFound) => {
@@ -719,7 +724,7 @@ impl Scheduler {
                                 // killing the loop.
                                 warn!(monitor = %monitor_id, error = %e, "monitor refresh failed; reusing prior snapshot");
                                 run_once(&probes, &monitor, &last_status_in_task,
-                                         &hb_tx, notifier.as_ref(), &pool_in_task).await;
+                                         &last_alert_in_task, &hb_tx, notifier.as_ref(), &pool_in_task).await;
                             }
                         }
                     }
@@ -752,10 +757,12 @@ impl Scheduler {
 /// Run one probe iteration, set the important flag if the status flipped,
 /// push the heartbeat onto the writer channel, optionally emit a
 /// notifier event, and update DB state.
+#[allow(clippy::too_many_arguments)]
 async fn run_once(
     probes: &Probes,
     monitor: &Monitor,
     last_status: &Arc<RwLock<MonitorStatus>>,
+    last_alert: &Arc<RwLock<Option<Instant>>>,
     hb_tx: &mpsc::Sender<Heartbeat>,
     notifier: Option<&NotifierHandle>,
     pool: &DbPool,
@@ -810,20 +817,53 @@ async fn run_once(
     if flipped {
         hb.important = true;
         *last_status.write().await = hb.status;
+    }
+    let user_visible_flip = flipped
+        && !(prev == MonitorStatus::Pending && hb.status == MonitorStatus::Up)
+        && hb.status != MonitorStatus::Maintenance
+        && prev != MonitorStatus::Maintenance;
 
-        let user_visible_flip = !(prev == MonitorStatus::Pending && hb.status == MonitorStatus::Up)
-            && hb.status != MonitorStatus::Maintenance
-            && prev != MonitorStatus::Maintenance;
-        if user_visible_flip {
-            if let Some(n) = notifier {
-                n.notify(Event {
-                    kind: EventKind::StatusFlip,
-                    monitor: monitor.clone(),
-                    heartbeat: hb.clone(),
-                    prev_status: Some(prev),
-                    slo_current_pct: None,
-                });
+    // Resend: re-alert a still-down monitor every `resend_interval_sec`. The
+    // timer is in-memory (per probe task) — it starts when we first see the
+    // monitor down and fires on each interval thereafter; a recovery/flip
+    // clears it. (0 disables; escalation policies are the heavier alternative.)
+    let mut resend_down = false;
+    {
+        let mut la = last_alert.write().await;
+        if user_visible_flip && hb.status.is_down() {
+            *la = Some(Instant::now()); // down flip — start the resend timer
+        } else if flipped {
+            *la = None; // recovered / into-or-out-of maintenance — stop resending
+        } else if hb.status.is_down() && monitor.resend_interval_sec > 0 {
+            match *la {
+                Some(t) if t.elapsed().as_secs() >= monitor.resend_interval_sec as u64 => {
+                    *la = Some(Instant::now());
+                    resend_down = true;
+                }
+                None => *la = Some(Instant::now()), // first sighting down — arm, don't page yet
+                _ => {}
             }
+        }
+    }
+
+    if let Some(n) = notifier {
+        if user_visible_flip {
+            n.notify(Event {
+                kind: EventKind::StatusFlip,
+                monitor: monitor.clone(),
+                heartbeat: hb.clone(),
+                prev_status: Some(prev),
+                slo_current_pct: None,
+            });
+        } else if resend_down {
+            // Still down — re-announce (prev == current == down).
+            n.notify(Event {
+                kind: EventKind::StatusFlip,
+                monitor: monitor.clone(),
+                heartbeat: hb.clone(),
+                prev_status: Some(hb.status),
+                slo_current_pct: None,
+            });
         }
     }
 
@@ -893,25 +933,27 @@ async fn probe_once(probes: &Probes, monitor: &Monitor, pool: &DbPool) -> Heartb
     probes.run(monitor).await
 }
 
-/// Run a real probe, then — if it failed and the monitor opts into a retry
-/// backoff curve — re-probe up to `max_retries` times, sleeping the
-/// computed delay between attempts before committing the failure.
+/// Run a real probe, then — if it failed and the monitor sets `max_retries` —
+/// re-probe up to that many times, sleeping the computed backoff between
+/// attempts before committing the failure. So `max_retries` confirms a
+/// transient blip isn't a real outage before the monitor flips Down.
 ///
-/// Behaviour is *identical to history* when `config.retry_backoff` is
-/// absent: a single probe, no inter-retry sleep, immediate result. The
-/// retry loop is gated entirely on the presence of that config block so
-/// existing monitors keep their exact current timing.
+/// The delay curve comes from `config.retry_backoff` when present; otherwise it
+/// defaults to a **fixed** `retry_interval_sec` wait (0 = retry immediately).
+/// Each delay is still capped to the monitor interval.
 async fn probe_with_retries(probes: &Probes, monitor: &Monitor, pool: &DbPool) -> Heartbeat {
     let mut hb = probe_once(probes, monitor, pool).await;
 
-    // Fast path: success, no opt-in, or nothing to retry → exactly today.
+    // Fast path: success or no retries configured → a single probe.
     if !hb.status.is_down() || monitor.max_retries <= 0 {
         return hb;
     }
-    let backoff = match RetryBackoff::from_config(&monitor.config) {
-        Some(b) => b,
-        None => return hb,
-    };
+    // Explicit backoff curve, else a fixed wait of retry_interval_sec.
+    let backoff = RetryBackoff::from_config(&monitor.config).unwrap_or(RetryBackoff {
+        strategy: BackoffStrategy::Fixed,
+        base_secs: monitor.retry_interval_sec.max(0) as u32,
+        max_secs: u32::MAX,
+    });
 
     // Never let a single retry sleep exceed the monitor interval — a
     // backoff longer than the cadence would stall the whole loop.
