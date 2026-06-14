@@ -74,8 +74,8 @@ pub use monitor_preset::{MonitorPreset, MonitorPresetKind, NewMonitorPreset};
 pub use notification::{ChannelKind, MonitorNotification, Notification, NotificationTemplate};
 pub use on_call::{NewOnCallSchedule, OnCallSchedule, UpdateOnCallSchedule};
 pub use profile::{
-    fold_to_tree, merge_all, merge_into, parse_folded, to_folded_text, top_functions, FlameNode,
-    FnStat, FoldedMap,
+    fold_to_diff_tree, fold_to_tree, merge_all, merge_into, parse_folded, to_folded_text,
+    top_functions, DiffNode, FlameNode, FnStat, FoldedMap,
 };
 pub use promtext::{PromParseOutcome, PromSample};
 pub use proxy::{NewProxy, Proxy, ProxyProtocol};
