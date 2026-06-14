@@ -101,6 +101,8 @@ pub struct Frame {
     #[serde(default)]
     pub lineno: Option<i64>,
     #[serde(default)]
+    pub colno: Option<i64>,
+    #[serde(default)]
     pub in_app: Option<bool>,
 }
 
@@ -166,6 +168,10 @@ impl ParsedEvent {
                         function: str_field(f, "function"),
                         filename: str_field(f, "filename"),
                         lineno: f.get("lineno").and_then(|l| l.as_i64()),
+                        colno: f
+                            .get("colno")
+                            .or_else(|| f.get("column"))
+                            .and_then(|l| l.as_i64()),
                         in_app: f.get("in_app").and_then(|b| b.as_bool()),
                     })
                     .collect()
