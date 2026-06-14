@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT map AS \"map!: serde_json::Value\" FROM source_maps\n           WHERE project_id = $1 AND release = $2 AND filename = $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "map!: serde_json::Value",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "source_maps",
+            "name": "map"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "2021b565f1d0297d9da64d99eb87744a66d2913139ba7bb3d54fbcdcf15de9a9"
+}
