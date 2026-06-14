@@ -365,6 +365,7 @@ impl Scheduler {
                 rampart_core::TelemetryRuleKind::TraceLatency => "p95 latency",
                 rampart_core::TelemetryRuleKind::TraceErrorRate => "trace error rate",
                 rampart_core::TelemetryRuleKind::LogVolume => "log volume",
+                rampart_core::TelemetryRuleKind::ProfileSamples => "profile samples",
             };
             let msg = match (fired, ev.value) {
                 (true, Some(v)) => format!(
