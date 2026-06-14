@@ -2401,6 +2401,27 @@ paths:
       summary: Recent heartbeat history across all monitors
       responses:
         '200': { description: Combined recent history. }
+  /v1/monitors/export:
+    get:
+      tags: [Monitors]
+      summary: Export all monitors as declarative specs
+      description: >-
+        Every monitor minus server-managed fields (id, timestamps, runtime
+        status, push token) — keep it in git and feed it back to `apply`
+        (monitors-as-code). See docs/design/MONITORS-AS-CODE.md.
+      responses:
+        '200': { description: '`{ monitors: [spec, …] }`.' }
+  /v1/monitors/apply:
+    post:
+      tags: [Monitors]
+      summary: Apply a declarative monitor spec (GitOps)
+      description: >-
+        Upsert monitors keyed by **name**: each spec creates (new name) or
+        updates (existing). `prune: true` deletes monitors not in the spec.
+        Names must be unique. Body `{ monitors: [spec, …], prune }`.
+      responses:
+        '200': { description: '`{ created, updated, deleted, unchanged, errors }`.' }
+        '400': { $ref: '#/components/responses/BadRequest' }
   /v1/monitors/bulk:
     post:
       tags: [Monitors]
