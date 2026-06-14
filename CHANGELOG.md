@@ -17,6 +17,21 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **Continuous profiling tier — flamegraphs.** A fifth telemetry tier alongside
+  errors / traces / logs / RUM. Push a profile in any of three formats —
+  **pprof** (`POST /profiles/v1/pprof`; Go/Rust/py-spy/async-profiler/Pyroscope),
+  **OTLP profiles** (`POST /otlp/v1development/profiles`, on the existing `/otlp`
+  surface), or **folded text** (`POST /profiles/v1/folded`) — each lowered to a
+  folded-stack map and stored (migration `0084`). The new **Profiling** view
+  (`#/profiling`) renders an icicle **flamegraph** (click-to-zoom) plus a
+  top-functions table (self vs total), merged over a service/type window
+  (`GET /v1/profiles/flamegraph`); `GET /v1/profiles/{id}/flamegraph` shows one
+  profile. Profiles age out via the prune loop (`profiles_days`, default 7).
+  Ingest honors the optional telemetry token + IP rate limit. See
+  [`docs/design/PROFILING.md`](docs/design/PROFILING.md).
+
 ---
 
 ## [0.10.0] — 2026-06-14

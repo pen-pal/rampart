@@ -1,9 +1,8 @@
 # Continuous profiling & flamegraphs
 
-> **Status: proposed (v0.11.0).** This document is the design for the profiling
-> tier. The one decision that gates implementation — the **ingest format** — is
-> called out in [Ingest](#ingest); everything downstream of it (storage, read
-> API, render) is settled.
+> **Status: shipped (v0.11.0).** All three ingest formats below are live —
+> folded text, pprof, and OTLP profiles — over the folded-stack storage model,
+> with the merge read API and the icicle flamegraph + top-functions view.
 
 The fifth telemetry tier, alongside errors / traces / logs / RUM. Where traces
 answer *"which request was slow and in what span,"* profiling answers *"which
@@ -40,46 +39,45 @@ and render format**; the ingest wire format converts *into* it.
 
 ## Ingest
 
-**This is the decision to confirm before building.** Three candidate wire
-formats, in order of recommendation:
+All three wire formats are accepted; each is lowered to a folded map and stored
+identically. Every ingest route honors the optional **telemetry token** + the
+ingest IP rate limit (see [LOGS](LOGS.md) / ingest auth) and `Content-Encoding`.
 
-### Proposed: pprof (primary) + folded text (secondary)
+### pprof — `POST /profiles/v1/pprof`
 
 **pprof** — Google's `profile.proto` (gzipped protobuf) — is the de-facto
-standard. It is emitted, natively or via a one-line converter, by **Go
-`runtime/pprof`, the Rust `pprof` crate, py-spy, async-profiler, .NET, the
-Pyroscope/Grafana SDKs, and Parca/Polar Signals agents.** Accepting pprof means a
-user can point an existing profiler at Rampart on day one — no bespoke
-instrumentation. The format is self-contained (sample types, locations,
-functions, line numbers, a string table), so we get symbolized frames for free
-when the producer symbolized them.
+standard, emitted natively or via a one-line converter by **Go `runtime/pprof`,
+the Rust `pprof` crate, py-spy, async-profiler, .NET, the Pyroscope/Grafana SDKs,
+and Parca/Polar Signals agents**. Point an existing profiler at Rampart on day
+one — no bespoke instrumentation. Decoded server-side with a hand-written `prost`
+subset of `profile.proto` (no heavy profiler dependency); the profile type
+defaults to the pprof sample-type name, period/duration come from the profile.
+Query: `service`, `type`.
 
-- `POST /profiles/v1/pprof?service=<name>&type=<cpu|alloc_space|...>` — body is a
-  gzipped pprof. Honors the same optional **telemetry token** + rate limit as
-  `/otlp` and `/rum` (see [LOGS](LOGS.md) / ingest auth). Parsed server-side with
-  `prost` + the vendored `profile.proto` into our folded map.
+### OTLP profiles — `POST /otlp/v1development/profiles`
 
-A **folded-stack text** endpoint rides alongside for the trivial / scripted case
-(profilers without a pprof path, or a `perf script | stackcollapse-perf.pl`
-pipeline):
+The OpenTelemetry **profiling signal**, on the same `/otlp` surface as traces +
+logs. Accepts an `ExportProfilesServiceRequest`; one request may carry many
+profiles (resources/scopes), each lowered independently; `service.name` comes
+from the resource. The signal is still `v1development` and the `opentelemetry-
+proto` crate's generated types lag the wire format, so we hand-write the current
+`v1development` subset as `prost` types (the "dictionary" model: shared
+location/function/string tables + per-sample index slices).
 
-- `POST /profiles/v1/folded?service=&type=` — body is `stack value\n` lines,
-  stored verbatim. Twenty lines of parser, zero dependencies.
+### Folded text — `POST /profiles/v1/folded`
 
-### Deferred: OTLP profiles
-
-The OpenTelemetry **profiling signal** is pprof-shaped and would align with our
-existing OTLP traces/logs ingest, but native SDK/agent emission is still thin
-(2025). Because our storage is folded stacks (a pprof superset-of-need), adopting
-OTLP-profiles later is an *additive* ingest route, not a migration. Recommended
-forward path once the ecosystem catches up.
+The trivial / scripted path (a `perf script | stackcollapse-perf.pl` pipeline, or
+any profiler without a pprof exporter): body is `stack value\n` lines. ~20 lines
+of parser, zero dependencies. Query: `service`, `type`, `period_ns`,
+`duration_ns`.
 
 > **Why not a custom JSON format?** Nothing emits it. The whole value of the tier
-> is "works with the profiler you already run." pprof is that lingua franca.
+> is "works with the profiler you already run." pprof + OTLP are the lingua
+> franca; folded text is the universal escape hatch.
 
 ## Storage
 
-One table, `profiles` (migration `008X`), sibling to `traces` / `logs`:
+One table, `profiles` (migration `0084`), sibling to `traces` / `logs`:
 
 | column | type | note |
 |---|---|---|
@@ -127,7 +125,6 @@ same way logs↔traces already pivot.
 
 ## Follow-ups (explicitly out of v1)
 
-- OTLP-profiles ingest route (see above).
 - Trace↔profile correlation (span → covering profile).
 - Diff flamegraphs (A/B two windows — "what got slower since the deploy").
 - Server-side symbolization for unsymbolized native profiles (needs debug-info

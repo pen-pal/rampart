@@ -22,6 +22,13 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/v1/traces", post(ingest_traces))
         .route("/v1/logs", post(ingest_logs))
+        // OTLP profiling signal (v1development). The handler lives in the
+        // profiles module; mounted here so it sits on the same /otlp surface
+        // an OTLP/HTTP exporter targets.
+        .route(
+            "/v1development/profiles",
+            post(crate::routes::profiles::ingest_otlp),
+        )
 }
 
 async fn ingest_logs(

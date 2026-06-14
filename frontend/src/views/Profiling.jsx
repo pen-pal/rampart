@@ -1,0 +1,214 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { ChevronLeft, Loader2, AlertCircle, Flame, RefreshCw } from 'lucide-react';
+import { api, useApi } from '../lib/api.js';
+import { t } from '../lib/i18n.js';
+
+const css = `
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+  .rampart {
+    --bg:#fafaf9; --surface:#ffffff; --surface-2:#f5f5f4;
+    --border:#e7e5e4; --border-2:#d6d3d1;
+    --text:#1c1917; --text-2:#57534e; --text-3:#a8a29e;
+    --accent:#14b8a6; --accent-2:#0d9488; --accent-soft:#ccfbf1; --down:#ef4444;
+    background: var(--bg); color: var(--text);
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif; min-height: 100vh;
+  }
+  .rampart * { box-sizing: border-box; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; line-height: 1; background: var(--surface); border: 1px solid var(--border); color: var(--text-2); font-family: inherit; }
+  .btn:hover { background: var(--surface-2); color: var(--text); }
+  .btn-ghost { background: transparent; border-color: transparent; }
+  .select { padding: 8px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); font-size: 13px; color: var(--text); outline: none; font-family: inherit; }
+  .select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .banner-err { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
+  .flame-cell { position: absolute; overflow: hidden; white-space: nowrap; font-size: 11px; line-height: 16px; padding: 0 4px; border: 1px solid rgba(255,255,255,.55); border-radius: 2px; cursor: pointer; color: #1c1917; }
+  .flame-cell:hover { filter: brightness(1.06); outline: 1px solid var(--text); }
+  .topfn-row { display: grid; grid-template-columns: 1fr 110px 110px; gap: 12px; padding: 6px 12px; border-top: 1px solid var(--border); font-size: 12.5px; }
+  .topfn-row:first-child { border-top: none; }
+  .topfn-head { font-size: 11px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: .04em; background: var(--surface-2); }
+`;
+
+const ROW_H = 17; // px per flamegraph depth level
+
+// Warm flamegraph palette: hash the frame name to a stable hue in the
+// red→yellow band, the convention since Brendan Gregg's original.
+function frameColor(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  const hue = 8 + (h % 48);            // 8–56°: reds, oranges, yellows
+  const sat = 62 + (h % 16);           // 62–78%
+  return `hsl(${hue}, ${sat}%, 58%)`;
+}
+
+// Flatten a tree into absolutely-positioned cells. x/width are percentages of
+// the (zoom) root's value, so the root spans full width and a node's share of
+// its parent reads off directly. Children that don't sum to the parent leave a
+// gap = the parent's self time, as a flamegraph should.
+function layout(root) {
+  const total = root.value || 1;
+  const cells = [];
+  let maxDepth = 0;
+  const walk = (node, depth, offset) => {
+    maxDepth = Math.max(maxDepth, depth);
+    cells.push({
+      node,
+      depth,
+      x: (offset / total) * 100,
+      w: (node.value / total) * 100,
+    });
+    let childOffset = offset;
+    for (const c of node.children || []) {
+      walk(c, depth + 1, childOffset);
+      childOffset += c.value;
+    }
+  };
+  walk(root, 0, 0);
+  return { cells, maxDepth };
+}
+
+function Flamegraph({ root, unit }) {
+  const [zoom, setZoom] = useState(root);
+  // Reset the zoom whenever the underlying data changes.
+  useEffect(() => setZoom(root), [root]);
+  const { cells, maxDepth } = useMemo(() => layout(zoom), [zoom]);
+  const grandTotal = root.value || 1;
+
+  return (
+    <div>
+      {zoom !== root && (
+        <button className="btn btn-ghost" style={{ marginBottom: 8 }} onClick={() => setZoom(root)}>
+          <ChevronLeft size={14} /> {t('profiling.reset_zoom')}
+        </button>
+      )}
+      <div style={{ position: 'relative', height: (maxDepth + 1) * ROW_H, width: '100%' }}>
+        {cells.map((c, i) => {
+          const pct = ((c.node.value / grandTotal) * 100).toFixed(1);
+          return (
+            <div
+              key={i}
+              className="flame-cell"
+              title={`${c.node.name}\n${c.node.value.toLocaleString()} ${unit} · ${pct}% of total`}
+              onClick={() => (c.node.children && c.node.children.length ? setZoom(c.node) : null)}
+              style={{
+                left: `${c.x}%`,
+                width: `${c.w}%`,
+                top: c.depth * ROW_H,
+                height: ROW_H - 1,
+                background: frameColor(c.node.name),
+              }}
+            >
+              {c.w > 4 ? c.node.name : ''}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export default function Profiling({ profileId }) {
+  const single = profileId != null;
+  const [service, setService] = useState('');
+  const [type, setType] = useState('');
+  const [hours, setHours] = useState(24);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const svcState = useApi(() => (single ? Promise.resolve([]) : api.profiles.services()), [single]);
+  const services = svcState.data || [];
+  // Default to the first service once the list loads.
+  useEffect(() => {
+    if (!single && !service && services.length) setService(services[0]);
+  }, [single, service, services]);
+
+  const typeState = useApi(
+    () => (single || !service ? Promise.resolve([]) : api.profiles.types(service)),
+    [single, service],
+  );
+  const types = typeState.data || [];
+  useEffect(() => {
+    if (!single && service && !type && types.length) setType(types[0]);
+  }, [single, service, type, types]);
+
+  const flameState = useApi(() => {
+    if (single) return api.profiles.flamegraphOne(profileId);
+    if (service && type) return api.profiles.flamegraph(service, type, hours);
+    return Promise.resolve(null);
+  }, [single, profileId, service, type, hours, reloadKey]);
+
+  const data = flameState.data;
+  const unit = 'samples'; // values are summed sample weights regardless of type
+
+  return (
+    <div className="rampart">
+      <style>{css}</style>
+      <div style={{ maxWidth: 1040, margin: '0 auto', padding: '32px 32px 64px' }}>
+        <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}><ChevronLeft size={14} /> {t('profiling.back')}</a>
+        <div style={{ marginBottom: 16 }}>
+          <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 4px', letterSpacing: '-.02em', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Flame size={22} /> {t('profiling.title')}
+          </h1>
+          <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 0 }}>{t('profiling.subtitle')}</p>
+        </div>
+
+        {!single && (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+            <select className="select" value={service} onChange={e => { setService(e.target.value); setType(''); }}>
+              {services.length === 0 && <option value="">{t('profiling.no_services')}</option>}
+              {services.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select className="select" value={type} onChange={e => setType(e.target.value)}>
+              {types.length === 0 && <option value="">{t('profiling.no_types')}</option>}
+              {types.map(ty => <option key={ty} value={ty}>{ty}</option>)}
+            </select>
+            <select className="select" value={hours} onChange={e => setHours(Number(e.target.value))}>
+              <option value={1}>{t('profiling.window_1h')}</option>
+              <option value={24}>{t('profiling.window_24h')}</option>
+              <option value={168}>{t('profiling.window_7d')}</option>
+            </select>
+            <button className="btn btn-ghost" onClick={() => setReloadKey(k => k + 1)} title={t('profiling.refresh')}><RefreshCw size={14} /></button>
+          </div>
+        )}
+        {single && <a href="#/profiling" className="btn btn-ghost" style={{ marginBottom: 14 }}>{t('profiling.all_profiles')}</a>}
+
+        {flameState.error && <div className="banner-err"><AlertCircle size={14} style={{ verticalAlign: '-2px', marginRight: 6 }} />{t('profiling.load_error')}</div>}
+
+        <div className="card" style={{ padding: 16, marginBottom: 18 }}>
+          {flameState.loading ? (
+            <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-3)' }}><Loader2 size={16} /> {t('profiling.loading')}</div>
+          ) : !data || !data.tree || data.sample_count === 0 ? (
+            <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-3)' }}>
+              <Flame size={28} style={{ marginBottom: 10, opacity: .5 }} />
+              <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-2)', marginBottom: 4 }}>{t('profiling.empty.title')}</div>
+              <div style={{ fontSize: 12.5 }}>{t('profiling.empty.cta')}</div>
+            </div>
+          ) : (
+            <>
+              <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 10 }}>
+                {data.sample_count.toLocaleString()} {t('profiling.samples_merged')}
+              </div>
+              <Flamegraph root={data.tree} unit={unit} />
+            </>
+          )}
+        </div>
+
+        {data && data.top && data.top.length > 0 && (
+          <div className="card" style={{ overflow: 'hidden' }}>
+            <div className="topfn-row topfn-head">
+              <span>{t('profiling.fn')}</span>
+              <span style={{ textAlign: 'right' }}>{t('profiling.self')}</span>
+              <span style={{ textAlign: 'right' }}>{t('profiling.total')}</span>
+            </div>
+            {data.top.map((f, i) => (
+              <div className="topfn-row" key={i}>
+                <span className="mono" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.name}>{f.name}</span>
+                <span className="mono" style={{ textAlign: 'right' }}>{f.self_value.toLocaleString()}</span>
+                <span className="mono" style={{ textAlign: 'right', color: 'var(--text-2)' }}>{f.total_value.toLocaleString()}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
