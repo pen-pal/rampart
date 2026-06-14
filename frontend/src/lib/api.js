@@ -433,7 +433,14 @@ export const api = {
   },
   // Distributed tracing — OTLP spans grouped into traces by trace_id.
   traces: {
-    list:       (limit) => request(`/v1/traces${limit ? `?limit=${limit}` : ''}`),
+    list: (params = {}) => {
+      const qs = new URLSearchParams();
+      for (const [k, v] of Object.entries(params)) {
+        if (v != null && v !== '' && v !== false) qs.set(k, v);
+      }
+      const s = qs.toString();
+      return request(`/v1/traces${s ? '?' + s : ''}`);
+    },
     detail:     (id)    => request(`/v1/traces/${id}`),
     serviceMap: (hours) => request(`/v1/traces/service-map${hours ? `?hours=${hours}` : ''}`),
     operations: (service, hours) => request(`/v1/traces/operations?hours=${hours || 24}${service ? `&service=${encodeURIComponent(service)}` : ''}`),
