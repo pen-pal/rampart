@@ -1,0 +1,86 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT s.id, s.monitor_id, m.name AS \"monitor_name?\",\n               s.reason, s.created_at, s.expires_at\n        FROM silences s\n        LEFT JOIN monitors m ON m.id = s.monitor_id\n        WHERE s.expires_at IS NULL OR s.expires_at > now()\n        ORDER BY s.created_at DESC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "silences",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "monitor_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "silences",
+            "name": "monitor_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "monitor_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "reason",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "silences",
+            "name": "reason"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "silences",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "expires_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "silences",
+            "name": "expires_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "02084829f1f24b96b84ba19e92eea863fa0cdcdaccf3f9ead38314968c0f4837"
+}

@@ -2921,6 +2921,58 @@
         }
       }
     },
+    "/v1/silences": {
+      "get": {
+        "tags": [
+          "Alerting"
+        ],
+        "summary": "List active alert silences",
+        "responses": {
+          "200": {
+            "description": "`[{ id, monitor_id, monitor_name, reason, created_at, expires_at }]`."
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Alerting"
+        ],
+        "summary": "Create an alert silence",
+        "description": "Mute notifications. Body `{ monitor_id?, reason?, duration_minutes? }` \u2014 omit monitor_id for a global mute; omit/0 duration for indefinite. Enforced at the notifier dispatch chokepoint.",
+        "responses": {
+          "201": {
+            "description": "`{ id }`."
+          }
+        }
+      }
+    },
+    "/v1/silences/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "delete": {
+        "tags": [
+          "Alerting"
+        ],
+        "summary": "Remove a silence",
+        "responses": {
+          "204": {
+            "description": "Removed."
+          },
+          "404": {
+            "description": "No such silence."
+          }
+        }
+      }
+    },
     "/v1/telemetry-rules": {
       "get": {
         "tags": [
