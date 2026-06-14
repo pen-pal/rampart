@@ -47,6 +47,9 @@ into the prune sweep — the highest-volume tier, so retention is short.
 - `GET /v1/logs/services` — distinct recent service names for the filter UI.
 - `GET /v1/logs/levels?service=&hours=24` — record count per coarse level over
   the window (the severity-volume breakdown shown as clickable chips).
+- `GET /v1/logs/export.csv?service=&level=&q=&trace_id=&limit=` — the same
+  filtered query as a `text/csv` download (file attachment), `limit` clamped to
+  50k rows. For continuous forwarding use the syslog/SIEM export sink instead.
 
 ## Dashboard
 

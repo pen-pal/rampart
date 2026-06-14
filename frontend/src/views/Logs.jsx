@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, Loader2, AlertCircle, ScrollText, Search, RefreshCw } from 'lucide-react';
+import { ChevronLeft, Loader2, AlertCircle, ScrollText, Search, RefreshCw, Download } from 'lucide-react';
 import { api, useApi, formatClock, formatRelative } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
 
@@ -66,6 +66,19 @@ export default function Logs({ traceId }) {
 
   const apply = () => setApplied({ service, level, q });
 
+  // CSV export honours the currently-applied filters (server clamps the row
+  // count). Cookie-auth + same-origin, so a plain download link carries the
+  // session — no fetch/blob dance needed.
+  const exportUrl = (() => {
+    const p = new URLSearchParams();
+    if (applied.service) p.set('service', applied.service);
+    if (applied.level) p.set('level', applied.level);
+    if (applied.q) p.set('q', applied.q);
+    if (traceId) p.set('trace_id', traceId);
+    const qs = p.toString();
+    return `/v1/logs/export.csv${qs ? '?' + qs : ''}`;
+  })();
+
   return (
     <div className="rampart">
       <style>{css}</style>
@@ -99,6 +112,7 @@ export default function Logs({ traceId }) {
           </div>
           <button className="btn" onClick={apply}>{t('logs.apply')}</button>
           <button className="btn btn-ghost" onClick={() => setReloadKey(k => k + 1)} title={t('logs.refresh')}><RefreshCw size={14}/></button>
+          <a className="btn btn-ghost" href={exportUrl} download title={t('logs.export_hint')}><Download size={14}/> {t('logs.export')}</a>
           <button className={`btn ${live ? 'btn-accent' : 'btn-ghost'}`} onClick={() => setLive(v => !v)} title={t('logs.live_hint')}>
             <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: live ? '#fff' : 'var(--text-3)', marginRight: 6, verticalAlign: 'middle' }}/>
             {t('logs.live')}
