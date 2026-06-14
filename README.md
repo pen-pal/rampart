@@ -178,7 +178,7 @@ rampart/
 └── backend/compose.yaml                  # dev stack (postgres only)
 ```
 
-> **Out of scope (deliberate):** Multi-region distributed probing, SLO error budgets, workspace multi-tenancy (Rampart is single-tenant by design). The observability tiers (error tracking, traces, logs, RUM, profiling) are scoped for small-team self-hosting, not hyperscale APM. See [CONTRIBUTING.md](CONTRIBUTING.md#scope-read-this-first) for the philosophy.
+> **Out of scope (deliberate):** Multi-region distributed probing, SLO error budgets, workspace multi-tenancy (Rampart is single-tenant by design), and an inline **tunnel / proxy data plane** (private-network reach is the [probe agent](docs/AGENTS.md)'s job — outbound-only, no inbound holes; see [TUNNELING.md](docs/design/TUNNELING.md)). The observability tiers (error tracking, traces, logs, RUM, profiling) are scoped for small-team self-hosting, not hyperscale APM. See [CONTRIBUTING.md](CONTRIBUTING.md#scope-read-this-first) for the philosophy.
 
 ---
 
@@ -340,6 +340,7 @@ npx playwright test       # e2e on Chromium + Firefox + WebKit
 
 **Monitoring**
 - [**docs/AGENTS.md**](docs/AGENTS.md) — Remote probe agents: multi-location checks + private-network monitoring.
+- [**docs/design/TUNNELING.md**](docs/design/TUNNELING.md) — Tunneling stance: the agent model is private-network reach; no inline proxy.
 - [**docs/CRON-JOBS.md**](docs/CRON-JOBS.md) — Cron-job monitoring: run/complete/fail pings, schedule expectations, duration tracking.
 - [**docs/SYNTHETICS.md**](docs/SYNTHETICS.md) — Multi-step HTTP transactions: variable extraction + assertions.
 

@@ -30,6 +30,14 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
   (`GET /v1/audit-log/insights`). A security-event surface over the existing
   tamper-evident audit log — not an inline WAF.
 
+### Documentation
+
+- **Tunneling stance** ([`docs/design/TUNNELING.md`](docs/design/TUNNELING.md)).
+  Rampart deliberately ships no inline tunnel / proxy data plane; private-network
+  reach is the probe agent's job (outbound-only, no inbound exposure). Documents
+  the position, the agent answer, and the alternatives (WireGuard / Tailscale /
+  cloudflared) for genuine tunneling.
+
 ---
 
 ## [0.12.0] — 2026-06-14
