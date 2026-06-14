@@ -208,8 +208,12 @@ ingest endpoints as Sentry-compatible.
 
 A new `#/errors` view, mirroring the Escalations/Metrics views:
 - Projects list → pick a project → issues list (status filter, sort, search by
-  title) → issue detail (rendered stack trace, event timeline, tags/context,
+  title) → issue detail (rendered stack trace, breadcrumb trail, event timeline,
+  per-issue stats (users affected / release / environment), tags/context,
   Resolve / Ignore buttons, copyable DSN on the project).
+- Breadcrumbs: the SDK trail (`breadcrumbs.values[]`, or a bare `breadcrumbs[]`
+  from older SDKs) kept verbatim in the event `context` is rendered as a
+  category/message/level/time timeline on the latest event.
 - New nav entry; lazy-loaded view; `error.*` i18n keys (English, others
   fall back via `t()`).
 
