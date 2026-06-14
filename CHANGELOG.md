@@ -19,6 +19,12 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ### Added
 
+- **HTTP monitor assertions.** Plain HTTP / keyword / json monitors can now carry
+  a `config.assertions` array — status / header / JSON-path / body-substring
+  checks with `eq`/`ne`/`lt`/`lte`/`gt`/`gte`/`contains` operators, the same
+  engine the synthetic kind uses. Any failed assertion flips the monitor Down
+  with the specific reason. Previously rich response checks lived only in the
+  niche synthetic kind.
 - **Trace search / filtering.** The traces list now filters by service, minimum
   duration, errors-only, and a substring on root operation / service / trace_id
   (`GET /v1/traces?service=&min_duration_ms=&errors_only=&q=`), with a filter bar
