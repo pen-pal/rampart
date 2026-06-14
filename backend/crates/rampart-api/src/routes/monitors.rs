@@ -1840,16 +1840,4 @@ async fn heartbeats_csv(
     ))
 }
 
-/// Minimal CSV escape: double the embedded quotes and wrap in quotes if
-/// the field contains a comma, quote, or newline.
-fn csv_escape(s: &str) -> String {
-    if s.is_empty() {
-        return String::new();
-    }
-    let needs = s.contains(',') || s.contains('"') || s.contains('\n') || s.contains('\r');
-    if !needs {
-        return s.to_string();
-    }
-    let escaped = s.replace('"', "\"\"");
-    format!("\"{escaped}\"")
-}
+use crate::csv::csv_escape;

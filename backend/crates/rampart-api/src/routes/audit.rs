@@ -273,13 +273,4 @@ fn write_export_row(out: &mut String, r: &ExportRow) {
 /// contains a comma, quote, or newline. Local copy of the same helper
 /// from routes/monitors.rs — small enough that duplicating is cheaper
 /// than carving out a shared module.
-fn csv_escape(s: &str) -> String {
-    if s.is_empty() {
-        return String::new();
-    }
-    if !(s.contains(',') || s.contains('"') || s.contains('\n') || s.contains('\r')) {
-        return s.to_string();
-    }
-    let escaped = s.replace('"', "\"\"");
-    format!("\"{escaped}\"")
-}
+use crate::csv::csv_escape;
