@@ -113,7 +113,7 @@ const RANGES = [
   { id: '7d',  secs: 604_800,  step: 3_600 },
 ];
 
-const OP_SYMBOL = { gt: '>', lt: '<', gte: '≥', lte: '≤' };
+const OP_SYMBOL = { gt: '>', lt: '<', gte: '≥', lte: '≤', anomaly: 'σ' };
 
 // Compact value formatting for axis labels / tooltips.
 const fmtNum = (v) => {
@@ -596,12 +596,14 @@ function RuleForm({ rule, metricNames, channels, onCancel, onSaved }) {
             <option value="lt">{t('metrics.rules.op.lt')}</option>
             <option value="gte">{t('metrics.rules.op.gte')}</option>
             <option value="lte">{t('metrics.rules.op.lte')}</option>
+            <option value="anomaly">{t('metrics.rules.op.anomaly')}</option>
           </select>
         </div>
         <div>
-          <label className="field-label">{t('metrics.rules.field.threshold')}</label>
+          <label className="field-label">{op === 'anomaly' ? t('metrics.rules.field.sigma') : t('metrics.rules.field.threshold')}</label>
           <input className="input mono" type="number" step="any" value={threshold}
-            onChange={e => setThreshold(e.target.value)} placeholder="40"/>
+            onChange={e => setThreshold(e.target.value)} placeholder={op === 'anomaly' ? '3' : '40'}/>
+          {op === 'anomaly' && <div className="field-hint">{t('metrics.rules.field.sigma_hint')}</div>}
         </div>
         <div>
           <label className="field-label">{t('metrics.rules.field.for_seconds')}</label>
