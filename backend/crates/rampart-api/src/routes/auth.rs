@@ -241,7 +241,24 @@ async fn me(State(state): State<AppState>, jar: CookieJar) -> Result<impl IntoRe
         .await
         .map_err(|_| ApiError::Unauthorized)?;
 
-    Ok(Json(json!({ "user": user })))
+    // 2FA-enforcement policy (settings.require_2fa: off | admins | all). When it
+    // applies to this user and they haven't enrolled, the SPA forces enrollment.
+    let policy = rampart_db::settings::get(state.pool(), "require_2fa")
+        .await
+        .ok()
+        .flatten()
+        .and_then(|v| v.as_str().map(str::to_string))
+        .unwrap_or_else(|| "off".to_string());
+    let applies = match policy.as_str() {
+        "all" => true,
+        "admins" => user.is_admin,
+        _ => false,
+    };
+    let must_setup_2fa = applies && !user.totp_enabled;
+
+    Ok(Json(
+        json!({ "user": user, "must_setup_2fa": must_setup_2fa }),
+    ))
 }
 
 // Silence the unused-import warning if we later refactor.

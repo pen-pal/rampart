@@ -76,8 +76,40 @@ export default function Security() {
             <PasswordChange/>
             <div style={{ height: 18 }}/>
             <Sessions/>
+            {me.is_admin && (<><div style={{ height: 18 }}/><Require2fa/></>)}
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+// Admin-only org policy: require 2FA (off / admins / all). When it applies to a
+// user who hasn't enrolled, the app forces them to /security on next load.
+function Require2fa() {
+  const [val, setVal] = useState('off');
+  const [busy, setBusy] = useState(false);
+  const [ok, setOk] = useState(false);
+  useEffect(() => {
+    (async () => { try { const r = await api.securitySettings.get(); if (r) setVal(r.require_2fa || 'off'); } catch { /* default off */ } })();
+  }, []);
+  const save = async () => {
+    setBusy(true); setOk(false);
+    try { await api.securitySettings.put({ require_2fa: val }); setOk(true); } catch { /* ignore */ } finally { setBusy(false); }
+  };
+  return (
+    <div className="card" style={{ padding: 22 }}>
+      <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 4px' }}>{t('security.policy.title')}</h2>
+      <p style={{ fontSize: 12.5, color: 'var(--text-2)', margin: '0 0 12px' }}>{t('security.policy.subtitle')}</p>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <select className="input" value={val} onChange={e => setVal(e.target.value)} style={{ maxWidth: 240 }}>
+          <option value="off">{t('security.policy.off')}</option>
+          <option value="admins">{t('security.policy.admins')}</option>
+          <option value="all">{t('security.policy.all')}</option>
+        </select>
+        <button className="btn btn-accent" disabled={busy} onClick={save}>
+          {ok ? <Check size={14}/> : null} {t('common.save')}
+        </button>
       </div>
     </div>
   );
