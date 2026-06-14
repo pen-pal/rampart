@@ -17,6 +17,10 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+---
+
+## [0.20.0] — 2026-06-14
+
 ### Added
 - SIEM detection rules: occurrence-based rules over the log tier (service scope,
   OTLP severity floor, case-insensitive body regex) that raise a finding and
@@ -1085,7 +1089,8 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 
 ---
 
-[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.19.0...HEAD
+[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.20.0...HEAD
+[0.20.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.20.0
 [0.19.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.19.0
 [0.18.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.18.0
 [0.17.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.17.0
