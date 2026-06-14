@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ChevronLeft, Save, Loader2, AlertCircle, KeyRound, Eye, EyeOff,
+  ChevronLeft, Save, Loader2, AlertCircle, KeyRound, Eye, EyeOff, Share2,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
@@ -123,6 +123,68 @@ export default function IngestSettings() {
             </div>
           </div>
         )}
+
+        <SiemExport />
+      </div>
+    </div>
+  );
+}
+
+// SIEM / syslog export config — stream the audit log (security events) to an
+// external sink. Off by default.
+function SiemExport() {
+  const [cfg, setCfg] = useState({ enabled: false, kind: 'webhook', target: '' });
+  const [busy, setBusy] = useState(false);
+  const [ok, setOk] = useState(false);
+  const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await api.siemExport.get();
+        if (r) setCfg({ enabled: !!r.enabled, kind: r.kind || 'webhook', target: r.target || '' });
+      } catch { /* default off */ }
+    })();
+  }, []);
+
+  const save = async () => {
+    setErr(null); setOk(false); setBusy(true);
+    try { await api.siemExport.put(cfg); setOk(true); }
+    catch (e) { setErr(e.message || t('settings.ingest.err_save')); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="card" style={{ padding: 22, marginTop: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <Share2 size={16}/>
+        <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>{t('settings.siem.title')}</h2>
+      </div>
+      <p style={{ fontSize: 12.5, color: 'var(--text-2)', margin: '0 0 14px' }}>{t('settings.siem.subtitle')}</p>
+      {err && <div className="banner-err"><AlertCircle size={14} style={{ verticalAlign: '-2px', marginRight: 6 }}/>{err}</div>}
+      {ok && <div className="banner-ok">{t('settings.ingest.saved')}</div>}
+
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 13 }}>
+        <input type="checkbox" checked={cfg.enabled} onChange={e => setCfg({ ...cfg, enabled: e.target.checked })}/>
+        {t('settings.siem.enable')}
+      </label>
+      <div className="field">
+        <label className="field-label">{t('settings.siem.kind')}</label>
+        <select className="input" value={cfg.kind} onChange={e => setCfg({ ...cfg, kind: e.target.value })}>
+          <option value="webhook">Webhook (HTTP POST)</option>
+          <option value="syslog">Syslog (UDP)</option>
+        </select>
+      </div>
+      <div className="field">
+        <label className="field-label">{t('settings.siem.target')}</label>
+        <input className="input mono" placeholder={cfg.kind === 'syslog' ? 'host:514' : 'https://siem.example.com/ingest'}
+          value={cfg.target} onChange={e => setCfg({ ...cfg, target: e.target.value })}/>
+        <div className="field-hint">{t('settings.siem.target_hint')}</div>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button className="btn btn-accent" onClick={save} disabled={busy}>
+          {busy ? <><Loader2 size={13}/> {t('common.saving')}</> : <><Save size={13}/> {t('common.save')}</>}
+        </button>
       </div>
     </div>
   );

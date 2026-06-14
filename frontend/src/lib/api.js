@@ -330,6 +330,10 @@ export const api = {
     get: () => request('/v1/settings/telemetry-token'),
     put: (token) => request('/v1/settings/telemetry-token', { method: 'PUT', body: { token } }),
   },
+  siemExport: {
+    get: () => request('/v1/settings/siem-export'),
+    put: (cfg) => request('/v1/settings/siem-export', { method: 'PUT', body: cfg }),
+  },
   incidents: {
     listForPage:  (pageId)              => request(`/v1/status-pages/${pageId}/incidents`),
     create:       (pageId, input)       => request(`/v1/status-pages/${pageId}/incidents`, { method: 'POST', body: input }),
