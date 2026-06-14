@@ -45,6 +45,10 @@ pub enum EventKind {
     /// A firing telemetry alert rule's tier aggregate came back inside the
     /// threshold (or its tier went quiet).
     TelemetryRuleResolved,
+    /// A SIEM detection rule matched enough log records to raise a finding.
+    /// The heartbeat msg carries the rule name, severity, match count + a
+    /// sample line. Dispatched to the rule's channels (no monitor row).
+    DetectionFinding,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

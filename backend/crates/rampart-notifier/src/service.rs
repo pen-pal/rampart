@@ -994,6 +994,12 @@ fn digest_event_line(ev: &Event) -> String {
                 ev.heartbeat.msg.as_deref().unwrap_or("")
             )
         }
+        EventKind::DetectionFinding => {
+            format!(
+                "{name} detection: {}",
+                ev.heartbeat.msg.as_deref().unwrap_or("")
+            )
+        }
         EventKind::Test => format!("{name} test"),
     }
 }

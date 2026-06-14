@@ -182,6 +182,7 @@ impl Scheduler {
                 self.check_stale_agents().await;
                 self.check_metric_rules().await;
                 self.check_telemetry_rules().await;
+                self.check_detection_rules().await;
                 self.check_escalations().await;
             }
 
@@ -417,6 +418,61 @@ impl Scheduler {
                 {
                     warn!(rule = %ev.rule.name, channel = %ch.0, error = %e,
                           "telemetry rule channel send failed (channel deleted?)");
+                }
+            }
+        }
+    }
+
+    /// Evaluate SIEM detection rules over the log tier and fan out one
+    /// notification per finding. Occurrence-based (each finding is "N matches
+    /// happened"), so unlike the metric/telemetry rules there is no resolve
+    /// event — the watermark in `detection::evaluate_tick` makes it
+    /// restart-safe and prevents double-counting.
+    async fn check_detection_rules(&self) {
+        let events = match rampart_db::detection::evaluate_tick(&self.pool).await {
+            Ok(ev) => ev,
+            Err(e) => {
+                warn!(error = %e, "detection rule evaluation failed");
+                return;
+            }
+        };
+        for ev in events {
+            let f = &ev.finding;
+            let scope = f.service.as_deref().unwrap_or("all services");
+            let sample = f.sample.as_deref().unwrap_or("");
+            let msg = format!(
+                "[{}] {} ({}): {} match(es) — {}",
+                f.severity.as_str(),
+                f.rule_name,
+                scope,
+                f.match_count,
+                sample,
+            );
+            info!(rule = %f.rule_name, severity = f.severity.as_str(), count = f.match_count,
+                  "detection finding");
+
+            let event = rampart_notifier::Event {
+                kind: rampart_notifier::EventKind::DetectionFinding,
+                monitor: alert_monitor(f.rule_name.clone()),
+                heartbeat: Heartbeat {
+                    monitor_id: rampart_core::MonitorId::new(),
+                    ts: time::OffsetDateTime::now_utc(),
+                    status: MonitorStatus::Down,
+                    latency_ms: None,
+                    status_code: None,
+                    msg: Some(msg),
+                    retries: 0,
+                    important: true,
+                },
+                prev_status: None,
+                slo_current_pct: None,
+            };
+            for ch in &ev.channel_ids {
+                if let Err(e) =
+                    rampart_notifier::service::send_event_to_channel(&self.pool, *ch, &event).await
+                {
+                    warn!(rule = %f.rule_name, channel = %ch.0, error = %e,
+                          "detection rule channel send failed (channel deleted?)");
                 }
             }
         }
