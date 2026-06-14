@@ -19,6 +19,12 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ### Added
 
+- **Monitors-as-code.** `GET /v1/monitors/export` dumps every monitor as a
+  declarative spec (no ids/timestamps/runtime); `POST /v1/monitors/apply`
+  reconciles a spec keyed by name — create new, update existing in place
+  (keeping id + history), and `prune: true` deletes the unlisted. Per-item
+  errors are collected; the run is one `monitors.apply` audit event. Keep the
+  catalog in git. See [`docs/design/MONITORS-AS-CODE.md`](docs/design/MONITORS-AS-CODE.md).
 - **SIEM / syslog export.** Stream the audit log (logins, failed logins, 2FA
   failures, config changes) to an external sink — **webhook** (HTTP POST a JSON
   array) or **syslog** (UDP, RFC5424 line per entry) — via a leader-gated
