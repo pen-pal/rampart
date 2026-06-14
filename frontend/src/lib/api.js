@@ -500,6 +500,7 @@ export const api = {
   errorIssues: {
     get:       (id) => request(`/v1/error-issues/${id}`),
     events:    (id) => request(`/v1/error-issues/${id}/events`),
+    stats:     (id) => request(`/v1/error-issues/${id}/stats`),
     resolve:   (id) => request(`/v1/error-issues/${id}/resolve`,   { method: 'POST' }),
     ignore:    (id) => request(`/v1/error-issues/${id}/ignore`,    { method: 'POST' }),
     unresolve: (id) => request(`/v1/error-issues/${id}/unresolve`, { method: 'POST' }),

@@ -17,6 +17,11 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+- Error-issue statistics: distinct users affected plus breakdowns by release and
+  environment, on a new `GET /v1/error-issues/{id}/stats` endpoint and an issue
+  detail panel.
+
 ---
 
 ## [0.17.0] — 2026-06-14

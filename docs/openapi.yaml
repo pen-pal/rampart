@@ -1873,6 +1873,15 @@ paths:
       summary: Recent events for an issue
       responses:
         '200': { description: Up to 50 events, newest first, with stacktrace + context. }
+  /v1/error-issues/{id}/stats:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Errors]
+      summary: Issue statistics
+      responses:
+        '200': { description: 'Issue stats `{users_affected, by_release[[name,count]], by_environment[[name,count]]}`.' }
+        '404': { description: No such issue. }
   /v1/error-issues/{id}/resolve:
     parameters:
       - { name: id, in: path, required: true, schema: { type: string, format: uuid } }

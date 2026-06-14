@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT COALESCE(NULLIF(release, ''), '(none)') AS \"k!\", COUNT(*) AS \"n!\"\n        FROM error_events WHERE issue_id = $1\n        GROUP BY 1 ORDER BY 2 DESC LIMIT 10\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "k!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "n!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "6eaba4f23f4352c590f77fb0438d7d54d72071b00e111f6d9fe4a1b4e142a0c6"
+}

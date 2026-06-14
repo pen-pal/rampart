@@ -322,9 +322,11 @@ function IssueDetail({ issueId, user, onBack }) {
   const [reloadKey, setReloadKey] = useState(0);
   const issueState = useApi(() => api.errorIssues.get(issueId), [issueId, reloadKey]);
   const eventsState = useApi(() => api.errorIssues.events(issueId), [issueId]);
+  const statsState = useApi(() => api.errorIssues.stats(issueId), [issueId]);
   const [busy, setBusy] = useState(false);
   const issue = issueState.data;
   const events = eventsState.data || [];
+  const stats = statsState.data;
 
   const act = async (fn) => {
     setBusy(true);
@@ -372,6 +374,35 @@ function IssueDetail({ issueId, user, onBack }) {
           {latest.environment && <span>{t('errors.environment')}: <b>{latest.environment}</b></span>}
           {latest.release && <span>{t('errors.release')}: <b>{latest.release}</b></span>}
           {latest.server_name && <span>{t('errors.server')}: <b>{latest.server_name}</b></span>}
+        </div>
+      )}
+
+      {stats && (
+        <div className="card" style={{ padding: 14, marginBottom: 16, display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <div>
+            <div style={{ fontSize: 22, fontWeight: 600 }}>{stats.users_affected}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-3)' }}>{t('errors.users_affected')}</div>
+          </div>
+          {stats.by_release && stats.by_release.length > 0 && (
+            <div style={{ minWidth: 160 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>{t('errors.by_release')}</div>
+              {stats.by_release.slice(0, 5).map(([k, n]) => (
+                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 12 }}>
+                  <span className="mono" style={{ color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k}</span><span>{n}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {stats.by_environment && stats.by_environment.length > 0 && (
+            <div style={{ minWidth: 140 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>{t('errors.by_environment')}</div>
+              {stats.by_environment.slice(0, 5).map(([k, n]) => (
+                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 12 }}>
+                  <span style={{ color: 'var(--text-2)' }}>{k}</span><span>{n}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

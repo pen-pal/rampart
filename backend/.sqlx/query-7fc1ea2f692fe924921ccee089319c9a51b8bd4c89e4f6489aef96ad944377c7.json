@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT COUNT(DISTINCT COALESCE(\n                 context->'user'->>'id',\n                 context->'user'->>'email',\n                 context->'user'->>'username')) AS \"n!\"\n        FROM error_events\n        WHERE issue_id = $1 AND context->'user' IS NOT NULL\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "n!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "7fc1ea2f692fe924921ccee089319c9a51b8bd4c89e4f6489aef96ad944377c7"
+}
