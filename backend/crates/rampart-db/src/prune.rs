@@ -621,8 +621,13 @@ mod tests {
         // Seed three hourly buckets on day -100 (well past raw retention) and
         // two on day -101, so the daily aggregation must sum across buckets.
         // Day -100: 9 up / 10 samples → 90%. Day -101: 1 up / 4 → 25%.
-        let day100 = OffsetDateTime::now_utc() - time::Duration::days(100);
-        let day101 = OffsetDateTime::now_utc() - time::Duration::days(101);
+        // Anchor to 06:00 UTC (not `now`'s time-of-day) so the +1h/+2h bucket
+        // offsets never cross midnight into a third calendar day — otherwise the
+        // test flakes when run within ~2h of UTC midnight.
+        let anchor =
+            OffsetDateTime::now_utc().replace_time(time::Time::from_hms(6, 0, 0).unwrap());
+        let day100 = anchor - time::Duration::days(100);
+        let day101 = anchor - time::Duration::days(101);
         let seed = |ts: OffsetDateTime, up: i32, samples: i32| {
             let pool = pool.clone();
             let mid = m.id.0;
