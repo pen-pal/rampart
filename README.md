@@ -8,7 +8,7 @@
 
 **One Rust binary. One Postgres. 38 probe kinds. 130 notification channels.**<br/>
 Uptime + status pages, **error tracking, distributed traces, logs, and RUM** — one binary, no SaaS.<br/>
-Tier alerting • On-call rotations • Multi-step synthetics • Live SSE updates • Tag routing • 2FA • Audit logs.
+Tier alerting • On-call rotations • Multi-step synthetics • **SSO (OIDC)** • **HA (leader election)** • encrypted secrets • SSRF-guarded probes • tamper-evident audit • 2FA.
 
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 [![Built with Rust](https://img.shields.io/badge/built%20with-Rust-dea584.svg?logo=rust)](https://www.rust-lang.org/)
@@ -119,7 +119,7 @@ self-hostable alternative to Datadog / Sentry / Site24x7 / ScoutAPM, in one bina
 | Tier | What it does | Wire-compatible with |
 | :--- | :--- | :--- |
 | 🐞 **Error tracking** | DSN-keyed event ingest, group-by-fingerprint into issues, new/regressed alerts, stack traces. | **Sentry SDKs** (point the DSN at Rampart — no Rampart SDK) |
-| 🧵 **Traces / APM** | Span ingest, per-trace waterfall, service dependency map. | **OpenTelemetry** OTLP/HTTP (JSON + protobuf, gzip) |
+| 🧵 **Traces / APM** | Span ingest, per-trace waterfall, service dependency map, and a per-operation **APM rollup** (calls, error rate, p50/p95/p99 latency). | **OpenTelemetry** OTLP/HTTP (JSON + protobuf, gzip) |
 | 📃 **Logs** | Severity + service filtering, full-text body search (`tsvector`), trace correlation. | **OpenTelemetry** OTLP logs |
 | 👁️ **RUM** | Browser snippet → Core Web Vitals (p75 LCP/INP/CLS), per-page vitals, and **JS error capture** into the error tier. | drop-in `<script>`, no build step |
 
@@ -148,7 +148,9 @@ an error issue jumps to its trace, and a browser exception becomes an error issu
 | 🏷️ **Tags** | Colored chips. Dashboard filter (AND semantics, persistent). Inline editor on monitor detail. |
 | 📦 **Bulk & Clone** | Multi-select dashboard actions (pause/resume/delete/move). One-click monitor clone. Per-monitor heartbeat CSV export. |
 | ⚡ **Live UI** | Dark / light / system theme. Server-Sent Events live heartbeat stream. Responsive mobile layout. |
-| 🔐 **Auth & Security** | Session cookie + 2FA (TOTP + 10 recovery codes). API keys (`rmp_…`). Multi-user with RBAC. Append-only audit log. |
+| 🔐 **Auth & Security** | Session cookie + 2FA (TOTP + 10 recovery codes), **SSO via OIDC** (Google/Okta/Keycloak/Authentik…), API keys (`rmp_…`), multi-user RBAC, and a **tamper-evident audit log** (HMAC hash chain). |
+| 🛡️ **Hardening** | **SSRF guard** on every outbound probe (blocks cloud-metadata/internal), notification + SMTP **secrets encrypted at rest** (AES-256-GCM), rate-limited + optionally-authenticated ingest. |
+| 🧬 **High availability** | Postgres advisory-lock **leader election** — run multiple replicas; one owns the scheduler, the rest serve the API, automatic failover. No duplicate probes or alerts. |
 | 🗑️ **Retention** | Hourly prune loop for heartbeats + audit log. Windows configurable in the admin UI. |
 | 📝 **Templates** | Liquid templating for notification subject + body — filters, conditionals, loops. Clone existing templates. |
 | 🌐 **Proxies** | HTTP/SOCKS proxy registry; HTTP-family monitors route through their assigned proxy. |
