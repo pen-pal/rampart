@@ -33,6 +33,7 @@ pub mod on_call;
 pub mod openapi;
 pub mod otlp;
 pub mod prefs;
+pub mod profiles;
 pub mod proxies;
 pub mod push;
 pub mod routing;
@@ -144,6 +145,8 @@ pub fn v1_protected() -> Router<AppState> {
         .nest("/traces", traces::router())
         // /v1/logs read views (filtered stream + service list)
         .nest("/logs", logs::router())
+        // /v1/profiles read views (list + flamegraph merge + pickers)
+        .nest("/profiles", profiles::router())
         // /v1/error-projects CRUD + issues; /v1/error-issues detail + status
         .nest("/error-projects", error_tracking::project_router())
         .nest("/error-issues", error_tracking::issue_router())

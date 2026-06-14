@@ -1,0 +1,234 @@
+//! Profiling ingest + read API.
+//!
+//! Ingest (public root surface at `/profiles`, IP-rate-limited upstream,
+//! optional shared telemetry token — like `/otlp` and `/rum`):
+//!
+//! - `POST /profiles/v1/folded` — Brendan-Gregg folded text (`stack value\n`).
+//! - `POST /profiles/v1/pprof`  — gzipped pprof protobuf.
+//!
+//! Read (under `/v1/profiles`, in the protected tree):
+//!
+//! - `GET /v1/profiles`                  — list profiles in a window.
+//! - `GET /v1/profiles/services`         — distinct services (picker).
+//! - `GET /v1/profiles/types`            — distinct types (optional `service`).
+//! - `GET /v1/profiles/flamegraph`       — merged tree for `(service,type,window)`.
+//! - `GET /v1/profiles/{id}/flamegraph`  — tree for a single profile.
+//!
+//! Every wire format is lowered to a folded map (`rampart_core::profile`),
+//! serialized to canonical text, gzipped, and stored. Flamegraphs merge the
+//! folded maps in the window on read. See `docs/design/PROFILING.md`.
+
+use crate::error::ApiError;
+use crate::state::AppState;
+use axum::body::Bytes;
+use axum::extract::{Path, Query, State};
+use axum::http::HeaderMap;
+use axum::routing::{get, post};
+use axum::{Json, Router};
+use rampart_core::profile::{self, FlameNode, FnStat, FoldedMap};
+use rampart_db::profiles::{NewProfile, ProfileMeta};
+use serde::{Deserialize, Serialize};
+use std::io::{Read, Write};
+use time::OffsetDateTime;
+
+/// Public ingest surface — mounted at `/profiles`, behind the ingest rate limit.
+pub fn ingest_router() -> Router<AppState> {
+    Router::new().route("/v1/folded", post(ingest_folded))
+}
+
+/// Protected read surface — mounted at `/v1/profiles`.
+pub fn router() -> Router<AppState> {
+    Router::new()
+        .route("/", get(list))
+        .route("/services", get(services))
+        .route("/types", get(types))
+        .route("/flamegraph", get(flamegraph_window))
+        .route("/{id}/flamegraph", get(flamegraph_one))
+}
+
+// ── ingest ──────────────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct IngestQuery {
+    service: Option<String>,
+    #[serde(rename = "type")]
+    profile_type: Option<String>,
+    period_ns: Option<i64>,
+    duration_ns: Option<i64>,
+}
+
+async fn ingest_folded(
+    State(s): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<IngestQuery>,
+    body: Bytes,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    crate::ingest_util::require_telemetry_token(s.pool(), &headers, None).await?;
+    // Honor Content-Encoding (gzip/deflate) like the OTLP path.
+    let body = crate::ingest_util::decompress(&headers, &body)?;
+    let text = String::from_utf8(body)
+        .map_err(|_| ApiError::BadRequest("folded body must be UTF-8".into()))?;
+    let map = profile::parse_folded(&text);
+    if map.is_empty() {
+        return Err(ApiError::BadRequest(
+            "no valid folded-stack lines (expected `frame;frame value` per line)".into(),
+        ));
+    }
+    store(&s, &q, map).await?;
+    Ok(Json(serde_json::json!({})))
+}
+
+/// Lower a folded map to storage: canonical text → gzip → insert. Shared by
+/// every ingest format (folded now; pprof / OTLP-profiles convert to a map and
+/// call this too).
+async fn store(s: &AppState, q: &IngestQuery, map: FoldedMap) -> Result<(), ApiError> {
+    let service = non_empty(q.service.as_deref()).unwrap_or("unknown");
+    let profile_type = non_empty(q.profile_type.as_deref()).unwrap_or("cpu");
+    let sample_count = map.values().sum::<i64>().clamp(0, i32::MAX as i64) as i32;
+    let gz = gzip(profile::to_folded_text(&map).as_bytes())?;
+    rampart_db::profiles::insert(
+        s.pool(),
+        NewProfile {
+            service_name: service,
+            profile_type,
+            period_ns: q.period_ns.unwrap_or(0),
+            duration_ns: q.duration_ns.unwrap_or(0),
+            sample_count,
+            labels: serde_json::json!({}),
+            folded_gz: &gz,
+        },
+    )
+    .await?;
+    Ok(())
+}
+
+// ── read ────────────────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct ListQuery {
+    service: Option<String>,
+    #[serde(rename = "type")]
+    profile_type: Option<String>,
+    hours: Option<i32>,
+}
+
+async fn list(
+    State(s): State<AppState>,
+    Query(q): Query<ListQuery>,
+) -> Result<Json<Vec<ProfileMeta>>, ApiError> {
+    Ok(Json(
+        rampart_db::profiles::list(
+            s.pool(),
+            non_empty(q.service.as_deref()),
+            non_empty(q.profile_type.as_deref()),
+            q.hours.unwrap_or(24),
+            200,
+        )
+        .await?,
+    ))
+}
+
+async fn services(State(s): State<AppState>) -> Result<Json<Vec<String>>, ApiError> {
+    Ok(Json(rampart_db::profiles::services(s.pool()).await?))
+}
+
+#[derive(Deserialize)]
+struct TypesQuery {
+    service: Option<String>,
+}
+
+async fn types(
+    State(s): State<AppState>,
+    Query(q): Query<TypesQuery>,
+) -> Result<Json<Vec<String>>, ApiError> {
+    Ok(Json(
+        rampart_db::profiles::profile_types(s.pool(), non_empty(q.service.as_deref())).await?,
+    ))
+}
+
+/// The flamegraph payload: the inclusive-value tree plus the tabular top-
+/// functions companion and the merged sample total.
+#[derive(Serialize)]
+struct FlameResponse {
+    tree: FlameNode,
+    top: Vec<FnStat>,
+    sample_count: i64,
+}
+
+#[derive(Deserialize)]
+struct FlameQuery {
+    service: String,
+    #[serde(rename = "type")]
+    profile_type: String,
+    hours: Option<i32>,
+}
+
+async fn flamegraph_window(
+    State(s): State<AppState>,
+    Query(q): Query<FlameQuery>,
+) -> Result<Json<FlameResponse>, ApiError> {
+    let hours = q.hours.unwrap_or(24).clamp(1, 24 * 90);
+    let to = OffsetDateTime::now_utc();
+    let from = to - time::Duration::hours(hours as i64);
+    let blobs =
+        rampart_db::profiles::folded_in_window(s.pool(), &q.service, &q.profile_type, from, to)
+            .await?;
+    let merged = merge_blobs(&blobs)?;
+    Ok(Json(build_response(&q.service, merged)))
+}
+
+async fn flamegraph_one(
+    State(s): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<FlameResponse>, ApiError> {
+    let Some((profile_type, gz)) = rampart_db::profiles::fetch_folded(s.pool(), id).await? else {
+        return Err(ApiError::NotFound);
+    };
+    let map = parse_blob(&gz)?;
+    Ok(Json(build_response(&profile_type, map)))
+}
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+fn build_response(root: &str, map: FoldedMap) -> FlameResponse {
+    FlameResponse {
+        sample_count: map.values().sum(),
+        tree: profile::fold_to_tree(&map, root),
+        top: profile::top_functions(&map, 25),
+    }
+}
+
+/// Gunzip + parse one stored folded blob into a map.
+fn parse_blob(gz: &[u8]) -> Result<FoldedMap, ApiError> {
+    let text = String::from_utf8(gunzip(gz)?)
+        .map_err(|_| ApiError::Internal(anyhow::anyhow!("stored profile is not UTF-8")))?;
+    Ok(profile::parse_folded(&text))
+}
+
+/// Merge every stored blob in a window into one folded map.
+fn merge_blobs(blobs: &[Vec<u8>]) -> Result<FoldedMap, ApiError> {
+    let mut acc = FoldedMap::new();
+    for b in blobs {
+        profile::merge_into(&mut acc, &parse_blob(b)?);
+    }
+    Ok(acc)
+}
+
+fn non_empty(s: Option<&str>) -> Option<&str> {
+    s.filter(|x| !x.is_empty())
+}
+
+fn gzip(data: &[u8]) -> Result<Vec<u8>, ApiError> {
+    let mut e = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    e.write_all(data)
+        .map_err(|e| ApiError::Internal(e.into()))?;
+    e.finish().map_err(|e| ApiError::Internal(e.into()))
+}
+
+fn gunzip(data: &[u8]) -> Result<Vec<u8>, ApiError> {
+    let mut out = Vec::new();
+    flate2::read::GzDecoder::new(data)
+        .read_to_end(&mut out)
+        .map_err(|_| ApiError::BadRequest("corrupt gzip body".into()))?;
+    Ok(out)
+}

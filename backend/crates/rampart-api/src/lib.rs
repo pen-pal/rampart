@@ -191,6 +191,8 @@ pub fn build_router(state: AppState) -> Router {
         .nest("/api", routes::error_ingest::router())
         // RUM beacon ingest + collector snippet — public (browsers).
         .nest("/rum", routes::rum::ingest_router())
+        // Profiling ingest (folded text now; pprof + OTLP profiles added next).
+        .nest("/profiles", routes::profiles::ingest_router())
         .route_layer(axum::middleware::from_fn_with_state(
             state.ingest_rate_limiter(),
             crate::rate_limit::enforce_ip_rate_limit,
