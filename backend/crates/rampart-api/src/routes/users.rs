@@ -5,11 +5,14 @@
 //! the routing already mounts under v1_protected; logically it's a user
 //! resource even though only the caller can change their own password.
 
-use crate::auth::{hash_password, verify_password};
+use crate::auth::{
+    build_session_cookie, hash_password, is_secure, verify_password, SESSION_TTL_SECS,
+};
 use crate::error::ApiError;
 use crate::state::AppState;
 use axum::extract::{Extension, Path, State};
 use axum::http::{HeaderMap, StatusCode};
+use axum::response::{AppendHeaders, IntoResponse};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use rampart_core::ids::UserId;
@@ -207,8 +210,9 @@ struct ChangePasswordInput {
 async fn change_password(
     State(s): State<AppState>,
     Extension(caller): Extension<User>,
+    headers: HeaderMap,
     Json(input): Json<ChangePasswordInput>,
-) -> Result<StatusCode, ApiError> {
+) -> Result<impl IntoResponse, ApiError> {
     if input.new_password.len() < 10 {
         return Err(ApiError::BadRequest(
             "new password must be at least 10 characters".into(),
@@ -221,6 +225,24 @@ async fn change_password(
         return Err(ApiError::Unauthorized);
     }
     let hash = hash_password(&input.new_password)?;
+    // set_password revokes ALL of the user's sessions (including this one).
     rampart_db::users::set_password(s.pool(), caller.id, &hash).await?;
-    Ok(StatusCode::NO_CONTENT)
+    // Re-issue a fresh session for the current device so the user isn't logged
+    // out by their own password change — other devices stay revoked.
+    let session = rampart_db::sessions::create(
+        s.pool(),
+        caller.id,
+        SESSION_TTL_SECS,
+        None,
+        headers
+            .get("user-agent")
+            .and_then(|v| v.to_str().ok())
+            .map(String::from),
+    )
+    .await?;
+    let cookie = build_session_cookie(session.id, is_secure(&headers));
+    Ok((
+        StatusCode::NO_CONTENT,
+        AppendHeaders([(axum::http::header::SET_COOKIE, cookie.to_string())]),
+    ))
 }

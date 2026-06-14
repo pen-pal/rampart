@@ -174,6 +174,8 @@ pub async fn disable_totp(pool: &DbPool, id: UserId) -> DbResult<()> {
     )
     .execute(pool)
     .await?;
+    // Disabling 2FA is a security downgrade — revoke all sessions.
+    crate::sessions::delete_for_user(pool, id).await?;
     Ok(())
 }
 
@@ -229,6 +231,8 @@ pub async fn set_admin(pool: &DbPool, id: UserId, is_admin: bool) -> DbResult<()
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }
+    // Privilege change — revoke the target's sessions so it takes effect now.
+    crate::sessions::delete_for_user(pool, id).await?;
     Ok(())
 }
 
@@ -246,6 +250,8 @@ pub async fn set_role(pool: &DbPool, id: UserId, role: Role) -> DbResult<()> {
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }
+    // Privilege change — revoke the target's sessions so it takes effect now.
+    crate::sessions::delete_for_user(pool, id).await?;
     Ok(())
 }
 
@@ -292,5 +298,8 @@ pub async fn set_password(pool: &DbPool, id: UserId, hash: &str) -> DbResult<()>
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }
+    // Revoke every session on a password change. The self-service change-
+    // password route re-issues a fresh cookie so the current device stays in.
+    crate::sessions::delete_for_user(pool, id).await?;
     Ok(())
 }
