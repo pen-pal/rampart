@@ -91,3 +91,5 @@ id!(ErrorProjectId);
 id!(ErrorIssueId);
 id!(OnCallScheduleId);
 id!(TelemetryRuleId);
+id!(DetectionRuleId);
+id!(DetectionFindingId);
