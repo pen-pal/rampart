@@ -204,6 +204,74 @@ pub async fn service_map(pool: &DbPool, window_hours: i64) -> DbResult<Vec<Servi
         .collect())
 }
 
+/// Per-(service, operation) APM rollup over the last `window_hours`: call
+/// volume, error count + rate, and p50/p95/p99/avg/max latency. The "services
+/// & resources" table. `service` empty = all services.
+pub async fn operation_stats(
+    pool: &DbPool,
+    service: &str,
+    window_hours: i64,
+) -> DbResult<Vec<rampart_core::OperationStat>> {
+    struct Row {
+        service: Option<String>,
+        operation: Option<String>,
+        calls: Option<i64>,
+        errors: Option<i64>,
+        p50: Option<f64>,
+        p95: Option<f64>,
+        p99: Option<f64>,
+        avg_ms: Option<f64>,
+        max_ms: Option<f64>,
+    }
+    let rows = sqlx::query_as!(
+        Row,
+        r#"
+        SELECT service_name AS "service",
+               name         AS "operation",
+               COUNT(*)                                                     AS "calls",
+               COUNT(*) FILTER (WHERE status_code = 2)                      AS "errors",
+               percentile_cont(0.50) WITHIN GROUP (ORDER BY duration_ms)    AS "p50",
+               percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms)    AS "p95",
+               percentile_cont(0.99) WITHIN GROUP (ORDER BY duration_ms)    AS "p99",
+               AVG(duration_ms)                                             AS "avg_ms",
+               MAX(duration_ms)                                             AS "max_ms"
+        FROM spans
+        WHERE received_at > now() - make_interval(hours => $1)
+          AND ($2 = '' OR service_name = $2)
+        GROUP BY service_name, name
+        ORDER BY COUNT(*) DESC
+        LIMIT 500
+        "#,
+        window_hours.clamp(1, 720) as i32,
+        service,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| {
+            let calls = r.calls.unwrap_or(0);
+            let errors = r.errors.unwrap_or(0);
+            rampart_core::OperationStat {
+                service: r.service.unwrap_or_default(),
+                operation: r.operation.unwrap_or_default(),
+                calls,
+                errors,
+                error_rate: if calls > 0 {
+                    100.0 * errors as f64 / calls as f64
+                } else {
+                    0.0
+                },
+                p50_ms: r.p50.unwrap_or(0.0),
+                p95_ms: r.p95.unwrap_or(0.0),
+                p99_ms: r.p99.unwrap_or(0.0),
+                avg_ms: r.avg_ms.unwrap_or(0.0),
+                max_ms: r.max_ms.unwrap_or(0.0),
+            }
+        })
+        .collect())
+}
+
 /// Delete spans older than `days`. Returns rows removed.
 pub async fn prune(pool: &DbPool, days: i32) -> DbResult<u64> {
     let result = sqlx::query!(

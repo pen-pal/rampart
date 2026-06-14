@@ -58,17 +58,24 @@ short by default.
 - `GET /v1/traces/service-map?hours=24` — service dependency edges
   (caller → callee, with call counts) derived from cross-service parent/child
   span pairs in the window.
+- `GET /v1/traces/operations?service=&hours=24` — the **APM rollup**: spans
+  grouped by `(service, operation)` with call volume, error count + rate, and
+  p50/p95/p99/avg/max latency (`percentile_cont` over `duration_ms`). The
+  "services & resources" numbers; `service` empty = all.
 
 ## Dashboard
 
-A `#/traces` view: a recent-traces list (service, operation, duration, span +
-error counts), a **waterfall** trace detail (each span a bar positioned by
-offset + duration, errors in red, span kind tagged), and a **service map** tab
-(the dependency edges as caller → callee with call counts).
+A `#/traces` view with three tabs: a recent-traces list (service, operation,
+duration, span + error counts), an **Operations** tab (the per-(service,
+operation) APM table — calls, error %, p50/p95/p99), a **waterfall** trace
+detail (each span a bar positioned by offset + duration, errors in red, span
+kind tagged), and a **service map** tab (dependency edges as caller → callee
+with call counts).
 
 ## Follow-ups (deferred)
 
 - Tail/head sampling for high volume; an opt-in columnar span store if Postgres
   is outgrown (consistent with the metrics/logs storage stance).
-- Trace ↔ error-issue and trace ↔ log correlation by ids (cross-tier nav).
-- Latency percentiles per service/operation (the "APM overview" numbers).
+- Per-operation latency trend over time (sparklines); Apdex; slow-trace
+  drill-down from an operation row.
+- N+1 / slow-query detection from span names.

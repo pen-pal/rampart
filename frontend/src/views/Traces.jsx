@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  ChevronLeft, Loader2, AlertCircle, Activity, Network,
+  ChevronLeft, Loader2, AlertCircle, Activity, Network, Gauge,
 } from 'lucide-react';
 import { api, useApi, formatRelative } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
@@ -69,9 +69,10 @@ export default function Traces({ openTraceId }) {
             </div>
             <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
               <button className={`btn ${tab === 'traces' ? 'btn-accent' : ''}`} onClick={() => setTab('traces')}><Activity size={13}/> {t('traces.tab_traces')}</button>
+              <button className={`btn ${tab === 'ops' ? 'btn-accent' : ''}`} onClick={() => setTab('ops')}><Gauge size={13}/> {t('traces.tab_ops')}</button>
               <button className={`btn ${tab === 'map' ? 'btn-accent' : ''}`} onClick={() => setTab('map')}><Network size={13}/> {t('traces.tab_map')}</button>
             </div>
-            {tab === 'traces' ? <TraceList onOpen={setTraceId} /> : <ServiceMap />}
+            {tab === 'traces' ? <TraceList onOpen={setTraceId} /> : tab === 'ops' ? <OperationsTable /> : <ServiceMap />}
           </>
         )}
       </div>
@@ -111,6 +112,53 @@ function TraceList({ onOpen }) {
             </div>
           </div>
         ))}
+      </div>
+    </>
+  );
+}
+
+function OperationsTable() {
+  const state = useApi(() => api.traces.operations(null, 24), []);
+  const ops = state.data || [];
+  return (
+    <>
+      {state.error && <div className="banner-err"><AlertCircle size={14} style={{ verticalAlign: '-2px', marginRight: 6 }}/>{t('traces.load_error')}</div>}
+      <div className="card" style={{ overflow: 'hidden' }}>
+        {state.loading ? (
+          <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-3)' }}><Loader2 size={16}/> {t('traces.loading')}</div>
+        ) : ops.length === 0 ? (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>{t('traces.ops.empty')}</div>
+        ) : (
+          <>
+            <div className="row" style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em', fontWeight: 600 }}>
+              <div style={{ flex: 1 }}>{t('traces.ops.operation')}</div>
+              <div style={{ display: 'flex', gap: 18, fontVariantNumeric: 'tabular-nums' }}>
+                <span style={{ width: 56, textAlign: 'right' }}>{t('traces.ops.calls')}</span>
+                <span style={{ width: 56, textAlign: 'right' }}>{t('traces.ops.err')}</span>
+                <span style={{ width: 64, textAlign: 'right' }}>p50</span>
+                <span style={{ width: 64, textAlign: 'right' }}>p95</span>
+                <span style={{ width: 64, textAlign: 'right' }}>p99</span>
+              </div>
+            </div>
+            {ops.map((o, i) => (
+              <div className="row" key={i}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span className="pill pill-muted">{o.service}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.operation}</span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 18, fontSize: 12.5, fontVariantNumeric: 'tabular-nums', color: 'var(--text-2)' }}>
+                  <span style={{ width: 56, textAlign: 'right' }}>{o.calls}</span>
+                  <span style={{ width: 56, textAlign: 'right', color: o.error_rate > 0 ? 'var(--down)' : 'var(--text-3)' }}>{o.error_rate.toFixed(1)}%</span>
+                  <span style={{ width: 64, textAlign: 'right' }}>{fmtMs(o.p50_ms)}</span>
+                  <span style={{ width: 64, textAlign: 'right' }}>{fmtMs(o.p95_ms)}</span>
+                  <span style={{ width: 64, textAlign: 'right', fontWeight: 600 }}>{fmtMs(o.p99_ms)}</span>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
       </div>
     </>
   );

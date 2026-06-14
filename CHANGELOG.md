@@ -17,6 +17,14 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **APM depth — per-operation latency/throughput/error rollup.** The traces
+  tier gains an **Operations** tab + `GET /v1/traces/operations`: spans grouped
+  by `(service, operation)` with call volume, error rate, and p50/p95/p99/avg/
+  max latency — the "services & resources" numbers (ScoutAPM/Datadog-style) on
+  top of the existing trace list, waterfall and service map.
+
 ### Security
 
 - **Tamper-evident audit log.** Audit rows are now linked in a hash chain —
