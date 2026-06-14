@@ -106,9 +106,9 @@ async fn siem_put(
     Json(input): Json<SiemPut>,
 ) -> Result<StatusCode, ApiError> {
     if input.enabled {
-        if !matches!(input.kind.as_str(), "webhook" | "syslog") {
+        if !matches!(input.kind.as_str(), "webhook" | "syslog" | "syslog_tcp") {
             return Err(ApiError::BadRequest(
-                "kind must be webhook or syslog".into(),
+                "kind must be webhook, syslog, or syslog_tcp".into(),
             ));
         }
         if input.target.trim().is_empty() {

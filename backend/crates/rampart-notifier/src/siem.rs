@@ -82,6 +82,7 @@ async fn tick(pool: &DbPool, cfg: &SiemConfig, client: &reqwest::Client) -> anyh
         let last = rows.last().map(|r| r.id).unwrap_or(after);
         match cfg.kind.as_str() {
             "syslog" => send_syslog(&cfg.target, &rows).await?,
+            "syslog_tcp" => send_syslog_tcp(&cfg.target, &rows).await?,
             _ => send_webhook(client, &cfg.target, &rows).await?,
         }
         set_cursor(pool, last).await;
@@ -107,12 +108,31 @@ async fn send_syslog(target: &str, rows: &[AuditEntry]) -> anyhow::Result<()> {
     let sock = tokio::net::UdpSocket::bind("0.0.0.0:0").await?;
     sock.connect(target).await?;
     for r in rows {
-        let json = serde_json::to_string(r)?;
-        // RFC5424: <pri>VERSION TIMESTAMP HOST APP PROCID MSGID SD MSG.
-        // pri 134 = facility local0 (16) * 8 + severity info (6). Nil "-"
-        // timestamp is valid; the JSON carries the real `ts`.
-        let line = format!("<134>1 - rampart audit - - - {json}");
-        sock.send(line.as_bytes()).await?;
+        sock.send(syslog_line(r)?.as_bytes()).await?;
     }
     Ok(())
+}
+
+/// Syslog over TCP (`host:port`), newline-framed RFC5424 — for collectors that
+/// want a reliable stream rather than UDP datagrams (and the common path to a
+/// TLS-terminating sidecar like stunnel). Native TLS is a follow-up.
+async fn send_syslog_tcp(target: &str, rows: &[AuditEntry]) -> anyhow::Result<()> {
+    use tokio::io::AsyncWriteExt;
+    let mut stream = tokio::net::TcpStream::connect(target).await?;
+    for r in rows {
+        let mut line = syslog_line(r)?;
+        line.push('\n');
+        stream.write_all(line.as_bytes()).await?;
+    }
+    stream.flush().await?;
+    Ok(())
+}
+
+/// One RFC5424 line for an audit row. pri 134 = local0.info; nil "-" timestamp
+/// is valid (the JSON payload carries the real `ts`).
+fn syslog_line(r: &AuditEntry) -> anyhow::Result<String> {
+    Ok(format!(
+        "<134>1 - rampart audit - - - {}",
+        serde_json::to_string(r)?
+    ))
 }

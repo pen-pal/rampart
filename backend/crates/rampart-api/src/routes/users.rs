@@ -68,11 +68,7 @@ async fn create(
     headers: HeaderMap,
     Json(input): Json<CreateUserInput>,
 ) -> Result<(StatusCode, Json<User>), ApiError> {
-    if input.password.len() < 10 {
-        return Err(ApiError::BadRequest(
-            "password must be at least 10 characters".into(),
-        ));
-    }
+    crate::auth::validate_password(&input.password, &input.email)?;
     if !input.email.contains('@') {
         return Err(ApiError::BadRequest("email looks invalid".into()));
     }
@@ -213,11 +209,7 @@ async fn change_password(
     headers: HeaderMap,
     Json(input): Json<ChangePasswordInput>,
 ) -> Result<impl IntoResponse, ApiError> {
-    if input.new_password.len() < 10 {
-        return Err(ApiError::BadRequest(
-            "new password must be at least 10 characters".into(),
-        ));
-    }
+    crate::auth::validate_password(&input.new_password, &caller.email)?;
     let raw = rampart_db::users::get_by_email(s.pool(), &caller.email)
         .await
         .map_err(|_| ApiError::Unauthorized)?;

@@ -60,14 +60,10 @@ async fn register(
     headers: HeaderMap,
     Json(input): Json<RegisterInput>,
 ) -> Result<impl IntoResponse, ApiError> {
-    if input.password.len() < 10 {
-        return Err(ApiError::BadRequest(
-            "password must be at least 10 characters".into(),
-        ));
-    }
     if !input.email.contains('@') {
         return Err(ApiError::BadRequest("email looks invalid".into()));
     }
+    crate::auth::validate_password(&input.password, &input.email)?;
 
     // First-run only: once any user exists, registration is locked. Adding
     // additional users will happen through an admin-only flow later.
