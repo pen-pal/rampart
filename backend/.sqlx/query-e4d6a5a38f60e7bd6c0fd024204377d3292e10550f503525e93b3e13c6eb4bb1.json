@@ -1,0 +1,37 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            COUNT(*) FILTER (WHERE action = 'auth.login_failed') AS \"failed!\",\n            COUNT(*) FILTER (WHERE action = 'auth.login')        AS \"ok!\",\n            COUNT(*) FILTER (WHERE action = 'auth.totp_failed')  AS \"totp!\"\n        FROM audit_log\n        WHERE ts >= now() - make_interval(hours => $1)\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "failed!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "ok!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "totp!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "e4d6a5a38f60e7bd6c0fd024204377d3292e10550f503525e93b3e13c6eb4bb1"
+}

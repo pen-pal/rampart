@@ -4448,6 +4448,30 @@
         }
       }
     },
+    "/v1/audit-log/insights": {
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "summary": "Security insights from the audit log",
+        "description": "Admin only. Auth outcomes (failed / successful logins, 2FA failures), the top source IPs behind failed logins, and a per-hour failed-login series over the window \u2014 a security-event surface without a separate SIEM.",
+        "parameters": [
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`{ failed_logins, successful_logins, totp_failures, top_ips:[{ip,count}], by_hour:[{hour,count}] }`."
+          }
+        }
+      }
+    },
     "/v1/public/ingest/alertmanager/{token}": {
       "parameters": [
         {

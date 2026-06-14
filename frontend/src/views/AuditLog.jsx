@@ -109,6 +109,14 @@ export default function AuditLog() {
   const usersState = useApi(() => api.users.list().catch(() => []), []);
   const usersById  = new Map((usersState.data || []).map(u => [u.id, u]));
 
+  // Security insights — only when the Security (auth.*) filter is active.
+  const secActive = action.startsWith('auth.');
+  const insightsState = useApi(
+    () => (secActive ? api.audit.insights(24) : Promise.resolve(null)),
+    [secActive],
+  );
+  const ins = insightsState.data;
+
   const load = async (before) => {
     setLoading(true); setErr(null);
     try {
@@ -230,6 +238,48 @@ export default function AuditLog() {
               : vrf.ok
                 ? <><ShieldCheck size={15}/> {t('audit.verify_ok', { n: vrf.checked })}</>
                 : <><ShieldAlert size={15}/> {t('audit.verify_bad', { id: vrf.first_bad_id })}</>}
+          </div>
+        )}
+
+        {secActive && ins && (
+          <div className="card" style={{ padding: 14, marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 10 }}>
+              {t('audit.insights_title')}
+            </div>
+            <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: 22, fontWeight: 600, color: ins.failed_logins > 0 ? 'var(--down)' : 'var(--text)' }}>{ins.failed_logins}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-3)' }}>{t('audit.insights_failed')}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 22, fontWeight: 600 }}>{ins.successful_logins}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-3)' }}>{t('audit.insights_ok')}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 22, fontWeight: 600, color: ins.totp_failures > 0 ? '#b45309' : 'var(--text)' }}>{ins.totp_failures}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-3)' }}>{t('audit.insights_totp')}</div>
+              </div>
+              {ins.by_hour && ins.by_hour.length > 0 && (
+                <div style={{ flex: '1 1 220px', minWidth: 180 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>{t('audit.insights_sparkline')}</div>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 36 }}>
+                    {(() => { const mx = Math.max(...ins.by_hour.map(h => h.count), 1); return ins.by_hour.map((h, i) => (
+                      <div key={i} title={`${h.count}`} style={{ flex: 1, height: `${Math.max(6, (h.count / mx) * 100)}%`, background: 'var(--down)', borderRadius: 1, opacity: .8 }}/>
+                    )); })()}
+                  </div>
+                </div>
+              )}
+              {ins.top_ips && ins.top_ips.length > 0 && (
+                <div style={{ minWidth: 200 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>{t('audit.insights_top_ips')}</div>
+                  {ins.top_ips.slice(0, 5).map(r => (
+                    <div key={r.ip} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 12 }}>
+                      <span className="mono" style={{ color: 'var(--text-2)' }}>{r.ip}</span><span style={{ fontWeight: 600 }}>{r.count}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
