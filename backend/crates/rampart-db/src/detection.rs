@@ -214,6 +214,64 @@ pub async fn delete(pool: &DbPool, id: DetectionRuleId) -> DbResult<()> {
     Ok(())
 }
 
+/// Dry-run match of a rule spec over recent logs, for authoring. Counts and
+/// samples without writing a finding or moving any watermark.
+#[derive(serde::Serialize)]
+pub struct PreviewResult {
+    pub count: i64,
+    pub samples: Vec<String>,
+}
+
+/// Run a rule's match spec over the trailing `window_seconds` of logs without
+/// persisting anything — the "test this rule" path. Caller validates
+/// `body_regex` first (see [`regex_is_valid`]) so an invalid pattern is a 400.
+pub async fn preview(
+    pool: &DbPool,
+    service: &str,
+    min_level: i16,
+    body_regex: &str,
+    window_seconds: i32,
+) -> DbResult<PreviewResult> {
+    let window = window_seconds as f64;
+    let count = sqlx::query_scalar!(
+        r#"
+        SELECT COUNT(*) AS "count!"
+        FROM logs
+        WHERE ts >= now() - make_interval(secs => $1)
+          AND ($2 = '' OR service_name = $2)
+          AND severity >= $3
+          AND ($4 = '' OR body ~* $4)
+        "#,
+        window,
+        service,
+        min_level,
+        body_regex,
+    )
+    .fetch_one(pool)
+    .await?;
+
+    let samples = sqlx::query_scalar!(
+        r#"
+        SELECT LEFT(body, 300) AS "body!"
+        FROM logs
+        WHERE ts >= now() - make_interval(secs => $1)
+          AND ($2 = '' OR service_name = $2)
+          AND severity >= $3
+          AND ($4 = '' OR body ~* $4)
+        ORDER BY ts DESC
+        LIMIT 5
+        "#,
+        window,
+        service,
+        min_level,
+        body_regex,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(PreviewResult { count, samples })
+}
+
 /// A finding raised this tick, paired with the channels to notify.
 pub struct FindingEvent {
     pub finding: DetectionFinding,

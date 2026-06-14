@@ -17,6 +17,11 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+- Detection rule preview: `POST /v1/detection-rules/preview` and a **Preview**
+  button on the rule form dry-run a match spec over recent logs (match count +
+  sample lines) without saving — tune a pattern before enabling it.
+
 ---
 
 ## [0.20.0] — 2026-06-14

@@ -346,6 +346,8 @@ const en = {
   'detection.f.channels':            'Notify channels',
   'detection.f.no_channels':         'No notification channels yet — create one under Notifications first.',
   'detection.f.enabled':             'Enabled',
+  'detection.preview':               'Preview',
+  'detection.preview_result':        '{n} matches in the last {w}s',
 
   // ── monitor templates library ────────────────────────────────────
   'templates.nav':                   'Monitor templates',
