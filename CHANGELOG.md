@@ -21,6 +21,11 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 - Error breadcrumbs: the SDK trail leading up to an error (kept verbatim in the
   event context) now renders as a category/message/level/time timeline on the
   issue detail.
+- Logs CSV export: `GET /v1/logs/export.csv` and a download button on the Logs
+  view, honouring the active service/level/search/trace filters (capped at 50k
+  rows).
+- Traces CSV export: `GET /v1/traces/export.csv` and a download button on the
+  Traces view, honouring the active filters (capped at 50k rows).
 
 ### Changed
 - Internal: CSV field escaping for all export endpoints (audit, delivery log,

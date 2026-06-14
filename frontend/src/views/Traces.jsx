@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  ChevronLeft, Loader2, AlertCircle, Activity, Network, Gauge,
+  ChevronLeft, Loader2, AlertCircle, Activity, Network, Gauge, Download,
 } from 'lucide-react';
 import { api, useApi, formatRelative } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
@@ -92,6 +92,17 @@ function TraceList({ onOpen }) {
   );
   const traces = state.data || [];
   const apply = () => setApplied({ service, q, min_duration_ms: minDur, errors_only: errorsOnly });
+
+  // CSV export of the currently-applied trace filters (cookie-auth, same-origin).
+  const exportUrl = (() => {
+    const p = new URLSearchParams();
+    if (applied.service) p.set('service', applied.service);
+    if (applied.q) p.set('q', applied.q);
+    if (applied.min_duration_ms) p.set('min_duration_ms', applied.min_duration_ms);
+    if (applied.errors_only) p.set('errors_only', 'true');
+    const qs = p.toString();
+    return `/v1/traces/export.csv${qs ? '?' + qs : ''}`;
+  })();
   return (
     <>
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -106,6 +117,7 @@ function TraceList({ onOpen }) {
           {t('traces.filter.errors_only')}
         </button>
         <button className="btn" onClick={apply}>{t('traces.filter.apply')}</button>
+        <a className="btn btn-ghost" href={exportUrl} download title={t('traces.export_hint')}><Download size={14}/> {t('traces.export')}</a>
       </div>
       {state.error && <div className="banner-err"><AlertCircle size={14} style={{ verticalAlign: '-2px', marginRight: 6 }}/>{t('traces.load_error')}</div>}
       <div className="card" style={{ overflow: 'hidden' }}>

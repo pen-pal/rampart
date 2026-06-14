@@ -1648,6 +1648,21 @@ paths:
         - { name: hours, in: query, required: false, schema: { type: integer } }
       responses:
         '200': { description: '`[{service, operation, calls, errors, error_rate, p50_ms, p95_ms, p99_ms, avg_ms, max_ms}]`.' }
+  /v1/traces/export.csv:
+    get:
+      tags: [Traces]
+      summary: Export traces as CSV
+      description: >-
+        Same filters as `/v1/traces`, one row per trace. `limit` is clamped to
+        50,000 rows. Returns `text/csv` as a file attachment.
+      parameters:
+        - { name: service, in: query, required: false, schema: { type: string } }
+        - { name: min_duration_ms, in: query, required: false, schema: { type: number } }
+        - { name: errors_only, in: query, required: false, schema: { type: boolean } }
+        - { name: q, in: query, required: false, schema: { type: string } }
+        - { name: limit, in: query, required: false, schema: { type: integer } }
+      responses:
+        '200': { description: 'CSV: started_at,trace_id,root_service,root_name,duration_ms,span_count,error_count,services.' }
   /v1/traces/{trace_id}:
     parameters:
       - { name: trace_id, in: path, required: true, schema: { type: string } }
@@ -1696,6 +1711,22 @@ paths:
         - { name: hours, in: query, required: false, schema: { type: integer } }
       responses:
         '200': { description: '`[[level, count], …]` over the window (severity-volume bar).' }
+  /v1/logs/export.csv:
+    get:
+      tags: [Logs]
+      summary: Export logs as CSV
+      description: >-
+        Same `service` / `level` / `q` / `trace_id` filters as `/v1/logs`.
+        `limit` is clamped to 50,000 rows. Returns `text/csv` as a file
+        attachment. For continuous forwarding use the syslog/SIEM export sink.
+      parameters:
+        - { name: service,  in: query, required: false, schema: { type: string } }
+        - { name: level,    in: query, required: false, schema: { type: string, enum: [trace, debug, info, warn, error, fatal] } }
+        - { name: q,        in: query, required: false, schema: { type: string } }
+        - { name: trace_id, in: query, required: false, schema: { type: string } }
+        - { name: limit,    in: query, required: false, schema: { type: integer } }
+      responses:
+        '200': { description: 'CSV: ts,level,severity,service,trace_id,span_id,body,attributes.' }
   # ─────────────────────────── Profiling ───────────────────────────
   /profiles/v1/folded:
     post:

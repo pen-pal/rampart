@@ -55,6 +55,9 @@ short by default.
   (Aggregate query with a lateral join to the root span.)
 - `GET /v1/traces/{trace_id}` — all spans of a trace, ordered by start, for the
   waterfall.
+- `GET /v1/traces/export.csv?service=&min_duration_ms=&errors_only=&q=&limit=` —
+  the same filtered trace list as a `text/csv` download (file attachment), one
+  row per trace, `limit` clamped to 50k rows.
 - `GET /v1/traces/service-map?hours=24` — service dependency edges
   (caller → callee, with call counts) derived from cross-service parent/child
   span pairs in the window.
