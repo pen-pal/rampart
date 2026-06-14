@@ -17,6 +17,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **Profiling: trace→flamegraph correlation + diff flamegraphs.** A trace's
+  detail now links its root service to that service's flamegraph
+  (`#/profiling?service=…`), closing the loop with the APM tier. The Profiling
+  view gains a **Diff** toggle (`GET /v1/profiles/flamegraph/diff`) that compares
+  the current window against the preceding one and colors each frame by its
+  after−before delta — red = hotter, blue = colder — so "what got slower since
+  the deploy" reads off the colors.
+
 ---
 
 ## [0.11.0] — 2026-06-14

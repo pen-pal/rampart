@@ -458,6 +458,8 @@ export const api = {
     types: (service) => request(`/v1/profiles/types${service ? `?service=${encodeURIComponent(service)}` : ''}`),
     flamegraph: (service, type, hours) =>
       request(`/v1/profiles/flamegraph?service=${encodeURIComponent(service)}&type=${encodeURIComponent(type)}&hours=${hours || 24}`),
+    flamegraphDiff: (service, type, hours) =>
+      request(`/v1/profiles/flamegraph/diff?service=${encodeURIComponent(service)}&type=${encodeURIComponent(type)}&hours=${hours || 24}`),
     flamegraphOne: (id) => request(`/v1/profiles/${id}/flamegraph`),
   },
   // Error tracking — projects hold the DSN key + alert channels; issues group

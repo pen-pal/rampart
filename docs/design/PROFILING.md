@@ -110,23 +110,27 @@ follow-up there too).
   `{name, value, children[]}`. Merging server-side means the browser ships a tree,
   not megabytes of samples.
 - `GET /v1/profiles/{id}/flamegraph` — the same tree for one profile.
+- `GET /v1/profiles/flamegraph/diff?service=&type=&hours=` — **diff** the most
+  recent window against the immediately preceding one; each node carries its
+  after value and the after−before `delta` (positive = hotter), so "what got
+  slower since the deploy" reads straight off the colors.
 
 The dashboard adds a **Profiling** view (`#/profiling`): service + type + window
-pickers, a flamegraph (icicle layout — root on top — rendered as inline SVG with
-hover tooltips and click-to-zoom into a subtree), and a sibling **top functions**
-table (self vs total value, the tabular companion to the visual, mirroring the
-APM Operations tab). No new JS dependency — the merge tree is small and the SVG
-rects are a `<div>`/`<svg>` map, consistent with how the trace waterfall and
-service map are drawn today.
+pickers, a flamegraph (icicle layout — root on top — `<div>` cells with hover
+tooltips and click-to-zoom into a subtree), a **Diff** toggle (red = hotter /
+blue = colder vs the preceding window), and a sibling **top functions** table
+(self vs total value, the tabular companion to the visual, mirroring the APM
+Operations tab). No new JS dependency — the merge tree is small and the cells are
+a positioned-`<div>` map, consistent with the trace waterfall + service map.
 
-A later pass can wire **trace → profile** correlation (jump from a slow span to
-the profile covering that window/service), closing the loop with the APM tier the
-same way logs↔traces already pivot.
+**Trace → profile** correlation is wired: a trace's detail links its root service
+to that service's flamegraph (`#/profiling?service=<svc>`), closing the loop with
+the APM tier the same way logs↔traces already pivot.
 
-## Follow-ups (explicitly out of v1)
+## Follow-ups
 
-- Trace↔profile correlation (span → covering profile).
-- Diff flamegraphs (A/B two windows — "what got slower since the deploy").
 - Server-side symbolization for unsymbolized native profiles (needs debug-info
   upload; large scope, like source-map symbolication in the error tier).
 - Profile-type alerting (e.g. "CPU in `service X` function `Y` > N% sustained").
+- Absolute-time trace↔profile correlation (a past span → the exact profile
+  covering its window, not just the service).

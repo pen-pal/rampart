@@ -213,6 +213,8 @@ function TraceDetail({ traceId, onBack }) {
       </div>
       <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 16 }}>
         {t('traces.span_count', { n: spans.length })} · {fmtMs(total / 1e6)} · <span className="mono">{traceId}</span>
+        {' · '}
+        <a href={`#/profiling?service=${encodeURIComponent(root.service_name)}`} style={{ color: 'var(--accent)' }}>{t('traces.open_profile')}</a>
       </div>
 
       <div className="card" style={{ padding: 16 }}>
