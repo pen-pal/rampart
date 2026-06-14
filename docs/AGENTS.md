@@ -14,6 +14,11 @@ Why you'd want one:
   panel that the Rampart server can't reach. The agent runs inside the
   network and **dials out** to the server; no inbound holes, no VPN.
 
+> Looking for "tunneling"? This is it — outbound-only reach into a private
+> network, no inbound exposure. Rampart deliberately doesn't ship an inline
+> tunnel/proxy data plane; see [Tunneling & private networks](design/TUNNELING.md)
+> for the stance and the alternatives.
+
 ## How it works
 
 ```

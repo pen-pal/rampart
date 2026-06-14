@@ -94,6 +94,7 @@ nav:
       - First-run walkthrough: WALKTHROUGH.md
   - Monitoring:
       - Remote probe agents: AGENTS.md
+      - Tunneling & private networks: design/TUNNELING.md
       - Cron-job monitoring: CRON-JOBS.md
       - Synthetic transactions: SYNTHETICS.md
       - Importers: IMPORTERS.md
