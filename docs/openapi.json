@@ -3506,6 +3506,46 @@
         }
       }
     },
+    "/v1/profiles/flamegraph/diff": {
+      "get": {
+        "tags": [
+          "Profiling"
+        ],
+        "summary": "Diff flamegraph (window vs preceding window)",
+        "description": "Compares the most-recent window of `hours` against the immediately preceding window of the same length. Each node carries its after value and the after\u2212before delta (positive = hotter).",
+        "parameters": [
+          {
+            "name": "service",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`{tree, after_samples, before_samples}` \u2014 diff tree (node.delta = after\u2212before)."
+          }
+        }
+      }
+    },
     "/v1/profiles/{id}/flamegraph": {
       "parameters": [
         {
