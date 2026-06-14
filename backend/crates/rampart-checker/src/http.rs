@@ -19,8 +19,10 @@ use crate::{ms_i32, Probe};
 use async_trait::async_trait;
 use once_cell::sync::OnceCell;
 use rampart_core::proxy::Proxy;
+use rampart_core::synthetic::Assertion;
 use rampart_core::{Heartbeat, Monitor, MonitorKind, MonitorStatus};
 use reqwest::{Client, ClientBuilder, Method, Version};
+use std::collections::BTreeMap;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
 use time::OffsetDateTime;
@@ -164,9 +166,31 @@ impl HttpProbe {
                 // the body is consumed (Response::version() borrows resp).
                 let version_check = http_version_matches(resp.version(), &monitor.config);
 
-                // For keyword/json_query monitors we need the body.
+                // Optional response assertions (status / header / json / body),
+                // the same engine synthetics use. Header map is captured here,
+                // before the body consumes `resp`.
+                let assertions: Vec<Assertion> = monitor
+                    .config
+                    .get("assertions")
+                    .and_then(|v| serde_json::from_value(v.clone()).ok())
+                    .unwrap_or_default();
+                let resp_headers: BTreeMap<String, String> = if assertions.is_empty() {
+                    BTreeMap::new()
+                } else {
+                    resp.headers()
+                        .iter()
+                        .filter_map(|(k, v)| {
+                            v.to_str()
+                                .ok()
+                                .map(|val| (k.as_str().to_ascii_lowercase(), val.to_string()))
+                        })
+                        .collect()
+                };
+
+                // Keyword/json_query need the body; so do any assertions.
                 let needs_body =
-                    matches!(monitor.kind, MonitorKind::Keyword | MonitorKind::JsonQuery);
+                    matches!(monitor.kind, MonitorKind::Keyword | MonitorKind::JsonQuery)
+                        || !assertions.is_empty();
                 let body_text = if needs_body {
                     match resp.text().await {
                         Ok(b) => Some(b.chars().take(524_288).collect::<String>()),
@@ -202,10 +226,22 @@ impl HttpProbe {
 
                 let version_ok = version_check.is_ok();
 
+                // Assertions: first failure (if any) becomes the down reason.
+                let assert_fail = if assertions.is_empty() {
+                    None
+                } else {
+                    crate::synthetic::evaluate_assertions(
+                        status_code,
+                        &resp_headers,
+                        body_text.as_deref().unwrap_or(""),
+                        &assertions,
+                    )
+                };
+
                 // upside_down inverts the pass/fail decision (useful for
                 // monitoring services that should be down, like a
                 // honeypot or staging instance).
-                let raw_ok = status_matches && body_ok && version_ok;
+                let raw_ok = status_matches && body_ok && version_ok && assert_fail.is_none();
                 let ok = if monitor.upside_down { !raw_ok } else { raw_ok };
 
                 Heartbeat {
@@ -225,6 +261,9 @@ impl HttpProbe {
                         // surface its clear message ("expected HTTP/2, got
                         // HTTP/1.1") rather than the generic match summary.
                         Some(version_msg.clone())
+                    } else if let Some(reason) = &assert_fail {
+                        // A failed assertion is specific — surface its reason.
+                        Some(format!("assertion failed: {reason}"))
                     } else {
                         Some(format!(
                             "status_match={status_matches} body_match={body_ok}"

@@ -276,6 +276,23 @@ fn assertion_failure(
     }
 }
 
+/// Evaluate a list of assertions against a single HTTP response. Returns the
+/// first failure reason, or None if all pass. Reused by the HTTP monitor probe
+/// so plain monitors get the same status/header/json/body checks as synthetics.
+/// `headers` keys must be lowercased. The body is parsed as JSON once (lazily)
+/// for any `json` assertions.
+pub fn evaluate_assertions(
+    status: i32,
+    headers: &BTreeMap<String, String>,
+    body: &str,
+    assertions: &[Assertion],
+) -> Option<String> {
+    let json_body = serde_json::from_str::<Value>(body).ok();
+    assertions
+        .iter()
+        .find_map(|a| assertion_failure(a, status, headers, &json_body, body))
+}
+
 fn op_word(op: CompareOp) -> &'static str {
     match op {
         CompareOp::Eq => "==",
@@ -304,5 +321,49 @@ fn down(
         msg: Some(msg.to_string()),
         retries: 0,
         important: false,
+    }
+}
+
+#[cfg(test)]
+mod assert_tests {
+    use super::evaluate_assertions;
+    use rampart_core::synthetic::{AssertKind, Assertion, CompareOp};
+    use std::collections::BTreeMap;
+
+    fn mk(kind: AssertKind, path: Option<&str>, op: CompareOp, value: &str) -> Assertion {
+        Assertion {
+            kind,
+            path: path.map(String::from),
+            op,
+            value: value.into(),
+        }
+    }
+
+    #[test]
+    fn passes_and_fails_across_kinds() {
+        let mut h = BTreeMap::new();
+        h.insert("content-type".to_string(), "application/json".to_string());
+        let body = r#"{"ok":true,"n":5}"#;
+
+        let pass = vec![
+            mk(AssertKind::Status, None, CompareOp::Eq, "200"),
+            mk(
+                AssertKind::Header,
+                Some("content-type"),
+                CompareOp::Contains,
+                "json",
+            ),
+            mk(AssertKind::Json, Some("ok"), CompareOp::Eq, "true"),
+            mk(AssertKind::Json, Some("n"), CompareOp::Gte, "5"),
+            mk(AssertKind::BodyContains, None, CompareOp::Eq, "\"n\":5"),
+        ];
+        assert_eq!(evaluate_assertions(200, &h, body, &pass), None);
+
+        // First failure is reported.
+        let fail = vec![mk(AssertKind::Json, Some("n"), CompareOp::Gt, "10")];
+        assert!(evaluate_assertions(200, &h, body, &fail).is_some());
+        // Missing header → fail.
+        let miss = vec![mk(AssertKind::Header, Some("x-nope"), CompareOp::Eq, "1")];
+        assert!(evaluate_assertions(200, &h, body, &miss).is_some());
     }
 }
