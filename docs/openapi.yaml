@@ -67,6 +67,8 @@ tags:
     description: External metric ingestion (Prometheus text format), series reads, and threshold alert rules. Editor writes; readonly reads.
   - name: Alerting
     description: Threshold alert rules over the error/trace/log observability tiers. Editor writes; readonly reads.
+  - name: Detection
+    description: SIEM-style log detection rules + their findings (occurrence-based matching with regex). Editor writes; readonly reads.
   - name: Escalations
     description: Escalation policies (ordered notification ladders) and episode acknowledge. Editor.
   - name: Traces
@@ -1548,6 +1550,59 @@ paths:
       summary: Delete a telemetry alert rule
       responses:
         '204': { description: Deleted. }
+
+  # ─────────────────────── Detection (SIEM) ─────────────────────────
+  /v1/detection-rules:
+    get:
+      tags: [Detection]
+      summary: List detection rules
+      responses:
+        '200': { description: 'Rules, incl. `last_checked_at` watermark.' }
+    post:
+      tags: [Detection]
+      summary: Create a detection rule
+      description: >-
+        A SIEM-style rule over the log tier. Each scheduler tick counts NEW log
+        records matching the rule (`service` scope, `min_level` OTLP severity
+        floor, optional `body_regex` case-insensitive POSIX regex); when the
+        count reaches `threshold` it raises a finding and notifies
+        `channel_ids`. `severity` is one of low/medium/high/critical. An invalid
+        `body_regex` is a 400. See docs/design/DETECTION.md.
+      responses:
+        '201': { description: Created rule. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /v1/detection-rules/findings:
+    get:
+      tags: [Detection]
+      summary: List detection findings
+      parameters:
+        - { name: open, in: query, required: false, schema: { type: boolean }, description: Only unacknowledged findings. }
+        - { name: limit, in: query, required: false, schema: { type: integer }, description: Max rows (default 100, capped 1000). }
+      responses:
+        '200': { description: 'Findings newest-first `{rule_name, severity, match_count, sample, service, window_from, window_to, acknowledged_at}`.' }
+  /v1/detection-rules/findings/{id}/ack:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Detection]
+      summary: Acknowledge a finding
+      responses:
+        '200': { description: The acknowledged finding. }
+        '404': { description: No such finding. }
+  /v1/detection-rules/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      tags: [Detection]
+      summary: Update a detection rule
+      responses:
+        '200': { description: Updated rule. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+    delete:
+      tags: [Detection]
+      summary: Delete a detection rule
+      responses:
+        '204': { description: Deleted (its findings cascade). }
 
   # ─────────────────────── Escalations ─────────────────────────
   /v1/escalation-policies:

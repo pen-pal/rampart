@@ -108,6 +108,7 @@ nav:
   - Alerting & response:
       - Metric rules: METRICS.md
       - Telemetry alert rules: design/ALERT-RULES.md
+      - Detection rules (SIEM): design/DETECTION.md
       - Escalation policies: ESCALATIONS.md
       - On-call rotations: ON-CALL.md
   - Ingest & API:

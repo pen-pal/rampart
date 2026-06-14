@@ -17,6 +17,14 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+- SIEM detection rules: occurrence-based rules over the log tier (service scope,
+  OTLP severity floor, case-insensitive body regex) that raise a finding and
+  notify channels when matches cross a threshold in a window. New
+  `/v1/detection-rules` CRUD + findings feed/acknowledge API, a `#/detection`
+  dashboard (Findings triage + Rules), migration 0090, and a restart-safe
+  watermarked evaluation tick. See docs/design/DETECTION.md.
+
 ---
 
 ## [0.19.0] — 2026-06-14
