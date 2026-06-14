@@ -194,6 +194,97 @@ pub fn to_folded_text(map: &FoldedMap) -> String {
     out
 }
 
+/// A node in a **diff** flamegraph. `value` is the inclusive value in the
+/// *after* window; `delta` is after − before for this exact stack-path
+/// (positive = got hotter, negative = got colder / disappeared). Includes paths
+/// present in *either* window so regressions and vanished frames both show.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct DiffNode {
+    pub name: String,
+    pub value: i64,
+    pub delta: i64,
+    pub children: Vec<DiffNode>,
+}
+
+/// Per-prefix inclusive totals: every stack contributes its value to each of
+/// its prefix paths (`a`, `a;b`, `a;b;c`). The basis for both flame trees and
+/// diffs without re-walking the tree.
+fn path_inclusive(map: &FoldedMap) -> BTreeMap<String, i64> {
+    let mut out: BTreeMap<String, i64> = BTreeMap::new();
+    for (stack, &value) in map {
+        let mut acc = String::new();
+        for frame in stack.split(';') {
+            if frame.is_empty() {
+                continue;
+            }
+            if !acc.is_empty() {
+                acc.push(';');
+            }
+            acc.push_str(frame);
+            *out.entry(acc.clone()).or_insert(0) += value;
+        }
+    }
+    out
+}
+
+/// Build a diff flamegraph tree comparing a `before` window to an `after` one.
+/// Each node carries its after-inclusive value and the after−before delta; the
+/// root totals both. Nodes from either window appear, so a frame that vanished
+/// shows as a full-negative delta. Children sorted by `|delta|` descending so
+/// the biggest movers render first.
+pub fn fold_to_diff_tree(before: &FoldedMap, after: &FoldedMap, root_name: &str) -> DiffNode {
+    let bi = path_inclusive(before);
+    let ai = path_inclusive(after);
+    let after_total: i64 = after.values().sum();
+    let before_total: i64 = before.values().sum();
+    let mut root = DiffNode {
+        name: root_name.to_string(),
+        value: after_total,
+        delta: after_total - before_total,
+        children: Vec::new(),
+    };
+    // Union of every path in either window; BTreeMap keys iterate sorted, so a
+    // parent path is always visited before its children.
+    let mut paths: BTreeSet<&str> = BTreeSet::new();
+    paths.extend(ai.keys().map(String::as_str));
+    paths.extend(bi.keys().map(String::as_str));
+    for path in paths {
+        let mut node = &mut root;
+        let mut acc = String::new();
+        for frame in path.split(';') {
+            if !acc.is_empty() {
+                acc.push(';');
+            }
+            acc.push_str(frame);
+            let idx = match node.children.iter().position(|c| c.name == frame) {
+                Some(i) => i,
+                None => {
+                    node.children.push(DiffNode {
+                        name: frame.to_string(),
+                        value: 0,
+                        delta: 0,
+                        children: Vec::new(),
+                    });
+                    node.children.len() - 1
+                }
+            };
+            node = &mut node.children[idx];
+            node.value = ai.get(&acc).copied().unwrap_or(0);
+            node.delta = node.value - bi.get(&acc).copied().unwrap_or(0);
+        }
+    }
+    sort_diff_tree(&mut root);
+    root
+}
+
+fn sort_diff_tree(node: &mut DiffNode) {
+    node.children
+        .sort_by(|a, b| b.delta.abs().cmp(&a.delta.abs()).then(a.name.cmp(&b.name)));
+    for c in &mut node.children {
+        sort_diff_tree(c);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -269,6 +360,32 @@ mod tests {
         let m = parse_folded("a;b 15\na;c 3\n");
         let text = to_folded_text(&m);
         assert_eq!(parse_folded(&text), m);
+    }
+
+    #[test]
+    fn diff_tree_deltas() {
+        let before = parse_folded("main;a 10\nmain;b 5\n"); // total 15
+        let after = parse_folded("main;a 4\nmain;b 5\nmain;c 7\n"); // total 16
+        let d = fold_to_diff_tree(&before, &after, "root");
+        assert_eq!(d.value, 16);
+        assert_eq!(d.delta, 1);
+        let main = &d.children[0];
+        assert_eq!(main.name, "main");
+        assert_eq!(main.delta, 1);
+        let by: BTreeMap<_, _> = main.children.iter().map(|c| (c.name.as_str(), c)).collect();
+        assert_eq!((by["a"].value, by["a"].delta), (4, -6));
+        assert_eq!(by["b"].delta, 0);
+        assert_eq!((by["c"].value, by["c"].delta), (7, 7)); // new frame
+    }
+
+    #[test]
+    fn diff_includes_vanished_frames() {
+        let before = parse_folded("gone 3\n");
+        let after = parse_folded("kept 2\n");
+        let d = fold_to_diff_tree(&before, &after, "root");
+        let by: BTreeMap<_, _> = d.children.iter().map(|c| (c.name.as_str(), c)).collect();
+        assert_eq!((by["gone"].value, by["gone"].delta), (0, -3));
+        assert_eq!(by["kept"].delta, 2);
     }
 
     #[test]
