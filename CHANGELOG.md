@@ -17,6 +17,15 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **Alert silencing / mute.** Suppress notifications during a deploy or known
+  noise — a silence is global or scoped to one monitor, with an optional expiry
+  (`/v1/silences`, new **Silences** view). Enforced at the notifier's single
+  dispatch chokepoint, so every alert path honours it (status flip, SLO,
+  metric/telemetry rules, and the escalation ladder); a manual channel test
+  always sends. Migration `0088`.
+
 ---
 
 ## [0.16.0] — 2026-06-14
