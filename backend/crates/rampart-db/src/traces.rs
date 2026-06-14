@@ -76,9 +76,25 @@ impl From<SummaryRow> for TraceSummary {
     }
 }
 
-/// Recent traces, newest first. One row per trace_id with its root span's
-/// service/operation, total span span, duration, and error count.
-pub async fn list_traces(pool: &DbPool, limit: i64) -> DbResult<Vec<TraceSummary>> {
+/// Filters for the trace list. All optional; `errors_only` false = no filter.
+#[derive(Default)]
+pub struct TraceFilter<'a> {
+    /// Trace involves this service (any span).
+    pub service: Option<&'a str>,
+    /// Minimum total trace duration in ms.
+    pub min_duration_ms: Option<f64>,
+    /// Only traces with at least one error span.
+    pub errors_only: bool,
+    /// Substring on root operation / root service / trace_id.
+    pub q: Option<&'a str>,
+    pub limit: i64,
+}
+
+/// Recent traces, newest first, filtered. One row per trace_id with its root
+/// span's service/operation, total duration, and error count. Filters apply
+/// post-aggregation (HAVING) so a service/duration/error/text query narrows the
+/// list without losing any of a matched trace's spans.
+pub async fn list_traces(pool: &DbPool, f: TraceFilter<'_>) -> DbResult<Vec<TraceSummary>> {
     let rows = sqlx::query_as!(
         SummaryRow,
         r#"
@@ -99,10 +115,22 @@ pub async fn list_traces(pool: &DbPool, limit: i64) -> DbResult<Vec<TraceSummary
             ORDER BY rr.start_ns LIMIT 1
         ) r ON true
         GROUP BY s.trace_id, r.service_name, r.name
+        HAVING ($2::text IS NULL OR bool_or(s.service_name = $2))
+           AND ($3::float8 IS NULL
+                OR (MAX(s.end_ns) - MIN(s.start_ns))::float8 / 1000000.0 >= $3)
+           AND (NOT $4 OR COUNT(*) FILTER (WHERE s.status_code = 2) > 0)
+           AND ($5::text IS NULL
+                OR r.name ILIKE '%' || $5 || '%'
+                OR r.service_name ILIKE '%' || $5 || '%'
+                OR s.trace_id ILIKE '%' || $5 || '%')
         ORDER BY MIN(s.received_at) DESC
         LIMIT $1
         "#,
-        limit.clamp(1, 500),
+        f.limit.clamp(1, 500),
+        f.service,
+        f.min_duration_ms,
+        f.errors_only,
+        f.q,
     )
     .fetch_all(pool)
     .await?;

@@ -25,14 +25,29 @@ pub fn router() -> Router<AppState> {
 #[derive(Deserialize)]
 struct ListQuery {
     limit: Option<i64>,
+    service: Option<String>,
+    min_duration_ms: Option<f64>,
+    #[serde(default)]
+    errors_only: bool,
+    q: Option<String>,
 }
 
 async fn list(
     State(s): State<AppState>,
-    Query(q): Query<ListQuery>,
+    Query(query): Query<ListQuery>,
 ) -> Result<Json<Vec<TraceSummary>>, ApiError> {
+    let ne = |o: &Option<String>| o.clone().filter(|x| !x.is_empty());
+    let service = ne(&query.service);
+    let q = ne(&query.q);
+    let filter = rampart_db::traces::TraceFilter {
+        service: service.as_deref(),
+        min_duration_ms: query.min_duration_ms,
+        errors_only: query.errors_only,
+        q: q.as_deref(),
+        limit: query.limit.unwrap_or(100),
+    };
     Ok(Json(
-        rampart_db::traces::list_traces(s.pool(), q.limit.unwrap_or(100)).await?,
+        rampart_db::traces::list_traces(s.pool(), filter).await?,
     ))
 }
 
