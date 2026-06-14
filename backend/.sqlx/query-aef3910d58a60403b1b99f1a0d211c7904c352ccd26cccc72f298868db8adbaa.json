@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT DISTINCT service_name AS \"service_name!\" FROM profiles ORDER BY service_name",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "service_name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "profiles",
+            "name": "service_name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "aef3910d58a60403b1b99f1a0d211c7904c352ccd26cccc72f298868db8adbaa"
+}

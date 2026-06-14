@@ -64,7 +64,7 @@ We built Rampart because we were tired of choosing between bloated SaaS tools an
 - **vs. SaaS (Datadog / Pingdom / Site24x7)** — Lives on your hardware, no per-monitor pricing, no log-volume bills, no data leaving your perimeter.
 - **vs. other self-hosted dashboards** — Broader probe catalog (DBs, banner protocols, Kafka, RADIUS, NTP), proper tag routing with folder ancestor inheritance, real audit log, Postgres instead of SQLite, a single Rust binary instead of a Node runtime + headless Chromium.
 - **vs. roll-your-own Prometheus blackbox** — Out of the box: status pages, incident posting, maintenance windows, dependency-aware alerting, and 130 outbound channels.
-- **vs. a separate APM/error stack (Datadog / Sentry / Grafana LGTM)** — Error tracking, traces, logs, and RUM live in the *same* binary as your uptime checks, speak OpenTelemetry + Sentry wire formats (no proprietary agent), and alert through the same channels — instead of standing up and paying for a second platform.
+- **vs. a separate APM/error stack (Datadog / Sentry / Grafana LGTM)** — Error tracking, traces, logs, RUM, and continuous profiling (flamegraphs) live in the *same* binary as your uptime checks, speak OpenTelemetry + Sentry + pprof wire formats (no proprietary agent), and alert through the same channels — instead of standing up and paying for a second platform.
 
 ---
 
@@ -122,6 +122,7 @@ self-hostable alternative to Datadog / Sentry / Site24x7 / ScoutAPM, in one bina
 | 🧵 **Traces / APM** | Span ingest, per-trace waterfall, service dependency map, and a per-operation **APM rollup** (calls, error rate, p50/p95/p99 latency). | **OpenTelemetry** OTLP/HTTP (JSON + protobuf, gzip) |
 | 📃 **Logs** | Severity + service filtering, full-text body search (`tsvector`), **live tail**, per-level volume bar, and trace↔log correlation. | **OpenTelemetry** OTLP logs |
 | 👁️ **RUM** | Browser snippet → Core Web Vitals (p75 LCP/INP/CLS), per-page vitals, and **JS error capture** into the error tier. | drop-in `<script>`, no build step |
+| 🔥 **Profiling** | Continuous profiling → **flamegraph** (icicle, click-to-zoom) + top-functions table, merged over a service/type window. | **pprof**, **OTLP profiles**, and folded text |
 
 Cross-tier by design: a trace links to the logs emitted under its `trace_id`,
 an error issue jumps to its trace, and a browser exception becomes an error issue.
@@ -177,7 +178,7 @@ rampart/
 └── backend/compose.yaml                  # dev stack (postgres only)
 ```
 
-> **Out of scope (deliberate):** Multi-region distributed probing, SLO error budgets, workspace multi-tenancy (Rampart is single-tenant by design). The observability tiers (error tracking, traces, logs, RUM) are scoped for small-team self-hosting, not hyperscale APM. See [CONTRIBUTING.md](CONTRIBUTING.md#scope-read-this-first) for the philosophy.
+> **Out of scope (deliberate):** Multi-region distributed probing, SLO error budgets, workspace multi-tenancy (Rampart is single-tenant by design). The observability tiers (error tracking, traces, logs, RUM, profiling) are scoped for small-team self-hosting, not hyperscale APM. See [CONTRIBUTING.md](CONTRIBUTING.md#scope-read-this-first) for the philosophy.
 
 ---
 
@@ -347,6 +348,7 @@ npx playwright test       # e2e on Chromium + Firefox + WebKit
 - [**docs/design/TRACES.md**](docs/design/TRACES.md) — OTLP traces / APM, waterfall, service map.
 - [**docs/design/LOGS.md**](docs/design/LOGS.md) — OTLP log ingest, full-text search, trace correlation.
 - [**docs/design/RUM.md**](docs/design/RUM.md) — Real User Monitoring + browser error capture.
+- [**docs/design/PROFILING.md**](docs/design/PROFILING.md) — Continuous profiling (pprof / OTLP / folded) + flamegraphs.
 - [**docs/INGEST.md**](docs/INGEST.md) — Inbound webhooks + the optional telemetry ingest token.
 
 **Alerting & response**

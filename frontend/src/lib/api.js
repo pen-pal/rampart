@@ -444,6 +444,22 @@ export const api = {
     services: () => request('/v1/logs/services'),
     levels: (service) => request(`/v1/logs/levels${service ? `?service=${encodeURIComponent(service)}` : ''}`),
   },
+  // Continuous profiling — folded/pprof/OTLP profiles, flamegraph on read.
+  profiles: {
+    list: (service, type, hours) => {
+      const qs = new URLSearchParams();
+      if (service) qs.set('service', service);
+      if (type)    qs.set('type', type);
+      if (hours)   qs.set('hours', String(hours));
+      const s = qs.toString();
+      return request(`/v1/profiles${s ? '?' + s : ''}`);
+    },
+    services: () => request('/v1/profiles/services'),
+    types: (service) => request(`/v1/profiles/types${service ? `?service=${encodeURIComponent(service)}` : ''}`),
+    flamegraph: (service, type, hours) =>
+      request(`/v1/profiles/flamegraph?service=${encodeURIComponent(service)}&type=${encodeURIComponent(type)}&hours=${hours || 24}`),
+    flamegraphOne: (id) => request(`/v1/profiles/${id}/flamegraph`),
+  },
   // Error tracking — projects hold the DSN key + alert channels; issues group
   // events by fingerprint.
   errorProjects: {
