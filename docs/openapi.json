@@ -77,6 +77,10 @@
       "description": "Log ingestion \u2014 OTLP log ingest + filtered read."
     },
     {
+      "name": "Profiling",
+      "description": "Continuous profiling \u2014 folded / pprof / OTLP-profiles ingest + flamegraph read."
+    },
+    {
       "name": "Errors",
       "description": "Error tracking \u2014 projects (DSN), issues, and Sentry-compatible ingest."
     },
@@ -3332,6 +3336,198 @@
         "responses": {
           "200": {
             "description": "`[[level, count], \u2026]` over the window (severity-volume bar)."
+          }
+        }
+      }
+    },
+    "/profiles/v1/folded": {
+      "post": {
+        "tags": [
+          "Profiling"
+        ],
+        "summary": "Ingest a folded-stack profile",
+        "description": "Brendan-Gregg folded text (`frame;frame value` per line). Public (network-scoped); honors the optional telemetry token + Content-Encoding. Query params: service, type, period_ns, duration_ns. See docs/design/PROFILING.md.",
+        "responses": {
+          "200": {
+            "description": "Empty `{}` = stored."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/profiles/v1/pprof": {
+      "post": {
+        "tags": [
+          "Profiling"
+        ],
+        "summary": "Ingest a pprof profile",
+        "description": "Gzipped pprof protobuf (Go runtime/pprof, the Rust pprof crate, py-spy, async-profiler, Pyroscope/Parca). Type defaults to the pprof sample-type name. Query params: service, type.",
+        "responses": {
+          "200": {
+            "description": "Empty `{}` = stored."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/otlp/v1development/profiles": {
+      "post": {
+        "tags": [
+          "Profiling"
+        ],
+        "summary": "OTLP profiles ingest (v1development)",
+        "description": "Accepts an OTLP ExportProfilesServiceRequest (protobuf). One request may carry many profiles; each resource/scope profile is lowered to a flamegraph. Public, on the same /otlp surface as traces + logs.",
+        "responses": {
+          "200": {
+            "description": "Empty `{}` = stored."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/v1/profiles": {
+      "get": {
+        "tags": [
+          "Profiling"
+        ],
+        "summary": "List profiles in a window",
+        "parameters": [
+          {
+            "name": "service",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Profile metadata newest-first (id, received_at, service, type, sample_count, \u2026)."
+          }
+        }
+      }
+    },
+    "/v1/profiles/services": {
+      "get": {
+        "tags": [
+          "Profiling"
+        ],
+        "summary": "Distinct services with profiles",
+        "responses": {
+          "200": {
+            "description": "Service names for the picker."
+          }
+        }
+      }
+    },
+    "/v1/profiles/types": {
+      "get": {
+        "tags": [
+          "Profiling"
+        ],
+        "summary": "Distinct profile types",
+        "parameters": [
+          {
+            "name": "service",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Profile-type names",
+            "optionally scoped to a service.": null
+          }
+        }
+      }
+    },
+    "/v1/profiles/flamegraph": {
+      "get": {
+        "tags": [
+          "Profiling"
+        ],
+        "summary": "Merged flamegraph for a service+type window",
+        "parameters": [
+          {
+            "name": "service",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`{tree, top, sample_count}` \u2014 inclusive-value flame tree + top functions."
+          }
+        }
+      }
+    },
+    "/v1/profiles/{id}/flamegraph": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Profiling"
+        ],
+        "summary": "Flamegraph for a single profile",
+        "responses": {
+          "200": {
+            "description": "`{tree, top, sample_count}` for the one profile."
+          },
+          "404": {
+            "description": "No profile with that id."
           }
         }
       }
