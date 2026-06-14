@@ -14,6 +14,7 @@ pub mod api_keys;
 pub mod audit;
 pub mod auth;
 pub mod delivery_log;
+pub mod detection;
 pub mod error_ingest;
 pub mod error_tracking;
 pub mod escalations;
@@ -158,6 +159,8 @@ pub fn v1_protected() -> Router<AppState> {
         .nest("/on-call-schedules", on_call::router())
         // /v1/telemetry-rules CRUD — threshold alerts over errors/traces/logs
         .nest("/telemetry-rules", telemetry_rules::router())
+        // /v1/detection-rules — SIEM log detection rules + their findings
+        .nest("/detection-rules", detection::router())
         // /v1/silences — mute alerts during deploys / known noise (editor)
         .nest("/silences", silences::router())
         // /v1/maintenance-windows CRUD + attach/detach
