@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronLeft, Loader2, AlertCircle, ScrollText, Search, RefreshCw } from 'lucide-react';
 import { api, useApi, formatClock, formatRelative } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
@@ -43,14 +43,26 @@ export default function Logs({ traceId }) {
   const [applied, setApplied] = useState({ service: '', level: '', q: '' });
   const [reloadKey, setReloadKey] = useState(0);
   const [expanded, setExpanded] = useState(null);
+  const [live, setLive] = useState(false);
+
+  // Live tail: poll the filtered query every 3s while enabled. Polling (vs an
+  // SSE stream) reads from the DB, so it works across replicas without a
+  // per-process log broadcast.
+  useEffect(() => {
+    if (!live) return undefined;
+    const h = setInterval(() => setReloadKey(k => k + 1), 3000);
+    return () => clearInterval(h);
+  }, [live]);
 
   const svcState = useApi(() => api.logs.services(), []);
   const logsState = useApi(
     () => api.logs.query({ service: applied.service, level: applied.level, q: applied.q, trace_id: traceId || undefined, limit: 300 }),
     [applied, reloadKey, traceId],
   );
+  const levelsState = useApi(() => api.logs.levels(applied.service), [applied.service, reloadKey]);
   const services = svcState.data || [];
   const logs = logsState.data || [];
+  const levelCounts = levelsState.data || [];
 
   const apply = () => setApplied({ service, level, q });
 
@@ -87,7 +99,25 @@ export default function Logs({ traceId }) {
           </div>
           <button className="btn" onClick={apply}>{t('logs.apply')}</button>
           <button className="btn btn-ghost" onClick={() => setReloadKey(k => k + 1)} title={t('logs.refresh')}><RefreshCw size={14}/></button>
+          <button className={`btn ${live ? 'btn-accent' : 'btn-ghost'}`} onClick={() => setLive(v => !v)} title={t('logs.live_hint')}>
+            <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: live ? '#fff' : 'var(--text-3)', marginRight: 6, verticalAlign: 'middle' }}/>
+            {t('logs.live')}
+          </button>
         </div>
+
+        {levelCounts.length > 0 && (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em' }}>{t('logs.levels_in_window')}</span>
+            {levelCounts.map(([lvl, count]) => (
+              <button key={lvl} className={`lvl lvl-${lvl}`}
+                style={{ cursor: 'pointer', border: 'none', font: 'inherit' }}
+                title={t('logs.filter_to_level')}
+                onClick={() => { setLevel(lvl); setApplied(a => ({ ...a, level: lvl })); }}>
+                {lvl} {count}
+              </button>
+            ))}
+          </div>
+        )}
 
         {logsState.error && <div className="banner-err"><AlertCircle size={14} style={{ verticalAlign: '-2px', marginRight: 6 }}/>{t('logs.load_error')}</div>}
 
