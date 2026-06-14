@@ -1594,10 +1594,10 @@ paths:
       tags: [Detection]
       summary: Dry-run a rule spec over recent logs
       description: >-
-        Run a match spec (`service`, `min_level`, `body_regex`,
-        `window_seconds`) over the trailing window without saving a rule or
-        raising a finding — the "test rule" path for authoring. An invalid
-        `body_regex` is a 400.
+        Run a match spec (`service`, `min_level`, `body_regex`, `attr_key` /
+        `attr_val`, `window_seconds`) over the trailing window without saving a
+        rule or raising a finding — the "test rule" path for authoring. An
+        invalid `body_regex` is a 400.
       responses:
         '200': { description: '`{count, samples[]}` — match count + up to 5 newest matching log lines.' }
         '400': { $ref: '#/components/responses/BadRequest' }

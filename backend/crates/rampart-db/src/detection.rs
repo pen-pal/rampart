@@ -20,6 +20,8 @@ struct RuleRow {
     service: String,
     min_level: i16,
     body_regex: String,
+    attr_key: String,
+    attr_val: String,
     threshold: i32,
     window_seconds: i32,
     channel_ids: Vec<Uuid>,
@@ -38,6 +40,8 @@ impl From<RuleRow> for DetectionRule {
             service: r.service,
             min_level: r.min_level,
             body_regex: r.body_regex,
+            attr_key: r.attr_key,
+            attr_val: r.attr_val,
             threshold: r.threshold,
             window_seconds: r.window_seconds,
             channel_ids: r
@@ -107,7 +111,7 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<DetectionRule>> {
         RuleRow,
         r#"
         SELECT id, name, description, enabled, severity, service, min_level,
-               body_regex, threshold, window_seconds,
+               body_regex, attr_key, attr_val, threshold, window_seconds,
                channel_ids AS "channel_ids!", last_checked_at, created_at
         FROM detection_rules
         ORDER BY created_at
@@ -123,7 +127,7 @@ pub async fn get(pool: &DbPool, id: DetectionRuleId) -> DbResult<DetectionRule> 
         RuleRow,
         r#"
         SELECT id, name, description, enabled, severity, service, min_level,
-               body_regex, threshold, window_seconds,
+               body_regex, attr_key, attr_val, threshold, window_seconds,
                channel_ids AS "channel_ids!", last_checked_at, created_at
         FROM detection_rules
         WHERE id = $1
@@ -143,8 +147,8 @@ pub async fn create(pool: &DbPool, input: NewDetectionRule) -> DbResult<Detectio
         r#"
         INSERT INTO detection_rules
             (id, name, description, enabled, severity, service, min_level,
-             body_regex, threshold, window_seconds, channel_ids)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+             body_regex, attr_key, attr_val, threshold, window_seconds, channel_ids)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         "#,
         id.0,
         input.name,
@@ -154,6 +158,8 @@ pub async fn create(pool: &DbPool, input: NewDetectionRule) -> DbResult<Detectio
         input.service,
         input.min_level,
         input.body_regex,
+        input.attr_key,
+        input.attr_val,
         input.threshold,
         input.window_seconds,
         &channel_ids,
@@ -179,9 +185,11 @@ pub async fn update(
             service        = COALESCE($6, service),
             min_level      = COALESCE($7, min_level),
             body_regex     = COALESCE($8, body_regex),
-            threshold      = COALESCE($9, threshold),
-            window_seconds = COALESCE($10, window_seconds),
-            channel_ids    = COALESCE($11, channel_ids)
+            attr_key       = COALESCE($9, attr_key),
+            attr_val       = COALESCE($10, attr_val),
+            threshold      = COALESCE($11, threshold),
+            window_seconds = COALESCE($12, window_seconds),
+            channel_ids    = COALESCE($13, channel_ids)
         WHERE id = $1
         "#,
         id.0,
@@ -192,6 +200,8 @@ pub async fn update(
         patch.service,
         patch.min_level,
         patch.body_regex,
+        patch.attr_key,
+        patch.attr_val,
         patch.threshold,
         patch.window_seconds,
         channel_ids.as_deref(),
@@ -225,11 +235,14 @@ pub struct PreviewResult {
 /// Run a rule's match spec over the trailing `window_seconds` of logs without
 /// persisting anything — the "test this rule" path. Caller validates
 /// `body_regex` first (see [`regex_is_valid`]) so an invalid pattern is a 400.
+#[allow(clippy::too_many_arguments)]
 pub async fn preview(
     pool: &DbPool,
     service: &str,
     min_level: i16,
     body_regex: &str,
+    attr_key: &str,
+    attr_val: &str,
     window_seconds: i32,
 ) -> DbResult<PreviewResult> {
     let window = window_seconds as f64;
@@ -241,11 +254,14 @@ pub async fn preview(
           AND ($2 = '' OR service_name = $2)
           AND severity >= $3
           AND ($4 = '' OR body ~* $4)
+          AND ($5 = '' OR attributes->>$5 = $6)
         "#,
         window,
         service,
         min_level,
         body_regex,
+        attr_key,
+        attr_val,
     )
     .fetch_one(pool)
     .await?;
@@ -258,6 +274,7 @@ pub async fn preview(
           AND ($2 = '' OR service_name = $2)
           AND severity >= $3
           AND ($4 = '' OR body ~* $4)
+          AND ($5 = '' OR attributes->>$5 = $6)
         ORDER BY ts DESC
         LIMIT 5
         "#,
@@ -265,6 +282,8 @@ pub async fn preview(
         service,
         min_level,
         body_regex,
+        attr_key,
+        attr_val,
     )
     .fetch_all(pool)
     .await?;
@@ -304,6 +323,7 @@ pub async fn evaluate_tick(pool: &DbPool) -> DbResult<Vec<FindingEvent>> {
              AND ($3 = '' OR l.service_name = $3)
              AND l.severity >= $4
              AND ($5 = '' OR l.body ~* $5)
+             AND ($6 = '' OR l.attributes->>$6 = $7)
             GROUP BY b.wfrom, b.wto
             "#,
             rule.last_checked_at,
@@ -311,6 +331,8 @@ pub async fn evaluate_tick(pool: &DbPool) -> DbResult<Vec<FindingEvent>> {
             rule.service,
             rule.min_level,
             rule.body_regex,
+            rule.attr_key,
+            rule.attr_val,
         )
         .fetch_one(pool)
         .await?;
@@ -326,6 +348,7 @@ pub async fn evaluate_tick(pool: &DbPool) -> DbResult<Vec<FindingEvent>> {
                   AND ($3 = '' OR service_name = $3)
                   AND severity >= $4
                   AND ($5 = '' OR body ~* $5)
+                  AND ($6 = '' OR attributes->>$6 = $7)
                 ORDER BY ts DESC
                 LIMIT 1
                 "#,
@@ -334,6 +357,8 @@ pub async fn evaluate_tick(pool: &DbPool) -> DbResult<Vec<FindingEvent>> {
                 rule.service,
                 rule.min_level,
                 rule.body_regex,
+                rule.attr_key,
+                rule.attr_val,
             )
             .fetch_optional(pool)
             .await?

@@ -27,6 +27,7 @@ A rule matches a log record when all of its set constraints hold:
 | `service` | exact `service_name` | any service |
 | `min_level` | OTLP severity-number floor (`severity >= n`) | any severity |
 | `body_regex` | case-insensitive POSIX regex on the body (Postgres `~*`) | any body |
+| `attr_key` / `attr_val` | require `attributes->>attr_key = attr_val` (structured field match) | (empty key) any |
 
 `severity` (low / medium / high / critical) is the analyst-facing label carried
 onto every finding; `threshold` is how many matches in a window raise one.

@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT LEFT(body, 500)\n                FROM logs\n                WHERE ts > $1 AND ts <= $2\n                  AND ($3 = '' OR service_name = $3)\n                  AND severity >= $4\n                  AND ($5 = '' OR body ~* $5)\n                  AND ($6 = '' OR attributes->>$6 = $7)\n                ORDER BY ts DESC\n                LIMIT 1\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "left",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Timestamptz",
+        "Text",
+        "Int2",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "42f882af8ccc25906b84b52f1ff843aecfbd9106fcc3b240dfda42d92ccec041"
+}

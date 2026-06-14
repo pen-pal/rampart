@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, name, description, enabled, severity, service, min_level,\n               body_regex, threshold, window_seconds,\n               channel_ids AS \"channel_ids!\", last_checked_at, created_at\n        FROM detection_rules\n        WHERE id = $1\n        ",
+  "query": "\n        SELECT id, name, description, enabled, severity, service, min_level,\n               body_regex, attr_key, attr_val, threshold, window_seconds,\n               channel_ids AS \"channel_ids!\", last_checked_at, created_at\n        FROM detection_rules\n        ORDER BY created_at\n        ",
   "describe": {
     "columns": [
       {
@@ -93,6 +93,28 @@
       },
       {
         "ordinal": 8,
+        "name": "attr_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "detection_rules",
+            "name": "attr_key"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "attr_val",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "detection_rules",
+            "name": "attr_val"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
         "name": "threshold",
         "type_info": "Int4",
         "origin": {
@@ -103,7 +125,7 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 11,
         "name": "window_seconds",
         "type_info": "Int4",
         "origin": {
@@ -114,7 +136,7 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 12,
         "name": "channel_ids!",
         "type_info": "UuidArray",
         "origin": {
@@ -125,7 +147,7 @@
         }
       },
       {
-        "ordinal": 11,
+        "ordinal": 13,
         "name": "last_checked_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -136,7 +158,7 @@
         }
       },
       {
-        "ordinal": 12,
+        "ordinal": 14,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -148,11 +170,11 @@
       }
     ],
     "parameters": {
-      "Left": [
-        "Uuid"
-      ]
+      "Left": []
     },
     "nullable": [
+      false,
+      false,
       false,
       false,
       false,
@@ -168,5 +190,5 @@
       false
     ]
   },
-  "hash": "72b559bf545f13315c7103380172b3c2b82dd1c91e82c06792fc364ddfe2fac2"
+  "hash": "d91ef585c898370ed287a00c4282b05381e4e692034af27d720fd0855bf30241"
 }

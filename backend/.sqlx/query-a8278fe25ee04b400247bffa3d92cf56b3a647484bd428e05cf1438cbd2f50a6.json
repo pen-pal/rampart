@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT COUNT(*) AS \"count!\"\n        FROM logs\n        WHERE ts >= now() - make_interval(secs => $1)\n          AND ($2 = '' OR service_name = $2)\n          AND severity >= $3\n          AND ($4 = '' OR body ~* $4)\n          AND ($5 = '' OR attributes->>$5 = $6)\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Float8",
+        "Text",
+        "Int2",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "a8278fe25ee04b400247bffa3d92cf56b3a647484bd428e05cf1438cbd2f50a6"
+}

@@ -18,6 +18,8 @@ fn rule(body_regex: &str, threshold: i32) -> NewDetectionRule {
         service: String::new(),
         min_level: 0,
         body_regex: body_regex.to_string(),
+        attr_key: String::new(),
+        attr_val: String::new(),
         threshold,
         window_seconds: 300,
         enabled: true,
@@ -96,6 +98,40 @@ async fn service_scope_and_severity_floor(pool: PgPool) {
     let ev = detection::evaluate_tick(&pool).await.unwrap();
     assert_eq!(ev.len(), 1);
     assert_eq!(ev[0].finding.service.as_deref(), Some("auth"));
+}
+
+async fn insert_log_attr(pool: &PgPool, service: &str, severity: i16, body: &str, attrs: serde_json::Value) {
+    sqlx::query!(
+        r#"INSERT INTO logs (id, ts, severity, severity_text, service_name, body, attributes, received_at)
+           VALUES ($1, now(), $2, NULL, $3, $4, $5, now())"#,
+        Uuid::now_v7(),
+        severity,
+        service,
+        body,
+        attrs,
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn attribute_key_match(pool: PgPool) {
+    let mut nr = rule("", 1);
+    nr.attr_key = "event.action".to_string();
+    nr.attr_val = "user.delete".to_string();
+    detection::create(&pool, nr).await.unwrap();
+
+    // Wrong action, and a log with no attributes → no match.
+    insert_log_attr(&pool, "auth", 9, "a", serde_json::json!({"event.action": "user.login"})).await;
+    insert_log_attr(&pool, "auth", 9, "b", serde_json::json!({})).await;
+    assert!(detection::evaluate_tick(&pool).await.unwrap().is_empty());
+
+    // Matching attribute → fires.
+    insert_log_attr(&pool, "auth", 9, "c", serde_json::json!({"event.action": "user.delete"})).await;
+    let ev = detection::evaluate_tick(&pool).await.unwrap();
+    assert_eq!(ev.len(), 1);
+    assert_eq!(ev[0].finding.match_count, 1);
 }
 
 #[sqlx::test(migrations = "../../migrations")]
