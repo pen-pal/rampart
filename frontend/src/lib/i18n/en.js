@@ -1049,6 +1049,12 @@ const en = {
   'settings.ingest.token_hint':      'Send it from an OTel exporter as an Authorization: Bearer <token> header (or X-Rampart-Token). For the RUM snippet, add data-token="<token>" to the script tag — note that a browser token is necessarily public, so it is an anti-abuse gate, not a secret.',
   'settings.ingest.show':            'Show',
   'settings.ingest.hide':            'Hide',
+  'settings.siem.title':             'SIEM / syslog export',
+  'settings.siem.subtitle':          'Stream the audit log (logins, failed logins, 2FA failures, config changes) to an external sink so a SIEM can ingest it. Forwarded by the leader; off by default.',
+  'settings.siem.enable':            'Enable export',
+  'settings.siem.kind':              'Sink',
+  'settings.siem.target':            'Target',
+  'settings.siem.target_hint':       'Webhook: a URL we POST a JSON array of audit entries to. Syslog: host:port we send one RFC5424 UDP line per entry to.',
   'settings.ingest.err_save':        'Save failed.',
 
   // ── security ─────────────────────────────────────────────────────
