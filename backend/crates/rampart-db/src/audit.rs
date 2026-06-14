@@ -36,13 +36,32 @@ pub struct NewEntry<'a> {
     pub user_agent: Option<&'a str>,
 }
 
+/// Advisory-lock key serializing audit appends so the hash chain stays linear.
+const AUDIT_CHAIN_LOCK: i64 = 0x4155_4449; // "AUDI"
+
 pub async fn insert(pool: &DbPool, entry: NewEntry<'_>) -> DbResult<()> {
-    sqlx::query!(
+    let mut tx = pool.begin().await?;
+    // Serialize appends — two concurrent inserts must not fork the chain.
+    sqlx::query("SELECT pg_advisory_xact_lock($1)")
+        .bind(AUDIT_CHAIN_LOCK)
+        .execute(&mut *tx)
+        .await?;
+    // Current chain tip (NULL for the first hashed row).
+    let prev_hash: Option<String> = sqlx::query_scalar::<_, Option<String>>(
+        "SELECT hash FROM audit_log ORDER BY id DESC LIMIT 1",
+    )
+    .fetch_optional(&mut *tx)
+    .await?
+    .flatten();
+
+    // Insert first to get the BIGSERIAL id + ts that feed the hash.
+    let row = sqlx::query!(
         r#"
         INSERT INTO audit_log
             (actor_user_id, actor_api_key_id, action, resource_kind,
-             resource_id, payload, ip_addr, user_agent)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+             resource_id, payload, ip_addr, user_agent, prev_hash)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        RETURNING id, ts
         "#,
         entry.actor_user_id.map(|u| u.0),
         entry.actor_api_key_id.map(|k| k.0),
@@ -52,10 +71,148 @@ pub async fn insert(pool: &DbPool, entry: NewEntry<'_>) -> DbResult<()> {
         entry.payload,
         entry.ip_addr,
         entry.user_agent,
+        prev_hash,
     )
-    .execute(pool)
+    .fetch_one(&mut *tx)
     .await?;
+
+    let hash = chain_hash(
+        prev_hash.as_deref(),
+        row.id,
+        row.ts,
+        entry.action,
+        entry.resource_kind,
+        entry.resource_id,
+        entry.actor_user_id.map(|u| u.0),
+        entry.actor_api_key_id.map(|k| k.0),
+        entry.payload.as_ref(),
+        entry.ip_addr.map(|i| i.to_string()).as_deref(),
+        entry.user_agent,
+    );
+    sqlx::query!("UPDATE audit_log SET hash = $2 WHERE id = $1", row.id, hash)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
     Ok(())
+}
+
+/// HMAC-SHA256 (keyed by RAMPART_SECRET_KEY, kept outside the DB) over the
+/// previous hash + this row's immutable content; SHA-256 fallback when no key
+/// is configured. Hex-encoded. Same inputs on insert + verify.
+#[allow(clippy::too_many_arguments)]
+fn chain_hash(
+    prev: Option<&str>,
+    id: i64,
+    ts: OffsetDateTime,
+    action: &str,
+    resource_kind: &str,
+    resource_id: Option<Uuid>,
+    actor_user: Option<Uuid>,
+    actor_key: Option<Uuid>,
+    payload: Option<&serde_json::Value>,
+    ip: Option<&str>,
+    user_agent: Option<&str>,
+) -> String {
+    let opt = |s: Option<String>| s.unwrap_or_default();
+    // \x1e (record separator) between fields so values can't run together.
+    let canonical = [
+        prev.unwrap_or("").to_string(),
+        id.to_string(),
+        ts.unix_timestamp_nanos().to_string(),
+        action.to_string(),
+        resource_kind.to_string(),
+        opt(resource_id.map(|u| u.to_string())),
+        opt(actor_user.map(|u| u.to_string())),
+        opt(actor_key.map(|u| u.to_string())),
+        opt(payload.map(|p| p.to_string())),
+        opt(ip.map(|s| s.to_string())),
+        opt(user_agent.map(|s| s.to_string())),
+    ]
+    .join("\x1e");
+    mac_hex(canonical.as_bytes())
+}
+
+fn mac_key() -> Option<Vec<u8>> {
+    let raw = std::env::var("RAMPART_SECRET_KEY").ok()?;
+    let s = raw.trim();
+    if s.len() == 64 {
+        if let Ok(v) = hex::decode(s) {
+            return Some(v);
+        }
+    }
+    base64::Engine::decode(&base64::engine::general_purpose::STANDARD, s).ok()
+}
+
+fn mac_hex(data: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    match mac_key() {
+        Some(key) => {
+            use hmac::{Hmac, Mac};
+            let mut m = <Hmac<Sha256>>::new_from_slice(&key).expect("hmac accepts any key length");
+            m.update(data);
+            hex::encode(m.finalize().into_bytes())
+        }
+        None => hex::encode(Sha256::digest(data)),
+    }
+}
+
+/// Result of [`verify_chain`].
+#[derive(Debug, Clone, Serialize)]
+pub struct VerifyReport {
+    pub ok: bool,
+    pub checked: i64,
+    /// First row whose stored hash / linkage doesn't match — i.e. where the
+    /// chain was tampered with (or truncated before).
+    pub first_bad_id: Option<i64>,
+}
+
+/// Re-walk the hash chain (rows with a hash, oldest first) and recompute each
+/// entry's hash. Any edit/delete/reorder breaks the chain at the affected row.
+pub async fn verify_chain(pool: &DbPool) -> DbResult<VerifyReport> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT id, ts, action, resource_kind, resource_id, payload,
+               ip_addr AS "ip_addr: IpNetwork", user_agent,
+               actor_user_id, actor_api_key_id, prev_hash, hash
+        FROM audit_log
+        WHERE hash IS NOT NULL
+        ORDER BY id ASC
+        "#,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let mut prev: Option<String> = None;
+    let mut checked = 0i64;
+    for r in rows {
+        let expect = chain_hash(
+            prev.as_deref(),
+            r.id,
+            r.ts,
+            &r.action,
+            &r.resource_kind,
+            r.resource_id,
+            r.actor_user_id,
+            r.actor_api_key_id,
+            r.payload.as_ref(),
+            r.ip_addr.map(|i| i.to_string()).as_deref(),
+            r.user_agent.as_deref(),
+        );
+        if r.prev_hash.as_deref() != prev.as_deref() || r.hash.as_deref() != Some(&expect) {
+            return Ok(VerifyReport {
+                ok: false,
+                checked,
+                first_bad_id: Some(r.id),
+            });
+        }
+        prev = r.hash;
+        checked += 1;
+    }
+    Ok(VerifyReport {
+        ok: true,
+        checked,
+        first_bad_id: None,
+    })
 }
 
 pub struct AuditFilter<'a> {

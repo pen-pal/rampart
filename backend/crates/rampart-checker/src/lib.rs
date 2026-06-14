@@ -152,6 +152,19 @@ impl Probes {
     /// wired up, so the scheduler doesn't need to know which probes
     /// exist.
     pub async fn run(&self, monitor: &Monitor) -> Heartbeat {
+        // Central SSRF guard for connect-based protocol / DB / banner probes.
+        // HTTP-family, TCP and synthetic guard themselves (TCP pins the vetted
+        // addresses; synthetic is per-step); lookup-only kinds (DNS/Domain/
+        // RDAP/DoH), multicast discovery, and hostless kinds (Push/Docker
+        // daemon) are exempt. Blocks loopback/link-local/metadata always, and
+        // private ranges under RAMPART_SSRF_BLOCK_PRIVATE.
+        if let Some((host, port)) = ssrf_target(monitor) {
+            if let Err(blocked) =
+                ssrf::resolve_guarded(&host, port, ssrf::block_private_enabled()).await
+            {
+                return ssrf_blocked(monitor.id, &blocked.to_string());
+            }
+        }
         match monitor.kind {
             MonitorKind::Http | MonitorKind::Keyword | MonitorKind::JsonQuery => {
                 self.http.run(monitor).await
@@ -199,6 +212,37 @@ impl Probes {
 impl Default for Probes {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// The (host, port) a probe will connect to, for the central SSRF guard, or
+/// `None` for kinds that self-guard, only do DNS lookups, or have no remote
+/// host. `port` only seeds DNS resolution — the IP block check is port-agnostic.
+fn ssrf_target(m: &Monitor) -> Option<(String, u16)> {
+    use MonitorKind::*;
+    match m.kind {
+        // Guarded at the probe level, lookup-only, or no remote connect:
+        Http | Keyword | JsonQuery | Tcp | Synthetic | Dns | Domain | Rdap | Doh | Push
+        | Browser | Docker | Mdns | Ssdp => None,
+        // Everything else connects to monitor.hostname:port.
+        _ => {
+            let host = m.hostname.clone().filter(|h| !h.trim().is_empty())?;
+            let port = m.port.unwrap_or(443).clamp(0, 65535) as u16;
+            Some((host, port))
+        }
+    }
+}
+
+fn ssrf_blocked(monitor_id: MonitorId, reason: &str) -> Heartbeat {
+    Heartbeat {
+        monitor_id,
+        ts: OffsetDateTime::now_utc(),
+        status: MonitorStatus::Down,
+        latency_ms: None,
+        status_code: None,
+        msg: Some(reason.to_string()),
+        retries: 0,
+        important: false,
     }
 }
 

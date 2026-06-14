@@ -28,6 +28,7 @@ argon2      = { workspace = true }
 aes-gcm     = { workspace = true }
 base64      = { workspace = true }
 once_cell   = { workspace = true }
+hmac        = { workspace = true }
 
 [dev-dependencies]
 rampart-core = { path = "../rampart-core", features = ["testing"] }

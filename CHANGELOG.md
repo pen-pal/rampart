@@ -17,6 +17,31 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Security
+
+- **Tamper-evident audit log.** Audit rows are now linked in a hash chain —
+  each row stores `HMAC-SHA256(RAMPART_SECRET_KEY, prev_hash ‖ row)` (SHA-256
+  fallback with no key). Because the MAC key lives outside the database, a party
+  who can write to the DB can't edit, delete or reorder history without breaking
+  the chain undetectably. `GET /v1/audit-log/verify` (admin) re-walks it and
+  reports the first tampered row. Appends are serialized (advisory lock) so the
+  chain stays linear; pre-existing rows are exempt (chain covers entries written
+  after the upgrade).
+- **SMTP + ingest secrets encrypted at rest.** Extends the at-rest encryption
+  to the credential-bearing `settings` rows — the SMTP password and the
+  telemetry ingest token are now sealed with the same AES-GCM envelope,
+  transparently to readers (the notifier's SMTP loader, the ingest-token
+  check). Closes the gap where channel configs were encrypted but these
+  single secrets stayed plaintext.
+- **SSRF guard extended to all connect-based probes.** A central guard in the
+  probe dispatch now vets every protocol/DB/banner probe (Postgres, MySQL,
+  MSSQL, Redis, Mongo, Memcached, Cassandra, NATS, LDAP, AMQP, MQTT, Kafka,
+  gRPC, SNMP, RADIUS, NTP, WebSocket, TLS, SSH/SMTP/IMAP/FTP/POP3 banners,
+  Steam) against the same loopback/link-local/metadata (+ opt-in private)
+  blocklist — closing the gap where those kinds could reach internal hosts.
+  HTTP/TCP/synthetic keep their own (address-pinning) guards; DNS/Domain/RDAP/
+  DoH and hostless kinds are exempt by design.
+
 ---
 
 ## [0.9.0] — 2026-06-14

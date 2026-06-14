@@ -18,6 +18,16 @@ pub fn router() -> Router<AppState> {
         .route("/", get(list))
         .route("/csv", get(list_csv))
         .route("/export.csv", get(export_csv))
+        .route("/verify", get(verify))
+}
+
+/// Re-walk the audit hash chain and report whether it's intact. A non-ok
+/// result with `first_bad_id` means a row at/after that id was edited, deleted
+/// or reordered (the chain no longer recomputes).
+async fn verify(
+    State(s): State<AppState>,
+) -> Result<Json<rampart_db::audit::VerifyReport>, ApiError> {
+    Ok(Json(rampart_db::audit::verify_chain(s.pool()).await?))
 }
 
 #[derive(Deserialize)]
