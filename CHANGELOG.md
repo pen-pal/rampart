@@ -17,6 +17,10 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+---
+
+## [0.23.0] — 2026-06-14
+
 ### Added
 - Detection rules: optional **attribute-key match** (`attr_key` = `attr_val`
   against a log's JSONB `attributes`), so a rule can key off a structured field
@@ -1120,7 +1124,8 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 
 ---
 
-[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.22.0...HEAD
+[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.23.0...HEAD
+[0.23.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.23.0
 [0.22.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.22.0
 [0.21.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.21.0
 [0.20.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.20.0
