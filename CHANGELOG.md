@@ -17,6 +17,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **SIEM / syslog export.** Stream the audit log (logins, failed logins, 2FA
+  failures, config changes) to an external sink — **webhook** (HTTP POST a JSON
+  array) or **syslog** (UDP, RFC5424 line per entry) — via a leader-gated
+  forward tail with a persisted cursor (advances only on a successful send). Off
+  by default; configure under Settings → Ingest or `PUT /v1/settings/siem-export`.
+  Rampart isn't a SIEM — this feeds the one you have. See
+  [`docs/design/SIEM.md`](docs/design/SIEM.md).
+
 ---
 
 ## [0.13.0] — 2026-06-14

@@ -21,6 +21,7 @@
 pub mod channels;
 pub mod event;
 pub mod service;
+pub mod siem;
 pub mod template;
 
 /// Install the ring `CryptoProvider` as the global default if no

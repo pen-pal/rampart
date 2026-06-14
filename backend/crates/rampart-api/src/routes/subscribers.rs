@@ -52,6 +52,46 @@ pub fn settings_router() -> Router<AppState> {
             "/settings/telemetry-token",
             get(telemetry_token_get).put(telemetry_token_put),
         )
+        .route("/settings/siem-export", get(siem_get).put(siem_put))
+}
+
+async fn siem_get(State(s): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
+    let raw = rampart_db::settings::get(s.pool(), "siem_export").await?;
+    Ok(Json(raw.unwrap_or_else(
+        || serde_json::json!({ "enabled": false, "kind": "webhook", "target": "" }),
+    )))
+}
+
+#[derive(Deserialize)]
+struct SiemPut {
+    enabled: bool,
+    kind: String,
+    target: String,
+}
+
+async fn siem_put(
+    State(s): State<AppState>,
+    Json(input): Json<SiemPut>,
+) -> Result<StatusCode, ApiError> {
+    if input.enabled {
+        if !matches!(input.kind.as_str(), "webhook" | "syslog") {
+            return Err(ApiError::BadRequest(
+                "kind must be webhook or syslog".into(),
+            ));
+        }
+        if input.target.trim().is_empty() {
+            return Err(ApiError::BadRequest(
+                "target is required when export is enabled".into(),
+            ));
+        }
+    }
+    let value = serde_json::json!({
+        "enabled": input.enabled,
+        "kind": input.kind,
+        "target": input.target.trim(),
+    });
+    rampart_db::settings::put(s.pool(), "siem_export", &value).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[derive(Deserialize)]
