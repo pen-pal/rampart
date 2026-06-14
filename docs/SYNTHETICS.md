@@ -53,6 +53,12 @@ literal in later steps — the failure is visible rather than silently blank.
   ordering ops parse both sides as numbers; `eq`/`ne`/`contains` are string
   ops. `op` defaults to `eq`.
 
+> **Same assertions on a plain HTTP monitor.** You don't need a full synthetic
+> for one response check: an `http` / `keyword` / `json` monitor accepts the
+> identical assertion shape as a `config.assertions` array. Any failed assertion
+> flips the monitor Down with the reason. Set it via the API or
+> [monitors-as-code](design/MONITORS-AS-CODE.md) (a UI editor is a follow-up).
+
 ## Execution semantics
 
 - Steps run **in order**, carrying a shared variable bag.
