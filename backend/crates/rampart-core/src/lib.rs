@@ -12,6 +12,7 @@
 pub mod agent;
 pub mod api_key;
 pub mod cron;
+pub mod detection;
 pub mod error;
 pub mod error_tracking;
 pub mod escalation;
@@ -45,6 +46,9 @@ pub mod testing;
 pub use agent::{Agent, AgentResult, IssuedAgent, NewAgent, UpdateAgent};
 pub use api_key::{ApiKey, IssuedApiKey, KeyScope, NewApiKey};
 pub use cron::{CronExpr, CronSchedule};
+pub use detection::{
+    DetectionFinding, DetectionRule, DetectionSeverity, NewDetectionRule, UpdateDetectionRule,
+};
 pub use error::{CoreError, Result};
 pub use error_tracking::{
     ErrorEvent, ErrorIssue, ErrorProject, Frame, NewErrorProject, ParsedEvent, UpdateErrorProject,
@@ -55,7 +59,8 @@ pub use escalation::{
 };
 pub use heartbeat::Heartbeat;
 pub use ids::{
-    AgentId, ApiKeyId, BadgeId, ErrorIssueId, ErrorProjectId, IncidentId, IncidentTemplateId,
+    AgentId, ApiKeyId, BadgeId, DetectionFindingId, DetectionRuleId, ErrorIssueId, ErrorProjectId,
+    IncidentId, IncidentTemplateId,
     IncidentUpdateId, IngestTokenId, MaintenanceId, MonitorGroupId, MonitorId, MonitorPresetId,
     MonitorTemplateId, NotificationId, NotificationTemplateId, OnCallScheduleId, ProxyId,
     ScheduledReportId, SessionId, StatusPageComponentId, StatusPageGroupId, StatusPageId,
