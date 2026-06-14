@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT host(ip_addr) AS \"ip!\", COUNT(*) AS \"count!\"\n        FROM audit_log\n        WHERE action = 'auth.login_failed' AND ip_addr IS NOT NULL\n          AND ts >= now() - make_interval(hours => $1)\n        GROUP BY ip_addr\n        ORDER BY COUNT(*) DESC\n        LIMIT 10\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "ip!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "count!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "30f9816e419001b9e3b6ea4b1ffd348f1b1166f6e5ac48eb4f7dd5725690035c"
+}

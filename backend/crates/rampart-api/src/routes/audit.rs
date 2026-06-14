@@ -19,6 +19,23 @@ pub fn router() -> Router<AppState> {
         .route("/csv", get(list_csv))
         .route("/export.csv", get(export_csv))
         .route("/verify", get(verify))
+        .route("/insights", get(insights))
+}
+
+#[derive(Deserialize)]
+struct InsightsQuery {
+    hours: Option<i32>,
+}
+
+/// Security insights — auth outcomes + failed-login source IPs + hourly series
+/// over the window, aggregated from the audit log.
+async fn insights(
+    State(s): State<AppState>,
+    Query(q): Query<InsightsQuery>,
+) -> Result<Json<rampart_db::audit::SecurityInsights>, ApiError> {
+    Ok(Json(
+        rampart_db::audit::security_insights(s.pool(), q.hours.unwrap_or(24)).await?,
+    ))
 }
 
 /// Re-walk the audit hash chain and report whether it's intact. A non-ok
