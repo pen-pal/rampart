@@ -17,6 +17,19 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`max_retries` now works on its own.** Previously a monitor only retried a
+  failed probe before flipping Down if its config also carried a `retry_backoff`
+  block; `max_retries` alone did nothing. It now defaults to a fixed wait of
+  `retry_interval_sec` between retries (0 = retry immediately), so "retry N times
+  before alerting" behaves as the UI implies. *Behavior change:* monitors with
+  `max_retries > 0` will now actually retry, slightly delaying down-detection.
+- **`resend_interval_sec` now re-alerts.** It was dead config — a still-down
+  monitor never re-paged unless an escalation policy was attached. The probe task
+  now re-fires the down notification every `resend_interval_sec` while the
+  monitor stays down (0 = off, the default), clearing on recovery.
+
 ### Security
 
 - **Sessions are revoked on credential / role / 2FA change.** A password change,
