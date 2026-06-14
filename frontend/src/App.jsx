@@ -11,6 +11,7 @@ const Notifications     = lazy(() => import('./views/Notifications.jsx'));
 const Escalations       = lazy(() => import('./views/Escalations.jsx'));
 const Traces            = lazy(() => import('./views/Traces.jsx'));
 const Logs              = lazy(() => import('./views/Logs.jsx'));
+const Profiling         = lazy(() => import('./views/Profiling.jsx'));
 const Errors            = lazy(() => import('./views/Errors.jsx'));
 const Rum               = lazy(() => import('./views/Rum.jsx'));
 const OnCall            = lazy(() => import('./views/OnCall.jsx'));
@@ -64,6 +65,7 @@ const VIEW_LABEL = {
   'escalations':   'Escalations',
   'traces':        'Traces',
   'logs':          'Logs',
+  'profiling':     'Profiling',
   'errors':        'Errors',
   'rum':           'RUM',
   'on-call':       'On-call',
@@ -236,6 +238,7 @@ export default function App() {
     case 'escalations':   view = <Escalations user={user} />; break;
     case 'traces':        view = <Traces openTraceId={route.id} />; break;
     case 'logs':          view = <Logs traceId={route.id} />; break;
+    case 'profiling':     view = <Profiling profileId={route.id} />; break;
     case 'errors':        view = <Errors user={user} />; break;
     case 'rum':           view = <Rum />; break;
     case 'on-call':       view = <OnCall user={user} />; break;
@@ -299,6 +302,7 @@ function ViewSwitcher({ current, user }) {
     { hash: '#/escalations',   view: 'escalations'   },
     { hash: '#/traces',        view: 'traces'        },
     { hash: '#/logs',          view: 'logs'          },
+    { hash: '#/profiling',     view: 'profiling'     },
     { hash: '#/errors',        view: 'errors'        },
     { hash: '#/rum',           view: 'rum'           },
     { hash: '#/on-call',       view: 'on-call'       },
