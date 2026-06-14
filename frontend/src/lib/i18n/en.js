@@ -1476,6 +1476,7 @@ const en = {
   'traces.back_list':                'Back to traces',
   'traces.correlated_logs':          'Correlated logs ({n})',
   'traces.open_in_logs':             'Open in Logs →',
+  'traces.open_profile':             'Flamegraph →',
   'logs.for_trace':                  'Filtered to trace',
   'logs.open_trace':                 'View trace →',
   'logs.clear_trace':                'Clear',
