@@ -393,6 +393,87 @@
         }
       }
     },
+    "/v1/auth/oidc/config": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "OIDC availability",
+        "description": "Returns `{ enabled }` so the login page can show a \"Sign in with SSO\" button. Enabled when the operator set the RAMPART_OIDC_* env vars.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "`{ enabled: boolean }`."
+          }
+        }
+      }
+    },
+    "/v1/auth/oidc/login": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Begin OIDC login",
+        "description": "302-redirects to the configured identity provider's authorization endpoint (Authorization Code flow + PKCE; state held server-side).",
+        "security": [],
+        "responses": {
+          "307": {
+            "description": "Redirect to the IdP."
+          },
+          "404": {
+            "description": "OIDC not configured."
+          }
+        }
+      }
+    },
+    "/v1/auth/oidc/callback": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "OIDC redirect callback",
+        "description": "The IdP redirects here with `code` + `state`. Rampart exchanges the code, reads identity from the userinfo endpoint, finds-or-provisions the user by email, issues a session cookie, and 303-redirects to `/`.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "error",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Authenticated \u2014 session set",
+            "redirect to the app.": null
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "description": "Unknown/expired state or token exchange failed."
+          }
+        }
+      }
+    },
     "/v1/monitors": {
       "get": {
         "tags": [

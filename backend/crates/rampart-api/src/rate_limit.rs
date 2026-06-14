@@ -132,7 +132,10 @@ impl IpRateLimiter {
         }
 
         let (capacity, refill) = (g.capacity, g.refill);
-        let bucket = g.buckets.entry(ip).or_insert_with(|| Bucket::new(now, capacity));
+        let bucket = g
+            .buckets
+            .entry(ip)
+            .or_insert_with(|| Bucket::new(now, capacity));
         bucket.take(now, capacity, refill)
     }
 

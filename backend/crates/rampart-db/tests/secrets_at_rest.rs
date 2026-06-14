@@ -28,7 +28,9 @@ async fn channel_config_is_encrypted_at_rest(pool: PgPool) {
     std::env::set_var("RAMPART_SECRET_KEY", "0".repeat(64)); // 32 bytes of 0x00 as hex
 
     let secret = "super-secret-bearer-token";
-    let created = notifications::create(&pool, new_webhook(secret)).await.unwrap();
+    let created = notifications::create(&pool, new_webhook(secret))
+        .await
+        .unwrap();
 
     // Read-back via the normal API path decrypts transparently.
     let got = notifications::get(&pool, created.id).await.unwrap();

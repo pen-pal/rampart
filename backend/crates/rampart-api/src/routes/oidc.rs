@@ -63,7 +63,9 @@ fn env(k: &str) -> Option<String> {
 
 fn config() -> Option<OidcConfig> {
     Some(OidcConfig {
-        issuer: env("RAMPART_OIDC_ISSUER")?.trim_end_matches('/').to_string(),
+        issuer: env("RAMPART_OIDC_ISSUER")?
+            .trim_end_matches('/')
+            .to_string(),
         client_id: env("RAMPART_OIDC_CLIENT_ID")?,
         client_secret: env("RAMPART_OIDC_CLIENT_SECRET")?,
         redirect_url: env("RAMPART_OIDC_REDIRECT_URL")?,
@@ -91,7 +93,13 @@ fn stash(state: String, verifier: String) {
     let mut g = state_store().lock().unwrap();
     let now = Instant::now();
     g.retain(|_, p| now.duration_since(p.created) < STATE_TTL); // opportunistic GC
-    g.insert(state, Pending { verifier, created: now });
+    g.insert(
+        state,
+        Pending {
+            verifier,
+            created: now,
+        },
+    );
 }
 
 fn take(state: &str) -> Option<String> {
@@ -190,7 +198,9 @@ async fn callback(
     }
     let cfg = config().ok_or(ApiError::NotFound)?;
     let code = q.code.ok_or(ApiError::BadRequest("missing code".into()))?;
-    let state = q.state.ok_or(ApiError::BadRequest("missing state".into()))?;
+    let state = q
+        .state
+        .ok_or(ApiError::BadRequest("missing state".into()))?;
     let verifier = take(&state).ok_or(ApiError::Unauthorized)?; // unknown/expired state
 
     let client = reqwest::Client::new();
@@ -254,7 +264,9 @@ async fn callback(
             .await?
         }
     };
-    rampart_db::users::mark_login(app.pool(), user.id).await.ok();
+    rampart_db::users::mark_login(app.pool(), user.id)
+        .await
+        .ok();
 
     let session = rampart_db::sessions::create(
         app.pool(),
@@ -307,7 +319,10 @@ mod tests {
 
     #[test]
     fn urlencoding_escapes_reserved() {
-        assert_eq!(urlencoding("openid email profile"), "openid%20email%20profile");
+        assert_eq!(
+            urlencoding("openid email profile"),
+            "openid%20email%20profile"
+        );
         assert_eq!(urlencoding("a+b/c"), "a%2Bb%2Fc");
         assert_eq!(urlencoding("safe-_.~"), "safe-_.~");
     }
