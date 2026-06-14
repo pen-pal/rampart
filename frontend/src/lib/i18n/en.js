@@ -1060,6 +1060,13 @@ const en = {
   // ── security ─────────────────────────────────────────────────────
   'security.title':                  'Security',
   'security.subtitle':               'Account-level protections. Two-factor auth gates the password login with a one-time code from your authenticator app.',
+  'security.sessions.title':         'Active sessions',
+  'security.sessions.current':       'this device',
+  'security.sessions.none':          'No active sessions.',
+  'security.sessions.revoke':        'Revoke',
+  'security.sessions.revoke_others': 'Sign out {n} other device(s)',
+  'security.sessions.unknown_device': 'Unknown device',
+  'security.sessions.expires':       'expires {d}',
   'security.pw.title':               'Change password',
   'security.pw.updated':             'Password updated.',
   'security.pw.current':             'Current',
