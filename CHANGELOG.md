@@ -19,6 +19,12 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ### Added
 
+- **Anomaly alerting (metric rules).** A new metric-rule op `anomaly` fires when
+  the latest sample deviates more than `threshold` σ from the series' rolling 6h
+  mean/stddev baseline — adaptive alerting for metrics whose "normal" drifts,
+  where a static threshold would nag or miss. Reuses the metric-rule engine +
+  sustain window + notifier; migration `0087` extends the op constraint. Flat
+  series never alarm; a baseline needs ≥2 samples.
 - **Monitors-as-code.** `GET /v1/monitors/export` dumps every monitor as a
   declarative spec (no ids/timestamps/runtime); `POST /v1/monitors/apply`
   reconciles a spec keyed by name — create new, update existing in place
