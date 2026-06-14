@@ -6,6 +6,7 @@
 //! guarantee.
 
 use axum::http::HeaderMap;
+use rampart_core::UserId;
 use rampart_db::audit::NewEntry;
 use rampart_db::users::User;
 use rampart_db::DbPool;
@@ -16,6 +17,44 @@ use uuid::Uuid;
 pub async fn record(
     pool: &DbPool,
     user: &User,
+    headers: &HeaderMap,
+    action: &str,
+    resource_kind: &str,
+    resource_id: Option<Uuid>,
+    payload: Option<serde_json::Value>,
+) {
+    emit(
+        pool,
+        Some(user.id),
+        headers,
+        action,
+        resource_kind,
+        resource_id,
+        payload,
+    )
+    .await;
+}
+
+/// Record a security event with no authenticated actor — e.g. a failed
+/// login, where we have no trusted user identity to attribute. Same
+/// best-effort, secret-redacting, chained-append semantics as `record`;
+/// the actor column is left NULL and the source IP / UA carry the
+/// forensic value. Bounded by the login rate limiter so a credential
+/// stuffer can't flood the chain.
+pub async fn record_anon(
+    pool: &DbPool,
+    headers: &HeaderMap,
+    action: &str,
+    resource_kind: &str,
+    payload: Option<serde_json::Value>,
+) {
+    emit(pool, None, headers, action, resource_kind, None, payload).await;
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn emit(
+    pool: &DbPool,
+    actor_user_id: Option<UserId>,
     headers: &HeaderMap,
     action: &str,
     resource_kind: &str,
@@ -34,7 +73,7 @@ pub async fn record(
         v
     });
     let entry = NewEntry {
-        actor_user_id: Some(user.id),
+        actor_user_id,
         actor_api_key_id: None,
         action,
         resource_kind,

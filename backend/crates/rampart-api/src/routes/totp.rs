@@ -162,6 +162,19 @@ async fn verify(
         || rampart_db::recovery_codes::consume(state.pool(), user_id, &input.code).await?;
 
     if !code_ok {
+        // Security event: password was correct but the second factor
+        // failed — identity is known (the password gate passed), so
+        // attribute it to the user.
+        crate::audit::record(
+            state.pool(),
+            &raw,
+            &headers,
+            "auth.totp_failed",
+            "session",
+            None,
+            None,
+        )
+        .await;
         // Re-issue a fresh challenge so retries don't require a full
         // password round-trip. Bound by the same 5-minute window.
         let next = state.issue_totp_challenge(user_id).await;
@@ -179,6 +192,16 @@ async fn verify(
         .await
         .ok();
     let user = rampart_db::users::get(state.pool(), user_id).await?;
+    crate::audit::record(
+        state.pool(),
+        &user,
+        &headers,
+        "auth.login",
+        "session",
+        None,
+        None,
+    )
+    .await;
 
     let session = rampart_db::sessions::create(
         state.pool(),
