@@ -417,6 +417,33 @@ pub async fn open_count(pool: &DbPool) -> DbResult<i64> {
     Ok(n)
 }
 
+/// Forward tail for the SIEM exporter: findings with `created_at` strictly
+/// after the cursor, oldest first, capped. `after = None` starts from the
+/// beginning. Cursoring on `created_at` (not the UUID id) keeps the export in
+/// emission order.
+pub async fn fetch_since(
+    pool: &DbPool,
+    after: Option<OffsetDateTime>,
+    limit: i64,
+) -> DbResult<Vec<DetectionFinding>> {
+    let rows = sqlx::query_as!(
+        FindingRow,
+        r#"
+        SELECT id, rule_id, rule_name, severity, match_count, sample, service,
+               window_from, window_to, created_at, acknowledged_at
+        FROM detection_findings
+        WHERE $1::timestamptz IS NULL OR created_at > $1
+        ORDER BY created_at ASC
+        LIMIT $2
+        "#,
+        after,
+        limit,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(Into::into).collect())
+}
+
 /// Acknowledge one finding (idempotent — re-acking keeps the first timestamp).
 pub async fn ack_finding(pool: &DbPool, id: DetectionFindingId) -> DbResult<DetectionFinding> {
     let row = sqlx::query_as!(
