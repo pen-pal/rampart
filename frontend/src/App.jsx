@@ -362,11 +362,25 @@ const NAV_GROUPS = [
   ] },
 ];
 
+const NAV_COLLAPSE_KEY = 'rampart:nav:open-sections';
+
 function NavDrawer({ current, user }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
+  // Per-section expand overrides, persisted. Absent section → default rule
+  // (open only the group holding the current view) so the drawer stays compact.
+  const [overrides, setOverrides] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(NAV_COLLAPSE_KEY)) || {}; } catch { return {}; }
+  });
   const admin = isAdmin(user);
   const writable = canWrite(user);
+
+  const currentSection = (NAV_GROUPS.find(g => g.items.some(it => it.view === current)) || {}).section;
+  const toggleSection = (section, isOpen) => setOverrides(prev => {
+    const next = { ...prev, [section]: !isOpen };
+    try { localStorage.setItem(NAV_COLLAPSE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+    return next;
+  });
 
   // Close on Escape; lock nothing else.
   useEffect(() => {
@@ -430,10 +444,22 @@ function NavDrawer({ current, user }) {
               gap: 8, padding: '14px 16px', borderBottom: '1px solid var(--border, #e7e5e4)',
             }}>
               <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '-.01em' }}>Navigate</span>
-              <button aria-label="Close" onClick={() => setOpen(false)} style={{
-                border: 'none', background: 'transparent', cursor: 'pointer',
-                color: 'var(--text-3, #a8a29e)', fontSize: 18, lineHeight: 1,
-              }}>✕</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <button onClick={() => {
+                  const allOpen = NAV_GROUPS.every(g => (g.section in overrides ? overrides[g.section] : g.section === currentSection));
+                  const next = {};
+                  for (const g of NAV_GROUPS) next[g.section] = !allOpen;
+                  try { localStorage.setItem(NAV_COLLAPSE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+                  setOverrides(next);
+                }} style={{
+                  border: 'none', background: 'transparent', cursor: 'pointer',
+                  color: 'var(--text-3, #a8a29e)', fontSize: 11, fontWeight: 600, fontFamily: 'inherit',
+                }}>{NAV_GROUPS.every(g => (g.section in overrides ? overrides[g.section] : g.section === currentSection)) ? 'Collapse all' : 'Expand all'}</button>
+                <button aria-label="Close" onClick={() => setOpen(false)} style={{
+                  border: 'none', background: 'transparent', cursor: 'pointer',
+                  color: 'var(--text-3, #a8a29e)', fontSize: 18, lineHeight: 1,
+                }}>✕</button>
+              </div>
             </div>
 
             <div style={{ padding: '10px 12px' }}>
@@ -455,29 +481,51 @@ function NavDrawer({ current, user }) {
               {groups.length === 0 && (
                 <div style={{ padding: 16, fontSize: 12.5, color: 'var(--text-3, #a8a29e)' }}>No matches.</div>
               )}
-              {groups.map(g => (
-                <div key={g.section} style={{ marginTop: 12 }}>
-                  <div style={{
-                    fontSize: 10, fontWeight: 600, textTransform: 'uppercase',
-                    letterSpacing: '.06em', color: 'var(--text-3, #a8a29e)',
-                    padding: '0 10px 4px',
-                  }}>{g.section}</div>
-                  {g.items.map(it => {
-                    const active = current === it.view;
-                    return (
-                      <a key={it.view} href={it.hash} onClick={go} style={{
-                        display: 'block', padding: '8px 10px', borderRadius: 8,
-                        fontSize: 13, textDecoration: 'none', marginBottom: 1,
-                        color: active ? 'var(--accent-2, #0d9488)' : 'var(--text-2, #57534e)',
-                        background: active ? 'var(--accent-soft, #ccfbf1)' : 'transparent',
-                        fontWeight: active ? 600 : 500,
+              {groups.map(g => {
+                const sectionOpen = ql ? true
+                  : (g.section in overrides ? overrides[g.section] : g.section === currentSection);
+                const hasActive = g.items.some(it => it.view === current);
+                return (
+                  <div key={g.section} style={{ marginTop: 6 }}>
+                    <button
+                      onClick={() => !ql && toggleSection(g.section, sectionOpen)}
+                      aria-expanded={sectionOpen}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6, width: '100%',
+                        border: 'none', background: 'transparent', cursor: ql ? 'default' : 'pointer',
+                        padding: '6px 10px', borderRadius: 8, textAlign: 'left',
+                        fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+                        letterSpacing: '.06em', color: 'var(--text-3, #a8a29e)',
+                        fontFamily: 'inherit',
                       }}>
-                        {VIEW_LABEL[it.view] || it.view}
-                      </a>
-                    );
-                  })}
-                </div>
-              ))}
+                      <span style={{ fontSize: 9, width: 8, transition: 'transform .12s',
+                        transform: sectionOpen ? 'rotate(90deg)' : 'none', color: 'var(--text-3, #a8a29e)' }}>▶</span>
+                      <span style={{ flex: 1 }}>{g.section}</span>
+                      {!sectionOpen && hasActive && (
+                        <span style={{ width: 6, height: 6, borderRadius: 3, background: 'var(--accent, #14b8a6)' }}/>
+                      )}
+                      <span style={{
+                        fontSize: 10, fontWeight: 600, color: 'var(--text-3, #a8a29e)',
+                        background: 'var(--bg, #fafaf9)', borderRadius: 6, padding: '1px 6px',
+                      }}>{g.items.length}</span>
+                    </button>
+                    {sectionOpen && g.items.map(it => {
+                      const active = current === it.view;
+                      return (
+                        <a key={it.view} href={it.hash} onClick={go} style={{
+                          display: 'block', padding: '8px 10px 8px 24px', borderRadius: 8,
+                          fontSize: 13, textDecoration: 'none', marginBottom: 1,
+                          color: active ? 'var(--accent-2, #0d9488)' : 'var(--text-2, #57534e)',
+                          background: active ? 'var(--accent-soft, #ccfbf1)' : 'transparent',
+                          fontWeight: active ? 600 : 500,
+                        }}>
+                          {VIEW_LABEL[it.view] || it.view}
+                        </a>
+                      );
+                    })}
+                  </div>
+                );
+              })}
             </div>
           </nav>
         </>
