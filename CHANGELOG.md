@@ -17,6 +17,10 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+---
+
+## [0.41.0] — 2026-06-15
+
 ### Changed
 - Trace waterfall: now a **call-tree breakdown** — spans are nested by
   parent/child with indentation (DFS order) instead of a flat list. Click any
@@ -1391,7 +1395,8 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 
 ---
 
-[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.40.0...HEAD
+[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.41.0...HEAD
+[0.41.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.41.0
 [0.40.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.40.0
 [0.39.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.39.0
 [0.38.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.38.0
