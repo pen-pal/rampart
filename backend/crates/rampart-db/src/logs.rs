@@ -145,6 +145,59 @@ pub async fn level_counts(
     Ok(acc.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
 }
 
+/// One time bucket of the log-volume histogram: total + error-level counts.
+#[derive(Debug, serde::Serialize)]
+pub struct LogBucket {
+    pub ts: time::OffsetDateTime,
+    pub total: i64,
+    pub errors: i64,
+}
+
+/// Time-bucketed log volume over the window, honouring the same service /
+/// min-severity / full-text filters as the log query, with error-level (≥17)
+/// counts split out so the UI can stack them. ~`buckets` points, oldest first.
+pub async fn histogram(
+    pool: &DbPool,
+    service: Option<&str>,
+    min_severity: Option<i16>,
+    query: Option<&str>,
+    hours: i32,
+    buckets: i64,
+) -> DbResult<Vec<LogBucket>> {
+    let hours = hours.clamp(1, 720);
+    let buckets = buckets.clamp(2, 200);
+    let step = ((hours as i64 * 3600) / buckets).max(1);
+    let rows = sqlx::query!(
+        r#"
+        SELECT date_bin(make_interval(secs => $5), ts,
+                        now() - make_interval(hours => $4)) AS "bucket!",
+               COUNT(*)                              AS "total!",
+               COUNT(*) FILTER (WHERE severity >= 17) AS "errors!"
+        FROM logs
+        WHERE received_at > now() - make_interval(hours => $4)
+          AND ($1::text IS NULL OR service_name = $1)
+          AND ($2::int2 IS NULL OR severity >= $2)
+          AND ($3::text IS NULL OR body_tsv @@ websearch_to_tsquery('english', $3))
+        GROUP BY 1 ORDER BY 1
+        "#,
+        service,
+        min_severity,
+        query,
+        hours,
+        step as f64,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| LogBucket {
+            ts: r.bucket,
+            total: r.total,
+            errors: r.errors,
+        })
+        .collect())
+}
+
 /// Distinct service names seen recently (for the filter dropdown).
 pub async fn list_services(pool: &DbPool) -> DbResult<Vec<String>> {
     let rows = sqlx::query_scalar!(

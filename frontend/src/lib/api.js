@@ -487,6 +487,12 @@ export const api = {
     },
     services: () => request('/v1/logs/services'),
     levels: (service) => request(`/v1/logs/levels${service ? `?service=${encodeURIComponent(service)}` : ''}`),
+    histogram: (params = {}) => {
+      const qs = new URLSearchParams();
+      for (const [k, v] of Object.entries(params)) if (v != null && v !== '') qs.set(k, v);
+      const s = qs.toString();
+      return request(`/v1/logs/histogram${s ? '?' + s : ''}`);
+    },
   },
   // Continuous profiling — folded/pprof/OTLP profiles, flamegraph on read.
   profiles: {
