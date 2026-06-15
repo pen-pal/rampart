@@ -17,6 +17,10 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+---
+
+## [0.35.0] — 2026-06-15
+
 ### Added
 - **Custom dashboards** (`#/dashboards`): build your own boards of widgets
   (monitor status, metric chart + sparkline, RUM web-vitals, notes). Per-user,
@@ -1312,7 +1316,8 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 
 ---
 
-[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.34.0...HEAD
+[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.35.0...HEAD
+[0.35.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.35.0
 [0.34.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.34.0
 [0.33.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.33.0
 [0.32.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.32.0
