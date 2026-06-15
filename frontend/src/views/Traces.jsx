@@ -35,17 +35,27 @@ const css = `
   .pill { display: inline-flex; align-items: center; font-size: 10.5px; padding: 2px 8px; border-radius: 999px; font-weight: 500; background: var(--accent-soft); color: var(--accent-2); }
   .pill-down { background: var(--down-soft); color: #b91c1c; }
   .pill-muted { background: var(--surface-2); color: var(--text-3); }
-  .wf-row { display: grid; grid-template-columns: 300px 1fr; gap: 10px; align-items: center; padding: 2px 0; font-size: 12px; }
+  .wf-row { display: grid; grid-template-columns: 340px 1fr; gap: 12px; align-items: center; height: 26px; font-size: 12px; border-radius: 4px; }
   .wf-row:hover { background: var(--surface-2); }
-  .wf-track { position: relative; height: 18px; background: var(--surface-2); border-radius: 3px;
-              background-image: linear-gradient(to right, var(--border) 1px, transparent 1px); background-size: 25% 100%; }
-  .wf-bar { position: absolute; top: 2px; height: 14px; border-radius: 3px; background: var(--accent); min-width: 2px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.06); }
+  .wf-name { display: flex; align-items: center; min-width: 0; height: 100%; }
+  .wf-guide { width: 14px; align-self: stretch; flex: none; border-left: 1px solid var(--border); }
+  .wf-caret { width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-3); border-radius: 3px; flex: none; font-size: 9px; }
+  .wf-caret:hover { background: var(--border-2); color: var(--text); }
+  .wf-caret.leaf { visibility: hidden; }
+  .wf-swatch { width: 8px; height: 8px; border-radius: 2px; flex: none; margin-right: 6px; }
+  .wf-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .wf-track { position: relative; height: 100%; }
+  .wf-track-bg { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); height: 18px; border-radius: 3px; background: var(--surface-2);
+                 background-image: linear-gradient(to right, var(--border) 1px, transparent 1px); background-size: 25% 100%; }
+  .wf-bar { position: absolute; top: 50%; transform: translateY(-50%); height: 14px; border-radius: 3px; min-width: 2px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
   .wf-bar.err { background: var(--down) !important; }
-  .wf-ruler { display: grid; grid-template-columns: 300px 1fr; gap: 10px; margin-bottom: 6px; }
+  .wf-dur { position: absolute; top: 50%; transform: translateY(-50%); font-size: 10px; color: var(--text-2); white-space: nowrap; }
+  .wf-ruler { display: grid; grid-template-columns: 340px 1fr; gap: 12px; margin-bottom: 6px; position: sticky; top: 0; z-index: 2; background: var(--surface); padding-bottom: 5px; border-bottom: 1px solid var(--border); }
   .wf-ruler-track { position: relative; height: 14px; }
   .wf-tick { position: absolute; top: 0; font-size: 10px; color: var(--text-3); transform: translateX(-50%); white-space: nowrap; }
   .wf-tick:first-child { transform: none; }
   .wf-tick:last-child { transform: translateX(-100%); }
+  .wf-detail { margin: 0 0 6px; padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; font-size: 12px; }
 `;
 
 const SPAN_KIND = { 0: '', 1: 'internal', 2: 'server', 3: 'client', 4: 'producer', 5: 'consumer' };
@@ -59,8 +69,9 @@ function fmtMs(ms) {
 
 // Flatten the spans into parent→child DFS order with a depth, so the waterfall
 // reads as a real call-tree breakdown. Spans whose parent isn't in the trace
-// (and any unreachable ones) are treated as roots.
-function orderSpansTree(spans) {
+// (and any unreachable ones) are treated as roots. Subtrees whose root span_id
+// is in `collapsed` are not recursed into, so the caller can fold them away.
+function flattenSpans(spans, collapsed) {
   const ids = new Set(spans.map(s => s.span_id));
   const byParent = new Map();
   for (const s of spans) {
@@ -71,12 +82,17 @@ function orderSpansTree(spans) {
   for (const arr of byParent.values()) arr.sort((a, b) => a.start_ns - b.start_ns);
   const out = [];
   const visit = (key, depth) => {
-    for (const s of byParent.get(key) || []) { out.push({ s, depth }); visit(s.span_id, depth + 1); }
+    for (const s of byParent.get(key) || []) {
+      const kids = byParent.get(s.span_id) || [];
+      const folded = collapsed.has(s.span_id);
+      out.push({ s, depth, childCount: kids.length, collapsed: folded });
+      if (kids.length && !folded) visit(s.span_id, depth + 1);
+    }
   };
   visit('__root', 0);
-  if (out.length < spans.length) {
-    const seen = new Set(out.map(o => o.s.span_id));
-    for (const s of spans) if (!seen.has(s.span_id)) out.push({ s, depth: 0 });
+  // Orphans (cycle / missing parent) — show them flat rather than dropping.
+  if (out.length === 0 && spans.length) {
+    for (const s of spans) out.push({ s, depth: 0, childCount: 0, collapsed: false });
   }
   return out;
 }
@@ -301,6 +317,7 @@ function TraceDetail({ traceId, onBack }) {
   const state = useApi(() => api.traces.detail(traceId), [traceId]);
   const spans = state.data || [];
   const [openSpan, setOpenSpan] = useState(null);
+  const [collapsed, setCollapsed] = useState(() => new Set());
 
   if (state.loading) return <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-3)' }}><Loader2 size={16}/> {t('traces.loading')}</div>;
   if (state.error || spans.length === 0) {
@@ -311,6 +328,15 @@ function TraceDetail({ traceId, onBack }) {
   const traceEnd = Math.max(...spans.map(s => s.end_ns));
   const total = Math.max(1, traceEnd - traceStart);
   const root = spans.find(s => !s.parent_span_id) || spans[0];
+
+  // span_ids that have at least one child in the trace — the collapsible set.
+  const parentIds = new Set(spans.map(s => s.parent_span_id).filter(Boolean));
+  const toggleCollapse = (id) => setCollapsed(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const rows = flattenSpans(spans, collapsed);
 
   return (
     <>
@@ -325,16 +351,21 @@ function TraceDetail({ traceId, onBack }) {
         <a href={`#/profiling?service=${encodeURIComponent(root.service_name)}`} style={{ color: 'var(--accent)' }}>{t('traces.open_profile')}</a>
       </div>
 
-      <div className="card" style={{ padding: 16 }}>
+      <div className="card" style={{ padding: 16, overflow: 'auto', maxHeight: '72vh' }}>
         <div className="wf-ruler">
-          <div style={{ fontSize: 10, color: 'var(--text-3)', alignSelf: 'end' }}>{t('traces.span_count', { n: spans.length })}</div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
+            <button className="btn btn-ghost" style={{ padding: '2px 6px', fontSize: 11 }}
+              onClick={() => setCollapsed(new Set(parentIds))} disabled={parentIds.size === 0}>{t('traces.collapse_all')}</button>
+            <button className="btn btn-ghost" style={{ padding: '2px 6px', fontSize: 11 }}
+              onClick={() => setCollapsed(new Set())} disabled={collapsed.size === 0}>{t('traces.expand_all')}</button>
+          </div>
           <div className="wf-ruler-track">
             {[0, 0.25, 0.5, 0.75, 1].map(f => (
               <span key={f} className="wf-tick" style={{ left: `${f * 100}%` }}>{fmtMs((total * f) / 1e6)}</span>
             ))}
           </div>
         </div>
-        {orderSpansTree(spans).map(({ s, depth }) => {
+        {rows.map(({ s, depth, childCount, collapsed: folded }) => {
           const left = ((s.start_ns - traceStart) / total) * 100;
           const width = Math.max(0.4, ((s.end_ns - s.start_ns) / total) * 100);
           const err = s.status_code === 2;
@@ -345,24 +376,29 @@ function TraceDetail({ traceId, onBack }) {
           const labelRight = left + width > 82;
           return (
             <div key={s.span_id}>
-              <div className="wf-row" style={{ cursor: hasDetail ? 'pointer' : 'default' }}
-                onClick={() => hasDetail && setOpenSpan(isOpen ? null : s.span_id)}>
-                <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingLeft: depth * 14 }}
-                  title={`${s.service_name}: ${s.name}`}>
-                  <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: err ? 'var(--down)' : svcColor(s.service_name), marginRight: 6, verticalAlign: 'middle' }}/>
-                  {hasDetail && <span style={{ color: 'var(--text-3)', fontSize: 9 }}>{isOpen ? '▾' : '▸'} </span>}
-                  <span style={{ color: 'var(--text-3)', fontSize: 11 }}>{s.service_name}</span>{' '}
-                  <span style={{ fontWeight: 500, color: err ? 'var(--down)' : 'inherit' }}>{s.name}</span>
-                  {SPAN_KIND[s.kind] && <span className="pill pill-muted" style={{ marginLeft: 6 }}>{SPAN_KIND[s.kind]}</span>}
+              <div className="wf-row">
+                <div className="wf-name" title={`${s.service_name}: ${s.name}`}>
+                  {Array.from({ length: depth }).map((_, i) => <span key={i} className="wf-guide"/>)}
+                  <span className={`wf-caret${childCount ? '' : ' leaf'}`}
+                    onClick={() => childCount && toggleCollapse(s.span_id)}>{childCount ? (folded ? '▶' : '▼') : '•'}</span>
+                  <span className="wf-swatch" style={{ background: err ? 'var(--down)' : svcColor(s.service_name) }}/>
+                  <span className="wf-label" style={{ cursor: hasDetail ? 'pointer' : 'default' }}
+                    onClick={() => hasDetail && setOpenSpan(isOpen ? null : s.span_id)}>
+                    <span style={{ color: 'var(--text-3)', fontSize: 11 }}>{s.service_name}</span>{' '}
+                    <span style={{ fontWeight: 500, color: err ? 'var(--down)' : 'inherit' }}>{s.name}</span>
+                    {folded && childCount > 0 && <span className="pill pill-muted" style={{ marginLeft: 6 }}>+{childCount}</span>}
+                    {SPAN_KIND[s.kind] && <span className="pill pill-muted" style={{ marginLeft: 6 }}>{SPAN_KIND[s.kind]}</span>}
+                    {hasDetail && <span style={{ color: 'var(--text-3)', fontSize: 9, marginLeft: 5 }}>{isOpen ? '▾' : '▸'}</span>}
+                  </span>
                 </div>
                 <div className="wf-track">
+                  <div className="wf-track-bg"/>
                   <div className={`wf-bar${err ? ' err' : ''}`} style={{ left: `${left}%`, width: `${width}%`, background: svcColor(s.service_name) }} title={fmtMs(s.duration_ms)}/>
-                  <span style={{ position: 'absolute', top: 0, fontSize: 10, color: 'var(--text-2)', lineHeight: '18px',
-                    ...(labelRight ? { right: `${100 - left}%`, paddingRight: 4 } : { left: `${left + width}%`, paddingLeft: 4 }) }}>{fmtMs(s.duration_ms)}</span>
+                  <span className="wf-dur" style={labelRight ? { right: `${100 - left}%`, paddingRight: 4 } : { left: `${left + width}%`, paddingLeft: 4 }}>{fmtMs(s.duration_ms)}</span>
                 </div>
               </div>
               {isOpen && (
-                <div style={{ margin: '2px 0 8px', marginLeft: depth * 14 + 14, padding: '8px 12px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}>
+                <div className="wf-detail" style={{ marginLeft: depth * 14 + 24 }}>
                   {s.status_message && (
                     <div style={{ color: 'var(--down)', marginBottom: attrs.length ? 8 : 0 }}>⚠ {s.status_message}</div>
                   )}
