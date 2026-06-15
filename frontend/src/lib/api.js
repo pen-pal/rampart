@@ -334,6 +334,9 @@ export const api = {
     get: () => request('/v1/settings/retention'),
     put: (heartbeats, auditLog) => request('/v1/settings/retention', { method: 'PUT', body: { heartbeats: Number(heartbeats), audit_log: Number(auditLog) } }),
   },
+  storage: {
+    get: () => request('/v1/settings/storage'),
+  },
   telemetryToken: {
     get: () => request('/v1/settings/telemetry-token'),
     put: (token) => request('/v1/settings/telemetry-token', { method: 'PUT', body: { token } }),

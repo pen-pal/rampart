@@ -3052,6 +3052,15 @@ paths:
       responses:
         '204': { description: Saved. }
         '400': { $ref: '#/components/responses/BadRequest' }
+  /v1/settings/storage:
+    get:
+      tags: [Audit]
+      summary: Per-tier storage footprint
+      description: >-
+        Admin only. On-disk size + estimated row count of each high-volume
+        telemetry table, largest first — the data-footprint panel.
+      responses:
+        '200': { description: '`[{ table, bytes, rows }]` (bytes incl. indexes + TOAST; rows is a planner estimate).' }
 
   # ─────────────────────────── Account sessions ─────────────────────
   /v1/sessions:

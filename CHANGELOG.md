@@ -17,6 +17,12 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+- Storage footprint visibility: a per-tier on-disk size + estimated row-count
+  panel on the Retention settings page, a `GET /v1/settings/storage` endpoint,
+  and `rampart_table_bytes{table}` on `/metrics` — so operators can see what's
+  growing and tune retention with data.
+
 ### Changed
 - Large telemetry text/JSON columns (`logs.body`/`attributes`,
   `spans.attributes`, `error_events.context`/`stacktrace`) now use **lz4** TOAST

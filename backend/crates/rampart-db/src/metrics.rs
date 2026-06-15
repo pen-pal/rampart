@@ -147,6 +147,58 @@ pub struct IngestGauges {
     pub error_events_24h: i64,
 }
 
+/// On-disk size + estimated row count of the high-volume telemetry tables,
+/// largest first. `bytes` is `pg_total_relation_size` (heap + indexes + TOAST);
+/// `rows` is the planner's `reltuples` estimate (cheap — no full scan). Drives
+/// the storage panel + `/metrics`, so an operator can see what's growing and
+/// tune retention with data.
+#[derive(serde::Serialize)]
+pub struct TableSize {
+    pub table: String,
+    pub bytes: i64,
+    pub rows: i64,
+}
+
+pub async fn storage_usage(pool: &PgPool) -> Result<Vec<TableSize>, DbError> {
+    let tables: Vec<String> = [
+        "heartbeats",
+        "heartbeat_rollups",
+        "spans",
+        "logs",
+        "error_events",
+        "profiles",
+        "rum_events",
+        "metric_samples",
+        "detection_findings",
+        "audit_log",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+    let rows = sqlx::query!(
+        r#"
+        SELECT c.relname AS "table!",
+               pg_total_relation_size(c.oid)::bigint AS "bytes!",
+               c.reltuples::bigint AS "rows!"
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relkind = 'r' AND c.relname = ANY($1)
+        ORDER BY pg_total_relation_size(c.oid) DESC
+        "#,
+        &tables,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| TableSize {
+            table: r.table,
+            bytes: r.bytes,
+            rows: r.rows.max(0),
+        })
+        .collect())
+}
+
 pub async fn ingest_gauges(pool: &PgPool) -> Result<IngestGauges, DbError> {
     let row = sqlx::query!(
         r#"

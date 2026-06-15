@@ -47,6 +47,14 @@ const css = `
   .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
 `;
 
+function fmtBytes(n) {
+  if (!n || n < 0) return '0 B';
+  const u = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let i = 0; let v = n;
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+  return `${v < 10 && i > 0 ? v.toFixed(1) : Math.round(v)} ${u[i]}`;
+}
+
 export default function RetentionSettings() {
   const [heartbeats, setHb] = useState(90);
   const [auditLog,   setAl] = useState(365);
@@ -54,6 +62,7 @@ export default function RetentionSettings() {
   const [load, setLoad] = useState(true);
   const [err,  setErr]  = useState(null);
   const [ok,   setOk]   = useState(false);
+  const [storage, setStorage] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -66,6 +75,7 @@ export default function RetentionSettings() {
       } catch (e) { setErr(e.message); }
       finally { setLoad(false); }
     })();
+    api.storage.get().then(s => setStorage(Array.isArray(s) ? s : [])).catch(() => {});
   }, []);
 
   const save = async () => {
@@ -129,6 +139,36 @@ export default function RetentionSettings() {
                 {busy ? <><Loader2 size={13}/> {t('common.saving')}</> : <><Save size={13}/> {t('common.save')}</>}
               </button>
             </div>
+          </div>
+        )}
+
+        {storage && storage.length > 0 && (
+          <div className="card" style={{ padding: 22, marginTop: 16 }}>
+            <div className="field-label" style={{ marginBottom: 10 }}>{t('settings.storage.title')}</div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ color: 'var(--text-3)', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.04em' }}>
+                  <th style={{ padding: '4px 0' }}>{t('settings.storage.tier')}</th>
+                  <th style={{ padding: '4px 0', textAlign: 'right' }}>{t('settings.storage.rows')}</th>
+                  <th style={{ padding: '4px 0', textAlign: 'right' }}>{t('settings.storage.size')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {storage.map(r => (
+                  <tr key={r.table} style={{ borderTop: '1px solid var(--border)' }}>
+                    <td className="mono" style={{ padding: '6px 0', color: 'var(--text-2)' }}>{r.table}</td>
+                    <td className="mono" style={{ padding: '6px 0', textAlign: 'right', color: 'var(--text-2)' }}>{r.rows.toLocaleString()}</td>
+                    <td className="mono" style={{ padding: '6px 0', textAlign: 'right' }}>{fmtBytes(r.bytes)}</td>
+                  </tr>
+                ))}
+                <tr style={{ borderTop: '2px solid var(--border-2, var(--border))', fontWeight: 600 }}>
+                  <td style={{ padding: '6px 0' }}>{t('settings.storage.total')}</td>
+                  <td/>
+                  <td className="mono" style={{ padding: '6px 0', textAlign: 'right' }}>{fmtBytes(storage.reduce((a, r) => a + r.bytes, 0))}</td>
+                </tr>
+              </tbody>
+            </table>
+            <div className="field-hint" style={{ marginTop: 10 }}>{t('settings.storage.hint')}</div>
           </div>
         )}
       </div>
