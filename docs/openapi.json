@@ -4512,7 +4512,7 @@
           "On-call"
         ],
         "summary": "Create an on-call schedule",
-        "description": "A schedule rotates notification channels (Rampart addresses by channel, not user). participant_ids is the rotation ring (1\u201350 channels); rotation_seconds is the handoff cadence (300\u201331536000, i.e. 5 min\u2013365 days); anchor is the UTC instant participant[0]'s first shift begins. \"Who is on call at T\" is computed as participant_ids[floor((T-anchor)/rotation_seconds) mod len]. An escalation step references a schedule by id in its schedule_ids. See docs/ON-CALL.md.",
+        "description": "A schedule rotates `participant_ids` (notification channels) and/or `participant_user_ids` (users, paged at their account email) \u2014 the ring is channels then users, 1\u201350 total. rotation_seconds is the handoff cadence (300\u201331536000, i.e. 5 min\u2013365 days); anchor is the UTC instant participant[0]'s first shift begins. \"Who is on call at T\" = ring[floor((T-anchor)/rotation_seconds) mod len]. An escalation step references a schedule by id in its schedule_ids. See docs/ON-CALL.md.",
         "responses": {
           "201": {
             "description": "Created schedule."

@@ -6,7 +6,7 @@
 //! reference a schedule by id and resolve it to the current on-call channel
 //! when they fire (see [`crate::escalation::EscalationStep::schedule_ids`]).
 
-use crate::ids::{NotificationId, OnCallScheduleId};
+use crate::ids::{NotificationId, OnCallScheduleId, UserId};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use validator::Validate;
@@ -28,6 +28,10 @@ pub struct OnCallSchedule {
     pub anchor: OffsetDateTime,
     /// Notification channels in rotation order.
     pub participant_ids: Vec<NotificationId>,
+    /// Users in rotation order (notified at their email). The combined ring is
+    /// channels followed by users — see [`on_call_target`].
+    #[serde(default)]
+    pub participant_user_ids: Vec<UserId>,
     pub created_at: OffsetDateTime,
 }
 
@@ -41,7 +45,10 @@ pub struct NewOnCallSchedule {
     // `OffsetDateTime`, which the `time` crate emits as an int array.
     #[serde(with = "time::serde::rfc3339")]
     pub anchor: OffsetDateTime,
+    #[serde(default)]
     pub participant_ids: Vec<NotificationId>,
+    #[serde(default)]
+    pub participant_user_ids: Vec<UserId>,
 }
 
 #[derive(Debug, Clone, Deserialize, Validate)]
@@ -55,6 +62,8 @@ pub struct UpdateOnCallSchedule {
     pub anchor: Option<OffsetDateTime>,
     #[serde(default)]
     pub participant_ids: Option<Vec<NotificationId>>,
+    #[serde(default)]
+    pub participant_user_ids: Option<Vec<UserId>>,
 }
 
 /// Shared validation for create + update. Serde can't express "non-empty,
@@ -63,10 +72,15 @@ pub fn validate_rotation(
     rotation_seconds: i64,
     participants: &[NotificationId],
 ) -> Result<(), String> {
-    if participants.is_empty() {
+    validate_schedule(rotation_seconds, participants.len())
+}
+
+/// Count-based validation for the combined channel+user ring.
+pub fn validate_schedule(rotation_seconds: i64, participant_count: usize) -> Result<(), String> {
+    if participant_count == 0 {
         return Err("a schedule needs at least one participant".into());
     }
-    if participants.len() > MAX_PARTICIPANTS {
+    if participant_count > MAX_PARTICIPANTS {
         return Err(format!("at most {MAX_PARTICIPANTS} participants"));
     }
     if !(MIN_ROTATION_SECONDS..=MAX_ROTATION_SECONDS).contains(&rotation_seconds) {
@@ -97,6 +111,7 @@ pub fn on_call_index(
 }
 
 /// The channel on call at `at`, or `None` for an empty/malformed schedule.
+/// Channels-only convenience kept for callers that don't handle user targets.
 pub fn on_call_channel(schedule: &OnCallSchedule, at: OffsetDateTime) -> Option<NotificationId> {
     on_call_index(
         schedule.anchor,
@@ -105,6 +120,31 @@ pub fn on_call_channel(schedule: &OnCallSchedule, at: OffsetDateTime) -> Option<
         at,
     )
     .and_then(|i| schedule.participant_ids.get(i).copied())
+}
+
+/// Who is on call: a notification channel or a user. The ring is channels
+/// first, then users, so a mixed schedule rotates over both.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OnCallTarget {
+    Channel(NotificationId),
+    User(UserId),
+}
+
+/// The target on call at `at` over the combined channel+user ring, or `None`
+/// for an empty/malformed schedule.
+pub fn on_call_target(schedule: &OnCallSchedule, at: OffsetDateTime) -> Option<OnCallTarget> {
+    let chan = schedule.participant_ids.len();
+    let total = chan + schedule.participant_user_ids.len();
+    let idx = on_call_index(schedule.anchor, schedule.rotation_seconds, total, at)?;
+    if idx < chan {
+        schedule.participant_ids.get(idx).copied().map(OnCallTarget::Channel)
+    } else {
+        schedule
+            .participant_user_ids
+            .get(idx - chan)
+            .copied()
+            .map(OnCallTarget::User)
+    }
 }
 
 #[cfg(test)]
@@ -119,8 +159,22 @@ mod tests {
             rotation_seconds,
             anchor: OffsetDateTime::UNIX_EPOCH,
             participant_ids: (0..n).map(|_| NotificationId::new()).collect(),
+            participant_user_ids: vec![],
             created_at: OffsetDateTime::UNIX_EPOCH,
         }
+    }
+
+    #[test]
+    fn target_ring_is_channels_then_users() {
+        use crate::ids::UserId;
+        let mut s = schedule(300, 2); // 2 channels
+        let u = UserId::new();
+        s.participant_user_ids = vec![u];
+        // 3 in ring: idx 0,1 channels, idx 2 user. At anchor → idx 0 = channel.
+        assert!(matches!(on_call_target(&s, OffsetDateTime::UNIX_EPOCH), Some(OnCallTarget::Channel(_))));
+        // +2 rotations → idx 2 → the user.
+        let at = OffsetDateTime::UNIX_EPOCH + Duration::seconds(600);
+        assert_eq!(on_call_target(&s, at), Some(OnCallTarget::User(u)));
     }
 
     #[test]

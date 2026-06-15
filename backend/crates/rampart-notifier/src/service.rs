@@ -493,17 +493,45 @@ async fn dispatch_step_targets(pool: &DbPool, step: &rampart_core::EscalationSte
     }
     let now = time::OffsetDateTime::now_utc();
     for sid in &step.schedule_ids {
-        match rampart_db::on_call::current_channel(pool, *sid, now).await {
-            Ok(Some(ch)) => {
+        match rampart_db::on_call::current_target(pool, *sid, now).await {
+            Ok(Some(rampart_core::on_call::OnCallTarget::Channel(ch))) => {
                 if let Err(e) = send_event_to_channel(pool, ch, event).await {
                     warn!(channel = %ch.0, schedule = %sid.0, error = %e,
                           "escalation on-call send failed");
+                }
+            }
+            Ok(Some(rampart_core::on_call::OnCallTarget::User(uid))) => {
+                if let Err(e) = send_event_to_user(pool, uid, event).await {
+                    warn!(user = %uid.0, schedule = %sid.0, error = %e,
+                          "escalation on-call user email failed");
                 }
             }
             Ok(None) => warn!(schedule = %sid.0, "on-call schedule has no one on call; skipped"),
             Err(e) => warn!(schedule = %sid.0, error = %e, "on-call schedule lookup failed"),
         }
     }
+}
+
+/// Page a user who is on call: email the event to their account address (the
+/// universally-present contact for a user; webpush is a possible follow-up).
+async fn send_event_to_user(
+    pool: &DbPool,
+    user_id: rampart_core::ids::UserId,
+    event: &Event,
+) -> anyhow::Result<()> {
+    let user = rampart_db::users::get(pool, user_id).await?;
+    let cfg: SubscriberSmtp = match rampart_db::settings::get(pool, "smtp").await? {
+        Some(v) => serde_json::from_value(v)?,
+        None => {
+            warn!(user = %user_id.0, "no SMTP configured; cannot page on-call user");
+            return Ok(());
+        }
+    };
+    let subject = template::default_subject(event);
+    let body = template::default_body(event);
+    send_subscriber_email(&cfg, &user.email, &subject, &body)
+        .await
+        .map_err(|e| anyhow::anyhow!("{e}"))
 }
 
 /// How often the digest flush task wakes to drain due channel buffers.

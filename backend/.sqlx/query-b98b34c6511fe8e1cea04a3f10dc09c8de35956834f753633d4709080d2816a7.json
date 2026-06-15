@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, name, rotation_seconds, anchor,\n               participant_ids AS \"participant_ids!\", created_at\n        FROM on_call_schedules\n        WHERE id = $1\n        ",
+  "query": "\n        SELECT id, name, rotation_seconds, anchor,\n               participant_ids AS \"participant_ids!\",\n               participant_user_ids AS \"participant_user_ids!\", created_at\n        FROM on_call_schedules\n        ORDER BY created_at\n        ",
   "describe": {
     "columns": [
       {
@@ -60,6 +60,17 @@
       },
       {
         "ordinal": 5,
+        "name": "participant_user_ids!",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "on_call_schedules",
+            "name": "participant_user_ids"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -71,11 +82,10 @@
       }
     ],
     "parameters": {
-      "Left": [
-        "Uuid"
-      ]
+      "Left": []
     },
     "nullable": [
+      false,
       false,
       false,
       false,
@@ -84,5 +94,5 @@
       false
     ]
   },
-  "hash": "008d3bbc51357e6188e6aa25f25b4c6999af33b4cf7f4e1c60ae38dac6d8bd85"
+  "hash": "b98b34c6511fe8e1cea04a3f10dc09c8de35956834f753633d4709080d2816a7"
 }
