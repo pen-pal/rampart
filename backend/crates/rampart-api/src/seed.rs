@@ -76,6 +76,7 @@ pub async fn run(pool: &DbPool) -> Result<SeedStats> {
     .await?;
 
     seed_monitors(pool, group.id.0, &mut stats).await?;
+    seed_status_page(pool).await?;
     seed_notification(pool).await?;
     seed_errors(pool, &mut stats).await?;
     seed_traces(pool, &mut stats).await?;
@@ -122,6 +123,28 @@ async fn seed_monitors(pool: &DbPool, group_id: uuid::Uuid, stats: &mut SeedStat
         stats.heartbeats += hbs.len();
         rampart_db::heartbeats::insert_many(pool, &hbs).await?;
     }
+    Ok(())
+}
+
+/// A public status page plus a **fixed** inbound ingest token, so the example
+/// stack's Alertmanager can post to `/v1/public/ingest/alertmanager/<token>`
+/// with a value known ahead of time (see examples/full-stack).
+const DEMO_INGEST_TOKEN: &str = "ing_demo_alertmanager_000000000000000000";
+
+async fn seed_status_page(pool: &DbPool) -> Result<()> {
+    let page = rampart_db::status_pages::create(
+        pool,
+        serde_json::from_value(json!({ "slug": "demo", "title": "[demo] Status" }))?,
+    )
+    .await?;
+    // Best-effort: a duplicate token (re-seed on a wiped folder) is harmless.
+    let _ = rampart_db::ingest_tokens::create_with_token(
+        pool,
+        page.id,
+        "[demo] alertmanager",
+        DEMO_INGEST_TOKEN,
+    )
+    .await;
     Ok(())
 }
 
