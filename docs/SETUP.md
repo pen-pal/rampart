@@ -49,6 +49,29 @@ Open <http://localhost:3000>. The first visit shows a signup form
 Subsequent users come through the admin **Users** page; the signup
 form locks itself after the first account.
 
+### 4b. (Optional) Load demo data
+
+Want to see the whole dashboard populated before wiring anything up? The
+binary ships a `seed-demo` subcommand that inserts one representative slice of
+every tier — monitors with 48h of uptime history (one with an outage), a
+folder, a notification channel, an error project with grouped issues +
+breadcrumbs, a multi-service trace, logs, RUM web-vitals, a metric series, a
+telemetry alert rule, and a SIEM detection rule that immediately raises a
+finding. It is **idempotent** (re-running is a no-op) and everything is tagged
+`[demo]` so you can spot and delete it later.
+
+```bash
+# Docker compose:
+docker compose exec rampart rampart-api seed-demo
+
+# Single binary:
+DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
+  ./rampart-api seed-demo
+```
+
+Refresh the dashboard — monitors, errors, traces, logs, RUM, detection
+findings and an alert rule are all there. See [DEMO.md](DEMO.md).
+
 ### 5. Add a monitor
 
 `+ Add monitor` → pick a kind → fill in fields → save. Heartbeats land
