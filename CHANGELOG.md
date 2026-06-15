@@ -17,6 +17,10 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+---
+
+## [0.25.0] — 2026-06-15
+
 ### Added
 - Error issue assignment: assign an issue to a user from the detail header
   (`POST /v1/error-issues/{id}/assign`), backed by an editor-visible assignee
@@ -1140,7 +1144,8 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 
 ---
 
-[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.24.0...HEAD
+[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.25.0...HEAD
+[0.25.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.25.0
 [0.24.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.24.0
 [0.23.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.23.0
 [0.22.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.22.0
