@@ -17,6 +17,13 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Changed
+- Trace waterfall: now a **call-tree breakdown** — spans are nested by
+  parent/child with indentation (DFS order) instead of a flat list. Click any
+  span to **expand its attributes** (full `db.statement`/SQL, `http.*`, etc.,
+  wrapped so long values are fully visible) and its error `status_message`.
+  Data was already returned; this surfaces it.
+
 ---
 
 ## [0.40.0] — 2026-06-15

@@ -50,6 +50,30 @@ function fmtMs(ms) {
   return `${(ms / 1000).toFixed(2)}s`;
 }
 
+// Flatten the spans into parent→child DFS order with a depth, so the waterfall
+// reads as a real call-tree breakdown. Spans whose parent isn't in the trace
+// (and any unreachable ones) are treated as roots.
+function orderSpansTree(spans) {
+  const ids = new Set(spans.map(s => s.span_id));
+  const byParent = new Map();
+  for (const s of spans) {
+    const key = s.parent_span_id && ids.has(s.parent_span_id) ? s.parent_span_id : '__root';
+    if (!byParent.has(key)) byParent.set(key, []);
+    byParent.get(key).push(s);
+  }
+  for (const arr of byParent.values()) arr.sort((a, b) => a.start_ns - b.start_ns);
+  const out = [];
+  const visit = (key, depth) => {
+    for (const s of byParent.get(key) || []) { out.push({ s, depth }); visit(s.span_id, depth + 1); }
+  };
+  visit('__root', 0);
+  if (out.length < spans.length) {
+    const seen = new Set(out.map(o => o.s.span_id));
+    for (const s of spans) if (!seen.has(s.span_id)) out.push({ s, depth: 0 });
+  }
+  return out;
+}
+
 export default function Traces({ openTraceId }) {
   const [traceId, setTraceId] = useState(openTraceId || null);
   const [tab, setTab] = useState('traces'); // traces | map
@@ -261,6 +285,7 @@ function ServiceMap() {
 function TraceDetail({ traceId, onBack }) {
   const state = useApi(() => api.traces.detail(traceId), [traceId]);
   const spans = state.data || [];
+  const [openSpan, setOpenSpan] = useState(null);
 
   if (state.loading) return <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-3)' }}><Loader2 size={16}/> {t('traces.loading')}</div>;
   if (state.error || spans.length === 0) {
@@ -286,21 +311,44 @@ function TraceDetail({ traceId, onBack }) {
       </div>
 
       <div className="card" style={{ padding: 16 }}>
-        {spans.map(s => {
+        {orderSpansTree(spans).map(({ s, depth }) => {
           const left = ((s.start_ns - traceStart) / total) * 100;
           const width = Math.max(0.4, ((s.end_ns - s.start_ns) / total) * 100);
           const err = s.status_code === 2;
+          const isOpen = openSpan === s.span_id;
+          const attrs = s.attributes && typeof s.attributes === 'object' ? Object.entries(s.attributes) : [];
+          const hasDetail = attrs.length > 0 || s.status_message;
           return (
-            <div className="wf-row" key={s.span_id}>
-              <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={`${s.service_name}: ${s.name}`}>
-                <span style={{ color: 'var(--text-3)', fontSize: 11 }}>{s.service_name}</span>{' '}
-                <span style={{ fontWeight: 500 }}>{s.name}</span>
-                {SPAN_KIND[s.kind] && <span className="pill pill-muted" style={{ marginLeft: 6 }}>{SPAN_KIND[s.kind]}</span>}
+            <div key={s.span_id}>
+              <div className="wf-row" style={{ cursor: hasDetail ? 'pointer' : 'default' }}
+                onClick={() => hasDetail && setOpenSpan(isOpen ? null : s.span_id)}>
+                <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingLeft: depth * 16 }}
+                  title={`${s.service_name}: ${s.name}`}>
+                  {hasDetail && <span style={{ color: 'var(--text-3)', fontSize: 9 }}>{isOpen ? '▾' : '▸'} </span>}
+                  <span style={{ color: 'var(--text-3)', fontSize: 11 }}>{s.service_name}</span>{' '}
+                  <span style={{ fontWeight: 500, color: err ? 'var(--down)' : 'inherit' }}>{s.name}</span>
+                  {SPAN_KIND[s.kind] && <span className="pill pill-muted" style={{ marginLeft: 6 }}>{SPAN_KIND[s.kind]}</span>}
+                </div>
+                <div className="wf-track">
+                  <div className={`wf-bar${err ? ' err' : ''}`} style={{ left: `${left}%`, width: `${width}%` }} title={fmtMs(s.duration_ms)}/>
+                  <span style={{ position: 'absolute', left: `${Math.min(left, 80)}%`, top: 0, fontSize: 10, color: 'var(--text-3)', paddingLeft: 4, lineHeight: '16px' }}>{fmtMs(s.duration_ms)}</span>
+                </div>
               </div>
-              <div className="wf-track">
-                <div className={`wf-bar${err ? ' err' : ''}`} style={{ left: `${left}%`, width: `${width}%` }} title={fmtMs(s.duration_ms)}/>
-                <span style={{ position: 'absolute', left: `${Math.min(left, 80)}%`, top: 0, fontSize: 10, color: 'var(--text-3)', paddingLeft: 4, lineHeight: '16px' }}>{fmtMs(s.duration_ms)}</span>
-              </div>
+              {isOpen && (
+                <div style={{ margin: '2px 0 8px', marginLeft: depth * 16 + 14, padding: '8px 12px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}>
+                  {s.status_message && (
+                    <div style={{ color: 'var(--down)', marginBottom: attrs.length ? 8 : 0 }}>⚠ {s.status_message}</div>
+                  )}
+                  {attrs.map(([k, v]) => (
+                    <div key={k} style={{ display: 'flex', gap: 8, padding: '2px 0' }}>
+                      <span style={{ color: 'var(--text-3)', flexShrink: 0, minWidth: 130, fontFamily: 'monospace' }}>{k}</span>
+                      <span style={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word', minWidth: 0 }}>
+                        {typeof v === 'object' ? JSON.stringify(v) : String(v)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           );
         })}
