@@ -17,6 +17,10 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+---
+
+## [0.39.0] — 2026-06-15
+
 ### Added
 - Telemetry alert rules can route through an **escalation policy**
   (`escalation_policy_id`, migration 0095). On fire, the policy's full recipient
@@ -1364,7 +1368,8 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 
 ---
 
-[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.38.0...HEAD
+[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.39.0...HEAD
+[0.39.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.39.0
 [0.38.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.38.0
 [0.37.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.37.0
 [0.36.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.36.0
