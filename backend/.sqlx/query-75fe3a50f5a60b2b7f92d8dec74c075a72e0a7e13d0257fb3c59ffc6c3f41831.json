@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, monitor_id, policy_id, started_at, last_step,\n               next_escalation_at, acked_at, acked_by, resolved_at\n        FROM escalation_episodes\n        WHERE resolved_at IS NULL AND acked_at IS NULL\n          AND next_escalation_at IS NOT NULL AND next_escalation_at <= NOW()\n        ",
+  "query": "\n        UPDATE escalation_episodes\n        SET resolved_at = NOW()\n        WHERE monitor_id = $1 AND resolved_at IS NULL\n        RETURNING id, monitor_id, subject_kind, subject_ref, policy_id, started_at, last_step,\n                  next_escalation_at, acked_at, acked_by, resolved_at\n        ",
   "describe": {
     "columns": [
       {
@@ -27,6 +27,28 @@
       },
       {
         "ordinal": 2,
+        "name": "subject_kind",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "escalation_episodes",
+            "name": "subject_kind"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "subject_ref",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "escalation_episodes",
+            "name": "subject_ref"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
         "name": "policy_id",
         "type_info": "Uuid",
         "origin": {
@@ -37,7 +59,7 @@
         }
       },
       {
-        "ordinal": 3,
+        "ordinal": 5,
         "name": "started_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -48,7 +70,7 @@
         }
       },
       {
-        "ordinal": 4,
+        "ordinal": 6,
         "name": "last_step",
         "type_info": "Int4",
         "origin": {
@@ -59,7 +81,7 @@
         }
       },
       {
-        "ordinal": 5,
+        "ordinal": 7,
         "name": "next_escalation_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -70,7 +92,7 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 8,
         "name": "acked_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -81,7 +103,7 @@
         }
       },
       {
-        "ordinal": 7,
+        "ordinal": 9,
         "name": "acked_by",
         "type_info": "Uuid",
         "origin": {
@@ -92,7 +114,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 10,
         "name": "resolved_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -104,9 +126,13 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid"
+      ]
     },
     "nullable": [
+      false,
+      true,
       false,
       false,
       false,
@@ -118,5 +144,5 @@
       true
     ]
   },
-  "hash": "0080de3ac528251a5132a323596552abd81d1b3d28b7183238a72b990ef4c731"
+  "hash": "75fe3a50f5a60b2b7f92d8dec74c075a72e0a7e13d0257fb3c59ffc6c3f41831"
 }

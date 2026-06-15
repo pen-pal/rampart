@@ -128,6 +128,8 @@ export default function Escalations({ user }) {
           )}
         </div>
 
+        <OpenEpisodes writable={writable} />
+
         {(err || policiesState.error) && (
           <div className="banner-err">
             <AlertCircle size={14} style={{ verticalAlign: '-2px', marginRight: 6 }}/>
@@ -196,6 +198,34 @@ export default function Escalations({ user }) {
 // it POSTs a new one. Steps are edited as ordered rows — step 1 always
 // fires immediately (wait locked to 0), later steps wait N minutes after
 // the previous step.
+// Live open escalation episodes (monitor + rule subjects). Ack stops a ladder.
+function OpenEpisodes({ writable }) {
+  const [reload, setReload] = useState(0);
+  const st = useApi(() => api.escalation.openEpisodes(), [reload]);
+  const eps = st.data || [];
+  if (eps.length === 0) return null;
+  const ack = async (id) => { try { await api.escalation.ackEpisode(id); setReload(k => k + 1); } catch { /* surfaced on reload */ } };
+  return (
+    <div className="card" style={{ padding: 16, marginBottom: 22 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-3)', marginBottom: 10 }}>
+        {t('esc.open_title')} ({eps.length})
+      </div>
+      {eps.map(e => (
+        <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '7px 0', borderTop: '1px solid var(--border)' }}>
+          <span style={{ fontSize: 13, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 999, background: 'var(--surface-2,#f5f5f4)', border: '1px solid var(--border)' }}>{e.subject_kind}</span>{' '}
+            <span style={{ fontFamily: 'monospace' }}>{e.subject_ref}</span>
+            {' · '}{t('esc.step')} {e.last_step}{e.acked_at ? ' · acked' : ''}
+          </span>
+          {writable && !e.acked_at && (
+            <button className="btn btn-ghost" style={{ flexShrink: 0 }} onClick={() => ack(e.id)}>{t('esc.ack')}</button>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function PolicyForm({ policy, channels, schedules, onCancel, onSaved }) {
   const editing = !!policy;
   const [name,  setName]  = useState(policy?.name || '');

@@ -127,7 +127,9 @@ pub async fn delete(pool: &DbPool, id: EscalationPolicyId) -> DbResult<()> {
 
 struct EpisodeRow {
     id: Uuid,
-    monitor_id: Uuid,
+    monitor_id: Option<Uuid>,
+    subject_kind: String,
+    subject_ref: String,
     policy_id: Uuid,
     started_at: OffsetDateTime,
     last_step: i32,
@@ -141,7 +143,9 @@ impl From<EpisodeRow> for EscalationEpisode {
     fn from(r: EpisodeRow) -> Self {
         EscalationEpisode {
             id: r.id,
-            monitor_id: MonitorId::from_uuid(r.monitor_id),
+            monitor_id: r.monitor_id.map(MonitorId::from_uuid),
+            subject_kind: r.subject_kind,
+            subject_ref: r.subject_ref,
             policy_id: EscalationPolicyId::from_uuid(r.policy_id),
             started_at: r.started_at,
             last_step: r.last_step,
@@ -165,20 +169,113 @@ pub async fn open_episode(
     let row = sqlx::query_as!(
         EpisodeRow,
         r#"
-        INSERT INTO escalation_episodes (id, monitor_id, policy_id, next_escalation_at)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (monitor_id) WHERE resolved_at IS NULL DO NOTHING
-        RETURNING id, monitor_id, policy_id, started_at, last_step,
+        INSERT INTO escalation_episodes
+            (id, monitor_id, subject_kind, subject_ref, policy_id, next_escalation_at)
+        VALUES ($1, $2, 'monitor', $3, $4, $5)
+        ON CONFLICT (subject_kind, subject_ref) WHERE resolved_at IS NULL DO NOTHING
+        RETURNING id, monitor_id, subject_kind, subject_ref, policy_id, started_at, last_step,
                   next_escalation_at, acked_at, acked_by, resolved_at
         "#,
         Uuid::now_v7(),
         monitor_id.0,
+        monitor_id.0.to_string(),
         policy.id.0,
         next,
     )
     .fetch_optional(pool)
     .await?;
     Ok(row.map(Into::into))
+}
+
+/// Open an episode for a non-monitor subject (e.g. a telemetry rule). `kind` +
+/// `subject_ref` are the generic key; `monitor_id` stays NULL. Returns None if
+/// one is already open for the subject.
+pub async fn open_episode_for_subject(
+    pool: &DbPool,
+    kind: &str,
+    subject_ref: &str,
+    policy: &EscalationPolicy,
+) -> DbResult<Option<EscalationEpisode>> {
+    let next = next_due(policy, 0);
+    let row = sqlx::query_as!(
+        EpisodeRow,
+        r#"
+        INSERT INTO escalation_episodes
+            (id, subject_kind, subject_ref, policy_id, next_escalation_at)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (subject_kind, subject_ref) WHERE resolved_at IS NULL DO NOTHING
+        RETURNING id, monitor_id, subject_kind, subject_ref, policy_id, started_at, last_step,
+                  next_escalation_at, acked_at, acked_by, resolved_at
+        "#,
+        Uuid::now_v7(),
+        kind,
+        subject_ref,
+        policy.id.0,
+        next,
+    )
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.map(Into::into))
+}
+
+/// Resolve the open episode for a generic subject (rule recovered). Returns it,
+/// or None if nothing was open.
+pub async fn resolve_subject(
+    pool: &DbPool,
+    kind: &str,
+    subject_ref: &str,
+) -> DbResult<Option<EscalationEpisode>> {
+    let row = sqlx::query_as!(
+        EpisodeRow,
+        r#"
+        UPDATE escalation_episodes SET resolved_at = NOW()
+        WHERE subject_kind = $1 AND subject_ref = $2 AND resolved_at IS NULL
+        RETURNING id, monitor_id, subject_kind, subject_ref, policy_id, started_at, last_step,
+                  next_escalation_at, acked_at, acked_by, resolved_at
+        "#,
+        kind,
+        subject_ref,
+    )
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.map(Into::into))
+}
+
+/// Acknowledge an episode by id (subject-agnostic) — stops the ladder.
+pub async fn ack_episode(pool: &DbPool, episode_id: Uuid, by: UserId) -> DbResult<EscalationEpisode> {
+    let row = sqlx::query_as!(
+        EpisodeRow,
+        r#"
+        UPDATE escalation_episodes
+        SET acked_at = NOW(), acked_by = $2
+        WHERE id = $1 AND resolved_at IS NULL AND acked_at IS NULL
+        RETURNING id, monitor_id, subject_kind, subject_ref, policy_id, started_at, last_step,
+                  next_escalation_at, acked_at, acked_by, resolved_at
+        "#,
+        episode_id,
+        by.0,
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or(DbError::NotFound)?;
+    Ok(row.into())
+}
+
+/// All currently-open episodes (any subject) for the on-call dashboard.
+pub async fn list_open(pool: &DbPool) -> DbResult<Vec<EscalationEpisode>> {
+    let rows = sqlx::query_as!(
+        EpisodeRow,
+        r#"
+        SELECT id, monitor_id, subject_kind, subject_ref, policy_id, started_at, last_step,
+               next_escalation_at, acked_at, acked_by, resolved_at
+        FROM escalation_episodes
+        WHERE resolved_at IS NULL
+        ORDER BY started_at DESC
+        "#,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(Into::into).collect())
 }
 
 /// When the step AFTER `fired_step` becomes due, or None if the ladder
@@ -200,7 +297,7 @@ pub async fn open_for_monitor(
     let row = sqlx::query_as!(
         EpisodeRow,
         r#"
-        SELECT id, monitor_id, policy_id, started_at, last_step,
+        SELECT id, monitor_id, subject_kind, subject_ref, policy_id, started_at, last_step,
                next_escalation_at, acked_at, acked_by, resolved_at
         FROM escalation_episodes
         WHERE monitor_id = $1 AND resolved_at IS NULL
@@ -221,7 +318,7 @@ pub async fn ack(pool: &DbPool, monitor_id: MonitorId, by: UserId) -> DbResult<E
         UPDATE escalation_episodes
         SET acked_at = NOW(), acked_by = $2
         WHERE monitor_id = $1 AND resolved_at IS NULL AND acked_at IS NULL
-        RETURNING id, monitor_id, policy_id, started_at, last_step,
+        RETURNING id, monitor_id, subject_kind, subject_ref, policy_id, started_at, last_step,
                   next_escalation_at, acked_at, acked_by, resolved_at
         "#,
         monitor_id.0,
@@ -242,7 +339,7 @@ pub async fn resolve(pool: &DbPool, monitor_id: MonitorId) -> DbResult<Option<Es
         UPDATE escalation_episodes
         SET resolved_at = NOW()
         WHERE monitor_id = $1 AND resolved_at IS NULL
-        RETURNING id, monitor_id, policy_id, started_at, last_step,
+        RETURNING id, monitor_id, subject_kind, subject_ref, policy_id, started_at, last_step,
                   next_escalation_at, acked_at, acked_by, resolved_at
         "#,
         monitor_id.0,
@@ -283,7 +380,7 @@ pub async fn advance(
         SET last_step = $2, next_escalation_at = $3
         WHERE id = $1 AND resolved_at IS NULL AND acked_at IS NULL
           AND last_step = $4
-        RETURNING id, monitor_id, policy_id, started_at, last_step,
+        RETURNING id, monitor_id, subject_kind, subject_ref, policy_id, started_at, last_step,
                   next_escalation_at, acked_at, acked_by, resolved_at
         "#,
         episode_id,
@@ -301,7 +398,7 @@ pub async fn due(pool: &DbPool) -> DbResult<Vec<EscalationEpisode>> {
     let rows = sqlx::query_as!(
         EpisodeRow,
         r#"
-        SELECT id, monitor_id, policy_id, started_at, last_step,
+        SELECT id, monitor_id, subject_kind, subject_ref, policy_id, started_at, last_step,
                next_escalation_at, acked_at, acked_by, resolved_at
         FROM escalation_episodes
         WHERE resolved_at IS NULL AND acked_at IS NULL

@@ -23,7 +23,40 @@ use validator::Validate;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list).post(create))
+        .route("/episodes", get(open_episodes))
+        .route("/episodes/{id}/ack", post(ack_episode_route))
         .route("/{id}", axum::routing::patch(update).delete(delete))
+}
+
+/// All currently-open escalation episodes (monitor + rule subjects).
+async fn open_episodes(
+    State(s): State<AppState>,
+) -> Result<Json<Vec<EscalationEpisode>>, ApiError> {
+    Ok(Json(rampart_db::escalations::list_open(s.pool()).await?))
+}
+
+/// Acknowledge any episode by id (stops the ladder). Subject-agnostic, so it
+/// works for rule episodes too (monitor episodes also have the per-monitor ack).
+async fn ack_episode_route(
+    State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<EscalationEpisode>, ApiError> {
+    let episode_id =
+        Uuid::from_str(&id).map_err(|_| ApiError::BadRequest("invalid episode id".into()))?;
+    let ep = rampart_db::escalations::ack_episode(s.pool(), episode_id, user.id).await?;
+    crate::audit::record(
+        s.pool(),
+        &user,
+        &headers,
+        "escalation.ack",
+        "escalation_episode",
+        Some(episode_id),
+        Some(serde_json::json!({ "subject_kind": ep.subject_kind, "subject_ref": ep.subject_ref })),
+    )
+    .await;
+    Ok(Json(ep))
 }
 
 /// Merged into the /v1/monitors nest.

@@ -17,6 +17,18 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+- **Timed escalation climb for alert rules.** Escalation episodes are now keyed
+  on a generic subject (`subject_kind`/`subject_ref`, migration 0096; monitor
+  episodes keep `monitor_id` for the FK cascade). A firing telemetry rule with
+  an escalation policy opens an episode, pages step 0, and **climbs the ladder
+  over time** (`check_escalations` branches monitor vs rule, checking the rule's
+  firing state) until it recovers or is acked. New `GET
+  /v1/escalation-policies/episodes` (all open) + `POST …/episodes/{id}/ack`
+  (subject-agnostic ack); the Escalations page shows open episodes with an
+  Acknowledge button. Replaces v0.39's on-fire fan-out with the real climb. The
+  monitor ladder is unchanged.
+
 ---
 
 ## [0.39.0] — 2026-06-15
