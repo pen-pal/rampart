@@ -17,6 +17,10 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+---
+
+## [0.30.0] — 2026-06-15
+
 ### Added
 - Full live example stack (`examples/full-stack/`): one `docker compose up`
   brings up Rampart + Postgres + the demo seed + a load generator (live OTLP
@@ -1212,7 +1216,8 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 
 ---
 
-[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.29.0...HEAD
+[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.30.0...HEAD
+[0.30.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.30.0
 [0.29.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.29.0
 [0.28.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.28.0
 [0.27.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.27.0
