@@ -512,6 +512,8 @@ export const api = {
     resolve:   (id) => request(`/v1/error-issues/${id}/resolve`,   { method: 'POST' }),
     ignore:    (id) => request(`/v1/error-issues/${id}/ignore`,    { method: 'POST' }),
     unresolve: (id) => request(`/v1/error-issues/${id}/unresolve`, { method: 'POST' }),
+    assign:    (id, assignee) => request(`/v1/error-issues/${id}/assign`, { method: 'POST', body: { assignee: assignee || null } }),
+    assignableUsers: () => request('/v1/error-issues/assignable-users'),
   },
   // Source maps for server-side symbolication of minified JS stack frames.
   sourcemaps: {

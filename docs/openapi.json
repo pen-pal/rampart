@@ -4256,6 +4256,51 @@
         }
       }
     },
+    "/v1/error-issues/{id}/assign": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Errors"
+        ],
+        "summary": "Assign (or unassign) an issue",
+        "description": "Body `{assignee}`: a user UUID, or null/empty to unassign.",
+        "responses": {
+          "200": {
+            "description": "Updated issue."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "description": "No such issue."
+          }
+        }
+      }
+    },
+    "/v1/error-issues/assignable-users": {
+      "get": {
+        "tags": [
+          "Errors"
+        ],
+        "summary": "Assignee directory",
+        "description": "Minimal user list (id / name / email) for the assignee picker \u2014 editor-visible, unlike the admin `/v1/users` list.",
+        "responses": {
+          "200": {
+            "description": "`[{id, name, email}]`."
+          }
+        }
+      }
+    },
     "/api/{project_id}/envelope": {
       "parameters": [
         {
