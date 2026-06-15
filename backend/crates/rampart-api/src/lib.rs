@@ -18,6 +18,7 @@ pub mod pprof;
 pub mod rate_limit;
 pub mod routes;
 pub mod seed;
+pub mod self_telemetry;
 pub mod smtp;
 pub mod state;
 pub mod static_assets;
@@ -51,6 +52,19 @@ pub fn build_router(state: AppState) -> Router {
     // sees a request whose `x-request-id` is already populated.
     let trace_layer =
         TraceLayer::new_for_http().make_span_with(|req: &axum::http::Request<axum::body::Body>| {
+            // Don't create spans for the ingest + scrape routes. With
+            // self-telemetry on (RAMPART_OTLP_ENDPOINT), tracing the OTLP/RUM/
+            // error-ingest endpoints would feed our own exports straight back
+            // in — an amplifying loop; /healthz + /metrics are pure scrape noise.
+            let path = req.uri().path();
+            if path.starts_with("/otlp")
+                || path.starts_with("/rum")
+                || path.starts_with("/api/")
+                || path == "/healthz"
+                || path == "/metrics"
+            {
+                return tracing::Span::none();
+            }
             let request_id = req
                 .headers()
                 .get("x-request-id")
