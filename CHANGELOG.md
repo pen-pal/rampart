@@ -19,6 +19,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.45.0] — 2026-06-15
+
+### Added
+- **SLOs + error budgets** — a first-class tier (migration 0098). Define a named
+  objective (e.g. 99.9% over 30 days) over one of two indicators: **monitor
+  uptime** (up heartbeats / total) or a **metric ratio** (SUM good / SUM total
+  over matching samples). The scheduler computes the achieved ratio and consumed
+  error budget every tick and pages when the budget is **exhausted** or **fast
+  burning** (Google-SRE 1-hour burn rate ≥ 14.4×), routing to channels and
+  optionally climbing an **escalation policy** like the other rule kinds. New
+  `/v1/slos` CRUD returns each SLO with a live snapshot (achieved %, budget
+  remaining, 1h burn rate); new **SLOs** view renders the budget bars and an
+  editor. `seed-demo` seeds an example metric SLO. Distinct from the existing
+  per-monitor `slo_target_pct` marker, which stays as a simple uptime promise.
+
+---
+
 ## [0.44.0] — 2026-06-15
 
 ### Changed
