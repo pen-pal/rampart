@@ -335,6 +335,21 @@ function IssueDetail({ issueId, user, onBack }) {
     finally { setBusy(false); }
   };
 
+  // Assignee picker — editor-visible directory (id/name/email only).
+  const [assignable, setAssignable] = useState([]);
+  useEffect(() => {
+    if (!writable) return;
+    api.errorIssues.assignableUsers()
+      .then(u => setAssignable(Array.isArray(u) ? u : []))
+      .catch(() => {});
+  }, [writable]);
+  const assign = async (uid) => {
+    setBusy(true);
+    try { await api.errorIssues.assign(issueId, uid || null); setReloadKey(k => k + 1); }
+    catch { /* surfaced by reload */ }
+    finally { setBusy(false); }
+  };
+
   if (issueState.loading) {
     return <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-3)' }}><Loader2 size={16}/> {t('errors.loading')}</div>;
   }
@@ -377,7 +392,12 @@ function IssueDetail({ issueId, user, onBack }) {
           </div>
         </div>
         {writable && (
-          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0, alignItems: 'center' }}>
+            <select className="select" style={{ width: 'auto' }} value={issue.assignee || ''} disabled={busy}
+              onChange={e => assign(e.target.value)} title={t('errors.assignee')}>
+              <option value="">{t('errors.unassigned')}</option>
+              {assignable.map(u => <option key={u.id} value={u.id}>{u.name || u.email}</option>)}
+            </select>
             {issue.status !== 'resolved' && <button className="btn" disabled={busy} onClick={() => act(api.errorIssues.resolve)}><Check size={13}/> {t('errors.resolve')}</button>}
             {issue.status !== 'ignored' && <button className="btn" disabled={busy} onClick={() => act(api.errorIssues.ignore)}>{t('errors.ignore')}</button>}
             {issue.status !== 'unresolved' && <button className="btn" disabled={busy} onClick={() => act(api.errorIssues.unresolve)}>{t('errors.unresolve')}</button>}

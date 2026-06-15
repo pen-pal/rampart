@@ -482,6 +482,51 @@ pub async fn set_issue_status(
     Ok(row.into())
 }
 
+/// Assign (or, with `None`, unassign) an issue to a user. Returns the updated
+/// issue. The assignee FK is `ON DELETE SET NULL`, so a deleted user simply
+/// clears the assignment.
+pub async fn assign_issue(
+    pool: &DbPool,
+    id: ErrorIssueId,
+    assignee: Option<rampart_core::ids::UserId>,
+) -> DbResult<ErrorIssue> {
+    let aid = assignee.map(|u| u.0);
+    let row = sqlx::query_as!(
+        IssueRow,
+        r#"
+        UPDATE error_issues SET assignee = $2
+        WHERE id = $1
+        RETURNING id, project_id, fingerprint, title, culprit, level, status,
+                  first_seen, last_seen, times_seen, assignee
+        "#,
+        id.0,
+        aid,
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or(DbError::NotFound)?;
+    Ok(row.into())
+}
+
+/// Minimal user directory for the assignee picker (editor-visible, unlike the
+/// admin `/v1/users` list — only id / name / email, no roles or secrets).
+#[derive(serde::Serialize)]
+pub struct AssignableUser {
+    pub id: Uuid,
+    pub name: Option<String>,
+    pub email: String,
+}
+
+pub async fn assignable_users(pool: &DbPool) -> DbResult<Vec<AssignableUser>> {
+    let rows = sqlx::query_as!(
+        AssignableUser,
+        r#"SELECT id, name, email::text AS "email!" FROM users ORDER BY name NULLS LAST, email"#,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows)
+}
+
 struct EventRow {
     id: Uuid,
     issue_id: Uuid,

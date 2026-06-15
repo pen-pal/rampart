@@ -51,6 +51,8 @@ pub fn issue_router() -> Router<AppState> {
         .route("/{id}/resolve", post(resolve))
         .route("/{id}/ignore", post(ignore))
         .route("/{id}/unresolve", post(unresolve))
+        .route("/{id}/assign", post(assign))
+        .route("/assignable-users", get(assignable_users))
 }
 
 fn project_id(s: &str) -> Result<ErrorProjectId, ApiError> {
@@ -359,4 +361,49 @@ async fn unresolve(
     Path(id): Path<String>,
 ) -> Result<Json<ErrorIssue>, ApiError> {
     set_status(&s, &user, &headers, &id, "unresolved").await
+}
+
+#[derive(Deserialize)]
+struct AssignBody {
+    /// User UUID to assign, or null/empty to unassign.
+    #[serde(default)]
+    assignee: Option<String>,
+}
+
+async fn assign(
+    State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(body): Json<AssignBody>,
+) -> Result<Json<ErrorIssue>, ApiError> {
+    let iid = issue_id(&id)?;
+    let assignee = match body.assignee.as_deref().filter(|v| !v.is_empty()) {
+        Some(u) => Some(
+            Uuid::from_str(u)
+                .map(rampart_core::ids::UserId::from_uuid)
+                .map_err(|_| ApiError::BadRequest("invalid user id".into()))?,
+        ),
+        None => None,
+    };
+    let issue = rampart_db::error_tracking::assign_issue(s.pool(), iid, assignee).await?;
+    crate::audit::record(
+        s.pool(),
+        &user,
+        &headers,
+        "error_issue.assign",
+        "error_issue",
+        Some(iid.0),
+        Some(serde_json::json!({ "assignee": assignee.map(|u| u.0) })),
+    )
+    .await;
+    Ok(Json(issue))
+}
+
+async fn assignable_users(
+    State(s): State<AppState>,
+) -> Result<Json<Vec<rampart_db::error_tracking::AssignableUser>>, ApiError> {
+    Ok(Json(
+        rampart_db::error_tracking::assignable_users(s.pool()).await?,
+    ))
 }

@@ -17,6 +17,12 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+- Error issue assignment: assign an issue to a user from the detail header
+  (`POST /v1/error-issues/{id}/assign`), backed by an editor-visible assignee
+  directory (`GET /v1/error-issues/assignable-users`). Uses the `assignee`
+  column that already existed on `error_issues`.
+
 ---
 
 ## [0.24.0] — 2026-06-15

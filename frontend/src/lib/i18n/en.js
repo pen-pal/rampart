@@ -1681,6 +1681,8 @@ const en = {
   'errors.stacktrace':               'Stack trace (most recent event)',
   'errors.symbolicated':             'symbolicated',
   'errors.breadcrumbs':              'Breadcrumbs (most recent event)',
+  'errors.assignee':                 'Assignee',
+  'errors.unassigned':               'Unassigned',
   'errors.sourcemaps':               'Source maps',
   'errors.sm_upload':                'Upload',
   'errors.sm_release':               'Release (must match the event release, e.g. 1.4.2)',

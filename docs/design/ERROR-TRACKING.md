@@ -214,6 +214,9 @@ A new `#/errors` view, mirroring the Escalations/Metrics views:
 - Breadcrumbs: the SDK trail (`breadcrumbs.values[]`, or a bare `breadcrumbs[]`
   from older SDKs) kept verbatim in the event `context` is rendered as a
   category/message/level/time timeline on the latest event.
+- Assignee: an issue can be assigned to a user from the detail header
+  (`POST /{id}/assign`); the picker is fed by an editor-visible directory
+  (`GET /v1/error-issues/assignable-users`, id/name/email only).
 - New nav entry; lazy-loaded view; `error.*` i18n keys (English, others
   fall back via `t()`).
 
