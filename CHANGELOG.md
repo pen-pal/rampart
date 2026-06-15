@@ -17,6 +17,12 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+- **Custom dashboards** (`#/dashboards`): build your own boards of widgets
+  (monitor status, metric chart + sparkline, RUM web-vitals, notes). Per-user,
+  saved in the prefs blob — no backend or schema. Reachable from the nav drawer
+  (Overview).
+
 ---
 
 ## [0.34.0] — 2026-06-15

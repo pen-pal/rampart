@@ -38,6 +38,7 @@ export function parseRoute(hash) {
   if (h === '#/silences')           return { view: 'silences',      id: null };
   if (h === '#/maintenance')        return { view: 'maintenance',   id: null };
   if (h === '#/dependencies')       return { view: 'dependencies',  id: null };
+  if (h === '#/dashboards')         return { view: 'dashboards',    id: null };
   if (h === '#/api-keys')           return { view: 'api-keys',      id: null };
   if (h === '#/proxies')            return { view: 'proxies',       id: null };
   if (h === '#/agents')             return { view: 'agents',        id: null };
