@@ -24,10 +24,11 @@ exits — it does **not** start the server.
 |---|---|
 | Monitors | A `[demo]` folder with 4 monitors (HTTP / keyword / TCP / Redis), each with 48h of hourly heartbeats — the Cache takes a short outage so the uptime strip shows a dip. One carries an SLO target. |
 | Errors | A `[demo] web` project with 2 grouped issues; one recurs across 3 releases + 3 users (so issue stats show users-affected / by-release) and carries a breadcrumb trail. |
-| Traces | A 3-span trace across `[demo] api` → `[demo] payments`, with an errored leaf span. |
-| Logs | 7 log lines across services + levels, including repeated `failed login` events. |
-| RUM | 3 web-vitals beacons (one with a poor LCP/CLS). |
-| Metrics | A 2-instance `demo_requests_per_sec` / `demo_p95_latency_ms` series. |
+| Traces | A 3-span trace across `[demo] api` → `[demo] payments`, with an errored leaf span. Each span deep-links to its profiling window; the service map shows the cross-service edge with p95 + error rate. |
+| Logs | 7 log lines across services + levels, including repeated `failed login` events. The checkout-path lines carry the trace id (log ↔ trace), and the 24h volume histogram renders above the stream. |
+| RUM | 3 web-vitals beacons (one with a poor LCP/CLS); the `/checkout` load carries the trace id, so the **Traced page-loads** table links straight to the trace (RUM → trace). |
+| Metrics | A 2-instance `demo_requests_per_sec` / `demo_p95_latency_ms` series, plus `demo_req_success` / `demo_req_total` counters behind the demo SLO. |
+| SLOs | A metric-ratio SLO (*API request success*, 99.9% / 30d) with a live error-budget bar + trend sparkline; also surfaced on the dashboard SLO widget. |
 | Alerting | A telemetry alert rule (trace error-rate) and a notification channel. |
 | Detection | A SIEM rule (`failed login`, severity high) that evaluates immediately and **raises a finding** from the seeded auth logs. |
 
