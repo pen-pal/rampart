@@ -49,6 +49,9 @@ services:
       <<: *rampart-env
       BIND_ADDR: 0.0.0.0:3000
       RUST_LOG: rampart=info,info
+      # Self-observability: Rampart exports its OWN traces + logs back into
+      # itself, so Traces/Logs show real live data from the running app.
+      RAMPART_OTLP_ENDPOINT: http://rampart:3000
     ports:
       - "3000:3000"
     depends_on:
