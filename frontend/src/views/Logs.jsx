@@ -57,6 +57,7 @@ function LogHistogram({ buckets }) {
 export default function Logs({ traceId }) {
   const [service, setService] = useState('');
   const [level, setLevel] = useState('');
+  const [winHours, setWinHours] = useState(24); // histogram + level-count window
   const [q, setQ] = useState('');
   const [applied, setApplied] = useState({ service: '', level: '', q: '' });
   const [reloadKey, setReloadKey] = useState(0);
@@ -77,10 +78,10 @@ export default function Logs({ traceId }) {
     () => api.logs.query({ service: applied.service, level: applied.level, q: applied.q, trace_id: traceId || undefined, limit: 300 }),
     [applied, reloadKey, traceId],
   );
-  const levelsState = useApi(() => api.logs.levels(applied.service), [applied.service, reloadKey]);
+  const levelsState = useApi(() => api.logs.levels(applied.service, winHours), [applied.service, winHours, reloadKey]);
   const histState = useApi(
-    () => api.logs.histogram({ service: applied.service, level: applied.level, q: applied.q, hours: 24 }),
-    [applied, reloadKey],
+    () => api.logs.histogram({ service: applied.service, level: applied.level, q: applied.q, hours: winHours }),
+    [applied, winHours, reloadKey],
   );
   const services = svcState.data || [];
   const logs = logsState.data || [];
@@ -153,6 +154,11 @@ export default function Logs({ traceId }) {
           </select>
           <select className="select" value={level} onChange={e => setLevel(e.target.value)}>
             {LEVELS.map(l => <option key={l} value={l}>{l ? t(`logs.level.${l}`) : t('logs.any_level')}</option>)}
+          </select>
+          <select className="select" value={winHours} onChange={e => setWinHours(Number(e.target.value))} title={t('logs.window_hint')}>
+            <option value={1}>1h</option>
+            <option value={24}>24h</option>
+            <option value={168}>7d</option>
           </select>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: '1 1 220px' }}>
             <Search size={14} style={{ color: 'var(--text-3)' }}/>
