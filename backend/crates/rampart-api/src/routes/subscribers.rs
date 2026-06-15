@@ -55,6 +55,35 @@ pub fn settings_router() -> Router<AppState> {
         .route("/settings/siem-export", get(siem_get).put(siem_put))
         .route("/settings/security", get(security_get).put(security_put))
         .route("/settings/storage", get(storage_get))
+        .route(
+            "/settings/ingest-sampling",
+            get(sampling_get).put(sampling_put),
+        )
+}
+
+/// Head-sampling keep-percentages for traces + logs (admin). 100 = off.
+async fn sampling_get(
+    State(s): State<AppState>,
+) -> Result<Json<crate::ingest_util::SamplingConfig>, ApiError> {
+    Ok(Json(crate::ingest_util::sampling_config(s.pool()).await?))
+}
+
+async fn sampling_put(
+    State(s): State<AppState>,
+    Json(input): Json<crate::ingest_util::SamplingConfig>,
+) -> Result<StatusCode, ApiError> {
+    if [input.traces_pct, input.logs_pct]
+        .iter()
+        .any(|p| !(0..=100).contains(p))
+    {
+        return Err(ApiError::BadRequest(
+            "sampling percent must be 0-100".into(),
+        ));
+    }
+    let value = serde_json::to_value(&input)
+        .map_err(|e| ApiError::BadRequest(format!("invalid sampling config: {e}")))?;
+    rampart_db::settings::put(s.pool(), crate::ingest_util::SAMPLING_KEY, &value).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// Per-tier on-disk usage (admin) — the data-footprint panel. Read-only.

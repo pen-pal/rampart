@@ -6333,6 +6333,35 @@
         }
       }
     },
+    "/v1/settings/ingest-sampling": {
+      "get": {
+        "tags": [
+          "Ingest"
+        ],
+        "summary": "Get ingest head-sampling rates",
+        "description": "Admin only. `{traces_pct, logs_pct}` (0\u2013100; 100 = keep all).",
+        "responses": {
+          "200": {
+            "description": "`{traces_pct, logs_pct}`."
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Ingest"
+        ],
+        "summary": "Set ingest head-sampling rates",
+        "description": "Admin only. Body `{traces_pct, logs_pct}` (0\u2013100). Traces are sampled whole by trace id; logs with a trace id follow it, trace-less logs use a per-record key. Applies at the OTLP ingest endpoints.",
+        "responses": {
+          "204": {
+            "description": "Saved."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
     "/v1/settings/storage": {
       "get": {
         "tags": [

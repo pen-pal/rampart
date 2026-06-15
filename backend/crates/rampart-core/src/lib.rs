@@ -33,6 +33,7 @@ pub mod promtext;
 pub mod proxy;
 pub mod role;
 pub mod rum;
+pub mod sampling;
 pub mod scheduled_report;
 pub mod status_page;
 pub mod synthetic;

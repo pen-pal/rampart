@@ -1127,6 +1127,12 @@ const en = {
   'settings.siem.target':            'Target',
   'settings.siem.target_hint':       'Webhook: a URL we POST a JSON array of audit entries to. Syslog: host:port we send one RFC5424 UDP line per entry to.',
   'settings.ingest.err_save':        'Save failed.',
+  'settings.sampling.title':         'Ingest sampling',
+  'settings.sampling.subtitle':      'Keep only a percentage of high-volume telemetry at ingest, to cap storage. Head sampling: traces are kept whole (by trace id), so waterfalls stay intact. 100 = keep everything (off).',
+  'settings.sampling.traces':        'Traces kept · %',
+  'settings.sampling.logs':          'Logs kept · %',
+  'settings.sampling.hint':          'Errors, metrics and uptime checks are never sampled — only traces and logs. A log with a trace id is sampled on that id, so it follows its trace when both rates match.',
+  'settings.sampling.err_range':     'Each percentage must be between 0 and 100.',
 
   // ── security ─────────────────────────────────────────────────────
   'security.title':                  'Security',

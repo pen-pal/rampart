@@ -25,6 +25,9 @@ controls exposure). Point an OTel SDK/Collector logs exporter at
 `Content-Encoding: gzip`/`deflate` bodies are transparently inflated, and the
 optional shared **ingest token** (Settings → Ingest token) gates this endpoint
 the same way as the traces tier (`Authorization: Bearer`/`X-Rampart-Token`).
+Optional **head sampling** (Settings → Ingest) keeps a percentage of logs: one
+carrying a `trace_id` is sampled on that id (so it follows its trace when both
+rates match), a trace-less log on a per-record key.
 Unsampled — all records are stored, bounded by retention.
 
 ## Storage & model
