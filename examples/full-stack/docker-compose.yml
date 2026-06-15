@@ -16,8 +16,15 @@
 
 name: rampart-demo
 
+# Set your own admin login by exporting these (or putting them in a .env file)
+# before `docker compose up`:
+#   RAMPART_ADMIN_EMAIL=me@example.com RAMPART_ADMIN_PASSWORD=hunter2hunter2 docker compose up
+# seed-demo creates this admin (server-side, so any password works); the load
+# generator then signs in with the same creds. Defaults below if unset.
 x-rampart-env: &rampart-env
   DATABASE_URL: postgres://rampart:rampart@postgres:5432/rampart
+  RAMPART_ADMIN_EMAIL: ${RAMPART_ADMIN_EMAIL:-demo@rampart.local}
+  RAMPART_ADMIN_PASSWORD: ${RAMPART_ADMIN_PASSWORD:-Rampart-Live-9271}
 
 services:
   postgres:
@@ -70,6 +77,8 @@ services:
       - ./loadgen/loadgen.sh:/loadgen.sh:ro
     environment:
       RAMPART_URL: http://rampart:3000
+      RAMPART_ADMIN_EMAIL: ${RAMPART_ADMIN_EMAIL:-demo@rampart.local}
+      RAMPART_ADMIN_PASSWORD: ${RAMPART_ADMIN_PASSWORD:-Rampart-Live-9271}
     depends_on:
       - rampart
 
