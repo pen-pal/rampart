@@ -62,6 +62,12 @@ impl fmt::Display for SeedStats {
 pub async fn run(pool: &DbPool) -> Result<SeedStats> {
     let mut stats = SeedStats::default();
 
+    // Optional admin bootstrap from env — lets a demo run sign you in with your
+    // own credentials (like the app's first-run signup) instead of forcing the
+    // built-in demo account. Server-side create, so it bypasses the API
+    // password policy. Only fires when no user exists yet.
+    seed_admin_from_env(pool).await?;
+
     // Idempotency sentinel: the demo folder.
     let groups = rampart_db::monitor_groups::list(pool).await?;
     if groups.iter().any(|g| g.name == DEMO_GROUP) {
@@ -90,6 +96,30 @@ pub async fn run(pool: &DbPool) -> Result<SeedStats> {
 }
 
 const DEMO_GROUP: &str = "[demo] Sample services";
+
+async fn seed_admin_from_env(pool: &DbPool) -> Result<()> {
+    let email = std::env::var("RAMPART_ADMIN_EMAIL").ok().filter(|s| !s.is_empty());
+    let password = std::env::var("RAMPART_ADMIN_PASSWORD").ok().filter(|s| !s.is_empty());
+    let (Some(email), Some(password)) = (email, password) else {
+        return Ok(());
+    };
+    if rampart_db::users::count(pool).await? > 0 {
+        return Ok(()); // someone already exists — don't clobber
+    }
+    let hash = crate::auth::hash_password(&password)
+        .map_err(|e| anyhow::anyhow!("hash failed: {e:?}"))?;
+    rampart_db::users::create(
+        pool,
+        rampart_db::users::NewUser {
+            email,
+            name: Some("Admin".to_string()),
+            password_hash: hash,
+            role: rampart_core::Role::Admin,
+        },
+    )
+    .await?;
+    Ok(())
+}
 
 async fn seed_monitors(pool: &DbPool, group_id: uuid::Uuid, stats: &mut SeedStats) -> Result<()> {
     let specs = [
