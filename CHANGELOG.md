@@ -19,6 +19,17 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.31.2] — 2026-06-15
+
+### Added
+- `reset-password` now self-verifies: after setting the password it re-reads the
+  row, verifies the hash in-process, and prints the target `DATABASE_URL` + the
+  result. A green line proves the login works in *that* database — turning a
+  recurring "still unauthorized" into a one-line diagnosis (typo vs wrong
+  DB/instance).
+
+---
+
 ## [0.31.1] — 2026-06-15
 
 ### Fixed
@@ -1250,7 +1261,8 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 
 ---
 
-[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.31.1...HEAD
+[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.31.2...HEAD
+[0.31.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.31.2
 [0.31.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.31.1
 [0.31.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.31.0
 [0.30.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.30.1
