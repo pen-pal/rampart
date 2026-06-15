@@ -19,6 +19,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.56.0] — 2026-06-15
+
+### Changed
+- Trace waterfall bars now show **self time** — a darker inner segment marking
+  the portion of a span's duration not spent in its children, with a
+  `total · self` tooltip. Makes it obvious at a glance whether a span is slow
+  itself or just waiting on downstream work (standard APM read).
+
+---
+
 ## [0.55.1] — 2026-06-15
 
 ### Changed
@@ -1615,6 +1625,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.56.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.56.0
 [0.55.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.55.1
 [0.55.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.55.0
 [0.54.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.54.1
