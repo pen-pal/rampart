@@ -372,6 +372,15 @@ function NavDrawer({ current, user }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
 
+  // Any view's header can open this single drawer by dispatching the event —
+  // the dashboard's header button does, so nav lives where users expect it
+  // (not only the floating launcher).
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener('rampart:nav-open', onOpen);
+    return () => window.removeEventListener('rampart:nav-open', onOpen);
+  }, []);
+
   const visible = (it) => (admin || !it.admin) && (writable || !it.write);
   const ql = q.trim().toLowerCase();
   const match = (it) => !ql || (VIEW_LABEL[it.view] || it.view).toLowerCase().includes(ql);
