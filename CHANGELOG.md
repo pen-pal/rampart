@@ -17,6 +17,14 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+- **`examples/demo-app`**: a standalone instrumented sample app (Node/Express
+  backend + browser frontend, its own Postgres + Redis) wired to Rampart so
+  every tier fills with real data — auto-instrumented traces (http/express/pg/
+  redis), OTLP logs, periodic V8 CPU profiles (folded), RUM web-vitals + browser
+  errors, backend 500s, and repeated "failed login" logs that trip a SIEM
+  detection rule. `docker compose up --build`.
+
 ---
 
 ## [0.35.0] — 2026-06-15
