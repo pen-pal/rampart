@@ -57,9 +57,11 @@ function dsnFor(project) {
   return `${loc.protocol}//${project.public_key}@${loc.host}/${project.id}`;
 }
 
-export default function Errors({ user }) {
+export default function Errors({ user, openIssueId }) {
   const [project, setProject] = useState(null); // selected project object
-  const [issueId, setIssueId] = useState(null); // selected issue id
+  // `openIssueId` (from a #/errors/<id> deep link, e.g. trace → errors) opens
+  // the issue directly; IssueDetail loads it by id without needing the project.
+  const [issueId, setIssueId] = useState(openIssueId || null); // selected issue id
 
   return (
     <div className="rampart">

@@ -53,6 +53,7 @@ pub fn issue_router() -> Router<AppState> {
         .route("/{id}/unresolve", post(unresolve))
         .route("/{id}/assign", post(assign))
         .route("/assignable-users", get(assignable_users))
+        .route("/by-trace/{trace_id}", get(issues_by_trace))
 }
 
 fn project_id(s: &str) -> Result<ErrorProjectId, ApiError> {
@@ -405,5 +406,15 @@ async fn assignable_users(
 ) -> Result<Json<Vec<rampart_db::error_tracking::AssignableUser>>, ApiError> {
     Ok(Json(
         rampart_db::error_tracking::assignable_users(s.pool()).await?,
+    ))
+}
+
+/// Error issues touched by a given trace — the trace → errors correlation link.
+async fn issues_by_trace(
+    State(s): State<AppState>,
+    Path(trace_id): Path<String>,
+) -> Result<Json<Vec<rampart_db::error_tracking::TraceErrorRef>>, ApiError> {
+    Ok(Json(
+        rampart_db::error_tracking::issues_for_trace(s.pool(), &trace_id).await?,
     ))
 }

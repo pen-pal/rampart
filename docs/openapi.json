@@ -4318,6 +4318,30 @@
         }
       }
     },
+    "/v1/error-issues/by-trace/{trace_id}": {
+      "parameters": [
+        {
+          "name": "trace_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Errors"
+        ],
+        "summary": "Error issues touched by a trace",
+        "description": "The trace \u2192 errors correlation link \u2014 issues whose events carry this `trace_id` (extracted from the Sentry `contexts.trace.trace_id` at ingest). `[{issue_id, title, level, count}]`.",
+        "responses": {
+          "200": {
+            "description": "Issues for the trace."
+          }
+        }
+      }
+    },
     "/api/{project_id}/envelope": {
       "parameters": [
         {

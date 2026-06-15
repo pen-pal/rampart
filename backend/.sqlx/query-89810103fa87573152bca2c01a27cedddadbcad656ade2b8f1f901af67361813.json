@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO error_events\n            (id, issue_id, project_id, ts, level, message, exception_type, culprit,\n             environment, release, server_name, stacktrace, context, trace_id)\n        VALUES ($1, $2, $3, now(), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Jsonb",
+        "Jsonb",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "89810103fa87573152bca2c01a27cedddadbcad656ade2b8f1f901af67361813"
+}

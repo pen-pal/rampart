@@ -1608,6 +1608,8 @@ const en = {
   'traces.back_list':                'Back to traces',
   'traces.correlated_logs':          'Correlated logs ({n})',
   'traces.open_in_logs':             'Open in Logs →',
+  'traces.correlated_errors':        'Errors in this trace ({n})',
+  'traces.open_in_errors':           'Open in Errors →',
   'traces.open_profile':             'Flamegraph →',
   'logs.for_trace':                  'Filtered to trace',
   'logs.open_trace':                 'View trace →',

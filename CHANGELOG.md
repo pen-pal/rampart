@@ -17,6 +17,14 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+- Cross-tier correlation: **trace → errors**. Error ingest now extracts
+  `contexts.trace.trace_id` into an indexed `error_events.trace_id` (migration
+  0094, backfilled), `GET /v1/error-issues/by-trace/{trace_id}` lists the issues
+  a trace touched, and the trace detail shows an "Errors in this trace" section
+  linking to each issue (new `#/errors/<id>` deep link). Completes the
+  Errors↔Traces↔Logs triangle (error→trace + log↔trace already existed).
+
 ---
 
 ## [0.37.0] — 2026-06-15
