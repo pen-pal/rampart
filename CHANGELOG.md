@@ -19,6 +19,17 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.51.2] — 2026-06-15
+
+### Changed
+- `seed-demo` now populates the cross-tier links: the `/checkout` demo
+  page-load carries the seeded checkout `trace_id` (RUM → trace), and the
+  checkout-path demo logs are tagged with the same trace (log ↔ trace). The
+  demo dashboard now demonstrates the correlation pivots end to end alongside
+  the existing SLO seed.
+
+---
+
 ## [0.51.1] — 2026-06-15
 
 ### Documentation
@@ -1543,6 +1554,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.51.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.51.2
 [0.51.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.51.1
 [0.51.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.51.0
 [0.50.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.50.0
