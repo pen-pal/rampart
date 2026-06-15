@@ -32,6 +32,24 @@ Tear everything down (including the disposable database):
 docker compose down -v
 ```
 
+## Login says "unauthorized"?
+
+Almost always a **stale cached image** — Docker keeps an old `latest` and your
+binary predates the demo admin / `reset-password`. Force a fresh pull:
+
+```bash
+docker compose down -v        # drop old containers + db
+docker compose pull           # grab the newest image
+docker compose up
+```
+
+(The compose file sets `pull_policy: always`, so a plain `up` should refetch
+too.) Then log in with your creds, or create one explicitly:
+
+```bash
+docker compose exec rampart rampart-api reset-password admin@example.com 'admin-pass-123'
+```
+
 ## What's running
 
 | Service | What it does |
