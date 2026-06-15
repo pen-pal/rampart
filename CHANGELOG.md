@@ -17,6 +17,10 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+---
+
+## [0.31.0] — 2026-06-15
+
 ### Added
 - `rampart-api reset-password <email> <password>` subcommand — break-glass admin
   recovery: resets the password if the user exists, else creates an admin.
@@ -1236,7 +1240,8 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 
 ---
 
-[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.30.1...HEAD
+[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.31.0...HEAD
+[0.31.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.31.0
 [0.30.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.30.1
 [0.30.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.30.0
 [0.29.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.29.0
