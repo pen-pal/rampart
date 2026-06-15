@@ -19,6 +19,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.50.0] — 2026-06-15
+
+### Added
+- **Dashboard SLO widget.** The dashboard sidebar now shows a compact SLO
+  error-budget panel — a healthy/breaching marker plus the five worst budgets
+  as bars (green → amber → red), each linking to the SLOs view. Hidden when no
+  SLOs are defined. Surfaces budget burn next to monitor status at a glance.
+
+---
+
 ## [0.49.1] — 2026-06-15
 
 ### Tested
@@ -1510,6 +1520,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.50.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.50.0
 [0.49.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.49.1
 [0.49.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.49.0
 [0.48.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.48.0
