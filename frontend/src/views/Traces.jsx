@@ -85,7 +85,10 @@ function flattenSpans(spans, collapsed) {
     for (const s of byParent.get(key) || []) {
       const kids = byParent.get(s.span_id) || [];
       const folded = collapsed.has(s.span_id);
-      out.push({ s, depth, childCount: kids.length, collapsed: folded });
+      // Self time = this span's duration minus what its children cover.
+      const childNs = kids.reduce((a, k) => a + (k.end_ns - k.start_ns), 0);
+      const selfNs = Math.max(0, (s.end_ns - s.start_ns) - childNs);
+      out.push({ s, depth, childCount: kids.length, collapsed: folded, selfNs });
       if (kids.length && !folded) visit(s.span_id, depth + 1);
     }
   };
@@ -396,9 +399,12 @@ function TraceDetail({ traceId, onBack }) {
             ))}
           </div>
         </div>
-        {rows.map(({ s, depth, childCount, collapsed: folded }) => {
+        {rows.map(({ s, depth, childCount, collapsed: folded, selfNs }) => {
           const left = ((s.start_ns - traceStart) / total) * 100;
-          const width = Math.max(0.4, ((s.end_ns - s.start_ns) / total) * 100);
+          const durNs = Math.max(1, s.end_ns - s.start_ns);
+          const width = Math.max(0.4, (durNs / total) * 100);
+          const selfMs = selfNs / 1e6;
+          const selfFrac = childCount > 0 ? selfNs / durNs : 1;
           const err = s.status_code === 2;
           const isOpen = openSpan === s.span_id;
           const attrs = s.attributes && typeof s.attributes === 'object' ? Object.entries(s.attributes) : [];
@@ -424,7 +430,13 @@ function TraceDetail({ traceId, onBack }) {
                 </div>
                 <div className="wf-track">
                   <div className="wf-track-bg"/>
-                  <div className={`wf-bar${err ? ' err' : ''}`} style={{ left: `${left}%`, width: `${width}%`, background: svcColor(s.service_name) }} title={fmtMs(s.duration_ms)}/>
+                  <div className={`wf-bar${err ? ' err' : ''}`} style={{ left: `${left}%`, width: `${width}%`, background: svcColor(s.service_name) }}
+                    title={childCount > 0 ? `${fmtMs(s.duration_ms)} total · ${fmtMs(selfMs)} self` : fmtMs(s.duration_ms)}>
+                    {/* darker inner segment = self time (time not in children) */}
+                    {childCount > 0 && selfFrac < 0.999 && (
+                      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${Math.max(2, selfFrac * 100)}%`, background: 'rgba(0,0,0,.26)', borderRadius: '3px 0 0 3px' }}/>
+                    )}
+                  </div>
                   <span className="wf-dur" style={labelRight ? { right: `${100 - left}%`, paddingRight: 4 } : { left: `${left + width}%`, paddingLeft: 4 }}>{fmtMs(s.duration_ms)}</span>
                 </div>
               </div>
