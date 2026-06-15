@@ -55,9 +55,11 @@ export default function Rum() {
   const appsState = useApi(() => api.rum.apps(), []);
   const sumState = useApi(() => api.rum.summary(app, hours), [app, hours]);
   const pagesState = useApi(() => api.rum.pages(app, hours), [app, hours]);
+  const tracedState = useApi(() => api.rum.traced(app, hours), [app, hours]);
   const apps = appsState.data || [];
   const sum = sumState.data;
   const pages = pagesState.data || [];
+  const traced = tracedState.data || [];
 
   const snippet = `<script src="${window.location.origin}/rum/snippet.js" data-app="web"></script>`;
   const copy = async () => {
@@ -125,6 +127,26 @@ export default function Rum() {
                 </div>
               ))}
             </div>
+
+            {traced.length > 0 && (
+              <>
+                <div className="field-label" style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', marginBottom: 8 }}>{t('rum.traced')}</div>
+                <div className="card" style={{ overflow: 'hidden', marginBottom: 24 }}>
+                  <div className="row" style={{ gridTemplateColumns: '1fr 90px 170px', fontWeight: 600, color: 'var(--text-3)', fontSize: 11 }}>
+                    <span>{t('rum.page')}</span><span>{t('rum.load')}</span><span>{t('rum.trace')}</span>
+                  </div>
+                  {traced.map((r, i) => (
+                    <div className="row" key={i} style={{ gridTemplateColumns: '1fr 90px 170px' }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.url}>{r.url}</span>
+                      <span>{r.load_ms == null ? '—' : `${Math.round(r.load_ms)} ms`}</span>
+                      <a href={`#/traces/${encodeURIComponent(r.trace_id)}`} style={{ color: 'var(--accent)', fontFamily: 'monospace', fontSize: 12 }}>
+                        {r.trace_id.slice(0, 12)}… →
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </>
         )}
 

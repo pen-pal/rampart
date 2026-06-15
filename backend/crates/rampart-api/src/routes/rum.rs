@@ -32,6 +32,7 @@ pub fn router() -> Router<AppState> {
         .route("/summary", get(summary))
         .route("/pages", get(pages))
         .route("/apps", get(apps))
+        .route("/traced", get(traced))
 }
 
 #[derive(Deserialize)]
@@ -198,6 +199,16 @@ async fn apps(State(s): State<AppState>) -> Result<Json<Vec<String>>, ApiError> 
     Ok(Json(rampart_db::rum::apps(s.pool()).await?))
 }
 
+async fn traced(
+    State(s): State<AppState>,
+    Query(q): Query<RumQuery>,
+) -> Result<Json<Vec<rampart_core::rum::RumTracedLoad>>, ApiError> {
+    Ok(Json(
+        rampart_db::rum::recent_traced(s.pool(), q.app.as_deref(), q.hours.unwrap_or(24), 50)
+            .await?,
+    ))
+}
+
 /// The browser RUM collector. Self-configures from its own `<script>` tag
 /// (`data-app`, optional `data-endpoint`, optional `data-token`), gathers Core
 /// Web Vitals via PerformanceObserver + Navigation Timing (one beacon on page
@@ -231,8 +242,14 @@ const SNIPPET: &str = r#"(function(){
   var inp=0; obs('event',function(l){l.getEntries().forEach(function(e){if(e.duration>inp)inp=e.duration;});m.inp=inp;});
   function nav(){var n=performance.getEntriesByType('navigation')[0];if(n){m.ttfb=n.responseStart;m.load=n.loadEventEnd||n.duration;}performance.getEntriesByType('paint').forEach(function(e){if(e.name==='first-contentful-paint')m.fcp=e.startTime;});}
   var sent=false;
+  // Best-effort backend trace id for RUM->trace correlation: an explicit
+  // window.__rampartTraceId wins, else the trace-id field of a <meta
+  // name="traceparent"> (W3C: 00-<traceid>-<spanid>-<flags>).
+  function tid(){try{if(window.__rampartTraceId)return String(window.__rampartTraceId);
+    var mt=document.querySelector('meta[name=traceparent]');
+    if(mt){var p=(mt.content||'').split('-');if(p.length>=2&&p[1]&&/^[0-9a-f]+$/i.test(p[1]))return p[1];}}catch(e){}return null;}
   function send(){if(sent)return;nav();if(!Object.keys(m).length)return;sent=true;
-    var body=JSON.stringify({app:app,url:location.pathname,session:sid,ua:navigator.userAgent,metrics:m});
+    var body=JSON.stringify({app:app,url:location.pathname,session:sid,ua:navigator.userAgent,trace_id:tid(),metrics:m});
     try{navigator.sendBeacon(ep,body);}catch(e){}}
   addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')send();});
   addEventListener('pagehide',send);

@@ -42,6 +42,10 @@ pub struct RumBeacon {
     pub session: Option<String>,
     #[serde(default)]
     pub ua: Option<String>,
+    /// Active backend trace id at page load, if the page propagated one — lets
+    /// the RUM view deep-link to the trace waterfall.
+    #[serde(default)]
+    pub trace_id: Option<String>,
     #[serde(default)]
     pub metrics: RumMetrics,
 }
@@ -69,6 +73,11 @@ impl RumBeacon {
         };
         self.ua = self.ua.map(|s| s.chars().take(MAX_UA).collect());
         self.session = self.session.map(|s| s.chars().take(MAX_SESSION).collect());
+        // Trace ids are 32 hex chars; bound generously and drop blanks.
+        self.trace_id = self.trace_id.and_then(|s| {
+            let t: String = s.trim().chars().take(64).collect();
+            (!t.is_empty()).then_some(t)
+        });
         // Drop a beacon with no usable signal at all.
         let m = &self.metrics;
         let has_metric = [m.lcp, m.fcp, m.cls, m.inp, m.ttfb, m.load]
@@ -102,6 +111,15 @@ pub struct RumPage {
     pub inp_p75: Option<f64>,
     pub cls_p75: Option<f64>,
     pub last_seen: OffsetDateTime,
+}
+
+/// A recent page-load that carried a backend trace id — the RUM → trace pivot.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RumTracedLoad {
+    pub url: String,
+    pub trace_id: String,
+    pub load_ms: Option<f64>,
+    pub ts: OffsetDateTime,
 }
 
 /// Core Web Vitals "good" thresholds (p75 ≤ value is good). Exposed so the
