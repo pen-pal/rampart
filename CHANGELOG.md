@@ -17,6 +17,10 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+---
+
+## [0.40.0] — 2026-06-15
+
 ### Added
 - **Timed escalation climb for alert rules.** Escalation episodes are now keyed
   on a generic subject (`subject_kind`/`subject_ref`, migration 0096; monitor
@@ -1380,7 +1384,8 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 
 ---
 
-[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.39.0...HEAD
+[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.40.0...HEAD
+[0.40.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.40.0
 [0.39.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.39.0
 [0.38.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.38.0
 [0.37.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.37.0
