@@ -12,12 +12,12 @@
 //! Designed to be called from a tokio task on a loop.
 
 use crate::{DbPool, DbResult};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RetentionConfig {
     #[serde(default = "default_hb")]
     pub heartbeats: i32,

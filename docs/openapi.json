@@ -6227,10 +6227,10 @@
           "Ingest"
         ],
         "summary": "Get data-retention settings",
-        "description": "Admin only.",
+        "description": "Admin only. The effective per-tier windows (days): `heartbeats`, `rollup_days`, `metrics_days`, `traces_days`, `logs_days`, `rum_days`, `profiles_days`, `audit_log` \u2014 stored blob merged with defaults.",
         "responses": {
           "200": {
-            "description": "Retention configuration."
+            "description": "Retention config `{heartbeats, rollup_days, metrics_days, traces_days, logs_days, rum_days, profiles_days, audit_log}` (days)."
           }
         }
       },
@@ -6239,10 +6239,13 @@
           "Ingest"
         ],
         "summary": "Update data-retention settings",
-        "description": "Admin only.",
+        "description": "Admin only. Body is the full retention config (all tiers in days); omitted tiers fall back to defaults. Each window must be 1\u201336500.",
         "responses": {
           "204": {
-            "description": "Saved."
+            "description": "Saved; next prune tick applies it."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           }
         }
       }

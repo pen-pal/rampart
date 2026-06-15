@@ -40,6 +40,7 @@ const css = `
   }
   .input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
   .field { margin-bottom: 14px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
   .field-label { font-size: 11px; font-weight: 500; color: var(--text-3); text-transform: uppercase; letter-spacing: .04em; display: block; margin-bottom: 5px; }
   .field-hint { font-size: 12px; color: var(--text-3); margin-top: 4px; }
   .banner-err { background: var(--down-soft); color: #b91c1c; border: 1px solid #fecaca; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; }
@@ -55,9 +56,24 @@ function fmtBytes(n) {
   return `${v < 10 && i > 0 ? v.toFixed(1) : Math.round(v)} ${u[i]}`;
 }
 
+// Every prune tier, in display order. `key` matches the RetentionConfig field.
+const TIERS = [
+  { key: 'heartbeats',    label: 'Heartbeats',     hint: "Per-check probe results. The uptime strip rolls these up, so a low value trims that view. Default 365." },
+  { key: 'rollup_days',   label: 'Uptime rollups', hint: 'Hourly heartbeat aggregates — the long-range uptime record. Default 365.' },
+  { key: 'metrics_days',  label: 'Metrics',        hint: 'Externally-ingested metric samples. Default 30.' },
+  { key: 'traces_days',   label: 'Traces / spans', hint: 'High-volume, short-lived debugging data. Default 7.' },
+  { key: 'logs_days',     label: 'Logs',           hint: 'Log records. High volume — the lz4 column compression mainly helps here. Default 7.' },
+  { key: 'rum_days',      label: 'RUM events',     hint: 'Real-user web-vitals events. Default 14.' },
+  { key: 'profiles_days', label: 'Profiles',       hint: 'Continuous-profiling samples — heaviest tier per row (stored gzipped). Default 7.' },
+  { key: 'audit_log',     label: 'Audit log',      hint: 'Admin actions, logins, config changes. Compliance often wants 1 year. Default 365.' },
+];
+const DEFAULT_CFG = {
+  heartbeats: 365, rollup_days: 365, metrics_days: 30, traces_days: 7,
+  logs_days: 7, rum_days: 14, profiles_days: 7, audit_log: 365,
+};
+
 export default function RetentionSettings() {
-  const [heartbeats, setHb] = useState(90);
-  const [auditLog,   setAl] = useState(365);
+  const [cfg, setCfg] = useState(DEFAULT_CFG);
   const [busy, setBusy] = useState(false);
   const [load, setLoad] = useState(true);
   const [err,  setErr]  = useState(null);
@@ -68,27 +84,26 @@ export default function RetentionSettings() {
     (async () => {
       try {
         const r = await api.retention.get();
-        if (r && typeof r === 'object') {
-          setHb(Number(r.heartbeats) || 90);
-          setAl(Number(r.audit_log)  || 365);
-        }
+        if (r && typeof r === 'object') setCfg({ ...DEFAULT_CFG, ...r });
       } catch (e) { setErr(e.message); }
       finally { setLoad(false); }
     })();
     api.storage.get().then(s => setStorage(Array.isArray(s) ? s : [])).catch(() => {});
   }, []);
 
+  const setTier = (key, v) => setCfg(c => ({ ...c, [key]: v }));
+
   const save = async () => {
     setErr(null); setOk(false);
-    const hb = parseInt(heartbeats, 10);
-    const al = parseInt(auditLog, 10);
-    if (!hb || !al || hb < 1 || al < 1) {
-      setErr(t('settings.retention.err_positive'));
-      return;
+    const out = {};
+    for (const tr of TIERS) {
+      const n = parseInt(cfg[tr.key], 10);
+      if (!n || n < 1) { setErr(t('settings.retention.err_positive')); return; }
+      out[tr.key] = n;
     }
     setBusy(true);
     try {
-      await api.retention.put(hb, al);
+      await api.retention.put(out);
       setOk(true);
     } catch (e) { setErr(e.message || t('settings.retention.err_save')); }
     finally { setBusy(false); }
@@ -116,25 +131,18 @@ export default function RetentionSettings() {
             {err && <div className="banner-err"><AlertCircle size={14} style={{ verticalAlign: '-2px', marginRight: 6 }}/>{err}</div>}
             {ok  && <div className="banner-ok">{t('settings.retention.saved')}</div>}
 
-            <div className="field">
-              <label className="field-label">{t('settings.retention.heartbeats_label')}</label>
-              <input className="input mono" type="number" min="1" step="1"
-                value={heartbeats} onChange={e => setHb(e.target.value)}/>
-              <div className="field-hint">
-                {t('settings.retention.heartbeats_hint')}
-              </div>
+            <div className="grid2">
+              {TIERS.map(tr => (
+                <div className="field" key={tr.key}>
+                  <label className="field-label">{tr.label} · {t('settings.retention.days')}</label>
+                  <input className="input mono" type="number" min="1" step="1"
+                    value={cfg[tr.key]} onChange={e => setTier(tr.key, e.target.value)}/>
+                  <div className="field-hint">{tr.hint}</div>
+                </div>
+              ))}
             </div>
 
-            <div className="field">
-              <label className="field-label">{t('settings.retention.audit_label')}</label>
-              <input className="input mono" type="number" min="1" step="1"
-                value={auditLog} onChange={e => setAl(e.target.value)}/>
-              <div className="field-hint">
-                {t('settings.retention.audit_hint')}
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
               <button className="btn btn-accent" onClick={save} disabled={busy}>
                 {busy ? <><Loader2 size={13}/> {t('common.saving')}</> : <><Save size={13}/> {t('common.save')}</>}
               </button>

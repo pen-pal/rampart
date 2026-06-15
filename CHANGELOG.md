@@ -17,6 +17,12 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+- Retention settings now expose **every tier** (heartbeats, uptime rollups,
+  metrics, traces, logs, RUM, profiles, audit) instead of just heartbeats +
+  audit. `GET/PUT /v1/settings/retention` round-trip the full config (effective
+  values, defaults merged), each window validated 1–36500 days.
+
 ---
 
 ## [0.26.0] — 2026-06-15

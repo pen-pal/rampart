@@ -306,32 +306,38 @@ async fn smtp_put(
 // ── Retention settings ────────────────────────────────────────────────────
 
 async fn retention_get(State(s): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
-    // Default mirrors `RetentionConfig::default()` in rampart-db::prune.
-    let raw = rampart_db::settings::get(s.pool(), "retention_days").await?;
-    Ok(Json(raw.unwrap_or_else(
-        || serde_json::json!({ "heartbeats": 90, "audit_log": 365 }),
-    )))
-}
-
-#[derive(Deserialize)]
-struct RetentionPut {
-    heartbeats: i32,
-    audit_log: i32,
+    // Return the *effective* config: the stored blob with every missing tier
+    // filled by its real default (so the UI shows exactly what the prune loop
+    // uses, not a partial blob).
+    let cfg = rampart_db::prune::load_config(s.pool()).await?;
+    Ok(Json(
+        serde_json::to_value(cfg).unwrap_or_else(|_| serde_json::json!({})),
+    ))
 }
 
 async fn retention_put(
     State(s): State<AppState>,
-    Json(input): Json<RetentionPut>,
+    // Accept the full config; missing fields fall back to their defaults via
+    // RetentionConfig's serde defaults, so older clients still work.
+    Json(input): Json<rampart_db::prune::RetentionConfig>,
 ) -> Result<StatusCode, ApiError> {
-    if input.heartbeats < 1 || input.audit_log < 1 {
+    let windows = [
+        input.heartbeats,
+        input.audit_log,
+        input.rollup_days,
+        input.metrics_days,
+        input.traces_days,
+        input.logs_days,
+        input.rum_days,
+        input.profiles_days,
+    ];
+    if windows.iter().any(|d| !(1..=36500).contains(d)) {
         return Err(ApiError::BadRequest(
-            "retention windows must be >= 1 day".into(),
+            "retention windows must be between 1 and 36500 days".into(),
         ));
     }
-    let value = serde_json::json!({
-        "heartbeats": input.heartbeats,
-        "audit_log":  input.audit_log,
-    });
+    let value = serde_json::to_value(&input)
+        .map_err(|e| ApiError::BadRequest(format!("invalid retention config: {e}")))?;
     rampart_db::settings::put(s.pool(), "retention_days", &value).await?;
     Ok(StatusCode::NO_CONTENT)
 }
