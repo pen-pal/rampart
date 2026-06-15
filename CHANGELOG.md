@@ -19,6 +19,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.51.1] — 2026-06-15
+
+### Documentation
+- New **`docs/CORRELATION.md`** maps the full cross-tier link web (log↔trace,
+  error↔trace, trace→profiling by time window, RUM→trace, service-map edge→
+  filtered traces) — how the ids flow and why single-tool correlation is the
+  point. Linked from the docs nav and README.
+
+---
+
 ## [0.51.0] — 2026-06-15
 
 ### Added
@@ -1533,6 +1543,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.51.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.51.1
 [0.51.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.51.0
 [0.50.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.50.0
 [0.49.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.49.1
