@@ -102,6 +102,16 @@ async fn main() -> anyhow::Result<()> {
             }
             Err(e) => return Err(e.into()),
         }
+        // Self-check: re-read the row and verify the hash in-process, so a green
+        // line proves the credential is good in THIS database — isolating a
+        // login failure to a typo or a different server/DB instance.
+        match rampart_db::users::get_by_email(&pool, &email).await {
+            Ok(u) if rampart_api::auth::verify_password(&password, &u.password_hash) => {
+                println!("verified: '{email}' logs in with this password against {database_url}");
+            }
+            Ok(_) => println!("WARNING: stored hash did NOT verify — login would fail"),
+            Err(e) => println!("WARNING: could not re-read user for verify: {e}"),
+        }
         return Ok(());
     }
 
