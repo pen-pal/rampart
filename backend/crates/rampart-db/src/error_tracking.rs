@@ -323,12 +323,18 @@ pub async fn record_event(
     } else {
         serde_json::to_value(&ev.frames).ok()
     };
+    // Cross-tier join key: pull contexts.trace.trace_id out of the raw event
+    // so a trace can find its errors (indexed column, vs digging the JSON).
+    let trace_id = ev
+        .raw
+        .pointer("/contexts/trace/trace_id")
+        .and_then(|v| v.as_str());
     sqlx::query!(
         r#"
         INSERT INTO error_events
             (id, issue_id, project_id, ts, level, message, exception_type, culprit,
-             environment, release, server_name, stacktrace, context)
-        VALUES ($1, $2, $3, now(), $4, $5, $6, $7, $8, $9, $10, $11, $12)
+             environment, release, server_name, stacktrace, context, trace_id)
+        VALUES ($1, $2, $3, now(), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         "#,
         event_id,
         issue_id,
@@ -342,6 +348,7 @@ pub async fn record_event(
         ev.server_name,
         stacktrace,
         ev.raw,
+        trace_id,
     )
     .execute(pool)
     .await?;
@@ -360,6 +367,36 @@ pub async fn record_event(
 fn parse_event_id(raw: Option<&str>) -> Uuid {
     raw.and_then(|s| Uuid::parse_str(s).ok())
         .unwrap_or_else(Uuid::now_v7)
+}
+
+/// Distinct error issues touched by events carrying `trace_id` — powers the
+/// trace → errors link (reverse of the error → trace context link).
+#[derive(serde::Serialize)]
+pub struct TraceErrorRef {
+    pub issue_id: Uuid,
+    pub title: String,
+    pub level: String,
+    pub count: i64,
+}
+
+pub async fn issues_for_trace(pool: &DbPool, trace_id: &str) -> DbResult<Vec<TraceErrorRef>> {
+    let rows = sqlx::query_as!(
+        TraceErrorRef,
+        r#"
+        SELECT ev.issue_id AS "issue_id!", i.title AS "title!", i.level AS "level!",
+               COUNT(*) AS "count!"
+        FROM error_events ev
+        JOIN error_issues i ON i.id = ev.issue_id
+        WHERE ev.trace_id = $1
+        GROUP BY ev.issue_id, i.title, i.level
+        ORDER BY COUNT(*) DESC
+        LIMIT 20
+        "#,
+        trace_id,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows)
 }
 
 /// Issues for a project, newest activity first. `status` filters when set.

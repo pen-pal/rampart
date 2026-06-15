@@ -522,6 +522,7 @@ export const api = {
     unresolve: (id) => request(`/v1/error-issues/${id}/unresolve`, { method: 'POST' }),
     assign:    (id, assignee) => request(`/v1/error-issues/${id}/assign`, { method: 'POST', body: { assignee: assignee || null } }),
     assignableUsers: () => request('/v1/error-issues/assignable-users'),
+    byTrace: (traceId) => request(`/v1/error-issues/by-trace/${encodeURIComponent(traceId)}`),
   },
   // Source maps for server-side symbolication of minified JS stack frames.
   sourcemaps: {

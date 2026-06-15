@@ -255,7 +255,7 @@ export default function App() {
     case 'traces':        view = <Traces openTraceId={route.id} />; break;
     case 'logs':          view = <Logs traceId={route.id} />; break;
     case 'profiling':     view = <Profiling profileId={route.id} />; break;
-    case 'errors':        view = <Errors user={user} />; break;
+    case 'errors':        view = <Errors user={user} openIssueId={route.id} />; break;
     case 'rum':           view = <Rum />; break;
     case 'on-call':       view = <OnCall user={user} />; break;
     case 'alert-rules':   view = <AlertRules />; break;

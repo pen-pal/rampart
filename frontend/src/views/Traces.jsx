@@ -307,7 +307,36 @@ function TraceDetail({ traceId, onBack }) {
       </div>
 
       <TraceLogs traceId={traceId} />
+      <TraceErrors traceId={traceId} />
     </>
+  );
+}
+
+// Correlated errors — error issues touched by this trace (reverse of the
+// error → trace context link). The trace → errors side of the join.
+function TraceErrors({ traceId }) {
+  const state = useApi(() => api.errorIssues.byTrace(traceId), [traceId]);
+  const issues = state.data || [];
+  if (state.loading || issues.length === 0) return null;
+  return (
+    <div style={{ marginTop: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)' }}>{t('traces.correlated_errors', { n: issues.length })}</span>
+        <a href="#/errors" style={{ fontSize: 12, color: 'var(--accent)' }}>{t('traces.open_in_errors')}</a>
+      </div>
+      <div className="card" style={{ padding: '4px 12px' }}>
+        {issues.map(i => (
+          <a key={i.issue_id} href={`#/errors/${i.issue_id}`} className="row"
+            style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', textDecoration: 'none', color: 'inherit' }}>
+            <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span style={{ color: i.level === 'error' || i.level === 'fatal' ? 'var(--down)' : 'var(--text-3)', fontWeight: 600, fontSize: 11 }}>{i.level}</span>{' '}
+              {i.title}
+            </span>
+            <span className="pill pill-muted">{i.count}</span>
+          </a>
+        ))}
+      </div>
+    </div>
   );
 }
 
