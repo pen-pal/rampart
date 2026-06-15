@@ -267,6 +267,14 @@ export const api = {
   me: {
     getPrefs: ()      => request('/v1/me/prefs'),
     setPrefs: (prefs) => request('/v1/me/prefs', { method: 'PUT', body: { prefs } }),
+    // Merge a patch into the prefs blob without clobbering keys other views own
+    // (e.g. the dashboard's saved_views). Fetch → spread → put.
+    patchPrefs: async (patch) => {
+      let current = {};
+      try { current = (await request('/v1/me/prefs')) || {}; } catch { current = {}; }
+      const next = { ...current, ...patch };
+      return request('/v1/me/prefs', { method: 'PUT', body: { prefs: next } });
+    },
   },
   proxies: {
     list:      ()                  => request('/v1/proxies'),

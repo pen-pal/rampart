@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, Loader2, AlertCircle, ScrollText, Search, RefreshCw, Download } from 'lucide-react';
+import { ChevronLeft, Loader2, AlertCircle, ScrollText, Search, RefreshCw, Download, Bookmark, X } from 'lucide-react';
 import { api, useApi, formatClock, formatRelative } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
 
@@ -66,6 +66,32 @@ export default function Logs({ traceId }) {
 
   const apply = () => setApplied({ service, level, q });
 
+  // Saved searches — per-user, stored in the shared prefs blob under
+  // `log_searches` (the dashboard owns `saved_views`; patchPrefs merges so the
+  // two never clobber each other). Only offered on the main view, not the
+  // single-trace drill-down.
+  const [saved, setSaved] = useState([]);
+  useEffect(() => {
+    if (traceId) return;
+    let off = false;
+    api.me.getPrefs()
+      .then(p => { if (!off) setSaved(Array.isArray(p?.log_searches) ? p.log_searches : []); })
+      .catch(() => {});
+    return () => { off = true; };
+  }, [traceId]);
+
+  const persistSaved = (next) => { setSaved(next); api.me.patchPrefs({ log_searches: next }).catch(() => {}); };
+  const saveCurrent = () => {
+    const name = window.prompt(t('logs.save_prompt'));
+    if (!name || !name.trim()) return;
+    persistSaved([...saved, { id: Date.now().toString(36), name: name.trim(), ...applied }]);
+  };
+  const applySaved = (s) => {
+    setService(s.service || ''); setLevel(s.level || ''); setQ(s.q || '');
+    setApplied({ service: s.service || '', level: s.level || '', q: s.q || '' });
+  };
+  const deleteSaved = (id) => persistSaved(saved.filter(s => s.id !== id));
+
   // CSV export honours the currently-applied filters (server clamps the row
   // count). Cookie-auth + same-origin, so a plain download link carries the
   // session — no fetch/blob dance needed.
@@ -113,11 +139,24 @@ export default function Logs({ traceId }) {
           <button className="btn" onClick={apply}>{t('logs.apply')}</button>
           <button className="btn btn-ghost" onClick={() => setReloadKey(k => k + 1)} title={t('logs.refresh')}><RefreshCw size={14}/></button>
           <a className="btn btn-ghost" href={exportUrl} download title={t('logs.export_hint')}><Download size={14}/> {t('logs.export')}</a>
+          {!traceId && <button className="btn btn-ghost" onClick={saveCurrent} title={t('logs.save_hint')}><Bookmark size={14}/> {t('logs.save')}</button>}
           <button className={`btn ${live ? 'btn-accent' : 'btn-ghost'}`} onClick={() => setLive(v => !v)} title={t('logs.live_hint')}>
             <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: live ? '#fff' : 'var(--text-3)', marginRight: 6, verticalAlign: 'middle' }}/>
             {t('logs.live')}
           </button>
         </div>
+
+        {!traceId && saved.length > 0 && (
+          <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em' }}>{t('logs.saved')}</span>
+            {saved.map(s => (
+              <span key={s.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, padding: '3px 9px', borderRadius: 999, background: 'var(--surface-2, #f5f5f4)', border: '1px solid var(--border, #e7e5e4)' }}>
+                <span style={{ cursor: 'pointer' }} onClick={() => applySaved(s)} title={[s.service, s.level, s.q].filter(Boolean).join(' · ') || t('logs.all_services')}>{s.name}</span>
+                <X size={11} style={{ cursor: 'pointer', opacity: 0.6 }} onClick={() => deleteSaved(s.id)}/>
+              </span>
+            ))}
+          </div>
+        )}
 
         {levelCounts.length > 0 && (
           <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>

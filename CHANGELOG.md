@@ -17,6 +17,12 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+- Saved searches on the Logs and Traces views: name the current filter set and
+  recall it as a chip. Per-user, stored in the existing prefs blob (a new
+  `patchPrefs` merge keeps the dashboard's saved views untouched) — no new
+  endpoint or schema.
+
 ---
 
 ## [0.23.0] — 2026-06-14
