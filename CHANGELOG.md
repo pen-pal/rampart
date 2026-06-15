@@ -19,6 +19,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.30.1] — 2026-06-15
+
+### Fixed
+- Full-stack example: the load generator's demo admin password
+  (`demo-password-123`) was rejected by the password policy (it contained the
+  email local-part `demo`), so no admin was created and login failed. Use a
+  compliant password and verify the session after register.
+
+---
+
 ## [0.30.0] — 2026-06-15
 
 ### Added
@@ -1216,7 +1226,8 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 
 ---
 
-[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.30.0...HEAD
+[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.30.1...HEAD
+[0.30.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.30.1
 [0.30.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.30.0
 [0.29.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.29.0
 [0.28.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.28.0
