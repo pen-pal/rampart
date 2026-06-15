@@ -17,6 +17,14 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+- **Prometheus `remote_write` ingest** (`POST /prom/write`): accepts the
+  snappy-compressed protobuf `WriteRequest` and stores each series in the
+  metrics tier, so Rampart is a metrics **sink**, not just a `/metrics` source.
+  Hand-written prost subset + pure-Rust snappy (no new heavy deps); public with
+  the optional shared-token gate. The full-stack example's Prometheus
+  remote_writes into Rampart.
+
 ---
 
 ## [0.33.0] — 2026-06-15
