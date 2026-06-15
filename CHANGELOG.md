@@ -19,6 +19,18 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.44.0] — 2026-06-15
+
+### Changed
+- **Navigation drawer** now groups collapse/expand. Each section has a chevron
+  + item count; only the section holding the current view is open by default so
+  the drawer stays compact as the product grows. Open/closed state persists per
+  browser, an **Expand all / Collapse all** toggle sits in the header, filtering
+  temporarily expands everything, and a collapsed section that contains the
+  active view shows a dot marker.
+
+---
+
 ## [0.43.0] — 2026-06-15
 
 ### Changed
@@ -1418,6 +1430,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.44.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.44.0
 [0.43.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.43.0
 [0.42.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.42.0
 [0.41.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.41.0
