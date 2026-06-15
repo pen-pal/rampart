@@ -19,6 +19,17 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.53.0] — 2026-06-15
+
+### Added
+- **Dashboard recent-errors widget.** A sidebar panel lists the most recently
+  seen open error issues across all projects (level dot, title, culprit, seen
+  count), each linking to the issue. Backed by a new
+  `GET /v1/error-issues/recent` cross-project feed. Sits beside the SLO widget,
+  so monitor status, SLO budgets, and live errors share one glance.
+
+---
+
 ## [0.52.0] — 2026-06-15
 
 ### Added
@@ -1565,6 +1576,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.53.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.53.0
 [0.52.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.52.0
 [0.51.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.51.2
 [0.51.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.51.1
