@@ -332,7 +332,8 @@ export const api = {
   },
   retention: {
     get: () => request('/v1/settings/retention'),
-    put: (heartbeats, auditLog) => request('/v1/settings/retention', { method: 'PUT', body: { heartbeats: Number(heartbeats), audit_log: Number(auditLog) } }),
+    // cfg = full RetentionConfig blob (all tiers in days).
+    put: (cfg) => request('/v1/settings/retention', { method: 'PUT', body: cfg }),
   },
   storage: {
     get: () => request('/v1/settings/storage'),

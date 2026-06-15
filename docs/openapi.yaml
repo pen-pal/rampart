@@ -2991,15 +2991,21 @@ paths:
     get:
       tags: [Ingest]
       summary: Get data-retention settings
-      description: Admin only.
+      description: >-
+        Admin only. The effective per-tier windows (days): `heartbeats`,
+        `rollup_days`, `metrics_days`, `traces_days`, `logs_days`, `rum_days`,
+        `profiles_days`, `audit_log` — stored blob merged with defaults.
       responses:
-        '200': { description: Retention configuration. }
+        '200': { description: 'Retention config `{heartbeats, rollup_days, metrics_days, traces_days, logs_days, rum_days, profiles_days, audit_log}` (days).' }
     put:
       tags: [Ingest]
       summary: Update data-retention settings
-      description: Admin only.
+      description: >-
+        Admin only. Body is the full retention config (all tiers in days);
+        omitted tiers fall back to defaults. Each window must be 1–36500.
       responses:
-        '204': { description: Saved. }
+        '204': { description: Saved; next prune tick applies it. }
+        '400': { $ref: '#/components/responses/BadRequest' }
   /v1/settings/telemetry-token:
     get:
       tags: [Ingest]
