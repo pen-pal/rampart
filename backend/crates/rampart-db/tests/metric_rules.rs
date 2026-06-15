@@ -25,6 +25,7 @@ fn rule(metric: &str, threshold: f64, for_seconds: i32) -> NewMetricRule {
         for_seconds,
         enabled: true,
         channel_ids: vec![],
+        escalation_policy_id: None,
     }
 }
 
@@ -158,6 +159,7 @@ async fn stale_series_resolves_instead_of_firing_forever(pool: PgPool) {
             for_seconds: None,
             enabled: Some(false),
             channel_ids: None,
+            escalation_policy_id: None,
         },
     )
     .await

@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO metric_rules (id, name, metric, labels, op, threshold, for_seconds, enabled, channel_ids, escalation_policy_id)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Jsonb",
+        "Text",
+        "Float8",
+        "Int4",
+        "Bool",
+        "UuidArray",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "97c351c0f88b37869e679bf5dc821fd935c36406421d6f5366ddf29376ce5e9b"
+}

@@ -11,7 +11,7 @@
 //! which is what a SOC analyst triages. The IO (matching + finding writes)
 //! lives in `rampart_db::detection`; this module is the shared vocabulary.
 
-use crate::ids::{DetectionFindingId, DetectionRuleId, NotificationId};
+use crate::ids::{DetectionFindingId, DetectionRuleId, EscalationPolicyId, NotificationId};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use validator::Validate;
@@ -73,6 +73,7 @@ pub struct DetectionRule {
     /// How far back a tick looks when it has no prior checkpoint (seconds).
     pub window_seconds: i32,
     pub channel_ids: Vec<NotificationId>,
+    pub escalation_policy_id: Option<EscalationPolicyId>,
     /// Watermark: the upper bound of the last evaluated window. The next tick
     /// counts matches with `ts > last_checked_at`, so findings never
     /// double-count across ticks.
@@ -114,6 +115,8 @@ pub struct NewDetectionRule {
     pub enabled: bool,
     #[serde(default)]
     pub channel_ids: Vec<NotificationId>,
+    #[serde(default)]
+    pub escalation_policy_id: Option<EscalationPolicyId>,
 }
 
 fn default_threshold() -> i32 {
@@ -161,6 +164,8 @@ pub struct UpdateDetectionRule {
     pub enabled: Option<bool>,
     #[serde(default)]
     pub channel_ids: Option<Vec<NotificationId>>,
+    #[serde(default)]
+    pub escalation_policy_id: Option<EscalationPolicyId>,
 }
 
 /// One raised detection: a count of matches over a concrete window, with a

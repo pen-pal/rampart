@@ -1,6 +1,6 @@
 //! Threshold alert rules over ingested metrics.
 
-use crate::ids::{MetricRuleId, NotificationId};
+use crate::ids::{EscalationPolicyId, MetricRuleId, NotificationId};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use validator::Validate;
@@ -89,6 +89,7 @@ pub struct MetricRule {
     pub for_seconds: i32,
     pub enabled: bool,
     pub channel_ids: Vec<NotificationId>,
+    pub escalation_policy_id: Option<EscalationPolicyId>,
     pub breach_since: Option<OffsetDateTime>,
     pub firing_at: Option<OffsetDateTime>,
     pub created_at: OffsetDateTime,
@@ -111,6 +112,8 @@ pub struct NewMetricRule {
     pub enabled: bool,
     #[serde(default)]
     pub channel_ids: Vec<NotificationId>,
+    #[serde(default)]
+    pub escalation_policy_id: Option<EscalationPolicyId>,
 }
 
 fn empty_labels() -> serde_json::Value {
@@ -141,6 +144,8 @@ pub struct UpdateMetricRule {
     pub enabled: Option<bool>,
     #[serde(default)]
     pub channel_ids: Option<Vec<NotificationId>>,
+    #[serde(default)]
+    pub escalation_policy_id: Option<EscalationPolicyId>,
 }
 
 /// What one evaluation tick decided for one rule — the pure half of the

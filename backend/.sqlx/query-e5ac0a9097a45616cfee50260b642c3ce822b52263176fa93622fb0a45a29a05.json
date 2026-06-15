@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, name, description, enabled, severity, service, min_level,\n               body_regex, attr_key, attr_val, threshold, window_seconds,\n               channel_ids AS \"channel_ids!\", last_checked_at, created_at\n        FROM detection_rules\n        ORDER BY created_at\n        ",
+  "query": "\n        SELECT id, name, description, enabled, severity, service, min_level,\n               body_regex, attr_key, attr_val, threshold, window_seconds,\n               channel_ids AS \"channel_ids!\", escalation_policy_id, last_checked_at, created_at\n        FROM detection_rules\n        WHERE id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -148,6 +148,17 @@
       },
       {
         "ordinal": 13,
+        "name": "escalation_policy_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "detection_rules",
+            "name": "escalation_policy_id"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
         "name": "last_checked_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -158,7 +169,7 @@
         }
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -170,7 +181,9 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid"
+      ]
     },
     "nullable": [
       false,
@@ -187,8 +200,9 @@
       false,
       false,
       true,
+      true,
       false
     ]
   },
-  "hash": "d91ef585c898370ed287a00c4282b05381e4e692034af27d720fd0855bf30241"
+  "hash": "e5ac0a9097a45616cfee50260b642c3ce822b52263176fa93622fb0a45a29a05"
 }
