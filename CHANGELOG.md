@@ -19,6 +19,17 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.52.0] — 2026-06-15
+
+### Added
+- **SLO achieved-ratio trend sparkline.** `/v1/slos` now returns a bucketed
+  achieved-ratio `trend` per SLO (24 points over the window via `date_bin`),
+  rendered as an auto-scaled inline sparkline next to each SLO's error-budget
+  bar — so you see whether the budget is recovering or burning, not just the
+  current number. Red when the SLO is breaching.
+
+---
+
 ## [0.51.2] — 2026-06-15
 
 ### Changed
@@ -1554,6 +1565,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.52.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.52.0
 [0.51.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.51.2
 [0.51.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.51.1
 [0.51.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.51.0
