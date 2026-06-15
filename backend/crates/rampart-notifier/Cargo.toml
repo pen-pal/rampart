@@ -40,7 +40,7 @@ aes-gcm      = { workspace = true }
 # This must be a direct dep — declaring it only in `[workspace.
 # dependencies]` doesn't constrain resolution, but a direct `=` dep
 # does, so `cargo update` can't silently re-bump it.
-generic-array = "=0.14.7"
+generic-array = "=1.4.3"
 
 [dev-dependencies]
 rampart-core = { path = "../rampart-core", features = ["testing"] }
