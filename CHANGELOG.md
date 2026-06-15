@@ -19,6 +19,19 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.46.0] — 2026-06-15
+
+### Changed
+- Trace **waterfall** reworked into a proper call-tree timeline: subtrees now
+  **collapse/expand** via a caret (with **Collapse all / Expand all**), rows are
+  taller and evenly spaced with per-depth **indentation guides**, the time-axis
+  ruler is **sticky** while the span list scrolls, a collapsed parent shows a
+  `+N` hidden-children badge, and span attributes / status still expand inline
+  on click. Per-service bar colors and the duration labels (placed at the end of
+  each bar, flipping inside at the right edge) are retained.
+
+---
+
 ## [0.45.0] — 2026-06-15
 
 ### Added
@@ -1447,6 +1460,8 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.46.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.46.0
+[0.45.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.45.0
 [0.44.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.44.0
 [0.43.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.43.0
 [0.42.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.42.0
