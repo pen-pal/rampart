@@ -19,6 +19,15 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.54.1] — 2026-06-15
+
+### Documentation
+- `docs/DEMO.md` updated to reflect the enriched `seed-demo`: the SLO + budget
+  trend, RUM→trace and log↔trace links on the checkout path, the service-map
+  edge metrics, the log-volume histogram, and the dashboard SLO/error widgets.
+
+---
+
 ## [0.54.0] — 2026-06-15
 
 ### Added
@@ -1587,6 +1596,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.54.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.54.1
 [0.54.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.54.0
 [0.53.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.53.0
 [0.52.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.52.0
