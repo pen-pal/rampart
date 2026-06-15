@@ -19,6 +19,19 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.47.0] — 2026-06-15
+
+### Changed
+- **Profiling** flamegraph is now interactive, taking cues from Datadog / ELK /
+  ScoutAPM: a **frame search** box dims non-matching frames and outlines the
+  matches (with a match count); the **top-functions** table is clickable to
+  highlight a function across the graph and shows a self-time bar; a **zoom
+  breadcrumb** replaces the single reset button (click any ancestor to pop back);
+  and a hovered-frame **info line** reports name, value, % of total, self time,
+  and Δ in diff mode. Frame coloring and diff coloring are unchanged.
+
+---
+
 ## [0.46.0] — 2026-06-15
 
 ### Changed
@@ -1460,6 +1473,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.47.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.47.0
 [0.46.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.46.0
 [0.45.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.45.0
 [0.44.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.44.0
