@@ -19,6 +19,19 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.51.0] — 2026-06-15
+
+### Added
+- **RUM → trace correlation.** RUM beacons can now carry the active backend
+  `trace_id` (migration 0099 adds the nullable column); the browser snippet
+  picks it up best-effort from `window.__rampartTraceId` or a
+  `<meta name="traceparent">`. A new **Traced page-loads** table in the RUM view
+  lists recent loads that carried a trace and deep-links each to its trace
+  waterfall (`/v1/rum/traced`). Extends the cross-tier links (logs↔trace,
+  error↔trace, trace↔profiling) to the browser tier.
+
+---
+
 ## [0.50.0] — 2026-06-15
 
 ### Added
@@ -1520,6 +1533,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.51.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.51.0
 [0.50.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.50.0
 [0.49.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.49.1
 [0.49.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.49.0
