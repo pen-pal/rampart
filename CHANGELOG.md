@@ -19,6 +19,18 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.49.0] — 2026-06-15
+
+### Changed
+- **Service map** enriched from call-counts-only to a health view: each
+  caller → callee edge now carries **error count / rate** and **p95 latency**
+  of the callee span (one `percentile_cont` + filtered count added to the
+  edge query). The map tab renders a throughput bar, a p95 pill, and an error
+  pill (red past 1%) per edge, with service color swatches — and each edge is
+  **clickable to jump to the traces list filtered to that callee service**.
+
+---
+
 ## [0.48.0] — 2026-06-15
 
 ### Added
@@ -1486,6 +1498,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.49.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.49.0
 [0.48.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.48.0
 [0.47.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.47.0
 [0.46.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.46.0
