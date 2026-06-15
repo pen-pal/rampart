@@ -43,6 +43,7 @@ services:
 
   rampart:
     image: ${RAMPART_IMAGE:-ghcr.io/pen-pal/rampart:latest}
+    pull_policy: always   # `latest` is cached locally otherwise — stale binary
     # build: { context: ../.., dockerfile: Dockerfile }
     environment:
       <<: *rampart-env
@@ -58,6 +59,7 @@ services:
   # including the fixed Alertmanager ingest token this stack references. Exits 0.
   rampart-seed:
     image: ${RAMPART_IMAGE:-ghcr.io/pen-pal/rampart:latest}
+    pull_policy: always
     # build: { context: ../.., dockerfile: Dockerfile }
     command: ["seed-demo"]
     environment:
