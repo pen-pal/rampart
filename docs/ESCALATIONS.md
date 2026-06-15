@@ -80,3 +80,9 @@ of running episodes (the ladder re-reads the policy at each advance).
 - If the process restarts mid-episode, state is in Postgres — the ladder
   resumes where it left off. An episode whose monitor recovered during
   downtime is closed (not paged) on the next scan.
+- The timed climb is covered by integration tests that fast-forward the
+  clock (backdating `next_escalation_at`, the same predicate the scan
+  gates on): a multi-rung ladder advances exactly one step per elapsed
+  deadline, an ack mid-climb halts it, and a never-acked climb exhausts at
+  the final rung leaving no further deadline. The same episode engine backs
+  monitors, telemetry/metric/detection rules, and SLOs (`subject_kind`).

@@ -220,3 +220,112 @@ async fn rule_subject_episode_lifecycle(pool: PgPool) {
         .unwrap()
         .is_some());
 }
+
+// Build an N-rung ladder with the given per-step waits (step 0 fires at open).
+async fn ladder(pool: &PgPool, waits: &[i64]) -> rampart_core::EscalationPolicy {
+    escalations::create(
+        pool,
+        NewEscalationPolicy {
+            name: "timed ladder".into(),
+            steps: waits
+                .iter()
+                .map(|&w| EscalationStep {
+                    wait_seconds: w,
+                    channel_ids: vec![NotificationId::new()],
+                    schedule_ids: vec![],
+                })
+                .collect(),
+        },
+    )
+    .await
+    .unwrap()
+}
+
+/// The timed climb end to end: a 4-rung ladder advances one step per elapsed
+/// deadline, the next deadline always reflects the *upcoming* rung's wait, and
+/// the climb exhausts at the last rung. Wall-clock is simulated by backdating
+/// `next_escalation_at` (the same predicate `due`/`advance` gate on), so this
+/// proves the scheduler's per-tick climb without waiting real minutes.
+#[sqlx::test(migrations = "../../migrations")]
+async fn multi_step_timed_climb_then_ack(pool: PgPool) {
+    let waits = [0_i64, 60, 300, 900];
+    let policy = ladder(&pool, &waits).await;
+    let subj = "slo-timed-1";
+
+    let ep = escalations::open_episode_for_subject(&pool, "slo", subj, &policy)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(ep.last_step, 0);
+    // Step 1 is scheduled but not due yet.
+    assert!(ep.next_escalation_at.is_some());
+    assert!(escalations::due(&pool).await.unwrap().is_empty());
+
+    // Climb rungs 1 and 2 by fast-forwarding the clock each time.
+    for expect_step in 1..=2 {
+        sqlx::query!(
+            "UPDATE escalation_episodes SET next_escalation_at = NOW() - INTERVAL '1 second' WHERE id = $1",
+            ep.id,
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        assert_eq!(escalations::due(&pool).await.unwrap().len(), 1, "due at step {expect_step}");
+        let adv = escalations::advance(&pool, ep.id, &policy).await.unwrap().unwrap();
+        assert_eq!(adv.last_step, expect_step);
+        // A rung remains (step 3 of 0..=3) → a new deadline is set, not due yet.
+        assert!(adv.next_escalation_at.is_some(), "rung {expect_step} schedules the next");
+        assert!(escalations::due(&pool).await.unwrap().is_empty(), "fresh deadline not yet due");
+    }
+
+    // On-call acks at rung 2 → the climb halts even once the last deadline passes.
+    let user = rampart_db::users::create(
+        &pool,
+        rampart_db::users::NewUser {
+            email: "climb@example.com".into(),
+            name: None,
+            password_hash: "$argon2id$v=19$m=19456,t=2,p=1$fake$hash".into(),
+            role: Role::Editor,
+        },
+    )
+    .await
+    .unwrap();
+    escalations::ack_episode(&pool, ep.id, user.id).await.unwrap();
+    sqlx::query!(
+        "UPDATE escalation_episodes SET next_escalation_at = NOW() - INTERVAL '1 second' WHERE id = $1",
+        ep.id,
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    assert!(escalations::due(&pool).await.unwrap().is_empty(), "acked episode never climbs again");
+    assert!(escalations::advance(&pool, ep.id, &policy).await.unwrap().is_none());
+}
+
+/// A climb that is never acked exhausts at the final rung: the last advance
+/// leaves no further deadline.
+#[sqlx::test(migrations = "../../migrations")]
+async fn climb_exhausts_at_last_rung(pool: PgPool) {
+    let policy = ladder(&pool, &[0_i64, 30, 60]).await;
+    let ep = escalations::open_episode_for_subject(&pool, "metric_rule", "m-1", &policy)
+        .await
+        .unwrap()
+        .unwrap();
+
+    for step in 1..=2 {
+        sqlx::query!(
+            "UPDATE escalation_episodes SET next_escalation_at = NOW() - INTERVAL '1 second' WHERE id = $1",
+            ep.id,
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        let adv = escalations::advance(&pool, ep.id, &policy).await.unwrap().unwrap();
+        assert_eq!(adv.last_step, step);
+    }
+    // Three rungs (0,1,2) climbed → exhausted, no further deadline.
+    let final_ep = escalations::list_open(&pool).await.unwrap().into_iter().find(|e| e.id == ep.id).unwrap();
+    assert_eq!(final_ep.last_step, 2);
+    assert!(final_ep.next_escalation_at.is_none());
+    assert!(escalations::due(&pool).await.unwrap().is_empty());
+}
