@@ -73,6 +73,10 @@ pub struct ServiceEdge {
     pub from_service: String,
     pub to_service: String,
     pub calls: i64,
+    /// Callee spans on this edge with an error status.
+    pub errors: i64,
+    /// p95 latency (ms) of the callee spans on this edge, if computable.
+    pub p95_ms: Option<f64>,
 }
 
 /// Per-(service, operation) APM rollup over a time window — the "services /
