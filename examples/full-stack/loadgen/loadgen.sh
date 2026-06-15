@@ -9,8 +9,11 @@
 set -u
 
 API="${RAMPART_URL:-http://rampart:3000}"
+# NOTE: password must pass the policy in rampart_api::auth::validate_password —
+# >=10 chars and must NOT contain the email local-part ("demo"), else register
+# 400s and no admin is created.
 EMAIL="demo@rampart.local"
-PASS="demo-password-123"
+PASS="Rampart-Live-9271"
 CJ=/tmp/cj
 J='-H content-type:application/json'
 
@@ -21,10 +24,16 @@ until curl -sf "$API/healthz" >/dev/null 2>&1; do sleep 2; done
 log "rampart is up"
 
 # First-run admin (no-op once it exists), then log in for a session cookie.
-curl -s -c "$CJ" $J -X POST "$API/v1/auth/register" \
-  -d "{\"email\":\"$EMAIL\",\"name\":\"Demo\",\"password\":\"$PASS\"}" >/dev/null 2>&1 || true
+REG=$(curl -s -c "$CJ" $J -X POST "$API/v1/auth/register" \
+  -d "{\"email\":\"$EMAIL\",\"name\":\"Demo\",\"password\":\"$PASS\"}" 2>/dev/null)
 curl -s -c "$CJ" $J -X POST "$API/v1/auth/login" \
   -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" >/dev/null 2>&1 || true
+# Verify we actually have a session; warn loudly if not (e.g. password policy
+# rejected register and the user never existed).
+if ! curl -s -b "$CJ" "$API/v1/auth/me" 2>/dev/null | grep -q '"email"'; then
+  log "WARN: no admin session — register response was: $REG"
+  log "WARN: log in manually at the dashboard or check the password policy"
+fi
 
 # Live monitors pointing at the in-network probe targets.
 curl -s -b "$CJ" $J -X POST "$API/v1/monitors" \

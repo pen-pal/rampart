@@ -10,7 +10,7 @@ docker compose up        # add -d to run detached
 ```
 
 Then open **<http://localhost:3000>**. The load generator registers an admin
-(`demo@rampart.local` / `demo-password-123`) on first boot — log in with that,
+(`demo@rampart.local` / `Rampart-Live-9271`) on first boot — log in with that,
 or take the first-run signup yourself before it does.
 
 Tear everything down (including the disposable database):

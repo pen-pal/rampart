@@ -2,7 +2,7 @@
 #
 #   cd examples/full-stack && docker compose up
 #   → open http://localhost:3000  (first visit creates the admin account;
-#     the loadgen also registers demo@rampart.local / demo-password-123)
+#     the loadgen also registers demo@rampart.local / Rampart-Live-9271)
 #
 # Brings up the whole platform with data flowing live: Rampart + Postgres, a
 # one-shot demo seed, a load generator emitting OTLP traces/logs + RUM + errors,
