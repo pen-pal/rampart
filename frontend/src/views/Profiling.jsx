@@ -22,11 +22,25 @@ const css = `
   .select { padding: 8px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); font-size: 13px; color: var(--text); outline: none; font-family: inherit; }
   .select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
   .banner-err { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
-  .flame-cell { position: absolute; overflow: hidden; white-space: nowrap; font-size: 11px; line-height: 16px; padding: 0 4px; border: 1px solid rgba(255,255,255,.55); border-radius: 2px; cursor: pointer; color: #1c1917; }
+  .input { padding: 8px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); font-size: 13px; color: var(--text); outline: none; font-family: inherit; }
+  .input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .flame-cell { position: absolute; overflow: hidden; white-space: nowrap; font-size: 11px; line-height: 16px; padding: 0 4px; border: 1px solid rgba(255,255,255,.55); border-radius: 2px; cursor: pointer; color: #1c1917; transition: opacity .1s; }
   .flame-cell:hover { filter: brightness(1.06); outline: 1px solid var(--text); }
-  .topfn-row { display: grid; grid-template-columns: 1fr 110px 110px; gap: 12px; padding: 6px 12px; border-top: 1px solid var(--border); font-size: 12.5px; }
+  .flame-cell.dim { opacity: .25; }
+  .flame-cell.match { outline: 1.5px solid var(--text); box-shadow: 0 0 0 2px rgba(20,184,166,.4); }
+  .topfn-row { display: grid; grid-template-columns: 1fr 130px 130px; gap: 12px; padding: 6px 12px; border-top: 1px solid var(--border); font-size: 12.5px; align-items: center; }
   .topfn-row:first-child { border-top: none; }
   .topfn-head { font-size: 11px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: .04em; background: var(--surface-2); }
+  .topfn-row.click { cursor: pointer; }
+  .topfn-row.click:hover { background: var(--surface-2); }
+  .topfn-row.on { background: var(--accent-soft); }
+  .topfn-bar { position: relative; height: 14px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+  .topfn-bar > span { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; }
+  .crumb { font-size: 12px; color: var(--accent-2); cursor: pointer; }
+  .crumb:hover { text-decoration: underline; }
+  .crumb-sep { color: var(--text-3); margin: 0 4px; }
+  .flame-info { font-size: 12px; color: var(--text-2); margin-bottom: 8px; min-height: 18px; display: flex; gap: 14px; flex-wrap: wrap; }
+  .flame-info .mono { color: var(--text); }
 `;
 
 const ROW_H = 17; // px per flamegraph depth level
@@ -75,37 +89,65 @@ function layout(root) {
   return { cells, maxDepth };
 }
 
-function Flamegraph({ root, unit, diff }) {
-  const [zoom, setZoom] = useState(root);
-  // Reset the zoom whenever the underlying data changes.
-  useEffect(() => setZoom(root), [root]);
+// Self time = a node's own value minus what its children account for.
+function selfValue(node) {
+  const kids = (node.children || []).reduce((a, c) => a + c.value, 0);
+  return Math.max(0, node.value - kids);
+}
+
+function Flamegraph({ root, unit, diff, highlight }) {
+  // Zoom path as a breadcrumb stack: [root, …, current]. Click a crumb to pop.
+  const [stack, setStack] = useState([root]);
+  const [hovered, setHovered] = useState(null);
+  useEffect(() => { setStack([root]); setHovered(null); }, [root]);
+  const zoom = stack[stack.length - 1] || root;
   const { cells, maxDepth } = useMemo(() => layout(zoom), [zoom]);
   const grandTotal = root.value || 1;
   const maxAbs = useMemo(
     () => (diff ? Math.max(1, ...cells.map(c => Math.abs(c.node.delta || 0))) : 0),
     [diff, cells],
   );
+  const ql = (highlight || '').trim().toLowerCase();
+  const matchCount = ql ? cells.filter(c => c.node.name.toLowerCase().includes(ql)).length : 0;
+
+  const info = hovered || zoom;
+  const infoPct = ((info.value / grandTotal) * 100).toFixed(1);
 
   return (
     <div>
-      {zoom !== root && (
-        <button className="btn btn-ghost" style={{ marginBottom: 8 }} onClick={() => setZoom(root)}>
-          <ChevronLeft size={14} /> {t('profiling.reset_zoom')}
-        </button>
-      )}
-      <div style={{ position: 'relative', height: (maxDepth + 1) * ROW_H, width: '100%' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ fontSize: 12 }}>
+          {stack.map((n, i) => (
+            <React.Fragment key={i}>
+              {i > 0 && <span className="crumb-sep">›</span>}
+              {i === stack.length - 1
+                ? <span style={{ color: 'var(--text-2)' }}>{i === 0 ? t('profiling.root') : n.name}</span>
+                : <span className="crumb" onClick={() => setStack(stack.slice(0, i + 1))}>{i === 0 ? t('profiling.root') : n.name}</span>}
+            </React.Fragment>
+          ))}
+        </div>
+        {ql && <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{t('profiling.match_count', { n: matchCount })}</span>}
+      </div>
+
+      <div className="flame-info">
+        <span className="mono" title={info.name} style={{ maxWidth: 520, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{info.name}</span>
+        <span>{info.value.toLocaleString()} {unit} · {infoPct}%</span>
+        <span>{t('profiling.self')} {selfValue(info).toLocaleString()}</span>
+        {diff && info.delta != null && <span style={{ color: info.delta > 0 ? 'var(--down)' : 'var(--accent-2)' }}>Δ {info.delta > 0 ? '+' : ''}{info.delta.toLocaleString()}</span>}
+      </div>
+
+      <div style={{ position: 'relative', height: (maxDepth + 1) * ROW_H, width: '100%' }}
+        onMouseLeave={() => setHovered(null)}>
         {cells.map((c, i) => {
-          const pct = ((c.node.value / grandTotal) * 100).toFixed(1);
           const delta = c.node.delta || 0;
-          const title = diff
-            ? `${c.node.name}\nΔ ${delta > 0 ? '+' : ''}${delta.toLocaleString()} ${unit} (after ${c.node.value.toLocaleString()})`
-            : `${c.node.name}\n${c.node.value.toLocaleString()} ${unit} · ${pct}% of total`;
+          const isMatch = ql && c.node.name.toLowerCase().includes(ql);
+          const isDim = ql && !isMatch;
           return (
             <div
               key={i}
-              className="flame-cell"
-              title={title}
-              onClick={() => (c.node.children && c.node.children.length ? setZoom(c.node) : null)}
+              className={`flame-cell${isDim ? ' dim' : ''}${isMatch ? ' match' : ''}`}
+              onMouseEnter={() => setHovered(c.node)}
+              onClick={() => (c.node.children && c.node.children.length ? setStack([...stack, c.node]) : null)}
               style={{
                 left: `${c.x}%`,
                 width: `${c.w}%`,
@@ -137,6 +179,7 @@ export default function Profiling({ profileId }) {
   const [hours, setHours] = useState(24);
   const [reloadKey, setReloadKey] = useState(0);
   const [diff, setDiff] = useState(false);
+  const [highlight, setHighlight] = useState('');
 
   const svcState = useApi(() => (single ? Promise.resolve([]) : api.profiles.services()), [single]);
   const services = svcState.data || [];
@@ -218,32 +261,52 @@ export default function Profiling({ profileId }) {
             </div>
           ) : (
             <>
-              <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 10 }}>
-                {isDiff
-                  ? `${t('profiling.diff_legend')} · after ${(data.after_samples || 0).toLocaleString()} · before ${(data.before_samples || 0).toLocaleString()}`
-                  : `${samples.toLocaleString()} ${t('profiling.samples_merged')}`}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 12, color: 'var(--text-3)' }}>
+                  {isDiff
+                    ? `${t('profiling.diff_legend')} · after ${(data.after_samples || 0).toLocaleString()} · before ${(data.before_samples || 0).toLocaleString()}`
+                    : `${samples.toLocaleString()} ${t('profiling.samples_merged')}`}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input className="input" style={{ width: 200, padding: '6px 9px', fontSize: 12.5 }}
+                    placeholder={t('profiling.search_ph')} value={highlight} onChange={e => setHighlight(e.target.value)} />
+                  {highlight && <button className="btn btn-ghost" style={{ padding: '6px 8px' }} onClick={() => setHighlight('')}>✕</button>}
+                </div>
               </div>
-              <Flamegraph root={data.tree} unit={unit} diff={isDiff} />
+              <Flamegraph root={data.tree} unit={unit} diff={isDiff} highlight={highlight} />
             </>
           )}
         </div>
 
-        {data && data.top && data.top.length > 0 && (
-          <div className="card" style={{ overflow: 'hidden' }}>
-            <div className="topfn-row topfn-head">
-              <span>{t('profiling.fn')}</span>
-              <span style={{ textAlign: 'right' }}>{t('profiling.self')}</span>
-              <span style={{ textAlign: 'right' }}>{t('profiling.total')}</span>
-            </div>
-            {data.top.map((f, i) => (
-              <div className="topfn-row" key={i}>
-                <span className="mono" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.name}>{f.name}</span>
-                <span className="mono" style={{ textAlign: 'right' }}>{f.self_value.toLocaleString()}</span>
-                <span className="mono" style={{ textAlign: 'right', color: 'var(--text-2)' }}>{f.total_value.toLocaleString()}</span>
+        {data && data.top && data.top.length > 0 && (() => {
+          const maxSelf = Math.max(1, ...data.top.map(f => f.self_value));
+          return (
+            <div className="card" style={{ overflow: 'hidden' }}>
+              <div className="topfn-row topfn-head">
+                <span>{t('profiling.fn')}</span>
+                <span>{t('profiling.self')}</span>
+                <span style={{ textAlign: 'right' }}>{t('profiling.total')}</span>
               </div>
-            ))}
-          </div>
-        )}
+              {data.top.map((f, i) => {
+                const on = highlight && f.name.toLowerCase().includes(highlight.trim().toLowerCase());
+                return (
+                  <div className={`topfn-row click${on ? ' on' : ''}`} key={i}
+                    onClick={() => setHighlight(highlight === f.name ? '' : f.name)}
+                    title={t('profiling.click_highlight')}>
+                    <span className="mono" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.name}>{f.name}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span className="topfn-bar" style={{ flex: 1 }}>
+                        <span style={{ width: `${(f.self_value / maxSelf) * 100}%`, background: frameColor(f.name) }} />
+                      </span>
+                      <span className="mono" style={{ minWidth: 56, textAlign: 'right' }}>{f.self_value.toLocaleString()}</span>
+                    </span>
+                    <span className="mono" style={{ textAlign: 'right', color: 'var(--text-2)' }}>{f.total_value.toLocaleString()}</span>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
