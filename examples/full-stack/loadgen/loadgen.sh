@@ -9,11 +9,13 @@
 set -u
 
 API="${RAMPART_URL:-http://rampart:3000}"
-# NOTE: password must pass the policy in rampart_api::auth::validate_password —
-# >=10 chars and must NOT contain the email local-part ("demo"), else register
-# 400s and no admin is created.
-EMAIL="demo@rampart.local"
-PASS="Rampart-Live-9271"
+# Admin creds: seed-demo creates this user server-side (any password works), so
+# we just log in with it here. Override via RAMPART_ADMIN_EMAIL / _PASSWORD.
+# The register fallback below only fires if seed didn't create an admin — and
+# its password must pass the policy (>=10 chars, must not contain the email
+# local-part), hence the compliant default.
+EMAIL="${RAMPART_ADMIN_EMAIL:-demo@rampart.local}"
+PASS="${RAMPART_ADMIN_PASSWORD:-Rampart-Live-9271}"
 CJ=/tmp/cj
 J='-H content-type:application/json'
 

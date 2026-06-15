@@ -9,9 +9,22 @@ cd examples/full-stack
 docker compose up        # add -d to run detached
 ```
 
-Then open **<http://localhost:3000>**. The load generator registers an admin
-(`demo@rampart.local` / `Rampart-Live-9271`) on first boot — log in with that,
-or take the first-run signup yourself before it does.
+Then open **<http://localhost:3000>** and log in. The seed creates an admin on
+first boot; default login is `demo@rampart.local` / `Rampart-Live-9271`.
+
+**Use your own login** — export the creds before `up` (any password works,
+the seed creates the user server-side, so the API password policy doesn't
+apply):
+
+```bash
+RAMPART_ADMIN_EMAIL=me@example.com RAMPART_ADMIN_PASSWORD=hunter2hunter2 docker compose up
+```
+
+Already running and locked out? Reset/create an admin without psql:
+
+```bash
+docker compose exec rampart rampart-api reset-password me@example.com hunter2hunter2
+```
 
 Tear everything down (including the disposable database):
 
