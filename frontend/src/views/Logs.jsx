@@ -36,6 +36,24 @@ const css = `
 
 const LEVELS = ['', 'trace', 'debug', 'info', 'warn', 'error', 'fatal'];
 
+// ELK-style log-volume histogram: one bar per time bucket, error-level volume
+// stacked in red at the base. Heights scale to the busiest bucket in view.
+function LogHistogram({ buckets }) {
+  if (!buckets || buckets.length < 2) return null;
+  const max = Math.max(1, ...buckets.map(b => b.total));
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 1, height: 52, marginBottom: 14 }}>
+      {buckets.map((b, i) => (
+        <div key={i} title={`${b.total} logs · ${b.errors} error+`}
+          style={{ flex: 1, height: `${Math.max((b.total / max) * 100, b.total ? 3 : 0)}%`, minHeight: b.total ? 2 : 0,
+                   background: 'var(--text-3)', borderRadius: 1, display: 'flex', flexDirection: 'column-reverse', opacity: .85 }}>
+          {b.errors > 0 && <div style={{ height: `${(b.errors / b.total) * 100}%`, background: 'var(--down)', borderRadius: 1 }}/>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function Logs({ traceId }) {
   const [service, setService] = useState('');
   const [level, setLevel] = useState('');
@@ -60,9 +78,14 @@ export default function Logs({ traceId }) {
     [applied, reloadKey, traceId],
   );
   const levelsState = useApi(() => api.logs.levels(applied.service), [applied.service, reloadKey]);
+  const histState = useApi(
+    () => api.logs.histogram({ service: applied.service, level: applied.level, q: applied.q, hours: 24 }),
+    [applied, reloadKey],
+  );
   const services = svcState.data || [];
   const logs = logsState.data || [];
   const levelCounts = levelsState.data || [];
+  const hist = histState.data || [];
 
   const apply = () => setApplied({ service, level, q });
 
@@ -171,6 +194,8 @@ export default function Logs({ traceId }) {
             ))}
           </div>
         )}
+
+        {!traceId && <LogHistogram buckets={hist} />}
 
         {logsState.error && <div className="banner-err"><AlertCircle size={14} style={{ verticalAlign: '-2px', marginRight: 6 }}/>{t('logs.load_error')}</div>}
 

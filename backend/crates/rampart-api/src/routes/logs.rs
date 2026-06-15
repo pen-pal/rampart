@@ -27,6 +27,7 @@ pub fn router() -> Router<AppState> {
         .route("/", get(list))
         .route("/services", get(services))
         .route("/levels", get(levels))
+        .route("/histogram", get(histogram))
         .route("/export.csv", get(export_csv))
 }
 
@@ -59,6 +60,7 @@ struct LogQuery {
     q: Option<String>,
     trace_id: Option<String>,
     limit: Option<i64>,
+    hours: Option<i32>,
 }
 
 async fn list(
@@ -74,6 +76,24 @@ async fn list(
         limit: query.limit.unwrap_or(200),
     };
     Ok(Json(rampart_db::logs::query_logs(s.pool(), filter).await?))
+}
+
+async fn histogram(
+    State(s): State<AppState>,
+    Query(query): Query<LogQuery>,
+) -> Result<Json<Vec<rampart_db::logs::LogBucket>>, ApiError> {
+    let min_severity = query.level.as_deref().and_then(level_min_severity);
+    Ok(Json(
+        rampart_db::logs::histogram(
+            s.pool(),
+            query.service.as_deref().filter(|s| !s.is_empty()),
+            min_severity,
+            query.q.as_deref().filter(|s| !s.is_empty()),
+            query.hours.unwrap_or(24),
+            48,
+        )
+        .await?,
+    ))
 }
 
 async fn services(State(s): State<AppState>) -> Result<Json<Vec<String>>, ApiError> {
