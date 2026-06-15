@@ -17,6 +17,10 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+---
+
+## [0.32.0] — 2026-06-15
+
 ### Added
 - **Self-observability**: with `RAMPART_OTLP_ENDPOINT` set, Rampart exports its
   own request traces + internal logs via OTLP/HTTP (pure-Rust, blocking reqwest;
@@ -1273,7 +1277,8 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 
 ---
 
-[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.31.2...HEAD
+[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.32.0...HEAD
+[0.32.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.32.0
 [0.31.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.31.2
 [0.31.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.31.1
 [0.31.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.31.0
