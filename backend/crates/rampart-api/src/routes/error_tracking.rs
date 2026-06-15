@@ -53,7 +53,14 @@ pub fn issue_router() -> Router<AppState> {
         .route("/{id}/unresolve", post(unresolve))
         .route("/{id}/assign", post(assign))
         .route("/assignable-users", get(assignable_users))
+        .route("/recent", get(recent_issues))
         .route("/by-trace/{trace_id}", get(issues_by_trace))
+}
+
+async fn recent_issues(State(s): State<AppState>) -> Result<Json<Vec<ErrorIssue>>, ApiError> {
+    Ok(Json(
+        rampart_db::error_tracking::recent_open_issues(s.pool(), 8).await?,
+    ))
 }
 
 fn project_id(s: &str) -> Result<ErrorProjectId, ApiError> {

@@ -423,6 +423,25 @@ pub async fn list_issues(
     Ok(rows.into_iter().map(Into::into).collect())
 }
 
+/// Most-recently-seen open issues across every project — the dashboard feed.
+pub async fn recent_open_issues(pool: &DbPool, limit: i64) -> DbResult<Vec<ErrorIssue>> {
+    let rows = sqlx::query_as!(
+        IssueRow,
+        r#"
+        SELECT id, project_id, fingerprint, title, culprit, level, status,
+               first_seen, last_seen, times_seen, assignee
+        FROM error_issues
+        WHERE status = 'open'
+        ORDER BY last_seen DESC
+        LIMIT $1
+        "#,
+        limit.clamp(1, 50),
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(Into::into).collect())
+}
+
 pub async fn get_issue(pool: &DbPool, id: ErrorIssueId) -> DbResult<ErrorIssue> {
     let row = sqlx::query_as!(
         IssueRow,
