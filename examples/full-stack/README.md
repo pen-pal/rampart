@@ -60,7 +60,7 @@ docker compose exec rampart rampart-api reset-password admin@example.com 'admin-
 | `loadgen` | Signs in, creates two live monitors pointing at the probe targets, then continuously calls Rampart's own API — that real traffic is what Rampart traces + logs (no fabricated telemetry). |
 | `target-healthy` | An always-200 service — its monitor stays green. |
 | `target-flaky` | Returns 503 for ~20s each minute — its monitor flaps, driving uptime dips, alerts and incidents. |
-| `prometheus` | Scrapes Rampart's `/metrics` and evaluates alert rules, on `:9090`. |
+| `prometheus` | Scrapes Rampart's `/metrics`, evaluates alert rules, and `remote_write`s everything back into Rampart's metrics tier (`/prom/write`). On `:9090`. |
 | `alertmanager` | Routes firing alerts back into Rampart's inbound webhook, on `:9093`. |
 
 ## What to look at

@@ -10,6 +10,12 @@ alerting:
     - static_configs:
         - targets: ["alertmanager:9093"]
 
+# Push everything Prometheus scrapes into Rampart's metrics tier via
+# remote_write — so the Metrics view fills with real series, and Rampart
+# doubles as a metrics sink (not just a /metrics source).
+remote_write:
+  - url: http://rampart:3000/prom/write
+
 scrape_configs:
   # Rampart's own Prometheus exposition: build info, monitors by status,
   # alerting-pipeline gauges, ingest volume, per-table storage bytes.
