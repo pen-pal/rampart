@@ -17,6 +17,10 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+---
+
+## [0.36.0] — 2026-06-15
+
 ### Added
 - **`examples/demo-app`**: a standalone instrumented sample app (Node/Express
   backend + browser frontend, its own Postgres + Redis) wired to Rampart so
@@ -1324,7 +1328,8 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 
 ---
 
-[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.35.0...HEAD
+[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.36.0...HEAD
+[0.36.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.36.0
 [0.35.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.35.0
 [0.34.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.34.0
 [0.33.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.33.0
