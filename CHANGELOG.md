@@ -17,6 +17,10 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+---
+
+## [0.27.0] — 2026-06-15
+
 ### Added
 - Retention settings now expose **every tier** (heartbeats, uptime rollups,
   metrics, traces, logs, RUM, profiles, audit) instead of just heartbeats +
@@ -1166,7 +1170,8 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 
 ---
 
-[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.26.0...HEAD
+[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.27.0...HEAD
+[0.27.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.27.0
 [0.26.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.26.0
 [0.25.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.25.0
 [0.24.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.24.0
