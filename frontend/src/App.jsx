@@ -299,89 +299,176 @@ export default function App() {
       </Suspense>
       {showThemeToggle && <FloatingThemeToggle />}
       {showThemeToggle && <FloatingLocalePicker />}
-      {route.view !== 'login' && route.view !== 'public-status' && route.view !== 'manage-subscription' && <ViewSwitcher current={route.view} user={authState.user} />}
+      {route.view !== 'login' && route.view !== 'public-status' && route.view !== 'manage-subscription' && <NavDrawer current={route.view} user={authState.user} />}
     </>
   );
 }
 
-// ─── floating dev-only switcher ───────────────────────────────────────────
-function ViewSwitcher({ current, user }) {
+// ─── global navigation drawer ─────────────────────────────────────────────
+// The single, consistent navigation across every authenticated view: a
+// launcher pill that opens a left slide-in drawer with role-filtered links
+// grouped into sections, a fuzzy filter box, and an active highlight. Theme
+// aware (uses the global CSS vars, like the rest of the app), so no hardcoded
+// colours. Replaces both the old dev-only floating switcher and the per-view
+// menus that drifted out of sync.
+//
+// `admin: true` items are hidden for non-admins; `write: true` for readonly.
+const NAV_GROUPS = [
+  { section: 'Overview', items: [
+    { view: 'dashboard',    hash: '#/' },
+    { view: 'metrics',      hash: '#/metrics' },
+    { view: 'dependencies', hash: '#/dependencies' },
+  ] },
+  { section: 'Observability', items: [
+    { view: 'traces',    hash: '#/traces' },
+    { view: 'logs',      hash: '#/logs' },
+    { view: 'errors',    hash: '#/errors' },
+    { view: 'rum',       hash: '#/rum' },
+    { view: 'profiling', hash: '#/profiling' },
+  ] },
+  { section: 'Alerting & response', items: [
+    { view: 'alert-rules',   hash: '#/alert-rules' },
+    { view: 'detection',     hash: '#/detection' },
+    { view: 'escalations',   hash: '#/escalations' },
+    { view: 'on-call',       hash: '#/on-call' },
+    { view: 'silences',      hash: '#/silences' },
+    { view: 'notifications', hash: '#/notifications' },
+    { view: 'maintenance',   hash: '#/maintenance' },
+  ] },
+  { section: 'Catalog', items: [
+    { view: 'templates',   hash: '#/templates', write: true },
+    { view: 'folders',     hash: '#/folders' },
+    { view: 'tags',        hash: '#/tags' },
+    { view: 'status-page', hash: '#/status-page' },
+  ] },
+  { section: 'Administration', items: [
+    { view: 'users',        hash: '#/users',        admin: true },
+    { view: 'agents',       hash: '#/agents',       admin: true },
+    { view: 'api-keys',     hash: '#/api-keys',     admin: true },
+    { view: 'proxies',      hash: '#/proxies',      admin: true },
+    { view: 'audit',        hash: '#/audit',        admin: true },
+    { view: 'delivery-log', hash: '#/delivery-log', admin: true },
+    { view: 'reports',      hash: '#/reports',      admin: true },
+  ] },
+  { section: 'Settings', items: [
+    { view: 'security',           hash: '#/security',           admin: true },
+    { view: 'smtp-settings',      hash: '#/settings/smtp',      admin: true },
+    { view: 'retention-settings', hash: '#/settings/retention', admin: true },
+    { view: 'ingest-settings',    hash: '#/settings/ingest',    admin: true },
+  ] },
+];
+
+function NavDrawer({ current, user }) {
   const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
   const admin = isAdmin(user);
   const writable = canWrite(user);
-  // `adminOnly: true` links are hidden for non-admins (editor / readonly).
-  // Read views stay visible for everyone, including readonly.
-  const allLinks = [
-    { hash: '#/',              view: 'dashboard'     },
-    { hash: '#/monitor',       view: 'monitor'       },
-    { hash: '#/notifications', view: 'notifications' },
-    { hash: '#/escalations',   view: 'escalations'   },
-    { hash: '#/traces',        view: 'traces'        },
-    { hash: '#/logs',          view: 'logs'          },
-    { hash: '#/profiling',     view: 'profiling'     },
-    { hash: '#/errors',        view: 'errors'        },
-    { hash: '#/rum',           view: 'rum'           },
-    { hash: '#/on-call',       view: 'on-call'       },
-    { hash: '#/alert-rules',   view: 'alert-rules'   },
-    { hash: '#/detection',     view: 'detection'     },
-    { hash: '#/silences',      view: 'silences'      },
-    { hash: '#/maintenance',   view: 'maintenance'   },
-    { hash: '#/dependencies',  view: 'dependencies'  },
-    { hash: '#/api-keys',      view: 'api-keys',     adminOnly: true },
-    { hash: '#/proxies',       view: 'proxies',      adminOnly: true },
-    { hash: '#/agents',        view: 'agents',       adminOnly: true },
-    { hash: '#/security',      view: 'security',     adminOnly: true },
-    { hash: '#/users',         view: 'users',        adminOnly: true },
-    { hash: '#/folders',            view: 'folders'           },
-    { hash: '#/tags',               view: 'tags'              },
-    { hash: '#/settings/smtp',      view: 'smtp-settings',      adminOnly: true },
-    { hash: '#/settings/retention', view: 'retention-settings', adminOnly: true },
-    { hash: '#/settings/ingest',    view: 'ingest-settings',    adminOnly: true },
-    { hash: '#/audit',         view: 'audit',        adminOnly: true },
-    { hash: '#/reports',       view: 'reports',      adminOnly: true },
-    { hash: '#/delivery-log',  view: 'delivery-log', adminOnly: true },
-    { hash: '#/metrics',       view: 'metrics'       },
-    { hash: '#/templates',     view: 'templates',    writeOnly: true },
-    { hash: '#/status-page',   view: 'status-page'   },
-    { hash: '#/new-monitor',   view: 'new-monitor'   },
-    { hash: '#/import',        view: 'import'        },
-  ];
-  const links = allLinks.filter(l => (admin || !l.adminOnly) && (writable || !l.writeOnly));
+
+  // Close on Escape; lock nothing else.
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+
+  const visible = (it) => (admin || !it.admin) && (writable || !it.write);
+  const ql = q.trim().toLowerCase();
+  const match = (it) => !ql || (VIEW_LABEL[it.view] || it.view).toLowerCase().includes(ql);
+  const go = () => { setOpen(false); setQ(''); };
+
+  const groups = NAV_GROUPS
+    .map(g => ({ ...g, items: g.items.filter(it => visible(it) && match(it)) }))
+    .filter(g => g.items.length > 0);
+
   return (
-    <div className="rampart-view-switcher" style={{
-      position: 'fixed', right: 16, bottom: 16, zIndex: 10000,
-      fontFamily: 'Inter, system-ui, sans-serif', fontSize: 12,
-    }}>
+    <>
+      {/* launcher */}
+      <button
+        aria-label="Open navigation"
+        onClick={() => setOpen(true)}
+        style={{
+          position: 'fixed', right: 16, bottom: 16, zIndex: 9998,
+          width: 44, height: 44, borderRadius: 12, cursor: 'pointer',
+          background: 'var(--accent, #14b8a6)', color: '#fff', border: 'none',
+          fontSize: 18, lineHeight: 1, boxShadow: '0 6px 18px rgba(0,0,0,.22)',
+          fontFamily: 'Inter, system-ui, sans-serif',
+        }}
+      >☰</button>
+
       {open && (
-        <div style={{
-          marginBottom: 8, padding: 8, minWidth: 180,
-          background: '#18181b', color: '#fafafa',
-          borderRadius: 10, boxShadow: '0 10px 32px rgba(0,0,0,.25)',
-        }}>
-          <div style={{
-            fontSize: 10, color: '#a1a1aa', textTransform: 'uppercase',
-            letterSpacing: '.06em', padding: '4px 8px 8px',
-          }}>Rampart views</div>
-          {links.map(v => (
-            <a key={v.hash} href={v.hash} onClick={() => setOpen(false)}
-              style={{
-                display: 'block', padding: '8px 10px', borderRadius: 6,
-                color: 'inherit', textDecoration: 'none',
-                background: current === v.view ? '#27272a' : 'transparent',
-              }}>
-              {VIEW_LABEL[v.view]}
-            </a>
-          ))}
-        </div>
+        <>
+          {/* backdrop */}
+          <div onClick={() => setOpen(false)} style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(0,0,0,.38)', backdropFilter: 'blur(1px)',
+          }}/>
+          {/* drawer */}
+          <nav style={{
+            position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 10000,
+            width: 286, maxWidth: '84vw', display: 'flex', flexDirection: 'column',
+            background: 'var(--surface, #fff)', color: 'var(--text, #18181b)',
+            borderLeft: '1px solid var(--border, #e7e5e4)',
+            boxShadow: '0 0 40px rgba(0,0,0,.25)',
+            fontFamily: 'Inter, system-ui, sans-serif',
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              gap: 8, padding: '14px 16px', borderBottom: '1px solid var(--border, #e7e5e4)',
+            }}>
+              <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '-.01em' }}>Navigate</span>
+              <button aria-label="Close" onClick={() => setOpen(false)} style={{
+                border: 'none', background: 'transparent', cursor: 'pointer',
+                color: 'var(--text-3, #a8a29e)', fontSize: 18, lineHeight: 1,
+              }}>✕</button>
+            </div>
+
+            <div style={{ padding: '10px 12px' }}>
+              <input
+                autoFocus
+                value={q}
+                onChange={e => setQ(e.target.value)}
+                placeholder="Filter…"
+                style={{
+                  width: '100%', padding: '8px 10px', borderRadius: 8, fontSize: 13,
+                  background: 'var(--bg, #fafaf9)', color: 'var(--text, #18181b)',
+                  border: '1px solid var(--border, #e7e5e4)', outline: 'none',
+                  fontFamily: 'inherit', boxSizing: 'border-box',
+                }}
+              />
+            </div>
+
+            <div style={{ overflowY: 'auto', padding: '0 8px 16px', flex: 1 }}>
+              {groups.length === 0 && (
+                <div style={{ padding: 16, fontSize: 12.5, color: 'var(--text-3, #a8a29e)' }}>No matches.</div>
+              )}
+              {groups.map(g => (
+                <div key={g.section} style={{ marginTop: 12 }}>
+                  <div style={{
+                    fontSize: 10, fontWeight: 600, textTransform: 'uppercase',
+                    letterSpacing: '.06em', color: 'var(--text-3, #a8a29e)',
+                    padding: '0 10px 4px',
+                  }}>{g.section}</div>
+                  {g.items.map(it => {
+                    const active = current === it.view;
+                    return (
+                      <a key={it.view} href={it.hash} onClick={go} style={{
+                        display: 'block', padding: '8px 10px', borderRadius: 8,
+                        fontSize: 13, textDecoration: 'none', marginBottom: 1,
+                        color: active ? 'var(--accent-2, #0d9488)' : 'var(--text-2, #57534e)',
+                        background: active ? 'var(--accent-soft, #ccfbf1)' : 'transparent',
+                        fontWeight: active ? 600 : 500,
+                      }}>
+                        {VIEW_LABEL[it.view] || it.view}
+                      </a>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </nav>
+        </>
       )}
-      <button onClick={() => setOpen(o => !o)} style={{
-        background: '#14b8a6', color: 'white', border: 'none',
-        padding: '10px 14px', borderRadius: 999, cursor: 'pointer',
-        fontWeight: 600, boxShadow: '0 4px 12px rgba(20,184,166,.4)',
-        display: 'flex', alignItems: 'center', gap: 6,
-      }}>
-        ⌘ {open ? 'Close' : 'Views'}
-      </button>
-    </div>
+    </>
   );
 }
