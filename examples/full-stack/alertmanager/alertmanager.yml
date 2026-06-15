@@ -1,0 +1,17 @@
+# Routes every alert to Rampart's inbound webhook receiver. The token is the
+# fixed one the demo seeder creates (see examples/full-stack/README.md and
+# rampart_api::seed::DEMO_INGEST_TOKEN) — so this stack is turnkey, no manual
+# token minting. In a real deployment you mint a token per Status page and paste
+# its URL here (docs/INGEST.md).
+route:
+  receiver: rampart
+  group_by: ["alertname"]
+  group_wait: 10s
+  group_interval: 30s
+  repeat_interval: 5m
+
+receivers:
+  - name: rampart
+    webhook_configs:
+      - url: "http://rampart:3000/v1/public/ingest/alertmanager/ing_demo_alertmanager_000000000000000000"
+        send_resolved: true

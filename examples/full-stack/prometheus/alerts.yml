@@ -1,0 +1,23 @@
+groups:
+  - name: rampart-demo
+    rules:
+      # Fires when any Rampart monitor is down — the flaky probe target trips
+      # this every minute. Routed to Alertmanager → back into Rampart's inbound
+      # webhook, demonstrating the alert → incident path end to end.
+      - alert: RampartMonitorDown
+        expr: rampart_monitors{status="down"} > 0
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "A Rampart monitor is down"
+          description: "{{ $value }} monitor(s) currently reporting down."
+
+      # Fires when unacknowledged detection findings pile up.
+      - alert: RampartOpenDetectionFindings
+        expr: rampart_detection_findings_open > 0
+        for: 1m
+        labels:
+          severity: info
+        annotations:
+          summary: "Open SIEM detection findings need triage"
