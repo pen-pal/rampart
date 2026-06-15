@@ -92,6 +92,7 @@ nav:
       - Install & setup: SETUP.md
       - Kubernetes (Helm): KUBERNETES.md
       - First-run walkthrough: WALKTHROUGH.md
+      - Demo data: DEMO.md
   - Monitoring:
       - Remote probe agents: AGENTS.md
       - Tunneling & private networks: design/TUNNELING.md

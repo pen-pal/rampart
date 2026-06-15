@@ -57,6 +57,15 @@ async fn main() -> anyhow::Result<()> {
     rampart_db::migrate(&pool).await?;
     info!("migrations applied");
 
+    // Subcommand: `rampart-api seed-demo` populates a representative dataset
+    // across every tier and exits (no server) — for demos + first-run.
+    if std::env::args().nth(1).as_deref() == Some("seed-demo") {
+        let stats = rampart_api::seed::run(&pool).await?;
+        info!(%stats, "seed-demo complete");
+        println!("{stats}");
+        return Ok(());
+    }
+
     // Leader election. Only the replica holding the Postgres advisory lock
     // runs the scheduler / notifier digest flush / retention prune, so a
     // multi-replica deployment never double-probes or double-pages. On a

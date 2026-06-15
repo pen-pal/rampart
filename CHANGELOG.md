@@ -17,6 +17,15 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+- `rampart-api seed-demo` subcommand: fills a fresh instance with one
+  representative slice of every tier (monitors + 48h uptime history, a folder, a
+  notification channel, an error project with grouped issues + breadcrumbs, a
+  multi-service trace, logs, RUM, a metric series, a telemetry alert rule, and a
+  SIEM detection rule that raises a finding) so the whole dashboard lights up
+  before any real telemetry. Idempotent; everything tagged `[demo]`. See
+  docs/DEMO.md.
+
 ---
 
 ## [0.28.0] — 2026-06-15

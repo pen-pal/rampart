@@ -17,6 +17,7 @@ pub mod otlp_proto;
 pub mod pprof;
 pub mod rate_limit;
 pub mod routes;
+pub mod seed;
 pub mod smtp;
 pub mod state;
 pub mod static_assets;
