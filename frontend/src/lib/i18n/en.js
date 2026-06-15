@@ -320,6 +320,9 @@ const en = {
   'alertrules.f.match':              'Body contains',
   'alertrules.f.match_ph':           'substring match on the log body',
   'alertrules.f.channels':           'Notify channels',
+  'alertrules.f.escalation':         'Escalation policy',
+  'alertrules.f.no_escalation':      'None',
+  'alertrules.f.escalation_hint':    'On fire, also page this policy’s recipients (every step’s channels + current on-call).',
   'alertrules.f.no_channels':        'No notification channels yet — create one under Notifications first.',
   'alertrules.f.enabled':            'Enabled',
 
