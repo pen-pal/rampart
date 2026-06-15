@@ -66,6 +66,45 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
+    // Subcommand: `rampart-api reset-password <email> <password>` — break-glass
+    // admin recovery. Resets the password if the user exists, else creates an
+    // admin with that email. Bypasses the API password policy (operator's
+    // choice); enforces only a minimum length. Exits without starting the
+    // server.
+    if std::env::args().nth(1).as_deref() == Some("reset-password") {
+        let email = std::env::args().nth(2);
+        let password = std::env::args().nth(3);
+        let (Some(email), Some(password)) = (email, password) else {
+            anyhow::bail!("usage: rampart-api reset-password <email> <password>");
+        };
+        if password.chars().count() < 8 {
+            anyhow::bail!("password must be at least 8 characters");
+        }
+        let hash = rampart_api::auth::hash_password(&password)
+            .map_err(|e| anyhow::anyhow!("hash failed: {e:?}"))?;
+        match rampart_db::users::get_by_email(&pool, &email).await {
+            Ok(u) => {
+                rampart_db::users::set_password(&pool, u.id, &hash).await?;
+                println!("password reset for existing user {email}");
+            }
+            Err(rampart_db::DbError::NotFound) => {
+                rampart_db::users::create(
+                    &pool,
+                    rampart_db::users::NewUser {
+                        email: email.clone(),
+                        name: None,
+                        password_hash: hash,
+                        role: rampart_core::Role::Admin,
+                    },
+                )
+                .await?;
+                println!("created admin user {email}");
+            }
+            Err(e) => return Err(e.into()),
+        }
+        return Ok(());
+    }
+
     // Leader election. Only the replica holding the Postgres advisory lock
     // runs the scheduler / notifier digest flush / retention prune, so a
     // multi-replica deployment never double-probes or double-pages. On a
