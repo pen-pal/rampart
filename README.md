@@ -42,7 +42,7 @@ docker compose up -d
 
 👉 **Open [http://localhost:3000](http://localhost:3000)** — Your first visit automatically creates the admin account. Migrations run on boot. That's it.
 
-> 🎬 **Want the whole dashboard populated to look around first?** Run `docker compose exec rampart rampart-api seed-demo` — it fills every tier (monitors, errors, traces, logs, RUM, a detection finding, an alert rule) with tagged `[demo]` data. Idempotent. See [`docs/DEMO.md`](docs/DEMO.md).
+> 🎬 **Want the whole dashboard populated to look around first?** Run `docker compose exec rampart rampart-api seed-demo` — it fills every tier (monitors, errors, traces, logs, RUM, a detection finding, an alert rule, an SLO) with tagged `[demo]` data. Idempotent. See [`docs/DEMO.md`](docs/DEMO.md).
 >
 > 🧪 **Or run the whole platform with data flowing live** (Rampart + Postgres + a load generator + flaky probe target + Prometheus + Alertmanager, one command): [`examples/full-stack/`](examples/full-stack/). `cd examples/full-stack && docker compose up`.
 >
@@ -137,6 +137,7 @@ an error issue jumps to its trace, and a browser exception becomes an error issu
 | :--- | :--- |
 | 🔔 **Tier alert rules** | Threshold rules over the tiers — error-rate, trace p95 latency, trace error-rate, log volume — paging the same channels. |
 | 📈 **Metric rules** | Prometheus-text metric ingest + threshold alerts on any series. |
+| 🎯 **SLOs + error budgets** | Named objectives over monitor uptime or a metric ratio; rolling error budget with exhaustion + fast-burn (1h burn-rate) paging into channels/escalation. |
 | 🪜 **Escalations** | Ordered notification ladders with acknowledge + episode lifecycle. |
 | 📟 **On-call rotations** | Rotating channel schedules feeding ladder steps. |
 | 🔐 **Ingest auth** | Optional shared token gating the OTLP + RUM endpoints; gzip/deflate decode for stock collectors. |
@@ -184,7 +185,7 @@ rampart/
 └── backend/compose.yaml                  # dev stack (postgres only)
 ```
 
-> **Out of scope (deliberate):** Multi-region distributed probing, SLO error budgets, workspace multi-tenancy (Rampart is single-tenant by design), and an inline **tunnel / proxy data plane** (private-network reach is the [probe agent](docs/AGENTS.md)'s job — outbound-only, no inbound holes; see [TUNNELING.md](docs/design/TUNNELING.md)). The observability tiers (error tracking, traces, logs, RUM, profiling) are scoped for small-team self-hosting, not hyperscale APM. See [CONTRIBUTING.md](CONTRIBUTING.md#scope-read-this-first) for the philosophy.
+> **Out of scope (deliberate):** Multi-region distributed probing, workspace multi-tenancy (Rampart is single-tenant by design), and an inline **tunnel / proxy data plane** (private-network reach is the [probe agent](docs/AGENTS.md)'s job — outbound-only, no inbound holes; see [TUNNELING.md](docs/design/TUNNELING.md)). The observability tiers (error tracking, traces, logs, RUM, profiling) are scoped for small-team self-hosting, not hyperscale APM. See [CONTRIBUTING.md](CONTRIBUTING.md#scope-read-this-first) for the philosophy.
 
 ---
 
@@ -361,6 +362,7 @@ npx playwright test       # e2e on Chromium + Firefox + WebKit
 **Alerting & response**
 - [**docs/METRICS.md**](docs/METRICS.md) — Metric ingestion (Prometheus text format), range queries, threshold alert rules.
 - [**docs/design/ALERT-RULES.md**](docs/design/ALERT-RULES.md) — Telemetry alert rules over the error/trace/log tiers.
+- [**docs/SLOS.md**](docs/SLOS.md) — SLOs with rolling error budgets + burn-rate alerting.
 - [**docs/ESCALATIONS.md**](docs/ESCALATIONS.md) — Escalation policies: notification ladders, acknowledge, episode lifecycle.
 - [**docs/ON-CALL.md**](docs/ON-CALL.md) — On-call rotations feeding escalation ladders.
 

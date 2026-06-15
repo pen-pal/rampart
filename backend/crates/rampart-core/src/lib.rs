@@ -35,6 +35,7 @@ pub mod role;
 pub mod rum;
 pub mod sampling;
 pub mod scheduled_report;
+pub mod slo;
 pub mod status_page;
 pub mod synthetic;
 pub mod tag;

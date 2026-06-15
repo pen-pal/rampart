@@ -91,6 +91,7 @@ pub async fn run(pool: &DbPool) -> Result<SeedStats> {
     seed_metrics(pool, &mut stats).await?;
     seed_alert_rule(pool).await?;
     seed_detection(pool, &mut stats).await?;
+    seed_slo(pool).await?;
 
     Ok(stats)
 }
@@ -335,8 +336,39 @@ async fn seed_metrics(pool: &DbPool, stats: &mut SeedStats) -> Result<()> {
             value: 180.0,
         });
     }
+    // Ratio counters for the demo SLO: 9 994 good out of 10 000 → 99.94%,
+    // comfortably above a 99.9% objective but with the budget visibly burning.
+    let mut svc = BTreeMap::new();
+    svc.insert("service".to_string(), "[demo] api".to_string());
+    samples.push(PromSample {
+        name: "demo_req_success".to_string(),
+        labels: svc.clone(),
+        value: 9_994.0,
+    });
+    samples.push(PromSample {
+        name: "demo_req_total".to_string(),
+        labels: svc,
+        value: 10_000.0,
+    });
     stats.metrics += samples.len();
     rampart_db::metric_samples::insert_many(pool, &samples).await?;
+    Ok(())
+}
+
+async fn seed_slo(pool: &DbPool) -> Result<()> {
+    let spec = json!({
+        "name": "[demo] API request success",
+        "description": "99.9% of API requests succeed over 30 days",
+        "sli_kind": "metric",
+        "good_metric": "demo_req_success",
+        "total_metric": "demo_req_total",
+        "labels": { "service": "[demo] api" },
+        "objective_pct": 99.9,
+        "window_days": 30,
+    });
+    if let Ok(input) = serde_json::from_value(spec) {
+        let _ = rampart_db::slos::create(pool, input).await;
+    }
     Ok(())
 }
 
