@@ -250,6 +250,15 @@ function ScheduleForm({ schedule, channels, onCancel, onSaved }) {
   const [participantIds, setParticipantIds] = useState(() =>
     editing ? [...(schedule.participant_ids || [])] : [],
   );
+  const [participantUserIds, setParticipantUserIds] = useState(() =>
+    editing ? [...(schedule.participant_user_ids || [])] : [],
+  );
+  const usersState = useApi(() => api.errorIssues.assignableUsers(), []);
+  const users = usersState.data || [];
+  const userName = (id) => { const u = users.find(x => x.id === id); return u ? (u.name || u.email) : id; };
+  const availableUsers = users.filter(u => !participantUserIds.includes(u.id));
+  const addUser = (id) => { if (id) setParticipantUserIds(p => [...p, id]); };
+  const removeUser = (id) => setParticipantUserIds(p => p.filter(x => x !== id));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
 
@@ -278,7 +287,8 @@ function ScheduleForm({ schedule, channels, onCancel, onSaved }) {
     setErr(null);
     if (!name.trim()) { setErr(t('oncall.err_name')); return; }
     if (cadenceInvalid()) { setErr(t('oncall.err_cadence')); return; }
-    if (participantIds.length < 1 || participantIds.length > MAX_PARTICIPANTS) {
+    const total = participantIds.length + participantUserIds.length;
+    if (total < 1 || total > MAX_PARTICIPANTS) {
       setErr(t('oncall.err_participants', { max: MAX_PARTICIPANTS })); return;
     }
     if (!anchor || Number.isNaN(new Date(anchor).getTime())) { setErr(t('oncall.err_anchor')); return; }
@@ -287,6 +297,7 @@ function ScheduleForm({ schedule, channels, onCancel, onSaved }) {
       rotation_seconds: rotationSeconds(),
       anchor: fromLocalInput(anchor),
       participant_ids: participantIds,
+      participant_user_ids: participantUserIds,
     };
     setBusy(true);
     try {
@@ -377,6 +388,28 @@ function ScheduleForm({ schedule, channels, onCancel, onSaved }) {
           <div className="field-hint">{t('oncall.field.participants_hint')}</div>
         </>
       )}
+
+      <div style={{ marginTop: 16 }}>
+        <label className="field-label">{t('oncall.field.users')}</label>
+        {participantUserIds.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '6px 0 8px' }}>
+            {participantUserIds.map(id => (
+              <span key={id} className="pill" style={{ gap: 6 }}>
+                {userName(id)}
+                <X size={11} style={{ cursor: 'pointer' }} onClick={() => removeUser(id)}/>
+              </span>
+            ))}
+          </div>
+        )}
+        {availableUsers.length > 0 && (
+          <select className="select" value="" disabled={busy}
+            onChange={e => { addUser(e.target.value); e.target.value = ''; }}>
+            <option value="">{t('oncall.field.add_user')}</option>
+            {availableUsers.map(u => <option key={u.id} value={u.id}>{u.name || u.email}</option>)}
+          </select>
+        )}
+        <div className="field-hint">{t('oncall.field.users_hint')}</div>
+      </div>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
         <button className="btn btn-ghost" onClick={onCancel} disabled={busy}>{t('common.cancel')}</button>

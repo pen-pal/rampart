@@ -10,9 +10,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::routing::get;
 use axum::{Json, Router};
 use rampart_core::ids::{NotificationId, OnCallScheduleId};
-use rampart_core::on_call::{
-    validate_rotation, NewOnCallSchedule, OnCallSchedule, UpdateOnCallSchedule,
-};
+use rampart_core::on_call::{NewOnCallSchedule, OnCallSchedule, UpdateOnCallSchedule};
 use rampart_db::users::User;
 use serde::Serialize;
 use std::str::FromStr;
@@ -46,8 +44,11 @@ async fn create(
     input
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
-    validate_rotation(input.rotation_seconds, &input.participant_ids)
-        .map_err(ApiError::BadRequest)?;
+    rampart_core::on_call::validate_schedule(
+        input.rotation_seconds,
+        input.participant_ids.len() + input.participant_user_ids.len(),
+    )
+    .map_err(ApiError::BadRequest)?;
     let name = input.name.clone();
     let schedule = rampart_db::on_call::create(s.pool(), input).await?;
     crate::audit::record(
@@ -76,14 +77,24 @@ async fn update(
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     // Validate the rotation only against the fields actually being changed,
     // falling back to the stored values for whatever is omitted.
-    if input.rotation_seconds.is_some() || input.participant_ids.is_some() {
+    if input.rotation_seconds.is_some()
+        || input.participant_ids.is_some()
+        || input.participant_user_ids.is_some()
+    {
         let current = rampart_db::on_call::get(s.pool(), schedule_id).await?;
         let rotation = input.rotation_seconds.unwrap_or(current.rotation_seconds);
-        let participants = input
+        let chans = input
             .participant_ids
             .clone()
-            .unwrap_or(current.participant_ids);
-        validate_rotation(rotation, &participants).map_err(ApiError::BadRequest)?;
+            .unwrap_or(current.participant_ids)
+            .len();
+        let users = input
+            .participant_user_ids
+            .clone()
+            .unwrap_or(current.participant_user_ids)
+            .len();
+        rampart_core::on_call::validate_schedule(rotation, chans + users)
+            .map_err(ApiError::BadRequest)?;
     }
     let schedule = rampart_db::on_call::update(s.pool(), schedule_id, input).await?;
     crate::audit::record(
