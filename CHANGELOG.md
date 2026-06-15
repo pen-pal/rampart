@@ -17,6 +17,10 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+---
+
+## [0.26.0] — 2026-06-15
+
 ### Added
 - Storage footprint visibility: a per-tier on-disk size + estimated row-count
   panel on the Retention settings page, a `GET /v1/settings/storage` endpoint,
@@ -1156,7 +1160,8 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 
 ---
 
-[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.25.0...HEAD
+[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.26.0...HEAD
+[0.26.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.26.0
 [0.25.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.25.0
 [0.24.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.24.0
 [0.23.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.23.0
