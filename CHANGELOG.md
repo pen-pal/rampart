@@ -19,6 +19,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.55.0] — 2026-06-15
+
+### Changed
+- APM **Operations** table rows are now click-through: clicking an operation
+  jumps to the traces list filtered to that service, mirroring the service-map
+  edge pivot — so the latency/error table is a launch point into the traces
+  behind a hot operation.
+
+---
+
 ## [0.54.1] — 2026-06-15
 
 ### Documentation
@@ -1596,6 +1606,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.55.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.55.0
 [0.54.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.54.1
 [0.54.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.54.0
 [0.53.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.53.0
