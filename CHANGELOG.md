@@ -17,6 +17,19 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Fixed
+- Navigation regression: the nav overhaul removed the dashboard header menu in
+  favour of a floating launcher, which users couldn't find ("clicking
+  Observability no longer works"). Restored a header ☰ button that opens the
+  global nav drawer (any view can open it via a `rampart:nav-open` event).
+
+### Added
+- Self-RUM: `RAMPART_SELF_RUM=1` injects the RUM snippet into the dashboard
+  shell at serve time, so the app reports its own Core Web Vitals + browser JS
+  errors (real RUM + error data — same dogfood idea as the OTLP self-export).
+  Same-origin, so the strict CSP already allows it. The full-stack example
+  enables it.
+
 ---
 
 ## [0.32.0] — 2026-06-15

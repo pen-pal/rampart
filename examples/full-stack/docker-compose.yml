@@ -52,6 +52,9 @@ services:
       # Self-observability: Rampart exports its OWN traces + logs back into
       # itself, so Traces/Logs show real live data from the running app.
       RAMPART_OTLP_ENDPOINT: http://rampart:3000
+      # Inject the RUM snippet into the dashboard → real Core Web Vitals + browser
+      # JS errors from actually using the UI land in the RUM + Errors views.
+      RAMPART_SELF_RUM: "1"
     ports:
       - "3000:3000"
     depends_on:

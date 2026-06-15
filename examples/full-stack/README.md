@@ -69,8 +69,11 @@ docker compose exec rampart rampart-api reset-password admin@example.com 'admin-
   monitors; the flaky one flips down ~20s every minute.
 - **Traces / Logs** — Rampart's **own** request spans + internal logs, live, as
   the load generator drives real API traffic (service name `rampart`).
-- **Errors / RUM** — the seeded `[demo]` baseline. (Real RUM needs the in-page
-  snippet; that's a follow-up.)
+- **RUM** — real Core Web Vitals from the dashboard itself (the RUM snippet is
+  injected via `RAMPART_SELF_RUM`; app `rampart-dashboard`). Click around to
+  generate beacons.
+- **Errors** — the seeded `[demo]` baseline plus any **real** browser JS errors
+  the snippet catches while you use the UI.
 - **Detection** (`#/detection`) — a seeded SIEM rule with a raised finding.
 - **Alert rules / Escalations** — a seeded telemetry rule.
 - **Status page → incidents** — once the flaky monitor stays down past the
