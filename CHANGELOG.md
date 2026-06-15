@@ -17,6 +17,10 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+---
+
+## [0.24.0] — 2026-06-15
+
 ### Added
 - Saved searches on the Logs and Traces views: name the current filter set and
   recall it as a chip. Per-user, stored in the existing prefs blob (a new
@@ -1130,7 +1134,8 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 
 ---
 
-[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.23.0...HEAD
+[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.24.0...HEAD
+[0.24.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.24.0
 [0.23.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.23.0
 [0.22.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.22.0
 [0.21.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.21.0
