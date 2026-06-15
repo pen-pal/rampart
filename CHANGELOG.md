@@ -19,6 +19,15 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.55.1] — 2026-06-15
+
+### Changed
+- Logs view gains a **time-window selector** (1h / 24h / 7d) driving the volume
+  histogram and the level-count facets, so you can widen or zoom the volume
+  context independently of the row limit.
+
+---
+
 ## [0.55.0] — 2026-06-15
 
 ### Changed
@@ -1606,6 +1615,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.55.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.55.1
 [0.55.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.55.0
 [0.54.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.54.1
 [0.54.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.54.0
