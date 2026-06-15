@@ -317,6 +317,52 @@ function fmtBulkVal(v) {
   return String(v);
 }
 
+// Compact SLO error-budget health for the dashboard sidebar. Self-contained —
+// fetches its own list, hides entirely when no SLOs are defined.
+function sloBudgetColor(r) {
+  if (r == null) return 'var(--text-3)';
+  if (r <= 0) return 'var(--down)';
+  if (r < 25) return 'var(--warn)';
+  return 'var(--up)';
+}
+function SloWidget() {
+  const state = useApi(() => api.slos.list(), [], { pollMs: 60_000 });
+  const slos = state.data || [];
+  if (state.loading || slos.length === 0) return null;
+  const breaching = slos.filter(s => s.snapshot && s.snapshot.breaching).length;
+  // Worst budgets first so the sidebar shows what's at risk.
+  const sorted = [...slos].sort((a, b) =>
+    (a.snapshot?.remaining_pct ?? 100) - (b.snapshot?.remaining_pct ?? 100));
+  return (
+    <div className="card" style={{ padding: 14, marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
+        <a href="#/slos" style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em', textDecoration: 'none' }}>
+          {t('slos.title')}
+        </a>
+        {breaching > 0
+          ? <span className="mono" style={{ fontSize: 11, color: 'var(--down)', fontWeight: 600 }}>{breaching} {t('slos.breaching').toLowerCase()}</span>
+          : <span className="mono" style={{ fontSize: 11, color: 'var(--up)' }}>{t('slos.healthy').toLowerCase()}</span>}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+        {sorted.slice(0, 5).map(s => {
+          const r = s.snapshot?.remaining_pct;
+          return (
+            <a key={s.id} href="#/slos" style={{ textDecoration: 'none', color: 'inherit' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, marginBottom: 3 }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 150 }}>{s.name}</span>
+                <span className="mono" style={{ color: 'var(--text-3)' }}>{r == null ? '—' : `${Math.round(r)}%`}</span>
+              </div>
+              <div style={{ height: 6, borderRadius: 999, background: 'var(--surface-2)', overflow: 'hidden' }}>
+                <div style={{ width: `${r == null ? 0 : Math.max(0, Math.min(100, r))}%`, height: '100%', background: sloBudgetColor(r) }}/>
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── main component ───────────────────────────────────────────────────────
 export default function Dashboard({ user, onLogout } = {}) {
   // Whether the current user may mutate (admin/editor). Readonly users see
@@ -912,6 +958,8 @@ export default function Dashboard({ user, onLogout } = {}) {
               ))}
             </div>
           </div>
+
+          <SloWidget />
 
           {monitors.length > 0 ? (() => {
             const groups = groupsState.data || [];
