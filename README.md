@@ -357,6 +357,7 @@ npx playwright test       # e2e on Chromium + Firefox + WebKit
 - [**docs/design/LOGS.md**](docs/design/LOGS.md) — OTLP log ingest, full-text search, trace correlation.
 - [**docs/design/RUM.md**](docs/design/RUM.md) — Real User Monitoring + browser error capture.
 - [**docs/design/PROFILING.md**](docs/design/PROFILING.md) — Continuous profiling (pprof / OTLP / folded) + flamegraphs.
+- [**docs/CORRELATION.md**](docs/CORRELATION.md) — The cross-tier link web: log↔trace, error↔trace, trace→profiling, RUM→trace.
 - [**docs/INGEST.md**](docs/INGEST.md) — Inbound webhooks + the optional telemetry ingest token.
 
 **Alerting & response**

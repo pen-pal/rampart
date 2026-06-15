@@ -106,6 +106,7 @@ nav:
       - Logs: design/LOGS.md
       - RUM: design/RUM.md
       - Profiling: design/PROFILING.md
+      - Cross-tier correlation: CORRELATION.md
   - Alerting & response:
       - Metric rules: METRICS.md
       - Telemetry alert rules: design/ALERT-RULES.md
