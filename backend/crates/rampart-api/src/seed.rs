@@ -283,6 +283,9 @@ async fn seed_logs(pool: &DbPool, stats: &mut SeedStats) -> Result<()> {
         (17, "error", "[demo] auth", "failed login for user alice from 10.0.0.6"),
         (17, "error", "[demo] auth", "failed login for user bob from 10.0.0.5"),
     ];
+    // The first three lines are the checkout request path — tag them with the
+    // seeded trace id so the log↔trace correlation is populated in the demo.
+    let demo_trace = hex32("demotrace0001");
     for (i, (sev, sevt, svc, body)) in lines.into_iter().enumerate() {
         logs.push(rampart_core::log::ParsedLog {
             time_ns: now_ns - (i as i64 * 1_000_000_000),
@@ -290,7 +293,7 @@ async fn seed_logs(pool: &DbPool, stats: &mut SeedStats) -> Result<()> {
             severity_text: Some(sevt.to_string()),
             service_name: svc.to_string(),
             body: body.to_string(),
-            trace_id: None,
+            trace_id: (i < 3).then(|| demo_trace.clone()),
             span_id: None,
             attributes: json!({ "env": "production" }),
         });
@@ -306,11 +309,15 @@ async fn seed_rum(pool: &DbPool, stats: &mut SeedStats) -> Result<()> {
         ("/checkout", 3200.0, 1400.0, 0.18, 340.0),
         ("/dashboard", 2100.0, 1000.0, 0.06, 90.0),
     ] {
+        // The /checkout page-load carries the seeded trace id so the RUM→trace
+        // pivot resolves to the demo checkout trace.
+        let trace_id = (url == "/checkout").then(|| hex32("demotrace0001"));
         let beacon: RumBeacon = serde_json::from_value(json!({
             "app": "[demo] storefront",
             "url": url,
             "session": "demo-session",
             "ua": "Mozilla/5.0 (demo)",
+            "trace_id": trace_id,
             "metrics": { "lcp_ms": lcp, "fcp_ms": fcp, "cls": cls, "inp_ms": inp, "ttfb_ms": 210.0, "load_ms": lcp + 300.0 }
         }))?;
         rampart_db::rum::insert_event(pool, &beacon).await?;
