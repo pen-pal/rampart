@@ -248,17 +248,77 @@ pub async fn compute(pool: &DbPool, slo: &Slo) -> DbResult<SloSnapshot> {
     Ok(snapshot(full, short, slo.objective_pct))
 }
 
-/// One SLO row with its freshly computed snapshot — what the API hands the UI.
+/// Achieved-ratio trend over the window, bucketed into ~`buckets` points
+/// (oldest → newest) for a sparkline. Empty buckets are dropped, so a sparse
+/// series just has fewer points.
+pub async fn trend(pool: &DbPool, slo: &Slo, buckets: i64) -> DbResult<Vec<f64>> {
+    let buckets = buckets.clamp(2, 200);
+    let window = slo.window_days as i64 * 86400;
+    let since = OffsetDateTime::now_utc() - time::Duration::seconds(window);
+    let step = (window / buckets).max(1);
+    match slo.sli_kind {
+        SliKind::Monitor => {
+            let Some(m) = slo.monitor_id else { return Ok(vec![]) };
+            let rows = sqlx::query!(
+                r#"
+                SELECT date_bin(make_interval(secs => $2), ts, $3) AS bucket,
+                       COUNT(*) FILTER (WHERE status = 'up')::float8
+                         / NULLIF(COUNT(*), 0)::float8 * 100.0 AS pct
+                FROM heartbeats
+                WHERE monitor_id = $1 AND ts >= $3
+                GROUP BY bucket ORDER BY bucket
+                "#,
+                m.0,
+                step as f64,
+                since,
+            )
+            .fetch_all(pool)
+            .await?;
+            Ok(rows.into_iter().filter_map(|r| r.pct).collect())
+        }
+        SliKind::Metric => {
+            let (Some(g), Some(t)) = (&slo.good_metric, &slo.total_metric) else {
+                return Ok(vec![]);
+            };
+            let rows = sqlx::query!(
+                r#"
+                SELECT date_bin(make_interval(secs => $3), ts, $4) AS bucket,
+                       SUM(value) FILTER (WHERE name = $1)
+                         / NULLIF(SUM(value) FILTER (WHERE name = $2), 0) * 100.0 AS pct
+                FROM metric_samples
+                WHERE name IN ($1, $2) AND ts >= $4 AND labels @> $5
+                GROUP BY bucket ORDER BY bucket
+                "#,
+                g,
+                t,
+                step as f64,
+                since,
+                &slo.labels,
+            )
+            .fetch_all(pool)
+            .await?;
+            Ok(rows
+                .into_iter()
+                .filter_map(|r| r.pct.map(|p| p.clamp(0.0, 100.0)))
+                .collect())
+        }
+    }
+}
+
+/// One SLO row with its snapshot + achieved-ratio trend — what the API hands
+/// the UI for the list (budget bar + sparkline).
 pub struct SloWithSnapshot {
     pub slo: Slo,
     pub snapshot: SloSnapshot,
+    pub trend: Vec<f64>,
 }
 
 pub async fn list_with_snapshots(pool: &DbPool) -> DbResult<Vec<SloWithSnapshot>> {
     let mut out = Vec::new();
     for slo in list(pool).await? {
         let snapshot = compute(pool, &slo).await?;
-        out.push(SloWithSnapshot { slo, snapshot });
+        let trend = trend(pool, &slo, 24).await?;
+        out.push(SloWithSnapshot { slo, snapshot, trend });
     }
     Ok(out)
 }

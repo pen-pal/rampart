@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT date_bin(make_interval(secs => $2), ts, $3) AS bucket,\n                       COUNT(*) FILTER (WHERE status = 'up')::float8\n                         / NULLIF(COUNT(*), 0)::float8 * 100.0 AS pct\n                FROM heartbeats\n                WHERE monitor_id = $1 AND ts >= $3\n                GROUP BY bucket ORDER BY bucket\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "bucket",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "pct",
+        "type_info": "Float8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Float8",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "b4c64017fe48e70a4d363a17e624c6d18a9614b8c19acd617b1f5cc541025d7f"
+}
