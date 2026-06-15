@@ -17,6 +17,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+- `rampart-api reset-password <email> <password>` subcommand — break-glass admin
+  recovery: resets the password if the user exists, else creates an admin.
+  Server-side, so it bypasses the API password policy. No more raw psql.
+- Demo runs can use **your own login**: `seed-demo` creates the admin from
+  `RAMPART_ADMIN_EMAIL` / `RAMPART_ADMIN_PASSWORD` when set (and no user exists
+  yet). The full-stack example threads these through compose + the load
+  generator, so `RAMPART_ADMIN_EMAIL=… RAMPART_ADMIN_PASSWORD=… docker compose up`
+  signs you in with your credentials.
+
 ---
 
 ## [0.30.1] — 2026-06-15

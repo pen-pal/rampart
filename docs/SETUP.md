@@ -49,6 +49,15 @@ Open <http://localhost:3000>. The first visit shows a signup form
 Subsequent users come through the admin **Users** page; the signup
 form locks itself after the first account.
 
+**Locked out, or scripting a fresh install?** Create or reset an admin from the
+binary — resets the password if the email exists, else creates an admin (any
+password, no policy gate):
+
+```bash
+docker compose exec rampart rampart-api reset-password admin@example.com 'your-password'
+# single binary:  ./rampart-api reset-password admin@example.com 'your-password'
+```
+
 ### 4b. (Optional) Load demo data
 
 Want to see the whole dashboard populated before wiring anything up? The
