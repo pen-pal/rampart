@@ -399,6 +399,10 @@ function TraceDetail({ traceId, onBack }) {
               </div>
               {isOpen && (
                 <div className="wf-detail" style={{ marginLeft: depth * 14 + 24 }}>
+                  <div style={{ marginBottom: 8 }}>
+                    <a href={`#/profiling?service=${encodeURIComponent(s.service_name)}&from_ms=${Math.floor(s.start_ns / 1e6)}&to_ms=${Math.ceil(s.end_ns / 1e6)}`}
+                      style={{ color: 'var(--accent)', fontSize: 12 }}>{t('traces.profile_span')}</a>
+                  </div>
                   {s.status_message && (
                     <div style={{ color: 'var(--down)', marginBottom: attrs.length ? 8 : 0 }}>⚠ {s.status_message}</div>
                   )}

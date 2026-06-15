@@ -243,15 +243,33 @@ struct FlameQuery {
     #[serde(rename = "type")]
     profile_type: String,
     hours: Option<i32>,
+    /// Absolute window (epoch ms) — the trace→profile pivot passes a span's
+    /// exact [start, end] here so the flamegraph is scoped to that span. When
+    /// both are present they take precedence over `hours`.
+    from_ms: Option<i64>,
+    to_ms: Option<i64>,
 }
 
 async fn flamegraph_window(
     State(s): State<AppState>,
     Query(q): Query<FlameQuery>,
 ) -> Result<Json<FlameResponse>, ApiError> {
-    let hours = q.hours.unwrap_or(24).clamp(1, 24 * 90);
-    let to = OffsetDateTime::now_utc();
-    let from = to - time::Duration::hours(hours as i64);
+    let (from, to) = match (q.from_ms, q.to_ms) {
+        (Some(a), Some(b)) if b > a => {
+            let from = OffsetDateTime::from_unix_timestamp_nanos(a as i128 * 1_000_000)
+                .map_err(|_| ApiError::BadRequest("invalid from_ms".into()))?;
+            let to = OffsetDateTime::from_unix_timestamp_nanos(b as i128 * 1_000_000)
+                .map_err(|_| ApiError::BadRequest("invalid to_ms".into()))?;
+            // Cap the absolute window so a bad client can't request a year.
+            let from = from.max(to - time::Duration::days(90));
+            (from, to)
+        }
+        _ => {
+            let hours = q.hours.unwrap_or(24).clamp(1, 24 * 90);
+            let to = OffsetDateTime::now_utc();
+            (to - time::Duration::hours(hours as i64), to)
+        }
+    };
     let blobs =
         rampart_db::profiles::folded_in_window(s.pool(), &q.service, &q.profile_type, from, to)
             .await?;

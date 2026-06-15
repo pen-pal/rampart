@@ -500,8 +500,11 @@ export const api = {
     },
     services: () => request('/v1/profiles/services'),
     types: (service) => request(`/v1/profiles/types${service ? `?service=${encodeURIComponent(service)}` : ''}`),
-    flamegraph: (service, type, hours) =>
-      request(`/v1/profiles/flamegraph?service=${encodeURIComponent(service)}&type=${encodeURIComponent(type)}&hours=${hours || 24}`),
+    flamegraph: (service, type, hours, win) =>
+      request(`/v1/profiles/flamegraph?service=${encodeURIComponent(service)}&type=${encodeURIComponent(type)}`
+        + (win && win.from_ms && win.to_ms
+          ? `&from_ms=${win.from_ms}&to_ms=${win.to_ms}`
+          : `&hours=${hours || 24}`)),
     flamegraphDiff: (service, type, hours) =>
       request(`/v1/profiles/flamegraph/diff?service=${encodeURIComponent(service)}&type=${encodeURIComponent(type)}&hours=${hours || 24}`),
     flamegraphOne: (id) => request(`/v1/profiles/${id}/flamegraph`),
