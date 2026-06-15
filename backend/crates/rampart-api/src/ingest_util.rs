@@ -61,6 +61,44 @@ pub async fn configured_token(pool: &DbPool) -> Result<Option<String>, ApiError>
         .filter(|s| !s.is_empty()))
 }
 
+/// Head-sampling keep-percentages for the high-volume ingest tiers, stored in
+/// `settings.ingest_sampling`. 100 = keep everything (the default = sampling
+/// off). Read once per ingest batch; a batch is many records, so the lookup
+/// amortises.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SamplingConfig {
+    #[serde(default = "full_pct")]
+    pub traces_pct: i32,
+    #[serde(default = "full_pct")]
+    pub logs_pct: i32,
+}
+
+fn full_pct() -> i32 {
+    100
+}
+
+impl Default for SamplingConfig {
+    fn default() -> Self {
+        Self {
+            traces_pct: 100,
+            logs_pct: 100,
+        }
+    }
+}
+
+pub const SAMPLING_KEY: &str = "ingest_sampling";
+
+/// Load the sampling config, clamped to 0..=100. Missing/garbage = off.
+pub async fn sampling_config(pool: &DbPool) -> Result<SamplingConfig, ApiError> {
+    let raw = rampart_db::settings::get(pool, SAMPLING_KEY).await?;
+    let mut cfg: SamplingConfig = raw
+        .and_then(|v| serde_json::from_value(v).ok())
+        .unwrap_or_default();
+    cfg.traces_pct = cfg.traces_pct.clamp(0, 100);
+    cfg.logs_pct = cfg.logs_pct.clamp(0, 100);
+    Ok(cfg)
+}
+
 /// Extract the caller-presented token from the request: `Authorization:
 /// Bearer <tok>`, then `X-Rampart-Token: <tok>`, then `?k=<tok>`.
 pub fn presented_token<'a>(headers: &'a HeaderMap, query_k: Option<&'a str>) -> Option<&'a str> {

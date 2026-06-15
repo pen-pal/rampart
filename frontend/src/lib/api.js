@@ -342,6 +342,10 @@ export const api = {
     get: () => request('/v1/settings/telemetry-token'),
     put: (token) => request('/v1/settings/telemetry-token', { method: 'PUT', body: { token } }),
   },
+  ingestSampling: {
+    get: () => request('/v1/settings/ingest-sampling'),
+    put: (cfg) => request('/v1/settings/ingest-sampling', { method: 'PUT', body: cfg }),
+  },
   siemExport: {
     get: () => request('/v1/settings/siem-export'),
     put: (cfg) => request('/v1/settings/siem-export', { method: 'PUT', body: cfg }),

@@ -17,6 +17,14 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+- Ingest head-sampling: keep a configurable percentage of traces and logs at
+  the OTLP ingest endpoints to cap storage. Deterministic, hashed on `trace_id`
+  so a trace is kept or dropped whole (waterfalls stay intact) consistently
+  across batches/replicas; trace-less logs use a per-record key. Settings →
+  Ingest, plus `GET/PUT /v1/settings/ingest-sampling`. Default 100% (off);
+  errors, metrics and uptime checks are never sampled.
+
 ---
 
 ## [0.27.0] — 2026-06-15

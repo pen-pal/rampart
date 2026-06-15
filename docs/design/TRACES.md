@@ -35,8 +35,13 @@ Requests with `Content-Encoding: gzip` or `deflate` are transparently
 inflated (OTel exporters gzip by default). Ingest auth is **optional**: when
 the operator sets a shared **ingest token** (Settings → Ingest token) it must
 be presented as `Authorization: Bearer <token>` or `X-Rampart-Token`; left
-blank, the surface stays open (network-scoped, single-tenant). No tail
-sampling — all spans are stored, bounded by retention.
+blank, the surface stays open (network-scoped, single-tenant).
+
+**Head sampling** (Settings → Ingest, default off/100%): a deterministic
+keep-percentage hashed on `trace_id`, applied before insert — a kept trace
+survives whole and a dropped trace leaves no orphan spans, consistently across
+batches and replicas. Lower it to cap span volume at the door; retention still
+bounds whatever is kept.
 
 ## Storage & model
 

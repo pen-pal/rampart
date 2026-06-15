@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ChevronLeft, Save, Loader2, AlertCircle, KeyRound, Eye, EyeOff, Share2,
+  ChevronLeft, Save, Loader2, AlertCircle, KeyRound, Eye, EyeOff, Share2, Filter,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
@@ -125,6 +125,66 @@ export default function IngestSettings() {
         )}
 
         <SiemExport />
+        <Sampling />
+      </div>
+    </div>
+  );
+}
+
+// Ingest head-sampling — keep only a percentage of high-volume traces/logs at
+// the door, to cap storage. 100 = keep everything (off).
+function Sampling() {
+  const [cfg, setCfg] = useState({ traces_pct: 100, logs_pct: 100 });
+  const [busy, setBusy] = useState(false);
+  const [ok, setOk] = useState(false);
+  const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await api.ingestSampling.get();
+        if (r) setCfg({ traces_pct: Number(r.traces_pct ?? 100), logs_pct: Number(r.logs_pct ?? 100) });
+      } catch { /* default off */ }
+    })();
+  }, []);
+
+  const save = async () => {
+    setErr(null); setOk(false);
+    const tp = parseInt(cfg.traces_pct, 10); const lp = parseInt(cfg.logs_pct, 10);
+    if ([tp, lp].some(p => Number.isNaN(p) || p < 0 || p > 100)) {
+      setErr(t('settings.sampling.err_range')); return;
+    }
+    setBusy(true);
+    try { await api.ingestSampling.put({ traces_pct: tp, logs_pct: lp }); setOk(true); }
+    catch (e) { setErr(e.message || t('settings.ingest.err_save')); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="card" style={{ padding: 22, marginTop: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <Filter size={16}/>
+        <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>{t('settings.sampling.title')}</h2>
+      </div>
+      <p style={{ fontSize: 12.5, color: 'var(--text-2)', margin: '0 0 14px' }}>{t('settings.sampling.subtitle')}</p>
+      {err && <div className="banner-err"><AlertCircle size={14} style={{ verticalAlign: '-2px', marginRight: 6 }}/>{err}</div>}
+      {ok && <div className="banner-ok">{t('settings.ingest.saved')}</div>}
+
+      <div className="field">
+        <label className="field-label">{t('settings.sampling.traces')}</label>
+        <input className="input mono" type="number" min="0" max="100"
+          value={cfg.traces_pct} onChange={e => setCfg({ ...cfg, traces_pct: e.target.value })}/>
+      </div>
+      <div className="field">
+        <label className="field-label">{t('settings.sampling.logs')}</label>
+        <input className="input mono" type="number" min="0" max="100"
+          value={cfg.logs_pct} onChange={e => setCfg({ ...cfg, logs_pct: e.target.value })}/>
+        <div className="field-hint">{t('settings.sampling.hint')}</div>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button className="btn btn-accent" onClick={save} disabled={busy}>
+          {busy ? <><Loader2 size={13}/> {t('common.saving')}</> : <><Save size={13}/> {t('common.save')}</>}
+        </button>
       </div>
     </div>
   );
