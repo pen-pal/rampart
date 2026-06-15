@@ -55,9 +55,9 @@ docker compose exec rampart rampart-api reset-password admin@example.com 'admin-
 | Service | What it does |
 |---|---|
 | `postgres` | Rampart's database (in-memory `tmpfs` — disposable). |
-| `rampart` | The platform (API + dashboard), on `:3000`. |
+| `rampart` | The platform (API + dashboard), on `:3000`. **Self-observability is on** (`RAMPART_OTLP_ENDPOINT` → itself): Rampart exports its own request traces + logs back into itself, so Traces/Logs show real live data from the running app. |
 | `rampart-seed` | One-shot: migrates + seeds a baseline slice of every tier (the `[demo]` data), then exits. Includes a fixed Alertmanager ingest token. |
-| `loadgen` | Continuously emits **OTLP traces + logs**, **RUM** web-vitals and **errors**, and creates two live monitors pointing at the probe targets. |
+| `loadgen` | Signs in, creates two live monitors pointing at the probe targets, then continuously calls Rampart's own API — that real traffic is what Rampart traces + logs (no fabricated telemetry). |
 | `target-healthy` | An always-200 service — its monitor stays green. |
 | `target-flaky` | Returns 503 for ~20s each minute — its monitor flaps, driving uptime dips, alerts and incidents. |
 | `prometheus` | Scrapes Rampart's `/metrics` and evaluates alert rules, on `:9090`. |
@@ -67,9 +67,10 @@ docker compose exec rampart rampart-api reset-password admin@example.com 'admin-
 
 - **Dashboard** — the demo monitors (with 48h of history) plus the two live
   monitors; the flaky one flips down ~20s every minute.
-- **Traces / Logs / RUM** — moving as the load generator emits; the RUM LCP
-  chart wanders and occasionally breaches.
-- **Errors** — the seeded `[demo] web` issues plus a live `live-app` stream.
+- **Traces / Logs** — Rampart's **own** request spans + internal logs, live, as
+  the load generator drives real API traffic (service name `rampart`).
+- **Errors / RUM** — the seeded `[demo]` baseline. (Real RUM needs the in-page
+  snippet; that's a follow-up.)
 - **Detection** (`#/detection`) — a seeded SIEM rule with a raised finding.
 - **Alert rules / Escalations** — a seeded telemetry rule.
 - **Status page → incidents** — once the flaky monitor stays down past the
