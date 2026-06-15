@@ -130,7 +130,7 @@ export default function Traces({ openTraceId }) {
             </div>
             {tab === 'traces'
               ? <TraceList onOpen={setTraceId} preset={presetService} onPresetUsed={() => setPresetService('')} />
-              : tab === 'ops' ? <OperationsTable />
+              : tab === 'ops' ? <OperationsTable onPick={(svc) => { setPresetService(svc); setTab('traces'); }} />
               : <ServiceMap onPick={(svc) => { setPresetService(svc); setTab('traces'); }} />}
           </>
         )}
@@ -252,7 +252,7 @@ function TraceList({ onOpen, preset, onPresetUsed }) {
   );
 }
 
-function OperationsTable() {
+function OperationsTable({ onPick }) {
   const state = useApi(() => api.traces.operations(null, 24), []);
   const ops = state.data || [];
   return (
@@ -276,7 +276,8 @@ function OperationsTable() {
               </div>
             </div>
             {ops.map((o, i) => (
-              <div className="row" key={i}>
+              <div className="row" key={i} style={{ cursor: 'pointer' }}
+                onClick={() => onPick && onPick(o.service)} title={t('traces.edge_open')}>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span className="pill pill-muted">{o.service}</span>
