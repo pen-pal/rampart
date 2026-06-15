@@ -31,6 +31,22 @@ exits — it does **not** start the server.
 | Alerting | A telemetry alert rule (trace error-rate) and a notification channel. |
 | Detection | A SIEM rule (`failed login`, severity high) that evaluates immediately and **raises a finding** from the seeded auth logs. |
 
+## Live example stack
+
+`seed-demo` gives a static baseline. For a **live** demo where data keeps
+flowing — traces/logs/RUM/errors streaming in, a monitor genuinely flapping,
+Prometheus → Alertmanager opening incidents — use the full-stack compose example
+at `examples/full-stack/`:
+
+```bash
+cd examples/full-stack
+docker compose up
+```
+
+It runs Rampart + Postgres + this seeder + a load generator + healthy/flaky
+probe targets + Prometheus + Alertmanager, all wired together. See
+`examples/full-stack/README.md` for the tour.
+
 ## Idempotency + cleanup
 
 The seeder keys off the `[demo] Sample services` folder: if it already exists,

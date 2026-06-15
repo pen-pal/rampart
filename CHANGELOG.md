@@ -17,6 +17,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+- Full live example stack (`examples/full-stack/`): one `docker compose up`
+  brings up Rampart + Postgres + the demo seed + a load generator (live OTLP
+  traces/logs, RUM, errors) + healthy/flaky probe targets + Prometheus +
+  Alertmanager wired back into Rampart's inbound webhook — the whole platform
+  with data flowing live. `seed-demo` also seeds a status page + a fixed
+  Alertmanager ingest token (new `ingest_tokens::create_with_token`) so the
+  stack is turnkey.
+
+### Changed
+- Navigation overhaul: one consistent, theme-aware **global nav drawer** on
+  every view — links grouped into Overview / Observability / Alerting / Catalog
+  / Administration / Settings, role-filtered, with a filter box and active
+  highlight. Replaces the old dev-only floating view switcher (which leaked into
+  production and duplicated the dashboard's menus) and the redundant dashboard
+  hamburger.
+
 ---
 
 ## [0.29.0] — 2026-06-15
