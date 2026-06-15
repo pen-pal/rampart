@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  ChevronLeft, Loader2, AlertCircle, Activity, Network, Gauge, Download,
+  ChevronLeft, Loader2, AlertCircle, Activity, Network, Gauge, Download, Bookmark, X,
 } from 'lucide-react';
 import { api, useApi, formatRelative } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
@@ -93,6 +93,28 @@ function TraceList({ onOpen }) {
   const traces = state.data || [];
   const apply = () => setApplied({ service, q, min_duration_ms: minDur, errors_only: errorsOnly });
 
+  // Saved searches — per-user, in the shared prefs blob under `trace_searches`
+  // (patchPrefs merges, so the dashboard's saved_views are untouched).
+  const [saved, setSaved] = useState([]);
+  useEffect(() => {
+    let off = false;
+    api.me.getPrefs()
+      .then(p => { if (!off) setSaved(Array.isArray(p?.trace_searches) ? p.trace_searches : []); })
+      .catch(() => {});
+    return () => { off = true; };
+  }, []);
+  const persistSaved = (next) => { setSaved(next); api.me.patchPrefs({ trace_searches: next }).catch(() => {}); };
+  const saveCurrent = () => {
+    const name = window.prompt(t('traces.save_prompt'));
+    if (!name || !name.trim()) return;
+    persistSaved([...saved, { id: Date.now().toString(36), name: name.trim(), ...applied }]);
+  };
+  const applySaved = (s) => {
+    setService(s.service || ''); setQ(s.q || ''); setMinDur(s.min_duration_ms || ''); setErrorsOnly(!!s.errors_only);
+    setApplied({ service: s.service || '', q: s.q || '', min_duration_ms: s.min_duration_ms || '', errors_only: !!s.errors_only });
+  };
+  const deleteSaved = (id) => persistSaved(saved.filter(s => s.id !== id));
+
   // CSV export of the currently-applied trace filters (cookie-auth, same-origin).
   const exportUrl = (() => {
     const p = new URLSearchParams();
@@ -118,7 +140,19 @@ function TraceList({ onOpen }) {
         </button>
         <button className="btn" onClick={apply}>{t('traces.filter.apply')}</button>
         <a className="btn btn-ghost" href={exportUrl} download title={t('traces.export_hint')}><Download size={14}/> {t('traces.export')}</a>
+        <button className="btn btn-ghost" onClick={saveCurrent} title={t('traces.save_hint')}><Bookmark size={14}/> {t('traces.save')}</button>
       </div>
+      {saved.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em' }}>{t('traces.saved')}</span>
+          {saved.map(s => (
+            <span key={s.id} className="pill" style={{ gap: 5 }}>
+              <span style={{ cursor: 'pointer' }} onClick={() => applySaved(s)} title={[s.service, s.q, s.min_duration_ms && `≥${s.min_duration_ms}ms`, s.errors_only && 'errors'].filter(Boolean).join(' · ')}>{s.name}</span>
+              <X size={11} style={{ cursor: 'pointer', opacity: 0.6 }} onClick={() => deleteSaved(s.id)}/>
+            </span>
+          ))}
+        </div>
+      )}
       {state.error && <div className="banner-err"><AlertCircle size={14} style={{ verticalAlign: '-2px', marginRight: 6 }}/>{t('traces.load_error')}</div>}
       <div className="card" style={{ overflow: 'hidden' }}>
         {state.loading ? (

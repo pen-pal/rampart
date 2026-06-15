@@ -59,7 +59,8 @@ across replicas) and a **severity-volume bar** (per-level counts, click to
 filter). The compact log stream shows timestamp, level (colour-coded),
 service, body — with a click-to-expand row revealing `trace_id`/`span_id` (the
 trace id links straight to the **waterfall**), the exporter severity text, and
-attributes.
+attributes. The filter set can be **saved** as a named search (per-user, stored
+in the prefs blob) and recalled as a chip.
 
 ## Follow-ups (deferred)
 

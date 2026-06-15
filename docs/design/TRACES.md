@@ -73,7 +73,8 @@ duration, span + error counts), an **Operations** tab (the per-(service,
 operation) APM table — calls, error %, p50/p95/p99), a **waterfall** trace
 detail (each span a bar positioned by offset + duration, errors in red, span
 kind tagged), and a **service map** tab (dependency edges as caller → callee
-with call counts).
+with call counts). The trace-list filter set can be **saved** as a named search
+(per-user, in the prefs blob) and recalled as a chip.
 
 ## Follow-ups (deferred)
 
