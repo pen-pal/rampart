@@ -1,0 +1,102 @@
+# Rampart — full live example stack.
+#
+#   cd examples/full-stack && docker compose up
+#   → open http://localhost:3000  (first visit creates the admin account;
+#     the loadgen also registers demo@rampart.local / demo-password-123)
+#
+# Brings up the whole platform with data flowing live: Rampart + Postgres, a
+# one-shot demo seed, a load generator emitting OTLP traces/logs + RUM + errors,
+# two probe targets (one healthy, one flapping), and Prometheus + Alertmanager
+# wired back into Rampart's inbound webhook. Everything tagged/named for the
+# demo; tear down with `docker compose down -v`.
+#
+# Uses the published image by default. To test local changes instead, set
+#   RAMPART_IMAGE= (empty) and uncomment the `build:` lines on the rampart +
+#   rampart-seed services.
+
+name: rampart-demo
+
+x-rampart-env: &rampart-env
+  DATABASE_URL: postgres://rampart:rampart@postgres:5432/rampart
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: rampart
+      POSTGRES_PASSWORD: rampart
+      POSTGRES_DB: rampart
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rampart"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    tmpfs:
+      - /var/lib/postgresql/data   # demo data is disposable; speeds teardown
+
+  rampart:
+    image: ${RAMPART_IMAGE:-ghcr.io/pen-pal/rampart:latest}
+    # build: { context: ../.., dockerfile: Dockerfile }
+    environment:
+      <<: *rampart-env
+      BIND_ADDR: 0.0.0.0:3000
+      RUST_LOG: rampart=info,info
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # One-shot: migrate (idempotent) + seed a representative slice of every tier,
+  # including the fixed Alertmanager ingest token this stack references. Exits 0.
+  rampart-seed:
+    image: ${RAMPART_IMAGE:-ghcr.io/pen-pal/rampart:latest}
+    # build: { context: ../.., dockerfile: Dockerfile }
+    command: ["seed-demo"]
+    environment:
+      <<: *rampart-env
+      RUST_LOG: warn
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # Continuously emits live telemetry (OTLP traces+logs, RUM, errors) and
+  # creates two live monitors pointing at the probe targets.
+  loadgen:
+    image: curlimages/curl:8.11.1
+    entrypoint: ["sh", "/loadgen.sh"]
+    volumes:
+      - ./loadgen/loadgen.sh:/loadgen.sh:ro
+    environment:
+      RAMPART_URL: http://rampart:3000
+    depends_on:
+      - rampart
+
+  # Probe targets: one always-200, one that flaps 503 for ~20s each minute.
+  target-healthy:
+    image: nginx:alpine
+  target-flaky:
+    image: python:3.12-alpine
+    command: ["python", "/flaky.py"]
+    volumes:
+      - ./targets/flaky.py:/flaky.py:ro
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - rampart
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "9093:9093"
+    depends_on:
+      - rampart
