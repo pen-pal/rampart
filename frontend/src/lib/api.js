@@ -486,7 +486,13 @@ export const api = {
       return request(`/v1/logs${s ? '?' + s : ''}`);
     },
     services: () => request('/v1/logs/services'),
-    levels: (service) => request(`/v1/logs/levels${service ? `?service=${encodeURIComponent(service)}` : ''}`),
+    levels: (service, hours) => {
+      const qs = new URLSearchParams();
+      if (service) qs.set('service', service);
+      if (hours) qs.set('hours', String(hours));
+      const s = qs.toString();
+      return request(`/v1/logs/levels${s ? '?' + s : ''}`);
+    },
     histogram: (params = {}) => {
       const qs = new URLSearchParams();
       for (const [k, v] of Object.entries(params)) if (v != null && v !== '') qs.set(k, v);

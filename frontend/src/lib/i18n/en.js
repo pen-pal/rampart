@@ -1800,6 +1800,7 @@ const en = {
   'rum.pages':                       'Pages',
   'rum.page':                        'Page',
   'rum.views':                       'Views',
+  'logs.window_hint':                'Histogram + level-count window',
   'rum.traced':                      'Traced page-loads',
   'rum.load':                        'Load',
   'rum.trace':                       'Trace',
