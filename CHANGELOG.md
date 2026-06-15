@@ -17,6 +17,18 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+- **Self-observability**: with `RAMPART_OTLP_ENDPOINT` set, Rampart exports its
+  own request traces + internal logs via OTLP/HTTP (pure-Rust, blocking reqwest;
+  no grpc/C). Ingest + scrape routes (`/otlp`, `/rum`, `/api`, `/healthz`,
+  `/metrics`) are excluded from span creation so pointing it at itself can't
+  feed back into a loop.
+
+### Changed
+- Full-stack example now shows **real** data: Rampart self-exports its own
+  traces + logs (endpoint → itself), and the load generator drives real API
+  traffic instead of fabricating OTLP/RUM/error payloads.
+
 ---
 
 ## [0.31.2] — 2026-06-15
