@@ -64,6 +64,34 @@ pub async fn create(
     Ok(row.into())
 }
 
+/// Create a token with a caller-supplied value (vs the random `create`). Only
+/// for deterministic fixtures like the demo seeder, where an external config
+/// (e.g. Alertmanager) must reference a known token. Returns NotFound-free; a
+/// duplicate token value violates the UNIQUE index and surfaces as a conflict.
+pub async fn create_with_token(
+    pool: &DbPool,
+    page: StatusPageId,
+    label: &str,
+    token: &str,
+) -> DbResult<IngestToken> {
+    let id = IngestTokenId::new();
+    let row = sqlx::query_as!(
+        TokenRow,
+        r#"
+        INSERT INTO ingest_tokens (id, status_page_id, token, label, mapping)
+        VALUES ($1, $2, $3, $4, NULL)
+        RETURNING id, status_page_id, token, label, mapping, created_at, last_used_at
+        "#,
+        id.0,
+        page.0,
+        token,
+        label,
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(row.into())
+}
+
 /// Set (or clear, with `NULL`) the generic-receiver mapping on a token.
 /// Returns the updated token. NotFound for an unknown id.
 pub async fn set_mapping(
