@@ -19,6 +19,19 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.48.0] — 2026-06-15
+
+### Added
+- **Trace → profiling time pivot.** Each span in the trace waterfall now offers
+  *Profile this span's window* — it deep-links to the flamegraph scoped to that
+  span's service and exact `[start, end]` interval. The `/v1/profiles/flamegraph`
+  endpoint gained optional `from_ms` / `to_ms` (epoch-ms) parameters that take
+  precedence over the rolling `hours` window (capped at 90 days); the Profiling
+  view reads the window off the hash and shows a clearable "scoped to a span"
+  banner. Connects the trace and profiling tiers by absolute time.
+
+---
+
 ## [0.47.0] — 2026-06-15
 
 ### Changed
@@ -1473,6 +1486,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.48.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.48.0
 [0.47.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.47.0
 [0.46.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.46.0
 [0.45.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.45.0
