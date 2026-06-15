@@ -86,7 +86,13 @@ pub fn validate_steps(steps: &[EscalationStep]) -> Result<(), String> {
 #[derive(Debug, Clone, Serialize)]
 pub struct EscalationEpisode {
     pub id: uuid::Uuid,
-    pub monitor_id: MonitorId,
+    /// Set for monitor episodes (kept for the FK cascade); None for rule
+    /// subjects. Use `subject_kind`/`subject_ref` as the generic key.
+    pub monitor_id: Option<MonitorId>,
+    /// 'monitor' | 'telemetry_rule' (extensible).
+    pub subject_kind: String,
+    /// The subject identifier as text (monitor or rule id).
+    pub subject_ref: String,
     pub policy_id: EscalationPolicyId,
     pub started_at: OffsetDateTime,
     pub last_step: i32,

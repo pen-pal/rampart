@@ -216,14 +216,6 @@ impl Scheduler {
             }
         };
         for episode in due {
-            let monitor = match rampart_db::monitors::get(&self.pool, episode.monitor_id).await {
-                Ok(m) => m,
-                Err(_) => continue, // monitor deleted; episode cascades away
-            };
-            if !monitor.current_status.is_down() {
-                let _ = rampart_db::escalations::resolve(&self.pool, episode.monitor_id).await;
-                continue;
-            }
             let policy = match rampart_db::escalations::get(&self.pool, episode.policy_id).await {
                 Ok(p) => p,
                 Err(e) => {
@@ -231,28 +223,47 @@ impl Scheduler {
                     continue;
                 }
             };
+            // Build the still-firing page event for this subject, or resolve the
+            // episode if the subject recovered. Returns None to skip/close.
+            let event = match episode.subject_kind.as_str() {
+                "monitor" => {
+                    let Some(mid) = episode.monitor_id else { continue };
+                    let monitor = match rampart_db::monitors::get(&self.pool, mid).await {
+                        Ok(m) => m,
+                        Err(_) => continue, // monitor deleted; episode cascades away
+                    };
+                    if !monitor.current_status.is_down() {
+                        let _ = rampart_db::escalations::resolve(&self.pool, mid).await;
+                        continue;
+                    }
+                    let down_for = (time::OffsetDateTime::now_utc() - episode.started_at).whole_seconds();
+                    monitor_escalation_event(monitor, format!("still down, unacknowledged for {down_for}s"))
+                }
+                "telemetry_rule" => {
+                    let rule_id = match uuid::Uuid::parse_str(&episode.subject_ref) {
+                        Ok(u) => rampart_core::ids::TelemetryRuleId::from_uuid(u),
+                        Err(_) => continue,
+                    };
+                    match rampart_db::telemetry_rules::get(&self.pool, rule_id).await {
+                        // Still firing → keep climbing. Recovered/deleted → close.
+                        Ok(rule) if rule.firing_at.is_some() => {
+                            let down_for = (time::OffsetDateTime::now_utc() - episode.started_at).whole_seconds();
+                            alert_escalation_event(&rule.name, format!("still firing, unacknowledged for {down_for}s"))
+                        }
+                        _ => {
+                            let _ = rampart_db::escalations::resolve_subject(
+                                &self.pool, "telemetry_rule", &episode.subject_ref,
+                            ).await;
+                            continue;
+                        }
+                    }
+                }
+                _ => continue,
+            };
             let Ok(Some(advanced)) =
                 rampart_db::escalations::advance(&self.pool, episode.id, &policy).await
             else {
                 continue;
-            };
-            let now = time::OffsetDateTime::now_utc();
-            let down_for = (now - advanced.started_at).whole_seconds();
-            let event = rampart_notifier::Event {
-                kind: rampart_notifier::EventKind::Escalation,
-                heartbeat: Heartbeat {
-                    monitor_id: monitor.id,
-                    ts: now,
-                    status: MonitorStatus::Down,
-                    latency_ms: None,
-                    status_code: None,
-                    msg: Some(format!("still down, unacknowledged for {down_for}s")),
-                    retries: 0,
-                    important: false,
-                },
-                monitor,
-                prev_status: None,
-                slo_current_pct: None,
             };
             rampart_notifier::service::fire_escalation_step(
                 &self.pool,
@@ -420,11 +431,38 @@ impl Scheduler {
                           "telemetry rule channel send failed (channel deleted?)");
                 }
             }
-            // On fire, also page the rule's escalation policy (channels +
-            // current on-call). Fan-out only — no timed climb for rules yet.
-            if fired {
-                if let Some(policy_id) = ev.rule.escalation_policy_id {
-                    rampart_notifier::service::page_policy_now(&self.pool, policy_id, &event).await;
+            // Escalation ladder for the rule: on fire open an episode + page
+            // step 0; later steps climb via the due scan (check_escalations)
+            // until the rule recovers or someone acks. On recover, close it.
+            if let Some(policy_id) = ev.rule.escalation_policy_id {
+                match rampart_db::escalations::get(&self.pool, policy_id).await {
+                    Ok(policy) => {
+                        let subj = ev.rule.id.0.to_string();
+                        if fired {
+                            match rampart_db::escalations::open_episode_for_subject(
+                                &self.pool, "telemetry_rule", &subj, &policy,
+                            )
+                            .await
+                            {
+                                Ok(Some(_)) => {
+                                    rampart_notifier::service::fire_escalation_step(
+                                        &self.pool, &event, &policy, 0,
+                                    )
+                                    .await;
+                                }
+                                Ok(None) => {} // already climbing
+                                Err(e) => warn!(rule = %ev.rule.name, error = %e,
+                                    "escalation open failed"),
+                            }
+                        } else {
+                            let _ = rampart_db::escalations::resolve_subject(
+                                &self.pool, "telemetry_rule", &subj,
+                            )
+                            .await;
+                        }
+                    }
+                    Err(e) => warn!(policy = %policy_id.0, error = %e,
+                        "escalation policy load failed"),
                 }
             }
         }
@@ -1578,6 +1616,32 @@ fn alert_monitor(name: String) -> Monitor {
         agent_id: None,
         escalation_policy_id: None,
     }
+}
+
+/// Escalation page event for a real monitor (the climb's monitor branch).
+fn monitor_escalation_event(monitor: Monitor, msg: String) -> rampart_notifier::Event {
+    let now = time::OffsetDateTime::now_utc();
+    rampart_notifier::Event {
+        kind: rampart_notifier::EventKind::Escalation,
+        heartbeat: Heartbeat {
+            monitor_id: monitor.id,
+            ts: now,
+            status: MonitorStatus::Down,
+            latency_ms: None,
+            status_code: None,
+            msg: Some(msg),
+            retries: 0,
+            important: false,
+        },
+        monitor,
+        prev_status: None,
+        slo_current_pct: None,
+    }
+}
+
+/// Escalation page event for a rule subject (synthetic alert monitor).
+fn alert_escalation_event(rule_name: &str, msg: String) -> rampart_notifier::Event {
+    monitor_escalation_event(alert_monitor(rule_name.to_string()), msg)
 }
 
 /// A scheduler-synthesized Down heartbeat for a broken cron expectation.

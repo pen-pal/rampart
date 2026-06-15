@@ -512,27 +512,6 @@ async fn dispatch_step_targets(pool: &DbPool, step: &rampart_core::EscalationSte
     }
 }
 
-/// Page every step of an escalation policy NOW — each step's channels plus the
-/// current on-call target of its schedules. Routes a rule alert through a
-/// policy's full recipient set on fire (the un-timed fan-out; the timed per-step
-/// climb remains monitor-episode-only today).
-pub async fn page_policy_now(
-    pool: &DbPool,
-    policy_id: rampart_core::ids::EscalationPolicyId,
-    event: &Event,
-) {
-    let policy = match rampart_db::escalations::get(pool, policy_id).await {
-        Ok(p) => p,
-        Err(e) => {
-            warn!(policy = %policy_id.0, error = %e, "escalation policy load failed");
-            return;
-        }
-    };
-    for step in &policy.steps {
-        dispatch_step_targets(pool, step, event).await;
-    }
-}
-
 /// Page a user who is on call: email the event to their account address (the
 /// universally-present contact for a user; webpush is a possible follow-up).
 async fn send_event_to_user(

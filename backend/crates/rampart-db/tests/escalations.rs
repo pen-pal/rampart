@@ -167,3 +167,56 @@ async fn ack_stops_the_ladder(pool: PgPool) {
     assert!(escalations::ack(&pool, mid, user.id).await.is_err());
     assert!(escalations::resolve(&pool, mid).await.unwrap().is_some());
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn rule_subject_episode_lifecycle(pool: PgPool) {
+    // A non-monitor subject (telemetry rule) climbs the same ladder.
+    let (_mid, policy) = fixture(&pool).await;
+    let subj = "rule-abc-123";
+
+    let ep = escalations::open_episode_for_subject(&pool, "telemetry_rule", subj, &policy)
+        .await
+        .unwrap()
+        .expect("first open returns the episode");
+    assert_eq!(ep.subject_kind, "telemetry_rule");
+    assert_eq!(ep.subject_ref, subj);
+    assert!(ep.monitor_id.is_none());
+
+    // One open episode per subject.
+    assert!(escalations::open_episode_for_subject(&pool, "telemetry_rule", subj, &policy)
+        .await
+        .unwrap()
+        .is_none());
+
+    // Shows in the open-episodes list.
+    assert!(escalations::list_open(&pool)
+        .await
+        .unwrap()
+        .iter()
+        .any(|e| e.id == ep.id));
+
+    // Ack by episode id stops the ladder.
+    let user = rampart_db::users::create(
+        &pool,
+        rampart_db::users::NewUser {
+            email: "ruleoncall@example.com".into(),
+            name: None,
+            password_hash: "$argon2id$v=19$m=19456,t=2,p=1$fake$hash".into(),
+            role: Role::Editor,
+        },
+    )
+    .await
+    .unwrap();
+    let acked = escalations::ack_episode(&pool, ep.id, user.id).await.unwrap();
+    assert!(acked.acked_at.is_some());
+
+    // Resolve closes it; the subject can then open a fresh episode.
+    assert!(escalations::resolve_subject(&pool, "telemetry_rule", subj)
+        .await
+        .unwrap()
+        .is_some());
+    assert!(escalations::open_episode_for_subject(&pool, "telemetry_rule", subj, &policy)
+        .await
+        .unwrap()
+        .is_some());
+}

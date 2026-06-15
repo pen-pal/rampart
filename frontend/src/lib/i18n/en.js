@@ -1544,6 +1544,9 @@ const en = {
 
   // ── escalation policies ──────────────────────────────────────────
   'esc.title':                       'Escalation policies',
+  'esc.open_title':                  'Open escalations',
+  'esc.step':                        'step',
+  'esc.ack':                         'Acknowledge',
   'esc.subtitle':                    'Multi-step alert ladders. A monitor with a policy routes its Down alerts through the ladder instead of its attached channels — each step pages until someone acknowledges or the monitor recovers.',
   'esc.back':                        'Dashboard',
   'esc.new':                         'New policy',

@@ -1637,6 +1637,27 @@ paths:
       responses:
         '201': { description: Created policy. }
         '400': { $ref: '#/components/responses/BadRequest' }
+  /v1/escalation-policies/episodes:
+    get:
+      tags: [Escalations]
+      summary: Open escalation episodes
+      description: >-
+        All currently-open episodes across subjects (monitor + rule). Each:
+        `{id, monitor_id?, subject_kind, subject_ref, policy_id, last_step,
+        next_escalation_at, acked_at, started_at}`.
+      responses:
+        '200': { description: Open episodes. }
+  /v1/escalation-policies/episodes/{id}/ack:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Escalations]
+      summary: Acknowledge an episode (any subject)
+      description: Stops the ladder for any open episode by id — monitor or rule.
+      responses:
+        '200': { description: Acked episode. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { description: No open episode with that id. }
   /v1/escalation-policies/{id}:
     parameters:
       - { name: id, in: path, required: true, schema: { type: string, format: uuid } }

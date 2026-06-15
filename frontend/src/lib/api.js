@@ -460,6 +460,8 @@ export const api = {
     remove:  (id)        => request(`/v1/escalation-policies/${id}`, { method: 'DELETE' }),
     episode: (monitorId) => request(`/v1/monitors/${monitorId}/escalation`),
     ack:     (monitorId) => request(`/v1/monitors/${monitorId}/escalation/ack`, { method: 'POST' }),
+    openEpisodes: ()         => request('/v1/escalation-policies/episodes'),
+    ackEpisode:   (id)       => request(`/v1/escalation-policies/episodes/${id}/ack`, { method: 'POST' }),
   },
   // Distributed tracing — OTLP spans grouped into traces by trace_id.
   traces: {
