@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Rampart demo app</title>
+  <!-- RUM: load Rampart's snippet. It reports this page's Core Web Vitals and
+       any browser JS errors to Rampart (app = demo-frontend). Assumes Rampart
+       is published on the host at :3000 — edit if yours is elsewhere. -->
+  <script src="http://localhost:3000/rum/snippet.js" data-app="demo-frontend"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; }
+    pre { background: #f5f5f4; padding: 12px; border-radius: 8px; max-height: 320px; overflow: auto; font-size: 12px; }
+    button { padding: 8px 12px; margin: 4px; border-radius: 8px; border: 1px solid #ddd; cursor: pointer; }
+    .row { margin: 12px 0; }
+    h1 { font-size: 22px; }
+  </style>
+</head>
+<body>
+  <h1>Rampart demo app</h1>
+  <p>This page drives the instrumented backend continuously. Open Rampart to
+     watch <b>traces</b>, <b>logs</b>, <b>RUM</b>, <b>profiling</b> and SIEM
+     <b>detection</b> fill with real data.</p>
+  <div class="row">
+    <button onclick="hit('/api/products')">List products</button>
+    <button onclick="hit('/api/products/2')">Get product (cache)</button>
+    <button onclick="post('/api/checkout', {productId: 2})">Checkout</button>
+    <button onclick="post('/api/login', {user: 'alice'})">Login</button>
+    <button onclick="hit('/api/boom')">Trigger error</button>
+    <button onclick="clientError()">Trigger client error (RUM)</button>
+  </div>
+  <pre id="out">driving traffic automatically…</pre>
+
+  <script>
+    const out = document.getElementById('out');
+    const print = (m) => { out.textContent = (m + '\n' + out.textContent).slice(0, 4000); };
+    async function hit(path) {
+      try { const r = await fetch(path); print(`${r.status} GET ${path}`); }
+      catch (e) { print(`ERR GET ${path}: ${e.message}`); }
+    }
+    async function post(path, body) {
+      try {
+        const r = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+        print(`${r.status} POST ${path}`);
+      } catch (e) { print(`ERR POST ${path}: ${e.message}`); }
+    }
+    function clientError() { undefined.boom(); } // uncaught → RUM error capture
+
+    // Auto-drive so there's always live telemetry.
+    const users = ['alice', 'bob', 'carol', 'dave'];
+    setInterval(() => hit('/api/products'), 4000);
+    setInterval(() => hit('/api/products/' + (1 + Math.floor(Math.random() * 4))), 5000);
+    setInterval(() => post('/api/checkout', { productId: 1 + Math.floor(Math.random() * 4) }), 7000);
+    setInterval(() => post('/api/login', { user: users[Math.floor(Math.random() * users.length)] }), 6000);
+    setInterval(() => hit('/api/boom'), 23000);          // occasional backend 500
+    setInterval(() => clientError(), 31000);             // occasional UNCAUGHT client error → RUM error capture
+  </script>
+</body>
+</html>

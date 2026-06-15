@@ -45,6 +45,8 @@ docker compose up -d
 > 🎬 **Want the whole dashboard populated to look around first?** Run `docker compose exec rampart rampart-api seed-demo` — it fills every tier (monitors, errors, traces, logs, RUM, a detection finding, an alert rule) with tagged `[demo]` data. Idempotent. See [`docs/DEMO.md`](docs/DEMO.md).
 >
 > 🧪 **Or run the whole platform with data flowing live** (Rampart + Postgres + a load generator + flaky probe target + Prometheus + Alertmanager, one command): [`examples/full-stack/`](examples/full-stack/). `cd examples/full-stack && docker compose up`.
+>
+> 🧩 **Or a real instrumented sample app** (Node + browser, Postgres + Redis) that exercises every tier — traces, logs, profiling, RUM, errors, SIEM: [`examples/demo-app/`](examples/demo-app/). `cd examples/demo-app && docker compose up --build`.
 
 > 📖 **Want a step-by-step tour?** [`docs/WALKTHROUGH.md`](docs/WALKTHROUGH.md) walks the full first-run journey — admin setup, probe wizard, first heartbeats, notification channels, status pages — with a labelled screenshot for every step. New here? Start there.
 

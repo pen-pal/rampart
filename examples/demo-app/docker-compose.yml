@@ -1,0 +1,92 @@
+# Rampart demo app — a real, instrumented sample application (Node backend +
+# browser frontend, Postgres + Redis) wired to a Rampart instance so EVERY tier
+# fills with real data:
+#   traces    — auto-instrumented HTTP/Express/pg/redis spans (OTLP)
+#   logs      — structured app logs incl. SIEM auth-failure lines (OTLP)
+#   profiling — periodic V8 CPU profiles, folded → /profiles
+#   RUM       — the browser page loads Rampart's snippet (web vitals + JS errors)
+#   errors    — backend 500s + uncaught browser errors
+#   SIEM      — repeated "failed login" logs trip a detection rule
+#   uptime    — a monitor probes the backend
+#
+#   docker compose up --build
+#   → open http://localhost:8088  (the demo app — drives traffic on its own)
+#   → open http://localhost:3000  (Rampart — log in demo@rampart.local / Rampart-Live-9271)
+
+name: rampart-demo-app
+
+services:
+  # ── Rampart (the observability platform) ─────────────────────────────────
+  rampart-db:
+    image: postgres:17-alpine
+    environment: { POSTGRES_USER: rampart, POSTGRES_PASSWORD: rampart, POSTGRES_DB: rampart }
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U rampart"], interval: 5s, timeout: 3s, retries: 20 }
+    tmpfs: ["/var/lib/postgresql/data"]
+
+  rampart:
+    image: ${RAMPART_IMAGE:-ghcr.io/pen-pal/rampart:latest}
+    pull_policy: always
+    environment:
+      DATABASE_URL: postgres://rampart:rampart@rampart-db:5432/rampart
+      BIND_ADDR: 0.0.0.0:3000
+      RAMPART_ADMIN_EMAIL: ${RAMPART_ADMIN_EMAIL:-demo@rampart.local}
+      RAMPART_ADMIN_PASSWORD: ${RAMPART_ADMIN_PASSWORD:-Rampart-Live-9271}
+    ports: ["3000:3000"]
+    depends_on:
+      rampart-db: { condition: service_healthy }
+
+  # seed an admin (so the setup + login work without manual signup)
+  rampart-seed:
+    image: ${RAMPART_IMAGE:-ghcr.io/pen-pal/rampart:latest}
+    pull_policy: always
+    command: ["seed-demo"]
+    environment:
+      DATABASE_URL: postgres://rampart:rampart@rampart-db:5432/rampart
+      RAMPART_ADMIN_EMAIL: ${RAMPART_ADMIN_EMAIL:-demo@rampart.local}
+      RAMPART_ADMIN_PASSWORD: ${RAMPART_ADMIN_PASSWORD:-Rampart-Live-9271}
+      RUST_LOG: warn
+    depends_on:
+      rampart-db: { condition: service_healthy }
+    restart: "no"
+
+  # ── The demo application + its own data stores ───────────────────────────
+  demo-db:
+    image: postgres:17-alpine
+    environment: { POSTGRES_USER: demo, POSTGRES_PASSWORD: demo, POSTGRES_DB: demo }
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U demo"], interval: 5s, timeout: 3s, retries: 20 }
+    tmpfs: ["/var/lib/postgresql/data"]
+
+  demo-redis:
+    image: redis:7-alpine
+
+  demo-backend:
+    build: { context: ./backend }
+    environment:
+      DATABASE_URL: postgres://demo:demo@demo-db:5432/demo
+      REDIS_URL: redis://demo-redis:6379
+      OTEL_SERVICE_NAME: demo-backend
+      RAMPART_OTLP: http://rampart:3000/otlp
+      RAMPART_PROFILES: http://rampart:3000/profiles
+    depends_on:
+      demo-db: { condition: service_healthy }
+      demo-redis: { condition: service_started }
+      rampart: { condition: service_started }
+
+  demo-frontend:
+    build: { context: ./frontend }
+    ports: ["8088:80"]
+    depends_on:
+      demo-backend: { condition: service_started }
+
+  # one-shot: create the SIEM detection rule + backend uptime monitor
+  demo-setup:
+    image: curlimages/curl:8.11.1
+    entrypoint: ["sh", "/setup.sh"]
+    volumes: ["./setup/setup.sh:/setup.sh:ro"]
+    environment:
+      RAMPART_URL: http://rampart:3000
+      RAMPART_ADMIN_EMAIL: ${RAMPART_ADMIN_EMAIL:-demo@rampart.local}
+      RAMPART_ADMIN_PASSWORD: ${RAMPART_ADMIN_PASSWORD:-Rampart-Live-9271}
+    depends_on:
+      rampart: { condition: service_started }
+    restart: "no"
