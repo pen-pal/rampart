@@ -26,6 +26,9 @@ services:
   rampart:
     image: ${RAMPART_IMAGE:-ghcr.io/pen-pal/rampart:latest}
     pull_policy: always
+    # Self-heal a transient DB/DNS blip at startup (the container otherwise
+    # exits 1 on "Temporary failure in name resolution" and stays dead).
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgres://rampart:rampart@rampart-db:5432/rampart
       BIND_ADDR: 0.0.0.0:3000
@@ -61,6 +64,7 @@ services:
 
   demo-backend:
     build: { context: ./backend }
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgres://demo:demo@demo-db:5432/demo
       REDIS_URL: redis://demo-redis:6379
