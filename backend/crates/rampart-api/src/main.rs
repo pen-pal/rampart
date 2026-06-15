@@ -21,6 +21,11 @@
 //!   RAMPART_OIDC_ISSUER / _CLIENT_ID / _CLIENT_SECRET / _REDIRECT_URL
 //!                         when all set, enables OIDC SSO login. Optional
 //!                         RAMPART_OIDC_DEFAULT_ROLE = admin|editor|readonly.
+//!   RAMPART_OTLP_ENDPOINT self-observability: when set (base URL, e.g.
+//!                         http://localhost:3000 or a collector), Rampart
+//!                         exports its OWN traces + logs there via OTLP/HTTP.
+//!                         Ingest + scrape routes are excluded to avoid a
+//!                         feedback loop when pointed at itself.
 
 use rampart_api::{build_router, state::AppState, static_assets};
 use std::net::SocketAddr;
@@ -29,7 +34,7 @@ use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    init_tracing();
+    let telemetry_guards = init_tracing();
 
     // Install the ring `CryptoProvider` as the global default before
     // any rustls-backed client is constructed. `reqwest 0.13` is
@@ -186,11 +191,18 @@ async fn main() -> anyhow::Result<()> {
         .with_graceful_shutdown(shutdown_signal())
         .await?;
 
+    // Flush the self-telemetry batch exporters before exit.
+    if let Some(g) = telemetry_guards {
+        g.shutdown();
+    }
+
     info!("rampart-api stopped cleanly");
     Ok(())
 }
 
-fn init_tracing() {
+fn init_tracing() -> Option<rampart_api::self_telemetry::Guards> {
+    use tracing_subscriber::prelude::*;
+
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("rampart=info,tower_http=info,info"));
 
@@ -201,18 +213,39 @@ fn init_tracing() {
     // than re-parsing it out of the log text. Default stays compact +
     // human-readable for dev / `docker compose up` use.
     let json = std::env::var("RAMPART_LOG_FORMAT").as_deref() == Ok("json");
-    let builder = tracing_subscriber::fmt()
-        .with_env_filter(filter)
-        .with_target(true);
-    if json {
-        builder
+    let fmt_layer = if json {
+        tracing_subscriber::fmt::layer()
             .json()
             .with_current_span(true)
             .flatten_event(true)
-            .init();
+            .with_target(true)
+            .boxed()
     } else {
-        builder.init();
-    }
+        tracing_subscriber::fmt::layer().with_target(true).boxed()
+    };
+
+    // Self-observability: when RAMPART_OTLP_ENDPOINT is set, also export our own
+    // traces + logs there (the example points it at Rampart itself).
+    let (otel_layers, guards) = match std::env::var("RAMPART_OTLP_ENDPOINT")
+        .ok()
+        .filter(|s| !s.is_empty())
+    {
+        Some(ep) => match rampart_api::self_telemetry::build(&ep) {
+            Ok((layers, g)) => (layers, Some(g)),
+            Err(e) => {
+                eprintln!("self-telemetry disabled: {e}");
+                (Vec::new(), None)
+            }
+        },
+        None => (Vec::new(), None),
+    };
+
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(fmt_layer)
+        .with(otel_layers)
+        .init();
+    guards
 }
 
 async fn shutdown_signal() {

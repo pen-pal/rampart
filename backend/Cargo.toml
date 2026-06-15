@@ -157,6 +157,17 @@ tonic-health     = "0.14"
 prost            = "0.14"
 # OTLP protobuf message types (trace ingest). Pure-Rust (prost); no C.
 opentelemetry-proto = { version = "0.30", default-features = false, features = ["gen-tonic-messages", "trace", "logs"] }
+# Self-observability: Rampart exports its OWN traces + logs via OTLP/HTTP when
+# RAMPART_OTLP_ENDPOINT is set (dogfood; in the example it points at itself).
+# HTTP+reqwest exporter (not grpc/tonic) keeps the tree pure-Rust + ring-only.
+opentelemetry      = "0.30"
+opentelemetry_sdk  = { version = "0.30", features = ["rt-tokio"] }
+# reqwest-BLOCKING client (not async): opentelemetry_sdk 0.30's batch processor
+# runs on a dedicated OS thread with no Tokio reactor, so an async client panics
+# ("no reactor running"). The blocking client owns its own runtime internally.
+opentelemetry-otlp = { version = "0.30", default-features = false, features = ["http-proto", "reqwest-blocking-client", "trace", "logs"] }
+opentelemetry-appender-tracing = "0.30"
+tracing-opentelemetry = "0.31"
 rumqttc          = { version = "0.24", default-features = false, features = ["use-rustls"] }
 tokio-tungstenite = { version = "0.29", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
 # NATS client. `server_2_10` enables the modern protocol surface; we
