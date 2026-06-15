@@ -26,6 +26,9 @@
 //!                         exports its OWN traces + logs there via OTLP/HTTP.
 //!                         Ingest + scrape routes are excluded to avoid a
 //!                         feedback loop when pointed at itself.
+//!   RAMPART_SELF_RUM      "1"/"true" → inject the RUM snippet into the
+//!                         dashboard shell so the UI reports its own Core Web
+//!                         Vitals + browser JS errors (real RUM + error data).
 
 use rampart_api::{build_router, state::AppState, static_assets};
 use std::net::SocketAddr;

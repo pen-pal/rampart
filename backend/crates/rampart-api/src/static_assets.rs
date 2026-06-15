@@ -46,6 +46,16 @@ pub async fn handler(uri: Uri) -> Response {
 
 fn file_response(path: &str, file: rust_embed::EmbeddedFile) -> Response {
     let mime = file.metadata.mimetype();
+    // Self-RUM: when RAMPART_SELF_RUM is set, inject the RUM snippet into the
+    // dashboard shell so the running app reports its own Core Web Vitals (and
+    // browser JS errors) — real data, same dogfood idea as the OTLP self-export.
+    // Same-origin script + beacon, so the strict CSP (`script-src 'self'`,
+    // `connect-src 'self'`) already allows it.
+    let body = if path == "index.html" && self_rum_enabled() {
+        Body::from(inject_rum_snippet(&file.data))
+    } else {
+        Body::from(file.data)
+    };
     Response::builder()
         .header(header::CONTENT_TYPE, mime)
         .header(
@@ -58,6 +68,26 @@ fn file_response(path: &str, file: rust_embed::EmbeddedFile) -> Response {
                 "public, max-age=31536000, immutable"
             },
         )
-        .body(Body::from(file.data))
+        .body(body)
         .unwrap()
+}
+
+fn self_rum_enabled() -> bool {
+    use std::sync::OnceLock;
+    static ENABLED: OnceLock<bool> = OnceLock::new();
+    *ENABLED.get_or_init(|| {
+        matches!(
+            std::env::var("RAMPART_SELF_RUM").as_deref(),
+            Ok("1") | Ok("true")
+        )
+    })
+}
+
+fn inject_rum_snippet(html: &[u8]) -> Vec<u8> {
+    const TAG: &str =
+        "<script src=\"/rum/snippet.js\" data-app=\"rampart-dashboard\"></script></head>";
+    match std::str::from_utf8(html) {
+        Ok(s) if s.contains("</head>") => s.replacen("</head>", TAG, 1).into_bytes(),
+        _ => html.to_vec(),
+    }
 }
