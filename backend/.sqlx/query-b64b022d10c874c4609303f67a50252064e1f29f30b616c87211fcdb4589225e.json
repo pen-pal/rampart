@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, name, metric, labels AS \"labels!\", op, threshold, for_seconds,\n               enabled, channel_ids AS \"channel_ids!\", breach_since, firing_at, created_at\n        FROM metric_rules\n        WHERE id = $1\n        ",
+  "query": "\n        SELECT id, name, metric, labels AS \"labels!\", op, threshold, for_seconds,\n               enabled, channel_ids AS \"channel_ids!\", escalation_policy_id,\n               breach_since, firing_at, created_at\n        FROM metric_rules\n        WHERE id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -104,6 +104,17 @@
       },
       {
         "ordinal": 9,
+        "name": "escalation_policy_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "metric_rules",
+            "name": "escalation_policy_id"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
         "name": "breach_since",
         "type_info": "Timestamptz",
         "origin": {
@@ -114,7 +125,7 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "firing_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -125,7 +136,7 @@
         }
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -153,8 +164,9 @@
       false,
       true,
       true,
+      true,
       false
     ]
   },
-  "hash": "053eec089d1e9d2e20723fb72e41c69c0e92f82260541da8d17f8d312b920c0f"
+  "hash": "b64b022d10c874c4609303f67a50252064e1f29f30b616c87211fcdb4589225e"
 }

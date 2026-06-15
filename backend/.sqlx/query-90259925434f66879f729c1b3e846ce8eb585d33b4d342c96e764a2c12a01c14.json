@@ -1,0 +1,27 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE detection_rules SET\n            name           = COALESCE($2, name),\n            description    = COALESCE($3, description),\n            enabled        = COALESCE($4, enabled),\n            severity       = COALESCE($5, severity),\n            service        = COALESCE($6, service),\n            min_level      = COALESCE($7, min_level),\n            body_regex     = COALESCE($8, body_regex),\n            attr_key       = COALESCE($9, attr_key),\n            attr_val       = COALESCE($10, attr_val),\n            threshold      = COALESCE($11, threshold),\n            window_seconds = COALESCE($12, window_seconds),\n            channel_ids    = COALESCE($13, channel_ids),\n            escalation_policy_id = COALESCE($14, escalation_policy_id)\n        WHERE id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Bool",
+        "Text",
+        "Text",
+        "Int2",
+        "Text",
+        "Text",
+        "Text",
+        "Int4",
+        "Int4",
+        "UuidArray",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "90259925434f66879f729c1b3e846ce8eb585d33b4d342c96e764a2c12a01c14"
+}

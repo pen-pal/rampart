@@ -258,6 +258,54 @@ impl Scheduler {
                         }
                     }
                 }
+                "metric_rule" => {
+                    let rule_id = match uuid::Uuid::parse_str(&episode.subject_ref) {
+                        Ok(u) => rampart_core::ids::MetricRuleId::from_uuid(u),
+                        Err(_) => continue,
+                    };
+                    match rampart_db::metric_rules::get(&self.pool, rule_id).await {
+                        Ok(rule) if rule.firing_at.is_some() => {
+                            let down_for = (time::OffsetDateTime::now_utc() - episode.started_at).whole_seconds();
+                            alert_escalation_event(&rule.name, format!("still firing, unacknowledged for {down_for}s"))
+                        }
+                        _ => {
+                            let _ = rampart_db::escalations::resolve_subject(
+                                &self.pool, "metric_rule", &episode.subject_ref,
+                            ).await;
+                            continue;
+                        }
+                    }
+                }
+                "detection_rule" => {
+                    let rule_id = match uuid::Uuid::parse_str(&episode.subject_ref) {
+                        Ok(u) => rampart_core::ids::DetectionRuleId::from_uuid(u),
+                        Err(_) => continue,
+                    };
+                    // Detection has no sustained firing state — it auto-resolves
+                    // when the rule goes quiet (no finding within ~2× its window).
+                    match rampart_db::detection::get(&self.pool, rule_id).await {
+                        Ok(rule) => {
+                            let grace = ((rule.window_seconds as i64) * 2).max(600);
+                            let active = rampart_db::detection::has_recent_finding(&self.pool, rule_id, grace)
+                                .await
+                                .unwrap_or(false);
+                            if active {
+                                alert_escalation_event(&rule.name, "active findings, unacknowledged".to_string())
+                            } else {
+                                let _ = rampart_db::escalations::resolve_subject(
+                                    &self.pool, "detection_rule", &episode.subject_ref,
+                                ).await;
+                                continue;
+                            }
+                        }
+                        Err(_) => {
+                            let _ = rampart_db::escalations::resolve_subject(
+                                &self.pool, "detection_rule", &episode.subject_ref,
+                            ).await;
+                            continue;
+                        }
+                    }
+                }
                 _ => continue,
             };
             let Ok(Some(advanced)) =
@@ -349,6 +397,12 @@ impl Scheduler {
                           "metric rule channel send failed (channel deleted?)");
                 }
             }
+            // Escalation ladder (same lifecycle as telemetry rules: firing
+            // opens + climbs; resolved closes).
+            if let Some(policy_id) = ev.rule.escalation_policy_id {
+                self.rule_escalation_transition(policy_id, "metric_rule", &ev.rule.id.0.to_string(), fired, &event)
+                    .await;
+            }
         }
     }
 
@@ -431,40 +485,43 @@ impl Scheduler {
                           "telemetry rule channel send failed (channel deleted?)");
                 }
             }
-            // Escalation ladder for the rule: on fire open an episode + page
-            // step 0; later steps climb via the due scan (check_escalations)
-            // until the rule recovers or someone acks. On recover, close it.
+            // Escalation ladder: firing opens an episode + pages step 0, later
+            // steps climb via the due scan, recovery closes it.
             if let Some(policy_id) = ev.rule.escalation_policy_id {
-                match rampart_db::escalations::get(&self.pool, policy_id).await {
-                    Ok(policy) => {
-                        let subj = ev.rule.id.0.to_string();
-                        if fired {
-                            match rampart_db::escalations::open_episode_for_subject(
-                                &self.pool, "telemetry_rule", &subj, &policy,
-                            )
-                            .await
-                            {
-                                Ok(Some(_)) => {
-                                    rampart_notifier::service::fire_escalation_step(
-                                        &self.pool, &event, &policy, 0,
-                                    )
-                                    .await;
-                                }
-                                Ok(None) => {} // already climbing
-                                Err(e) => warn!(rule = %ev.rule.name, error = %e,
-                                    "escalation open failed"),
-                            }
-                        } else {
-                            let _ = rampart_db::escalations::resolve_subject(
-                                &self.pool, "telemetry_rule", &subj,
-                            )
-                            .await;
-                        }
-                    }
-                    Err(e) => warn!(policy = %policy_id.0, error = %e,
-                        "escalation policy load failed"),
-                }
+                self.rule_escalation_transition(policy_id, "telemetry_rule", &ev.rule.id.0.to_string(), fired, &event)
+                    .await;
             }
+        }
+    }
+
+    /// Open-or-climb (on fire) / close (on recover) an escalation episode for a
+    /// rule subject. Shared by telemetry + metric rules; detection uses a
+    /// finding-driven variant (no resolve transition).
+    async fn rule_escalation_transition(
+        &self,
+        policy_id: rampart_core::ids::EscalationPolicyId,
+        kind: &str,
+        subject_ref: &str,
+        fired: bool,
+        event: &rampart_notifier::Event,
+    ) {
+        let policy = match rampart_db::escalations::get(&self.pool, policy_id).await {
+            Ok(p) => p,
+            Err(e) => {
+                warn!(policy = %policy_id.0, error = %e, "escalation policy load failed");
+                return;
+            }
+        };
+        if fired {
+            match rampart_db::escalations::open_episode_for_subject(&self.pool, kind, subject_ref, &policy).await {
+                Ok(Some(_)) => {
+                    rampart_notifier::service::fire_escalation_step(&self.pool, event, &policy, 0).await;
+                }
+                Ok(None) => {} // already climbing
+                Err(e) => warn!(subject = subject_ref, error = %e, "escalation open failed"),
+            }
+        } else {
+            let _ = rampart_db::escalations::resolve_subject(&self.pool, kind, subject_ref).await;
         }
     }
 
@@ -518,6 +575,25 @@ impl Scheduler {
                 {
                     warn!(rule = %f.rule_name, channel = %ch.0, error = %e,
                           "detection rule channel send failed (channel deleted?)");
+                }
+            }
+            // Escalation: a finding opens an episode (if none open for the rule)
+            // and pages step 0; it climbs via the due scan and auto-resolves
+            // when the rule goes quiet (check_escalations detection branch).
+            if let Some(policy_id) = ev.escalation_policy_id {
+                let subj = f.rule_id.0.to_string();
+                if let Ok(policy) = rampart_db::escalations::get(&self.pool, policy_id).await {
+                    match rampart_db::escalations::open_episode_for_subject(
+                        &self.pool, "detection_rule", &subj, &policy,
+                    )
+                    .await
+                    {
+                        Ok(Some(_)) => {
+                            rampart_notifier::service::fire_escalation_step(&self.pool, &event, &policy, 0).await;
+                        }
+                        Ok(None) => {} // already climbing
+                        Err(e) => warn!(rule = %f.rule_name, error = %e, "detection escalation open failed"),
+                    }
                 }
             }
         }

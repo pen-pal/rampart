@@ -24,6 +24,7 @@ fn rule(body_regex: &str, threshold: i32) -> NewDetectionRule {
         window_seconds: 300,
         enabled: true,
         channel_ids: vec![],
+        escalation_policy_id: None,
     }
 }
 

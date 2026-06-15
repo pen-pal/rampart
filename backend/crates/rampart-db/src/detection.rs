@@ -25,6 +25,7 @@ struct RuleRow {
     threshold: i32,
     window_seconds: i32,
     channel_ids: Vec<Uuid>,
+    escalation_policy_id: Option<Uuid>,
     last_checked_at: Option<OffsetDateTime>,
     created_at: OffsetDateTime,
 }
@@ -49,6 +50,9 @@ impl From<RuleRow> for DetectionRule {
                 .into_iter()
                 .map(NotificationId::from_uuid)
                 .collect(),
+            escalation_policy_id: r
+                .escalation_policy_id
+                .map(rampart_core::ids::EscalationPolicyId::from_uuid),
             last_checked_at: r.last_checked_at,
             created_at: r.created_at,
         }
@@ -112,7 +116,7 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<DetectionRule>> {
         r#"
         SELECT id, name, description, enabled, severity, service, min_level,
                body_regex, attr_key, attr_val, threshold, window_seconds,
-               channel_ids AS "channel_ids!", last_checked_at, created_at
+               channel_ids AS "channel_ids!", escalation_policy_id, last_checked_at, created_at
         FROM detection_rules
         ORDER BY created_at
         "#,
@@ -128,7 +132,7 @@ pub async fn get(pool: &DbPool, id: DetectionRuleId) -> DbResult<DetectionRule> 
         r#"
         SELECT id, name, description, enabled, severity, service, min_level,
                body_regex, attr_key, attr_val, threshold, window_seconds,
-               channel_ids AS "channel_ids!", last_checked_at, created_at
+               channel_ids AS "channel_ids!", escalation_policy_id, last_checked_at, created_at
         FROM detection_rules
         WHERE id = $1
         "#,
@@ -147,8 +151,9 @@ pub async fn create(pool: &DbPool, input: NewDetectionRule) -> DbResult<Detectio
         r#"
         INSERT INTO detection_rules
             (id, name, description, enabled, severity, service, min_level,
-             body_regex, attr_key, attr_val, threshold, window_seconds, channel_ids)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+             body_regex, attr_key, attr_val, threshold, window_seconds, channel_ids,
+             escalation_policy_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         "#,
         id.0,
         input.name,
@@ -163,6 +168,7 @@ pub async fn create(pool: &DbPool, input: NewDetectionRule) -> DbResult<Detectio
         input.threshold,
         input.window_seconds,
         &channel_ids,
+        input.escalation_policy_id.map(|p| p.0),
     )
     .execute(pool)
     .await?;
@@ -189,7 +195,8 @@ pub async fn update(
             attr_val       = COALESCE($10, attr_val),
             threshold      = COALESCE($11, threshold),
             window_seconds = COALESCE($12, window_seconds),
-            channel_ids    = COALESCE($13, channel_ids)
+            channel_ids    = COALESCE($13, channel_ids),
+            escalation_policy_id = COALESCE($14, escalation_policy_id)
         WHERE id = $1
         "#,
         id.0,
@@ -205,6 +212,7 @@ pub async fn update(
         patch.threshold,
         patch.window_seconds,
         channel_ids.as_deref(),
+        patch.escalation_policy_id.map(|p| p.0),
     )
     .execute(pool)
     .await?;
@@ -295,6 +303,7 @@ pub async fn preview(
 pub struct FindingEvent {
     pub finding: DetectionFinding,
     pub channel_ids: Vec<NotificationId>,
+    pub escalation_policy_id: Option<rampart_core::ids::EscalationPolicyId>,
 }
 
 /// Evaluate every enabled rule once. For each, count log records matching the
@@ -393,6 +402,7 @@ pub async fn evaluate_tick(pool: &DbPool) -> DbResult<Vec<FindingEvent>> {
             out.push(FindingEvent {
                 finding: frow.into(),
                 channel_ids: rule.channel_ids.clone(),
+                escalation_policy_id: rule.escalation_policy_id,
             });
         }
 
@@ -405,6 +415,28 @@ pub async fn evaluate_tick(pool: &DbPool) -> DbResult<Vec<FindingEvent>> {
         .await?;
     }
     Ok(out)
+}
+
+/// Did this rule raise any finding within the last `secs` seconds? Drives the
+/// detection escalation auto-resolve: a quiet rule means the threat stopped.
+pub async fn has_recent_finding(
+    pool: &DbPool,
+    rule_id: DetectionRuleId,
+    secs: i64,
+) -> DbResult<bool> {
+    let exists = sqlx::query_scalar!(
+        r#"
+        SELECT EXISTS(
+            SELECT 1 FROM detection_findings
+            WHERE rule_id = $1 AND created_at >= now() - make_interval(secs => $2)
+        ) AS "exists!"
+        "#,
+        rule_id.0,
+        secs as f64,
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(exists)
 }
 
 /// Findings feed, newest first. `open_only` returns just the unacknowledged

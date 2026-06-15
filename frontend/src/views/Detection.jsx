@@ -61,7 +61,7 @@ function sevStyle(sev) {
 const emptyForm = () => ({
   name: '', description: '', severity: 'medium', service: '', min_level: 0,
   body_regex: '', attr_key: '', attr_val: '', threshold: 1, window_seconds: 300,
-  enabled: true, channel_ids: [],
+  enabled: true, channel_ids: [], escalation_policy_id: '',
 });
 
 export default function Detection({ user }) {
@@ -257,8 +257,11 @@ function RuleForm({ rule, channels, onSaved, onCancel, setErr }) {
     attr_key: rule.attr_key || '', attr_val: rule.attr_val || '',
     threshold: rule.threshold, window_seconds: rule.window_seconds,
     enabled: rule.enabled, channel_ids: [...(rule.channel_ids || [])],
+    escalation_policy_id: rule.escalation_policy_id || '',
   } : emptyForm());
   const [busy, setBusy] = useState(false);
+  const [policies, setPolicies] = useState([]);
+  useEffect(() => { api.escalation.list().then(p => setPolicies(Array.isArray(p) ? p : [])).catch(() => {}); }, []);
   const [preview, setPreview] = useState(null);
   const [previewing, setPreviewing] = useState(false);
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
@@ -287,6 +290,7 @@ function RuleForm({ rule, channels, onSaved, onCancel, setErr }) {
       attr_key: f.attr_key.trim(), attr_val: f.attr_val.trim(),
       threshold: Number(f.threshold), window_seconds: Number(f.window_seconds),
       enabled: f.enabled, channel_ids: f.channel_ids,
+      escalation_policy_id: f.escalation_policy_id || null,
     };
     try {
       if (rule) await api.detection.update(rule.id, body);
@@ -363,6 +367,14 @@ function RuleForm({ rule, channels, onSaved, onCancel, setErr }) {
             ))}
           </div>
         )}
+      </div>
+      <div className="field">
+        <label className="field-label">{t('detection.f.escalation')}</label>
+        <select className="input" value={f.escalation_policy_id} onChange={e => set('escalation_policy_id', e.target.value)}>
+          <option value="">{t('detection.f.no_escalation')}</option>
+          {policies.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <div className="field-hint">{t('detection.f.escalation_hint')}</div>
       </div>
       <label className="chk" style={{ marginBottom: 14 }}>
         <input type="checkbox" checked={f.enabled} onChange={e => set('enabled', e.target.checked)}/> {t('detection.f.enabled')}

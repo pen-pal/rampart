@@ -33,6 +33,7 @@ struct RuleRow {
     for_seconds: i32,
     enabled: bool,
     channel_ids: Vec<Uuid>,
+    escalation_policy_id: Option<Uuid>,
     breach_since: Option<OffsetDateTime>,
     firing_at: Option<OffsetDateTime>,
     created_at: OffsetDateTime,
@@ -54,6 +55,9 @@ impl From<RuleRow> for MetricRule {
                 .into_iter()
                 .map(NotificationId::from_uuid)
                 .collect(),
+            escalation_policy_id: r
+                .escalation_policy_id
+                .map(rampart_core::ids::EscalationPolicyId::from_uuid),
             breach_since: r.breach_since,
             firing_at: r.firing_at,
             created_at: r.created_at,
@@ -66,7 +70,8 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<MetricRule>> {
         RuleRow,
         r#"
         SELECT id, name, metric, labels AS "labels!", op, threshold, for_seconds,
-               enabled, channel_ids AS "channel_ids!", breach_since, firing_at, created_at
+               enabled, channel_ids AS "channel_ids!", escalation_policy_id,
+               breach_since, firing_at, created_at
         FROM metric_rules
         ORDER BY created_at
         "#,
@@ -81,7 +86,8 @@ pub async fn get(pool: &DbPool, id: MetricRuleId) -> DbResult<MetricRule> {
         RuleRow,
         r#"
         SELECT id, name, metric, labels AS "labels!", op, threshold, for_seconds,
-               enabled, channel_ids AS "channel_ids!", breach_since, firing_at, created_at
+               enabled, channel_ids AS "channel_ids!", escalation_policy_id,
+               breach_since, firing_at, created_at
         FROM metric_rules
         WHERE id = $1
         "#,
@@ -98,8 +104,8 @@ pub async fn create(pool: &DbPool, input: NewMetricRule) -> DbResult<MetricRule>
     let channel_ids: Vec<Uuid> = input.channel_ids.iter().map(|c| c.0).collect();
     sqlx::query!(
         r#"
-        INSERT INTO metric_rules (id, name, metric, labels, op, threshold, for_seconds, enabled, channel_ids)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        INSERT INTO metric_rules (id, name, metric, labels, op, threshold, for_seconds, enabled, channel_ids, escalation_policy_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         "#,
         id.0,
         input.name,
@@ -110,6 +116,7 @@ pub async fn create(pool: &DbPool, input: NewMetricRule) -> DbResult<MetricRule>
         input.for_seconds,
         input.enabled,
         &channel_ids,
+        input.escalation_policy_id.map(|p| p.0),
     )
     .execute(pool)
     .await?;
@@ -133,6 +140,7 @@ pub async fn update(
             for_seconds = COALESCE($7, for_seconds),
             enabled     = COALESCE($8, enabled),
             channel_ids = COALESCE($9, channel_ids),
+            escalation_policy_id = COALESCE($10, escalation_policy_id),
             -- Any edit resets in-flight breach state: the old pending /
             -- firing markers describe the OLD condition.
             breach_since = NULL,
@@ -148,6 +156,7 @@ pub async fn update(
         patch.for_seconds,
         patch.enabled,
         channel_ids.as_deref(),
+        patch.escalation_policy_id.map(|p| p.0),
     )
     .execute(pool)
     .await?;
