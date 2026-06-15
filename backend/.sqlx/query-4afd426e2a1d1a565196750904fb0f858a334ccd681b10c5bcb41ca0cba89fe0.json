@@ -1,0 +1,66 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT url, trace_id AS \"trace_id!\", load_ms, ts\n        FROM rum_events\n        WHERE trace_id IS NOT NULL\n          AND received_at > now() - make_interval(hours => $1)\n          AND ($2::text IS NULL OR app = $2)\n        ORDER BY ts DESC\n        LIMIT $3\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "url",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rum_events",
+            "name": "url"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "trace_id!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rum_events",
+            "name": "trace_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "load_ms",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "rum_events",
+            "name": "load_ms"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "ts",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rum_events",
+            "name": "ts"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "4afd426e2a1d1a565196750904fb0f858a334ccd681b10c5bcb41ca0cba89fe0"
+}

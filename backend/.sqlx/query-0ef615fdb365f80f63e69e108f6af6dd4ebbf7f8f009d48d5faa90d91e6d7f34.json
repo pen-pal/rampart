@@ -1,11 +1,12 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO rum_events\n            (id, app, url, session, ua, lcp_ms, fcp_ms, cls, inp_ms, ttfb_ms, load_ms)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)\n        ",
+  "query": "\n        INSERT INTO rum_events\n            (id, app, url, session, ua, trace_id, lcp_ms, fcp_ms, cls, inp_ms, ttfb_ms, load_ms)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)\n        ",
   "describe": {
     "columns": [],
     "parameters": {
       "Left": [
         "Uuid",
+        "Text",
         "Text",
         "Text",
         "Text",
@@ -20,5 +21,5 @@
     },
     "nullable": []
   },
-  "hash": "d53e962d51e290f65ca4b50a654eaa5bfd20cf6a7d20a360a0382b08b523a4ac"
+  "hash": "0ef615fdb365f80f63e69e108f6af6dd4ebbf7f8f009d48d5faa90d91e6d7f34"
 }

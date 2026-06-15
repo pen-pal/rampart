@@ -5,7 +5,7 @@
 //! [`prune`]. Beacon parsing lives in `rampart_core::rum`.
 
 use crate::{DbPool, DbResult};
-use rampart_core::rum::{RumBeacon, RumPage, RumVitals};
+use rampart_core::rum::{RumBeacon, RumPage, RumTracedLoad, RumVitals};
 use uuid::Uuid;
 
 /// Store one cleaned beacon.
@@ -13,14 +13,15 @@ pub async fn insert_event(pool: &DbPool, b: &RumBeacon) -> DbResult<()> {
     sqlx::query!(
         r#"
         INSERT INTO rum_events
-            (id, app, url, session, ua, lcp_ms, fcp_ms, cls, inp_ms, ttfb_ms, load_ms)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            (id, app, url, session, ua, trace_id, lcp_ms, fcp_ms, cls, inp_ms, ttfb_ms, load_ms)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         "#,
         Uuid::now_v7(),
         b.app,
         b.url,
         b.session,
         b.ua,
+        b.trace_id,
         b.metrics.lcp,
         b.metrics.fcp,
         b.metrics.cls,
@@ -31,6 +32,40 @@ pub async fn insert_event(pool: &DbPool, b: &RumBeacon) -> DbResult<()> {
     .execute(pool)
     .await?;
     Ok(())
+}
+
+/// Recent page-loads that carried a backend trace id — the RUM → trace feed.
+pub async fn recent_traced(
+    pool: &DbPool,
+    app: Option<&str>,
+    hours: i32,
+    limit: i64,
+) -> DbResult<Vec<RumTracedLoad>> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT url, trace_id AS "trace_id!", load_ms, ts
+        FROM rum_events
+        WHERE trace_id IS NOT NULL
+          AND received_at > now() - make_interval(hours => $1)
+          AND ($2::text IS NULL OR app = $2)
+        ORDER BY ts DESC
+        LIMIT $3
+        "#,
+        hours.clamp(1, 24 * 90),
+        app,
+        limit.clamp(1, 200),
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| RumTracedLoad {
+            url: r.url,
+            trace_id: r.trace_id,
+            load_ms: r.load_ms,
+            ts: r.ts,
+        })
+        .collect())
 }
 
 /// p75 of each metric over the window (optionally filtered to one app).
