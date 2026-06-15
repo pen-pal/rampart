@@ -34,6 +34,7 @@ const AuditLog          = lazy(() => import('./views/AuditLog.jsx'));
 const ScheduledReports  = lazy(() => import('./views/ScheduledReports.jsx'));
 const DeliveryLog       = lazy(() => import('./views/DeliveryLog.jsx'));
 const Metrics           = lazy(() => import('./views/Metrics.jsx'));
+const Dashboards        = lazy(() => import('./views/Dashboards.jsx'));
 const MonitorTemplates  = lazy(() => import('./views/MonitorTemplates.jsx'));
 const StatusPageView    = lazy(() => import('./views/StatusPageView.jsx'));
 const ManageSubscription = lazy(() => import('./views/ManageSubscription.jsx'));
@@ -59,6 +60,7 @@ function ViewFallback() {
 
 const VIEW_LABEL = {
   'dashboard':     'Dashboard',
+  'dashboards':    'Dashboards',
   'monitor':       'Monitor',
   'new-monitor':   'New monitor',
   'import':        'Import CSV',
@@ -275,6 +277,7 @@ export default function App() {
     case 'reports':       view = <ScheduledReports user={user} />; break;
     case 'delivery-log':  view = <DeliveryLog user={user} />; break;
     case 'metrics':       view = <Metrics user={user} />; break;
+    case 'dashboards':    view = <Dashboards />; break;
     case 'templates':     view = <MonitorTemplates user={user} />; break;
     case 'public-status': view = <StatusPageView slug={route.id} />; break;
     case 'manage-subscription': view = <ManageSubscription token={route.id} />; break;
@@ -316,6 +319,7 @@ export default function App() {
 const NAV_GROUPS = [
   { section: 'Overview', items: [
     { view: 'dashboard',    hash: '#/' },
+    { view: 'dashboards',   hash: '#/dashboards' },
     { view: 'metrics',      hash: '#/metrics' },
     { view: 'dependencies', hash: '#/dependencies' },
   ] },
