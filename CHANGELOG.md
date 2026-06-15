@@ -19,6 +19,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.31.1] — 2026-06-15
+
+### Fixed
+- Full-stack example: login "unauthorized" after `reset-password` was a stale
+  cached `latest` image (binary predated the subcommand, so it booted a server
+  instead of creating a user). `pull_policy: always` on the rampart services +
+  a Troubleshooting section. Backend login verified end-to-end (200 + session).
+
+---
+
 ## [0.31.0] — 2026-06-15
 
 ### Added
@@ -1240,7 +1250,8 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 
 ---
 
-[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.31.0...HEAD
+[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.31.1...HEAD
+[0.31.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.31.1
 [0.31.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.31.0
 [0.30.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.30.1
 [0.30.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.30.0
