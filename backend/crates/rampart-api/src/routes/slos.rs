@@ -31,6 +31,8 @@ struct SloView {
     #[serde(flatten)]
     slo: Slo,
     snapshot: SloSnapshot,
+    /// Achieved-ratio trend (oldest → newest) for a sparkline.
+    trend: Vec<f64>,
 }
 
 fn parse_id(s: &str) -> Result<SloId, ApiError> {
@@ -46,6 +48,7 @@ async fn list(State(s): State<AppState>) -> Result<Json<Vec<SloView>>, ApiError>
             .map(|r| SloView {
                 slo: r.slo,
                 snapshot: r.snapshot,
+                trend: r.trend,
             })
             .collect(),
     ))

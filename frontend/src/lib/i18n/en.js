@@ -336,6 +336,7 @@ const en = {
   'slos.breaching':                  'Breaching',
   'slos.disabled':                   'Disabled',
   'slos.budget_remaining':           'Error budget remaining',
+  'slos.trend':                      'Achieved trend',
   'slos.achieved':                   'Achieved',
   'slos.burn_1h':                    '1h burn',
   'slos.channels':                   'channels',

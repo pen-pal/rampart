@@ -75,8 +75,11 @@ snapshot so the UI renders without a second round-trip:
 
 The **SLOs** view (under *Alerting & response*) lists each objective with an
 error-budget bar (green → amber → red as the budget drains), the achieved
-ratio, and the 1-hour burn rate, plus an editor for the indicator, objective,
-window, channels, and escalation policy.
+ratio, the 1-hour burn rate, and an auto-scaled **trend sparkline** of the
+achieved ratio bucketed across the window (red while breaching) — so you see
+whether the budget is recovering or burning, not just the current number. An
+editor covers the indicator, objective, window, channels, and escalation
+policy.
 
 ## Try it
 

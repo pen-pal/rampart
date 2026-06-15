@@ -54,6 +54,24 @@ function budgetColor(remaining) {
 
 const fmtPct = (v, d = 2) => (v == null ? '—' : `${v.toFixed(d)}%`);
 
+// Tiny inline sparkline of the achieved-ratio trend. Auto-scales to the
+// min/max in view so small movements near 100% stay visible.
+function Sparkline({ values, color = 'var(--accent)', w = 120, h = 24 }) {
+  if (!values || values.length < 2) return null;
+  const min = Math.min(...values), max = Math.max(...values);
+  const span = max - min || 1;
+  const pts = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * (w - 2) + 1;
+    const y = h - 2 - ((v - min) / span) * (h - 4);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  return (
+    <svg width={w} height={h} style={{ display: 'block' }} aria-hidden="true">
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 const emptyForm = () => ({
   name: '', description: '', sli_kind: 'monitor', monitor_id: '',
   good_metric: '', total_metric: '', labels: '{}',
@@ -162,23 +180,31 @@ function SloRow({ slo, writable, onEdit, onChanged, setErr }) {
         </div>
         {slo.description && <div style={{ fontSize: 12.5, color: 'var(--text-2)', marginTop: 4 }}>{slo.description}</div>}
 
-        {/* Error-budget bar */}
-        <div style={{ marginTop: 10, maxWidth: 460 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>
-            <span>{t('slos.budget_remaining')}</span>
-            <span className="mono">{fmtPct(remaining, 0)}</span>
+        {/* Error-budget bar + achieved-ratio trend sparkline */}
+        <div style={{ marginTop: 10, display: 'flex', gap: 18, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 240, maxWidth: 460 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>
+              <span>{t('slos.budget_remaining')}</span>
+              <span className="mono">{fmtPct(remaining, 0)}</span>
+            </div>
+            <div className="budget-track">
+              <div className="budget-fill" style={{
+                width: `${remaining == null ? 0 : Math.max(0, Math.min(100, remaining))}%`,
+                background: budgetColor(remaining),
+              }}/>
+            </div>
+            <div style={{ display: 'flex', gap: 14, fontSize: 11, color: 'var(--text-3)', marginTop: 6 }} className="mono">
+              <span>{t('slos.achieved')}: {fmtPct(snap.achieved_pct, 3)}</span>
+              <span>{t('slos.burn_1h')}: {snap.burn_rate_1h == null ? '—' : `${snap.burn_rate_1h.toFixed(1)}x`}</span>
+              <span>{(slo.channel_ids || []).length} {t('slos.channels')}</span>
+            </div>
           </div>
-          <div className="budget-track">
-            <div className="budget-fill" style={{
-              width: `${remaining == null ? 0 : Math.max(0, Math.min(100, remaining))}%`,
-              background: budgetColor(remaining),
-            }}/>
-          </div>
-          <div style={{ display: 'flex', gap: 14, fontSize: 11, color: 'var(--text-3)', marginTop: 6 }} className="mono">
-            <span>{t('slos.achieved')}: {fmtPct(snap.achieved_pct, 3)}</span>
-            <span>{t('slos.burn_1h')}: {snap.burn_rate_1h == null ? '—' : `${snap.burn_rate_1h.toFixed(1)}x`}</span>
-            <span>{(slo.channel_ids || []).length} {t('slos.channels')}</span>
-          </div>
+          {slo.trend && slo.trend.length > 1 && (
+            <div title={t('slos.trend')}>
+              <Sparkline values={slo.trend} color={breaching ? 'var(--down)' : 'var(--accent)'} />
+              <div style={{ fontSize: 10, color: 'var(--text-3)', textAlign: 'center', marginTop: 2 }}>{t('slos.trend')}</div>
+            </div>
+          )}
         </div>
       </div>
       {writable && (
