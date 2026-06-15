@@ -35,10 +35,17 @@ const css = `
   .pill { display: inline-flex; align-items: center; font-size: 10.5px; padding: 2px 8px; border-radius: 999px; font-weight: 500; background: var(--accent-soft); color: var(--accent-2); }
   .pill-down { background: var(--down-soft); color: #b91c1c; }
   .pill-muted { background: var(--surface-2); color: var(--text-3); }
-  .wf-row { display: grid; grid-template-columns: 260px 1fr; gap: 10px; align-items: center; padding: 3px 0; font-size: 12px; }
-  .wf-track { position: relative; height: 16px; background: var(--surface-2); border-radius: 4px; }
-  .wf-bar { position: absolute; top: 0; height: 16px; border-radius: 4px; background: var(--accent); min-width: 2px; }
-  .wf-bar.err { background: var(--down); }
+  .wf-row { display: grid; grid-template-columns: 300px 1fr; gap: 10px; align-items: center; padding: 2px 0; font-size: 12px; }
+  .wf-row:hover { background: var(--surface-2); }
+  .wf-track { position: relative; height: 18px; background: var(--surface-2); border-radius: 3px;
+              background-image: linear-gradient(to right, var(--border) 1px, transparent 1px); background-size: 25% 100%; }
+  .wf-bar { position: absolute; top: 2px; height: 14px; border-radius: 3px; background: var(--accent); min-width: 2px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.06); }
+  .wf-bar.err { background: var(--down) !important; }
+  .wf-ruler { display: grid; grid-template-columns: 300px 1fr; gap: 10px; margin-bottom: 6px; }
+  .wf-ruler-track { position: relative; height: 14px; }
+  .wf-tick { position: absolute; top: 0; font-size: 10px; color: var(--text-3); transform: translateX(-50%); white-space: nowrap; }
+  .wf-tick:first-child { transform: none; }
+  .wf-tick:last-child { transform: translateX(-100%); }
 `;
 
 const SPAN_KIND = { 0: '', 1: 'internal', 2: 'server', 3: 'client', 4: 'producer', 5: 'consumer' };
@@ -72,6 +79,14 @@ function orderSpansTree(spans) {
     for (const s of spans) if (!seen.has(s.span_id)) out.push({ s, depth: 0 });
   }
   return out;
+}
+
+// Stable per-service color so the waterfall groups by service visually.
+const SVC_COLORS = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#14b8a6', '#ef4444'];
+function svcColor(name) {
+  let h = 0;
+  for (let i = 0; i < (name || '').length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
+  return SVC_COLORS[Math.abs(h) % SVC_COLORS.length];
 }
 
 export default function Traces({ openTraceId }) {
@@ -311,6 +326,14 @@ function TraceDetail({ traceId, onBack }) {
       </div>
 
       <div className="card" style={{ padding: 16 }}>
+        <div className="wf-ruler">
+          <div style={{ fontSize: 10, color: 'var(--text-3)', alignSelf: 'end' }}>{t('traces.span_count', { n: spans.length })}</div>
+          <div className="wf-ruler-track">
+            {[0, 0.25, 0.5, 0.75, 1].map(f => (
+              <span key={f} className="wf-tick" style={{ left: `${f * 100}%` }}>{fmtMs((total * f) / 1e6)}</span>
+            ))}
+          </div>
+        </div>
         {orderSpansTree(spans).map(({ s, depth }) => {
           const left = ((s.start_ns - traceStart) / total) * 100;
           const width = Math.max(0.4, ((s.end_ns - s.start_ns) / total) * 100);
@@ -318,24 +341,28 @@ function TraceDetail({ traceId, onBack }) {
           const isOpen = openSpan === s.span_id;
           const attrs = s.attributes && typeof s.attributes === 'object' ? Object.entries(s.attributes) : [];
           const hasDetail = attrs.length > 0 || s.status_message;
+          // Put the duration after the bar; flip it before when the bar hugs the right edge.
+          const labelRight = left + width > 82;
           return (
             <div key={s.span_id}>
               <div className="wf-row" style={{ cursor: hasDetail ? 'pointer' : 'default' }}
                 onClick={() => hasDetail && setOpenSpan(isOpen ? null : s.span_id)}>
-                <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingLeft: depth * 16 }}
+                <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingLeft: depth * 14 }}
                   title={`${s.service_name}: ${s.name}`}>
+                  <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: err ? 'var(--down)' : svcColor(s.service_name), marginRight: 6, verticalAlign: 'middle' }}/>
                   {hasDetail && <span style={{ color: 'var(--text-3)', fontSize: 9 }}>{isOpen ? '▾' : '▸'} </span>}
                   <span style={{ color: 'var(--text-3)', fontSize: 11 }}>{s.service_name}</span>{' '}
                   <span style={{ fontWeight: 500, color: err ? 'var(--down)' : 'inherit' }}>{s.name}</span>
                   {SPAN_KIND[s.kind] && <span className="pill pill-muted" style={{ marginLeft: 6 }}>{SPAN_KIND[s.kind]}</span>}
                 </div>
                 <div className="wf-track">
-                  <div className={`wf-bar${err ? ' err' : ''}`} style={{ left: `${left}%`, width: `${width}%` }} title={fmtMs(s.duration_ms)}/>
-                  <span style={{ position: 'absolute', left: `${Math.min(left, 80)}%`, top: 0, fontSize: 10, color: 'var(--text-3)', paddingLeft: 4, lineHeight: '16px' }}>{fmtMs(s.duration_ms)}</span>
+                  <div className={`wf-bar${err ? ' err' : ''}`} style={{ left: `${left}%`, width: `${width}%`, background: svcColor(s.service_name) }} title={fmtMs(s.duration_ms)}/>
+                  <span style={{ position: 'absolute', top: 0, fontSize: 10, color: 'var(--text-2)', lineHeight: '18px',
+                    ...(labelRight ? { right: `${100 - left}%`, paddingRight: 4 } : { left: `${left + width}%`, paddingLeft: 4 }) }}>{fmtMs(s.duration_ms)}</span>
                 </div>
               </div>
               {isOpen && (
-                <div style={{ margin: '2px 0 8px', marginLeft: depth * 16 + 14, padding: '8px 12px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}>
+                <div style={{ margin: '2px 0 8px', marginLeft: depth * 14 + 14, padding: '8px 12px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}>
                   {s.status_message && (
                     <div style={{ color: 'var(--down)', marginBottom: attrs.length ? 8 : 0 }}>⚠ {s.status_message}</div>
                   )}
