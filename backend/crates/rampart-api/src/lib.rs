@@ -212,6 +212,9 @@ pub fn build_router(state: AppState) -> Router {
         .nest("/rum", routes::rum::ingest_router())
         // Profiling ingest (folded text now; pprof + OTLP profiles added next).
         .nest("/profiles", routes::profiles::ingest_router())
+        // Prometheus remote_write (snappy+protobuf) → metric_samples. Public,
+        // optional shared-token gate like the other ingest surfaces.
+        .nest("/prom", routes::prom_write::router())
         .route_layer(axum::middleware::from_fn_with_state(
             state.ingest_rate_limiter(),
             crate::rate_limit::enforce_ip_rate_limit,

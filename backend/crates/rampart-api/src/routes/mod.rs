@@ -35,6 +35,7 @@ pub mod openapi;
 pub mod otlp;
 pub mod prefs;
 pub mod profiles;
+pub mod prom_write;
 pub mod proxies;
 pub mod push;
 pub mod routing;

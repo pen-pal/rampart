@@ -1683,6 +1683,18 @@ paths:
       responses:
         '200': { description: 'Empty ExportTraceServiceResponse `{}` = full success.' }
         '400': { $ref: '#/components/responses/BadRequest' }
+  /prom/write:
+    post:
+      tags: [Ingest]
+      summary: Prometheus remote_write ingest
+      description: >-
+        Accepts a snappy-compressed protobuf `prometheus.WriteRequest` and
+        stores the latest sample of each series in the metrics tier. Point a
+        Prometheus `remote_write` at `http://<host>/prom/write`. Public
+        (network-scoped); honours the optional shared ingest token.
+      responses:
+        '204': { description: Stored. }
+        '400': { $ref: '#/components/responses/BadRequest' }
   /v1/traces:
     get:
       tags: [Traces]
