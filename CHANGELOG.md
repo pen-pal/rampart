@@ -17,6 +17,15 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+- Telemetry alert rules can route through an **escalation policy**
+  (`escalation_policy_id`, migration 0095). On fire, the policy's full recipient
+  set — every step's channels plus each schedule's current on-call (channel or
+  user) — is paged in addition to the rule's own channels. The alert-rule form
+  gains an escalation-policy picker. (This fans out to the whole ladder on fire;
+  the timed per-step climb for rule subjects remains a follow-up — the episode
+  engine is monitor+heartbeat-shaped end to end.)
+
 ---
 
 ## [0.38.0] — 2026-06-15

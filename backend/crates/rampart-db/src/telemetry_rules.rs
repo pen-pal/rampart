@@ -29,6 +29,7 @@ struct RuleRow {
     for_seconds: i32,
     enabled: bool,
     channel_ids: Vec<Uuid>,
+    escalation_policy_id: Option<Uuid>,
     breach_since: Option<OffsetDateTime>,
     firing_at: Option<OffsetDateTime>,
     created_at: OffsetDateTime,
@@ -53,6 +54,9 @@ impl From<RuleRow> for TelemetryRule {
                 .into_iter()
                 .map(NotificationId::from_uuid)
                 .collect(),
+            escalation_policy_id: r
+                .escalation_policy_id
+                .map(rampart_core::ids::EscalationPolicyId::from_uuid),
             breach_since: r.breach_since,
             firing_at: r.firing_at,
             created_at: r.created_at,
@@ -66,7 +70,8 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<TelemetryRule>> {
         r#"
         SELECT id, name, kind, target, match_text, min_level, op, threshold,
                window_seconds, for_seconds, enabled,
-               channel_ids AS "channel_ids!", breach_since, firing_at, created_at
+               channel_ids AS "channel_ids!", escalation_policy_id,
+               breach_since, firing_at, created_at
         FROM telemetry_alert_rules
         ORDER BY created_at
         "#,
@@ -82,7 +87,8 @@ pub async fn get(pool: &DbPool, id: TelemetryRuleId) -> DbResult<TelemetryRule> 
         r#"
         SELECT id, name, kind, target, match_text, min_level, op, threshold,
                window_seconds, for_seconds, enabled,
-               channel_ids AS "channel_ids!", breach_since, firing_at, created_at
+               channel_ids AS "channel_ids!", escalation_policy_id,
+               breach_since, firing_at, created_at
         FROM telemetry_alert_rules
         WHERE id = $1
         "#,
@@ -101,8 +107,8 @@ pub async fn create(pool: &DbPool, input: NewTelemetryRule) -> DbResult<Telemetr
         r#"
         INSERT INTO telemetry_alert_rules
             (id, name, kind, target, match_text, min_level, op, threshold,
-             window_seconds, for_seconds, enabled, channel_ids)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+             window_seconds, for_seconds, enabled, channel_ids, escalation_policy_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         "#,
         id.0,
         input.name,
@@ -116,6 +122,7 @@ pub async fn create(pool: &DbPool, input: NewTelemetryRule) -> DbResult<Telemetr
         input.for_seconds,
         input.enabled,
         &channel_ids,
+        input.escalation_policy_id.map(|p| p.0),
     )
     .execute(pool)
     .await?;
@@ -142,6 +149,7 @@ pub async fn update(
             for_seconds    = COALESCE($10, for_seconds),
             enabled        = COALESCE($11, enabled),
             channel_ids    = COALESCE($12, channel_ids),
+            escalation_policy_id = COALESCE($13, escalation_policy_id),
             -- Any edit resets in-flight breach state: the old markers
             -- describe the OLD condition.
             breach_since   = NULL,
@@ -160,6 +168,7 @@ pub async fn update(
         patch.for_seconds,
         patch.enabled,
         channel_ids.as_deref(),
+        patch.escalation_policy_id.map(|p| p.0),
     )
     .execute(pool)
     .await?;

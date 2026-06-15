@@ -23,6 +23,7 @@ fn rule(kind: TelemetryRuleKind, op: RuleOp, threshold: f64, window: i32) -> New
         for_seconds: 0,
         enabled: true,
         channel_ids: vec![],
+        escalation_policy_id: None,
     }
 }
 

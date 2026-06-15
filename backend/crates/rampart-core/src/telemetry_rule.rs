@@ -7,7 +7,7 @@
 //! aggregate over one tier, selected by [`TelemetryRuleKind`]. The IO that
 //! computes that aggregate lives in `rampart_db::telemetry_rules`.
 
-use crate::ids::{NotificationId, TelemetryRuleId};
+use crate::ids::{EscalationPolicyId, NotificationId, TelemetryRuleId};
 use crate::metric_rule::RuleOp;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
@@ -92,6 +92,8 @@ pub struct TelemetryRule {
     pub for_seconds: i32,
     pub enabled: bool,
     pub channel_ids: Vec<NotificationId>,
+    /// Optional escalation policy — on fire, page its recipients too.
+    pub escalation_policy_id: Option<EscalationPolicyId>,
     pub breach_since: Option<OffsetDateTime>,
     pub firing_at: Option<OffsetDateTime>,
     pub created_at: OffsetDateTime,
@@ -123,6 +125,8 @@ pub struct NewTelemetryRule {
     pub enabled: bool,
     #[serde(default)]
     pub channel_ids: Vec<NotificationId>,
+    #[serde(default)]
+    pub escalation_policy_id: Option<EscalationPolicyId>,
 }
 
 fn default_window() -> i32 {
@@ -162,6 +166,8 @@ pub struct UpdateTelemetryRule {
     pub enabled: Option<bool>,
     #[serde(default)]
     pub channel_ids: Option<Vec<NotificationId>>,
+    #[serde(default)]
+    pub escalation_policy_id: Option<EscalationPolicyId>,
 }
 
 #[cfg(test)]

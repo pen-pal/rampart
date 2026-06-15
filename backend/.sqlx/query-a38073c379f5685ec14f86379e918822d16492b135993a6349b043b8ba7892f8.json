@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, name, kind, target, match_text, min_level, op, threshold,\n               window_seconds, for_seconds, enabled,\n               channel_ids AS \"channel_ids!\", breach_since, firing_at, created_at\n        FROM telemetry_alert_rules\n        ORDER BY created_at\n        ",
+  "query": "\n        SELECT id, name, kind, target, match_text, min_level, op, threshold,\n               window_seconds, for_seconds, enabled,\n               channel_ids AS \"channel_ids!\", escalation_policy_id,\n               breach_since, firing_at, created_at\n        FROM telemetry_alert_rules\n        ORDER BY created_at\n        ",
   "describe": {
     "columns": [
       {
@@ -137,6 +137,17 @@
       },
       {
         "ordinal": 12,
+        "name": "escalation_policy_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "telemetry_alert_rules",
+            "name": "escalation_policy_id"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
         "name": "breach_since",
         "type_info": "Timestamptz",
         "origin": {
@@ -147,7 +158,7 @@
         }
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "firing_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -158,7 +169,7 @@
         }
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -187,8 +198,9 @@
       false,
       true,
       true,
+      true,
       false
     ]
   },
-  "hash": "83c6d70d8de49768f346fa314c4b3d2c8638676460d8f9b10e89dd47631fa48a"
+  "hash": "a38073c379f5685ec14f86379e918822d16492b135993a6349b043b8ba7892f8"
 }

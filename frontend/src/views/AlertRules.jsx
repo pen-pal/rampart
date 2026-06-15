@@ -56,7 +56,7 @@ const kindMeta = (v) => KINDS.find(k => k.v === v) || KINDS[0];
 const emptyForm = () => ({
   name: '', kind: 'error_rate', target: '', match_text: '', min_level: 0,
   op: 'gt', threshold: 1, window_seconds: 300, for_seconds: 0,
-  enabled: true, channel_ids: [],
+  enabled: true, channel_ids: [], escalation_policy_id: '',
 });
 
 export default function AlertRules() {
@@ -169,8 +169,11 @@ function RuleForm({ rule, channels, onSaved, onCancel, setErr }) {
     min_level: rule.min_level || 0, op: rule.op, threshold: rule.threshold,
     window_seconds: rule.window_seconds, for_seconds: rule.for_seconds,
     enabled: rule.enabled, channel_ids: [...(rule.channel_ids || [])],
+    escalation_policy_id: rule.escalation_policy_id || '',
   } : emptyForm());
   const [busy, setBusy] = useState(false);
+  const [policies, setPolicies] = useState([]);
+  useEffect(() => { api.escalation.list().then(p => setPolicies(Array.isArray(p) ? p : [])).catch(() => {}); }, []);
   const meta = kindMeta(f.kind);
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
   const toggleCh = (id) => set('channel_ids', f.channel_ids.includes(id) ? f.channel_ids.filter(x => x !== id) : [...f.channel_ids, id]);
@@ -184,6 +187,7 @@ function RuleForm({ rule, channels, onSaved, onCancel, setErr }) {
       min_level: Number(f.min_level) || 0, op: f.op, threshold: Number(f.threshold),
       window_seconds: Number(f.window_seconds), for_seconds: Number(f.for_seconds),
       enabled: f.enabled, channel_ids: f.channel_ids,
+      escalation_policy_id: f.escalation_policy_id || null,
     };
     try {
       if (rule) await api.telemetryRules.update(rule.id, body);
@@ -260,6 +264,14 @@ function RuleForm({ rule, channels, onSaved, onCancel, setErr }) {
             ))}
           </div>
         )}
+      </div>
+      <div className="field">
+        <label className="field-label">{t('alertrules.f.escalation')} <span style={{ textTransform: 'none', color: 'var(--text-3)' }}>({t('alertrules.f.target_opt')})</span></label>
+        <select className="input" value={f.escalation_policy_id} onChange={e => set('escalation_policy_id', e.target.value)}>
+          <option value="">{t('alertrules.f.no_escalation')}</option>
+          {policies.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <div className="field-hint">{t('alertrules.f.escalation_hint')}</div>
       </div>
       <label className="chk" style={{ marginBottom: 14 }}>
         <input type="checkbox" checked={f.enabled} onChange={e => set('enabled', e.target.checked)}/> {t('alertrules.f.enabled')}

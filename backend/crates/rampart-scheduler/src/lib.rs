@@ -420,6 +420,13 @@ impl Scheduler {
                           "telemetry rule channel send failed (channel deleted?)");
                 }
             }
+            // On fire, also page the rule's escalation policy (channels +
+            // current on-call). Fan-out only — no timed climb for rules yet.
+            if fired {
+                if let Some(policy_id) = ev.rule.escalation_policy_id {
+                    rampart_notifier::service::page_policy_now(&self.pool, policy_id, &event).await;
+                }
+            }
         }
     }
 
