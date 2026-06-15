@@ -17,6 +17,10 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+---
+
+## [0.38.0] — 2026-06-15
+
 ### Added
 - Cross-tier correlation: **trace → errors**. Error ingest now extracts
   `contexts.trace.trace_id` into an indexed `error_events.trace_id` (migration
@@ -1351,7 +1355,8 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 
 ---
 
-[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.37.0...HEAD
+[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.38.0...HEAD
+[0.38.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.38.0
 [0.37.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.37.0
 [0.36.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.36.0
 [0.35.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.35.0
