@@ -363,6 +363,40 @@ function SloWidget() {
   );
 }
 
+// Recent open error issues across all projects — dashboard sidebar feed.
+function errLevelColor(lvl) {
+  if (lvl === 'fatal' || lvl === 'error') return 'var(--down)';
+  if (lvl === 'warning' || lvl === 'warn') return 'var(--warn)';
+  return 'var(--text-3)';
+}
+function ErrorsWidget() {
+  const state = useApi(() => api.errorIssues.recent(), [], { pollMs: 60_000 });
+  const issues = state.data || [];
+  if (state.loading || issues.length === 0) return null;
+  return (
+    <div className="card" style={{ padding: 14, marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
+        <a href="#/errors" style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em', textDecoration: 'none' }}>
+          {t('dashboard.errors.title')}
+        </a>
+        <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>{issues.length}</span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+        {issues.map(i => (
+          <a key={i.id} href={`#/errors/${i.id}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+            <div style={{ display: 'flex', gap: 7, alignItems: 'baseline' }}>
+              <span style={{ width: 6, height: 6, borderRadius: 3, background: errLevelColor(i.level), flexShrink: 0, alignSelf: 'center' }}/>
+              <span style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }} title={i.title}>{i.title}</span>
+              <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-3)' }}>×{i.times_seen}</span>
+            </div>
+            {i.culprit && <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginLeft: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i.culprit}</div>}
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── main component ───────────────────────────────────────────────────────
 export default function Dashboard({ user, onLogout } = {}) {
   // Whether the current user may mutate (admin/editor). Readonly users see
@@ -960,6 +994,7 @@ export default function Dashboard({ user, onLogout } = {}) {
           </div>
 
           <SloWidget />
+          <ErrorsWidget />
 
           {monitors.length > 0 ? (() => {
             const groups = groupsState.data || [];
