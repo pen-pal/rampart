@@ -19,6 +19,18 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.49.1] — 2026-06-15
+
+### Tested
+- **Timed escalation climb** now has end-to-end integration coverage. New tests
+  fast-forward the clock (backdating `next_escalation_at`) to prove a multi-rung
+  ladder advances exactly one step per elapsed deadline with the next deadline
+  reflecting the upcoming rung, that an acknowledge mid-climb halts it, and that
+  a never-acked climb exhausts at the final rung. Closes the previously
+  hand-verified-only gap; no behavior change. Docs note added to `ESCALATIONS.md`.
+
+---
+
 ## [0.49.0] — 2026-06-15
 
 ### Changed
@@ -1498,6 +1510,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.49.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.49.1
 [0.49.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.49.0
 [0.48.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.48.0
 [0.47.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.47.0
