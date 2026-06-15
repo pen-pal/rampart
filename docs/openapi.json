@@ -6330,6 +6330,20 @@
         }
       }
     },
+    "/v1/settings/storage": {
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "summary": "Per-tier storage footprint",
+        "description": "Admin only. On-disk size + estimated row count of each high-volume telemetry table, largest first \u2014 the data-footprint panel.",
+        "responses": {
+          "200": {
+            "description": "`[{ table, bytes, rows }]` (bytes incl. indexes + TOAST; rows is a planner estimate)."
+          }
+        }
+      }
+    },
     "/v1/sessions": {
       "get": {
         "tags": [

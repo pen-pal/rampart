@@ -1103,6 +1103,12 @@ const en = {
   'settings.retention.audit_hint':   'Admin actions, logins, config changes. Compliance reviews typically want 1 year — default 365.',
   'settings.retention.err_positive': 'Both windows must be a positive number of days.',
   'settings.retention.err_save':     'Save failed.',
+  'settings.storage.title':          'Storage footprint',
+  'settings.storage.tier':           'Table',
+  'settings.storage.rows':           'Rows (est.)',
+  'settings.storage.size':           'On disk',
+  'settings.storage.total':          'Total',
+  'settings.storage.hint':           'On-disk size per telemetry table (heap + indexes + TOAST). Row counts are planner estimates. Trim a window above to shrink what grows fastest; large text/JSON is lz4-compressed.',
 
   // ── ingest token ─────────────────────────────────────────────────
   'settings.ingest.title':           'Ingest token',

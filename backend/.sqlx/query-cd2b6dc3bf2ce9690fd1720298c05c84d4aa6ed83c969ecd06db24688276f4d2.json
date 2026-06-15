@@ -1,0 +1,42 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT c.relname AS \"table!\",\n               pg_total_relation_size(c.oid)::bigint AS \"bytes!\",\n               c.reltuples::bigint AS \"rows!\"\n        FROM pg_class c\n        JOIN pg_namespace n ON n.oid = c.relnamespace\n        WHERE n.nspname = 'public' AND c.relkind = 'r' AND c.relname = ANY($1)\n        ORDER BY pg_total_relation_size(c.oid) DESC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "table!",
+        "type_info": "Name",
+        "origin": {
+          "Table": {
+            "table": "pg_class",
+            "name": "relname"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "bytes!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "rows!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "NameArray"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "cd2b6dc3bf2ce9690fd1720298c05c84d4aa6ed83c969ecd06db24688276f4d2"
+}

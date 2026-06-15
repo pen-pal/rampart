@@ -225,6 +225,25 @@ async fn metrics(State(state): State<AppState>) -> impl IntoResponse {
         }
     }
 
+    // ── per-tier storage footprint (heap + indexes + TOAST) ────────
+    match rampart_db::metrics::storage_usage(pool).await {
+        Ok(tables) => {
+            let _ = writeln!(body, "# HELP rampart_table_bytes On-disk size of a telemetry table (bytes, incl. indexes + TOAST).");
+            let _ = writeln!(body, "# TYPE rampart_table_bytes gauge");
+            for tbl in tables {
+                let _ = writeln!(
+                    body,
+                    "rampart_table_bytes{{table=\"{}\"}} {}",
+                    sanitize_label(&tbl.table),
+                    tbl.bytes,
+                );
+            }
+        }
+        Err(e) => {
+            let _ = writeln!(body, "# error querying storage_usage: {e}");
+        }
+    }
+
     // ── HTTP request counter + latency histogram ───────────────────
     // Lives in AppState; populated by the `record_http_metrics`
     // middleware layered above the router in `lib.rs::build_router`.

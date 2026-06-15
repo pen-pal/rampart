@@ -54,6 +54,14 @@ pub fn settings_router() -> Router<AppState> {
         )
         .route("/settings/siem-export", get(siem_get).put(siem_put))
         .route("/settings/security", get(security_get).put(security_put))
+        .route("/settings/storage", get(storage_get))
+}
+
+/// Per-tier on-disk usage (admin) — the data-footprint panel. Read-only.
+async fn storage_get(
+    State(s): State<AppState>,
+) -> Result<Json<Vec<rampart_db::metrics::TableSize>>, ApiError> {
+    Ok(Json(rampart_db::metrics::storage_usage(s.pool()).await?))
 }
 
 async fn security_get(State(s): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
