@@ -180,6 +180,12 @@ export default function Profiling({ profileId }) {
   const [reloadKey, setReloadKey] = useState(0);
   const [diff, setDiff] = useState(false);
   const [highlight, setHighlight] = useState('');
+  // Trace→profile pivot: an absolute [from_ms,to_ms] window off the hash scopes
+  // the flamegraph to one span's lifetime.
+  const [win, setWin] = useState(() => {
+    const f = hashParam('from_ms'), tt = hashParam('to_ms');
+    return f && tt ? { from_ms: Number(f), to_ms: Number(tt) } : null;
+  });
 
   const svcState = useApi(() => (single ? Promise.resolve([]) : api.profiles.services()), [single]);
   const services = svcState.data || [];
@@ -200,12 +206,14 @@ export default function Profiling({ profileId }) {
   const flameState = useApi(() => {
     if (single) return api.profiles.flamegraphOne(profileId);
     if (service && type) {
+      // A span window overrides the diff/hours path — scope to that interval.
+      if (win) return api.profiles.flamegraph(service, type, hours, win);
       return diff
         ? api.profiles.flamegraphDiff(service, type, hours)
         : api.profiles.flamegraph(service, type, hours);
     }
     return Promise.resolve(null);
-  }, [single, profileId, service, type, hours, diff, reloadKey]);
+  }, [single, profileId, service, type, hours, diff, reloadKey, win]);
 
   const data = flameState.data;
   const unit = 'samples'; // values are summed sample weights regardless of type
@@ -249,6 +257,15 @@ export default function Profiling({ profileId }) {
         {single && <a href="#/profiling" className="btn btn-ghost" style={{ marginBottom: 14 }}>{t('profiling.all_profiles')}</a>}
 
         {flameState.error && <div className="banner-err"><AlertCircle size={14} style={{ verticalAlign: '-2px', marginRight: 6 }} />{t('profiling.load_error')}</div>}
+
+        {win && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--accent-soft)', color: 'var(--accent-2)', border: '1px solid var(--accent-soft)', padding: '8px 14px', borderRadius: 8, fontSize: 12.5, marginBottom: 14 }}>
+            <Flame size={14} />
+            <span style={{ flex: 1 }}>{t('profiling.scoped_window', { ms: (win.to_ms - win.from_ms).toLocaleString() })}</span>
+            <button className="btn btn-ghost" style={{ padding: '4px 8px', color: 'var(--accent-2)' }}
+              onClick={() => { setWin(null); history.replaceState(null, '', `#/profiling?service=${encodeURIComponent(service)}`); }}>{t('profiling.clear_window')}</button>
+          </div>
+        )}
 
         <div className="card" style={{ padding: 16, marginBottom: 18 }}>
           {flameState.loading ? (
