@@ -19,6 +19,17 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.54.0] — 2026-06-15
+
+### Added
+- **Log-volume histogram.** The Logs view now shows an ELK-style volume
+  histogram over the last 24h above the stream — one bar per time bucket with
+  error-level (≥ error) volume stacked in red — honouring the active service /
+  level / full-text filter. Backed by `GET /v1/logs/histogram` (`date_bin`
+  bucketing, total + error counts).
+
+---
+
 ## [0.53.0] — 2026-06-15
 
 ### Added
@@ -1576,6 +1587,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.54.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.54.0
 [0.53.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.53.0
 [0.52.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.52.0
 [0.51.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.51.2
