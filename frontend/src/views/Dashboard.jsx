@@ -844,6 +844,10 @@ export default function Dashboard({ user, onLogout } = {}) {
               transition: 'background .2s',
             }}/>
           <ThemeToggle/>
+          <button className="btn btn-ghost" title="Menu" aria-label="Open navigation"
+            onClick={() => window.dispatchEvent(new Event('rampart:nav-open'))}>
+            <Menu size={16}/>
+          </button>
           <a className="btn btn-ghost" title="Notification channels" href="#/notifications" style={{ textDecoration: 'none' }}>
             <Bell size={14}/>
           </a>
