@@ -17,6 +17,12 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Changed
+- Large telemetry text/JSON columns (`logs.body`/`attributes`,
+  `spans.attributes`, `error_events.context`/`stacktrace`) now use **lz4** TOAST
+  compression instead of the pglz default (migration 0092; applies to rows
+  written after upgrade; falls back to pglz on a Postgres built without lz4).
+
 ---
 
 ## [0.25.0] — 2026-06-15
