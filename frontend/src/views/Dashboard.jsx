@@ -844,7 +844,6 @@ export default function Dashboard({ user, onLogout } = {}) {
               transition: 'background .2s',
             }}/>
           <ThemeToggle/>
-          <NavMenu writable={writable}/>
           <a className="btn btn-ghost" title="Notification channels" href="#/notifications" style={{ textDecoration: 'none' }}>
             <Bell size={14}/>
           </a>
