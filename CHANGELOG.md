@@ -17,6 +17,10 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+---
+
+## [0.33.0] — 2026-06-15
+
 ### Fixed
 - Navigation regression: the nav overhaul removed the dashboard header menu in
   favour of a floating launcher, which users couldn't find ("clicking
@@ -1290,7 +1294,8 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 
 ---
 
-[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.32.0...HEAD
+[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.33.0...HEAD
+[0.33.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.33.0
 [0.32.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.32.0
 [0.31.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.31.2
 [0.31.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.31.1
