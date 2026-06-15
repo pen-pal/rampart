@@ -199,17 +199,22 @@ struct EdgeRow {
     from_service: Option<String>,
     to_service: Option<String>,
     calls: Option<i64>,
+    errors: Option<i64>,
+    p95_ms: Option<f64>,
 }
 
 /// Service dependency edges (caller → callee) from cross-service parent/child
-/// span pairs seen in the trailing window, with call counts.
+/// span pairs seen in the trailing window — call count, error count, and p95
+/// latency of the callee span, so the map can size + color edges by health.
 pub async fn service_map(pool: &DbPool, window_hours: i64) -> DbResult<Vec<ServiceEdge>> {
     let rows = sqlx::query_as!(
         EdgeRow,
         r#"
         SELECT parent.service_name AS "from_service",
                child.service_name  AS "to_service",
-               COUNT(*)            AS "calls"
+               COUNT(*)            AS "calls",
+               COUNT(*) FILTER (WHERE child.status_code = 2) AS "errors",
+               percentile_cont(0.95) WITHIN GROUP (ORDER BY child.duration_ms) AS "p95_ms"
         FROM spans child
         JOIN spans parent ON child.parent_span_id = parent.span_id
         WHERE child.service_name <> parent.service_name
@@ -228,6 +233,8 @@ pub async fn service_map(pool: &DbPool, window_hours: i64) -> DbResult<Vec<Servi
             from_service: r.from_service.unwrap_or_default(),
             to_service: r.to_service.unwrap_or_default(),
             calls: r.calls.unwrap_or(0),
+            errors: r.errors.unwrap_or(0),
+            p95_ms: r.p95_ms,
         })
         .collect())
 }

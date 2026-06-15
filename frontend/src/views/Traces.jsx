@@ -107,7 +107,8 @@ function svcColor(name) {
 
 export default function Traces({ openTraceId }) {
   const [traceId, setTraceId] = useState(openTraceId || null);
-  const [tab, setTab] = useState('traces'); // traces | map
+  const [tab, setTab] = useState('traces'); // traces | ops | map
+  const [presetService, setPresetService] = useState('');
 
   return (
     <div className="rampart">
@@ -127,7 +128,10 @@ export default function Traces({ openTraceId }) {
               <button className={`btn ${tab === 'ops' ? 'btn-accent' : ''}`} onClick={() => setTab('ops')}><Gauge size={13}/> {t('traces.tab_ops')}</button>
               <button className={`btn ${tab === 'map' ? 'btn-accent' : ''}`} onClick={() => setTab('map')}><Network size={13}/> {t('traces.tab_map')}</button>
             </div>
-            {tab === 'traces' ? <TraceList onOpen={setTraceId} /> : tab === 'ops' ? <OperationsTable /> : <ServiceMap />}
+            {tab === 'traces'
+              ? <TraceList onOpen={setTraceId} preset={presetService} onPresetUsed={() => setPresetService('')} />
+              : tab === 'ops' ? <OperationsTable />
+              : <ServiceMap onPick={(svc) => { setPresetService(svc); setTab('traces'); }} />}
           </>
         )}
       </div>
@@ -135,12 +139,20 @@ export default function Traces({ openTraceId }) {
   );
 }
 
-function TraceList({ onOpen }) {
+function TraceList({ onOpen, preset, onPresetUsed }) {
   const [service, setService] = useState('');
   const [q, setQ] = useState('');
   const [minDur, setMinDur] = useState('');
   const [errorsOnly, setErrorsOnly] = useState(false);
   const [applied, setApplied] = useState({ service: '', q: '', min_duration_ms: '', errors_only: false });
+
+  // Arriving from the service map: pre-fill + apply the service filter once.
+  useEffect(() => {
+    if (!preset) return;
+    setService(preset);
+    setApplied(a => ({ ...a, service: preset }));
+    onPresetUsed && onPresetUsed();
+  }, [preset]); // eslint-disable-line react-hooks/exhaustive-deps
   const state = useApi(
     () => api.traces.list({ limit: 100, ...applied }),
     [applied],
@@ -287,9 +299,10 @@ function OperationsTable() {
   );
 }
 
-function ServiceMap() {
+function ServiceMap({ onPick }) {
   const state = useApi(() => api.traces.serviceMap(24), []);
   const edges = state.data || [];
+  const maxCalls = Math.max(1, ...edges.map(e => e.calls));
   return (
     <>
       {state.error && <div className="banner-err">{t('traces.load_error')}</div>}
@@ -298,16 +311,33 @@ function ServiceMap() {
           <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-3)' }}><Loader2 size={16}/> {t('traces.loading')}</div>
         ) : edges.length === 0 ? (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>{t('traces.no_edges')}</div>
-        ) : edges.map((e, i) => (
-          <div className="row" key={i}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
-              <span className="pill pill-muted">{e.from_service}</span>
-              <span style={{ color: 'var(--text-3)' }}>→</span>
-              <span className="pill pill-muted">{e.to_service}</span>
+        ) : edges.map((e, i) => {
+          const errPct = e.calls ? (e.errors / e.calls) * 100 : 0;
+          const hot = errPct >= 1;
+          return (
+            <div className="row" key={i} style={{ cursor: 'pointer', alignItems: 'center' }}
+              onClick={() => onPick && onPick(e.to_service)} title={t('traces.edge_open')}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, minWidth: 0 }}>
+                <span className="wf-swatch" style={{ background: svcColor(e.from_service) }}/>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.from_service}</span>
+                <span style={{ color: 'var(--text-3)' }}>→</span>
+                <span className="wf-swatch" style={{ background: svcColor(e.to_service) }}/>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>{e.to_service}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                {/* throughput bar */}
+                <div style={{ width: 70, height: 6, borderRadius: 3, background: 'var(--surface-2)', overflow: 'hidden' }}>
+                  <div style={{ width: `${(e.calls / maxCalls) * 100}%`, height: '100%', background: svcColor(e.to_service) }}/>
+                </div>
+                <span className="pill">{t('traces.calls', { n: e.calls })}</span>
+                {e.p95_ms != null && <span className="pill pill-muted">p95 {fmtMs(e.p95_ms)}</span>}
+                <span className="pill" style={hot ? { background: 'var(--down-soft)', color: '#b91c1c' } : { color: e.errors ? 'var(--warn)' : 'var(--text-3)' }}>
+                  {errPct.toFixed(errPct >= 10 ? 0 : 1)}% err
+                </span>
+              </div>
             </div>
-            <span className="pill">{t('traces.calls', { n: e.calls })}</span>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </>
   );

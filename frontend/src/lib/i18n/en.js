@@ -1665,6 +1665,7 @@ const en = {
   'traces.collapse_all':             'Collapse all',
   'traces.expand_all':               'Expand all',
   'traces.profile_span':             'Profile this span’s window →',
+  'traces.edge_open':                'Open traces for this service',
   'logs.for_trace':                  'Filtered to trace',
   'logs.open_trace':                 'View trace →',
   'logs.clear_trace':                'Clear',
