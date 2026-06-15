@@ -19,6 +19,18 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.43.0] — 2026-06-15
+
+### Changed
+- Trace **waterfall** redesigned to read as a proper timeline: a time-axis
+  ruler with tick labels (0 → total) sits above the spans, quarter gridlines
+  run through every track, bars are colored per service (with a matching swatch
+  on the span label), and the duration label now sits at the end of each bar
+  (flipping inside when the bar hugs the right edge). Call-tree indentation and
+  click-to-expand span attributes / status message are unchanged.
+
+---
+
 ## [0.42.0] — 2026-06-15
 
 ### Added
@@ -1406,6 +1418,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.43.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.43.0
 [0.42.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.42.0
 [0.41.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.41.0
 [0.40.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.40.0
