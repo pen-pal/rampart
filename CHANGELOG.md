@@ -19,6 +19,21 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.37.0] — 2026-06-15
+
+### Added
+- On-call schedules can now rotate over **users**, not just notification
+  channels. A user on call is paged at their account email; the rotation ring is
+  channels followed by users (`participant_user_ids`, migration 0093). The
+  schedule form gains a user picker. Escalation steps that reference a schedule
+  page whoever — channel or user — is on call.
+
+### Fixed
+- `examples/demo-app`: `rampart` + `demo-backend` now `restart: unless-stopped`
+  so a transient DB/DNS blip self-heals instead of leaving a dead container.
+
+---
+
 ## [0.36.0] — 2026-06-15
 
 ### Added
@@ -1328,7 +1343,8 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 
 ---
 
-[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.36.0...HEAD
+[Unreleased]: https://github.com/pen-pal/rampart/compare/v0.37.0...HEAD
+[0.37.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.37.0
 [0.36.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.36.0
 [0.35.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.35.0
 [0.34.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.34.0
