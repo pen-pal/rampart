@@ -43,6 +43,7 @@ pub mod rum;
 pub mod scheduled_reports;
 pub mod sessions;
 pub mod silences;
+pub mod slos;
 pub mod status_pages;
 pub mod stream;
 pub mod subscribers;
@@ -162,6 +163,8 @@ pub fn v1_protected() -> Router<AppState> {
         .nest("/telemetry-rules", telemetry_rules::router())
         // /v1/detection-rules — SIEM log detection rules + their findings
         .nest("/detection-rules", detection::router())
+        // /v1/slos — service level objectives + error budgets (editor)
+        .nest("/slos", slos::router())
         // /v1/silences — mute alerts during deploys / known noise (editor)
         .nest("/silences", silences::router())
         // /v1/maintenance-windows CRUD + attach/detach

@@ -93,3 +93,4 @@ id!(OnCallScheduleId);
 id!(TelemetryRuleId);
 id!(DetectionRuleId);
 id!(DetectionFindingId);
+id!(SloId);

@@ -17,6 +17,7 @@ const Rum               = lazy(() => import('./views/Rum.jsx'));
 const OnCall            = lazy(() => import('./views/OnCall.jsx'));
 const AlertRules        = lazy(() => import('./views/AlertRules.jsx'));
 const Detection         = lazy(() => import('./views/Detection.jsx'));
+const Slos              = lazy(() => import('./views/Slos.jsx'));
 const Silences          = lazy(() => import('./views/Silences.jsx'));
 const Maintenance       = lazy(() => import('./views/Maintenance.jsx'));
 const DependencyGraph   = lazy(() => import('./views/DependencyGraph.jsx'));
@@ -75,6 +76,7 @@ const VIEW_LABEL = {
   'on-call':       'On-call',
   'alert-rules':   'Alert rules',
   'detection':     'Detection',
+  'slos':          'SLOs',
   'silences':      'Silences',
   'tags':          'Tags',
   'maintenance':   'Maintenance',
@@ -260,6 +262,7 @@ export default function App() {
     case 'on-call':       view = <OnCall user={user} />; break;
     case 'alert-rules':   view = <AlertRules />; break;
     case 'detection':     view = <Detection user={user} />; break;
+    case 'slos':          view = <Slos user={user} />; break;
     case 'silences':      view = <Silences />; break;
     case 'maintenance':   view = <Maintenance user={user} />; break;
     case 'dependencies':  view = <DependencyGraph />; break;
@@ -333,6 +336,7 @@ const NAV_GROUPS = [
   { section: 'Alerting & response', items: [
     { view: 'alert-rules',   hash: '#/alert-rules' },
     { view: 'detection',     hash: '#/detection' },
+    { view: 'slos',          hash: '#/slos' },
     { view: 'escalations',   hash: '#/escalations' },
     { view: 'on-call',       hash: '#/on-call' },
     { view: 'silences',      hash: '#/silences' },

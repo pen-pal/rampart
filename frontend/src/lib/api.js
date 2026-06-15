@@ -553,6 +553,12 @@ export const api = {
     update:  (id, patch) => request(`/v1/telemetry-rules/${id}`, { method: 'PATCH', body: patch }),
     remove:  (id)        => request(`/v1/telemetry-rules/${id}`, { method: 'DELETE' }),
   },
+  slos: {
+    list:    ()          => request('/v1/slos'),
+    create:  (input)     => request('/v1/slos', { method: 'POST', body: input }),
+    update:  (id, patch) => request(`/v1/slos/${id}`, { method: 'PATCH', body: patch }),
+    remove:  (id)        => request(`/v1/slos/${id}`, { method: 'DELETE' }),
+  },
   detection: {
     list:    ()          => request('/v1/detection-rules'),
     create:  (input)     => request('/v1/detection-rules', { method: 'POST', body: input }),

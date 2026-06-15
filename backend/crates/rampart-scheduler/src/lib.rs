@@ -183,6 +183,7 @@ impl Scheduler {
                 self.check_metric_rules().await;
                 self.check_telemetry_rules().await;
                 self.check_detection_rules().await;
+                self.check_slos().await;
                 self.check_escalations().await;
             }
 
@@ -271,6 +272,27 @@ impl Scheduler {
                         _ => {
                             let _ = rampart_db::escalations::resolve_subject(
                                 &self.pool, "metric_rule", &episode.subject_ref,
+                            ).await;
+                            continue;
+                        }
+                    }
+                }
+                "slo" => {
+                    let slo_id = match uuid::Uuid::parse_str(&episode.subject_ref) {
+                        Ok(u) => rampart_core::ids::SloId::from_uuid(u),
+                        Err(_) => continue,
+                    };
+                    // Keep climbing while the budget is still breaching
+                    // (evaluate_tick keeps `breaching_at` set); recovered or
+                    // deleted → close.
+                    match rampart_db::slos::get(&self.pool, slo_id).await {
+                        Ok(slo) if slo.breaching_at.is_some() => {
+                            let down_for = (time::OffsetDateTime::now_utc() - episode.started_at).whole_seconds();
+                            alert_escalation_event(&slo.name, format!("budget still breaching, unacknowledged for {down_for}s"))
+                        }
+                        _ => {
+                            let _ = rampart_db::escalations::resolve_subject(
+                                &self.pool, "slo", &episode.subject_ref,
                             ).await;
                             continue;
                         }
@@ -401,6 +423,72 @@ impl Scheduler {
             // opens + climbs; resolved closes).
             if let Some(policy_id) = ev.rule.escalation_policy_id {
                 self.rule_escalation_transition(policy_id, "metric_rule", &ev.rule.id.0.to_string(), fired, &event)
+                    .await;
+            }
+        }
+    }
+
+    /// Evaluate SLO error budgets and fan out fired/resolved transitions. The
+    /// budget state machine + `breaching_at` de-dup live on the rows
+    /// (`rampart_db::slos`), so this is restart-safe and never double-pages;
+    /// this method only owns the notification fan-out and escalation climb.
+    async fn check_slos(&self) {
+        let events = match rampart_db::slos::evaluate_tick(&self.pool).await {
+            Ok(ev) => ev,
+            Err(e) => {
+                warn!(error = %e, "SLO evaluation failed");
+                return;
+            }
+        };
+        for ev in events {
+            let fired = ev.transition == rampart_core::slo::SloTransition::Fire;
+            let snap = &ev.snapshot;
+            let achieved = snap.achieved_pct.map(|a| format!("{a:.3}%")).unwrap_or_else(|| "n/a".into());
+            let burn = snap.burn_rate_1h.map(|b| format!("{b:.1}x")).unwrap_or_else(|| "n/a".into());
+            let remaining = snap.remaining_pct.map(|r| format!("{r:.0}%")).unwrap_or_else(|| "n/a".into());
+            let msg = if fired {
+                format!(
+                    "SLO '{}' breaching: {achieved} achieved vs {:.3}% objective ({} budget left, 1h burn {burn})",
+                    ev.slo.name, ev.slo.objective_pct, remaining,
+                )
+            } else {
+                format!(
+                    "SLO '{}' recovered: {achieved} achieved vs {:.3}% objective ({} budget left)",
+                    ev.slo.name, ev.slo.objective_pct, remaining,
+                )
+            };
+            info!(slo = %ev.slo.name, fired, %msg, "SLO transition");
+
+            let event = rampart_notifier::Event {
+                kind: if fired {
+                    rampart_notifier::EventKind::SloBreached
+                } else {
+                    rampart_notifier::EventKind::SloRecovered
+                },
+                monitor: alert_monitor(format!("SLO: {}", ev.slo.name)),
+                heartbeat: Heartbeat {
+                    monitor_id: rampart_core::MonitorId::new(),
+                    ts: time::OffsetDateTime::now_utc(),
+                    status: if fired { MonitorStatus::Down } else { MonitorStatus::Up },
+                    latency_ms: None,
+                    status_code: None,
+                    msg: Some(msg),
+                    retries: 0,
+                    important: true,
+                },
+                prev_status: None,
+                slo_current_pct: snap.achieved_pct,
+            };
+            for ch in &ev.slo.channel_ids {
+                if let Err(e) =
+                    rampart_notifier::service::send_event_to_channel(&self.pool, *ch, &event).await
+                {
+                    warn!(slo = %ev.slo.name, channel = %ch.0, error = %e,
+                          "SLO channel send failed (channel deleted?)");
+                }
+            }
+            if let Some(policy_id) = ev.slo.escalation_policy_id {
+                self.rule_escalation_transition(policy_id, "slo", &ev.slo.id.0.to_string(), fired, &event)
                     .await;
             }
         }

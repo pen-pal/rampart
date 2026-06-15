@@ -1,0 +1,33 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            COALESCE(SUM(value) FILTER (WHERE name = $1), 0)::float8 AS \"good!\",\n            COALESCE(SUM(value) FILTER (WHERE name = $2), 0)::float8 AS \"total!\"\n        FROM metric_samples\n        WHERE name IN ($1, $2) AND ts >= $3 AND labels @> $4\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "good!",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "total!",
+        "type_info": "Float8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Jsonb"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "41b61d10328e035b8b307ef7d0a871828d435215f12c847fdd8224c8aeeb40e9"
+}
