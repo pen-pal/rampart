@@ -93,6 +93,11 @@ export default function DeliveryLog({ user }) {
     { pollMs: 30_000 },
   );
 
+  // Resolve monitor_id → name (fetched once) so the table shows a readable,
+  // clickable monitor instead of a raw UUID.
+  const monitorsState = useApi(() => api.monitors.list(), []);
+  const monitorName = (id) => (monitorsState.data || []).find((m) => m.id === id)?.name || null;
+
   // The endpoint may return either a bare array or { items, ... }. Normalise.
   const raw = state.data;
   const allRows = Array.isArray(raw) ? raw : (raw?.items || raw?.rows || []);
@@ -174,7 +179,11 @@ export default function DeliveryLog({ user }) {
                     <td><span className="kind">{r.channel_kind}</span></td>
                     <td><span className="kind">{r.event_kind}</span></td>
                     <td className="mono" style={{ fontSize: 11, color: 'var(--text-2)', wordBreak: 'break-all', maxWidth: 220 }}>
-                      {r.monitor_id || '—'}
+                      {r.monitor_id ? (
+                        <a href={`#/monitor/${r.monitor_id}`} style={{ color: 'var(--accent-2)', textDecoration: 'none' }}>
+                          {monitorName(r.monitor_id) || `${r.monitor_id.slice(0, 8)}…`}
+                        </a>
+                      ) : '—'}
                     </td>
                     <td>
                       {r.ok ? (
