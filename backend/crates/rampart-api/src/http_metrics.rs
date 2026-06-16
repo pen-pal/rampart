@@ -101,6 +101,16 @@ impl HttpMetrics {
         }
     }
 
+    /// Cheap snapshot of `(total request count, total duration sum in micros)`
+    /// — the self-metrics ingest task deltas this each interval to derive a
+    /// request rate + mean latency it can push into the metric tier.
+    pub fn snapshot(&self) -> (u64, u64) {
+        (
+            self.total_count.load(Ordering::Relaxed),
+            self.total_sum_micros.load(Ordering::Relaxed),
+        )
+    }
+
     /// Render a Prometheus text exposition block for the three metric
     /// families. Called once per `/metrics` scrape.
     pub fn render(&self) -> String {
