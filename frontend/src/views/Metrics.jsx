@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { api, useApi, formatRelative, offsetDateTimeArrayToDate } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import { confirmDialog } from '../lib/notify.js';
 import { canWrite } from '../lib/roles.js';
 
 const css = `
@@ -400,7 +401,7 @@ function RulesPanel({ state, seriesRows, channels, writable, reload }) {
   const metricNames = [...new Set(seriesRows.map(s => s.name))];
 
   const remove = async (id) => {
-    if (!confirm(t('metrics.rules.delete_confirm'))) return;
+    if (!(await confirmDialog({ message: t('metrics.rules.delete_confirm') }))) return;
     setBusy(id); setErr(null);
     try { await api.metrics.removeRule(id); reload(); }
     catch (e) { setErr(e.message); }

@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { api, useApi } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import { confirmDialog } from '../lib/notify.js';
 import { canWrite } from '../lib/roles.js';
 
 const css = `
@@ -101,7 +102,7 @@ export default function Escalations({ user }) {
   const schedules = schedulesState.data || [];
 
   const remove = async (id) => {
-    if (!confirm(t('esc.delete_confirm'))) return;
+    if (!(await confirmDialog({ message: t('esc.delete_confirm') }))) return;
     setBusy(id); setErr(null);
     try { await api.escalation.remove(id); reload(); }
     catch (e) { setErr(e.message); }

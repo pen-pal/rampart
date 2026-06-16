@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { api, useApi } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import { confirmDialog, toast } from '../lib/notify.js';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -118,7 +119,7 @@ export default function Folders() {
   };
 
   const onRemove = async (id, name) => {
-    if (!confirm(t('folders.delete_confirm', { name }))) return;
+    if (!(await confirmDialog({ message: t('folders.delete_confirm', { name }) }))) return;
     setErr(null);
     try {
       await api.monitorGroups.remove(id);
@@ -225,14 +226,14 @@ function FolderCard({
     try {
       if (tagIds.includes(tagId)) { await api.monitorGroups.delTag(group.id, tagId); setTagIds(ids => ids.filter(x => x !== tagId)); }
       else { await api.monitorGroups.addTag(group.id, tagId); setTagIds(ids => [...ids, tagId]); }
-    } catch (e) { alert(e.message); } finally { setBusy(false); }
+    } catch (e) { toast(e.message, 'error'); } finally { setBusy(false); }
   };
   const toggleChannel = async (notifId) => {
     setBusy(true);
     try {
       if (chanIds.includes(notifId)) { await api.monitorGroups.delChannel(group.id, notifId); setChanIds(ids => ids.filter(x => x !== notifId)); }
       else { await api.monitorGroups.addChannel(group.id, notifId); setChanIds(ids => [...ids, notifId]); }
-    } catch (e) { alert(e.message); } finally { setBusy(false); }
+    } catch (e) { toast(e.message, 'error'); } finally { setBusy(false); }
   };
 
   const saveName = async () => {

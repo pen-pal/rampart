@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { api, useApi, formatRelative, offsetDateTimeArrayToDate } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import { confirmDialog } from '../lib/notify.js';
 import { isAdmin } from '../lib/roles.js';
 
 const css = `
@@ -79,7 +80,7 @@ export default function ScheduledReports({ user }) {
   const reload = () => window.location.reload();
 
   const remove = async (id) => {
-    if (!confirm(t('reports.delete_confirm'))) return;
+    if (!(await confirmDialog({ message: t('reports.delete_confirm') }))) return;
     setBusy(id); setErr(null);
     try { await api.scheduledReports.remove(id); reload(); }
     catch (e) { setErr(e.message); }

@@ -6,6 +6,7 @@ import {
 import { api, useApi, offsetDateTimeArrayToDate, formatRelative } from '../lib/api.js';
 import { canWrite } from '../lib/roles.js';
 import { t } from '../lib/i18n.js';
+import { confirmDialog, toast } from '../lib/notify.js';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -69,7 +70,7 @@ export default function StatusPageBuilder({ user } = {}) {
   const reload = () => window.location.reload();
 
   const remove = async (id) => {
-    if (!confirm(t('statuspage.delete_confirm'))) return;
+    if (!(await confirmDialog({ message: t('statuspage.delete_confirm') }))) return;
     setBusy(id); setErr(null);
     try {
       await api.statusPages.remove(id);
@@ -588,7 +589,7 @@ function SectionsManager({ pageId, monitors, attached, writable }) {
   };
 
   const removeSection = async (id) => {
-    if (!confirm(t('statuspage.sections.delete_confirm'))) return;
+    if (!(await confirmDialog({ message: t('statuspage.sections.delete_confirm') }))) return;
     setBusy(id); setErr(null);
     try {
       await api.statusPages.deleteSection(pageId, id);
@@ -773,7 +774,7 @@ function SubscribersPanel({ pageId }) {
   const [busy, setBusy] = useState(null);
   const reload = () => window.location.reload();
   const remove = async (id) => {
-    if (!confirm(t('statuspage.subscriber_remove_confirm'))) return;
+    if (!(await confirmDialog({ message: t('statuspage.subscriber_remove_confirm') }))) return;
     setBusy(id);
     try { await api.subscribers.remove(id); reload(); }
     finally { setBusy(null); }
@@ -851,7 +852,7 @@ function IngestTokensPanel({ pageId }) {
   };
 
   const revoke = async (id) => {
-    if (!confirm(t('statuspage.ingest.revoke_confirm'))) return;
+    if (!(await confirmDialog({ message: t('statuspage.ingest.revoke_confirm') }))) return;
     setBusy(id); setErr(null);
     try {
       await api.ingestTokens.remove(id);
@@ -959,7 +960,7 @@ function IncidentsPanel({ pageId }) {
 
   const reload = () => window.location.reload();
   const remove = async (id) => {
-    if (!confirm(t('statuspage.incident.delete_confirm'))) return;
+    if (!(await confirmDialog({ message: t('statuspage.incident.delete_confirm') }))) return;
     setBusy(id);
     try { await api.incidents.remove(id); reload(); }
     catch (e) { setErr(e.message); }
@@ -1025,7 +1026,7 @@ function TemplatesPanel({ templates, onChanged }) {
   };
 
   const remove = async (id) => {
-    if (!confirm(t('statuspage.tpl.delete_confirm'))) return;
+    if (!(await confirmDialog({ message: t('statuspage.tpl.delete_confirm') }))) return;
     setBusy(true);
     try { await api.incidentTemplates.remove(id); onChanged(); }
     catch (e) { setErr(e.message); }
@@ -1173,7 +1174,7 @@ function IncidentRow({ incident, busy, onResolve, onDelete, onPostUpdate }) {
       onPostUpdate();
       setEditing(false);
     }
-    catch (e) { alert(e.message); }
+    catch (e) { toast(e.message, 'error'); }
     finally { setSaving(false); }
   };
   const cancelEdit = () => {

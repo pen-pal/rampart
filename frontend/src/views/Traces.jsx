@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { api, useApi, formatRelative } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import { promptDialog } from '../lib/notify.js';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -174,8 +175,8 @@ function TraceList({ onOpen, preset, onPresetUsed }) {
     return () => { off = true; };
   }, []);
   const persistSaved = (next) => { setSaved(next); api.me.patchPrefs({ trace_searches: next }).catch(() => {}); };
-  const saveCurrent = () => {
-    const name = window.prompt(t('traces.save_prompt'));
+  const saveCurrent = async () => {
+    const name = (await promptDialog({ message: t('traces.save_prompt') }));
     if (!name || !name.trim()) return;
     persistSaved([...saved, { id: Date.now().toString(36), name: name.trim(), ...applied }]);
   };

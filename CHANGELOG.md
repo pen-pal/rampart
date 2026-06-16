@@ -19,6 +19,17 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.95.1] — 2026-06-16
+
+### Changed
+- Replaced **every** blocking `alert()` / `confirm()` / `prompt()` in the UI
+  (68 sites across 25 views) with the non-blocking toast + accessible-dialog
+  primitives from v0.95.0. Errors now surface as dismissible toasts; confirms
+  and prompts use the focus-trapped modal — no more browser-chrome dialogs
+  stealing focus or blocking the event loop. (Audit #26.)
+
+---
+
 ## [0.95.0] — 2026-06-16
 
 ### Added
@@ -2323,6 +2334,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.95.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.95.1
 [0.95.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.95.0
 [0.94.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.94.0
 [0.93.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.93.0

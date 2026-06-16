@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ChevronLeft, Loader2, AlertCircle, ScrollText, Search, RefreshCw, Download, Bookmark, X } from 'lucide-react';
 import { api, useApi, formatClock, formatRelative } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import { promptDialog } from '../lib/notify.js';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -105,8 +106,8 @@ export default function Logs({ traceId }) {
   }, [traceId]);
 
   const persistSaved = (next) => { setSaved(next); api.me.patchPrefs({ log_searches: next }).catch(() => {}); };
-  const saveCurrent = () => {
-    const name = window.prompt(t('logs.save_prompt'));
+  const saveCurrent = async () => {
+    const name = (await promptDialog({ message: t('logs.save_prompt') }));
     if (!name || !name.trim()) return;
     persistSaved([...saved, { id: Date.now().toString(36), name: name.trim(), ...applied }]);
   };

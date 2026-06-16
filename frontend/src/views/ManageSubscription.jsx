@@ -13,6 +13,7 @@ import React, { useEffect, useState } from 'react';
 import { CheckCircle2, AlertCircle, Loader2, Bell } from 'lucide-react';
 import { offsetDateTimeArrayToDate } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import { confirmDialog } from '../lib/notify.js';
 
 function toDate(v) {
   return Array.isArray(v) ? offsetDateTimeArrayToDate(v) : new Date(v);
@@ -90,7 +91,7 @@ export default function ManageSubscription({ token }) {
   };
 
   const unsubscribeAll = async () => {
-    if (!window.confirm(t('subscribe.manage.confirm_all'))) return;
+    if (!(await confirmDialog({ message: t('subscribe.manage.confirm_all') }))) return;
     setBusy('all'); setErr(null);
     try {
       const r = await fetch(`${base}/unsubscribe-all`, { method: 'POST' });

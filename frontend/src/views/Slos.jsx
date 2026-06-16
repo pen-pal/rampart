@@ -5,6 +5,7 @@ import {
 import { api } from '../lib/api.js';
 import { canWrite } from '../lib/roles.js';
 import { t } from '../lib/i18n.js';
+import { confirmDialog } from '../lib/notify.js';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -158,7 +159,7 @@ export default function Slos({ user }) {
 function SloRow({ slo, writable, onEdit, onChanged, setErr }) {
   const [busy, setBusy] = useState(false);
   const remove = async () => {
-    if (!window.confirm(t('slos.confirm_delete'))) return;
+    if (!(await confirmDialog({ message: t('slos.confirm_delete') }))) return;
     setBusy(true); setErr(null);
     try { await api.slos.remove(slo.id); onChanged(); }
     catch (e) { setErr(e.message); setBusy(false); }

@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import { confirmDialog } from '../lib/notify.js';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -134,7 +135,7 @@ function RuleRow({ rule, onEdit, onChanged, setErr }) {
   const meta = kindMeta(rule.kind);
   const opSym = { gt: '>', lt: '<', gte: '≥', lte: '≤' }[rule.op] || rule.op;
   const remove = async () => {
-    if (!window.confirm(t('alertrules.confirm_delete'))) return;
+    if (!(await confirmDialog({ message: t('alertrules.confirm_delete') }))) return;
     setBusy(true); setErr(null);
     try { await api.telemetryRules.remove(rule.id); onChanged(); }
     catch (e) { setErr(e.message); setBusy(false); }
