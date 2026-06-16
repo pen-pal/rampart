@@ -18,6 +18,7 @@ import { useHeartbeatStream, useDebouncedTick } from '../lib/sse.js';
 import { ThemeToggle } from '../components/ThemeToggle.jsx';
 import { canWrite } from '../lib/roles.js';
 import { t } from '../lib/i18n.js';
+import { confirmDialog, promptDialog, toast } from '../lib/notify.js';
 
 // ─── shareable saved-view (de)serialisation ─────────────────────────────────
 // A saved view is pure filter state — { tags, folder, search } — so it can be
@@ -600,7 +601,7 @@ export default function Dashboard({ user, onLogout } = {}) {
       setCloneState(null);
       window.location.reload();
     } catch (e) {
-      alert(t("dashboard.clone.failed", { msg: e.message }));
+      toast(t("dashboard.clone.failed", { msg: e.message }), 'error');
       setCloneState(s => s && ({ ...s, busy: false }));
     }
   };
@@ -628,19 +629,19 @@ export default function Dashboard({ user, onLogout } = {}) {
       await api.monitors.update(monitorId, { group_id: targetId });
       bumpReload();
     } catch (e) {
-      alert(t("monitor.move.failed", { msg: e.message }));
+      toast(t("monitor.move.failed", { msg: e.message }), 'error');
     }
   };
   const runBulk = async (action, confirmMsg) => {
     if (selected.size === 0 || bulkBusy) return;
-    if (confirmMsg && !confirm(confirmMsg)) return;
+    if (confirmMsg && !(await confirmDialog({ message: confirmMsg }))) return;
     setBulkBusy(true);
     try {
       await api.monitors.bulk(Array.from(selected), action);
       setSelected(new Set());
       window.location.reload();
     } catch (e) {
-      alert(`Bulk action failed: ${e.message}`);
+      toast(`Bulk action failed: ${e.message}`, 'error');
       setBulkBusy(false);
     }
   };
@@ -669,13 +670,13 @@ export default function Dashboard({ user, onLogout } = {}) {
   const previewBulkEdit = async () => {
     if (selected.size === 0 || bulkBusy || !bulkEdit) return;
     const patch = buildBulkPatch();
-    if (!patch) { alert(t("dashboard.bulk.edit_empty")); return; }
+    if (!patch) { toast(t("dashboard.bulk.edit_empty"), 'error'); return; }
     setBulkBusy(true);
     try {
       const res = await api.monitors.bulkEditPreview(Array.from(selected), patch);
       setBulkPreview(res);
     } catch (e) {
-      alert(t("dashboard.bulk.preview_failed", { msg: e.message }));
+      toast(t("dashboard.bulk.preview_failed", { msg: e.message }), 'error');
     } finally {
       setBulkBusy(false);
     }
@@ -686,7 +687,7 @@ export default function Dashboard({ user, onLogout } = {}) {
     const patch = buildBulkPatch();
     // Nothing to do — guard so we don't fire a no-op request.
     if (!patch) {
-      alert(t("dashboard.bulk.edit_empty"));
+      toast(t("dashboard.bulk.edit_empty"), 'error');
       return;
     }
     setBulkBusy(true);
@@ -703,7 +704,7 @@ export default function Dashboard({ user, onLogout } = {}) {
       }
       bumpReload();
     } catch (e) {
-      alert(t("dashboard.bulk.edit_failed", { msg: e.message }));
+      toast(t("dashboard.bulk.edit_failed", { msg: e.message }), 'error');
     } finally {
       setBulkBusy(false);
     }
@@ -719,7 +720,7 @@ export default function Dashboard({ user, onLogout } = {}) {
       setBulkUndo(null);
       bumpReload();
     } catch (e) {
-      alert(t("dashboard.bulk.undo_failed", { msg: e.message }));
+      toast(t("dashboard.bulk.undo_failed", { msg: e.message }), 'error');
     } finally {
       setBulkBusy(false);
     }
@@ -731,13 +732,13 @@ export default function Dashboard({ user, onLogout } = {}) {
   const runBulkByTag = async (tagId, tagName, action) => {
     if (bulkBusy) return;
     const verb = action === 'pause' ? t('dashboard.bulk_tag.pause') : t('dashboard.bulk_tag.resume');
-    if (!confirm(t('dashboard.bulk_tag.confirm', { verb, tag: tagName }))) return;
+    if (!(await confirmDialog({ message: t('dashboard.bulk_tag.confirm', { verb, tag: tagName }) }))) return;
     setBulkBusy(true);
     try {
       await api.monitors.bulkByTag(tagId, action);
       window.location.reload();
     } catch (e) {
-      alert(t('dashboard.bulk_tag.failed', { msg: e.message }));
+      toast(t('dashboard.bulk_tag.failed', { msg: e.message }), 'error');
       setBulkBusy(false);
     }
   };
@@ -827,7 +828,7 @@ export default function Dashboard({ user, onLogout } = {}) {
   };
 
   const saveCurrentView = async () => {
-    const name = (prompt(t("dashboard.views.save_prompt")) || '').trim();
+    const name = ((await promptDialog({ message: t("dashboard.views.save_prompt") })) || '').trim();
     if (!name) return;
     const view = {
       id: (crypto?.randomUUID?.() || String(Date.now())),
@@ -839,7 +840,7 @@ export default function Dashboard({ user, onLogout } = {}) {
     const next = [...savedViews, view];
     setSavedViews(next);
     try { await persistPrefs({ savedViews: next }); }
-    catch (e) { alert(t("dashboard.views.save_failed", { msg: e.message })); }
+    catch (e) { toast(t("dashboard.views.save_failed", { msg: e.message }), 'error'); }
   };
 
   const applyView = (view) => {
@@ -850,7 +851,7 @@ export default function Dashboard({ user, onLogout } = {}) {
   };
 
   const deleteView = async (view) => {
-    if (!confirm(t("dashboard.views.delete_confirm", { name: view.name }))) return;
+    if (!(await confirmDialog({ message: t("dashboard.views.delete_confirm", { name: view.name }) }))) return;
     const next = savedViews.filter(v => v.id !== view.id);
     setSavedViews(next);
     try { await persistPrefs({ savedViews: next }); } catch { /* keep optimistic state */ }
@@ -878,7 +879,7 @@ export default function Dashboard({ user, onLogout } = {}) {
   // round-trip) so a shared link can become a permanent personal view.
   const importView = async (token, { name, save } = {}) => {
     const decoded = decodeView(token);
-    if (!decoded) { alert(t("dashboard.views.import_invalid")); return false; }
+    if (!decoded) { toast(t("dashboard.views.import_invalid"), 'error'); return false; }
     applyView(decoded);
     if (save) {
       const view = {
@@ -891,7 +892,7 @@ export default function Dashboard({ user, onLogout } = {}) {
       const next = [...savedViews, view];
       setSavedViews(next);
       try { await persistPrefs({ savedViews: next }); }
-      catch (e) { alert(t("dashboard.views.save_failed", { msg: e.message })); }
+      catch (e) { toast(t("dashboard.views.save_failed", { msg: e.message }), 'error'); }
     }
     return true;
   };

@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { api, useApi, offsetDateTimeArrayToDate } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import { confirmDialog } from '../lib/notify.js';
 import { canWrite } from '../lib/roles.js';
 
 const css = `
@@ -144,7 +145,7 @@ export default function OnCall({ user }) {
   const now = Date.now();
 
   const remove = async (id) => {
-    if (!confirm(t('oncall.delete_confirm'))) return;
+    if (!(await confirmDialog({ message: t('oncall.delete_confirm') }))) return;
     setBusy(id); setErr(null);
     try { await api.onCallSchedules.remove(id); reload(); }
     catch (e) { setErr(e.message); }

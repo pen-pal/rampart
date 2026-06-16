@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { api, useApi } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import { confirmDialog } from '../lib/notify.js';
 import { canWrite } from '../lib/roles.js';
 
 const css = `
@@ -72,7 +73,7 @@ export default function MonitorTemplates({ user }) {
   const reload = () => window.location.reload();
 
   const remove = async (id) => {
-    if (!confirm(t('templates.delete_confirm'))) return;
+    if (!(await confirmDialog({ message: t('templates.delete_confirm') }))) return;
     setBusy(id); setErr(null);
     try { await api.monitorTemplates.remove(id); reload(); }
     catch (e) { setErr(e.message || t('templates.err_delete')); setBusy(null); }

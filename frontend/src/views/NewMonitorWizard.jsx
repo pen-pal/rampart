@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { api, useApi } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import { promptDialog } from '../lib/notify.js';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -610,7 +611,7 @@ export default function NewMonitorWizard() {
       setErr(t('wizard.preset.empty'));
       return;
     }
-    const name = prompt(t('wizard.preset.name_prompt'));
+    const name = (await promptDialog({ message: t('wizard.preset.name_prompt') }));
     if (!name || !name.trim()) return;
     setSavingPreset(true);
     try {
@@ -638,7 +639,7 @@ export default function NewMonitorWizard() {
       setErr(t('wizard.preset.monitor_empty'));
       return;
     }
-    const name = prompt(t('wizard.preset.name_prompt'));
+    const name = (await promptDialog({ message: t('wizard.preset.name_prompt') }));
     if (!name || !name.trim()) return;
     setSavingPreset(true);
     try {

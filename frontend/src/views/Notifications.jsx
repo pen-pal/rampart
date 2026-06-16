@@ -8,6 +8,7 @@ import {
 import { api, useApi } from '../lib/api.js';
 import { canWrite } from '../lib/roles.js';
 import { t } from '../lib/i18n.js';
+import { confirmDialog, toast } from '../lib/notify.js';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -2459,18 +2460,18 @@ export default function Notifications({ user } = {}) {
   };
 
   const removeOne = async (id) => {
-    if (!confirm(t('notifications.channel.delete_confirm'))) return;
+    if (!(await confirmDialog({ message: t('notifications.channel.delete_confirm') }))) return;
     try {
       await api.notifications.remove(id);
       reload();
-    } catch (e) { alert(e.message); }
+    } catch (e) { toast(e.message, 'error'); }
   };
 
   const sendTest = async (id) => {
     try {
       await api.notifications.test(id);
-      alert(t('notifications.test_sent'));
-    } catch (e) { alert(`Failed: ${e.message}`); }
+      toast(t('notifications.test_sent'), 'error');
+    } catch (e) { toast(`Failed: ${e.message}`, 'error'); }
   };
 
   const channels = list.data || [];
@@ -2866,9 +2867,9 @@ function TemplatesPanel({ state, reload }) {
               <Copy size={12}/>
             </button>
             <button className="btn btn-danger" onClick={async () => {
-              if (!confirm(`Delete template "${tpl.name}"?`)) return;
+              if (!(await confirmDialog({ message: `Delete template "${tpl.name}"?` }))) return;
               try { await api.templates.remove(tpl.id); reload(); }
-              catch (e) { alert(e.message); }
+              catch (e) { toast(e.message, 'error'); }
             }} title={t('notifications.templates.delete_title')}>
               <Trash2 size={12}/>
             </button>
@@ -3174,7 +3175,7 @@ function ChannelTagEditor({ channelId, allTags }) {
     try {
       if (tagIds.includes(tagId)) { await api.routing.delChannelTag(channelId, tagId); setTagIds(ids => ids.filter(x => x !== tagId)); }
       else { await api.routing.addChannelTag(channelId, tagId); setTagIds(ids => [...ids, tagId]); }
-    } catch (e) { alert(e.message); } finally { setBusy(false); }
+    } catch (e) { toast(e.message, 'error'); } finally { setBusy(false); }
   };
 
   if (tagIds === null) return <span style={{ fontSize: 12, color: 'var(--text-3)' }}>…</span>;

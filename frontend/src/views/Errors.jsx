@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { api, useApi, formatRelative } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import { confirmDialog } from '../lib/notify.js';
 import { canWrite } from '../lib/roles.js';
 
 const css = `
@@ -91,7 +92,7 @@ function ProjectsList({ user, onOpen }) {
 
   const reload = () => { setCreating(false); setReloadKey(k => k + 1); };
   const remove = async (id) => {
-    if (!confirm(t('errors.delete_confirm'))) return;
+    if (!(await confirmDialog({ message: t('errors.delete_confirm') }))) return;
     setErr(null);
     try { await api.errorProjects.remove(id); reload(); }
     catch (e) { setErr(e.message); }

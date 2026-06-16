@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ChevronLeft, Plus, X, LayoutGrid, RefreshCw } from 'lucide-react';
 import { api, useApi } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import { confirmDialog, promptDialog } from '../lib/notify.js';
 
 // Custom dashboards ("boards"): user-defined grids of widgets, persisted per
 // user in the shared prefs blob under `boards` (no backend/schema — patchPrefs
@@ -56,16 +57,16 @@ export default function Dashboards() {
     api.me.patchPrefs({ boards: next }).catch(() => {});
   };
 
-  const addBoard = () => {
-    const name = window.prompt(t('boards.name_prompt'));
+  const addBoard = async () => {
+    const name = (await promptDialog({ message: t('boards.name_prompt') }));
     if (!name || !name.trim()) return;
     const b = { id: uid(), name: name.trim(), widgets: [] };
     const next = [...boards, b];
     persist(next);
     setActive(b.id);
   };
-  const deleteBoard = (id) => {
-    if (!window.confirm(t('boards.delete_confirm'))) return;
+  const deleteBoard = async (id) => {
+    if (!(await confirmDialog({ message: t('boards.delete_confirm') }))) return;
     const next = boards.filter(b => b.id !== id);
     persist(next);
     setActive(next[0]?.id ?? null);
