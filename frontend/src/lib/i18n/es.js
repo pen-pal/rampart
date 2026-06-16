@@ -1916,6 +1916,9 @@ const es = {
   'app.crash.reload':                'Recargar',
   'app.crash.home':                  'Volver al panel',
   'common.go_to_notifications':      'Ir a Notificaciones →',
+  'monitor.test_now.ok': 'Sonda ejecutada — {status}{detail}',
+  'monitor.test_now.error': 'Prueba fallida: {error}',
+  'monitor.test_now.dismiss': 'Clic para descartar',
 };
 
 export default es;

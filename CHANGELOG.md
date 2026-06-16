@@ -19,6 +19,17 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.94.0] — 2026-06-16
+
+### Changed
+- The monitor "Test now" result is shown in an inline, dismissible banner
+  instead of a blocking `alert()` — consistent with the existing
+  test-notifications result panel, and it no longer steals focus. (Audit #20,
+  test-now half; the save-as-template `prompt()` is folded into the upcoming
+  shared-modal work.)
+
+---
+
 ## [0.93.0] — 2026-06-16
 
 ### Changed
@@ -2293,6 +2304,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.94.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.94.0
 [0.93.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.93.0
 [0.92.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.92.0
 [0.91.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.91.0
