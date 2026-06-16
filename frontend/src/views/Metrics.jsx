@@ -281,6 +281,7 @@ function IngestHelpCard() {
       <button className="btn" style={{ marginTop: 12 }} onClick={copy}>
         {copied ? <><Check size={13}/> {t('metrics.empty.copied')}</> : <><Copy size={13}/> {t('metrics.empty.copy')}</>}
       </button>
+      <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 14, maxWidth: 560, marginInline: 'auto' }}>{t('metrics.empty.hint')}</div>
     </div>
   );
 }

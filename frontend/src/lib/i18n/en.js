@@ -1562,6 +1562,7 @@ const en = {
   'metrics.empty.body':              'Push any Prometheus text-format payload with an API key and it shows up here:',
   'metrics.empty.copy':              'Copy',
   'metrics.empty.copied':            'Copied',
+  'metrics.empty.hint':              'Or run `rampart-api seed-demo` for demo metrics, send Prometheus remote_write to /prom/write, or point the rampart-agent here.',
   'metrics.series.pick':             'Select a series below to chart it.',
   'metrics.series.samples':          '{n} samples',
   'metrics.chart.empty':             'No data points in this range.',
