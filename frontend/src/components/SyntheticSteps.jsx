@@ -83,7 +83,11 @@ export function uiToConfigSteps(synthSteps) {
         }));
       if (extract.length) out.extract = extract;
       const assert = s.asserts
-        .filter(a => a.value.trim() !== '')
+        // Drop blank-value rows (an untouched "add assertion" row), but keep
+        // `body_contains` regardless: an empty/whitespace substring is a
+        // well-defined check, so the config↔UI converters round-trip cleanly
+        // for a stored body_contains assert opened in the edit modal.
+        .filter(a => a.value.trim() !== '' || a.kind === 'body_contains')
         .map(a => ({
           kind: a.kind,
           op: a.op,
