@@ -34,6 +34,7 @@ pub fn router() -> Router<AppState> {
         .route("/apps", get(apps))
         .route("/traced", get(traced))
         .route("/browsers", get(browsers))
+        .route("/users", get(users))
         .route("/page", get(page))
 }
 
@@ -217,6 +218,15 @@ async fn browsers(
 ) -> Result<Json<Vec<rampart_db::rum::RumBrowser>>, ApiError> {
     Ok(Json(
         rampart_db::rum::browser_breakdown(s.pool(), q.app.as_deref(), q.hours.unwrap_or(24)).await?,
+    ))
+}
+
+async fn users(
+    State(s): State<AppState>,
+    Query(q): Query<RumQuery>,
+) -> Result<Json<Vec<rampart_db::rum::RumUser>>, ApiError> {
+    Ok(Json(
+        rampart_db::rum::user_breakdown(s.pool(), q.app.as_deref(), q.hours.unwrap_or(24)).await?,
     ))
 }
 

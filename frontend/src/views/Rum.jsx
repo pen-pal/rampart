@@ -98,11 +98,13 @@ export default function Rum() {
   const pagesState = useApi(() => api.rum.pages(app, hours), [app, hours]);
   const tracedState = useApi(() => api.rum.traced(app, hours), [app, hours]);
   const browsersState = useApi(() => api.rum.browsers(app, hours), [app, hours]);
+  const usersState = useApi(() => api.rum.users(app, hours), [app, hours]);
   const apps = appsState.data || [];
   const sum = sumState.data;
   const pages = pagesState.data || [];
   const traced = tracedState.data || [];
   const browsers = browsersState.data || [];
+  const users = usersState.data || [];
 
   const snippet = `<script src="${window.location.origin}/rum/snippet.js" data-app="web"></script>`;
   const copy = async () => {
@@ -176,6 +178,24 @@ export default function Rum() {
                 </React.Fragment>
               ))}
             </div>
+
+            {users.length > 0 && (
+              <>
+                <div className="field-label" style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', marginBottom: 8 }}>{t('rum.users')}</div>
+                <div className="card" style={{ overflow: 'hidden', marginBottom: 24 }}>
+                  <div className="row" style={{ gridTemplateColumns: '1fr 90px 110px', fontWeight: 600, color: 'var(--text-3)', fontSize: 11 }}>
+                    <span>{t('rum.who')}</span><span>{t('rum.views')}</span><span>LCP p75</span>
+                  </div>
+                  {users.map((u, i) => (
+                    <div className="row" key={i} style={{ gridTemplateColumns: '1fr 90px 110px' }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={u.user_id}>{u.user_id}</span>
+                      <span>{u.views}</span>
+                      <span style={{ color: `var(--${rating('lcp', u.lcp_p75) === 'none' ? 'text-3' : rating('lcp', u.lcp_p75)})` }}>{fmtVital('lcp', u.lcp_p75)}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
 
             {browsers.length > 0 && (
               <>

@@ -1819,6 +1819,7 @@ const en = {
   'rum.page':                        'Page',
   'rum.views':                       'Views',
   'logs.window_hint':                'Histogram + level-count window',
+  'rum.users':                       'Users',
   'rum.browsers':                    'Browsers',
   'rum.browser':                     'Browser',
   'rum.when':                        'When',
