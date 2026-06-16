@@ -2649,7 +2649,8 @@ function TagsCard({ monitor }) {
 }
 
 function DependenciesCard({ monitor }) {
-  const depsState = useApi(() => api.dependencies.list(monitor.id), [monitor.id]);
+  const [reloadKey, setReloadKey] = useState(0);
+  const depsState = useApi(() => api.dependencies.list(monitor.id), [monitor.id, reloadKey]);
   const monitors  = useApi(() => api.monitors.list(), []);
   const [busy, setBusy] = useState(false);
   const [err,  setErr]  = useState(null);
@@ -2661,14 +2662,19 @@ function DependenciesCard({ monitor }) {
     m.id !== monitor.id && !parents.includes(m.id)
   );
 
+  // Refetch the dependency list in place rather than reloading the whole page —
+  // a full reload bounced the operator back to the overview after each add, so
+  // attaching several dependencies meant re-navigating every time.
   const attach = async (parentId) => {
     setErr(null); setBusy(true);
-    try { await api.dependencies.attach(monitor.id, parentId); window.location.reload(); }
-    catch (e) { setErr(e.message || 'attach failed'); setBusy(false); }
+    try { await api.dependencies.attach(monitor.id, parentId); setReloadKey(k => k + 1); }
+    catch (e) { setErr(e.message || 'attach failed'); }
+    finally { setBusy(false); }
   };
   const detach = async (parentId) => {
-    setBusy(true);
-    try { await api.dependencies.detach(monitor.id, parentId); window.location.reload(); }
+    setErr(null); setBusy(true);
+    try { await api.dependencies.detach(monitor.id, parentId); setReloadKey(k => k + 1); }
+    catch (e) { setErr(e.message || 'detach failed'); }
     finally { setBusy(false); }
   };
 
