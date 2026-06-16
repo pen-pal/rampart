@@ -12,6 +12,7 @@ import {
 } from '../lib/api.js';
 import { canWrite } from '../lib/roles.js';
 import { t } from '../lib/i18n.js';
+import { toast, confirmDialog, promptDialog } from '../lib/notify.js';
 
 // ── shared design system (matches dashboard v2) ───────────────────────────
 const css = `
@@ -477,7 +478,10 @@ export default function MonitorDetail({ monitorId, user }) {
   // fills in at instantiate time.
   const doSaveAsTemplate = async () => {
     if (!monitor || acting) return;
-    const tplName = prompt(t('templates.save.prompt'), t('templates.save.default_name', { name: monitor.name }));
+    const tplName = await promptDialog({
+      title: t('templates.save.prompt'),
+      defaultValue: t('templates.save.default_name', { name: monitor.name }),
+    });
     if (tplName == null || !tplName.trim()) return;
     const spec = {
       kind: monitor.kind,
@@ -498,9 +502,9 @@ export default function MonitorDetail({ monitorId, user }) {
     setActing(true);
     try {
       await api.monitorTemplates.create({ name: tplName.trim(), spec });
-      if (confirm(t('templates.save.ok_goto'))) window.location.hash = '#/templates';
+      if (await confirmDialog({ message: t('templates.save.ok_goto') })) window.location.hash = '#/templates';
     } catch (e) {
-      alert(t('templates.save.failed', { msg: e.message }));
+      toast(t('templates.save.failed', { msg: e.message }), 'error');
     } finally {
       setActing(false);
     }
