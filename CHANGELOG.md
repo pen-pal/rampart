@@ -19,6 +19,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.101.0] — 2026-06-16
+
+### Added
+- **Edit synthetic-monitor steps after creation.** The monitor edit modal now
+  shows the same structured transaction-step builder as the new-monitor wizard
+  for synthetic monitors — add/remove steps, edit method/URL/headers/body, and
+  manage per-step `{{var}}` extractions and assertions — instead of forcing
+  operators to hand-edit raw `config.steps` JSON. The step editor and its
+  shape↔`config.steps` converters were extracted to a shared
+  `components/SyntheticSteps.jsx` so the create and edit paths can't drift, and
+  any non-step config keys are preserved across a save.
+
+---
+
 ## [0.100.1] — 2026-06-16
 
 ### Changed

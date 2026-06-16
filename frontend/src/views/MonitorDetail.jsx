@@ -14,6 +14,7 @@ import { canWrite } from '../lib/roles.js';
 import { t } from '../lib/i18n.js';
 import { toast, confirmDialog, promptDialog } from '../lib/notify.js';
 import { useFocusTrap } from '../lib/useFocusTrap.js';
+import { SyntheticSteps, configToUiSteps, uiToConfigSteps } from '../components/SyntheticSteps.jsx';
 
 // ── shared design system (matches dashboard v2) ───────────────────────────
 const css = `
@@ -1227,6 +1228,12 @@ function EditModal({ monitor, onCancel, onSaved }) {
   const [busy,        setBusy]        = useState(false);
   const [err,         setErr]         = useState(null);
 
+  // Synthetic monitors get a structured step editor instead of raw-JSON config
+  // surgery. State seeds from config.steps; non-step config keys are preserved
+  // on save (see below).
+  const isSynthetic = monitor.kind === 'synthetic';
+  const [synthSteps, setSynthSteps] = useState(() => configToUiSteps(monitor.config?.steps));
+
   const isHttpFamily = ['http', 'keyword', 'json_query'].includes(monitor.kind);
   const isPush       = monitor.kind === 'push';
   const hasHostname  = monitor.hostname != null;
@@ -1264,6 +1271,13 @@ function EditModal({ monitor, onCancel, onSaved }) {
         setErr(t('validation.probe_json_object'));
         return;
       }
+    }
+    // Synthetic monitors: the structured step editor owns config.steps. Build
+    // it from the editor and merge over any preserved non-step config keys.
+    if (isSynthetic) {
+      const steps = uiToConfigSteps(synthSteps);
+      if (!steps.length) { setErr(t('wizard.err_synthetic')); return; }
+      configJson = { ...configJson, steps };
     }
     const acceptedStatuses = statuses
       .split(',').map(s => parseInt(s.trim(), 10)).filter(Number.isFinite);
@@ -1513,7 +1527,7 @@ function EditModal({ monitor, onCancel, onSaved }) {
           {/* ── Probe config ──────────────────────────────────────── */}
           <div className="modal-section" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span>{t('monitor.edit.section.probe')}</span>
-            {configFields(monitor.kind).length > 0 && (
+            {!isSynthetic && configFields(monitor.kind).length > 0 && (
               <div style={{ display: 'flex', gap: 4 }}>
                 <button type="button" className={`btn ${configMode === 'form' ? 'btn-accent' : 'btn-ghost'}`}
                   style={{ padding: '3px 10px', fontSize: 12 }} onClick={() => setConfigMode('form')}>{t('monitor.config.mode_form')}</button>
@@ -1522,7 +1536,9 @@ function EditModal({ monitor, onCancel, onSaved }) {
               </div>
             )}
           </div>
-          {configMode === 'form' && configFields(monitor.kind).length > 0 ? (
+          {isSynthetic ? (
+            <SyntheticSteps steps={synthSteps} setSteps={setSynthSteps} />
+          ) : configMode === 'form' && configFields(monitor.kind).length > 0 ? (
             <>
               <ProbeConfigForm kind={monitor.kind} config={config} setConfig={setConfig} />
               <div className="modal-hint">{configHint(monitor.kind)}</div>
