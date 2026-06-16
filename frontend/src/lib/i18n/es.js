@@ -1640,6 +1640,12 @@ const es = {
   'dashboard.escalations.step': 'paso {n}',
   'dashboard.escalations.acked': 'Reconocido',
   'dashboard.escalations.climbing': 'Escalando',
+  'wizard.optional': 'opcional',
+  'wizard.field.db_user': 'Usuario',
+  'wizard.field.db_password': 'Contraseña',
+  'wizard.field.db_name': 'Base de datos',
+  'wizard.field.db_number': 'Número de BD',
+  'wizard.field.db_auth_hint': 'Se usa cuando no se define una cadena de conexión completa. Se guarda en la configuración del monitor y se envía al servidor en cada comprobación.',
 };
 
 export default es;

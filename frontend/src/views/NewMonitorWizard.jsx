@@ -435,6 +435,12 @@ export default function NewMonitorWizard() {
   const [expectedHttpVersion, setExpectedHttpVersion] = useState('');
   const [hostname, setHostname] = useState('');
   const [port, setPort] = useState('');
+  // DB / cache auth — written into config.{user,password,database}; redis uses a
+  // numeric config.db. The backend probes already read these (or a full
+  // connection_string); this just surfaces them in the form.
+  const [dbUser, setDbUser] = useState('');
+  const [dbPassword, setDbPassword] = useState('');
+  const [dbDatabase, setDbDatabase] = useState('');
   const [keyword, setKeyword] = useState('');
   const [jsonPath, setJsonPath] = useState('');
   const [jsonExpected, setJsonExpected] = useState('');
@@ -653,6 +659,19 @@ export default function NewMonitorWizard() {
       .filter(n => Number.isFinite(n));
 
     const config = {};
+    // DB / cache auth → config fields the probes read.
+    if (['postgres', 'mysql', 'mssql', 'mongodb', 'redis'].includes(type)) {
+      if (dbUser.trim())     config.user = dbUser.trim();
+      if (dbPassword)        config.password = dbPassword;
+      if (dbDatabase.trim()) {
+        if (type === 'redis') {
+          const n = parseInt(dbDatabase, 10);
+          if (Number.isFinite(n) && n >= 0) config.db = n;
+        } else {
+          config.database = dbDatabase.trim();
+        }
+      }
+    }
     if (fields.keyword  && keyword)  config.keyword = keyword;
     if (fields.renderer && rendererUrl) config.renderer_url = rendererUrl;
     if (fields.jsonPath && jsonPath) {
@@ -1036,6 +1055,32 @@ export default function NewMonitorWizard() {
                       </div>
                     )}
                   </div>
+                )}
+
+                {['postgres', 'mysql', 'mssql', 'mongodb', 'redis'].includes(type) && (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <div className="field">
+                        <label className="field-label">{t('wizard.field.db_user')} <span style={{ textTransform: 'none', color: 'var(--text-3)' }}>({t('wizard.optional')})</span></label>
+                        <input className="input mono" value={dbUser} onChange={e => setDbUser(e.target.value)} autoComplete="off"
+                          placeholder={type === 'redis' ? 'default' : type}/>
+                      </div>
+                      <div className="field">
+                        <label className="field-label">{t('wizard.field.db_password')} <span style={{ textTransform: 'none', color: 'var(--text-3)' }}>({t('wizard.optional')})</span></label>
+                        <input className="input mono" type="password" value={dbPassword} onChange={e => setDbPassword(e.target.value)} autoComplete="new-password"/>
+                      </div>
+                    </div>
+                    <div className="field">
+                      <label className="field-label">
+                        {type === 'redis' ? t('wizard.field.db_number') : t('wizard.field.db_name')}
+                        {' '}<span style={{ textTransform: 'none', color: 'var(--text-3)' }}>({t('wizard.optional')})</span>
+                      </label>
+                      <input className="input mono" value={dbDatabase} onChange={e => setDbDatabase(e.target.value)}
+                        type={type === 'redis' ? 'number' : 'text'}
+                        placeholder={type === 'redis' ? '0' : type}/>
+                      <div className="field-hint">{t('wizard.field.db_auth_hint')}</div>
+                    </div>
+                  </>
                 )}
 
                 {fields.keyword && (
