@@ -19,6 +19,19 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.99.2] — 2026-06-16
+
+### Performance
+- **Public status page: short-TTL cache on the projection.** Rendering a public
+  page runs ~5 queries per attached monitor on an unauthenticated path, so a
+  popular page during an incident (many concurrent viewers + auto-refresh) could
+  hammer the DB. The non-private projection is now cached per-slug for 15s,
+  collapsing a viewer burst into one rollup per window (privacy/lock checks
+  still run live; expired entries self-evict). Set-based rollups to cut the
+  per-miss cost are a deeper follow-up. (Audit #25.)
+
+---
+
 ## [0.99.1] — 2026-06-16
 
 ### Changed
@@ -2414,6 +2427,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.99.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.99.2
 [0.99.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.99.1
 [0.99.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.99.0
 [0.98.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.98.1
