@@ -431,7 +431,7 @@ pub async fn recent_open_issues(pool: &DbPool, limit: i64) -> DbResult<Vec<Error
         SELECT id, project_id, fingerprint, title, culprit, level, status,
                first_seen, last_seen, times_seen, assignee
         FROM error_issues
-        WHERE status = 'open'
+        WHERE status = 'unresolved'
         ORDER BY last_seen DESC
         LIMIT $1
         "#,
