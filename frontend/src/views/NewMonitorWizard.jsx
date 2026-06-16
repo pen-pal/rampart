@@ -661,16 +661,25 @@ export default function NewMonitorWizard() {
       .filter(n => Number.isFinite(n));
 
     const config = {};
-    // DB / cache auth → config fields the probes read.
-    if (['postgres', 'mysql', 'mssql', 'mongodb', 'redis'].includes(type)) {
-      if (dbUser.trim())     config.user = dbUser.trim();
-      if (dbPassword)        config.password = dbPassword;
-      if (dbDatabase.trim()) {
-        if (type === 'redis') {
-          const n = parseInt(dbDatabase, 10);
-          if (Number.isFinite(n) && n >= 0) config.db = n;
-        } else {
-          config.database = dbDatabase.trim();
+    // Auth → the config keys each probe reads. LDAP uses bind_dn/bind_password;
+    // MQTT uses username/password; DB/cache use user/password (+database|db).
+    if (['postgres', 'mysql', 'mssql', 'mongodb', 'redis', 'mqtt', 'ldap'].includes(type)) {
+      if (type === 'ldap') {
+        if (dbUser.trim()) config.bind_dn = dbUser.trim();
+        if (dbPassword)    config.bind_password = dbPassword;
+      } else if (type === 'mqtt') {
+        if (dbUser.trim()) config.username = dbUser.trim();
+        if (dbPassword)    config.password = dbPassword;
+      } else {
+        if (dbUser.trim()) config.user = dbUser.trim();
+        if (dbPassword)    config.password = dbPassword;
+        if (dbDatabase.trim()) {
+          if (type === 'redis') {
+            const n = parseInt(dbDatabase, 10);
+            if (Number.isFinite(n) && n >= 0) config.db = n;
+          } else {
+            config.database = dbDatabase.trim();
+          }
         }
       }
       const ml = parseInt(maxLatency, 10);
@@ -1061,29 +1070,31 @@ export default function NewMonitorWizard() {
                   </div>
                 )}
 
-                {['postgres', 'mysql', 'mssql', 'mongodb', 'redis'].includes(type) && (
+                {['postgres', 'mysql', 'mssql', 'mongodb', 'redis', 'mqtt', 'ldap'].includes(type) && (
                   <>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                       <div className="field">
-                        <label className="field-label">{t('wizard.field.db_user')} <span style={{ textTransform: 'none', color: 'var(--text-3)' }}>({t('wizard.optional')})</span></label>
+                        <label className="field-label">{type === 'ldap' ? t('wizard.field.bind_dn') : t('wizard.field.db_user')} <span style={{ textTransform: 'none', color: 'var(--text-3)' }}>({t('wizard.optional')})</span></label>
                         <input className="input mono" value={dbUser} onChange={e => setDbUser(e.target.value)} autoComplete="off"
-                          placeholder={type === 'redis' ? 'default' : type}/>
+                          placeholder={type === 'redis' ? 'default' : type === 'ldap' ? 'cn=monitor,dc=example,dc=com' : type}/>
                       </div>
                       <div className="field">
-                        <label className="field-label">{t('wizard.field.db_password')} <span style={{ textTransform: 'none', color: 'var(--text-3)' }}>({t('wizard.optional')})</span></label>
+                        <label className="field-label">{type === 'ldap' ? t('wizard.field.bind_password') : t('wizard.field.db_password')} <span style={{ textTransform: 'none', color: 'var(--text-3)' }}>({t('wizard.optional')})</span></label>
                         <input className="input mono" type="password" value={dbPassword} onChange={e => setDbPassword(e.target.value)} autoComplete="new-password"/>
                       </div>
                     </div>
-                    <div className="field">
-                      <label className="field-label">
-                        {type === 'redis' ? t('wizard.field.db_number') : t('wizard.field.db_name')}
-                        {' '}<span style={{ textTransform: 'none', color: 'var(--text-3)' }}>({t('wizard.optional')})</span>
-                      </label>
-                      <input className="input mono" value={dbDatabase} onChange={e => setDbDatabase(e.target.value)}
-                        type={type === 'redis' ? 'number' : 'text'}
-                        placeholder={type === 'redis' ? '0' : type}/>
-                      <div className="field-hint">{t('wizard.field.db_auth_hint')}</div>
-                    </div>
+                    {['postgres', 'mysql', 'mssql', 'mongodb', 'redis'].includes(type) && (
+                      <div className="field">
+                        <label className="field-label">
+                          {type === 'redis' ? t('wizard.field.db_number') : t('wizard.field.db_name')}
+                          {' '}<span style={{ textTransform: 'none', color: 'var(--text-3)' }}>({t('wizard.optional')})</span>
+                        </label>
+                        <input className="input mono" value={dbDatabase} onChange={e => setDbDatabase(e.target.value)}
+                          type={type === 'redis' ? 'number' : 'text'}
+                          placeholder={type === 'redis' ? '0' : type}/>
+                        <div className="field-hint">{t('wizard.field.db_auth_hint')}</div>
+                      </div>
+                    )}
                     <div className="field">
                       <label className="field-label">{t('wizard.field.max_latency')} <span style={{ textTransform: 'none', color: 'var(--text-3)' }}>({t('wizard.optional')})</span></label>
                       <input className="input mono" type="number" min="0" value={maxLatency} onChange={e => setMaxLatency(e.target.value)} placeholder="e.g. 500"/>

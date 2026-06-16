@@ -1537,6 +1537,8 @@ function configHint(kind) {
     case 'postgres':  case 'mysql': case 'mssql': case 'mongodb':
                       return 'Auth keys: user, password, database. Or connection_string for a full URL. max_latency_ms marks a slow-but-up check down.';
     case 'redis':     return 'Auth keys: user (ACL, Redis 6+), password, db (number), tls (bool). Or connection_string. max_latency_ms marks a slow-but-up check down.';
+    case 'mqtt':      return 'Auth keys: username, password, client_id, tls (bool). max_latency_ms marks a slow-but-up check down.';
+    case 'ldap':      return 'Auth keys: bind_dn, bind_password (anonymous if omitted). max_latency_ms marks a slow-but-up check down.';
     default:          return 'Free-form JSON read by the probe runtime. Leave empty if this probe has no extra config.';
   }
 }

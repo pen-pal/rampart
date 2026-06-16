@@ -1860,6 +1860,8 @@ const fr = {
   'wizard.field.db_name': 'Base de données',
   'wizard.field.db_number': 'Numéro de BD',
   'wizard.field.db_auth_hint': 'Utilisé si aucune chaîne de connexion complète n\'est définie. Stocké dans la configuration du moniteur et envoyé au serveur à chaque vérification.',
+  'wizard.field.bind_dn': 'DN de liaison',
+  'wizard.field.bind_password': 'Mot de passe de liaison',
   'wizard.field.max_latency': 'Latence max. (ms)',
   'wizard.field.max_latency_hint': 'Marque la vérification comme hors service si elle répond plus lentement que cela — détection de dégradation distincte du délai de connexion. Vide = désactivé.',
 };

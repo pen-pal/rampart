@@ -1646,6 +1646,8 @@ const es = {
   'wizard.field.db_name': 'Base de datos',
   'wizard.field.db_number': 'Número de BD',
   'wizard.field.db_auth_hint': 'Se usa cuando no se define una cadena de conexión completa. Se guarda en la configuración del monitor y se envía al servidor en cada comprobación.',
+  'wizard.field.bind_dn': 'DN de enlace',
+  'wizard.field.bind_password': 'Contraseña de enlace',
   'wizard.field.max_latency': 'Latencia máx. (ms)',
   'wizard.field.max_latency_hint': 'Marca la comprobación como caída si responde más lento que esto — detección de degradación independiente del tiempo de espera de conexión. Vacío = desactivado.',
 };
