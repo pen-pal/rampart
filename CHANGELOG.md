@@ -19,6 +19,19 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.63.0] — 2026-06-16
+
+### Added
+- **Structured probe-config editor.** The monitor edit modal's probe config now
+  has a **Form / JSON** toggle — a structured form with the known keys per kind
+  (auth, latency SLA, keyword/DNS/expect, etc.) defaulting on for kinds that
+  have fields, with the raw JSON editor one click away. Unlisted keys are
+  preserved; invalid JSON prompts a switch to JSON mode. i18n en/es/fr/de.
+- The **Max latency (ms)** SLA field now shows for **all connect-based monitor
+  kinds** in the wizard (was DB/cache only) — it was always generic.
+
+---
+
 ## [0.62.1] — 2026-06-16
 
 ### Added
@@ -1767,6 +1780,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.63.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.63.0
 [0.62.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.62.1
 [0.62.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.62.0
 [0.61.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.61.0
