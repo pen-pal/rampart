@@ -112,6 +112,11 @@ pub struct LogFilter<'a> {
     /// Time window in hours (bounds `received_at`, matching the histogram +
     /// level-count reads). `None` = unbounded (used by the trace/span pivots).
     pub hours: Option<i32>,
+    /// Keyset cursor for "load older": the id of the last row already shown.
+    /// Returns rows strictly older than that row's `(ts, id)` — the backend
+    /// resolves its timestamp, so no client-side precision loss. `None` = first
+    /// page.
+    pub before_id: Option<uuid::Uuid>,
     pub limit: i64,
 }
 
@@ -129,6 +134,7 @@ pub async fn query_logs(pool: &DbPool, f: LogFilter<'_>) -> DbResult<Vec<LogEntr
           AND ($4::text IS NULL OR trace_id = $4)
           AND ($6::text IS NULL OR span_id = $6)
           AND ($7::int4 IS NULL OR received_at > now() - make_interval(hours => $7))
+          AND ($8::uuid IS NULL OR (ts, id) < (SELECT ts, id FROM logs WHERE id = $8))
         ORDER BY ts DESC
         LIMIT $5
         "#,
@@ -139,6 +145,7 @@ pub async fn query_logs(pool: &DbPool, f: LogFilter<'_>) -> DbResult<Vec<LogEntr
         f.limit.clamp(1, 1000),
         f.span_id,
         f.hours.map(|h| h.clamp(1, 720)),
+        f.before_id,
     )
     .fetch_all(pool)
     .await?;

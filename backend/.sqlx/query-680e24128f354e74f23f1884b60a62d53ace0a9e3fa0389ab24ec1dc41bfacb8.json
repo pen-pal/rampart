@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, ts, severity, severity_text, service_name, body,\n               trace_id, span_id, attributes\n        FROM logs\n        WHERE ($1::text IS NULL OR service_name = $1)\n          AND ($2::int2 IS NULL OR severity >= $2)\n          AND ($3::text IS NULL OR body_tsv @@ websearch_to_tsquery('english', $3))\n          AND ($4::text IS NULL OR trace_id = $4)\n          AND ($6::text IS NULL OR span_id = $6)\n          AND ($7::int4 IS NULL OR received_at > now() - make_interval(hours => $7))\n        ORDER BY ts DESC\n        LIMIT $5\n        ",
+  "query": "\n        SELECT id, ts, severity, severity_text, service_name, body,\n               trace_id, span_id, attributes\n        FROM logs\n        WHERE ($1::text IS NULL OR service_name = $1)\n          AND ($2::int2 IS NULL OR severity >= $2)\n          AND ($3::text IS NULL OR body_tsv @@ websearch_to_tsquery('english', $3))\n          AND ($4::text IS NULL OR trace_id = $4)\n          AND ($6::text IS NULL OR span_id = $6)\n          AND ($7::int4 IS NULL OR received_at > now() - make_interval(hours => $7))\n          AND ($8::uuid IS NULL OR (ts, id) < (SELECT ts, id FROM logs WHERE id = $8))\n        ORDER BY ts DESC\n        LIMIT $5\n        ",
   "describe": {
     "columns": [
       {
@@ -111,7 +111,8 @@
         "Text",
         "Int8",
         "Text",
-        "Int4"
+        "Int4",
+        "Uuid"
       ]
     },
     "nullable": [
@@ -126,5 +127,5 @@
       true
     ]
   },
-  "hash": "b4cfdf1415db27e312adde7124d44feb4086a3b0bbdff995f155f870c4b07dec"
+  "hash": "680e24128f354e74f23f1884b60a62d53ace0a9e3fa0389ab24ec1dc41bfacb8"
 }

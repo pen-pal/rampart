@@ -2149,6 +2149,7 @@ const de = {
   'monitor.test_now.error': 'Test fehlgeschlagen: {error}',
   'monitor.test_now.dismiss': 'Zum Schließen klicken',
   'common.confirm':                  'Bestätigen',
+  'logs.load_older':                 'Ältere laden',
 };
 
 export default de;
