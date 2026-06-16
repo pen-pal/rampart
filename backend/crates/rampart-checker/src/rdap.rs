@@ -154,7 +154,13 @@ impl Probe for RdapProbe {
 
         match expiry {
             Some(when) => {
-                let secs = (when - OffsetDateTime::now_utc()).whole_seconds().max(0);
+                let secs = (when - OffsetDateTime::now_utc()).whole_seconds();
+                // Already past the expiration event → the domain is expired,
+                // which is Down — not a soft Warn. (Previously `.max(0)` clamped
+                // this to 0 days, so expired domains stayed Warn forever.)
+                if secs <= 0 {
+                    return down(monitor, ts, started, &format!("{domain} has expired"));
+                }
                 let days = secs / 86_400;
                 if days <= warn_days {
                     Heartbeat {

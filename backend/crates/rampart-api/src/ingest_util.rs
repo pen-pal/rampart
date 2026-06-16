@@ -35,20 +35,32 @@ pub fn decompress(headers: &HeaderMap, body: &[u8]) -> Result<Vec<u8>, ApiError>
         .unwrap_or("")
         .to_ascii_lowercase();
     if enc.contains("gzip") {
-        let mut out = Vec::new();
-        flate2::read::GzDecoder::new(body)
-            .read_to_end(&mut out)
-            .map_err(|_| ApiError::BadRequest("invalid gzip body".into()))?;
-        Ok(out)
+        inflate_capped(flate2::read::GzDecoder::new(body), "gzip")
     } else if enc.contains("deflate") {
-        let mut out = Vec::new();
-        flate2::read::ZlibDecoder::new(body)
-            .read_to_end(&mut out)
-            .map_err(|_| ApiError::BadRequest("invalid deflate body".into()))?;
-        Ok(out)
+        inflate_capped(flate2::read::ZlibDecoder::new(body), "deflate")
     } else {
         Ok(body.to_vec())
     }
+}
+
+/// Hard ceiling on decompressed body size. A few KB of crafted gzip can inflate
+/// to gigabytes ("zip bomb"); without a cap, `read_to_end` would happily OOM
+/// the process. 64 MiB is far above any legitimate single OTLP/Sentry/RUM batch.
+const MAX_DECOMPRESSED: usize = 64 * 1024 * 1024;
+
+/// Inflate `reader` into memory, refusing anything past [`MAX_DECOMPRESSED`].
+/// Reads one byte past the cap so a body exactly at the limit still passes
+/// while an over-limit body is rejected rather than silently truncated.
+fn inflate_capped<R: Read>(reader: R, label: &str) -> Result<Vec<u8>, ApiError> {
+    let mut out = Vec::new();
+    reader
+        .take(MAX_DECOMPRESSED as u64 + 1)
+        .read_to_end(&mut out)
+        .map_err(|_| ApiError::BadRequest(format!("invalid {label} body")))?;
+    if out.len() > MAX_DECOMPRESSED {
+        return Err(ApiError::BadRequest("decompressed body too large".into()));
+    }
+    Ok(out)
 }
 
 /// Read the configured telemetry token, if any. `None` means auth is
