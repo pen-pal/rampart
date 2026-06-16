@@ -19,6 +19,25 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.95.0] — 2026-06-16
+
+### Added
+- **Shared toast + accessible-dialog primitives** (`lib/notify.js` +
+  `components/Notify.jsx`, mounted in `App`): `toast(msg, kind)` for transient
+  notices and promise-based `confirmDialog()` / `promptDialog()` that render an
+  accessible modal — `role="dialog"`, `aria-modal`, focus trap + restore,
+  Escape-to-cancel, backdrop click to dismiss. These replace the blocking
+  `alert()/confirm()/prompt()` calls (foundation for audit #21 + #26).
+
+### Changed
+- The monitor "Save as template" flow now uses the inline dialog/toast
+  primitives instead of `prompt()` + `confirm()` + `alert()`, completing the
+  test-now + save-template halves of audit #20.
+- Renamed the main nav entry from "Dashboard" to **"Overview"** so it's no
+  longer confused with the separate "Dashboards" (custom dashboards) entry.
+
+---
+
 ## [0.94.0] — 2026-06-16
 
 ### Changed
@@ -2304,6 +2323,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.95.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.95.0
 [0.94.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.94.0
 [0.93.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.93.0
 [0.92.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.92.0

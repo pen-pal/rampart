@@ -2133,6 +2133,7 @@ const fr = {
   'monitor.test_now.ok': 'Sonde exécutée — {status}{detail}',
   'monitor.test_now.error': 'Échec du test : {error}',
   'monitor.test_now.dismiss': 'Cliquer pour fermer',
+  'common.confirm':                  'Confirmer',
 };
 
 export default fr;

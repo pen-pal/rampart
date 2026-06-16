@@ -2253,6 +2253,7 @@ const en = {
   'monitor.test_now.ok': 'Probe ran — {status}{detail}',
   'monitor.test_now.error': 'Test failed: {error}',
   'monitor.test_now.dismiss': 'Click to dismiss',
+  'common.confirm':                  'Confirm',
 };
 
 export default en;
