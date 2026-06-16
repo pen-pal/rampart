@@ -26,10 +26,28 @@ Navigation Timing (TTFB, FCP, load), and sends **one beacon on page hide** via
 `navigator.sendBeacon` — no dependency, no build step, ~1 KB. Because
 `sendBeacon` uses a simple `text/plain` request, there's no CORS preflight.
 
+### Correlation & identity hooks
+
+Two optional globals let a page tie its loads to the rest of the platform —
+both best-effort, both safe to omit:
+
+- **`window.__rampartUser`** — the logged-in user (a string, or an object with
+  an `id`). Captured as the beacon's `user_id`, so the RUM **Users** table and
+  the per-page drill-down can answer *who* experienced a load.
+- **`window.__rampartTraceId`** — the active backend trace id. If absent, the
+  snippet falls back to the trace-id field of a `<meta name="traceparent">`
+  (W3C `00-<traceid>-<spanid>-<flags>`). Captured as `trace_id`, powering the
+  **RUM → trace** deep-link. See [Cross-tier correlation](../CORRELATION.md).
+
+```html
+<script>window.__rampartUser = "{{ current_user.email }}";</script>
+```
+
 ## Ingest
 
-`POST /rum/v1/events` — one beacon: `{ app, url, session?, ua?, metrics }`,
-where `metrics` is any subset of `{ lcp, fcp, cls, inp, ttfb, load }`. Public
+`POST /rum/v1/events` — one beacon:
+`{ app, url, session?, ua?, trace_id?, user_id?, metrics }`, where `metrics` is
+any subset of `{ lcp, fcp, cls, inp, ttfb, load }`. Public
 (beacons come from arbitrary browsers); the body is parsed as JSON regardless
 of content-type. A beacon with no URL or no metric is silently dropped (204) —
 browsers ignore the response, so ingest never errors. `gzip`/`deflate` bodies
@@ -61,6 +79,11 @@ context (frames aren't parsed/symbolicated yet — see follow-ups).
   (p75 is the standard Web Vitals statistic), plus the view count.
 - `GET /v1/rum/pages?app=&hours=` — per-URL rollup (views + p75 LCP/INP/CLS),
   busiest first.
+- `GET /v1/rum/page?app=&url=&hours=` — the per-URL **drill-down**: recent
+  individual loads (when, user/session, browser, LCP/INP, trace link).
+- `GET /v1/rum/users?app=&hours=` — views + p75 LCP per `user_id`, busiest first.
+- `GET /v1/rum/browsers?app=&hours=` — views + p75 LCP per coarse browser family.
+- `GET /v1/rum/traced?app=&hours=` — recent loads that carried a `trace_id`.
 - `GET /v1/rum/apps` — distinct app/site names for the filter.
 
 p75 is computed in Postgres with `percentile_cont(0.75) WITHIN GROUP`.
