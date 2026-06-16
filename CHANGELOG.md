@@ -19,6 +19,14 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.64.1] — 2026-06-16
+
+### Tested
+- Integration test for `rum::page_samples` (the page drill-down): a URL's recent
+  loads carry the user id and vitals, and a different URL is isolated.
+
+---
+
 ## [0.64.0] — 2026-06-16
 
 ### Added
@@ -1803,6 +1811,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.64.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.64.1
 [0.64.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.64.0
 [0.63.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.63.1
 [0.63.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.63.0
