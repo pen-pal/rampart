@@ -19,6 +19,19 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.66.2] — 2026-06-16
+
+### Security
+- Audited the open advisories (`cargo audit`): all are the transitive
+  `rustls-webpki` 0.102/0.101 cert-validation bugs, already accepted in
+  `deny.toml` with CI passing. Made the accounting precise — the vulnerable
+  webpki is pulled by **three** probe deps (rumqttc, async-nats, tiberius), and
+  the fix is blocked because the only rustls-0.23 `rumqttc` (0.25) pulls
+  `aws-lc-rs`/cmake, breaking the pure-Rust build. Updated `deny.toml` +
+  `docs/SECURITY-DEBT.md`. No code change; no safe upgrade exists yet.
+
+---
+
 ## [0.66.1] — 2026-06-16
 
 ### Tested
@@ -1849,6 +1862,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.66.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.66.2
 [0.66.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.66.1
 [0.66.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.66.0
 [0.65.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.65.1
