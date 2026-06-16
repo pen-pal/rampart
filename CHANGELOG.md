@@ -19,6 +19,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.68.0] — 2026-06-16
+
+### Added
+- **Span → logs.** The logs query gains a `span_id` filter, and an expanded span
+  in the trace waterfall now shows the **logs emitted under that exact span**
+  inline (level + body) — finer than the existing trace-level correlation.
+  i18n en/es/fr/de.
+
+---
+
 ## [0.67.2] — 2026-06-16
 
 ### Documentation
@@ -1891,6 +1901,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.68.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.68.0
 [0.67.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.67.2
 [0.67.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.67.1
 [0.67.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.67.0
