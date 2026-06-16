@@ -338,6 +338,8 @@ function IssueDetail({ issueId, user, onBack }) {
   const issueState = useApi(() => api.errorIssues.get(issueId), [issueId, reloadKey]);
   const eventsState = useApi(() => api.errorIssues.events(issueId), [issueId]);
   const statsState = useApi(() => api.errorIssues.stats(issueId), [issueId]);
+  const usersState = useApi(() => api.errorIssues.affectedUsers(issueId), [issueId]);
+  const affectedUsers = usersState.data || [];
   const [busy, setBusy] = useState(false);
   const issue = issueState.data;
   const events = eventsState.data || [];
@@ -451,6 +453,17 @@ function IssueDetail({ issueId, user, onBack }) {
               {stats.by_environment.slice(0, 5).map(([k, n]) => (
                 <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 12 }}>
                   <span style={{ color: 'var(--text-2)' }}>{k}</span><span>{n}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {affectedUsers.length > 0 && (
+            <div style={{ minWidth: 200, flex: 1 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>{t('errors.affected_users')}</div>
+              {affectedUsers.slice(0, 6).map((u, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 12 }}>
+                  <span className="mono" style={{ color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={u.ident}>{u.ident}</span>
+                  <span style={{ color: 'var(--text-3)' }}>×{u.events}</span>
                 </div>
               ))}
             </div>

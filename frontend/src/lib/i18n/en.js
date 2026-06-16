@@ -1787,6 +1787,7 @@ const en = {
   'errors.environment':              'Env',
   'errors.release':                  'Release',
   'errors.server':                   'Server',
+  'errors.affected_users':           'Affected users',
   'errors.users_affected':           'Users affected',
   'errors.by_release':               'By release',
   'errors.by_environment':           'By environment',

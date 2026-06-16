@@ -49,6 +49,7 @@ pub fn issue_router() -> Router<AppState> {
         .route("/{id}", get(get_issue))
         .route("/{id}/events", get(list_events))
         .route("/{id}/stats", get(issue_stats))
+        .route("/{id}/users", get(issue_users))
         .route("/{id}/resolve", post(resolve))
         .route("/{id}/ignore", post(ignore))
         .route("/{id}/unresolve", post(unresolve))
@@ -204,6 +205,16 @@ async fn issue_stats(
     let iid = issue_id(&id)?;
     Ok(Json(
         rampart_db::error_tracking::issue_stats(s.pool(), iid).await?,
+    ))
+}
+
+async fn issue_users(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<Vec<rampart_db::error_tracking::AffectedUser>>, ApiError> {
+    let iid = issue_id(&id)?;
+    Ok(Json(
+        rampart_db::error_tracking::issue_affected_users(s.pool(), iid, 50).await?,
     ))
 }
 
