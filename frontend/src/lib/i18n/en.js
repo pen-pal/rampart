@@ -2250,6 +2250,9 @@ const en = {
   'app.crash.reload':                'Reload',
   'app.crash.home':                  'Back to dashboard',
   'common.go_to_notifications':      'Go to Notifications →',
+  'monitor.test_now.ok': 'Probe ran — {status}{detail}',
+  'monitor.test_now.error': 'Test failed: {error}',
+  'monitor.test_now.dismiss': 'Click to dismiss',
 };
 
 export default en;

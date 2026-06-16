@@ -307,6 +307,7 @@ export default function MonitorDetail({ monitorId, user }) {
   const [testingNotifs, setTestingNotifs] = useState(false);
   // null = no result panel. Otherwise { sent: number, failed: number }.
   const [notifResult, setNotifResult] = useState(null);
+  const [testResult, setTestResult] = useState(null);
   // "Maintenance now" quick action. `maintPickerOpen` toggles the tiny
   // duration popover; `maintDuration` is the chosen length in seconds
   // (default 1h); `maintBusy` guards the in-flight create; `maintActive`
@@ -507,15 +508,14 @@ export default function MonitorDetail({ monitorId, user }) {
   const doTestNow = async () => {
     if (!monitor || testing) return;
     setTesting(true);
+    setTestResult(null);
     try {
       const hb = await api.monitors.testNow(monitor.id);
-      // useApi polls every 10s so the new heartbeat row + status will
-      // appear on the next tick. Surface the immediate result in a tiny
-      // alert so the operator sees the probe outcome without waiting.
-      const latency = hb.latency_ms != null ? ` (${hb.latency_ms}ms)` : '';
-      const msg     = hb.msg ? `\n${hb.msg}` : '';
-      alert(`Probe ran — status: ${hb.status}${latency}${msg}`);
-    } catch (e) { alert(`Failed: ${e.message}`); }
+      // useApi polls every 10s so the new heartbeat row + status appear on the
+      // next tick. Surface the immediate probe outcome inline (no blocking
+      // alert) so the operator sees it without waiting.
+      setTestResult({ status: hb.status, latency_ms: hb.latency_ms, msg: hb.msg });
+    } catch (e) { setTestResult({ error: e.message }); }
     finally { setTesting(false); }
   };
   const doTestNotifications = async () => {
@@ -743,6 +743,28 @@ export default function MonitorDetail({ monitorId, user }) {
             {writable && <button className="btn btn-danger" onClick={doDelete} disabled={acting}><Trash2 size={13}/> {t('common.delete')}</button>}
           </div>
         </div>
+
+        {testResult && (
+          <div
+            role="status"
+            onClick={() => setTestResult(null)}
+            style={{
+              marginBottom: 12, padding: '8px 12px', borderRadius: 8, cursor: 'pointer',
+              fontSize: 13, border: '1px solid var(--border)',
+              background: testResult.error || testResult.status === 'down' ? 'var(--down-bg)' : 'var(--up-bg)',
+              color: 'var(--text)',
+            }}
+            title={t('monitor.test_now.dismiss')}
+          >
+            {testResult.error
+              ? t('monitor.test_now.error', { error: testResult.error })
+              : t('monitor.test_now.ok', {
+                  status: testResult.status,
+                  detail: (testResult.latency_ms != null ? ` (${testResult.latency_ms}ms)` : '')
+                        + (testResult.msg ? ` — ${testResult.msg}` : ''),
+                })}
+          </div>
+        )}
 
         {notifResult && (
           <div

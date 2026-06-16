@@ -2145,6 +2145,9 @@ const de = {
   'app.crash.reload':                'Neu laden',
   'app.crash.home':                  'Zurück zum Dashboard',
   'common.go_to_notifications':      'Zu Benachrichtigungen →',
+  'monitor.test_now.ok': 'Probe ausgeführt — {status}{detail}',
+  'monitor.test_now.error': 'Test fehlgeschlagen: {error}',
+  'monitor.test_now.dismiss': 'Zum Schließen klicken',
 };
 
 export default de;

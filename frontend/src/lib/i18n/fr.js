@@ -2130,6 +2130,9 @@ const fr = {
   'app.crash.reload':                'Recharger',
   'app.crash.home':                  'Retour au tableau de bord',
   'common.go_to_notifications':      'Aller aux notifications →',
+  'monitor.test_now.ok': 'Sonde exécutée — {status}{detail}',
+  'monitor.test_now.error': 'Échec du test : {error}',
+  'monitor.test_now.dismiss': 'Cliquer pour fermer',
 };
 
 export default fr;
