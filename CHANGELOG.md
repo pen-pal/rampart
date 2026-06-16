@@ -19,6 +19,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.62.0] — 2026-06-16
+
+### Added
+- **Latency SLA threshold** (`config.max_latency_ms`). A check that connects and
+  responds but *slower* than the threshold is now marked **down** ("slow: Nms >
+  threshold") — degraded detection distinct from the hard connection
+  `timeout_seconds`. Applied centrally in the probe dispatcher, so it works for
+  every monitor kind; surfaced as a field on DB/cache monitors in the wizard and
+  documented in the edit-modal config hints. Covered by unit tests.
+
+### Fixed
+- **Monitor drag-and-drop snapped back on drop.** The drop zone was only the
+  thin group-header strip, so dropping a monitor onto a row (or the list body)
+  of the target group missed and the drag reverted. The whole group bucket is
+  now the drop zone.
+
+---
+
 ## [0.61.0] — 2026-06-16
 
 ### Added
@@ -1737,6 +1755,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.62.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.62.0
 [0.61.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.61.0
 [0.60.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.60.0
 [0.59.4]:     https://github.com/pen-pal/rampart/releases/tag/v0.59.4
