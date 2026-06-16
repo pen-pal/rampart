@@ -653,7 +653,7 @@ const en = {
   'monitor.edit.section.target':     'Target',
   'monitor.edit.section.http':       'HTTP request',
   'monitor.edit.section.behaviour':  'Behaviour',
-  'monitor.edit.section.probe':      'Probe config (JSON)',
+  'monitor.edit.section.probe':      'Probe config',
   'monitor.edit.name':               'Name',
   'monitor.edit.interval':           'Interval (s)',
   'monitor.edit.timeout':            'Timeout (s)',
@@ -674,6 +674,9 @@ const en = {
 
   // ── monitor detail: config panel ─────────────────────────────────
   'monitor.config.target':           'Target',
+  'monitor.config.mode_form':        'Form',
+  'monitor.config.mode_json':        'JSON',
+  'monitor.config.invalid_json':     'Config isn’t valid JSON — switch to JSON mode to fix it.',
   'monitor.config.schedule':         'Schedule',
   'monitor.config.http':             'HTTP',
   'monitor.config.kind_specific':    'Kind-specific config',
