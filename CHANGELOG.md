@@ -19,6 +19,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.65.1] — 2026-06-16
+
+### Documentation
+- `docs/design/RUM.md` documents the snippet's **correlation & identity hooks**
+  (`window.__rampartUser`, `window.__rampartTraceId` / `<meta traceparent>`), the
+  updated beacon shape (`trace_id` / `user_id`), and the new read endpoints
+  (`/page`, `/users`, `/browsers`, `/traced`).
+
+---
+
 ## [0.65.0] — 2026-06-16
 
 ### Added
@@ -1820,6 +1830,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.65.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.65.1
 [0.65.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.65.0
 [0.64.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.64.1
 [0.64.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.64.0
