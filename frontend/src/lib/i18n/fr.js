@@ -2072,6 +2072,19 @@ const fr = {
   'notif.f.visibility': 'Visibilité',
   'notif.f.webhook_url': 'URL du webhook',
   'notif.f.workspace': 'Espace de travail',
+  // ── notification options + hints ──
+  'notif.opt.vis_public':            'public',
+  'notif.opt.vis_unlisted':          'non listé',
+  'notif.opt.vis_private_followers': 'privé (abonnés uniquement)',
+  'notif.opt.vis_direct':            'direct',
+  'notif.opt.enc_starttls':          'STARTTLS (port 587)',
+  'notif.opt.enc_tls':               'TLS implicite (port 465)',
+  'notif.opt.enc_none':              'Aucun (sans TLS)',
+  'notif.opt.zulip_stream':          'flux',
+  'notif.opt.zulip_private':         'privé',
+  'notif.opt.add_tag':               '+ étiquette…',
+  'notif.hint.sms_metered':          'Les SMS sont facturés — Twilio facture par message et par destinataire. Utilisez Pushover ou ntfy pour du push gratuit.',
+  'notif.hint.run_sidecar':          'Lancez le sidecar avec :',
 };
 
 export default fr;
