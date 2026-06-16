@@ -19,6 +19,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.92.0] — 2026-06-16
+
+### Fixed
+- **On-call `…/current` now reports user shifts, not just channels.** The
+  endpoint resolved only the channel ring, so a schedule rotating over *users*
+  reported "nobody on call" (`null`). It now returns the combined channel+user
+  ring's current target as `{kind:"channel"|"user", id}`. (Audit #10.)
+
+---
+
 ## [0.91.0] — 2026-06-16
 
 ### Performance
@@ -2273,6 +2283,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.92.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.92.0
 [0.91.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.91.0
 [0.90.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.90.0
 [0.89.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.89.0

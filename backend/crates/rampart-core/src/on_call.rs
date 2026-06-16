@@ -123,8 +123,11 @@ pub fn on_call_channel(schedule: &OnCallSchedule, at: OffsetDateTime) -> Option<
 }
 
 /// Who is on call: a notification channel or a user. The ring is channels
-/// first, then users, so a mixed schedule rotates over both.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// first, then users, so a mixed schedule rotates over both. Serializes
+/// adjacently-tagged: `{"kind":"channel","id":"<uuid>"}` /
+/// `{"kind":"user","id":"<uuid>"}`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", content = "id", rename_all = "lowercase")]
 pub enum OnCallTarget {
     Channel(NotificationId),
     User(UserId),

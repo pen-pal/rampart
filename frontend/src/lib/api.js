@@ -562,8 +562,8 @@ export const api = {
     page:    (app, url, hours) => request(`/v1/rum/page?${new URLSearchParams({ ...(app ? { app } : {}), url, hours: hours || 24 })}`),
     users:   (app, hours) => request(`/v1/rum/users?${new URLSearchParams({ ...(app ? { app } : {}), hours: hours || 24 })}`),
   },
-  // On-call schedules — channel rotations referenced by escalation steps.
-  // `current` returns `{ on_call: <channel-id|null> }` for the live shift.
+  // On-call schedules — channel + user rotations referenced by escalation steps.
+  // `current` returns `{ on_call: {kind:'channel'|'user', id}|null }` for the live shift.
   onCallSchedules: {
     list:    ()          => request('/v1/on-call-schedules'),
     create:  (input)     => request('/v1/on-call-schedules', { method: 'POST', body: input }),
