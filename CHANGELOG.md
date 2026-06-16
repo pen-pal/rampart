@@ -19,6 +19,19 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.81.0] — 2026-06-16
+
+### Fixed
+- All 128 notification channel-picker descriptions (the catalog `hint:` blurbs)
+  now route through `t()` (`notif.kind.<id>.hint`) instead of hardcoded
+  English. The 21 most-used channels (Slack, Discord, Teams, Telegram, Email,
+  Webhook, PagerDuty, Opsgenie, Signal, Matrix, Sentry, ntfy, Pushover, … ) are
+  translated in es/fr/de, preserving URLs / API endpoints / brand names; the
+  long-tail descriptions fall back to English and are now translatable without
+  code changes.
+
+---
+
 ## [0.80.0] — 2026-06-16
 
 ### Fixed
@@ -2096,6 +2109,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.81.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.81.0
 [0.80.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.80.0
 [0.79.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.79.0
 [0.78.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.78.0

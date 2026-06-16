@@ -1871,6 +1871,28 @@ const es = {
   'notif.opt.add_tag':               '+ etiqueta…',
   'notif.hint.sms_metered':          'Los SMS son de pago — Twilio cobra por mensaje y destinatario. Usa Pushover o ntfy para push gratuito.',
   'notif.hint.run_sidecar':          'Ejecuta el sidecar con:',
+  // ── notification channel-picker descriptions (common subset; rest fall back to en) ──
+  'notif.kind.slack.hint': 'URL de incoming-webhook de https://api.slack.com/messaging/webhooks',
+  'notif.kind.discord.hint': 'URL de webhook del canal de Discord → Editar → Integraciones → Webhooks',
+  'notif.kind.teams.hint': 'Incoming-webhook del canal de Teams → Conectores → Incoming Webhook',
+  'notif.kind.mattermost.hint': 'Incoming webhook de Mattermost autoalojado',
+  'notif.kind.rocket_chat.hint': 'Incoming webhook de Rocket.Chat autoalojado',
+  'notif.kind.telegram.hint': 'Token de bot de @BotFather y un chat_id de /getUpdates',
+  'notif.kind.email.hint': 'Cualquier relé SMTP: Gmail, SendGrid, Mailgun, Postfix autoalojado…',
+  'notif.kind.webhook.hint': 'Cualquier endpoint que acepte POST application/json. Útil para Zapier/n8n/Make.',
+  'notif.kind.pagerduty.hint': 'Clave de integración Events API v2. Activa y resuelve automáticamente.',
+  'notif.kind.opsgenie.hint': 'Atlassian Opsgenie — las alertas se resuelven solas al recuperarse',
+  'notif.kind.signal.hint': 'API REST de signal-cli autoalojada — número de remitente + destinatarios',
+  'notif.kind.zulip.hint': 'Correo del bot + clave de API; canal + tema o lista de correo privada',
+  'notif.kind.sendgrid.hint': 'API de email transaccional de Twilio SendGrid',
+  'notif.kind.sentry.hint': 'Evento de Sentry vía DSN del proyecto',
+  'notif.kind.gotify.hint': 'Servidor push autoalojado (https://gotify.net)',
+  'notif.kind.ntfy.hint': 'Envía al teléfono vía ntfy.sh (gratis) o servidor ntfy autoalojado',
+  'notif.kind.pushover.hint': 'Servicio push de Pushover.net (app de pago, API gratuita)',
+  'notif.kind.apprise.hint': 'Más de 80 servicios vía el sidecar apprise-api. Un canal se reparte a muchos.',
+  'notif.kind.matrix.hint': 'Homeserver + token de acceso + id de sala. Estándar abierto.',
+  'notif.kind.home_assistant.hint': 'Home Assistant /api/services/notify/<service> con token de larga duración',
+  'notif.kind.line.hint': 'Token de acceso del canal + ID de destinatario (Messaging API)',
 };
 
 export default es;
