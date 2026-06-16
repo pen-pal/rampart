@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { api, useApi, formatRelative, offsetDateTimeArrayToDate } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import { confirmDialog } from '../lib/notify.js';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -85,7 +86,7 @@ export default function Users() {
   const reload = () => window.location.reload();
 
   const remove = async (id) => {
-    if (!confirm(t('users.delete_confirm'))) return;
+    if (!(await confirmDialog({ message: t('users.delete_confirm') }))) return;
     setBusy(id); setErr(null);
     try { await api.users.remove(id); reload(); }
     catch (e) { setErr(e.message); }
