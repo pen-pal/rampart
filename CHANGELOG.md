@@ -19,6 +19,15 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.65.0] — 2026-06-16
+
+### Added
+- **RUM users breakdown.** The RUM view gains a Users table — page-views and p75
+  LCP per app user (from the `user_id` beacons), busiest first, so you can see
+  which users have a poor experience. `GET /v1/rum/users`. i18n en/es/fr/de.
+
+---
+
 ## [0.64.1] — 2026-06-16
 
 ### Tested
@@ -1811,6 +1820,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.65.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.65.0
 [0.64.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.64.1
 [0.64.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.64.0
 [0.63.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.63.1
