@@ -119,7 +119,7 @@ function describeRecurrence(r) {
 
 export default function Maintenance({ user } = {}) {
   const writable = canWrite(user);
-  const windowsState = useApi(() => api.maintenance.list(), [], { pollMs: 30_000 });
+  const windowsState = useApi(() => api.maintenance.list(), [reloadKey], { pollMs: 30_000 });
   const monitorsState = useApi(() => api.monitors.list(), []);
 
   const [showForm,      setShowForm]      = useState(false);
@@ -136,7 +136,8 @@ export default function Maintenance({ user } = {}) {
   // Same trick the Notifications view uses: full-page reload after a
   // mutation. The view is light and React Query / SWR would be overkill
   // for tens of windows.
-  const reload = () => window.location.reload();
+  const [reloadKey, setReloadKey] = useState(0);
+  const reload = () => setReloadKey((k) => k + 1);
 
   const remove = async (id) => {
     if (!(await confirmDialog({ message: t('maintenance.delete_confirm') }))) return;
