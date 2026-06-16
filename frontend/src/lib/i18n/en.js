@@ -160,6 +160,7 @@ const en = {
   'common.save':                     'Save',
   'common.delete':                   'Delete',
   'common.clear':                    'Clear',
+  'common.remove':                  'Remove',
   'common.edit':                     'Edit',
   'common.close':                    'Close',
   'common.test':                     'Test',

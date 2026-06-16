@@ -103,6 +103,7 @@ const fr = {
   'common.save':                     'Enregistrer',
   'common.delete':                   'Supprimer',
   'common.clear':                    'Effacer',
+  'common.remove': 'Retirer',
   'common.edit':                     'Modifier',
   'common.close':                    'Fermer',
   'common.test':                     'Tester',

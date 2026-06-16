@@ -1875,7 +1875,7 @@ function MonitorChannels({ monitorId }) {
               <div style={{ fontSize: 10, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em' }}>{c.kind}</div>
             </div>
             <button className="btn" onClick={() => sendTest(nid)} title="Send test" style={{ padding: '4px 8px', fontSize: 11 }}><Send size={11}/></button>
-            <button className="btn btn-danger" onClick={() => remove(nid)} title="Remove from this monitor" style={{ padding: '4px 8px', fontSize: 11 }}><X size={11}/></button>
+            <button className="btn btn-danger" onClick={() => remove(nid)} aria-label={t('common.remove')} title="Remove from this monitor" style={{ padding: '4px 8px', fontSize: 11 }}><X size={11}/></button>
           </div>
         );
       })}
@@ -2640,7 +2640,7 @@ function TagsCard({ monitor }) {
             <input autoFocus className="input" placeholder="tag name" value={newName} onChange={e => setNewName(e.target.value)} style={{ width: 130, padding: '4px 8px', fontSize: 12 }}/>
             <input type="color" value={newColor} onChange={e => setNewColor(e.target.value)} title="Color"/>
             <button className="btn btn-accent" disabled={busy || !newName.trim()} onClick={createAndAttach} style={{ padding: '4px 8px', fontSize: 11 }}>Create</button>
-            <button className="btn btn-ghost" disabled={busy} onClick={() => { setCreating(false); setNewName(''); }} style={{ padding: '4px 6px' }}><X size={11}/></button>
+            <button className="btn btn-ghost" disabled={busy} onClick={() => { setCreating(false); setNewName(''); }} aria-label={t('common.cancel')} style={{ padding: '4px 6px' }}><X size={11}/></button>
           </span>
         )}
       </div>

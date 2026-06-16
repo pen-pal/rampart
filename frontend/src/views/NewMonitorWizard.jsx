@@ -351,7 +351,7 @@ function SyntheticSteps({ steps, setSteps }) {
                 value={s.name} onChange={e => patchStep(i, { name: e.target.value })}/>
               {steps.length > 1 && (
                 <button type="button" className="btn" style={{ padding: '5px 8px' }} title={t('wizard.synth.remove_step')}
-                  onClick={() => removeStep(i)}><X size={13}/></button>
+                  onClick={() => removeStep(i)} aria-label={t('common.remove')}><X size={13}/></button>
               )}
             </div>
 
@@ -380,7 +380,7 @@ function SyntheticSteps({ steps, setSteps }) {
                 <input className="input mono" style={{ flex: 1 }} placeholder={t('wizard.synth.path_ph')}
                   disabled={e.from === 'status'}
                   value={e.path} onChange={ev => updNested(i, 'extracts', ei, { path: ev.target.value })}/>
-                <button type="button" className="btn" style={{ padding: '5px 8px' }} onClick={() => delNested(i, 'extracts', ei)}><X size={13}/></button>
+                <button type="button" className="btn" style={{ padding: '5px 8px' }} onClick={() => delNested(i, 'extracts', ei)} aria-label={t('common.remove')}><X size={13}/></button>
               </div>
             ))}
             <button type="button" className="btn" style={{ marginBottom: 12 }}
@@ -405,7 +405,7 @@ function SyntheticSteps({ steps, setSteps }) {
                 </select>
                 <input className="input mono" style={{ flex: 1 }} placeholder={t('wizard.synth.value_ph')}
                   value={a.value} onChange={ev => updNested(i, 'asserts', ai, { value: ev.target.value })}/>
-                <button type="button" className="btn" style={{ padding: '5px 8px' }} onClick={() => delNested(i, 'asserts', ai)}><X size={13}/></button>
+                <button type="button" className="btn" style={{ padding: '5px 8px' }} onClick={() => delNested(i, 'asserts', ai)} aria-label={t('common.remove')}><X size={13}/></button>
               </div>
             ))}
             <button type="button" className="btn"

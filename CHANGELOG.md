@@ -19,6 +19,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.71.0] — 2026-06-16
+
+### Accessibility
+- Icon-only buttons across 18 views now carry an `aria-label` (or reuse an
+  existing `title`) so screen readers announce them: every inline Cancel (✕),
+  Close, Clear, and Remove control in monitor/wizard/status-page/admin forms.
+- New `common.remove` string localized in en/es/fr/de.
+
+---
+
 ## [0.70.2] — 2026-06-16
 
 ### Tested
@@ -1962,6 +1972,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.71.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.71.0
 [0.70.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.70.2
 [0.70.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.70.1
 [0.70.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.70.0

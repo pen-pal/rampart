@@ -103,6 +103,7 @@ const de = {
   'common.save':                     'Speichern',
   'common.delete':                   'Löschen',
   'common.clear':                    'Zurücksetzen',
+  'common.remove': 'Entfernen',
   'common.edit':                     'Bearbeiten',
   'common.close':                    'Schließen',
   'common.test':                     'Testen',

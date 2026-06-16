@@ -414,7 +414,7 @@ function MaintenanceForm({ monitors, existing, onCancel, onSaved }) {
     <div className="card" style={{ padding: 20, marginBottom: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>{existing ? t('maintenance.form.title_edit', { name: existing.name }) : t('maintenance.form.title_new')}</h3>
-        <button className="btn btn-ghost" onClick={onCancel} disabled={submitting}><X size={14}/></button>
+        <button className="btn btn-ghost" onClick={onCancel} disabled={submitting} aria-label={t('common.cancel')}><X size={14}/></button>
       </div>
 
       {err && (

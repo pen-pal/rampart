@@ -223,7 +223,7 @@ function ExplorePanel({ state, onRetry }) {
                   onClick={() => setRange(r.id)}>{r.id}</button>
               ))}
             </div>
-            <button className="btn btn-ghost" onClick={() => setSelKey(null)} title={t('common.close')}><X size={14}/></button>
+            <button className="btn btn-ghost" onClick={() => setSelKey(null)} aria-label={t('common.close')} title={t('common.close')}><X size={14}/></button>
           </div>
           <SeriesChart name={selected.name} labels={selected.labels} range={range}/>
         </div>
@@ -562,7 +562,7 @@ function RuleForm({ rule, metricNames, channels, onCancel, onSaved }) {
         <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>
           {editing ? t('metrics.rules.edit_title') : t('metrics.rules.new')}
         </h3>
-        <button className="btn btn-ghost" onClick={onCancel} disabled={busy}><X size={14}/></button>
+        <button className="btn btn-ghost" onClick={onCancel} disabled={busy} aria-label={t('common.cancel')}><X size={14}/></button>
       </div>
       {err && <div className="banner-err">{err}</div>}
 

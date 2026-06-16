@@ -1638,7 +1638,7 @@ export default function Dashboard({ user, onLogout } = {}) {
                             })}
                           </span>
                           <button className="btn btn-ghost" style={{ marginLeft: 'auto', padding: '2px 6px' }}
-                            onClick={() => setBulkPreview(null)}><X size={12}/></button>
+                            onClick={() => setBulkPreview(null)} aria-label={t('common.close')}><X size={12}/></button>
                         </div>
                         {(bulkPreview.preview || []).length === 0 ? (
                           <div style={{ fontSize: 12, color: 'var(--text-3)' }}>{t("dashboard.bulk.preview.no_changes")}</div>

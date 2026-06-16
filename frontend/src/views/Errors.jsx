@@ -170,7 +170,7 @@ function ProjectForm({ channels, onCancel, onSaved }) {
     <div className="card" style={{ padding: 20, marginBottom: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>{t('errors.new_project')}</h3>
-        <button className="btn btn-ghost" onClick={onCancel} disabled={busy}><X size={14}/></button>
+        <button className="btn btn-ghost" onClick={onCancel} disabled={busy} aria-label={t('common.cancel')}><X size={14}/></button>
       </div>
       {err && <div className="banner-err">{err}</div>}
       <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
