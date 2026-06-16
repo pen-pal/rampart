@@ -46,6 +46,10 @@ pub struct RumBeacon {
     /// the RUM view deep-link to the trace waterfall.
     #[serde(default)]
     pub trace_id: Option<String>,
+    /// Application user identifier (best-effort, set by the page after login) —
+    /// answers "who experienced this".
+    #[serde(default)]
+    pub user_id: Option<String>,
     #[serde(default)]
     pub metrics: RumMetrics,
 }
@@ -77,6 +81,10 @@ impl RumBeacon {
         self.trace_id = self.trace_id.and_then(|s| {
             let t: String = s.trim().chars().take(64).collect();
             (!t.is_empty()).then_some(t)
+        });
+        self.user_id = self.user_id.and_then(|s| {
+            let u: String = s.trim().chars().take(MAX_SESSION).collect();
+            (!u.is_empty()).then_some(u)
         });
         // Drop a beacon with no usable signal at all.
         let m = &self.metrics;

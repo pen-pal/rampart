@@ -1,7 +1,47 @@
 import React, { useState } from 'react';
 import { ChevronLeft, Loader2, AlertCircle, Gauge, Copy, Check } from 'lucide-react';
-import { api, useApi } from '../lib/api.js';
+import { api, useApi, formatRelative } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+
+// Coarse browser family from a UA string (mirrors the server-side bucketing).
+function browserFromUa(ua) {
+  if (!ua) return '—';
+  const s = ua.toLowerCase();
+  if (s.includes('edg/') || s.includes('edge')) return 'Edge';
+  if (s.includes('opr/') || s.includes('opera')) return 'Opera';
+  if (s.includes('chrome') || s.includes('crios')) return 'Chrome';
+  if (s.includes('firefox') || s.includes('fxios')) return 'Firefox';
+  if (s.includes('safari')) return 'Safari';
+  return 'Other';
+}
+
+// Per-URL drill-down: recent individual page-loads — who, browser, vitals, trace.
+function PageDetail({ app, url, hours }) {
+  const st = useApi(() => api.rum.page(app, url, hours), [app, url, hours]);
+  const rows = st.data || [];
+  const cols = '120px 1fr 80px 64px 64px 100px';
+  if (st.loading) return <div style={{ padding: '8px 16px', fontSize: 12, color: 'var(--text-3)' }}><Loader2 size={13}/></div>;
+  if (!rows.length) return <div style={{ padding: '8px 16px', fontSize: 12, color: 'var(--text-3)' }}>{t('rum.no_samples')}</div>;
+  return (
+    <div style={{ padding: '4px 16px 12px', background: 'var(--bg)' }}>
+      <div className="row" style={{ gridTemplateColumns: cols, fontSize: 10.5, color: 'var(--text-3)', fontWeight: 600 }}>
+        <span>{t('rum.when')}</span><span>{t('rum.who')}</span><span>{t('rum.browser')}</span><span>LCP</span><span>INP</span><span>{t('rum.trace')}</span>
+      </div>
+      {rows.map((r, i) => (
+        <div className="row" key={i} style={{ gridTemplateColumns: cols, fontSize: 11.5 }}>
+          <span>{formatRelative(r.ts)}</span>
+          <span title={r.user_id || r.session || ''} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {r.user_id || (r.session ? `${t('rum.anon')} ${String(r.session).slice(0, 8)}` : '—')}
+          </span>
+          <span>{browserFromUa(r.ua)}</span>
+          <span>{r.lcp_ms == null ? '—' : `${Math.round(r.lcp_ms)}ms`}</span>
+          <span>{r.inp_ms == null ? '—' : `${Math.round(r.inp_ms)}ms`}</span>
+          <span>{r.trace_id ? <a href={`#/traces/${encodeURIComponent(r.trace_id)}`} className="mono" style={{ color: 'var(--accent)' }}>{String(r.trace_id).slice(0, 8)}…</a> : '—'}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -52,6 +92,7 @@ export default function Rum() {
   const [app, setApp] = useState('');
   const [hours, setHours] = useState(24);
   const [copied, setCopied] = useState(false);
+  const [openPage, setOpenPage] = useState(null);
   const appsState = useApi(() => api.rum.apps(), []);
   const sumState = useApi(() => api.rum.summary(app, hours), [app, hours]);
   const pagesState = useApi(() => api.rum.pages(app, hours), [app, hours]);
@@ -120,13 +161,19 @@ export default function Rum() {
                 <span>{t('rum.page')}</span><span>{t('rum.views')}</span><span>LCP</span><span>INP</span><span>CLS</span>
               </div>
               {pages.map(p => (
-                <div className="row" key={p.url}>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.url}>{p.url}</span>
-                  <span>{p.views}</span>
-                  <span style={{ color: `var(--${rating('lcp', p.lcp_p75) === 'none' ? 'text-3' : rating('lcp', p.lcp_p75)})` }}>{fmtVital('lcp', p.lcp_p75)}</span>
-                  <span style={{ color: `var(--${rating('inp', p.inp_p75) === 'none' ? 'text-3' : rating('inp', p.inp_p75)})` }}>{fmtVital('inp', p.inp_p75)}</span>
-                  <span style={{ color: `var(--${rating('cls', p.cls_p75) === 'none' ? 'text-3' : rating('cls', p.cls_p75)})` }}>{fmtVital('cls', p.cls_p75)}</span>
-                </div>
+                <React.Fragment key={p.url}>
+                  <div className="row" style={{ cursor: 'pointer' }} title={t('rum.drill_hint')}
+                    onClick={() => setOpenPage(openPage === p.url ? null : p.url)}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.url}>
+                      <span style={{ color: 'var(--text-3)', fontSize: 9, marginRight: 5 }}>{openPage === p.url ? '▾' : '▸'}</span>{p.url}
+                    </span>
+                    <span>{p.views}</span>
+                    <span style={{ color: `var(--${rating('lcp', p.lcp_p75) === 'none' ? 'text-3' : rating('lcp', p.lcp_p75)})` }}>{fmtVital('lcp', p.lcp_p75)}</span>
+                    <span style={{ color: `var(--${rating('inp', p.inp_p75) === 'none' ? 'text-3' : rating('inp', p.inp_p75)})` }}>{fmtVital('inp', p.inp_p75)}</span>
+                    <span style={{ color: `var(--${rating('cls', p.cls_p75) === 'none' ? 'text-3' : rating('cls', p.cls_p75)})` }}>{fmtVital('cls', p.cls_p75)}</span>
+                  </div>
+                  {openPage === p.url && <PageDetail app={app} url={p.url} hours={hours} />}
+                </React.Fragment>
               ))}
             </div>
 

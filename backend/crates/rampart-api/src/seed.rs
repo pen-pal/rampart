@@ -316,8 +316,9 @@ async fn seed_rum(pool: &DbPool, stats: &mut SeedStats) -> Result<()> {
             "app": "[demo] storefront",
             "url": url,
             "session": "demo-session",
-            "ua": "Mozilla/5.0 (demo)",
+            "ua": "Mozilla/5.0 (demo) Chrome/120 Safari/537",
             "trace_id": trace_id,
+            "user_id": "demo-user@example.com",
             "metrics": { "lcp": lcp, "fcp": fcp, "cls": cls, "inp": inp, "ttfb": 210.0, "load": lcp + 300.0 }
         }))?;
         rampart_db::rum::insert_event(pool, &beacon).await?;
