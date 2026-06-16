@@ -956,7 +956,7 @@ export default function Dashboard({ user, onLogout } = {}) {
   const maintState     = useApi(() => api.maintenance.list(), [reloadKey], { pollMs: 60_000 });
   const recentIncidents = useMemo(() => (incidentsState.data || []).map(i => ({
     id: (i.id || '').slice(0, 8),
-    sev: i.style === 'major' || i.style === 'critical' ? 'down' : 'warn',
+    sev: i.style === 'danger' ? 'down' : 'warn',
     monitor: i.title,
     note: i.active ? t('dashboard.incident.ongoing') : t('dashboard.incident.resolved'),
     dur: '',
