@@ -161,7 +161,22 @@ function TraceList({ onOpen, preset, onPresetUsed }) {
     () => api.traces.list({ limit: 100, ...applied }),
     [applied],
   );
-  const traces = state.data || [];
+  // "Load older" keyset pagination over the aggregated trace list.
+  const [older, setOlder] = useState([]);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [exhausted, setExhausted] = useState(false);
+  useEffect(() => { setOlder([]); setExhausted(false); }, [applied]);
+  const traces = [...(state.data || []), ...older];
+  const loadOlder = async () => {
+    const last = traces[traces.length - 1];
+    if (!last || loadingOlder) return;
+    setLoadingOlder(true);
+    try {
+      const page = await api.traces.list({ limit: 100, ...applied, before_id: last.trace_id });
+      setOlder((o) => [...o, ...page]);
+      if (page.length < 100) setExhausted(true);
+    } finally { setLoadingOlder(false); }
+  };
   const apply = () => setApplied({ service, q, min_duration_ms: minDur, errors_only: errorsOnly });
 
   // Saved searches — per-user, in the shared prefs blob under `trace_searches`
@@ -252,6 +267,14 @@ function TraceList({ onOpen, preset, onPresetUsed }) {
           </div>
         ))}
       </div>
+
+      {traces.length > 0 && !exhausted && (
+        <div style={{ textAlign: 'center', marginTop: 12 }}>
+          <button className="btn btn-ghost" onClick={loadOlder} disabled={loadingOlder}>
+            {loadingOlder ? <><Loader2 size={14}/> {t('traces.loading')}</> : t('logs.load_older')}
+          </button>
+        </div>
+      )}
     </>
   );
 }

@@ -19,6 +19,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.97.0] — 2026-06-16
+
+### Added
+- **Traces "Load older" keyset pagination.** The trace list can now page past
+  its cap via a `(started_at, trace_id)` keyset cursor (`before_id`, resolved
+  server-side) applied in the aggregated query's `HAVING`. (Audit #24, traces —
+  completes #24 with the logs pagination from v0.96.0.)
+
+---
+
 ## [0.96.0] — 2026-06-16
 
 ### Added
@@ -2357,6 +2367,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.97.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.97.0
 [0.96.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.96.0
 [0.95.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.95.2
 [0.95.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.95.1
