@@ -100,11 +100,33 @@ pub async fn run(pool: &DbPool) -> Result<SeedStats> {
     // password policy. Only fires when no user exists yet.
     seed_admin_from_env(pool).await?;
 
-    // Idempotency sentinel: the demo folder.
+    // Idempotency sentinel: the demo folder. Re-running on an already-seeded
+    // demo is a clean no-op.
     let groups = rampart_db::monitor_groups::list(pool).await?;
     if groups.iter().any(|g| g.name == DEMO_GROUP) {
         stats.skipped = true;
         return Ok(stats);
+    }
+
+    // Production safety: all demo data is `[demo]`-prefixed. If this DB already
+    // holds monitors that AREN'T demo data, it's almost certainly a real
+    // deployment — refuse to pollute it with sample traces/RUM/etc. The example
+    // compose stacks run seed-demo against a fresh DB, so they're unaffected.
+    // `RAMPART_SEED_FORCE=1` overrides for the rare intentional case.
+    let force = std::env::var("RAMPART_SEED_FORCE").is_ok_and(|v| v == "1" || v == "true");
+    if !force {
+        let real = rampart_db::monitors::list(pool)
+            .await?
+            .into_iter()
+            .filter(|m| !m.name.starts_with("[demo]"))
+            .count();
+        if real > 0 {
+            anyhow::bail!(
+                "refusing to seed: found {real} non-demo monitor(s) — this looks like a \
+                 real instance, and seed-demo would add sample data ([demo] monitors, \
+                 traces, RUM, logs, …). Set RAMPART_SEED_FORCE=1 to override."
+            );
+        }
     }
 
     let group = rampart_db::monitor_groups::create(
@@ -146,6 +168,14 @@ pub async fn run(pool: &DbPool) -> Result<SeedStats> {
     seed_proxies(pool, &mut stats).await;
     seed_tags(pool, &mut stats).await;
     seed_scheduled_reports(pool, &mut stats).await;
+
+    // Depth for the deep-dive views: more traces, RUM sessions, profiles, and
+    // metric series so the trace list / service map, RUM pages, profiling
+    // service+type pickers (incl. diff), and metric explorer all have variety.
+    seed_more_traces(pool, &mut stats).await;
+    seed_more_rum(pool, &mut stats).await;
+    seed_more_profiles(pool, &mut stats).await;
+    seed_more_metrics(pool, &mut stats).await;
 
     Ok(stats)
 }
@@ -874,6 +904,140 @@ async fn seed_scheduled_reports(pool: &DbPool, stats: &mut SeedStats) {
             stats.scheduled_reports += 1;
         }
     }
+}
+
+/// ~10 more distributed traces across services with varied latency + a couple
+/// of error traces, so the trace list, service map, and latency distribution
+/// have real shape.
+async fn seed_more_traces(pool: &DbPool, stats: &mut SeedStats) {
+    let now_ns = OffsetDateTime::now_utc().unix_timestamp_nanos() as i64;
+    // (service, operation, span-kind, is_error)
+    let ops = [
+        ("[demo] api", "GET /products", 2, false),
+        ("[demo] api", "GET /search", 2, false),
+        ("[demo] api", "POST /cart", 2, false),
+        ("[demo] api", "GET /product/{id}", 2, false),
+        ("[demo] payments", "POST /charge", 2, true),
+        ("[demo] api", "GET /checkout", 2, false),
+        ("[demo] api", "GET /orders", 2, false),
+        ("[demo] search", "GET /_search", 2, false),
+        ("[demo] payments", "POST /refund", 2, false),
+        ("[demo] api", "POST /login", 2, true),
+    ];
+    let mut spans = Vec::new();
+    for (i, (svc, op, kind, err)) in ops.into_iter().enumerate() {
+        let base = now_ns - (i as i64 + 1) * 60_000_000_000; // 1 min apart
+        let dur = 60_000_000 + ((i as i64 * 73) % 9) * 70_000_000; // 60–700ms
+        let trace = hex32(&format!("demotrace{:04}", i + 10));
+        let root = hex16(&format!("root{:08}", i));
+        let child = hex16(&format!("chld{:08}", i));
+        spans.push(ParsedSpan {
+            trace_id: trace.clone(), span_id: root.clone(), parent_span_id: None,
+            service_name: svc.to_string(), name: op.to_string(), kind,
+            start_ns: base, end_ns: base + dur,
+            status_code: if err { 2 } else { 0 },
+            status_message: if err { Some("upstream error".into()) } else { None },
+            attributes: json!({ "http.route": op, "http.method": op.split(' ').next().unwrap_or("GET") }),
+        });
+        // a downstream DB/dependency child span
+        spans.push(ParsedSpan {
+            trace_id: trace, span_id: child, parent_span_id: Some(root),
+            service_name: svc.to_string(), name: "SELECT".into(), kind: 3,
+            start_ns: base + 8_000_000, end_ns: base + dur - 8_000_000,
+            status_code: 0, status_message: None,
+            attributes: json!({ "db.system": "postgresql" }),
+        });
+    }
+    stats.spans += spans.len();
+    let _ = rampart_db::traces::insert_spans(pool, &spans).await;
+}
+
+/// More RUM beacons: several pages × a few sessions with device / connection
+/// variety, so the RUM pages list, sessions, and Web-Vitals distributions fill
+/// out.
+async fn seed_more_rum(pool: &DbPool, stats: &mut SeedStats) {
+    let pages = [
+        ("/", 1700.0, 850.0, 0.03, 90.0),
+        ("/product/42", 2400.0, 1100.0, 0.09, 160.0),
+        ("/search?q=shoes", 2000.0, 980.0, 0.05, 110.0),
+        ("/cart", 2600.0, 1200.0, 0.12, 220.0),
+        ("/checkout", 3400.0, 1500.0, 0.21, 360.0),
+        ("/account", 1900.0, 920.0, 0.04, 100.0),
+    ];
+    let agents = [
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17) Safari/604",
+        "Mozilla/5.0 (Windows NT 10.0) Chrome/120 Safari/537",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 14) Chrome/120",
+        "Mozilla/5.0 (Linux; Android 14) Chrome/120 Mobile",
+    ];
+    for (s, (url, lcp, fcp, cls, inp)) in pages.into_iter().enumerate() {
+        for sess in 0..3usize {
+            let ua = agents[(s + sess) % agents.len()];
+            // jitter the vitals a little per session so distributions aren't flat
+            let j = (sess as f64) * 120.0;
+            let beacon: Result<RumBeacon, _> = serde_json::from_value(json!({
+                "app": "[demo] storefront",
+                "url": url,
+                "session": format!("demo-sess-{s}-{sess}"),
+                "ua": ua,
+                "user_id": format!("demo-user-{}@example.com", (s + sess) % 5),
+                "metrics": { "lcp": lcp + j, "fcp": fcp + j * 0.5, "cls": cls,
+                             "inp": inp + j * 0.3, "ttfb": 200.0 + j * 0.2, "load": lcp + 300.0 + j }
+            }));
+            if let Ok(b) = beacon {
+                if rampart_db::rum::insert_event(pool, &b).await.is_ok() {
+                    stats.rum += 1;
+                }
+            }
+        }
+    }
+}
+
+/// More profiles: a second `[demo] api` cpu capture (so the diff view has two
+/// captures to compare) and a `[demo] worker` cpu profile (so the service
+/// picker has options).
+async fn seed_more_profiles(pool: &DbPool, stats: &mut SeedStats) {
+    use std::io::Write;
+    let extra = [
+        ("[demo] api", "main;tokio::runtime::worker;handle_request;router::dispatch;checkout::handler;db::query;pg::execute 510\nmain;tokio::runtime::worker;handle_request;router::dispatch;cart::handler;cache::get 95\nmain;tokio::runtime::worker;handle_request;middleware::auth;jwt::verify 160\nmain;tokio::runtime::worker;handle_request;router::dispatch;catalog::handler;search::rank 240"),
+        ("[demo] worker", "main;tokio::runtime::worker;job::dispatch;reindex::run;es::bulk_index 380\nmain;tokio::runtime::worker;job::dispatch;email::send;smtp::write 120\nmain;tokio::runtime::worker;job::dispatch;thumbnail::resize;image::decode 210\nmain;tokio::runtime::worker;background::reap_idle 30"),
+    ];
+    for (svc, folded) in extra {
+        let count: i32 = folded.lines()
+            .filter_map(|l| l.rsplit_once(' ').and_then(|(_, n)| n.trim().parse::<i32>().ok()))
+            .sum();
+        let mut e = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        if e.write_all(folded.as_bytes()).is_err() { continue; }
+        let Ok(gz) = e.finish() else { continue };
+        let p = rampart_db::profiles::NewProfile {
+            service_name: svc, profile_type: "cpu",
+            period_ns: 10_000_000, duration_ns: 30 * 1_000_000_000,
+            sample_count: count, labels: json!({ "host": "demo-2", "env": "production" }),
+            folded_gz: &gz,
+        };
+        if rampart_db::profiles::insert(pool, p).await.is_ok() {
+            stats.profiles += 1;
+        }
+    }
+}
+
+/// More metric series so the explorer has variety beyond the SLO counters.
+async fn seed_more_metrics(pool: &DbPool, stats: &mut SeedStats) {
+    let mut samples = Vec::new();
+    for (name, base) in [("demo_queue_depth", 12.0), ("demo_error_rate", 0.8), ("demo_cpu_pct", 47.0)] {
+        for inst in ["api-1", "api-2", "worker-1"] {
+            let mut labels = BTreeMap::new();
+            labels.insert("service".to_string(), "[demo] api".to_string());
+            labels.insert("instance".to_string(), inst.to_string());
+            samples.push(PromSample {
+                name: name.to_string(),
+                labels,
+                value: base + (inst.len() as f64),
+            });
+        }
+    }
+    stats.metrics += samples.len();
+    let _ = rampart_db::metric_samples::insert_many(pool, &samples).await;
 }
 
 fn hex32(seed: &str) -> String {

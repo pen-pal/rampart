@@ -19,6 +19,27 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.83.0] — 2026-06-16
+
+### Demo
+- More depth in the deep-dive tiers: `seed-demo` now adds ~10 extra distributed
+  traces (varied services/latency, a couple of error traces), ~18 RUM beacons
+  across 6 pages × 3 sessions with device variety, two more profiles (a second
+  `[demo] api` cpu capture so the flamegraph **diff** has two captures, plus a
+  `[demo] worker` profile), and three more metric series (queue depth, error
+  rate, CPU). So the trace list / service map, RUM pages, profiling pickers, and
+  metric explorer all have real shape.
+
+### Safety
+- `seed-demo` now **refuses to run on a non-demo instance**: if the database
+  already holds monitors that aren't `[demo]`-prefixed it's almost certainly a
+  real deployment, so the seeder bails with a clear message rather than
+  polluting prod with sample traces/RUM/logs. `RAMPART_SEED_FORCE=1` overrides.
+  (Normal prod starts never seed — `seed-demo` is an explicit subcommand only
+  the example compose stacks invoke — this just closes the accidental-run gap.)
+
+---
+
 ## [0.82.0] — 2026-06-16
 
 ### Demo
@@ -2128,6 +2149,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.83.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.83.0
 [0.82.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.82.0
 [0.81.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.81.0
 [0.80.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.80.0
