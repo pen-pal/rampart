@@ -573,7 +573,7 @@ export default function MonitorDetail({ monitorId, user }) {
       <div className="rampart">
         <style>{css}</style>
         <div style={{ padding: 80, textAlign: 'center' }}>
-          <h2 style={{ fontSize: 18, fontWeight: 600 }}>No monitor selected</h2>
+          <h2 style={{ fontSize: 18, fontWeight: 600 }}>{t('monitor.detail.none_selected')}</h2>
           <p style={{ color: 'var(--text-2)', fontSize: 14, marginTop: 8 }}>Open one from the dashboard, or <a href="#/" style={{ color: 'var(--accent)' }}>go back</a>.</p>
         </div>
       </div>
@@ -584,8 +584,8 @@ export default function MonitorDetail({ monitorId, user }) {
       <div className="rampart">
         <style>{css}</style>
         <div style={{ padding: 80, textAlign: 'center' }}>
-          <h2 style={{ fontSize: 18, fontWeight: 600 }}>Monitor not found</h2>
-          <p style={{ color: 'var(--text-2)', fontSize: 14, marginTop: 8 }}>Likely deleted. <a href="#/" style={{ color: 'var(--accent)' }}>Back to dashboard</a>.</p>
+          <h2 style={{ fontSize: 18, fontWeight: 600 }}>{t('monitor.detail.not_found')}</h2>
+          <p style={{ color: 'var(--text-2)', fontSize: 14, marginTop: 8 }}>{t('monitor.detail.likely_deleted')} <a href="#/" style={{ color: 'var(--accent)' }}>{t('monitor.detail.back_to_dashboard')}</a>.</p>
         </div>
       </div>
     );
@@ -648,7 +648,7 @@ export default function MonitorDetail({ monitorId, user }) {
               {monitor.current_status === 'warn'        && <span className="pill pill-warn">Degraded</span>}
               {monitor.current_status === 'up'          && <span className="pill pill-up">Healthy</span>}
               {monitor.current_status === 'paused'      && <span className="pill pill-paused"><Pause size={11}/> Paused</span>}
-              {monitor.current_status === 'pending'     && <span className="pill pill-pending">Pending first check</span>}
+              {monitor.current_status === 'pending'     && <span className="pill pill-pending">{t('monitor.status.pending_first')}</span>}
               {monitor.current_status === 'maintenance' && <span className="pill pill-maint">Maintenance</span>}
             </div>
             <div style={{ display: 'flex', gap: 14, fontSize: 13, color: 'var(--text-2)', flexWrap: 'wrap' }}>
@@ -969,7 +969,7 @@ export default function MonitorDetail({ monitorId, user }) {
                 {heartbeats.length > 0 ? `${heartbeats.length} samples · binned to ${responseData.length} points` : 'No samples yet'}
               </p>
             </div>
-            <button className="btn"><Calendar size={13}/> All samples <ChevronDown size={11}/></button>
+            <button className="btn"><Calendar size={13}/> {t('monitor.detail.all_samples')} <ChevronDown size={11}/></button>
           </div>
           <div style={{ height: 220 }}>
             {responseData.length > 0 ? (
@@ -1334,7 +1334,7 @@ function EditModal({ monitor, onCancel }) {
             </div>
             <h3 style={{ fontSize: 17, fontWeight: 600, margin: 0, letterSpacing: '-.01em' }}>{monitor.name}</h3>
           </div>
-          <button className="btn btn-ghost" onClick={onCancel} disabled={busy} aria-label="Close">
+          <button className="btn btn-ghost" onClick={onCancel} disabled={busy} aria-label={t('common.close')}>
             <X size={16}/>
           </button>
         </div>
@@ -1898,7 +1898,7 @@ function MonitorChannels({ monitorId }) {
 
       {showPicker ? (
         <div style={{ marginTop: 12, padding: 10, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface-2)' }}>
-          <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '.04em', fontWeight: 600 }}>Attach an existing channel</div>
+          <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '.04em', fontWeight: 600 }}>{t('monitor.detail.attach_channel')}</div>
           {available.length === 0 ? (
             <div className="empty" style={{ padding: '6px 0', fontSize: 12 }}>
               No more channels to attach. <a href="#/notifications" style={{ color: 'var(--accent)' }}>Create one →</a>
@@ -1996,7 +1996,7 @@ function ReliabilityCard({ data, windowDays, onWindowChange }) {
         <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{t('monitor.card.reliability')}</h3>
         <div
           role="radiogroup"
-          aria-label="Reliability window"
+          aria-label={t('monitor.aria.reliability_window')}
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 2,
             background: 'var(--surface-2)', padding: 2, borderRadius: 6,
@@ -2313,13 +2313,13 @@ function BurndownCard({ data, windowDays, onWindowChange }) {
     <div className="card" style={{ padding: '20px 22px', marginBottom: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
         <Activity size={14} color="var(--text-3)"/>
-        <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Error budget burn-down</h3>
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{t('monitor.detail.burndown_heading')}</h3>
         <span className="tabular mono" style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-3)' }}>
           {targetPct != null ? `${Number(targetPct).toFixed(2)}% target` : ''}
         </span>
         <div
           role="radiogroup"
-          aria-label="Burn-down window"
+          aria-label={t('monitor.aria.burndown_window')}
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 2,
             background: 'var(--surface-2)', padding: 2, borderRadius: 6,
@@ -2688,7 +2688,7 @@ function DependenciesCard({ monitor }) {
         </div>
       </div>
       <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)' }}>
-        <div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 6 }}>Depends on</div>
+        <div style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 6 }}>{t('monitor.detail.depends_on')}</div>
         {err && <div className="banner-err" style={{ marginBottom: 10 }}>{err}</div>}
         {parents.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 8 }}>No upstream dependencies.</div>}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>

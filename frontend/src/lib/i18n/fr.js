@@ -1906,6 +1906,17 @@ const fr = {
   'dashboard.tip.bulk_select':       'Sélectionner pour une action groupée',
   'dashboard.tip.no_channels':       'Aucun canal de notification attaché — les changements seront enregistrés mais n’alerteront personne',
   'notifications.push.subscribe_tip': 'Abonner ce navigateur aux alertes push',
+  'monitor.aria.reliability_window': 'Fenêtre de fiabilité',
+  'monitor.aria.burndown_window':    'Fenêtre de consommation',
+  'monitor.detail.none_selected':    'Aucun moniteur sélectionné',
+  'monitor.detail.not_found':        'Moniteur introuvable',
+  'monitor.detail.likely_deleted':   'Probablement supprimé.',
+  'monitor.detail.back_to_dashboard': 'Retour au tableau de bord',
+  'monitor.status.pending_first':    'En attente de la première vérification',
+  'monitor.detail.all_samples':      'Tous les échantillons',
+  'monitor.detail.attach_channel':   'Attacher un canal existant',
+  'monitor.detail.burndown_heading': 'Consommation du budget d’erreur',
+  'monitor.detail.depends_on':       'Dépend de',
 };
 
 export default fr;

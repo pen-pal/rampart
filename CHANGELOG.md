@@ -19,6 +19,18 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.75.0] — 2026-06-16
+
+### Fixed
+- More hardcoded English in the monitor detail view now routes through `t()`
+  and is translated in en/es/fr/de: the "Reliability window" / "Burn-down
+  window" chart `aria-label`s, plus prose ("No monitor selected", "Monitor not
+  found", "Back to dashboard", "Pending first check", "All samples", "Attach an
+  existing channel", "Error budget burn-down", "Depends on"). The modal close
+  button reuses `common.close` instead of a literal.
+
+---
+
 ## [0.74.0] — 2026-06-16
 
 ### Fixed
@@ -2010,6 +2022,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.75.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.75.0
 [0.74.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.74.0
 [0.73.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.73.0
 [0.72.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.72.0

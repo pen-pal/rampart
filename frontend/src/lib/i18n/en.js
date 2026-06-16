@@ -1919,6 +1919,17 @@ const en = {
   'dashboard.tip.bulk_select':       'Select for bulk action',
   'dashboard.tip.no_channels':       "No notification channels attached — flips will record but won't alert anyone",
   'notifications.push.subscribe_tip': 'Subscribe this browser to push alerts',
+  'monitor.aria.reliability_window': 'Reliability window',
+  'monitor.aria.burndown_window':    'Burn-down window',
+  'monitor.detail.none_selected':    'No monitor selected',
+  'monitor.detail.not_found':        'Monitor not found',
+  'monitor.detail.likely_deleted':   'Likely deleted.',
+  'monitor.detail.back_to_dashboard': 'Back to dashboard',
+  'monitor.status.pending_first':    'Pending first check',
+  'monitor.detail.all_samples':      'All samples',
+  'monitor.detail.attach_channel':   'Attach an existing channel',
+  'monitor.detail.burndown_heading': 'Error budget burn-down',
+  'monitor.detail.depends_on':       'Depends on',
 };
 
 export default en;
