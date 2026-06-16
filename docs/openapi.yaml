@@ -3598,7 +3598,7 @@ components:
 
     ChannelKind:
       type: string
-      description: Notification channel kind. Serialized snake_case. ~130 supported; a representative subset is listed; `custom` is the catch-all webhook.
+      description: Notification channel kind. Serialized snake_case. ~128 supported; a representative subset is listed; `custom` is the catch-all webhook.
       enum:
         - slack
         - discord

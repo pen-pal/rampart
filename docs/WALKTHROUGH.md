@@ -114,7 +114,7 @@ The table is searchable, sortable, and filterable by folder / tag. The mixed-sta
 
 ## Step 9 — Add a notification channel
 
-Channels live under **Settings → Notifications** (or `#/notifications`). Rampart ships **130 channel adapters** — chat platforms, SMS, email, webhook, web push, and the long-tail integrations like Honeybadger, PagerDuty, Opsgenie, Splunk On-Call, Zulip, ntfy, and many more.
+Channels live under **Settings → Notifications** (or `#/notifications`). Rampart ships **128 channel adapters** — chat platforms, SMS, email, webhook, web push, and the long-tail integrations like Honeybadger, PagerDuty, Opsgenie, Splunk On-Call, Zulip, ntfy, and many more.
 
 ![Notification channels](assets/screenshots/09-notifications.png)
 
