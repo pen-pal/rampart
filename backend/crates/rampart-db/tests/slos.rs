@@ -59,6 +59,11 @@ async fn metric_budget_fires_and_resolves(pool: PgPool) {
     assert!(snap.breaching);
     assert_eq!(snap.remaining_pct, Some(0.0));
 
+    // The achieved-ratio trend has a point in the current bucket near 99%.
+    let tr = slos::trend(&pool, &slo, 24).await.unwrap();
+    assert!(!tr.is_empty(), "trend has the recent bucket");
+    assert!((tr[tr.len() - 1] - 99.0).abs() < 1e-6, "latest bucket ratio ~99%");
+
     // First tick fires + stamps breaching_at.
     let ev = slos::evaluate_tick(&pool).await.unwrap();
     assert_eq!(ev.len(), 1);
