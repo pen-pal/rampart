@@ -135,7 +135,7 @@ pub async fn query_logs(pool: &DbPool, f: LogFilter<'_>) -> DbResult<Vec<LogEntr
           AND ($6::text IS NULL OR span_id = $6)
           AND ($7::int4 IS NULL OR received_at > now() - make_interval(hours => $7))
           AND ($8::uuid IS NULL OR (ts, id) < (SELECT ts, id FROM logs WHERE id = $8))
-        ORDER BY ts DESC
+        ORDER BY ts DESC, id DESC
         LIMIT $5
         "#,
         f.service,
