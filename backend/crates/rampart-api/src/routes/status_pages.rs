@@ -303,12 +303,44 @@ async fn assign_monitor_section(
 /// instead of the real component / incident data. A visitor unlocks the
 /// real payload via `POST .../unlock`. We do one cheap `get_by_slug` to
 /// learn the privacy flag before deciding whether to run the full rollup.
+// The public projection costs ~5 queries per attached monitor, on an
+// unauthenticated path — so a popular page under an incident (many concurrent
+// viewers + browser auto-refresh) can hammer the DB. A short per-slug TTL cache
+// collapses that burst into one rollup per window; staleness is bounded by the
+// TTL, well within a status page's expectations.
+const PUBLIC_VIEW_TTL: std::time::Duration = std::time::Duration::from_secs(15);
+
+fn public_view_cache(
+) -> &'static std::sync::Mutex<std::collections::HashMap<String, (std::time::Instant, PublicStatusPage)>>
+{
+    static CACHE: std::sync::OnceLock<
+        std::sync::Mutex<std::collections::HashMap<String, (std::time::Instant, PublicStatusPage)>>,
+    > = std::sync::OnceLock::new();
+    CACHE.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
+}
+
 async fn public_view_guarded(s: &AppState, slug: &str) -> Result<PublicStatusPage, ApiError> {
     let page = rampart_db::status_pages::get_by_slug(s.pool(), slug).await?;
     if page.private {
+        // Locked stub is cheap + must reflect the live privacy flag — don't cache.
         return Ok(PublicStatusPage::locked(page.slug, page.title));
     }
-    Ok(rampart_db::status_pages::public_view(s.pool(), slug).await?)
+    // Serve a fresh cached projection if one exists.
+    if let Ok(cache) = public_view_cache().lock() {
+        if let Some((at, view)) = cache.get(slug) {
+            if at.elapsed() < PUBLIC_VIEW_TTL {
+                return Ok(view.clone());
+            }
+        }
+    }
+    let view = rampart_db::status_pages::public_view(s.pool(), slug).await?;
+    if let Ok(mut cache) = public_view_cache().lock() {
+        // Opportunistically evict expired entries so the map can't grow
+        // unbounded as slugs come and go.
+        cache.retain(|_, (at, _)| at.elapsed() < PUBLIC_VIEW_TTL);
+        cache.insert(slug.to_string(), (std::time::Instant::now(), view.clone()));
+    }
+    Ok(view)
 }
 
 async fn public_view(
