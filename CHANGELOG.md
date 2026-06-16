@@ -19,6 +19,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.93.0] — 2026-06-16
+
+### Changed
+- The delivery log now shows the **monitor name as a link** to that monitor
+  instead of a raw UUID (resolved from a one-time monitor fetch; falls back to a
+  short id if the monitor is gone). Server-side filtering of the log is a
+  separate follow-up. (Audit #22, display half.)
+
+---
+
 ## [0.92.0] — 2026-06-16
 
 ### Fixed
@@ -2283,6 +2293,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.93.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.93.0
 [0.92.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.92.0
 [0.91.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.91.0
 [0.90.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.90.0
