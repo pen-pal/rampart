@@ -1,7 +1,8 @@
 # Notification channels
 
-128 first-party adapters + Apprise gateway + Generic Webhook = 130
-ways to fan out. Every channel takes a JSON config blob, persisted as
+128 channel adapters — including the Apprise gateway (one channel fans
+out to 80+ downstream services) and the HMAC-signed Generic Webhook — to
+fan out. Every channel takes a JSON config blob, persisted as
 `notifications.config`. Secret-shaped fields (tokens, passwords, API
 keys) are stored as plain text in the database — protect Postgres
 accordingly.

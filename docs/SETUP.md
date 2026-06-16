@@ -89,7 +89,7 @@ on the next tick. Default interval is 60 s; the dashboard polls every
 
 ### 6. Wire alerts
 
-`#/notifications` → `+ Add a new channel` → pick from 130 channels →
+`#/notifications` → `+ Add a new channel` → pick from 128 channels →
 test → save. Attach to monitors from the monitor detail page sidebar.
 For Web Push, save the channel first, then click **Enable push** on its
 row to subscribe the browser.

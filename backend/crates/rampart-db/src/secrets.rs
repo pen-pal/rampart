@@ -1,7 +1,7 @@
 //! Envelope encryption for secret-bearing JSON columns.
 //!
 //! Notification channel `config` holds live credentials — webhook bearer
-//! tokens, SMTP passwords, the API keys of 130 channels — as JSONB. At rest
+//! tokens, SMTP passwords, the API keys of 128 channels — as JSONB. At rest
 //! that is plaintext, so a database read (backup leak, replica, SQL injection
 //! elsewhere) exposes every outbound credential. This module encrypts those
 //! blobs with AES-256-GCM.

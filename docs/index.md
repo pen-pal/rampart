@@ -46,7 +46,7 @@ Rampart agent to adopt.
 - **[Escalation policies](ESCALATIONS.md)** — ordered notification ladders with
   acknowledge + episode lifecycle.
 - **[On-call rotations](ON-CALL.md)** — rotating channel schedules feeding ladders.
-- **130 notification channels** — chat, SMS, push, incident/on-call, issue
+- **128 notification channels** — chat, SMS, push, incident/on-call, issue
   trackers, webhooks. See [Notifications](NOTIFICATIONS.md).
 
 ## A look around
@@ -103,7 +103,7 @@ the [single-binary](SETUP.md) path.
 
 - **One binary.** Frontend embedded via `rust-embed`; no Node runtime on the host.
 - **Postgres-backed.** The database you already operate — no SQLite, no proprietary store.
-- **Open wire formats.** OpenTelemetry + Sentry in, 130 channels out. No lock-in.
+- **Open wire formats.** OpenTelemetry + Sentry in, 128 channels out. No lock-in.
 - **Single-tenant.** No `workspace_id` anywhere; the operator controls exposure.
 - **Zero telemetry.** Nothing phones home.
 

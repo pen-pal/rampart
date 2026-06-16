@@ -17,6 +17,17 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Docs
+- Corrected the notification-channel count repo-wide: the README badge,
+  headline, "why", architecture comment, and several docs said **130**, but the
+  notifier ships **128** channel adapters (the `ChannelKind::Custom` enum
+  variant is an internal placeholder with no adapter, and the README's own list
+  already enumerated 128). `docs/NOTIFICATIONS.md` no longer double-counts the
+  Apprise gateway and Generic Webhook. The "38 probe kinds" count is correct
+  (the 39th `MonitorKind`, `Synthetic`, is a multi-step composite, not a probe).
+- Fixed a broken README link to `docs/MAINTAINERS.md` (was pointing at repo
+  root).
+
 ---
 
 ## [0.76.0] — 2026-06-16

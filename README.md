@@ -6,7 +6,7 @@
 
 ### Self-hosted uptime monitoring **and** observability you can actually trust.
 
-**One Rust binary. One Postgres. 38 probe kinds. 130 notification channels.**<br/>
+**One Rust binary. One Postgres. 38 probe kinds. 128 notification channels.**<br/>
 Uptime + status pages, **error tracking, distributed traces, logs, and RUM** — one binary, no SaaS.<br/>
 Tier alerting • On-call rotations • Multi-step synthetics • **SSO (OIDC)** • **HA (leader election)** • encrypted secrets • SSRF-guarded probes • tamper-evident audit • 2FA.
 
@@ -14,7 +14,7 @@ Tier alerting • On-call rotations • Multi-step synthetics • **SSO (OIDC)**
 [![Built with Rust](https://img.shields.io/badge/built%20with-Rust-dea584.svg?logo=rust)](https://www.rust-lang.org/)
 [![Postgres](https://img.shields.io/badge/database-Postgres%2014%2B-336791.svg?logo=postgresql)](https://www.postgresql.org/)
 [![Probes](https://img.shields.io/badge/probes-38-brightgreen.svg)](#-38-probe-kinds)
-[![Channels](https://img.shields.io/badge/channels-130-brightgreen.svg)](#-130-notification-channels)
+[![Channels](https://img.shields.io/badge/channels-128-brightgreen.svg)](#-128-notification-channels)
 [![Bundle](https://img.shields.io/badge/binary-~10%20MB-informational.svg)](#-why-rampart)
 
 <br/>
@@ -69,7 +69,7 @@ We built Rampart because we were tired of choosing between bloated SaaS tools an
 
 - **vs. SaaS (Datadog / Pingdom / Site24x7)** — Lives on your hardware, no per-monitor pricing, no log-volume bills, no data leaving your perimeter.
 - **vs. other self-hosted dashboards** — Broader probe catalog (DBs, banner protocols, Kafka, RADIUS, NTP), proper tag routing with folder ancestor inheritance, real audit log, Postgres instead of SQLite, a single Rust binary instead of a Node runtime + headless Chromium.
-- **vs. roll-your-own Prometheus blackbox** — Out of the box: status pages, incident posting, maintenance windows, dependency-aware alerting, and 130 outbound channels.
+- **vs. roll-your-own Prometheus blackbox** — Out of the box: status pages, incident posting, maintenance windows, dependency-aware alerting, and 128 outbound channels.
 - **vs. a separate APM/error stack (Datadog / Sentry / Grafana LGTM)** — Error tracking, traces, logs, RUM, and continuous profiling (flamegraphs) live in the *same* binary as your uptime checks, speak OpenTelemetry + Sentry + pprof wire formats (no proprietary agent), and alert through the same channels — instead of standing up and paying for a second platform.
 
 ---
@@ -93,11 +93,11 @@ distinct from the connection timeout).
 
 *HTTP probes include methods, accepted statuses, custom headers/body, follow-redirects, ignore-TLS, and proxy support. Database + MQTT/LDAP probes take username/password (Redis ACL, LDAP bind DN) in the monitor form — or a full connection string. Soft-fail "warn" statuses are supported where applicable (e.g., NTP stratum 0).*
 
-### 🔔 130 Notification Channels
+### 🔔 128 Notification Channels
 Liquid-templated subject + body, per-channel cooldown, HMAC-signed Generic Webhooks, and tag-based auto-routing.
 
 <details>
-<summary><strong>Click to expand all 130 channels — grouped by category</strong></summary>
+<summary><strong>Click to expand all 128 channels — grouped by category</strong></summary>
 
 <br/>
 
@@ -178,7 +178,7 @@ rampart/
 │       ├── rampart-db                    # sqlx repository layer
 │       ├── rampart-checker               # probe runners (38 kinds)
 │       ├── rampart-scheduler             # per-monitor tokio tasks + batched writer
-│       ├── rampart-notifier              # channel fan-out (130 adapters)
+│       ├── rampart-notifier              # channel fan-out (128 adapters)
 │       └── rampart-api                   # axum HTTP server (embeds React)
 ├── frontend/                             # Vite + React SPA
 ├── docs/                                 # architecture, setup, security debt
@@ -373,7 +373,7 @@ npx playwright test       # e2e on Chromium + Firefox + WebKit
 - [**docs/API.md**](docs/API.md) — REST API + the OpenAPI spec (`/openapi.yaml`).
 - [**docs/NOTIFICATIONS.md**](docs/NOTIFICATIONS.md) — Notification channels + templating.
 - [**CONTRIBUTING.md**](CONTRIBUTING.md) — Scope rules, how to add a probe / channel / migration.
-- [**MAINTAINERS.md**](MAINTAINERS.md) — Release workflow and repo settings.
+- [**docs/MAINTAINERS.md**](docs/MAINTAINERS.md) — Release workflow and repo settings.
 
 ---
 
