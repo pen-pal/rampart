@@ -441,6 +441,8 @@ export default function NewMonitorWizard() {
   const [dbUser, setDbUser] = useState('');
   const [dbPassword, setDbPassword] = useState('');
   const [dbDatabase, setDbDatabase] = useState('');
+  // Soft-SLA: mark the check down if it responds slower than this (config.max_latency_ms).
+  const [maxLatency, setMaxLatency] = useState('');
   const [keyword, setKeyword] = useState('');
   const [jsonPath, setJsonPath] = useState('');
   const [jsonExpected, setJsonExpected] = useState('');
@@ -671,6 +673,8 @@ export default function NewMonitorWizard() {
           config.database = dbDatabase.trim();
         }
       }
+      const ml = parseInt(maxLatency, 10);
+      if (Number.isFinite(ml) && ml > 0) config.max_latency_ms = ml;
     }
     if (fields.keyword  && keyword)  config.keyword = keyword;
     if (fields.renderer && rendererUrl) config.renderer_url = rendererUrl;
@@ -1079,6 +1083,11 @@ export default function NewMonitorWizard() {
                         type={type === 'redis' ? 'number' : 'text'}
                         placeholder={type === 'redis' ? '0' : type}/>
                       <div className="field-hint">{t('wizard.field.db_auth_hint')}</div>
+                    </div>
+                    <div className="field">
+                      <label className="field-label">{t('wizard.field.max_latency')} <span style={{ textTransform: 'none', color: 'var(--text-3)' }}>({t('wizard.optional')})</span></label>
+                      <input className="input mono" type="number" min="0" value={maxLatency} onChange={e => setMaxLatency(e.target.value)} placeholder="e.g. 500"/>
+                      <div className="field-hint">{t('wizard.field.max_latency_hint')}</div>
                     </div>
                   </>
                 )}

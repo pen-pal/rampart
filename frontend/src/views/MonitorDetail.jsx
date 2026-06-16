@@ -1535,8 +1535,8 @@ function configHint(kind) {
     case 'ssh':       case 'smtp': case 'imap': case 'pop3': case 'ftp':
                       return 'Key: expect — prefix the server greeting must start with. Empty uses the protocol default.';
     case 'postgres':  case 'mysql': case 'mssql': case 'mongodb':
-                      return 'Auth keys: user, password, database. Or set connection_string for a full URL.';
-    case 'redis':     return 'Auth keys: user (ACL, Redis 6+), password, db (number), tls (bool). Or connection_string.';
+                      return 'Auth keys: user, password, database. Or connection_string for a full URL. max_latency_ms marks a slow-but-up check down.';
+    case 'redis':     return 'Auth keys: user (ACL, Redis 6+), password, db (number), tls (bool). Or connection_string. max_latency_ms marks a slow-but-up check down.';
     default:          return 'Free-form JSON read by the probe runtime. Leave empty if this probe has no extra config.';
   }
 }
