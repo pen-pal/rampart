@@ -11,7 +11,7 @@ dependency cuts a new major version.
 
 | RUSTSEC | Crate | Via | Why accepted | Fix path |
 |---------|-------|-----|--------------|----------|
-| 2026-0049 | `rustls-webpki` 0.102 | `rumqttc` → `rustls` 0.22 | Cert name-constraint / CRL-parse panics. MQTT probe verifies an operator-specified broker cert; CRL path not exercised by default config. | Bump `rumqttc` to a release on `rustls` 0.23 (`webpki` 0.103). |
+| 2026-0049 | `rustls-webpki` 0.102 / 0.101 | `rumqttc` → `rustls` 0.22, `async-nats` 0.36 (0.102); `tiberius` → `rustls` 0.21 (0.101) | Cert name-constraint / CRL-parse panics. Only reachable on a TLS handshake to an operator-specified MQTT/NATS/MSSQL target presenting a malicious cert; the CRL path is not exercised by default config. | Needs `rustls` 0.23 (`webpki` 0.103) across these. **Blocked:** `rumqttc` 0.25 (the only rustls-0.23 release) pulls `aws-lc-rs`/cmake, breaking the pure-Rust / C-toolchain-free build (see `DEPENDENCIES.md`); `async-nats`/`tiberius` have no semver-compatible fixed release yet. |
 | 2026-0098 | `rustls-webpki` 0.102 | (same) | (same) | (same) |
 | 2026-0099 | `rustls-webpki` 0.102 | (same) | (same) | (same) |
 | 2026-0104 | `rustls-webpki` 0.102 | (same) | (same) | (same) |
