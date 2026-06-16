@@ -1852,6 +1852,8 @@ const de = {
   'profiling.root': 'alle',
   'profiling.search_ph': 'Frames hervorheben…',
   'profiling.match_count': '{n} Treffer',
+  'profiling.of_parent': '{pct}% des übergeordneten Frames',
+  'profiling.zoom_hint': 'Frame anklicken zum Zoomen · oberen Frame anklicken oder Esc zum Zurücksetzen',
   'profiling.click_highlight': 'Klicken, um im Flamegraph hervorzuheben',
   'profiling.scoped_window': 'Auf das Zeitfenster eines Spans begrenzt (~{ms} ms)',
   'profiling.clear_window': 'Löschen',

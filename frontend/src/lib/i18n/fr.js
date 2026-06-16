@@ -1837,6 +1837,8 @@ const fr = {
   'profiling.root': 'tout',
   'profiling.search_ph': 'Surligner des frames…',
   'profiling.match_count': '{n} correspondances',
+  'profiling.of_parent': '{pct}% du parent',
+  'profiling.zoom_hint': 'Cliquez sur un cadre pour zoomer · cliquez sur le cadre du haut ou Échap pour réinitialiser',
   'profiling.click_highlight': 'Cliquez pour surligner dans le flamegraph',
   'profiling.scoped_window': 'Limité à la fenêtre temporelle d\'un span (~{ms} ms)',
   'profiling.clear_window': 'Effacer',

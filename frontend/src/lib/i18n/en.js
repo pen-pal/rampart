@@ -1751,6 +1751,8 @@ const en = {
   'profiling.empty.cta':             'Push a profile to /profiles/v1/pprof, /profiles/v1/folded, or /otlp (this host).',
   'profiling.fn':                    'Function',
   'profiling.self':                  'Self',
+  'profiling.of_parent':             '{pct}% of parent',
+  'profiling.zoom_hint':             'Click a frame to zoom · click the top frame or press Esc to reset',
   'profiling.total':                 'Total',
   'profiling.diff':                  'Diff',
   'profiling.diff_hint':             'Compare this window against the preceding one — red = hotter, blue = colder',

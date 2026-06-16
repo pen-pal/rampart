@@ -2,11 +2,12 @@
  *
  * Every view ships its own scoped `.rampart { … }` style block with the design
  * tokens and component looks; this file layers *additive* interaction polish on
- * top — smooth transitions, keyboard focus rings, and a subtle press response —
- * so the whole app feels consistent without overriding any per-view styling.
+ * top — transitions, hover lift, keyboard focus rings, press feedback — so the
+ * whole app feels alive and consistent without overriding any per-view styling.
  *
- * It only sets properties the per-view blocks leave untouched (transition,
- * :focus-visible, :active transform), so the DOM-order cascade can't clobber it.
+ * It mostly sets properties the per-view blocks leave untouched (transition,
+ * transform, box-shadow on hover, :focus-visible), so the DOM-order cascade
+ * can't clobber it. Everything is gated behind `prefers-reduced-motion`.
  */
 
 .rampart .btn,
@@ -14,22 +15,48 @@
 .rampart .select,
 .rampart textarea,
 .rampart .card,
+.rampart .row,
 .rampart a {
   transition:
-    background-color .15s ease,
-    border-color .15s ease,
-    color .15s ease,
-    box-shadow .15s ease,
-    transform .08s ease;
+    background-color .16s ease,
+    border-color .16s ease,
+    color .16s ease,
+    box-shadow .18s ease,
+    transform .12s cubic-bezier(.2, .7, .3, 1);
 }
 
-/* Tactile press feedback on buttons (skips disabled ones). */
+/* ── Buttons: lift + soft shadow on hover, press down on click ───────── */
+.rampart .btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, .07);
+}
 .rampart .btn:active:not(:disabled) {
-  transform: translateY(1px);
+  transform: translateY(0);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .08);
+}
+/* Accent / primary buttons get a tinted glow so the main action pops. */
+.rampart .btn-accent:hover:not(:disabled) {
+  box-shadow: 0 4px 14px rgba(20, 184, 166, .35);
+}
+/* Ghost buttons (icon-only toolbar actions) shouldn't float — just tint. */
+.rampart .btn-ghost:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
 }
 
-/* Keyboard-only focus ring — additive to the per-view :focus box-shadow,
- * and invisible to mouse users so it never competes with hover styling. */
+/* ── Cards: gentle lift so panels feel tactile under the cursor ──────── */
+.rampart .card:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .06);
+}
+
+/* ── List rows: smooth, inviting hover (views set the colour; we add the
+ *    cursor affordance + a subtle inset accent edge). ─────────────────── */
+.rampart .row:hover {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* ── Keyboard-only focus ring — additive to per-view :focus styling, and
+ *    invisible to mouse users so it never competes with hover. ────────── */
 .rampart .btn:focus-visible,
 .rampart .input:focus-visible,
 .rampart .select:focus-visible,
@@ -39,16 +66,18 @@
   outline-offset: 2px;
 }
 
-/* Respect users who ask for less motion. */
+/* ── Respect reduced-motion: drop every transition + transform. ───────── */
 @media (prefers-reduced-motion: reduce) {
   .rampart .btn,
   .rampart .input,
   .rampart .select,
   .rampart textarea,
   .rampart .card,
+  .rampart .row,
   .rampart a {
     transition: none;
   }
+  .rampart .btn:hover:not(:disabled),
   .rampart .btn:active:not(:disabled) {
     transform: none;
   }
