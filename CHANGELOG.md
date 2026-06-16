@@ -19,6 +19,17 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.60.0] — 2026-06-16
+
+### Added
+- **Dashboard active-escalations widget.** A sidebar panel lists open escalation
+  episodes — "who's being paged right now" — with subject kind, current step,
+  acknowledged-vs-climbing state, and how long it's been running, linking to the
+  escalations view. Completes the dashboard's at-a-glance set (monitors, SLOs,
+  errors, escalations). i18n en/es/fr/de.
+
+---
+
 ## [0.59.4] — 2026-06-16
 
 ### Tested
@@ -1713,6 +1724,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.60.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.60.0
 [0.59.4]:     https://github.com/pen-pal/rampart/releases/tag/v0.59.4
 [0.59.3]:     https://github.com/pen-pal/rampart/releases/tag/v0.59.3
 [0.59.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.59.2
