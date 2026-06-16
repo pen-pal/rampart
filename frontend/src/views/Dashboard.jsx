@@ -19,6 +19,7 @@ import { ThemeToggle } from '../components/ThemeToggle.jsx';
 import { canWrite } from '../lib/roles.js';
 import { t } from '../lib/i18n.js';
 import { confirmDialog, promptDialog, toast } from '../lib/notify.js';
+import { useFocusTrap } from '../lib/useFocusTrap.js';
 
 // ─── shareable saved-view (de)serialisation ─────────────────────────────────
 // A saved view is pure filter state — { tags, folder, search } — so it can be
@@ -589,6 +590,8 @@ export default function Dashboard({ user, onLogout } = {}) {
   // `group` is the chosen target group id ('' = inherit source, '__ungroup__'
   // = ungrouped, else a group id).
   const [cloneState, setCloneState] = useState(null);
+  const cloneRef = useRef(null);
+  useFocusTrap(cloneRef, !!cloneState, () => { if (!cloneState?.busy) setCloneState(null); });
   const submitClone = async () => {
     if (!cloneState || cloneState.busy) return;
     setCloneState(s => ({ ...s, busy: true }));
@@ -1836,7 +1839,7 @@ export default function Dashboard({ user, onLogout } = {}) {
           position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,.35)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
         }}>
-          <div className="card" onClick={e => e.stopPropagation()} style={{ width: 420, maxWidth: '100%', padding: 20 }}>
+          <div ref={cloneRef} role="dialog" aria-modal="true" tabIndex={-1} className="card" onClick={e => e.stopPropagation()} style={{ width: 420, maxWidth: '100%', padding: 20 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
               <Copy size={16}/>
               <strong style={{ fontSize: 15 }}>{t("dashboard.clone.title")}</strong>
