@@ -62,7 +62,7 @@ const css = `
 
 export default function MonitorTemplates({ user }) {
   const writable = canWrite(user);
-  const templatesState = useApi(() => api.monitorTemplates.list(), [], { pollMs: 60_000 });
+  const templatesState = useApi(() => api.monitorTemplates.list(), [reloadKey], { pollMs: 60_000 });
   const [busy, setBusy] = useState(null);
   const [err,  setErr]  = useState(null);
   // Instantiate dialog: null when closed, else { template, name, busy }.
@@ -70,7 +70,8 @@ export default function MonitorTemplates({ user }) {
   // From-scratch create form: null when closed.
   const [createState, setCreateState] = useState(null);
 
-  const reload = () => window.location.reload();
+  const [reloadKey, setReloadKey] = useState(0);
+  const reload = () => setReloadKey((k) => k + 1);
 
   const remove = async (id) => {
     if (!(await confirmDialog({ message: t('templates.delete_confirm') }))) return;
