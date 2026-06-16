@@ -476,6 +476,7 @@ export const api = {
     detail:     (id)    => request(`/v1/traces/${id}`),
     serviceMap: (hours) => request(`/v1/traces/service-map${hours ? `?hours=${hours}` : ''}`),
     operations: (service, hours) => request(`/v1/traces/operations?hours=${hours || 24}${service ? `&service=${encodeURIComponent(service)}` : ''}`),
+    operationTrend: (service, operation, hours) => request(`/v1/traces/operation-trend?service=${encodeURIComponent(service)}&operation=${encodeURIComponent(operation)}&hours=${hours || 24}`),
   },
   // Log ingestion — OTLP logs, filtered recent-logs stream.
   logs: {

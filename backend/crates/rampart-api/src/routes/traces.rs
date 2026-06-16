@@ -25,6 +25,7 @@ pub fn router() -> Router<AppState> {
         // prefers the static match, so these resolve before `/{trace_id}`.
         .route("/service-map", get(service_map))
         .route("/operations", get(operations))
+        .route("/operation-trend", get(operation_trend))
         .route("/export.csv", get(export_csv))
         .route("/{trace_id}", get(detail))
 }
@@ -88,6 +89,29 @@ async fn operations(
             s.pool(),
             q.service.as_deref().unwrap_or(""),
             q.hours.unwrap_or(24),
+        )
+        .await?,
+    ))
+}
+
+#[derive(serde::Deserialize)]
+struct OpTrendQuery {
+    service: String,
+    operation: String,
+    hours: Option<i64>,
+}
+
+async fn operation_trend(
+    State(s): State<AppState>,
+    Query(q): Query<OpTrendQuery>,
+) -> Result<Json<Vec<f64>>, ApiError> {
+    Ok(Json(
+        rampart_db::traces::operation_trend(
+            s.pool(),
+            &q.service,
+            &q.operation,
+            q.hours.unwrap_or(24),
+            24,
         )
         .await?,
     ))

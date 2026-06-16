@@ -307,6 +307,39 @@ pub async fn operation_stats(
         .collect())
 }
 
+/// p95 latency trend for one (service, operation) over the window, bucketed
+/// into ~`buckets` points (oldest → newest) for a sparkline. Empty buckets are
+/// dropped.
+pub async fn operation_trend(
+    pool: &DbPool,
+    service: &str,
+    operation: &str,
+    window_hours: i64,
+    buckets: i64,
+) -> DbResult<Vec<f64>> {
+    let hours = window_hours.clamp(1, 720);
+    let buckets = buckets.clamp(2, 200);
+    let step = ((hours * 3600) / buckets).max(1);
+    let rows = sqlx::query!(
+        r#"
+        SELECT date_bin(make_interval(secs => $4), received_at,
+                        now() - make_interval(hours => $3)) AS "bucket!",
+               percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms) AS "p95"
+        FROM spans
+        WHERE service_name = $1 AND name = $2
+          AND received_at > now() - make_interval(hours => $3)
+        GROUP BY 1 ORDER BY 1
+        "#,
+        service,
+        operation,
+        hours as i32,
+        step as f64,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().filter_map(|r| r.p95).collect())
+}
+
 /// Delete spans older than `days`. Returns rows removed.
 pub async fn prune(pool: &DbPool, days: i32) -> DbResult<u64> {
     let result = sqlx::query!(
