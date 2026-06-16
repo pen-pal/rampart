@@ -255,8 +255,27 @@ function TraceList({ onOpen, preset, onPresetUsed }) {
   );
 }
 
+// Tiny p95-latency trend sparkline for one operation, lazily fetched on expand.
+function OpTrend({ service, operation, hours }) {
+  const st = useApi(() => api.traces.operationTrend(service, operation, hours), [service, operation, hours]);
+  const vals = st.data || [];
+  if (st.loading) return <div style={{ padding: '6px 18px', fontSize: 11, color: 'var(--text-3)' }}><Loader2 size={12}/></div>;
+  if (vals.length < 2) return <div style={{ padding: '6px 18px', fontSize: 11, color: 'var(--text-3)' }}>{t('traces.ops.no_trend')}</div>;
+  const min = Math.min(...vals), max = Math.max(...vals), span = (max - min) || 1, w = 320, h = 36;
+  const pts = vals.map((v, i) => `${(i / (vals.length - 1)) * (w - 2) + 1},${(h - 2 - ((v - min) / span) * (h - 4)).toFixed(1)}`).join(' ');
+  const up = vals[vals.length - 1] > vals[0];
+  return (
+    <div style={{ padding: '8px 18px 12px', background: 'var(--bg)', display: 'flex', alignItems: 'center', gap: 14 }}>
+      <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{t('traces.ops.p95_trend')}</span>
+      <svg width={w} height={h} style={{ display: 'block' }}><polyline points={pts} fill="none" stroke={up ? 'var(--down)' : 'var(--accent)'} strokeWidth="1.5" strokeLinejoin="round"/></svg>
+      <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>{fmtMs(min)} – {fmtMs(max)}</span>
+    </div>
+  );
+}
+
 function OperationsTable({ onPick }) {
   const [hours, setHours] = useState(24);
+  const [openOp, setOpenOp] = useState(null);
   const state = useApi(() => api.traces.operations(null, hours), [hours]);
   const ops = state.data || [];
   return (
@@ -286,24 +305,33 @@ function OperationsTable({ onPick }) {
                 <span style={{ width: 64, textAlign: 'right' }}>p99</span>
               </div>
             </div>
-            {ops.map((o, i) => (
-              <div className="row" key={i} style={{ cursor: 'pointer' }}
-                onClick={() => onPick && onPick(o.service)} title={t('traces.edge_open')}>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span className="pill pill-muted">{o.service}</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.operation}</span>
+            {ops.map((o, i) => {
+              const key = `${o.service}|${o.operation}`;
+              return (
+                <div key={i}>
+                  <div className="row" style={{ cursor: 'pointer' }} title={t('traces.ops.trend_hint')}
+                    onClick={() => setOpenOp(openOp === key ? null : key)}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ color: 'var(--text-3)', fontSize: 9 }}>{openOp === key ? '▾' : '▸'}</span>
+                        <span className="pill pill-muted">{o.service}</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.operation}</span>
+                        <a href="#" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onPick && onPick(o.service); }}
+                          style={{ color: 'var(--accent)', fontSize: 11, marginLeft: 4 }} title={t('traces.edge_open')}>→</a>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 18, fontSize: 12.5, fontVariantNumeric: 'tabular-nums', color: 'var(--text-2)' }}>
+                      <span style={{ width: 56, textAlign: 'right' }}>{o.calls}</span>
+                      <span style={{ width: 56, textAlign: 'right', color: o.error_rate > 0 ? 'var(--down)' : 'var(--text-3)' }}>{o.error_rate.toFixed(1)}%</span>
+                      <span style={{ width: 64, textAlign: 'right' }}>{fmtMs(o.p50_ms)}</span>
+                      <span style={{ width: 64, textAlign: 'right' }}>{fmtMs(o.p95_ms)}</span>
+                      <span style={{ width: 64, textAlign: 'right', fontWeight: 600 }}>{fmtMs(o.p99_ms)}</span>
+                    </div>
                   </div>
+                  {openOp === key && <OpTrend service={o.service} operation={o.operation} hours={hours}/>}
                 </div>
-                <div style={{ display: 'flex', gap: 18, fontSize: 12.5, fontVariantNumeric: 'tabular-nums', color: 'var(--text-2)' }}>
-                  <span style={{ width: 56, textAlign: 'right' }}>{o.calls}</span>
-                  <span style={{ width: 56, textAlign: 'right', color: o.error_rate > 0 ? 'var(--down)' : 'var(--text-3)' }}>{o.error_rate.toFixed(1)}%</span>
-                  <span style={{ width: 64, textAlign: 'right' }}>{fmtMs(o.p50_ms)}</span>
-                  <span style={{ width: 64, textAlign: 'right' }}>{fmtMs(o.p95_ms)}</span>
-                  <span style={{ width: 64, textAlign: 'right', fontWeight: 600 }}>{fmtMs(o.p99_ms)}</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </>
         )}
       </div>
