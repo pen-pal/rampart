@@ -108,8 +108,16 @@ fn build_url(monitor: &Monitor) -> Result<String, String> {
         Some(true) => "rediss",
         _ => "redis",
     };
+    // Redis 6+ ACL: optional username before the password. `:{pass}@` (no user)
+    // remains valid for the default user / `requirepass`.
+    let user = monitor
+        .config
+        .get("user")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
     let creds = match monitor.config.get("password").and_then(|v| v.as_str()) {
-        Some(p) if !p.is_empty() => format!(":{p}@"),
+        Some(p) if !p.is_empty() => format!("{user}:{p}@"),
+        _ if !user.is_empty() => format!("{user}@"),
         _ => String::new(),
     };
     let db = monitor

@@ -1515,6 +1515,9 @@ function configPlaceholder(kind) {
     case 'keyword':   return '{\n  "keyword": "operational"\n}';
     case 'json_query':return '{\n  "json_path": "$.status",\n  "expected_value": "ok"\n}';
     case 'browser':   return '{\n  "renderer_url": "http://browserless:3000/content",\n  "keyword": "operational"\n}';
+    case 'postgres':  case 'mysql': case 'mssql': case 'mongodb':
+                      return '{\n  "user": "app",\n  "password": "secret",\n  "database": "app"\n}';
+    case 'redis':     return '{\n  "user": "default",\n  "password": "secret",\n  "db": 0\n}';
     case 'ssh':       return '{\n  "expect": "SSH-"\n}';
     case 'smtp':      return '{\n  "expect": "220"\n}';
     case 'imap':      return '{\n  "expect": "* OK"\n}';
@@ -1531,6 +1534,9 @@ function configHint(kind) {
     case 'browser':   return 'Keys: renderer_url (URL of the headless renderer), keyword (substring required in rendered HTML).';
     case 'ssh':       case 'smtp': case 'imap': case 'pop3': case 'ftp':
                       return 'Key: expect — prefix the server greeting must start with. Empty uses the protocol default.';
+    case 'postgres':  case 'mysql': case 'mssql': case 'mongodb':
+                      return 'Auth keys: user, password, database. Or set connection_string for a full URL.';
+    case 'redis':     return 'Auth keys: user (ACL, Redis 6+), password, db (number), tls (bool). Or connection_string.';
     default:          return 'Free-form JSON read by the probe runtime. Leave empty if this probe has no extra config.';
   }
 }

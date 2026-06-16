@@ -1854,6 +1854,12 @@ const fr = {
   'dashboard.escalations.step': 'étape {n}',
   'dashboard.escalations.acked': 'Acquittée',
   'dashboard.escalations.climbing': 'En cours',
+  'wizard.optional': 'facultatif',
+  'wizard.field.db_user': 'Nom d\'utilisateur',
+  'wizard.field.db_password': 'Mot de passe',
+  'wizard.field.db_name': 'Base de données',
+  'wizard.field.db_number': 'Numéro de BD',
+  'wizard.field.db_auth_hint': 'Utilisé si aucune chaîne de connexion complète n\'est définie. Stocké dans la configuration du moniteur et envoyé au serveur à chaque vérification.',
 };
 
 export default fr;

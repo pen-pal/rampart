@@ -1869,6 +1869,12 @@ const de = {
   'dashboard.escalations.step': 'Stufe {n}',
   'dashboard.escalations.acked': 'Bestätigt',
   'dashboard.escalations.climbing': 'Läuft',
+  'wizard.optional': 'optional',
+  'wizard.field.db_user': 'Benutzername',
+  'wizard.field.db_password': 'Passwort',
+  'wizard.field.db_name': 'Datenbank',
+  'wizard.field.db_number': 'DB-Nummer',
+  'wizard.field.db_auth_hint': 'Wird verwendet, wenn keine vollständige Verbindungszeichenfolge gesetzt ist. Wird in der Monitor-Konfiguration gespeichert und bei jeder Prüfung an den Server gesendet.',
 };
 
 export default de;
