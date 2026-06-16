@@ -19,6 +19,18 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.95.2] — 2026-06-16
+
+### Changed
+- The Agents, API keys, Proxies, Maintenance, Monitor templates, Scheduled
+  reports, and Users admin views now **refetch their list in place** after a
+  create/delete (a `reloadKey` bump) instead of a full `window.location.reload()`
+  that flashed the whole shell and lost scroll/filters. (Audit #11; the
+  Dashboard / MonitorDetail / StatusPageBuilder / Notifications reloads, which
+  fire from nested edit contexts, are a follow-up.)
+
+---
+
 ## [0.95.1] — 2026-06-16
 
 ### Changed
@@ -2334,6 +2346,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.95.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.95.2
 [0.95.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.95.1
 [0.95.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.95.0
 [0.94.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.94.0
