@@ -19,6 +19,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.69.0] — 2026-06-16
+
+### Added
+- **Dashboard metric-series widget.** The sidebar now lists recently-active
+  metric series (name + sample count), linking to the Metrics view — so ingested
+  metrics surface on the overview alongside monitors / SLOs / errors /
+  escalations. Hidden when no metrics exist. i18n en/es/fr/de.
+
+---
+
 ## [0.68.2] — 2026-06-16
 
 ### Changed
@@ -1921,6 +1931,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.69.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.69.0
 [0.68.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.68.2
 [0.68.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.68.1
 [0.68.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.68.0
