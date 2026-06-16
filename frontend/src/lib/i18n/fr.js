@@ -1850,6 +1850,10 @@ const fr = {
   'rum.load': 'Chargement',
   'rum.trace': 'Trace',
   'errors.volume_hint': 'Événements d\'erreur sur les 7 derniers jours',
+  'dashboard.escalations.title': 'Escalades actives',
+  'dashboard.escalations.step': 'étape {n}',
+  'dashboard.escalations.acked': 'Acquittée',
+  'dashboard.escalations.climbing': 'En cours',
 };
 
 export default fr;

@@ -397,6 +397,43 @@ function ErrorsWidget() {
   );
 }
 
+// Active escalation episodes — "who's being paged right now" sidebar feed.
+const ESC_SUBJECT_LABEL = {
+  monitor: 'Monitor', telemetry_rule: 'Telemetry rule', metric_rule: 'Metric rule',
+  detection_rule: 'Detection rule', slo: 'SLO',
+};
+function EscalationsWidget() {
+  const state = useApi(() => api.escalation.openEpisodes(), [], { pollMs: 30_000 });
+  const eps = state.data || [];
+  if (state.loading || eps.length === 0) return null;
+  return (
+    <div className="card" style={{ padding: 14, marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
+        <a href="#/escalations" style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em', textDecoration: 'none' }}>
+          {t('dashboard.escalations.title')}
+        </a>
+        <span className="mono" style={{ fontSize: 11, color: 'var(--down)', fontWeight: 600 }}>{eps.length}</span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+        {eps.map(e => (
+          <a key={e.id} href="#/escalations" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+            <div style={{ display: 'flex', gap: 7, alignItems: 'baseline' }}>
+              <span style={{ width: 6, height: 6, borderRadius: 3, background: e.acked_at ? 'var(--warn)' : 'var(--down)', flexShrink: 0, alignSelf: 'center' }}/>
+              <span style={{ fontSize: 12, fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {ESC_SUBJECT_LABEL[e.subject_kind] || e.subject_kind}
+              </span>
+              <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-3)' }}>{t('dashboard.escalations.step', { n: e.last_step + 1 })}</span>
+            </div>
+            <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginLeft: 13 }}>
+              {e.acked_at ? t('dashboard.escalations.acked') : t('dashboard.escalations.climbing')} · {formatRelative(e.started_at)}
+            </div>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── main component ───────────────────────────────────────────────────────
 export default function Dashboard({ user, onLogout } = {}) {
   // Whether the current user may mutate (admin/editor). Readonly users see
@@ -993,6 +1030,7 @@ export default function Dashboard({ user, onLogout } = {}) {
             </div>
           </div>
 
+          <EscalationsWidget />
           <SloWidget />
           <ErrorsWidget />
 
