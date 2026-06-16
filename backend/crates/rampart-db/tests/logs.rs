@@ -74,3 +74,59 @@ async fn level_counts_and_query_roundtrip(pool: PgPool) {
     .unwrap();
     assert_eq!(rows.len(), 1);
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn keyset_pagination_covers_all_without_overlap(pool: PgPool) {
+    // Five logs, all stamped ~now() (ties on ts) — so the (ts, id) keyset's id
+    // tiebreak is what makes paging stable.
+    logs::insert_logs(
+        &pool,
+        &[
+            line(9, "api", "one"),
+            line(9, "api", "two"),
+            line(9, "api", "three"),
+            line(9, "api", "four"),
+            line(9, "api", "five"),
+        ],
+    )
+    .await
+    .unwrap();
+
+    let page = |before: Option<uuid::Uuid>| {
+        let pool = pool.clone();
+        async move {
+            logs::query_logs(
+                &pool,
+                LogFilter {
+                    service: Some("api"),
+                    min_severity: None,
+                    query: None,
+                    trace_id: None,
+                    span_id: None,
+                    hours: None,
+                    before_id: before,
+                    limit: 2,
+                },
+            )
+            .await
+            .unwrap()
+        }
+    };
+
+    // Walk the cursor in pages of 2 and collect every id.
+    let mut seen = Vec::new();
+    let mut cursor = None;
+    loop {
+        let rows = page(cursor).await;
+        if rows.is_empty() {
+            break;
+        }
+        assert!(rows.len() <= 2);
+        cursor = Some(rows.last().unwrap().id);
+        seen.extend(rows.into_iter().map(|r| r.id));
+    }
+
+    assert_eq!(seen.len(), 5, "every row paged exactly once");
+    let unique: std::collections::HashSet<_> = seen.iter().collect();
+    assert_eq!(unique.len(), 5, "no row appears on two pages");
+}
