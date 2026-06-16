@@ -59,6 +59,7 @@ struct LogQuery {
     /// Case-insensitive substring match on the body.
     q: Option<String>,
     trace_id: Option<String>,
+    span_id: Option<String>,
     limit: Option<i64>,
     hours: Option<i32>,
 }
@@ -73,6 +74,7 @@ async fn list(
         min_severity,
         query: query.q.as_deref().filter(|s| !s.is_empty()),
         trace_id: query.trace_id.as_deref(),
+        span_id: query.span_id.as_deref().filter(|s| !s.is_empty()),
         limit: query.limit.unwrap_or(200),
     };
     Ok(Json(rampart_db::logs::query_logs(s.pool(), filter).await?))
@@ -113,6 +115,7 @@ async fn export_csv(
         min_severity,
         query: query.q.as_deref().filter(|s| !s.is_empty()),
         trace_id: query.trace_id.as_deref(),
+        span_id: query.span_id.as_deref().filter(|s| !s.is_empty()),
         limit,
     };
     let rows = rampart_db::logs::query_logs(s.pool(), filter).await?;

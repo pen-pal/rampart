@@ -1627,6 +1627,7 @@ const es = {
   'traces.collapse_all': 'Contraer todo',
   'traces.expand_all': 'Expandir todo',
   'traces.profile_span': 'Perfilar la ventana de este span →',
+  'traces.span_logs': '{n} registros en este span',
   'traces.edge_open': 'Abrir trazas de este servicio',
   'dashboard.errors.title': 'Errores recientes',
   'logs.window_hint': 'Ventana del histograma y recuento por nivel',

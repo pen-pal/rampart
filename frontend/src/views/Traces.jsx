@@ -501,6 +501,7 @@ function TraceDetail({ traceId, onBack }) {
                       </span>
                     </div>
                   ))}
+                  <SpanLogs traceId={traceId} spanId={s.span_id} />
                 </div>
               )}
             </div>
@@ -544,6 +545,25 @@ function TraceErrors({ traceId }) {
 
 // Correlated logs — logs the apps emitted carrying this trace_id. The cross-tier
 // link: jump from a span waterfall to the matching log lines.
+// Logs emitted under one span — inline in the span detail panel (span→logs).
+function SpanLogs({ traceId, spanId }) {
+  const state = useApi(() => api.logs.query({ trace_id: traceId, span_id: spanId, limit: 20 }), [traceId, spanId]);
+  const logs = state.data || [];
+  if (state.loading || logs.length === 0) return null;
+  const lvlColor = (sev) => (sev >= 17 ? 'var(--down)' : sev >= 13 ? 'var(--warn)' : 'var(--text-3)');
+  return (
+    <div style={{ marginTop: 8, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+      <div style={{ fontSize: 10.5, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 4 }}>{t('traces.span_logs', { n: logs.length })}</div>
+      {logs.map(l => (
+        <div key={l.id} className="mono" style={{ fontSize: 11.5, display: 'flex', gap: 8, padding: '1px 0' }}>
+          <span style={{ color: lvlColor(l.severity), flexShrink: 0, width: 44 }}>{l.severity_text || l.severity}</span>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={l.body}>{l.body}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function TraceLogs({ traceId }) {
   const state = useApi(() => api.logs.query({ trace_id: traceId, limit: 100 }), [traceId]);
   const logs = state.data || [];

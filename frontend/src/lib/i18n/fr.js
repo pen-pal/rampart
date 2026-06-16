@@ -1841,6 +1841,7 @@ const fr = {
   'traces.collapse_all': 'Tout replier',
   'traces.expand_all': 'Tout déplier',
   'traces.profile_span': 'Profiler la fenêtre de ce span →',
+  'traces.span_logs': '{n} logs dans ce span',
   'traces.edge_open': 'Ouvrir les traces de ce service',
   'dashboard.errors.title': 'Erreurs récentes',
   'logs.window_hint': 'Fenêtre de l\'histogramme et du comptage par niveau',

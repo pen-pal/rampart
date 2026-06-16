@@ -1856,6 +1856,7 @@ const de = {
   'traces.collapse_all': 'Alle einklappen',
   'traces.expand_all': 'Alle ausklappen',
   'traces.profile_span': 'Fenster dieses Spans profilieren →',
+  'traces.span_logs': '{n} Logs in diesem Span',
   'traces.edge_open': 'Traces für diesen Dienst öffnen',
   'dashboard.errors.title': 'Aktuelle Fehler',
   'logs.window_hint': 'Fenster für Histogramm + Level-Zählung',
