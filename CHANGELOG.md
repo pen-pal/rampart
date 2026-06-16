@@ -19,6 +19,19 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.64.0] — 2026-06-16
+
+### Added
+- **RUM page drill-down + user identity.** RUM beacons can now carry an app
+  **`user_id`** (migration 0100; the snippet reads `window.__rampartUser`,
+  string or `{id}`). Each row in the RUM **Pages** table is clickable to expand
+  the recent individual loads for that URL — **who** (user id, else session),
+  browser, LCP/INP, and a trace link per load — via `GET /v1/rum/page`. Answers
+  "dive into a page" and "who experienced this". `seed-demo` tags its loads with
+  a demo user. i18n en/es/fr/de.
+
+---
+
 ## [0.63.1] — 2026-06-16
 
 ### Fixed
@@ -1790,6 +1803,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.64.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.64.0
 [0.63.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.63.1
 [0.63.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.63.0
 [0.62.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.62.1
