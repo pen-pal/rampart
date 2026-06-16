@@ -529,6 +529,7 @@ export const api = {
     update: (id, patch) => request(`/v1/error-projects/${id}`, { method: 'PATCH', body: patch }),
     remove: (id)        => request(`/v1/error-projects/${id}`, { method: 'DELETE' }),
     issues: (id, status) => request(`/v1/error-projects/${id}/issues${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+    histogram: (id, hours) => request(`/v1/error-projects/${id}/histogram${hours ? `?hours=${hours}` : ''}`),
   },
   errorIssues: {
     get:       (id) => request(`/v1/error-issues/${id}`),

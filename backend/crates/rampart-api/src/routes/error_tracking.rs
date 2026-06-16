@@ -33,6 +33,7 @@ pub fn project_router() -> Router<AppState> {
             axum::routing::patch(update_project).delete(delete_project),
         )
         .route("/{id}/issues", get(list_issues))
+        .route("/{id}/histogram", get(project_histogram))
         .route(
             "/{id}/sourcemaps",
             get(list_sourcemaps).post(upload_sourcemap),
@@ -166,6 +167,23 @@ async fn list_issues(
     let pid = project_id(&id)?;
     Ok(Json(
         rampart_db::error_tracking::list_issues(s.pool(), pid, q.status.as_deref()).await?,
+    ))
+}
+
+#[derive(Deserialize)]
+struct HistQuery {
+    hours: Option<i32>,
+}
+
+async fn project_histogram(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+    Query(q): Query<HistQuery>,
+) -> Result<Json<Vec<rampart_db::error_tracking::ErrorBucket>>, ApiError> {
+    let pid = project_id(&id)?;
+    Ok(Json(
+        rampart_db::error_tracking::project_event_histogram(s.pool(), pid, q.hours.unwrap_or(168), 48)
+            .await?,
     ))
 }
 

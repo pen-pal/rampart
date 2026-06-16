@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT date_bin(make_interval(secs => $3), ts,\n                        now() - make_interval(hours => $2)) AS \"bucket!\",\n               COUNT(*) AS \"count!\"\n        FROM error_events\n        WHERE project_id = $1 AND ts > now() - make_interval(hours => $2)\n        GROUP BY 1 ORDER BY 1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "bucket!",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "count!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Float8"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "795fad14638260842b08fcc9df717580648c9629bad16ceb09ea4f16a694cc12"
+}

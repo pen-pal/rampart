@@ -1862,6 +1862,7 @@ const de = {
   'rum.traced': 'Getracte Seitenaufrufe',
   'rum.load': 'Laden',
   'rum.trace': 'Trace',
+  'errors.volume_hint': 'Fehlerereignisse der letzten 7 Tage',
 };
 
 export default de;
