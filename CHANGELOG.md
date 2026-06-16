@@ -19,6 +19,18 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.62.1] — 2026-06-16
+
+### Added
+- Auth fields extended to **MQTT** (username / password) and **LDAP**
+  (bind DN / bind password) monitors in the wizard, written to the config keys
+  those probes already read; edit-modal config hints added for both. (AMQP
+  carries credentials in its `amqp://user:pass@host` URL; Kafka/NATS have no
+  probe-level auth.) The `max_latency_ms` field now also shows on these kinds.
+  i18n en/es/fr/de.
+
+---
+
 ## [0.62.0] — 2026-06-16
 
 ### Added
@@ -1755,6 +1767,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.62.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.62.1
 [0.62.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.62.0
 [0.61.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.61.0
 [0.60.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.60.0
