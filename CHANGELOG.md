@@ -19,6 +19,19 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.99.1] — 2026-06-16
+
+### Changed
+- Replaced the remaining `window.location.reload()` mutations in the Dashboard
+  (clone / bulk / bulk-by-tag), MonitorDetail (edit-save, tag attach/detach),
+  StatusPageBuilder (pages / subscribers / incidents panels), and Notifications
+  views with in-place refetch (a `reloadKey` bump, or a parent callback for the
+  edit/tag child components) — no more full-page flash. Completes audit #11
+  (the simple list views landed in v0.95.2). The only intentional reload left is
+  Security.jsx's post-2FA session refresh.
+
+---
+
 ## [0.99.0] — 2026-06-16
 
 ### Added
@@ -2401,6 +2414,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.99.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.99.1
 [0.99.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.99.0
 [0.98.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.98.1
 [0.98.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.98.0

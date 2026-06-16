@@ -2369,8 +2369,9 @@ function ConfigForm({ kind, config, setConfig }) {
 
 export default function Notifications({ user } = {}) {
   const writable  = canWrite(user);
-  const list      = useApi(() => api.notifications.list(), [], { pollMs: 0 });
-  const templates = useApi(() => api.templates.list(),      [], { pollMs: 0 });
+  const [reloadKey, setReloadKey] = useState(0);
+  const list      = useApi(() => api.notifications.list(), [reloadKey], { pollMs: 0 });
+  const templates = useApi(() => api.templates.list(),      [reloadKey], { pollMs: 0 });
   const allTags   = useApi(() => api.tags.list(),           [], { pollMs: 0 });
 
   const [tab,     setTab]     = useState('channels');  // 'channels' | 'templates'
@@ -2389,11 +2390,8 @@ export default function Notifications({ user } = {}) {
   const [msg,     setMsg]     = useState(null);
   const [kindQuery, setKindQuery] = useState('');  // filters the channel picker
 
-  const reload = async () => {
-    // useApi doesn't expose a refetch; bounce the hash to nothing visible
-    // and back. Simpler: just reload the page once after add/delete.
-    window.location.reload();
-  };
+  // Refetch the channel + template lists in place (no full-page reload).
+  const reload = () => setReloadKey((k) => k + 1);
 
   const resetForm = () => {
     setEditId(null); setKind('slack'); setName(''); setConfig({});
