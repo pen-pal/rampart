@@ -62,6 +62,8 @@ struct LogQuery {
     span_id: Option<String>,
     limit: Option<i64>,
     hours: Option<i32>,
+    /// Keyset cursor for "load older" — the id of the last row already shown.
+    before_id: Option<String>,
 }
 
 async fn list(
@@ -76,6 +78,7 @@ async fn list(
         trace_id: query.trace_id.as_deref(),
         span_id: query.span_id.as_deref().filter(|s| !s.is_empty()),
         hours: window_hours(&query),
+        before_id: query.before_id.as_deref().and_then(|s| uuid::Uuid::parse_str(s).ok()),
         limit: query.limit.unwrap_or(200),
     };
     Ok(Json(rampart_db::logs::query_logs(s.pool(), filter).await?))
@@ -129,6 +132,7 @@ async fn export_csv(
         trace_id: query.trace_id.as_deref(),
         span_id: query.span_id.as_deref().filter(|s| !s.is_empty()),
         hours: window_hours(&query),
+        before_id: None,
         limit,
     };
     let rows = rampart_db::logs::query_logs(s.pool(), filter).await?;

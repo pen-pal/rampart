@@ -19,6 +19,17 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.96.0] — 2026-06-16
+
+### Added
+- **Logs "Load older" keyset pagination.** The logs list can now page past its
+  300-row cap within the selected window — a stable `(ts, id)` keyset cursor
+  (`before_id`, resolved server-side so there's no client-side timestamp
+  precision loss). The list query also now honours the time-window selector
+  (previously only the histogram did). (Audit #24, logs.)
+
+---
+
 ## [0.95.2] — 2026-06-16
 
 ### Changed
@@ -2346,6 +2357,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.96.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.96.0
 [0.95.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.95.2
 [0.95.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.95.1
 [0.95.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.95.0

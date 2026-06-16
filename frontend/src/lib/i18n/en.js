@@ -2254,6 +2254,7 @@ const en = {
   'monitor.test_now.error': 'Test failed: {error}',
   'monitor.test_now.dismiss': 'Click to dismiss',
   'common.confirm':                  'Confirm',
+  'logs.load_older':                 'Load older',
 };
 
 export default en;

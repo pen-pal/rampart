@@ -76,8 +76,8 @@ export default function Logs({ traceId }) {
 
   const svcState = useApi(() => api.logs.services(), []);
   const logsState = useApi(
-    () => api.logs.query({ service: applied.service, level: applied.level, q: applied.q, trace_id: traceId || undefined, limit: 300 }),
-    [applied, reloadKey, traceId],
+    () => api.logs.query({ service: applied.service, level: applied.level, q: applied.q, trace_id: traceId || undefined, hours: winHours, limit: 300 }),
+    [applied, reloadKey, traceId, winHours],
   );
   const levelsState = useApi(() => api.logs.levels(applied.service, winHours), [applied.service, winHours, reloadKey]);
   const histState = useApi(
@@ -85,7 +85,26 @@ export default function Logs({ traceId }) {
     [applied, winHours, reloadKey],
   );
   const services = svcState.data || [];
-  const logs = logsState.data || [];
+  // "Load older" keyset pagination: `older` accumulates pages beyond the first
+  // 300; reset whenever the query window changes.
+  const [older, setOlder] = useState([]);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [exhausted, setExhausted] = useState(false);
+  useEffect(() => { setOlder([]); setExhausted(false); }, [applied, traceId, winHours]);
+  const logs = [...(logsState.data || []), ...older];
+  const loadOlder = async () => {
+    const last = logs[logs.length - 1];
+    if (!last || loadingOlder) return;
+    setLoadingOlder(true);
+    try {
+      const page = await api.logs.query({
+        service: applied.service, level: applied.level, q: applied.q,
+        trace_id: traceId || undefined, hours: winHours, before_id: last.id, limit: 300,
+      });
+      setOlder((o) => [...o, ...page]);
+      if (page.length < 300) setExhausted(true);
+    } finally { setLoadingOlder(false); }
+  };
   const levelCounts = levelsState.data || [];
   const hist = histState.data || [];
 
@@ -232,6 +251,14 @@ export default function Logs({ traceId }) {
             </div>
           ))}
         </div>
+
+        {logs.length > 0 && !traceId && !exhausted && (
+          <div style={{ textAlign: 'center', marginTop: 12 }}>
+            <button className="btn btn-ghost" onClick={loadOlder} disabled={loadingOlder}>
+              {loadingOlder ? <><Loader2 size={14}/> {t('logs.loading')}</> : t('logs.load_older')}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
