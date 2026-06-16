@@ -1036,6 +1036,14 @@ async fn seed_more_metrics(pool: &DbPool, stats: &mut SeedStats) {
             });
         }
     }
+    // Rampart's own runtime metrics (service=rampart) — seeded so the Metrics
+    // view shows app self-metrics out of the box; live values are then pushed
+    // by the self-metrics task (crate::self_metrics) once traffic flows.
+    for (name, value) in [("rampart_http_requests_per_sec", 8.0), ("rampart_http_latency_ms_avg", 24.0)] {
+        let mut labels = BTreeMap::new();
+        labels.insert("service".to_string(), "rampart".to_string());
+        samples.push(PromSample { name: name.to_string(), labels, value });
+    }
     stats.metrics += samples.len();
     let _ = rampart_db::metric_samples::insert_many(pool, &samples).await;
 }
