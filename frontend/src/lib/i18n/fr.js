@@ -2085,6 +2085,28 @@ const fr = {
   'notif.opt.add_tag':               '+ étiquette…',
   'notif.hint.sms_metered':          'Les SMS sont facturés — Twilio facture par message et par destinataire. Utilisez Pushover ou ntfy pour du push gratuit.',
   'notif.hint.run_sidecar':          'Lancez le sidecar avec :',
+  // ── notification channel-picker descriptions (common subset; rest fall back to en) ──
+  'notif.kind.slack.hint': 'URL d’incoming-webhook depuis https://api.slack.com/messaging/webhooks',
+  'notif.kind.discord.hint': 'URL de webhook du salon Discord → Modifier → Intégrations → Webhooks',
+  'notif.kind.teams.hint': 'Incoming-webhook du canal Teams → Connecteurs → Incoming Webhook',
+  'notif.kind.mattermost.hint': 'Incoming webhook Mattermost auto-hébergé',
+  'notif.kind.rocket_chat.hint': 'Incoming webhook Rocket.Chat auto-hébergé',
+  'notif.kind.telegram.hint': 'Jeton de bot de @BotFather, et un chat_id depuis /getUpdates',
+  'notif.kind.email.hint': 'N’importe quel relais SMTP : Gmail, SendGrid, Mailgun, Postfix auto-hébergé…',
+  'notif.kind.webhook.hint': 'Tout endpoint acceptant POST application/json. Pour Zapier/n8n/Make.',
+  'notif.kind.pagerduty.hint': 'Clé d’intégration Events API v2. Déclenche + résout automatiquement.',
+  'notif.kind.opsgenie.hint': 'Atlassian Opsgenie — les alertes se résolvent à la récupération',
+  'notif.kind.signal.hint': 'API REST signal-cli auto-hébergée — numéro d’expéditeur + destinataires',
+  'notif.kind.zulip.hint': 'E-mail du bot + clé API ; flux + sujet ou liste d’e-mails privée',
+  'notif.kind.sendgrid.hint': 'API d’e-mail transactionnel Twilio SendGrid',
+  'notif.kind.sentry.hint': 'Événement Sentry via le DSN du projet',
+  'notif.kind.gotify.hint': 'Serveur push auto-hébergé (https://gotify.net)',
+  'notif.kind.ntfy.hint': 'Push vers le téléphone via ntfy.sh (gratuit) ou serveur ntfy auto-hébergé',
+  'notif.kind.pushover.hint': 'Service push Pushover.net (app payante, API gratuite)',
+  'notif.kind.apprise.hint': 'Plus de 80 services via le sidecar apprise-api. Un canal en diffuse plusieurs.',
+  'notif.kind.matrix.hint': 'Homeserver + jeton d’accès + id de salon. Standard ouvert.',
+  'notif.kind.home_assistant.hint': 'Home Assistant /api/services/notify/<service> avec jeton longue durée',
+  'notif.kind.line.hint': 'Jeton d’accès au canal + ID du destinataire (Messaging API)',
 };
 
 export default fr;

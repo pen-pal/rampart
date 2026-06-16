@@ -2100,6 +2100,28 @@ const de = {
   'notif.opt.add_tag':               '+ Tag…',
   'notif.hint.sms_metered':          'SMS sind kostenpflichtig — Twilio berechnet pro Nachricht und Empfänger. Nutze Pushover oder ntfy für kostenloses Push.',
   'notif.hint.run_sidecar':          'Sidecar starten mit:',
+  // ── notification channel-picker descriptions (common subset; rest fall back to en) ──
+  'notif.kind.slack.hint': 'Incoming-Webhook-URL von https://api.slack.com/messaging/webhooks',
+  'notif.kind.discord.hint': 'Webhook-URL aus dem Discord-Kanal → Bearbeiten → Integrationen → Webhooks',
+  'notif.kind.teams.hint': 'Incoming-Webhook aus dem Teams-Kanal → Connectors → Incoming Webhook',
+  'notif.kind.mattermost.hint': 'Selbstgehosteter Mattermost-Incoming-Webhook',
+  'notif.kind.rocket_chat.hint': 'Selbstgehosteter Rocket.Chat-Incoming-Webhook',
+  'notif.kind.telegram.hint': 'Bot-Token von @BotFather und eine chat_id aus /getUpdates',
+  'notif.kind.email.hint': 'Beliebiges SMTP-Relay: Gmail, SendGrid, Mailgun, selbstgehostetes Postfix…',
+  'notif.kind.webhook.hint': 'Jeder Endpunkt, der POST application/json akzeptiert. Für Zapier/n8n/Make.',
+  'notif.kind.pagerduty.hint': 'Events-API-v2-Integrationsschlüssel. Löst aus + behebt automatisch.',
+  'notif.kind.opsgenie.hint': 'Atlassian Opsgenie — Alarme lösen sich bei Erholung automatisch',
+  'notif.kind.signal.hint': 'Selbstgehostete signal-cli-REST-API — Absendernummer + Empfänger',
+  'notif.kind.zulip.hint': 'Bot-E-Mail + API-Schlüssel; Stream + Thema oder private E-Mail-Liste',
+  'notif.kind.sendgrid.hint': 'Twilio SendGrid transaktionale E-Mail-API',
+  'notif.kind.sentry.hint': 'Sentry-Event über Projekt-DSN',
+  'notif.kind.gotify.hint': 'Selbstgehosteter Push-Server (https://gotify.net)',
+  'notif.kind.ntfy.hint': 'Push aufs Handy via ntfy.sh (kostenlos) oder selbstgehosteten ntfy-Server',
+  'notif.kind.pushover.hint': 'Pushover.net-Push-Dienst (kostenpflichtige App, kostenlose API)',
+  'notif.kind.apprise.hint': 'Über 80 Dienste über apprise-api-Sidecar. Ein Kanal verteilt an viele.',
+  'notif.kind.matrix.hint': 'Homeserver + Zugriffstoken + Raum-ID. Offener Standard.',
+  'notif.kind.home_assistant.hint': 'Home Assistant /api/services/notify/<service> mit langlebigem Token',
+  'notif.kind.line.hint': 'Kanal-Zugriffstoken + Empfänger-ID (Messaging API)',
 };
 
 export default de;
