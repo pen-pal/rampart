@@ -19,6 +19,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.66.0] — 2026-06-16
+
+### Added
+- **Error issue → affected users.** The issue detail now lists the distinct
+  users hit by an issue (from the Sentry `user` context — id / email / username)
+  with per-user event counts, beside the existing affected-count and
+  release/environment stats. `GET /v1/error-issues/{id}/users`. i18n en/es/fr/de.
+
+---
+
 ## [0.65.1] — 2026-06-16
 
 ### Documentation
@@ -1830,6 +1840,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.66.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.66.0
 [0.65.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.65.1
 [0.65.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.65.0
 [0.64.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.64.1
