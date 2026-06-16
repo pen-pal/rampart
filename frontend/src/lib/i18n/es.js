@@ -1630,6 +1630,8 @@ const es = {
   'traces.edge_open': 'Abrir trazas de este servicio',
   'dashboard.errors.title': 'Errores recientes',
   'logs.window_hint': 'Ventana del histograma y recuento por nivel',
+  'rum.browsers': 'Navegadores',
+  'rum.browser': 'Navegador',
   'rum.traced': 'Cargas con traza',
   'rum.load': 'Carga',
   'rum.trace': 'Traza',
