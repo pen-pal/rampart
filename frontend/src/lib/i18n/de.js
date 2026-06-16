@@ -1865,6 +1865,10 @@ const de = {
   'rum.load': 'Laden',
   'rum.trace': 'Trace',
   'errors.volume_hint': 'Fehlerereignisse der letzten 7 Tage',
+  'dashboard.escalations.title': 'Aktive Eskalationen',
+  'dashboard.escalations.step': 'Stufe {n}',
+  'dashboard.escalations.acked': 'Bestätigt',
+  'dashboard.escalations.climbing': 'Läuft',
 };
 
 export default de;

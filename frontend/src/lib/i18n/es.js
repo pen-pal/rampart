@@ -1636,6 +1636,10 @@ const es = {
   'rum.load': 'Carga',
   'rum.trace': 'Traza',
   'errors.volume_hint': 'Eventos de error en los últimos 7 días',
+  'dashboard.escalations.title': 'Escalados activos',
+  'dashboard.escalations.step': 'paso {n}',
+  'dashboard.escalations.acked': 'Reconocido',
+  'dashboard.escalations.climbing': 'Escalando',
 };
 
 export default es;
