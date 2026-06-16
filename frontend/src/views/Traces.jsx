@@ -256,10 +256,18 @@ function TraceList({ onOpen, preset, onPresetUsed }) {
 }
 
 function OperationsTable({ onPick }) {
-  const state = useApi(() => api.traces.operations(null, 24), []);
+  const [hours, setHours] = useState(24);
+  const state = useApi(() => api.traces.operations(null, hours), [hours]);
   const ops = state.data || [];
   return (
     <>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+        <select className="input" style={{ width: 'auto', padding: '6px 9px', fontSize: 12.5 }} value={hours} onChange={e => setHours(Number(e.target.value))}>
+          <option value={1}>1h</option>
+          <option value={24}>24h</option>
+          <option value={168}>7d</option>
+        </select>
+      </div>
       {state.error && <div className="banner-err"><AlertCircle size={14} style={{ verticalAlign: '-2px', marginRight: 6 }}/>{t('traces.load_error')}</div>}
       <div className="card" style={{ overflow: 'hidden' }}>
         {state.loading ? (
@@ -304,11 +312,19 @@ function OperationsTable({ onPick }) {
 }
 
 function ServiceMap({ onPick }) {
-  const state = useApi(() => api.traces.serviceMap(24), []);
+  const [hours, setHours] = useState(24);
+  const state = useApi(() => api.traces.serviceMap(hours), [hours]);
   const edges = state.data || [];
   const maxCalls = Math.max(1, ...edges.map(e => e.calls));
   return (
     <>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+        <select className="input" style={{ width: 'auto', padding: '6px 9px', fontSize: 12.5 }} value={hours} onChange={e => setHours(Number(e.target.value))}>
+          <option value={1}>1h</option>
+          <option value={24}>24h</option>
+          <option value={168}>7d</option>
+        </select>
+      </div>
       {state.error && <div className="banner-err">{t('traces.load_error')}</div>}
       <div className="card" style={{ overflow: 'hidden' }}>
         {state.loading ? (
