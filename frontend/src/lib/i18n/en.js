@@ -574,7 +574,7 @@ const en = {
   'monitor.maint_now.button':        'Maintenance now',
   'monitor.maint_now.title':         'Start a one-off maintenance window for this monitor right now',
   'monitor.maint_now.heading':       'Start maintenance for',
-  'monitor.maint_now.window_name':   'Manual maintenance',
+  'monitor.maint_now.window_name':   'Manual maintenance · {monitor}',
   'monitor.maint_now.dur_1h':        '1 hour',
   'monitor.maint_now.dur_4h':        '4 hours',
   'monitor.maint_now.dur_24h':       '24 hours',

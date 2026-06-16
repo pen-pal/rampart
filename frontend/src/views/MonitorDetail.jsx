@@ -554,7 +554,7 @@ export default function MonitorDetail({ monitorId, user }) {
     const end   = new Date(start.getTime() + maintDuration * 1000);
     try {
       await api.maintenance.create({
-        name:        t('monitor.maint_now.window_name'),
+        name:        t('monitor.maint_now.window_name', { monitor: monitor.name }),
         start_at:    start.toISOString(),
         end_at:      end.toISOString(),
         monitor_ids: [monitor.id],

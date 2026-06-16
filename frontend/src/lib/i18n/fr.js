@@ -260,7 +260,7 @@ const fr = {
   'monitor.maint_now.button':        'Maintenance maintenant',
   'monitor.maint_now.title':         'Démarrer dès maintenant une fenêtre de maintenance ponctuelle pour ce moniteur',
   'monitor.maint_now.heading':       'Démarrer la maintenance pour',
-  'monitor.maint_now.window_name':   'Maintenance manuelle',
+  'monitor.maint_now.window_name':   'Maintenance manuelle · {monitor}',
   'monitor.maint_now.dur_1h':        '1 heure',
   'monitor.maint_now.dur_4h':        '4 heures',
   'monitor.maint_now.dur_24h':       '24 heures',

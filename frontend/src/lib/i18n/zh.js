@@ -402,7 +402,7 @@ const zh = {
   'monitor.maint_now.button':        '立即维护',
   'monitor.maint_now.title':         '立即为此监控项启动一次性维护时段',
   'monitor.maint_now.heading':       '启动维护：',
-  'monitor.maint_now.window_name':   '手动维护',
+  'monitor.maint_now.window_name':   '手动维护 · {monitor}',
   'monitor.maint_now.dur_1h':        '1 小时',
   'monitor.maint_now.dur_4h':        '4 小时',
   'monitor.maint_now.dur_24h':       '24 小时',
