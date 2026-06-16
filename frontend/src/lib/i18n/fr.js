@@ -1185,6 +1185,7 @@ const fr = {
   'metrics.empty.body':              'Envoyez n’importe quel payload au format texte Prometheus avec une clé API et il apparaîtra ici :',
   'metrics.empty.copy':              'Copier',
   'metrics.empty.copied':            'Copié',
+  'metrics.empty.hint': 'Ou lancez `rampart-api seed-demo` pour des métriques de démo, envoyez Prometheus remote_write vers /prom/write, ou pointez le rampart-agent ici.',
   'metrics.series.pick':             'Sélectionnez une série ci-dessous pour l’afficher en graphique.',
   'metrics.series.samples':          '{n} échantillons',
   'metrics.chart.empty':             'Aucun point de données sur cette plage.',
