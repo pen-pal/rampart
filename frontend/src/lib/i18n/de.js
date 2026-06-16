@@ -1877,6 +1877,7 @@ const de = {
   'rum.trace': 'Trace',
   'errors.volume_hint': 'Fehlerereignisse der letzten 7 Tage',
   'errors.affected_users': 'Betroffene Benutzer',
+  'dashboard.metrics.title': 'Metrik-Serien',
   'dashboard.escalations.title': 'Aktive Eskalationen',
   'dashboard.escalations.step': 'Stufe {n}',
   'dashboard.escalations.acked': 'Bestätigt',

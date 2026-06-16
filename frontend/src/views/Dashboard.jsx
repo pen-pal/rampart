@@ -434,6 +434,39 @@ function EscalationsWidget() {
   );
 }
 
+// Recently-active metric series — dashboard sidebar feed. Hidden when none.
+function metricSeriesLabel(name, labels) {
+  const obj = labels && typeof labels === 'object' ? labels : {};
+  const keys = Object.keys(obj);
+  if (!keys.length) return name;
+  return `${name}{${keys.map(k => `${k}=${obj[k]}`).join(',')}}`;
+}
+function MetricsWidget() {
+  const state = useApi(() => api.metrics.series(), [], { pollMs: 60_000 });
+  const series = state.data || [];
+  if (state.loading || series.length === 0) return null;
+  return (
+    <div className="card" style={{ padding: 14, marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
+        <a href="#/metrics" style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.05em', textDecoration: 'none' }}>
+          {t('dashboard.metrics.title')}
+        </a>
+        <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>{series.length}</span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+        {series.slice(0, 6).map((s, i) => (
+          <a key={i} href="#/metrics" style={{ textDecoration: 'none', color: 'inherit', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <span className="mono" style={{ fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={metricSeriesLabel(s.name, s.labels)}>
+              {metricSeriesLabel(s.name, s.labels)}
+            </span>
+            <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-3)', flexShrink: 0 }}>{s.samples}</span>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── main component ───────────────────────────────────────────────────────
 export default function Dashboard({ user, onLogout } = {}) {
   // Whether the current user may mutate (admin/editor). Readonly users see
@@ -1033,6 +1066,7 @@ export default function Dashboard({ user, onLogout } = {}) {
           <EscalationsWidget />
           <SloWidget />
           <ErrorsWidget />
+          <MetricsWidget />
 
           {monitors.length > 0 ? (() => {
             const groups = groupsState.data || [];

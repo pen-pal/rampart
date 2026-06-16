@@ -338,6 +338,7 @@ const en = {
   'slos.budget_remaining':           'Error budget remaining',
   'slos.trend':                      'Achieved trend',
   'dashboard.errors.title':          'Recent errors',
+  'dashboard.metrics.title':         'Metric series',
   'dashboard.escalations.title':     'Active escalations',
   'dashboard.escalations.step':      'step {n}',
   'dashboard.escalations.acked':     'Acknowledged',
