@@ -2459,7 +2459,7 @@ export default function Notifications({ user } = {}) {
   };
 
   const removeOne = async (id) => {
-    if (!confirm('Delete this channel? Monitors using it will stop notifying via this channel.')) return;
+    if (!confirm(t('notifications.channel.delete_confirm'))) return;
     try {
       await api.notifications.remove(id);
       reload();
@@ -2911,8 +2911,8 @@ function TemplateForm({ initial, prefill, onCancel, onSaved }) {
   const save = async (e) => {
     e?.preventDefault?.();
     setErr(null);
-    if (!name.trim()) { setErr('Name is required.'); return; }
-    if (!body.trim()) { setErr('Body is required.'); return; }
+    if (!name.trim()) { setErr(t('validation.name_required')); return; }
+    if (!body.trim()) { setErr(t('validation.body_required')); return; }
     setBusy(true);
     try {
       const payload = {

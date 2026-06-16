@@ -1896,6 +1896,16 @@ const en = {
   'oncall.err_save':                 'Could not save the schedule.',
   'oncall.save':                     'Save schedule',
   'oncall.create':                   'Create schedule',
+  'validation.name_required':        'Name is required.',
+  'validation.body_required':        'Body is required.',
+  'validation.headers_json':         'Headers must be valid JSON.',
+  'validation.probe_json':           'Probe config must be valid JSON.',
+  'validation.probe_json_object':    'Probe config must be a JSON object.',
+  'validation.slo_target_range':     'SLO target must be between 90.0 and 100.0.',
+  'validation.slo_window_range':     'SLO window must be between 1 and 90 days.',
+  'validation.end_after_start':      'End time must be after the start time.',
+  'maintenance.delete_confirm':      'Delete this maintenance window?',
+  'notifications.channel.delete_confirm': 'Delete this channel? Monitors using it will stop notifying via this channel.',
 };
 
 export default en;

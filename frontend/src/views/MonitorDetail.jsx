@@ -1221,18 +1221,18 @@ function EditModal({ monitor, onCancel }) {
 
   const save = async () => {
     setErr(null);
-    if (!name.trim()) { setErr('Name is required.'); return; }
+    if (!name.trim()) { setErr(t('validation.name_required')); return; }
     let headersJson = null;
     if (headers.trim()) {
       try { headersJson = JSON.parse(headers); }
-      catch { setErr('Headers must be valid JSON.'); return; }
+      catch { setErr(t('validation.headers_json')); return; }
     }
     let configJson = {};
     if (config.trim()) {
       try { configJson = JSON.parse(config); }
-      catch { setErr('Probe config must be valid JSON.'); return; }
+      catch { setErr(t('validation.probe_json')); return; }
       if (typeof configJson !== 'object' || Array.isArray(configJson) || configJson === null) {
-        setErr('Probe config must be a JSON object.');
+        setErr(t('validation.probe_json_object'));
         return;
       }
     }
@@ -1277,7 +1277,7 @@ function EditModal({ monitor, onCancel }) {
       } else {
         const n = parseFloat(t);
         if (!Number.isFinite(n) || n < 90 || n > 100) {
-          setErr('SLO target must be between 90.0 and 100.0.');
+          setErr(t('validation.slo_target_range'));
           return;
         }
         patch.slo_target_pct = n;
@@ -1288,7 +1288,7 @@ function EditModal({ monitor, onCancel }) {
       } else {
         const n = parseInt(w, 10);
         if (!Number.isFinite(n) || n < 1 || n > 90) {
-          setErr('SLO window must be between 1 and 90 days.');
+          setErr(t('validation.slo_window_range'));
           return;
         }
         patch.slo_window_days = n;

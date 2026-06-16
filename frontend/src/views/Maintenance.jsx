@@ -138,7 +138,7 @@ export default function Maintenance({ user } = {}) {
   const reload = () => window.location.reload();
 
   const remove = async (id) => {
-    if (!confirm('Delete this maintenance window?')) return;
+    if (!confirm(t('maintenance.delete_confirm'))) return;
     setBusy(id); setErr(null);
     try {
       await api.maintenance.remove(id);
@@ -376,8 +376,8 @@ function MaintenanceForm({ monitors, existing, onCancel, onSaved }) {
 
   const submit = async () => {
     setErr(null);
-    if (!name.trim()) { setErr('Name is required.'); return; }
-    if (new Date(start) >= new Date(end)) { setErr('End time must be after the start time.'); return; }
+    if (!name.trim()) { setErr(t('validation.name_required')); return; }
+    if (new Date(start) >= new Date(end)) { setErr(t('validation.end_after_start')); return; }
 
     setSubmitting(true);
     try {

@@ -1669,6 +1669,16 @@ const es = {
   'monitor.config.invalid_json': 'La configuración no es JSON válido — cambia al modo JSON para corregirlo.',
   'wizard.field.max_latency': 'Latencia máx. (ms)',
   'wizard.field.max_latency_hint': 'Marca la comprobación como caída si responde más lento que esto — detección de degradación independiente del tiempo de espera de conexión. Vacío = desactivado.',
+  'validation.name_required':        'El nombre es obligatorio.',
+  'validation.body_required':        'El cuerpo es obligatorio.',
+  'validation.headers_json':         'Las cabeceras deben ser JSON válido.',
+  'validation.probe_json':           'La configuración de la sonda debe ser JSON válido.',
+  'validation.probe_json_object':    'La configuración de la sonda debe ser un objeto JSON.',
+  'validation.slo_target_range':     'El objetivo de SLO debe estar entre 90.0 y 100.0.',
+  'validation.slo_window_range':     'La ventana de SLO debe estar entre 1 y 90 días.',
+  'validation.end_after_start':      'La hora de fin debe ser posterior a la de inicio.',
+  'maintenance.delete_confirm':      '¿Eliminar esta ventana de mantenimiento?',
+  'notifications.channel.delete_confirm': '¿Eliminar este canal? Los monitores que lo usan dejarán de notificar por este canal.',
 };
 
 export default es;
