@@ -3052,7 +3052,7 @@ function EnablePushButton({ notificationId }) {
     return <span className="btn" style={{ cursor: 'default', color: 'var(--up)' }}><BellRing size={12}/> {t('notifications.subscribed')}</span>;
   }
   return (
-    <button className="btn" onClick={enable} disabled={state === 'working'} title="Subscribe this browser to push alerts">
+    <button className="btn" onClick={enable} disabled={state === 'working'} title={t('notifications.push.subscribe_tip')}>
       {state === 'working'
         ? <><Loader2 size={12} className="spin"/> …</>
         : <><BellRing size={12}/> {t('notifications.enable_push')}</>}

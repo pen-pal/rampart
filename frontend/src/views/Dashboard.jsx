@@ -1027,11 +1027,11 @@ export default function Dashboard({ user, onLogout } = {}) {
               transition: 'background .2s',
             }}/>
           <ThemeToggle/>
-          <button className="btn btn-ghost" title="Menu" aria-label="Open navigation"
+          <button className="btn btn-ghost" title={t('common.menu')} aria-label={t('nav.open')}
             onClick={() => window.dispatchEvent(new Event('rampart:nav-open'))}>
             <Menu size={16}/>
           </button>
-          <a className="btn btn-ghost" title="Notification channels" href="#/notifications" style={{ textDecoration: 'none' }}>
+          <a className="btn btn-ghost" title={t('dashboard.tip.channels')} href="#/notifications" style={{ textDecoration: 'none' }}>
             <Bell size={14}/>
           </a>
           <ViewsMenu
@@ -1259,7 +1259,7 @@ export default function Dashboard({ user, onLogout } = {}) {
               <select className="btn" value={windowSec}
                 onChange={e => setWindowSec(parseInt(e.target.value, 10))}
                 style={{ paddingRight: 26, cursor: 'pointer', appearance: 'auto' }}
-                title="Rollup window for uptime + latency above">
+                title={t('dashboard.tip.rollup')}>
                 <option value={3600}>Last 1h</option>
                 <option value={86400}>Last 24h</option>
                 <option value={604800}>Last 7d</option>
@@ -1326,7 +1326,7 @@ export default function Dashboard({ user, onLogout } = {}) {
                 </h3>
                 <button className="btn btn-ghost" style={{ padding: '4px 8px' }}
                         onClick={() => { window.location.hash = '#/status-page'; }}
-                        title="Manage incidents on the status-page builder">
+                        title={t('dashboard.tip.manage_incidents')}>
                   {t("dashboard.view_all")} <ArrowUpRight size={11}/>
                 </button>
               </div>
@@ -1365,7 +1365,7 @@ export default function Dashboard({ user, onLogout } = {}) {
                 </h3>
                 <button className="btn btn-ghost" style={{ padding: '4px 8px' }}
                         onClick={() => { window.location.hash = '#/maintenance'; }}
-                        title="Schedule a maintenance window">
+                        title={t('dashboard.tip.schedule_maint')}>
                   <Plus size={11}/>
                 </button>
               </div>
@@ -1749,7 +1749,7 @@ export default function Dashboard({ user, onLogout } = {}) {
                       <input type="checkbox" checked={selected.has(m.id)}
                         onClick={e => e.stopPropagation()}
                         onChange={() => toggleSelect(m.id)}
-                        title="Select for bulk action"/>
+                        title={t('dashboard.tip.bulk_select')}/>
                     )}
                     <span className={`dot ${cls}`}/>
                   </span>
@@ -1781,7 +1781,7 @@ export default function Dashboard({ user, onLogout } = {}) {
                           <Bell size={9}/> {n}
                         </span>
                       ) : (
-                        <span title="No notification channels attached — flips will record but won't alert anyone"
+                        <span title={t('dashboard.tip.no_channels')}
                           style={{
                             display: 'inline-flex', alignItems: 'center',
                             fontSize: 10.5, color: 'var(--text-3)',

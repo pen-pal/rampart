@@ -1679,6 +1679,19 @@ const es = {
   'validation.end_after_start':      'La hora de fin debe ser posterior a la de inicio.',
   'maintenance.delete_confirm':      '¿Eliminar esta ventana de mantenimiento?',
   'notifications.channel.delete_confirm': '¿Eliminar este canal? Los monitores que lo usan dejarán de notificar por este canal.',
+  'common.menu':                     'Menú',
+  'common.detach':                   'Desvincular',
+  'common.color':                    'Color',
+  'nav.open':                        'Abrir navegación',
+  'monitor.send_test':               'Enviar prueba',
+  'monitor.token_reissue_tip':       'Emitir un nuevo token; la URL actual deja de funcionar de inmediato',
+  'dashboard.tip.channels':          'Canales de notificación',
+  'dashboard.tip.rollup':            'Ventana de agregación para disponibilidad y latencia arriba',
+  'dashboard.tip.manage_incidents':  'Gestionar incidentes en el editor de la página de estado',
+  'dashboard.tip.schedule_maint':    'Programar una ventana de mantenimiento',
+  'dashboard.tip.bulk_select':       'Seleccionar para acción masiva',
+  'dashboard.tip.no_channels':       'Sin canales de notificación adjuntos — los cambios se registrarán pero no avisarán a nadie',
+  'notifications.push.subscribe_tip': 'Suscribir este navegador a las alertas push',
 };
 
 export default es;

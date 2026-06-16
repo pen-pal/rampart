@@ -1906,6 +1906,19 @@ const en = {
   'validation.end_after_start':      'End time must be after the start time.',
   'maintenance.delete_confirm':      'Delete this maintenance window?',
   'notifications.channel.delete_confirm': 'Delete this channel? Monitors using it will stop notifying via this channel.',
+  'common.menu':                     'Menu',
+  'common.detach':                   'Detach',
+  'common.color':                    'Color',
+  'nav.open':                        'Open navigation',
+  'monitor.send_test':               'Send test',
+  'monitor.token_reissue_tip':       'Issue a new token; the current URL stops working immediately',
+  'dashboard.tip.channels':          'Notification channels',
+  'dashboard.tip.rollup':            'Rollup window for uptime + latency above',
+  'dashboard.tip.manage_incidents':  'Manage incidents on the status-page builder',
+  'dashboard.tip.schedule_maint':    'Schedule a maintenance window',
+  'dashboard.tip.bulk_select':       'Select for bulk action',
+  'dashboard.tip.no_channels':       "No notification channels attached — flips will record but won't alert anyone",
+  'notifications.push.subscribe_tip': 'Subscribe this browser to push alerts',
 };
 
 export default en;
