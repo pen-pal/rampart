@@ -13,8 +13,8 @@ pub async fn insert_event(pool: &DbPool, b: &RumBeacon) -> DbResult<()> {
     sqlx::query!(
         r#"
         INSERT INTO rum_events
-            (id, app, url, session, ua, trace_id, lcp_ms, fcp_ms, cls, inp_ms, ttfb_ms, load_ms)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            (id, app, url, session, ua, trace_id, user_id, lcp_ms, fcp_ms, cls, inp_ms, ttfb_ms, load_ms)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         "#,
         Uuid::now_v7(),
         b.app,
@@ -22,6 +22,7 @@ pub async fn insert_event(pool: &DbPool, b: &RumBeacon) -> DbResult<()> {
         b.session,
         b.ua,
         b.trace_id,
+        b.user_id,
         b.metrics.lcp,
         b.metrics.fcp,
         b.metrics.cls,
@@ -32,6 +33,61 @@ pub async fn insert_event(pool: &DbPool, b: &RumBeacon) -> DbResult<()> {
     .execute(pool)
     .await?;
     Ok(())
+}
+
+/// One recent page-load for the per-URL drill-down: who/what/when + vitals.
+#[derive(Debug, serde::Serialize)]
+pub struct RumSample {
+    pub ts: time::OffsetDateTime,
+    pub user_id: Option<String>,
+    pub session: Option<String>,
+    pub ua: Option<String>,
+    pub trace_id: Option<String>,
+    pub lcp_ms: Option<f64>,
+    pub inp_ms: Option<f64>,
+    pub cls: Option<f64>,
+    pub load_ms: Option<f64>,
+}
+
+/// Recent individual beacons for one URL — the page drill-down. Newest first.
+pub async fn page_samples(
+    pool: &DbPool,
+    app: Option<&str>,
+    url: &str,
+    hours: i32,
+    limit: i64,
+) -> DbResult<Vec<RumSample>> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT ts, user_id, session, ua, trace_id, lcp_ms, inp_ms, cls, load_ms
+        FROM rum_events
+        WHERE url = $1
+          AND received_at > now() - make_interval(hours => $2)
+          AND ($3::text IS NULL OR app = $3)
+        ORDER BY ts DESC
+        LIMIT $4
+        "#,
+        url,
+        hours.clamp(1, 2160),
+        app,
+        limit.clamp(1, 200),
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| RumSample {
+            ts: r.ts,
+            user_id: r.user_id,
+            session: r.session,
+            ua: r.ua,
+            trace_id: r.trace_id,
+            lcp_ms: r.lcp_ms,
+            inp_ms: r.inp_ms,
+            cls: r.cls,
+            load_ms: r.load_ms,
+        })
+        .collect())
 }
 
 /// Recent page-loads that carried a backend trace id — the RUM → trace feed.

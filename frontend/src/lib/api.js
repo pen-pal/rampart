@@ -556,6 +556,7 @@ export const api = {
     apps:    ()           => request('/v1/rum/apps'),
     traced:  (app, hours) => request(`/v1/rum/traced?${new URLSearchParams({ ...(app ? { app } : {}), hours: hours || 24 })}`),
     browsers: (app, hours) => request(`/v1/rum/browsers?${new URLSearchParams({ ...(app ? { app } : {}), hours: hours || 24 })}`),
+    page:    (app, url, hours) => request(`/v1/rum/page?${new URLSearchParams({ ...(app ? { app } : {}), url, hours: hours || 24 })}`),
   },
   // On-call schedules — channel rotations referenced by escalation steps.
   // `current` returns `{ on_call: <channel-id|null> }` for the live shift.

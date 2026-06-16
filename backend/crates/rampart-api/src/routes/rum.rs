@@ -34,6 +34,7 @@ pub fn router() -> Router<AppState> {
         .route("/apps", get(apps))
         .route("/traced", get(traced))
         .route("/browsers", get(browsers))
+        .route("/page", get(page))
 }
 
 #[derive(Deserialize)]
@@ -219,6 +220,23 @@ async fn browsers(
     ))
 }
 
+#[derive(serde::Deserialize)]
+struct PageQuery {
+    app: Option<String>,
+    url: String,
+    hours: Option<i32>,
+}
+
+async fn page(
+    State(s): State<AppState>,
+    Query(q): Query<PageQuery>,
+) -> Result<Json<Vec<rampart_db::rum::RumSample>>, ApiError> {
+    Ok(Json(
+        rampart_db::rum::page_samples(s.pool(), q.app.as_deref(), &q.url, q.hours.unwrap_or(24), 100)
+            .await?,
+    ))
+}
+
 /// The browser RUM collector. Self-configures from its own `<script>` tag
 /// (`data-app`, optional `data-endpoint`, optional `data-token`), gathers Core
 /// Web Vitals via PerformanceObserver + Navigation Timing (one beacon on page
@@ -258,8 +276,11 @@ const SNIPPET: &str = r#"(function(){
   function tid(){try{if(window.__rampartTraceId)return String(window.__rampartTraceId);
     var mt=document.querySelector('meta[name=traceparent]');
     if(mt){var p=(mt.content||'').split('-');if(p.length>=2&&p[1]&&/^[0-9a-f]+$/i.test(p[1]))return p[1];}}catch(e){}return null;}
+  // Best-effort app user id for "who experienced this": window.__rampartUser
+  // (string or {id}) set by the page after login.
+  function uid(){try{var u=window.__rampartUser;if(!u)return null;return String(u.id||u).slice(0,200);}catch(e){return null;}}
   function send(){if(sent)return;nav();if(!Object.keys(m).length)return;sent=true;
-    var body=JSON.stringify({app:app,url:location.pathname,session:sid,ua:navigator.userAgent,trace_id:tid(),metrics:m});
+    var body=JSON.stringify({app:app,url:location.pathname,session:sid,ua:navigator.userAgent,trace_id:tid(),user_id:uid(),metrics:m});
     try{navigator.sendBeacon(ep,body);}catch(e){}}
   addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')send();});
   addEventListener('pagehide',send);
