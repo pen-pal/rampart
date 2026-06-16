@@ -9,7 +9,7 @@ use axum::extract::{Extension, Path, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::routing::get;
 use axum::{Json, Router};
-use rampart_core::ids::{NotificationId, OnCallScheduleId};
+use rampart_core::ids::OnCallScheduleId;
 use rampart_core::on_call::{NewOnCallSchedule, OnCallSchedule, UpdateOnCallSchedule};
 use rampart_db::users::User;
 use serde::Serialize;
@@ -133,8 +133,10 @@ async fn delete(
 
 #[derive(Serialize)]
 struct CurrentOnCall {
-    /// The channel on call right now, or `null` for an empty/malformed ring.
-    on_call: Option<NotificationId>,
+    /// Who's on call right now — a `{kind:"channel"|"user", id}` target, or
+    /// `null` for an empty/malformed ring. Previously resolved only channel
+    /// rings and returned null when a *user* was on call.
+    on_call: Option<rampart_core::on_call::OnCallTarget>,
 }
 
 /// Who's on call for this schedule at the current instant. 404 if the
@@ -145,7 +147,7 @@ async fn current(
 ) -> Result<Json<CurrentOnCall>, ApiError> {
     let schedule_id = parse(&id)?;
     let on_call =
-        rampart_db::on_call::current_channel(s.pool(), schedule_id, OffsetDateTime::now_utc())
+        rampart_db::on_call::current_target(s.pool(), schedule_id, OffsetDateTime::now_utc())
             .await?;
     Ok(Json(CurrentOnCall { on_call }))
 }
