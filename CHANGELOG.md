@@ -19,6 +19,19 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.100.0] — 2026-06-16
+
+### Added
+- **Synthetic monitors: automatic cookie jar.** Multi-step synthetic checks now
+  carry session state across steps without manual wiring — a `Set-Cookie` from
+  any step (or a followed redirect hop) is harvested and replayed as `Cookie` on
+  every later request in the run. Login → authenticated-page sequences work out
+  of the box; `{{var}}` extraction remains for non-cookie state. The jar is a
+  minimal in-memory name→value map (last-write-wins), so it adds no dependency
+  and keeps the pure-Rust build intact.
+
+---
+
 ## [0.99.3] — 2026-06-16
 
 ### Fixed
