@@ -6,6 +6,7 @@ import {
 import { api, useApi, formatRelative, offsetDateTimeArrayToDate } from '../lib/api.js';
 import { canWrite } from '../lib/roles.js';
 import { t } from '../lib/i18n.js';
+import { confirmDialog } from '../lib/notify.js';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -138,7 +139,7 @@ export default function Maintenance({ user } = {}) {
   const reload = () => window.location.reload();
 
   const remove = async (id) => {
-    if (!confirm(t('maintenance.delete_confirm'))) return;
+    if (!(await confirmDialog({ message: t('maintenance.delete_confirm') }))) return;
     setBusy(id); setErr(null);
     try {
       await api.maintenance.remove(id);

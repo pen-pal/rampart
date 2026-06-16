@@ -5,6 +5,7 @@ import {
 import { api } from '../lib/api.js';
 import { canWrite } from '../lib/roles.js';
 import { t } from '../lib/i18n.js';
+import { confirmDialog } from '../lib/notify.js';
 import { formatRelative } from '../lib/api.js';
 
 const css = `
@@ -216,7 +217,7 @@ function Rules({ writable }) {
 function RuleRow({ rule, writable, onEdit, onChanged, setErr }) {
   const [busy, setBusy] = useState(false);
   const remove = async () => {
-    if (!window.confirm(t('detection.confirm_delete'))) return;
+    if (!(await confirmDialog({ message: t('detection.confirm_delete') }))) return;
     setBusy(true); setErr(null);
     try { await api.detection.remove(rule.id); onChanged(); }
     catch (e) { setErr(e.message); setBusy(false); }

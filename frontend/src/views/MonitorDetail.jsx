@@ -428,7 +428,7 @@ export default function MonitorDetail({ monitorId, user }) {
       const next = await api.monitors.heartbeats(monitor.id, 2000, ts);
       if (!next || next.length === 0) setAllLoaded(true);
       else setOlderHeartbeats(prev => [...prev, ...next]);
-    } catch (e) { alert(`Load more failed: ${e.message}`); }
+    } catch (e) { toast(`Load more failed: ${e.message}`, 'error'); }
     finally { setLoadingMore(false); }
   };
   const summary24h = (summaryState.data   || []).find(s => s.monitor_id === monitorId);
@@ -452,17 +452,17 @@ export default function MonitorDetail({ monitorId, user }) {
       if (monitor.active) await api.monitors.pause(monitor.id);
       else                await api.monitors.resume(monitor.id);
       monitorState.data && (monitorState.data.active = !monitorState.data.active); // optimistic, the next poll corrects
-    } catch (e) { alert(`Failed: ${e.message}`); }
+    } catch (e) { toast(`Failed: ${e.message}`, 'error'); }
     setActing(false);
   };
   const doDelete = async () => {
     if (!monitor || acting) return;
-    if (!confirm(`Delete monitor "${monitor.name}"? This also drops all its heartbeats.`)) return;
+    if (!(await confirmDialog({ message: `Delete monitor "${monitor.name}"? This also drops all its heartbeats.` }))) return;
     setActing(true);
     try {
       await api.monitors.remove(monitor.id);
       window.location.hash = '#/';
-    } catch (e) { alert(`Failed: ${e.message}`); setActing(false); }
+    } catch (e) { toast(`Failed: ${e.message}`, 'error'); setActing(false); }
   };
   const doClone = async () => {
     if (!monitor || acting) return;
@@ -470,7 +470,7 @@ export default function MonitorDetail({ monitorId, user }) {
     try {
       const copy = await api.monitors.clone(monitor.id);
       window.location.hash = `#/monitor/${copy.id}`;
-    } catch (e) { alert(`Failed: ${e.message}`); setActing(false); }
+    } catch (e) { toast(`Failed: ${e.message}`, 'error'); setActing(false); }
   };
   // Capture this monitor's config into a reusable template. The `spec` is a
   // monitor-creation body: we lift the probe-shape fields off the monitor and
@@ -542,7 +542,7 @@ export default function MonitorDetail({ monitorId, user }) {
     if (!monitor || acking) return;
     setAcking(true);
     try { await api.escalation.ack(monitor.id); }
-    catch (e) { alert(`Failed: ${e.message}`); }
+    catch (e) { toast(`Failed: ${e.message}`, 'error'); }
     finally { setAcking(false); setEscReload(k => k + 1); }
   };
   // Start a one-shot maintenance window covering [now, now+duration) for
@@ -1848,7 +1848,7 @@ function MonitorChannels({ monitorId }) {
   const bounce = () => setReloadKey(k => k + 1);
 
   const attach = async (nid) => {
-    try { await api.notifications.attach(monitorId, nid); bounce(); setShowPicker(false); } catch (e) { alert(e.message); }
+    try { await api.notifications.attach(monitorId, nid); bounce(); setShowPicker(false); } catch (e) { toast(e.message, 'error'); }
   };
   // Remove from this monitor: exclusion always wins, so it covers
   // tag/folder auto-routed channels too. Also drop a direct attach edge
@@ -1858,13 +1858,13 @@ function MonitorChannels({ monitorId }) {
       if (attachedIds.has(nid)) await api.notifications.detach(monitorId, nid);
       await api.routing.addExclude(monitorId, nid);
       bounce();
-    } catch (e) { alert(e.message); }
+    } catch (e) { toast(e.message, 'error'); }
   };
   const restore = async (nid) => {
-    try { await api.routing.delExclude(monitorId, nid); bounce(); } catch (e) { alert(e.message); }
+    try { await api.routing.delExclude(monitorId, nid); bounce(); } catch (e) { toast(e.message, 'error'); }
   };
   const sendTest = async (nid) => {
-    try { await api.notifications.test(nid); alert('Test sent. Check the channel.'); } catch (e) { alert(e.message); }
+    try { await api.notifications.test(nid); toast('Test sent. Check the channel.', 'error'); } catch (e) { toast(e.message, 'error'); }
   };
 
   const loading = effective.loading || all.loading;
@@ -2524,17 +2524,15 @@ function PushUrlCard({ monitorId, token, lastPushAt, interval, config }) {
   };
 
   const regenerate = async () => {
-    if (!confirm(
-      'Regenerate the push token? The current URL stops working immediately — '
+    if (!(await confirmDialog({ message: 'Regenerate the push token? The current URL stops working immediately — '
       + 'any cron / CI job still using it will start receiving 404 responses '
-      + 'until you give them the new URL.'
-    )) return;
+      + 'until you give them the new URL.' }))) return;
     setRotating(true);
     try {
       const r = await api.monitors.regeneratePushToken(monitorId);
       setCurrentToken(r.push_token);
     } catch (e) {
-      alert(e.message || 'Failed to regenerate token.');
+      toast(e.message || 'Failed to regenerate token.', 'error');
     } finally { setRotating(false); }
   };
 
