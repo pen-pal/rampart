@@ -1,0 +1,55 @@
+/* Global interaction polish.
+ *
+ * Every view ships its own scoped `.rampart { … }` style block with the design
+ * tokens and component looks; this file layers *additive* interaction polish on
+ * top — smooth transitions, keyboard focus rings, and a subtle press response —
+ * so the whole app feels consistent without overriding any per-view styling.
+ *
+ * It only sets properties the per-view blocks leave untouched (transition,
+ * :focus-visible, :active transform), so the DOM-order cascade can't clobber it.
+ */
+
+.rampart .btn,
+.rampart .input,
+.rampart .select,
+.rampart textarea,
+.rampart .card,
+.rampart a {
+  transition:
+    background-color .15s ease,
+    border-color .15s ease,
+    color .15s ease,
+    box-shadow .15s ease,
+    transform .08s ease;
+}
+
+/* Tactile press feedback on buttons (skips disabled ones). */
+.rampart .btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/* Keyboard-only focus ring — additive to the per-view :focus box-shadow,
+ * and invisible to mouse users so it never competes with hover styling. */
+.rampart .btn:focus-visible,
+.rampart .input:focus-visible,
+.rampart .select:focus-visible,
+.rampart textarea:focus-visible,
+.rampart a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Respect users who ask for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  .rampart .btn,
+  .rampart .input,
+  .rampart .select,
+  .rampart textarea,
+  .rampart .card,
+  .rampart a {
+    transition: none;
+  }
+  .rampart .btn:active:not(:disabled) {
+    transform: none;
+  }
+}

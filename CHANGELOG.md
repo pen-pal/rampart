@@ -17,6 +17,17 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+---
+
+## [0.77.0] — 2026-06-16
+
+### Added
+- Global interaction polish (`src/index.css`): smooth color/shadow transitions
+  on buttons, inputs, selects and cards; a keyboard-only `:focus-visible` accent
+  ring; and a subtle button press response — applied app-wide on top of each
+  view's scoped styles, with a `prefers-reduced-motion` opt-out. Additive only,
+  so no view's existing look changes at rest.
+
 ### Docs
 - Corrected the notification-channel count repo-wide: the README badge,
   headline, "why", architecture comment, and several docs said **130**, but the
@@ -2046,6 +2057,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.77.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.77.0
 [0.76.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.76.0
 [0.75.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.75.0
 [0.74.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.74.0
