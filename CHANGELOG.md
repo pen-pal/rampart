@@ -19,6 +19,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.59.0] — 2026-06-16
+
+### Added
+- **RUM browser breakdown.** The RUM view gains a Browsers table — page-views
+  and p75 LCP per browser family (Chrome / Firefox / Safari / Edge / Opera /
+  Other), so a slow-on-one-browser regression stands out. `GET /v1/rum/browsers`
+  (coarse UA classification in SQL, no parser dependency). i18n en/es/fr/de.
+
+---
+
 ## [0.58.0] — 2026-06-16
 
 ### Added
@@ -1653,6 +1663,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.59.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.59.0
 [0.58.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.58.0
 [0.57.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.57.1
 [0.57.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.57.0
