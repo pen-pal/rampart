@@ -136,6 +136,57 @@ pub async fn pages(pool: &DbPool, app: Option<&str>, hours: i32) -> DbResult<Vec
         .collect())
 }
 
+/// Page-views + p75 LCP grouped by coarse browser family — the "which browser
+/// is slow" RUM breakdown. UA classification is deliberately coarse (a handful
+/// of ILIKE buckets); good enough to spot a problem browser without a UA-parser
+/// dependency.
+#[derive(Debug, serde::Serialize)]
+pub struct RumBrowser {
+    pub browser: String,
+    pub views: i64,
+    pub lcp_p75: Option<f64>,
+}
+
+pub async fn browser_breakdown(
+    pool: &DbPool,
+    app: Option<&str>,
+    hours: i32,
+) -> DbResult<Vec<RumBrowser>> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT
+            CASE
+                WHEN ua ILIKE '%edg/%' OR ua ILIKE '%edge%' THEN 'Edge'
+                WHEN ua ILIKE '%opr/%' OR ua ILIKE '%opera%' THEN 'Opera'
+                WHEN ua ILIKE '%chrome%' OR ua ILIKE '%crios%' THEN 'Chrome'
+                WHEN ua ILIKE '%firefox%' OR ua ILIKE '%fxios%' THEN 'Firefox'
+                WHEN ua ILIKE '%safari%' THEN 'Safari'
+                WHEN ua IS NULL THEN 'Unknown'
+                ELSE 'Other'
+            END AS "browser!",
+            count(*) AS "views!",
+            percentile_cont(0.75) WITHIN GROUP (ORDER BY lcp_ms) AS "lcp_p75"
+        FROM rum_events
+        WHERE ($1::text IS NULL OR app = $1)
+          AND received_at > now() - make_interval(hours => $2)
+        GROUP BY 1
+        ORDER BY count(*) DESC
+        "#,
+        app,
+        hours.clamp(1, 2160),
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| RumBrowser {
+            browser: r.browser,
+            views: r.views,
+            lcp_p75: r.lcp_p75,
+        })
+        .collect())
+}
+
 /// Distinct app/site names seen recently (filter dropdown).
 pub async fn apps(pool: &DbPool) -> DbResult<Vec<String>> {
     let rows = sqlx::query_scalar!(

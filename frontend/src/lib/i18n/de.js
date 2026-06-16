@@ -1859,6 +1859,8 @@ const de = {
   'traces.edge_open': 'Traces für diesen Dienst öffnen',
   'dashboard.errors.title': 'Aktuelle Fehler',
   'logs.window_hint': 'Fenster für Histogramm + Level-Zählung',
+  'rum.browsers': 'Browser',
+  'rum.browser': 'Browser',
   'rum.traced': 'Getracte Seitenaufrufe',
   'rum.load': 'Laden',
   'rum.trace': 'Trace',
