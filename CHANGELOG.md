@@ -19,6 +19,17 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.98.1] — 2026-06-16
+
+### Fixed
+- **Accessibility: the monitor-edit and clone-into-folder modals are now proper
+  dialogs** — `role="dialog"`, `aria-modal`, a focus trap that keeps Tab inside
+  the dialog, autofocus on open, focus restore to the opener on close, and
+  Escape to dismiss (via a shared `useFocusTrap` hook, matching the
+  toast/confirm dialog host). (Audit #21.)
+
+---
+
 ## [0.98.0] — 2026-06-16
 
 ### Added
@@ -2377,6 +2388,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.98.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.98.1
 [0.98.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.98.0
 [0.97.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.97.0
 [0.96.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.96.0

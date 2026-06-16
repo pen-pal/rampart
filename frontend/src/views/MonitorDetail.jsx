@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, ReferenceLine,
 } from 'recharts';
@@ -13,6 +13,7 @@ import {
 import { canWrite } from '../lib/roles.js';
 import { t } from '../lib/i18n.js';
 import { toast, confirmDialog, promptDialog } from '../lib/notify.js';
+import { useFocusTrap } from '../lib/useFocusTrap.js';
 
 // ── shared design system (matches dashboard v2) ───────────────────────────
 const css = `
@@ -1332,13 +1333,15 @@ function EditModal({ monitor, onCancel }) {
     }
   };
 
+  const cardRef = useRef(null);
+  useFocusTrap(cardRef, true, onCancel);
   return (
     <div onClick={onCancel} style={{
       position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
       padding: 20,
     }}>
-      <div className="modal-card" onClick={e => e.stopPropagation()} style={{
+      <div ref={cardRef} role="dialog" aria-modal="true" tabIndex={-1} className="modal-card" onClick={e => e.stopPropagation()} style={{
         background: 'var(--surface)', borderRadius: 14,
         maxWidth: 760, width: '100%',
         maxHeight: '92vh', overflow: 'auto',
