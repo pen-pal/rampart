@@ -7,9 +7,10 @@
 //! and produces a Down heartbeat naming the failing step; a clean sweep is Up
 //! with the total wall-clock as latency.
 //!
-//! v1 limitations: no automatic cookie jar (carry session state explicitly
-//! via extract → `{{var}}` header), and `upside_down` is not applied (it has
-//! no clean meaning for a multi-assertion sequence).
+//! Session state carries automatically across steps via a minimal cookie jar
+//! (`Set-Cookie` from any step/redirect-hop is replayed as `Cookie` on later
+//! requests); `{{var}}` extraction is still available for non-cookie state.
+//! `upside_down` is not applied (no clean meaning for a multi-assertion run).
 
 use crate::{ms_i32, Probe};
 use async_trait::async_trait;
@@ -81,6 +82,8 @@ impl Probe for SyntheticProbe {
         };
 
         let mut vars: BTreeMap<String, String> = BTreeMap::new();
+        // Automatic cookie jar carried across steps (and redirect hops).
+        let mut cookies: BTreeMap<String, String> = BTreeMap::new();
         let mut last_status: Option<i32> = None;
 
         for (i, step) in plan.steps.iter().enumerate() {
@@ -111,6 +114,7 @@ impl Probe for SyntheticProbe {
                 &hdrs,
                 body.as_deref(),
                 monitor.follow_redirect,
+                &mut cookies,
             )
             .await
             {
@@ -223,6 +227,7 @@ async fn send_guarded(
     headers: &[(String, String)],
     body: Option<&str>,
     follow_redirect: bool,
+    cookies: &mut std::collections::BTreeMap<String, String>,
 ) -> Result<reqwest::Response, SendErr> {
     let mut current =
         reqwest::Url::parse(&url).map_err(|e| SendErr::Failed(format!("bad url: {e}")))?;
@@ -242,6 +247,15 @@ async fn send_guarded(
         for (k, v) in headers {
             req = req.header(k, v);
         }
+        // Carry the accumulated session cookies (set by earlier steps/hops).
+        if !cookies.is_empty() {
+            let jar = cookies
+                .iter()
+                .map(|(k, v)| format!("{k}={v}"))
+                .collect::<Vec<_>>()
+                .join("; ");
+            req = req.header(reqwest::header::COOKIE, jar);
+        }
         if let Some(b) = &body {
             req = req.body(b.clone());
         }
@@ -250,6 +264,16 @@ async fn send_guarded(
             Err(e) if e.is_timeout() => return Err(SendErr::Timeout),
             Err(e) => return Err(SendErr::Failed(e.to_string())),
         };
+        // Harvest Set-Cookie (on this hop, including redirect responses) into the
+        // jar so the next request/step sends them — a minimal automatic cookie
+        // jar covering login→subsequent-step flows.
+        for c in resp.headers().get_all(reqwest::header::SET_COOKIE) {
+            if let Ok(s) = c.to_str() {
+                if let Some((name, value)) = s.split(';').next().and_then(|p| p.split_once('=')) {
+                    cookies.insert(name.trim().to_string(), value.trim().to_string());
+                }
+            }
+        }
         if !follow_redirect || !resp.status().is_redirection() {
             return Ok(resp);
         }
