@@ -2107,6 +2107,16 @@ const fr = {
   'notif.kind.matrix.hint': 'Homeserver + jeton d’accès + id de salon. Standard ouvert.',
   'notif.kind.home_assistant.hint': 'Home Assistant /api/services/notify/<service> avec jeton longue durée',
   'notif.kind.line.hint': 'Jeton d’accès au canal + ID du destinataire (Messaging API)',
+  'dashboard.hero.down_one':          '{n} service hors service',
+  'dashboard.hero.down_other':        '{n} services hors service',
+  'dashboard.hero.degraded':          'Certains services sont dégradés',
+  'dashboard.hero.up':                'Tous les systèmes opérationnels',
+  'dashboard.hero.sub_down':          '{down} injoignable — actualisation toutes les 10s',
+  'dashboard.hero.sub_down_warn':     '{down} injoignable, {warn} dégradé — actualisation toutes les 10s',
+  'dashboard.hero.sub_warn':          '{warn} dégradé — actualisation toutes les 10s',
+  'dashboard.hero.sub_healthy_one':   '{n} moniteur en bonne santé — actualisation toutes les 10s',
+  'dashboard.hero.sub_healthy_other': '{n} moniteurs en bonne santé — actualisation toutes les 10s',
+  'dashboard.error':                  'Erreur API : {msg}',
 };
 
 export default fr;

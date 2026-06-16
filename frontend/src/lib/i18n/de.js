@@ -2122,6 +2122,16 @@ const de = {
   'notif.kind.matrix.hint': 'Homeserver + Zugriffstoken + Raum-ID. Offener Standard.',
   'notif.kind.home_assistant.hint': 'Home Assistant /api/services/notify/<service> mit langlebigem Token',
   'notif.kind.line.hint': 'Kanal-Zugriffstoken + Empfänger-ID (Messaging API)',
+  'dashboard.hero.down_one':          '{n} Dienst ausgefallen',
+  'dashboard.hero.down_other':        '{n} Dienste ausgefallen',
+  'dashboard.hero.degraded':          'Einige Dienste sind beeinträchtigt',
+  'dashboard.hero.up':                'Alle Systeme betriebsbereit',
+  'dashboard.hero.sub_down':          '{down} nicht erreichbar — Aktualisierung alle 10s',
+  'dashboard.hero.sub_down_warn':     '{down} nicht erreichbar, {warn} beeinträchtigt — Aktualisierung alle 10s',
+  'dashboard.hero.sub_warn':          '{warn} beeinträchtigt — Aktualisierung alle 10s',
+  'dashboard.hero.sub_healthy_one':   '{n} Monitor fehlerfrei — Aktualisierung alle 10s',
+  'dashboard.hero.sub_healthy_other': '{n} Monitore fehlerfrei — Aktualisierung alle 10s',
+  'dashboard.error':                  'API-Fehler: {msg}',
 };
 
 export default de;

@@ -932,10 +932,10 @@ export default function Dashboard({ user, onLogout } = {}) {
   const pausedCount = counts.paused  || 0;
   const anyDown   = downCount > 0;
   const anyWarn   = warnCount > 0;
-  const heroTitle = monitors.length === 0 ? 'No monitors yet'
-                  : anyDown ? `${downCount} service${downCount > 1 ? 's' : ''} down`
-                  : anyWarn ? 'Some services are degraded'
-                  : 'All systems operational';
+  const heroTitle = monitors.length === 0 ? t('dashboard.empty.title')
+                  : anyDown ? t(downCount === 1 ? 'dashboard.hero.down_one' : 'dashboard.hero.down_other', { n: downCount })
+                  : anyWarn ? t('dashboard.hero.degraded')
+                  : t('dashboard.hero.up');
   const heroColor = monitors.length === 0 ? 'var(--text-3)'
                   : anyDown ? 'var(--down)'
                   : anyWarn ? 'var(--warn)'
@@ -1249,9 +1249,11 @@ export default function Dashboard({ user, onLogout } = {}) {
               </div>
               <p style={{ fontSize: 14, color: 'var(--text-2)', margin: '0 0 0 20px' }}>
                 {monitors.length === 0 && <>{t("dashboard.hero.first_monitor")}</>}
-                {monitors.length > 0 && anyDown && <>{downCount} unreachable{warnCount > 0 ? `, ${warnCount} degraded` : ''} — auto-refreshing every 10s</>}
-                {monitors.length > 0 && !anyDown && anyWarn && <>{warnCount} degraded — auto-refreshing every 10s</>}
-                {monitors.length > 0 && !anyDown && !anyWarn && <>{monitors.length} monitor{monitors.length > 1 ? 's' : ''} healthy — auto-refreshing every 10s</>}
+                {monitors.length > 0 && anyDown && <>{warnCount > 0
+                  ? t('dashboard.hero.sub_down_warn', { down: downCount, warn: warnCount })
+                  : t('dashboard.hero.sub_down', { down: downCount })}</>}
+                {monitors.length > 0 && !anyDown && anyWarn && <>{t('dashboard.hero.sub_warn', { warn: warnCount })}</>}
+                {monitors.length > 0 && !anyDown && !anyWarn && <>{t(monitors.length === 1 ? 'dashboard.hero.sub_healthy_one' : 'dashboard.hero.sub_healthy_other', { n: monitors.length })}</>}
               </p>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -1819,7 +1821,7 @@ export default function Dashboard({ user, onLogout } = {}) {
           {/* error footer */}
           {(monitorsState.error || summaryState.error || historyState.error) && (
             <div style={{ marginTop: 20, padding: 12, background: 'var(--down-soft)', color: '#b91c1c', borderRadius: 8, fontSize: 13 }}>
-              API error: {(monitorsState.error || summaryState.error || historyState.error)?.message}
+              {t('dashboard.error', { msg: (monitorsState.error || summaryState.error || historyState.error)?.message })}
             </div>
           )}
 
