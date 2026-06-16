@@ -1921,6 +1921,17 @@ const de = {
   'dashboard.tip.bulk_select':       'Für Massenaktion auswählen',
   'dashboard.tip.no_channels':       'Keine Benachrichtigungskanäle angehängt — Wechsel werden erfasst, aber niemand wird benachrichtigt',
   'notifications.push.subscribe_tip': 'Diesen Browser für Push-Benachrichtigungen anmelden',
+  'monitor.aria.reliability_window': 'Zuverlässigkeitsfenster',
+  'monitor.aria.burndown_window':    'Burn-down-Fenster',
+  'monitor.detail.none_selected':    'Kein Monitor ausgewählt',
+  'monitor.detail.not_found':        'Monitor nicht gefunden',
+  'monitor.detail.likely_deleted':   'Wahrscheinlich gelöscht.',
+  'monitor.detail.back_to_dashboard': 'Zurück zum Dashboard',
+  'monitor.status.pending_first':    'Erste Prüfung ausstehend',
+  'monitor.detail.all_samples':      'Alle Messwerte',
+  'monitor.detail.attach_channel':   'Vorhandenen Kanal anhängen',
+  'monitor.detail.burndown_heading': 'Fehlerbudget-Abbau',
+  'monitor.detail.depends_on':       'Hängt ab von',
 };
 
 export default de;
