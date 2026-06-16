@@ -19,6 +19,22 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.59.1] — 2026-06-16
+
+### Fixed
+- `seed-demo` RUM beacons used `lcp_ms` / `fcp_ms` / … metric keys, but the
+  beacon schema expects `lcp` / `fcp` / `inp` / `ttfb` / `load` (only `cls`
+  matched) — so the demo's RUM vitals were dropped on ingest. Corrected, so the
+  seeded dashboard shows real LCP/INP/etc. (Caught by the new RUM test below.)
+
+### Tested
+- Integration tests for the new RUM and logs read aggregates: the log-volume
+  histogram (total + error split, service / min-severity / full-text filters)
+  and level counts; the RUM browser breakdown (coarse UA classification, incl.
+  the Edge-contains-Chrome case) and the recent-traced feed.
+
+---
+
 ## [0.59.0] — 2026-06-16
 
 ### Added
@@ -1663,6 +1679,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.59.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.59.1
 [0.59.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.59.0
 [0.58.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.58.0
 [0.57.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.57.1
