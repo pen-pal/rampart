@@ -617,7 +617,7 @@ function RuleForm({ rule, metricNames, channels, onCancel, onSaved }) {
       <div style={{ marginBottom: 14 }}>
         <label className="field-label">{t('metrics.rules.field.channels')}</label>
         {channels.length === 0 ? (
-          <div className="field-hint" style={{ marginTop: 0 }}>{t('metrics.rules.field.channels_empty')}</div>
+          <div className="field-hint" style={{ marginTop: 0 }}>{t('metrics.rules.field.channels_empty')} <a href="#/notifications" target="_blank" rel="noopener" style={{ color: 'var(--accent-2)', fontWeight: 500, textDecoration: 'none' }}>{t('common.go_to_notifications')}</a></div>
         ) : (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px' }}>
             {channels.map(c => (

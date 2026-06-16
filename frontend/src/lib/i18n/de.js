@@ -2132,6 +2132,19 @@ const de = {
   'dashboard.hero.sub_healthy_one':   '{n} Monitor fehlerfrei — Aktualisierung alle 10s',
   'dashboard.hero.sub_healthy_other': '{n} Monitore fehlerfrei — Aktualisierung alle 10s',
   'dashboard.error':                  'API-Fehler: {msg}',
+  'dashboard.status.outage':         'Ausfall',
+  'dashboard.status.degraded':       'Beeinträchtigt',
+  'dashboard.status.maintenance':    'Wartung',
+  'dashboard.status.paused':         'Pausiert',
+  'dashboard.status.pending':        'Ausstehend',
+  'dashboard.tag_tip':               'Tag: {name}',
+  'dashboard.channels_attached_one': '{n} Benachrichtigungskanal angehängt',
+  'dashboard.channels_attached_other':'{n} Benachrichtigungskanäle angehängt',
+  'app.crash.title':                 'Diese Ansicht hat einen Fehler',
+  'app.crash.body':                  'Beim Rendern dieser Seite ist etwas schiefgelaufen. Der Rest der App funktioniert — neu laden oder zurück zum Dashboard.',
+  'app.crash.reload':                'Neu laden',
+  'app.crash.home':                  'Zurück zum Dashboard',
+  'common.go_to_notifications':      'Zu Benachrichtigungen →',
 };
 
 export default de;

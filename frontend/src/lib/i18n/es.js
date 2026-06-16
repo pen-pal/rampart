@@ -1903,6 +1903,19 @@ const es = {
   'dashboard.hero.sub_healthy_one':   '{n} monitor en buen estado — actualizando cada 10s',
   'dashboard.hero.sub_healthy_other': '{n} monitores en buen estado — actualizando cada 10s',
   'dashboard.error':                  'Error de API: {msg}',
+  'dashboard.status.outage':         'Caída',
+  'dashboard.status.degraded':       'Degradado',
+  'dashboard.status.maintenance':    'Mantenimiento',
+  'dashboard.status.paused':         'En pausa',
+  'dashboard.status.pending':        'Pendiente',
+  'dashboard.tag_tip':               'etiqueta: {name}',
+  'dashboard.channels_attached_one': '{n} canal de notificación adjunto',
+  'dashboard.channels_attached_other':'{n} canales de notificación adjuntos',
+  'app.crash.title':                 'Esta vista encontró un error',
+  'app.crash.body':                  'Algo salió mal al renderizar esta página. El resto de la app funciona — recarga o vuelve al panel.',
+  'app.crash.reload':                'Recargar',
+  'app.crash.home':                  'Volver al panel',
+  'common.go_to_notifications':      'Ir a Notificaciones →',
 };
 
 export default es;
