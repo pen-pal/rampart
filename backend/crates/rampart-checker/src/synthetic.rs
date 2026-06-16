@@ -7,10 +7,15 @@
 //! and produces a Down heartbeat naming the failing step; a clean sweep is Up
 //! with the total wall-clock as latency.
 //!
-//! Session state carries automatically across steps via a minimal cookie jar
-//! (`Set-Cookie` from any step/redirect-hop is replayed as `Cookie` on later
-//! requests); `{{var}}` extraction is still available for non-cookie state.
-//! `upside_down` is not applied (no clean meaning for a multi-assertion run).
+//! Session state carries automatically across steps via a minimal cookie jar:
+//! a `Set-Cookie` from any step or redirect-hop is replayed as `Cookie` on
+//! later requests **to the same host only** (the jar is host-keyed, so a
+//! cookie is never sent to a different origin — a cross-host step or an
+//! open-redirect can't leak an auth cookie). Cookie attributes (Domain, Path,
+//! Secure, expiry, `__Host-`/`__Secure-` prefixes) are not interpreted; the
+//! binding is host-exact, which is stricter than a browser and safe. `{{var}}`
+//! extraction remains available for non-cookie state. `upside_down` is not
+//! applied (no clean meaning for a multi-assertion run).
 
 use crate::{ms_i32, Probe};
 use async_trait::async_trait;
@@ -82,8 +87,10 @@ impl Probe for SyntheticProbe {
         };
 
         let mut vars: BTreeMap<String, String> = BTreeMap::new();
-        // Automatic cookie jar carried across steps (and redirect hops).
-        let mut cookies: BTreeMap<String, String> = BTreeMap::new();
+        // Automatic cookie jar carried across steps (and redirect hops), keyed
+        // by issuing host so a cookie is only ever replayed to the exact host
+        // that set it — see `send_guarded`.
+        let mut cookies: BTreeMap<String, BTreeMap<String, String>> = BTreeMap::new();
         let mut last_status: Option<i32> = None;
 
         for (i, step) in plan.steps.iter().enumerate() {
@@ -227,7 +234,7 @@ async fn send_guarded(
     headers: &[(String, String)],
     body: Option<&str>,
     follow_redirect: bool,
-    cookies: &mut std::collections::BTreeMap<String, String>,
+    cookies: &mut std::collections::BTreeMap<String, std::collections::BTreeMap<String, String>>,
 ) -> Result<reqwest::Response, SendErr> {
     let mut current =
         reqwest::Url::parse(&url).map_err(|e| SendErr::Failed(format!("bad url: {e}")))?;
@@ -235,10 +242,13 @@ async fn send_guarded(
     let mut body = body.map(str::to_string);
 
     for _ in 0..=10 {
-        if let Some(host) = current.host_str() {
+        // The host for this hop drives both the SSRF guard and cookie scoping.
+        let host = current.host_str().unwrap_or_default().to_string();
+        if !host.is_empty() {
             let port = current.port_or_known_default().unwrap_or(80);
             if let Err(blocked) =
-                crate::ssrf::resolve_guarded(host, port, crate::ssrf::block_private_enabled()).await
+                crate::ssrf::resolve_guarded(&host, port, crate::ssrf::block_private_enabled())
+                    .await
             {
                 return Err(SendErr::Blocked(blocked.to_string()));
             }
@@ -247,14 +257,19 @@ async fn send_guarded(
         for (k, v) in headers {
             req = req.header(k, v);
         }
-        // Carry the accumulated session cookies (set by earlier steps/hops).
-        if !cookies.is_empty() {
-            let jar = cookies
-                .iter()
-                .map(|(k, v)| format!("{k}={v}"))
-                .collect::<Vec<_>>()
-                .join("; ");
-            req = req.header(reqwest::header::COOKIE, jar);
+        // Carry session cookies set earlier *for this exact host* only. The jar
+        // is host-keyed and never replays a cookie to a different host — so a
+        // cross-host step or an open-redirect to another origin cannot exfil an
+        // auth/session cookie set by an earlier hop.
+        if let Some(jar) = cookies.get(&host) {
+            if !jar.is_empty() {
+                let cookie_hdr = jar
+                    .iter()
+                    .map(|(k, v)| format!("{k}={v}"))
+                    .collect::<Vec<_>>()
+                    .join("; ");
+                req = req.header(reqwest::header::COOKIE, cookie_hdr);
+            }
         }
         if let Some(b) = &body {
             req = req.body(b.clone());
@@ -264,13 +279,16 @@ async fn send_guarded(
             Err(e) if e.is_timeout() => return Err(SendErr::Timeout),
             Err(e) => return Err(SendErr::Failed(e.to_string())),
         };
-        // Harvest Set-Cookie (on this hop, including redirect responses) into the
-        // jar so the next request/step sends them — a minimal automatic cookie
-        // jar covering login→subsequent-step flows.
+        // Harvest Set-Cookie (on this hop, including redirect responses) under
+        // the issuing host so the next request to that same host sends them — a
+        // minimal automatic cookie jar covering login→subsequent-step flows.
         for c in resp.headers().get_all(reqwest::header::SET_COOKIE) {
             if let Ok(s) = c.to_str() {
                 if let Some((name, value)) = s.split(';').next().and_then(|p| p.split_once('=')) {
-                    cookies.insert(name.trim().to_string(), value.trim().to_string());
+                    cookies
+                        .entry(host.clone())
+                        .or_default()
+                        .insert(name.trim().to_string(), value.trim().to_string());
                 }
             }
         }
