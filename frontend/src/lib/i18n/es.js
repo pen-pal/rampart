@@ -1919,6 +1919,7 @@ const es = {
   'monitor.test_now.ok': 'Sonda ejecutada — {status}{detail}',
   'monitor.test_now.error': 'Prueba fallida: {error}',
   'monitor.test_now.dismiss': 'Clic para descartar',
+  'common.confirm':                  'Confirmar',
 };
 
 export default es;
