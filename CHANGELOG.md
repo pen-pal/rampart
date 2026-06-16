@@ -19,6 +19,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.100.1] — 2026-06-16
+
+### Changed
+- **Notification channels: completed es / fr / de localization.** Filled the
+  long-tail of ~158 untranslated channel field labels and one-line setup hints
+  (e.g. Bark, Feishu, DingTalk, the SMS-gateway family, WhatsApp bridges,
+  PagerTree/Squadcast/GoAlert, Mastodon, …) that were previously falling back to
+  English in Spanish, French, and German. Brand names, domains, technical
+  acronyms (API/URL/ARN/SID/PEM/…), and code identifiers (`chat_id`,
+  `access_token`, HTTP path fragments) are intentionally left verbatim. ja/zh
+  remain on the English-fallback path by design.
+
+---
+
 ## [0.100.0] — 2026-06-16
 
 ### Added
