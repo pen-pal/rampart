@@ -19,6 +19,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.67.2] — 2026-06-16
+
+### Documentation
+- README feature matrix refreshed to the current depth — error affected-users +
+  volume histogram, the reworked trace waterfall / service-map edges / ops p95
+  trend, the log volume histogram, RUM drill-down + users/browser breakdowns,
+  the interactive profiler, the monitor latency SLA, and DB/MQTT/LDAP auth.
+
+---
+
 ## [0.67.1] — 2026-06-16
 
 ### Tested
@@ -1881,6 +1891,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.67.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.67.2
 [0.67.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.67.1
 [0.67.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.67.0
 [0.66.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.66.2
