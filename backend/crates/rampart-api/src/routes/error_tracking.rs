@@ -158,6 +158,9 @@ async fn delete_project(
 #[derive(Deserialize)]
 struct IssueQuery {
     status: Option<String>,
+    /// Keyset cursor for "load older" — the last issue's id already shown.
+    before_id: Option<String>,
+    limit: Option<i64>,
 }
 
 async fn list_issues(
@@ -166,8 +169,16 @@ async fn list_issues(
     Query(q): Query<IssueQuery>,
 ) -> Result<Json<Vec<ErrorIssue>>, ApiError> {
     let pid = project_id(&id)?;
+    let before_id = q.before_id.as_deref().and_then(|s| uuid::Uuid::parse_str(s).ok());
     Ok(Json(
-        rampart_db::error_tracking::list_issues(s.pool(), pid, q.status.as_deref()).await?,
+        rampart_db::error_tracking::list_issues(
+            s.pool(),
+            pid,
+            q.status.as_deref(),
+            before_id,
+            q.limit.unwrap_or(100),
+        )
+        .await?,
     ))
 }
 
