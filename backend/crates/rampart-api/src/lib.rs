@@ -18,6 +18,7 @@ pub mod pprof;
 pub mod rate_limit;
 pub mod routes;
 pub mod seed;
+pub mod self_metrics;
 pub mod self_telemetry;
 pub mod smtp;
 pub mod state;

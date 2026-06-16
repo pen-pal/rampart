@@ -19,6 +19,19 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.99.0] — 2026-06-16
+
+### Added
+- **Rampart self-metrics in the Metrics view.** A background task snapshots
+  Rampart's own HTTP counters once a minute and pushes `rampart_http_requests_
+  per_sec` + `rampart_http_latency_ms_avg` (`service=rampart`) into the metric
+  tier, so the in-app Metrics view shows the app's **live** request rate +
+  latency — not just externally-pushed series. (Rampart's full Prometheus
+  exposition is still at the `/metrics` scrape endpoint.) `seed-demo` seeds these
+  series so the demo shows them immediately.
+
+---
+
 ## [0.98.1] — 2026-06-16
 
 ### Fixed
@@ -2388,6 +2401,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.99.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.99.0
 [0.98.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.98.1
 [0.98.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.98.0
 [0.97.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.97.0

@@ -187,6 +187,13 @@ async fn main() -> anyhow::Result<()> {
 
     static_assets::log_state();
     let state = AppState::with_scheduler(pool, reload_handle, scheduler.clone());
+    // Self-metrics: snapshot our own HTTP counters into the metric tier every
+    // minute so the in-app Metrics view shows Rampart's live request rate +
+    // latency (not just externally-pushed series).
+    tokio::spawn(rampart_api::self_metrics::run(
+        state.http_metrics().clone(),
+        state.pool().clone(),
+    ));
     let app = build_router(state);
 
     let listener = tokio::net::TcpListener::bind(bind).await?;
