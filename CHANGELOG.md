@@ -19,6 +19,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.79.0] — 2026-06-16
+
+### Demo
+- `seed-demo` now seeds a representative `[demo] api` CPU flamegraph, so the
+  Profiling view shows a real merged tree on a fresh install instead of "no
+  profiles yet". Goes through the same folded-stack storage the live ingest
+  path uses.
+
+---
+
 ## [0.78.0] — 2026-06-16
 
 ### Added
@@ -2072,6 +2082,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.79.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.79.0
 [0.78.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.78.0
 [0.77.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.77.0
 [0.76.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.76.0
