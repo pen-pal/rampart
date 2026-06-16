@@ -19,6 +19,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.63.1] — 2026-06-16
+
+### Fixed
+- **Adding a monitor dependency bounced you back to the overview.** Attach/detach
+  did a full `window.location.reload()`, which lost the route. They now refetch
+  the dependency list in place, so you can add several dependencies in a row
+  without re-navigating.
+
+---
+
 ## [0.63.0] — 2026-06-16
 
 ### Added
@@ -1780,6 +1790,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.63.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.63.1
 [0.63.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.63.0
 [0.62.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.62.1
 [0.62.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.62.0
