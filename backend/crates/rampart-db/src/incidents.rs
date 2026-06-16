@@ -255,8 +255,9 @@ pub async fn resolve(pool: &DbPool, id: IncidentId, now: OffsetDateTime) -> DbRe
     Ok(())
 }
 
-/// Full history (active and resolved) for a page. Admin side.
-pub async fn list_all(pool: &DbPool, page: StatusPageId) -> DbResult<Vec<Incident>> {
+/// Full history (active and resolved) for a page. Admin side. `limit` is
+/// clamped to a sane ceiling so the response can't grow unbounded with age.
+pub async fn list_all(pool: &DbPool, page: StatusPageId, limit: i64) -> DbResult<Vec<Incident>> {
     let rows = sqlx::query!(
         r#"
         SELECT
@@ -266,8 +267,10 @@ pub async fn list_all(pool: &DbPool, page: StatusPageId) -> DbResult<Vec<Inciden
         FROM incidents
         WHERE status_page_id = $1
         ORDER BY active DESC, pinned DESC, created_at DESC
+        LIMIT $2
         "#,
         page.0,
+        limit.clamp(1, 500),
     )
     .fetch_all(pool)
     .await?;

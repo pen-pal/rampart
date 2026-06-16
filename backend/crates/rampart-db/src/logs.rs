@@ -90,6 +90,9 @@ pub struct LogFilter<'a> {
     pub trace_id: Option<&'a str>,
     /// Narrow to a single span within a trace (the span→logs pivot).
     pub span_id: Option<&'a str>,
+    /// Time window in hours (bounds `received_at`, matching the histogram +
+    /// level-count reads). `None` = unbounded (used by the trace/span pivots).
+    pub hours: Option<i32>,
     pub limit: i64,
 }
 
@@ -106,6 +109,7 @@ pub async fn query_logs(pool: &DbPool, f: LogFilter<'_>) -> DbResult<Vec<LogEntr
           AND ($3::text IS NULL OR body_tsv @@ websearch_to_tsquery('english', $3))
           AND ($4::text IS NULL OR trace_id = $4)
           AND ($6::text IS NULL OR span_id = $6)
+          AND ($7::int4 IS NULL OR received_at > now() - make_interval(hours => $7))
         ORDER BY ts DESC
         LIMIT $5
         "#,
@@ -115,6 +119,7 @@ pub async fn query_logs(pool: &DbPool, f: LogFilter<'_>) -> DbResult<Vec<LogEntr
         f.trace_id,
         f.limit.clamp(1, 1000),
         f.span_id,
+        f.hours.map(|h| h.clamp(1, 720)),
     )
     .fetch_all(pool)
     .await?;

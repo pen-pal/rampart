@@ -59,7 +59,7 @@ async fn list_for_page(
     Path(page): Path<String>,
 ) -> Result<Json<Vec<Incident>>, ApiError> {
     Ok(Json(
-        rampart_db::incidents::list_all(s.pool(), parse_page(&page)?).await?,
+        rampart_db::incidents::list_all(s.pool(), parse_page(&page)?, 500).await?,
     ))
 }
 
