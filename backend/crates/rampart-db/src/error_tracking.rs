@@ -400,10 +400,14 @@ pub async fn issues_for_trace(pool: &DbPool, trace_id: &str) -> DbResult<Vec<Tra
 }
 
 /// Issues for a project, newest activity first. `status` filters when set.
+/// `before_id` is a keyset cursor for "load older" — the last issue's id, whose
+/// `(last_seen, id)` is resolved server-side. `limit` is clamped.
 pub async fn list_issues(
     pool: &DbPool,
     project_id: ErrorProjectId,
     status: Option<&str>,
+    before_id: Option<Uuid>,
+    limit: i64,
 ) -> DbResult<Vec<ErrorIssue>> {
     let rows = sqlx::query_as!(
         IssueRow,
@@ -412,11 +416,15 @@ pub async fn list_issues(
                first_seen, last_seen, times_seen, assignee
         FROM error_issues
         WHERE project_id = $1 AND ($2::text IS NULL OR status = $2)
-        ORDER BY last_seen DESC
-        LIMIT 200
+          AND ($3::uuid IS NULL
+               OR (last_seen, id) < ((SELECT last_seen FROM error_issues WHERE id = $3), $3))
+        ORDER BY last_seen DESC, id DESC
+        LIMIT $4
         "#,
         project_id.0,
         status,
+        before_id,
+        limit.clamp(1, 200),
     )
     .fetch_all(pool)
     .await?;

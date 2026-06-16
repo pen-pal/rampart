@@ -211,7 +211,22 @@ function ProjectIssues({ project, onBack, onOpenIssue }) {
   const issuesState = useApi(() => api.errorProjects.issues(project.id, status || undefined), [status]);
   const histState = useApi(() => api.errorProjects.histogram(project.id, 168), []);
   const [copied, setCopied] = useState(false);
-  const issues = issuesState.data || [];
+  // "Load older" keyset pagination over the issue list.
+  const [older, setOlder] = useState([]);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [exhausted, setExhausted] = useState(false);
+  useEffect(() => { setOlder([]); setExhausted(false); }, [status]);
+  const issues = [...(issuesState.data || []), ...older];
+  const loadOlder = async () => {
+    const last = issues[issues.length - 1];
+    if (!last || loadingOlder) return;
+    setLoadingOlder(true);
+    try {
+      const page = await api.errorProjects.issues(project.id, status || undefined, last.id);
+      setOlder((o) => [...o, ...page]);
+      if (page.length < 100) setExhausted(true);
+    } finally { setLoadingOlder(false); }
+  };
   const hist = histState.data || [];
   const dsn = dsnFor(project);
 
@@ -272,6 +287,14 @@ function ProjectIssues({ project, onBack, onOpenIssue }) {
           </div>
         ))}
       </div>
+
+      {issues.length > 0 && !exhausted && (
+        <div style={{ textAlign: 'center', marginTop: 12 }}>
+          <button className="btn btn-ghost" onClick={loadOlder} disabled={loadingOlder}>
+            {loadingOlder ? <><Loader2 size={14}/> {t('errors.loading')}</> : t('logs.load_older')}
+          </button>
+        </div>
+      )}
     </>
   );
 }
