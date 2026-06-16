@@ -2227,6 +2227,16 @@ const en = {
   'notif.kind.email.hint': 'Any SMTP relay: Gmail, SendGrid, Mailgun, self-hosted Postfix…',
   'notif.kind.apprise.hint': '80+ services via apprise-api sidecar. One channel fans out to many.',
   'notif.kind.webhook.hint': 'Any endpoint that accepts POST application/json. Use for Zapier/n8n/Make.',
+  'dashboard.hero.down_one':          '{n} service down',
+  'dashboard.hero.down_other':        '{n} services down',
+  'dashboard.hero.degraded':          'Some services are degraded',
+  'dashboard.hero.up':                'All systems operational',
+  'dashboard.hero.sub_down':          '{down} unreachable — auto-refreshing every 10s',
+  'dashboard.hero.sub_down_warn':     '{down} unreachable, {warn} degraded — auto-refreshing every 10s',
+  'dashboard.hero.sub_warn':          '{warn} degraded — auto-refreshing every 10s',
+  'dashboard.hero.sub_healthy_one':   '{n} monitor healthy — auto-refreshing every 10s',
+  'dashboard.hero.sub_healthy_other': '{n} monitors healthy — auto-refreshing every 10s',
+  'dashboard.error':                  'API error: {msg}',
 };
 
 export default en;

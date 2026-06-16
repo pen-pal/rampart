@@ -1893,6 +1893,16 @@ const es = {
   'notif.kind.matrix.hint': 'Homeserver + token de acceso + id de sala. Estándar abierto.',
   'notif.kind.home_assistant.hint': 'Home Assistant /api/services/notify/<service> con token de larga duración',
   'notif.kind.line.hint': 'Token de acceso del canal + ID de destinatario (Messaging API)',
+  'dashboard.hero.down_one':          '{n} servicio caído',
+  'dashboard.hero.down_other':        '{n} servicios caídos',
+  'dashboard.hero.degraded':          'Algunos servicios están degradados',
+  'dashboard.hero.up':                'Todos los sistemas operativos',
+  'dashboard.hero.sub_down':          '{down} inaccesible — actualizando cada 10s',
+  'dashboard.hero.sub_down_warn':     '{down} inaccesible, {warn} degradado — actualizando cada 10s',
+  'dashboard.hero.sub_warn':          '{warn} degradado — actualizando cada 10s',
+  'dashboard.hero.sub_healthy_one':   '{n} monitor en buen estado — actualizando cada 10s',
+  'dashboard.hero.sub_healthy_other': '{n} monitores en buen estado — actualizando cada 10s',
+  'dashboard.error':                  'Error de API: {msg}',
 };
 
 export default es;

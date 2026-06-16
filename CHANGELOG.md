@@ -19,6 +19,17 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.84.0] — 2026-06-16
+
+### Fixed
+- The dashboard hero (status headline + subtitle) and the API-error footer were
+  hardcoded English that bypassed i18n — the most-visible view in the app. Now
+  routed through `t()` under `dashboard.hero.*` / `dashboard.error` with
+  singular/plural variants, translated in en/es/fr/de. (Surfaced by an
+  automated multi-dimension audit of the codebase.)
+
+---
+
 ## [0.83.0] — 2026-06-16
 
 ### Demo
@@ -2149,6 +2160,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.84.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.84.0
 [0.83.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.83.0
 [0.82.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.82.0
 [0.81.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.81.0
