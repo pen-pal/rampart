@@ -19,6 +19,17 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.91.0] — 2026-06-16
+
+### Performance
+- **Logs and spans now ingest in a single bulk `INSERT … UNNEST`** instead of a
+  per-row loop inside a transaction. The OTLP log/trace ingest hot paths
+  previously issued one round-trip per record (hundreds per batch); they now
+  expand column-parallel arrays server-side in one statement. Spans keep their
+  `ON CONFLICT (span_id) DO NOTHING` dedup. (Audit #18.)
+
+---
+
 ## [0.90.0] — 2026-06-16
 
 ### Fixed
@@ -2262,6 +2273,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.91.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.91.0
 [0.90.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.90.0
 [0.89.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.89.0
 [0.88.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.88.0

@@ -16,36 +16,61 @@ pub async fn insert_spans(pool: &DbPool, spans: &[ParsedSpan]) -> DbResult<u64> 
     if spans.is_empty() {
         return Ok(0);
     }
-    let mut tx = pool.begin().await?;
-    let mut inserted = 0u64;
+    // Bulk INSERT via UNNEST (single round-trip) instead of a per-span loop.
+    let n = spans.len();
+    let mut span_id = Vec::with_capacity(n);
+    let mut trace_id = Vec::with_capacity(n);
+    let mut parent = Vec::with_capacity(n);
+    let mut svc = Vec::with_capacity(n);
+    let mut name = Vec::with_capacity(n);
+    let mut kind = Vec::with_capacity(n);
+    let mut start_ns = Vec::with_capacity(n);
+    let mut end_ns = Vec::with_capacity(n);
+    let mut dur = Vec::with_capacity(n);
+    let mut status_code = Vec::with_capacity(n);
+    let mut status_msg = Vec::with_capacity(n);
+    let mut attrs = Vec::with_capacity(n);
     for s in spans {
-        let res = sqlx::query!(
-            r#"
-            INSERT INTO spans
-                (span_id, trace_id, parent_span_id, service_name, name, kind,
-                 start_ns, end_ns, duration_ms, status_code, status_message, attributes)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-            ON CONFLICT (span_id) DO NOTHING
-            "#,
-            s.span_id,
-            s.trace_id,
-            s.parent_span_id,
-            s.service_name,
-            s.name,
-            s.kind,
-            s.start_ns,
-            s.end_ns,
-            s.duration_ms(),
-            s.status_code,
-            s.status_message,
-            s.attributes,
-        )
-        .execute(&mut *tx)
-        .await?;
-        inserted += res.rows_affected();
+        span_id.push(s.span_id.clone());
+        trace_id.push(s.trace_id.clone());
+        parent.push(s.parent_span_id.clone());
+        svc.push(s.service_name.clone());
+        name.push(s.name.clone());
+        kind.push(s.kind);
+        start_ns.push(s.start_ns);
+        end_ns.push(s.end_ns);
+        dur.push(s.duration_ms());
+        status_code.push(s.status_code);
+        status_msg.push(s.status_message.clone());
+        attrs.push(s.attributes.clone());
     }
-    tx.commit().await?;
-    Ok(inserted)
+    let res = sqlx::query!(
+        r#"
+        INSERT INTO spans
+            (span_id, trace_id, parent_span_id, service_name, name, kind,
+             start_ns, end_ns, duration_ms, status_code, status_message, attributes)
+        SELECT * FROM UNNEST(
+            $1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::int2[],
+            $7::int8[], $8::int8[], $9::float8[], $10::int2[], $11::text[], $12::jsonb[]
+        )
+        ON CONFLICT (span_id) DO NOTHING
+        "#,
+        &span_id,
+        &trace_id,
+        &parent as &[Option<String>],
+        &svc,
+        &name,
+        &kind,
+        &start_ns,
+        &end_ns,
+        &dur,
+        &status_code,
+        &status_msg as &[Option<String>],
+        &attrs,
+    )
+    .execute(pool)
+    .await?;
+    Ok(res.rows_affected())
 }
 
 struct SummaryRow {
