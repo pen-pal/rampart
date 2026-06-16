@@ -19,6 +19,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.80.0] — 2026-06-16
+
+### Fixed
+- Localized the safe-to-translate `<select>` options and the plain field-hints
+  in the notification-channel forms (en/es/fr/de): Mastodon visibility
+  (public/unlisted/private/direct), SMTP encryption descriptors, Zulip
+  destination type, the "+ tag…" picker, and the SMS-metering / Apprise-sidecar
+  hints. Options whose visible text **is** the submitted value (HTTP methods,
+  `SEV-1…5`, `P1…5`, Datadog/region codes, platform ids, severity words) are
+  intentionally left as-is — translating them would change the value sent to
+  the provider.
+
+---
+
 ## [0.79.0] — 2026-06-16
 
 ### Demo
@@ -2082,6 +2096,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.80.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.80.0
 [0.79.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.79.0
 [0.78.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.78.0
 [0.77.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.77.0

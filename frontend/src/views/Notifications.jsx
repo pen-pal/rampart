@@ -423,9 +423,9 @@ function ConfigForm({ kind, config, setConfig }) {
         <div className="field">
           <label className="field-label">{t('notif.f.encryption')}</label>
           <select className="select" value={config.encryption || 'starttls'} onChange={e => set('encryption', e.target.value)}>
-            <option value="starttls">STARTTLS (port 587)</option>
-            <option value="tls">Implicit TLS (port 465)</option>
-            <option value="plain">None (no TLS)</option>
+            <option value="starttls">{t('notif.opt.enc_starttls')}</option>
+            <option value="tls">{t('notif.opt.enc_tls')}</option>
+            <option value="plain">{t('notif.opt.enc_none')}</option>
           </select>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -582,7 +582,7 @@ function ConfigForm({ kind, config, setConfig }) {
           <input className="input mono" value={config.apprise_url || ''}
             onChange={e => set('apprise_url', e.target.value)}
             placeholder="http://apprise:8000"/>
-          <div className="field-hint">Run the sidecar with: <code style={{ background: 'var(--surface-2)', padding: '0 4px', borderRadius: 3 }}>docker run -d -p 8000:8000 caronc/apprise:latest</code></div>
+          <div className="field-hint">{t('notif.hint.run_sidecar')} <code style={{ background: 'var(--surface-2)', padding: '0 4px', borderRadius: 3 }}>docker run -d -p 8000:8000 caronc/apprise:latest</code></div>
         </div>
         <div className="field">
           <label className="field-label">{t('notif.f.apprise_urls')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
@@ -869,8 +869,8 @@ function ConfigForm({ kind, config, setConfig }) {
         <div className="field">
           <label className="field-label">{t('notif.f.type')}</label>
           <select className="select" value={config.kind || 'stream'} onChange={e => set('kind', e.target.value)}>
-            <option value="stream">stream</option>
-            <option value="private">private</option>
+            <option value="stream">{t('notif.opt.zulip_stream')}</option>
+            <option value="private">{t('notif.opt.zulip_private')}</option>
           </select>
         </div>
         <div className="field">
@@ -1047,10 +1047,10 @@ function ConfigForm({ kind, config, setConfig }) {
         <div className="field">
           <label className="field-label">{t('notif.f.visibility')}</label>
           <select className="select" value={config.visibility || 'private'} onChange={e => set('visibility', e.target.value)}>
-            <option value="public">public</option>
-            <option value="unlisted">unlisted</option>
-            <option value="private">private (followers-only)</option>
-            <option value="direct">direct</option>
+            <option value="public">{t('notif.opt.vis_public')}</option>
+            <option value="unlisted">{t('notif.opt.vis_unlisted')}</option>
+            <option value="private">{t('notif.opt.vis_private_followers')}</option>
+            <option value="direct">{t('notif.opt.vis_direct')}</option>
           </select>
         </div>
       </>
@@ -2359,7 +2359,7 @@ function ConfigForm({ kind, config, setConfig }) {
           <input className="input mono" value={config.to || ''}
             onChange={e => set('to', e.target.value)} placeholder="+15559876543, +44..."/>
         </div>
-        <div className="field-hint">SMS is metered — Twilio charges per message per recipient. Use Pushover or ntfy for free push.</div>
+        <div className="field-hint">{t('notif.hint.sms_metered')}</div>
       </>
     );
   }
@@ -3202,7 +3202,7 @@ function ChannelTagEditor({ channelId, allTags }) {
       {avail.length > 0 && (
         <select className="select" style={{ width: 'auto', padding: '4px 8px', fontSize: 12 }} disabled={busy}
           value="" onChange={e => e.target.value && toggle(e.target.value)}>
-          <option value="">+ tag…</option>
+          <option value="">{t('notif.opt.add_tag')}</option>
           {avail.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
       )}
