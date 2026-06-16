@@ -57,3 +57,32 @@ async fn recent_traced_returns_only_traced(pool: PgPool) {
     assert_eq!(traced[0].trace_id, "trace-abc");
     assert_eq!(traced[0].url, "/checkout");
 }
+
+fn beacon_user(url: &str, user: &str) -> RumBeacon {
+    serde_json::from_value(serde_json::json!({
+        "app": "web",
+        "url": url,
+        "ua": CHROME,
+        "user_id": user,
+        "session": "sess-1",
+        "metrics": { "lcp": 1800.0, "inp": 120.0, "load": 2000.0 }
+    }))
+    .unwrap()
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn page_samples_drilldown_carries_user(pool: PgPool) {
+    rum::insert_event(&pool, &beacon_user("/checkout", "alice@example.com")).await.unwrap();
+    rum::insert_event(&pool, &beacon_user("/checkout", "bob@example.com")).await.unwrap();
+    rum::insert_event(&pool, &beacon("/other", CHROME, None, 1500.0)).await.unwrap();
+
+    let samples = rum::page_samples(&pool, None, "/checkout", 24, 100).await.unwrap();
+    assert_eq!(samples.len(), 2, "only /checkout loads");
+    assert!(samples.iter().all(|s| s.user_id.is_some()));
+    let users: Vec<_> = samples.iter().filter_map(|s| s.user_id.as_deref()).collect();
+    assert!(users.contains(&"alice@example.com") && users.contains(&"bob@example.com"));
+    assert!(samples[0].lcp_ms.is_some() && samples[0].inp_ms.is_some());
+
+    // A different URL is isolated.
+    assert_eq!(rum::page_samples(&pool, None, "/other", 24, 100).await.unwrap().len(), 1);
+}
