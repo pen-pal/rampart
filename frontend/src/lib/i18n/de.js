@@ -1878,6 +1878,8 @@ const de = {
   'errors.volume_hint': 'Fehlerereignisse der letzten 7 Tage',
   'errors.affected_users': 'Betroffene Benutzer',
   'dashboard.metrics.title': 'Metrik-Serien',
+  'dashboard.incident.ongoing': 'Laufend',
+  'dashboard.incident.resolved': 'Behoben',
   'dashboard.escalations.title': 'Aktive Eskalationen',
   'dashboard.escalations.step': 'Stufe {n}',
   'dashboard.escalations.acked': 'Bestätigt',

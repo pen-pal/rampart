@@ -33,9 +33,14 @@ pub fn page_router() -> Router<AppState> {
 
 pub fn incident_router() -> Router<AppState> {
     Router::new()
+        .route("/recent", get(recent))
         .route("/{id}", axum::routing::patch(update).delete(delete_one))
         .route("/{id}/resolve", post(resolve))
         .route("/{id}/updates", get(list_updates).post(post_update))
+}
+
+async fn recent(State(s): State<AppState>) -> Result<Json<Vec<rampart_core::incident::Incident>>, ApiError> {
+    Ok(Json(rampart_db::incidents::recent(s.pool(), 10).await?))
 }
 
 fn parse_page(s: &str) -> Result<StatusPageId, ApiError> {
