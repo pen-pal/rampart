@@ -1920,6 +1920,7 @@ const es = {
   'monitor.test_now.error': 'Prueba fallida: {error}',
   'monitor.test_now.dismiss': 'Clic para descartar',
   'common.confirm':                  'Confirmar',
+  'logs.load_older':                 'Cargar más antiguos',
 };
 
 export default es;
