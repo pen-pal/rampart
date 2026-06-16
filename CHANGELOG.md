@@ -19,6 +19,25 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.82.0] — 2026-06-16
+
+### Demo
+- `seed-demo` now exercises **every** feature tier so a fresh install shows the
+  whole product, not just core uptime. Added: 6 more app monitors across new
+  probe kinds (gRPC, MQTT, DNS, TLS, plus auth/search HTTP), a multi-step
+  **synthetic transaction** (homepage → login → checkout with extract +
+  assertions), a **cron-scheduled** push monitor, an **on-call** rotation, a
+  two-step **escalation policy**, an upcoming **maintenance window** (attached
+  to two monitors), a **silence**, a **metric alert rule**, one **telemetry
+  rule of each kind** (log-volume / trace-latency / RUM-LCP / profile-samples /
+  error-rate), two more **SIEM detection rules**, two status-page **incidents**,
+  a status-page **subscriber**, an **API key**, a remote **probe agent**, an
+  outbound **proxy**, three **tags** (attached to monitors), and a **scheduled
+  report**. Every addition is best-effort and idempotent on a fresh demo
+  folder. Verified end-to-end: all tiers populate and render.
+
+---
+
 ## [0.81.0] — 2026-06-16
 
 ### Fixed
@@ -2109,6 +2128,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.82.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.82.0
 [0.81.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.81.0
 [0.80.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.80.0
 [0.79.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.79.0
