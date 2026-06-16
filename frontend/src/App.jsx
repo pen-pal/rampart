@@ -43,6 +43,7 @@ import { api } from './lib/api.js';
 import { isAdmin, canWrite } from './lib/roles.js';
 import { parseRoute } from './lib/router.js';
 import { FloatingThemeToggle, FloatingLocalePicker } from './components/ThemeToggle.jsx';
+import { Toaster, DialogHost } from './components/Notify.jsx';
 import { t } from './lib/i18n.js';
 
 // Minimal centered fallback shown while a lazy view chunk is downloading.
@@ -98,7 +99,7 @@ class ViewErrorBoundary extends React.Component {
 }
 
 const VIEW_LABEL = {
-  'dashboard':     'Dashboard',
+  'dashboard':     'Overview',
   'dashboards':    'Dashboards',
   'monitor':       'Monitor',
   'new-monitor':   'New monitor',
@@ -345,6 +346,8 @@ export default function App() {
       </ViewErrorBoundary>
       {showThemeToggle && <FloatingThemeToggle />}
       {showThemeToggle && <FloatingLocalePicker />}
+      <Toaster />
+      <DialogHost />
       {route.view !== 'login' && route.view !== 'public-status' && route.view !== 'manage-subscription' && <NavDrawer current={route.view} user={authState.user} />}
     </>
   );

@@ -2148,6 +2148,7 @@ const de = {
   'monitor.test_now.ok': 'Probe ausgeführt — {status}{detail}',
   'monitor.test_now.error': 'Test fehlgeschlagen: {error}',
   'monitor.test_now.dismiss': 'Zum Schließen klicken',
+  'common.confirm':                  'Bestätigen',
 };
 
 export default de;
