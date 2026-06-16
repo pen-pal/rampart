@@ -2117,6 +2117,19 @@ const fr = {
   'dashboard.hero.sub_healthy_one':   '{n} moniteur en bonne santé — actualisation toutes les 10s',
   'dashboard.hero.sub_healthy_other': '{n} moniteurs en bonne santé — actualisation toutes les 10s',
   'dashboard.error':                  'Erreur API : {msg}',
+  'dashboard.status.outage':         'Panne',
+  'dashboard.status.degraded':       'Dégradé',
+  'dashboard.status.maintenance':    'Maintenance',
+  'dashboard.status.paused':         'En pause',
+  'dashboard.status.pending':        'En attente',
+  'dashboard.tag_tip':               'étiquette : {name}',
+  'dashboard.channels_attached_one': '{n} canal de notification attaché',
+  'dashboard.channels_attached_other':'{n} canaux de notification attachés',
+  'app.crash.title':                 'Cette vue a rencontré une erreur',
+  'app.crash.body':                  'Une erreur est survenue lors du rendu de cette page. Le reste de l’application fonctionne — rechargez ou revenez au tableau de bord.',
+  'app.crash.reload':                'Recharger',
+  'app.crash.home':                  'Retour au tableau de bord',
+  'common.go_to_notifications':      'Aller aux notifications →',
 };
 
 export default fr;

@@ -2237,6 +2237,19 @@ const en = {
   'dashboard.hero.sub_healthy_one':   '{n} monitor healthy — auto-refreshing every 10s',
   'dashboard.hero.sub_healthy_other': '{n} monitors healthy — auto-refreshing every 10s',
   'dashboard.error':                  'API error: {msg}',
+  'dashboard.status.outage':         'Outage',
+  'dashboard.status.degraded':       'Degraded',
+  'dashboard.status.maintenance':    'Maintenance',
+  'dashboard.status.paused':         'Paused',
+  'dashboard.status.pending':        'Pending',
+  'dashboard.tag_tip':               'tag: {name}',
+  'dashboard.channels_attached_one': '{n} notification channel attached',
+  'dashboard.channels_attached_other':'{n} notification channels attached',
+  'app.crash.title':                 'This view hit an error',
+  'app.crash.body':                  'Something went wrong rendering this page. The rest of the app is fine — reload, or head back to the dashboard.',
+  'app.crash.reload':                'Reload',
+  'app.crash.home':                  'Back to dashboard',
+  'common.go_to_notifications':      'Go to Notifications →',
 };
 
 export default en;

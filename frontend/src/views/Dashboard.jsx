@@ -1757,23 +1757,23 @@ export default function Dashboard({ user, onLogout } = {}) {
                   </span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 13, fontWeight: 500 }}>{m.name}</span>
-                    {(m.tags || []).map(t => (
-                      <span key={t.id} title={`tag: ${t.name}`} style={{
+                    {(m.tags || []).map(tag => (
+                      <span key={tag.id} title={t('dashboard.tag_tip', { name: tag.name })} style={{
                         display: 'inline-flex', alignItems: 'center',
                         fontSize: 10, fontWeight: 500,
                         padding: '1px 6px', borderRadius: 999,
-                        background: t.color, color: '#fff',
-                      }}>{t.name}</span>
+                        background: tag.color, color: '#fff',
+                      }}>{tag.name}</span>
                     ))}
-                    {m.current_status === 'down'        && <span className="pill pill-down">Outage</span>}
-                    {m.current_status === 'warn'        && <span className="pill pill-warn">Degraded</span>}
-                    {m.current_status === 'maintenance' && <span className="pill pill-maint">Maintenance</span>}
-                    {m.current_status === 'paused'      && <span className="pill pill-paused"><Pause size={9}/> Paused</span>}
-                    {m.current_status === 'pending'     && <span className="pill pill-paused">Pending</span>}
+                    {m.current_status === 'down'        && <span className="pill pill-down">{t('dashboard.status.outage')}</span>}
+                    {m.current_status === 'warn'        && <span className="pill pill-warn">{t('dashboard.status.degraded')}</span>}
+                    {m.current_status === 'maintenance' && <span className="pill pill-maint">{t('dashboard.status.maintenance')}</span>}
+                    {m.current_status === 'paused'      && <span className="pill pill-paused"><Pause size={9}/> {t('dashboard.status.paused')}</span>}
+                    {m.current_status === 'pending'     && <span className="pill pill-paused">{t('dashboard.status.pending')}</span>}
                     {(() => {
                       const n = channelCount.get(m.id) || 0;
                       return n > 0 ? (
-                        <span title={`${n} notification channel${n > 1 ? 's' : ''} attached`}
+                        <span title={t(n === 1 ? 'dashboard.channels_attached_one' : 'dashboard.channels_attached_other', { n })}
                           style={{
                             display: 'inline-flex', alignItems: 'center', gap: 3,
                             fontSize: 10.5, color: 'var(--accent-2)',

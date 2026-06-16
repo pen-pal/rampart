@@ -335,7 +335,7 @@ function PolicyForm({ policy, channels, schedules, onCancel, onSaved }) {
                 )}
               </div>
               {channels.length === 0 && schedules.length === 0 ? (
-                <div className="field-hint" style={{ marginTop: 0 }}>{t('esc.step.channels_empty')}</div>
+                <div className="field-hint" style={{ marginTop: 0 }}>{t('esc.step.channels_empty')} <a href="#/notifications" target="_blank" rel="noopener" style={{ color: 'var(--accent-2)', fontWeight: 500, textDecoration: 'none' }}>{t('common.go_to_notifications')}</a></div>
               ) : (
                 <>
                   {channels.length > 0 && (

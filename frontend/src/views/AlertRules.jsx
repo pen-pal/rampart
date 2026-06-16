@@ -254,7 +254,7 @@ function RuleForm({ rule, channels, onSaved, onCancel, setErr }) {
       <div className="field">
         <label className="field-label">{t('alertrules.f.channels')}</label>
         {channels.length === 0 ? (
-          <div className="field-hint">{t('alertrules.f.no_channels')}</div>
+          <div className="field-hint">{t('alertrules.f.no_channels')} <a href="#/notifications" target="_blank" rel="noopener" style={{ color: 'var(--accent-2)', fontWeight: 500, textDecoration: 'none' }}>{t('common.go_to_notifications')}</a></div>
         ) : (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
             {channels.map(c => (

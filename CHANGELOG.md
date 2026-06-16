@@ -19,6 +19,26 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.85.0] — 2026-06-16
+
+### Added
+- **React error boundary** around the view router: a render-time throw in any
+  single view now shows a friendly "this view hit an error — reload / back to
+  dashboard" card instead of white-screening the entire app. Keyed by route, so
+  navigating away clears it. (en/es/fr/de)
+- Empty-notification-channel hints in the alert-rule, detection, escalation,
+  SLO, metric-rule, and error-project forms now carry a **"Go to Notifications
+  →"** link (opens in a new tab, preserving the in-progress form).
+
+### Fixed
+- Dashboard monitor-table status pills (Outage/Degraded/Maintenance/Paused/
+  Pending), tag tooltips, and the channel-count tooltip were hardcoded English;
+  the tag `.map(t => …)` callback also **shadowed the imported `t()`** i18n
+  function. Renamed the loop variable and routed all of it through `t()`
+  (`dashboard.status.*` etc., en/es/fr/de). (Surfaced + verified by the audit.)
+
+---
+
 ## [0.84.0] — 2026-06-16
 
 ### Fixed
@@ -2160,6 +2180,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.85.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.85.0
 [0.84.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.84.0
 [0.83.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.83.0
 [0.82.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.82.0

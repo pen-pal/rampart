@@ -43,6 +43,7 @@ import { api } from './lib/api.js';
 import { isAdmin, canWrite } from './lib/roles.js';
 import { parseRoute } from './lib/router.js';
 import { FloatingThemeToggle, FloatingLocalePicker } from './components/ThemeToggle.jsx';
+import { t } from './lib/i18n.js';
 
 // Minimal centered fallback shown while a lazy view chunk is downloading.
 // Uses existing theme CSS vars so it adapts to light/dark automatically.
@@ -57,6 +58,43 @@ function ViewFallback() {
       Loading…
     </div>
   );
+}
+
+// Friendly fallback when a view throws during render. Without this, a single
+// view-level exception unmounts the whole React tree → blank white screen.
+function ViewCrash() {
+  const btn = {
+    padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 500,
+    cursor: 'pointer', border: '1px solid var(--border)', background: 'var(--surface)',
+    color: 'var(--text)', textDecoration: 'none', fontFamily: 'inherit',
+  };
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center', gap: 12,
+      background: 'var(--bg)', color: 'var(--text-2)',
+      fontFamily: 'Inter, system-ui, sans-serif', padding: 24, textAlign: 'center',
+    }}>
+      <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>{t('app.crash.title')}</div>
+      <div style={{ fontSize: 13, maxWidth: 440 }}>{t('app.crash.body')}</div>
+      <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+        <button onClick={() => window.location.reload()} style={btn}>{t('app.crash.reload')}</button>
+        <a href="#/" style={btn}>{t('app.crash.home')}</a>
+      </div>
+    </div>
+  );
+}
+
+// React error boundaries must be class components. Keyed by route so navigating
+// to another view clears a crash (the "Back to dashboard" recovery path).
+class ViewErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { crashed: false }; }
+  static getDerivedStateFromError() { return { crashed: true }; }
+  componentDidCatch(err, info) { console.error('view render error', err, info); }
+  componentDidUpdate(prev) {
+    if (prev.resetKey !== this.props.resetKey && this.state.crashed) this.setState({ crashed: false });
+  }
+  render() { return this.state.crashed ? <ViewCrash /> : this.props.children; }
 }
 
 const VIEW_LABEL = {
@@ -300,9 +338,11 @@ export default function App() {
 
   return (
     <>
-      <Suspense fallback={<ViewFallback />}>
-        {view}
-      </Suspense>
+      <ViewErrorBoundary resetKey={route.view}>
+        <Suspense fallback={<ViewFallback />}>
+          {view}
+        </Suspense>
+      </ViewErrorBoundary>
       {showThemeToggle && <FloatingThemeToggle />}
       {showThemeToggle && <FloatingLocalePicker />}
       {route.view !== 'login' && route.view !== 'public-status' && route.view !== 'manage-subscription' && <NavDrawer current={route.view} user={authState.user} />}
