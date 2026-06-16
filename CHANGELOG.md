@@ -19,6 +19,22 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.59.2] — 2026-06-16
+
+### Fixed
+- **Dashboard recent-errors widget was always empty** (since v0.53.0):
+  `recent_open_issues` filtered `status = 'open'`, but issue status is
+  `unresolved` | `resolved` | `ignored` — so it never matched. Now filters
+  `unresolved`. Caught by the new test below.
+
+### Tested
+- Integration test for the error-tracking read aggregates added this cycle:
+  the cross-project recent-open feed (`recent_open_issues`, incl. that resolving
+  drops an issue) and the per-project event histogram (`project_event_histogram`
+  counts every event, not just issues), over a recorded-event fixture.
+
+---
+
 ## [0.59.1] — 2026-06-16
 
 ### Fixed
@@ -1679,6 +1695,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.59.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.59.2
 [0.59.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.59.1
 [0.59.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.59.0
 [0.58.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.58.0
