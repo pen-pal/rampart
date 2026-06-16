@@ -86,3 +86,17 @@ async fn page_samples_drilldown_carries_user(pool: PgPool) {
     // A different URL is isolated.
     assert_eq!(rum::page_samples(&pool, None, "/other", 24, 100).await.unwrap().len(), 1);
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn user_breakdown_groups_by_user(pool: PgPool) {
+    rum::insert_event(&pool, &beacon_user("/", "alice@example.com")).await.unwrap();
+    rum::insert_event(&pool, &beacon_user("/checkout", "alice@example.com")).await.unwrap();
+    rum::insert_event(&pool, &beacon_user("/", "bob@example.com")).await.unwrap();
+    rum::insert_event(&pool, &beacon("/", CHROME, None, 1500.0)).await.unwrap(); // anon
+
+    let bd = rum::user_breakdown(&pool, None, 24).await.unwrap();
+    assert_eq!(bd.len(), 2, "only users with a user_id, anon excluded");
+    assert_eq!(bd[0].user_id, "alice@example.com"); // busiest first
+    assert_eq!(bd[0].views, 2);
+    assert!(bd[0].lcp_p75.is_some());
+}
