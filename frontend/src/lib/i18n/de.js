@@ -1875,6 +1875,8 @@ const de = {
   'wizard.field.db_name': 'Datenbank',
   'wizard.field.db_number': 'DB-Nummer',
   'wizard.field.db_auth_hint': 'Wird verwendet, wenn keine vollständige Verbindungszeichenfolge gesetzt ist. Wird in der Monitor-Konfiguration gespeichert und bei jeder Prüfung an den Server gesendet.',
+  'wizard.field.bind_dn': 'Bind-DN',
+  'wizard.field.bind_password': 'Bind-Passwort',
   'wizard.field.max_latency': 'Max. Latenz (ms)',
   'wizard.field.max_latency_hint': 'Markiert die Prüfung als ausgefallen, wenn sie langsamer antwortet — Degradationserkennung getrennt vom Verbindungs-Timeout. Leer = aus.',
 };

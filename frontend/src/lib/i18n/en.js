@@ -940,6 +940,8 @@ const en = {
   'wizard.field.db_name':            'Database',
   'wizard.field.db_number':          'DB number',
   'wizard.field.db_auth_hint':       'Used when no full connection string is set. Stored in the monitor config and sent to the server on each check.',
+  'wizard.field.bind_dn':            'Bind DN',
+  'wizard.field.bind_password':      'Bind password',
   'wizard.field.max_latency':        'Max latency (ms)',
   'wizard.field.max_latency_hint':   'Mark the check down if it responds slower than this — degraded detection separate from the connection timeout. Empty = off.',
   'wizard.field.keyword':            'Keyword to require in body',
