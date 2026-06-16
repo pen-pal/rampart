@@ -60,14 +60,15 @@ const css = `
 
 export default function StatusPageBuilder({ user } = {}) {
   const writable = canWrite(user);
-  const pagesState    = useApi(() => api.statusPages.list(), [], { pollMs: 30_000 });
+  const [reloadKey, setReloadKey] = useState(0);
+  const pagesState    = useApi(() => api.statusPages.list(), [reloadKey], { pollMs: 30_000 });
   const monitorsState = useApi(() => api.monitors.list(), []);
 
   const [editing, setEditing] = useState(null); // page object or 'new' or null
   const [err,     setErr]     = useState(null);
   const [busy,    setBusy]    = useState(null);
 
-  const reload = () => window.location.reload();
+  const reload = () => setReloadKey((k) => k + 1);
 
   const remove = async (id) => {
     if (!(await confirmDialog({ message: t('statuspage.delete_confirm') }))) return;
@@ -770,9 +771,10 @@ function SectionsManager({ pageId, monitors, attached, writable }) {
 }
 
 function SubscribersPanel({ pageId }) {
-  const list = useApi(() => api.subscribers.listForPage(pageId), [pageId], { pollMs: 30_000 });
+  const [reloadKey, setReloadKey] = useState(0);
+  const list = useApi(() => api.subscribers.listForPage(pageId), [pageId, reloadKey], { pollMs: 30_000 });
   const [busy, setBusy] = useState(null);
-  const reload = () => window.location.reload();
+  const reload = () => setReloadKey((k) => k + 1);
   const remove = async (id) => {
     if (!(await confirmDialog({ message: t('statuspage.subscriber_remove_confirm') }))) return;
     setBusy(id);
@@ -951,14 +953,15 @@ function IngestTokensPanel({ pageId }) {
 }
 
 function IncidentsPanel({ pageId }) {
-  const list = useApi(() => api.incidents.listForPage(pageId), [pageId], { pollMs: 20_000 });
+  const [reloadKey, setReloadKey] = useState(0);
+  const list = useApi(() => api.incidents.listForPage(pageId), [pageId, reloadKey], { pollMs: 20_000 });
   const [tplBump, setTplBump] = useState(0);
   const tpls = useApi(() => api.incidentTemplates.list(), [tplBump]);
   const [showNew, setShowNew] = useState(false);
   const [busy,    setBusy]    = useState(null);
   const [err,     setErr]     = useState(null);
 
-  const reload = () => window.location.reload();
+  const reload = () => setReloadKey((k) => k + 1);
   const remove = async (id) => {
     if (!(await confirmDialog({ message: t('statuspage.incident.delete_confirm') }))) return;
     setBusy(id);

@@ -602,7 +602,7 @@ export default function Dashboard({ user, onLogout } = {}) {
     try {
       await api.monitors.clone(cloneState.monitor.id, opts);
       setCloneState(null);
-      window.location.reload();
+      bumpReload();
     } catch (e) {
       toast(t("dashboard.clone.failed", { msg: e.message }), 'error');
       setCloneState(s => s && ({ ...s, busy: false }));
@@ -642,7 +642,7 @@ export default function Dashboard({ user, onLogout } = {}) {
     try {
       await api.monitors.bulk(Array.from(selected), action);
       setSelected(new Set());
-      window.location.reload();
+      bumpReload();
     } catch (e) {
       toast(`Bulk action failed: ${e.message}`, 'error');
       setBulkBusy(false);
@@ -739,7 +739,7 @@ export default function Dashboard({ user, onLogout } = {}) {
     setBulkBusy(true);
     try {
       await api.monitors.bulkByTag(tagId, action);
-      window.location.reload();
+      bumpReload();
     } catch (e) {
       toast(t('dashboard.bulk_tag.failed', { msg: e.message }), 'error');
       setBulkBusy(false);

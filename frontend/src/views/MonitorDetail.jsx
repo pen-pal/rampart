@@ -322,7 +322,9 @@ export default function MonitorDetail({ monitorId, user }) {
   const [maintActive, setMaintActive]         = useState(null);
   const [maintError, setMaintError]           = useState(null);
 
-  const monitorState   = useApi(() => monitorId ? api.monitors.get(monitorId)         : Promise.resolve(null), [monitorId], { pollMs: 15_000 });
+  const [monReload, setMonReload] = useState(0);
+  const bumpMonitor = () => setMonReload((k) => k + 1);
+  const monitorState   = useApi(() => monitorId ? api.monitors.get(monitorId)         : Promise.resolve(null), [monitorId, monReload], { pollMs: 15_000 });
   // 2000 = the backend's hard cap on this endpoint. We poll the newest
   // page every 10s and accumulate older pages on demand via the cursor
   // "Load more" button below (the heartbeat tab footer).
@@ -1180,14 +1182,14 @@ export default function MonitorDetail({ monitorId, user }) {
       </main>
 
       {editing && (
-        <EditModal monitor={monitor} onCancel={() => setEditing(false)}/>
+        <EditModal monitor={monitor} onCancel={() => setEditing(false)} onSaved={() => { bumpMonitor(); setEditing(false); }}/>
       )}
     </div>
   );
 }
 
 // ── Edit modal ────────────────────────────────────────────────────────────
-function EditModal({ monitor, onCancel }) {
+function EditModal({ monitor, onCancel, onSaved }) {
   const [name,        setName]        = useState(monitor.name || '');
   const [intervalSec, setIntervalSec] = useState(String(monitor.interval_seconds));
   const [timeoutSec,  setTimeoutSec]  = useState(String(monitor.timeout_seconds));
@@ -1326,7 +1328,7 @@ function EditModal({ monitor, onCancel }) {
     setBusy(true);
     try {
       await api.monitors.update(monitor.id, patch);
-      window.location.reload();
+      onSaved?.();
     } catch (e) {
       setErr(e.message || 'Failed to save.');
       setBusy(false);
@@ -1773,7 +1775,7 @@ function ConfigPanel({ monitor }) {
         {row('Current status',   monitor.current_status, true)}
       </div>
 
-      <TagsCard monitor={monitor}/>
+      <TagsCard monitor={monitor} onChanged={bumpMonitor}/>
       <DependenciesCard monitor={monitor}/>
 
       {(monitor.kind === 'http' || monitor.kind === 'keyword' || monitor.kind === 'json_query') && (
@@ -2596,7 +2598,7 @@ function PushUrlCard({ monitorId, token, lastPushAt, interval, config }) {
 // inline form for creating a new tag on the fly. Reloads the page on
 // any mutation — the dashboard polls the monitor list so the chips
 // over there refresh on the next tick anyway.
-function TagsCard({ monitor }) {
+function TagsCard({ monitor, onChanged }) {
   const allTags = useApi(() => api.tags.list(), []);
   const [busy,     setBusy]     = useState(false);
   const [creating, setCreating] = useState(false);
@@ -2609,12 +2611,12 @@ function TagsCard({ monitor }) {
 
   const detach = async (tagId) => {
     setBusy(true);
-    try { await api.tags.detach(monitor.id, tagId); window.location.reload(); }
+    try { await api.tags.detach(monitor.id, tagId); onChanged?.(); }
     finally { setBusy(false); }
   };
   const attach = async (tagId) => {
     setBusy(true);
-    try { await api.tags.attach(monitor.id, tagId); window.location.reload(); }
+    try { await api.tags.attach(monitor.id, tagId); onChanged?.(); }
     finally { setBusy(false); }
   };
   const createAndAttach = async () => {
@@ -2623,7 +2625,7 @@ function TagsCard({ monitor }) {
     try {
       const t = await api.tags.create(newName.trim(), newColor);
       await api.tags.attach(monitor.id, t.id);
-      window.location.reload();
+      onChanged?.();
     } finally { setBusy(false); }
   };
 
