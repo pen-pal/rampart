@@ -316,13 +316,13 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">Webhook URL</label>
+          <label className="field-label">{t('notif.f.webhook_url')}</label>
           <input className="input mono" value={config.webhook_url || ''}
             onChange={e => set('webhook_url', e.target.value)}
             placeholder="https://hooks.slack.com/services/T.../B.../xxxxx"/>
         </div>
         <div className="field">
-          <label className="field-label">Channel override <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+          <label className="field-label">{t('notif.f.channel_override')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· {t('common.optional')}</span></label>
           <input className="input mono" value={config.channel || ''}
             onChange={e => set('channel', e.target.value)}
             placeholder="#alerts"/>
@@ -334,13 +334,13 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">Webhook URL</label>
+          <label className="field-label">{t('notif.f.webhook_url')}</label>
           <input className="input mono" value={config.webhook_url || ''}
             onChange={e => set('webhook_url', e.target.value)}
             placeholder="https://discord.com/api/webhooks/.../..."/>
         </div>
         <div className="field">
-          <label className="field-label">Display name override <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+          <label className="field-label">{t('notif.f.display_name_override')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· {t('common.optional')}</span></label>
           <input className="input" value={config.username || ''}
             onChange={e => set('username', e.target.value)}
             placeholder="Rampart"/>
@@ -352,19 +352,19 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">URL</label>
+          <label className="field-label">{t('notif.f.url')}</label>
           <input className="input mono" value={config.url || ''}
             onChange={e => set('url', e.target.value)}
             placeholder="https://your-service.example.com/hooks/rampart"/>
         </div>
         <div className="field">
-          <label className="field-label">Method</label>
+          <label className="field-label">{t('notif.f.method')}</label>
           <select className="select" value={config.method || 'POST'} onChange={e => set('method', e.target.value)}>
             <option>POST</option><option>PUT</option><option>PATCH</option>
           </select>
         </div>
         <div className="field">
-          <label className="field-label">HMAC secret <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+          <label className="field-label">{t('notif.f.hmac_secret')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· {t('common.optional')}</span></label>
           <input className="input mono" type="password" value={config.secret || ''}
             onChange={e => set('secret', e.target.value)}
             placeholder="shared secret — receiver verifies X-Rampart-Signature"/>
@@ -380,7 +380,7 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'teams') {
     return (
       <div className="field">
-        <label className="field-label">Incoming Webhook URL</label>
+        <label className="field-label">{t('notif.f.incoming_webhook_url')}</label>
         <input className="input mono" value={config.webhook_url || ''}
           onChange={e => set('webhook_url', e.target.value)}
           placeholder="https://<tenant>.webhook.office.com/webhookb2/..."/>
@@ -391,13 +391,13 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">Bot token</label>
+          <label className="field-label">{t('notif.f.bot_token')}</label>
           <input className="input mono" type="password" value={config.bot_token || ''}
             onChange={e => set('bot_token', e.target.value)}
             placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"/>
         </div>
         <div className="field">
-          <label className="field-label">Chat ID</label>
+          <label className="field-label">{t('notif.f.chat_id')}</label>
           <input className="input mono" value={config.chat_id || ''}
             onChange={e => set('chat_id', e.target.value)}
             placeholder="-1001234567890 (group) or 123456789 (DM)"/>
@@ -410,18 +410,18 @@ function ConfigForm({ kind, config, setConfig }) {
       <>
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}>
           <div className="field">
-            <label className="field-label">SMTP host</label>
+            <label className="field-label">{t('notif.f.smtp_host')}</label>
             <input className="input mono" value={config.smtp_host || ''}
               onChange={e => set('smtp_host', e.target.value)} placeholder="smtp.gmail.com"/>
           </div>
           <div className="field">
-            <label className="field-label">Port</label>
+            <label className="field-label">{t('notif.f.port')}</label>
             <input className="input mono" value={config.smtp_port || ''}
               onChange={e => set('smtp_port', parseInt(e.target.value, 10) || '')} placeholder="587"/>
           </div>
         </div>
         <div className="field">
-          <label className="field-label">Encryption</label>
+          <label className="field-label">{t('notif.f.encryption')}</label>
           <select className="select" value={config.encryption || 'starttls'} onChange={e => set('encryption', e.target.value)}>
             <option value="starttls">STARTTLS (port 587)</option>
             <option value="tls">Implicit TLS (port 465)</option>
@@ -430,23 +430,23 @@ function ConfigForm({ kind, config, setConfig }) {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <div className="field">
-            <label className="field-label">Username</label>
+            <label className="field-label">{t('notif.f.username')}</label>
             <input className="input mono" value={config.smtp_user || ''}
               onChange={e => set('smtp_user', e.target.value)} placeholder="alerts@example.com"/>
           </div>
           <div className="field">
-            <label className="field-label">Password</label>
+            <label className="field-label">{t('notif.f.password')}</label>
             <input className="input mono" type="password" value={config.smtp_password || ''}
               onChange={e => set('smtp_password', e.target.value)} placeholder="app password"/>
           </div>
         </div>
         <div className="field">
-          <label className="field-label">From</label>
+          <label className="field-label">{t('notif.f.from')}</label>
           <input className="input mono" value={config.from || ''}
             onChange={e => set('from', e.target.value)} placeholder='"Rampart Alerts" &lt;alerts@example.com&gt;'/>
         </div>
         <div className="field">
-          <label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+          <label className="field-label">{t('notif.f.to')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
           <input className="input mono" value={config.to || ''}
             onChange={e => set('to', e.target.value)} placeholder="ops@example.com, oncall@example.com"/>
         </div>
@@ -457,22 +457,22 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">Server</label>
+          <label className="field-label">{t('notif.f.server')}</label>
           <input className="input mono" value={config.server || 'https://ntfy.sh'}
             onChange={e => set('server', e.target.value)} placeholder="https://ntfy.sh"/>
         </div>
         <div className="field">
-          <label className="field-label">Topic</label>
+          <label className="field-label">{t('notif.f.topic')}</label>
           <input className="input mono" value={config.topic || ''}
             onChange={e => set('topic', e.target.value)} placeholder="rampart-myhomelab-x9z"/>
         </div>
         <div className="field">
-          <label className="field-label">Priority <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· 1 (min) – 5 (max)</span></label>
+          <label className="field-label">{t('notif.f.priority')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· 1 (min) – 5 (max)</span></label>
           <input className="input mono" type="number" min="1" max="5"
             value={config.priority ?? 3} onChange={e => set('priority', parseInt(e.target.value, 10) || 3)}/>
         </div>
         <div className="field">
-          <label className="field-label">Auth header <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional (self-hosted)</span></label>
+          <label className="field-label">{t('notif.f.auth_header')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional (self-hosted)</span></label>
           <input className="input mono" type="password" value={config.auth || ''}
             onChange={e => set('auth', e.target.value)} placeholder="Bearer tk_..."/>
         </div>
@@ -483,17 +483,17 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">Server URL</label>
+          <label className="field-label">{t('notif.f.server_url')}</label>
           <input className="input mono" value={config.server || ''}
             onChange={e => set('server', e.target.value)} placeholder="https://gotify.example.com"/>
         </div>
         <div className="field">
-          <label className="field-label">Application token</label>
+          <label className="field-label">{t('notif.f.application_token')}</label>
           <input className="input mono" type="password" value={config.token || ''}
             onChange={e => set('token', e.target.value)} placeholder="A.gotify.app.token"/>
         </div>
         <div className="field">
-          <label className="field-label">Priority <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· 0–10</span></label>
+          <label className="field-label">{t('notif.f.priority')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· 0–10</span></label>
           <input className="input mono" type="number" min="0" max="10"
             value={config.priority ?? 5} onChange={e => set('priority', parseInt(e.target.value, 10) || 5)}/>
         </div>
@@ -504,12 +504,12 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">Integration (routing) key</label>
+          <label className="field-label">{t('notif.f.integration_routing_key')}</label>
           <input className="input mono" type="password" value={config.routing_key || ''}
             onChange={e => set('routing_key', e.target.value)} placeholder="32-char Events API v2 key"/>
         </div>
         <div className="field">
-          <label className="field-label">Component <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+          <label className="field-label">{t('notif.f.component')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· {t('common.optional')}</span></label>
           <input className="input" value={config.component || ''}
             onChange={e => set('component', e.target.value)} placeholder="payments-api"/>
         </div>
@@ -525,23 +525,23 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">API token</label>
+          <label className="field-label">{t('notif.f.api_token')}</label>
           <input className="input mono" type="password" value={config.api_token || ''}
             onChange={e => set('api_token', e.target.value)} placeholder="30-char application token"/>
         </div>
         <div className="field">
-          <label className="field-label">User key</label>
+          <label className="field-label">{t('notif.f.user_key')}</label>
           <input className="input mono" type="password" value={config.user_key || ''}
             onChange={e => set('user_key', e.target.value)} placeholder="30-char user / group key"/>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <div className="field">
-            <label className="field-label">Priority <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· -2..2</span></label>
+            <label className="field-label">{t('notif.f.priority')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· -2..2</span></label>
             <input className="input mono" type="number" min="-2" max="2"
               value={config.priority ?? 0} onChange={e => set('priority', parseInt(e.target.value, 10) || 0)}/>
           </div>
           <div className="field">
-            <label className="field-label">Device <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+            <label className="field-label">{t('notif.f.device')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· {t('common.optional')}</span></label>
             <input className="input mono" value={config.device || ''}
               onChange={e => set('device', e.target.value)} placeholder="phone-pixel"/>
           </div>
@@ -554,19 +554,19 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">Incoming webhook URL</label>
+          <label className="field-label">{t('notif.f.incoming_webhook_url')}</label>
           <input className="input mono" value={config.webhook_url || ''}
             onChange={e => set('webhook_url', e.target.value)}
             placeholder={isRocket ? 'https://chat.example.com/hooks/...' : 'https://mattermost.example.com/hooks/...'}/>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <div className="field">
-            <label className="field-label">Channel override <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+            <label className="field-label">{t('notif.f.channel_override')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· {t('common.optional')}</span></label>
             <input className="input mono" value={config.channel || ''}
               onChange={e => set('channel', e.target.value)} placeholder="#alerts"/>
           </div>
           <div className="field">
-            <label className="field-label">{isRocket ? 'Alias' : 'Username'} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+            <label className="field-label">{isRocket ? 'Alias' : 'Username'} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· {t('common.optional')}</span></label>
             <input className="input" value={isRocket ? (config.alias || '') : (config.username || '')}
               onChange={e => set(isRocket ? 'alias' : 'username', e.target.value)} placeholder="Rampart"/>
           </div>
@@ -578,14 +578,14 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">apprise-api server URL</label>
+          <label className="field-label">{t('notif.f.apprise_api_server_url')}</label>
           <input className="input mono" value={config.apprise_url || ''}
             onChange={e => set('apprise_url', e.target.value)}
             placeholder="http://apprise:8000"/>
           <div className="field-hint">Run the sidecar with: <code style={{ background: 'var(--surface-2)', padding: '0 4px', borderRadius: 3 }}>docker run -d -p 8000:8000 caronc/apprise:latest</code></div>
         </div>
         <div className="field">
-          <label className="field-label">Apprise URLs <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+          <label className="field-label">{t('notif.f.apprise_urls')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
           <textarea className="input mono" rows={4}
             value={config.urls || ''}
             onChange={e => set('urls', e.target.value)}
@@ -604,17 +604,17 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">Homeserver</label>
+          <label className="field-label">{t('notif.f.homeserver')}</label>
           <input className="input mono" value={config.homeserver || ''}
             onChange={e => set('homeserver', e.target.value)} placeholder="https://matrix.org"/>
         </div>
         <div className="field">
-          <label className="field-label">Access token</label>
+          <label className="field-label">{t('notif.f.access_token')}</label>
           <input className="input mono" type="password" value={config.access_token || ''}
             onChange={e => set('access_token', e.target.value)} placeholder="syt_..."/>
         </div>
         <div className="field">
-          <label className="field-label">Room ID</label>
+          <label className="field-label">{t('notif.f.room_id')}</label>
           <input className="input mono" value={config.room_id || ''}
             onChange={e => set('room_id', e.target.value)} placeholder="!roomid:matrix.org"/>
         </div>
@@ -624,7 +624,7 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'google_chat') {
     return (
       <div className="field">
-        <label className="field-label">Incoming webhook URL</label>
+        <label className="field-label">{t('notif.f.incoming_webhook_url')}</label>
         <input className="input mono" value={config.webhook_url || ''}
           onChange={e => set('webhook_url', e.target.value)} placeholder="https://chat.googleapis.com/v1/spaces/.../messages?key=..."/>
       </div>
@@ -634,12 +634,12 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">Bot key</label>
+          <label className="field-label">{t('notif.f.bot_key')}</label>
           <input className="input mono" type="password" value={config.bot_key || ''}
             onChange={e => set('bot_key', e.target.value)} placeholder="key from the bot URL"/>
         </div>
         <div className="field">
-          <label className="field-label">Mention mobiles <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated, optional</span></label>
+          <label className="field-label">{t('notif.f.mention_mobiles')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated, optional</span></label>
           <input className="input mono" value={(config.mentioned_mobile_list || []).join(',')}
             onChange={e => set('mentioned_mobile_list', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
             placeholder="13800001111,13900002222"/>
@@ -651,12 +651,12 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">Access token</label>
+          <label className="field-label">{t('notif.f.access_token')}</label>
           <input className="input mono" type="password" value={config.access_token || ''}
             onChange={e => set('access_token', e.target.value)} placeholder="token from bot URL"/>
         </div>
         <div className="field">
-          <label className="field-label">Secret <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional, only if signing is on</span></label>
+          <label className="field-label">{t('notif.f.secret')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional, only if signing is on</span></label>
           <input className="input mono" type="password" value={config.secret || ''}
             onChange={e => set('secret', e.target.value)}/>
         </div>
@@ -666,7 +666,7 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'feishu') {
     return (
       <div className="field">
-        <label className="field-label">Webhook URL</label>
+        <label className="field-label">{t('notif.f.webhook_url')}</label>
         <input className="input mono" value={config.webhook_url || ''}
           onChange={e => set('webhook_url', e.target.value)} placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/..."/>
       </div>
@@ -676,12 +676,12 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">Channel access token</label>
+          <label className="field-label">{t('notif.f.channel_access_token')}</label>
           <input className="input mono" type="password" value={config.channel_access_token || ''}
             onChange={e => set('channel_access_token', e.target.value)} placeholder="LINE Developers Console → Messaging API → Channel access token"/>
         </div>
         <div className="field">
-          <label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· user / group / room id</span></label>
+          <label className="field-label">{t('notif.f.to')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· user / group / room id</span></label>
           <input className="input mono" value={config.to || ''}
             onChange={e => set('to', e.target.value)} placeholder="Uxxxxxxxxxxxxxxxxxx"/>
         </div>
@@ -692,12 +692,12 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">Device key</label>
+          <label className="field-label">{t('notif.f.device_key')}</label>
           <input className="input mono" type="password" value={config.device_key || ''}
             onChange={e => set('device_key', e.target.value)} placeholder="from the Bark app"/>
         </div>
         <div className="field">
-          <label className="field-label">Server <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+          <label className="field-label">{t('notif.f.server')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· {t('common.optional')}</span></label>
           <input className="input mono" value={config.server || ''}
             onChange={e => set('server', e.target.value)} placeholder="https://api.day.app"/>
         </div>
@@ -707,7 +707,7 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'pushbullet') {
     return (
       <div className="field">
-        <label className="field-label">Access token</label>
+        <label className="field-label">{t('notif.f.access_token')}</label>
         <input className="input mono" type="password" value={config.access_token || ''}
           onChange={e => set('access_token', e.target.value)} placeholder="o.xxxxx..."/>
       </div>
@@ -717,17 +717,17 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">API key</label>
+          <label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" type="password" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)} placeholder="SG.xxxxx"/>
         </div>
         <div className="field">
-          <label className="field-label">From email</label>
+          <label className="field-label">{t('notif.f.from_email')}</label>
           <input className="input" value={config.from_email || ''}
             onChange={e => set('from_email', e.target.value)} placeholder="alerts@example.com"/>
         </div>
         <div className="field">
-          <label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+          <label className="field-label">{t('notif.f.to')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
           <input className="input" value={config.to || ''}
             onChange={e => set('to', e.target.value)} placeholder="ops@example.com, sre@example.com"/>
         </div>
@@ -738,17 +738,17 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">API key</label>
+          <label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" type="password" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)} placeholder="re_xxxxx"/>
         </div>
         <div className="field">
-          <label className="field-label">From</label>
+          <label className="field-label">{t('notif.f.from')}</label>
           <input className="input" value={config.from || ''}
             onChange={e => set('from', e.target.value)} placeholder='"Rampart" <alerts@example.com>'/>
         </div>
         <div className="field">
-          <label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+          <label className="field-label">{t('notif.f.to')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
           <input className="input" value={config.to || ''}
             onChange={e => set('to', e.target.value)} placeholder="ops@example.com"/>
         </div>
@@ -759,17 +759,17 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">API key</label>
+          <label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" type="password" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)} placeholder="xkeysib-..."/>
         </div>
         <div className="field">
-          <label className="field-label">From email</label>
+          <label className="field-label">{t('notif.f.from_email')}</label>
           <input className="input" value={config.from_email || ''}
             onChange={e => set('from_email', e.target.value)} placeholder="alerts@example.com"/>
         </div>
         <div className="field">
-          <label className="field-label">To email</label>
+          <label className="field-label">{t('notif.f.to_email')}</label>
           <input className="input" value={config.to_email || ''}
             onChange={e => set('to_email', e.target.value)} placeholder="ops@example.com"/>
         </div>
@@ -780,19 +780,19 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">API key</label>
+          <label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" type="password" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)} placeholder="GenieKey"/>
         </div>
         <div className="field">
-          <label className="field-label">Region</label>
+          <label className="field-label">{t('notif.f.region')}</label>
           <select className="select" value={config.region || 'us'} onChange={e => set('region', e.target.value)}>
             <option value="us">US (api.opsgenie.com)</option>
             <option value="eu">EU (api.eu.opsgenie.com)</option>
           </select>
         </div>
         <div className="field">
-          <label className="field-label">Priority</label>
+          <label className="field-label">{t('notif.f.priority')}</label>
           <select className="select" value={config.priority || 'P3'} onChange={e => set('priority', e.target.value)}>
             <option>P1</option><option>P2</option><option>P3</option><option>P4</option><option>P5</option>
           </select>
@@ -804,12 +804,12 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">Integration URL</label>
+          <label className="field-label">{t('notif.f.integration_url')}</label>
           <input className="input mono" value={config.integration_url || ''}
             onChange={e => set('integration_url', e.target.value)} placeholder="https://api.pagertree.com/integration/..."/>
         </div>
         <div className="field">
-          <label className="field-label">Severity</label>
+          <label className="field-label">{t('notif.f.severity')}</label>
           <select className="select" value={config.severity || 'SEV-3'} onChange={e => set('severity', e.target.value)}>
             <option>SEV-1</option><option>SEV-2</option><option>SEV-3</option><option>SEV-4</option><option>SEV-5</option>
           </select>
@@ -820,7 +820,7 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'squadcast') {
     return (
       <div className="field">
-        <label className="field-label">Webhook URL</label>
+        <label className="field-label">{t('notif.f.webhook_url')}</label>
         <input className="input mono" value={config.webhook_url || ''}
           onChange={e => set('webhook_url', e.target.value)} placeholder="https://api.squadcast.com/v2/incidents/..."/>
       </div>
@@ -830,17 +830,17 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">signal-cli REST API URL</label>
+          <label className="field-label">{t('notif.f.signal_cli_rest_api_url')}</label>
           <input className="input mono" value={config.api_url || ''}
             onChange={e => set('api_url', e.target.value)} placeholder="http://signal-cli:8080"/>
         </div>
         <div className="field">
-          <label className="field-label">From number</label>
+          <label className="field-label">{t('notif.f.from_number')}</label>
           <input className="input mono" value={config.number || ''}
             onChange={e => set('number', e.target.value)} placeholder="+15551234567"/>
         </div>
         <div className="field">
-          <label className="field-label">Recipients <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated phone numbers or group ids</span></label>
+          <label className="field-label">{t('notif.f.recipients')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated phone numbers or group ids</span></label>
           <input className="input mono" value={(config.recipients || []).join(',')}
             onChange={e => set('recipients', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
             placeholder="+15559876543, +44..."/>
@@ -852,34 +852,34 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">Server</label>
+          <label className="field-label">{t('notif.f.server')}</label>
           <input className="input mono" value={config.server || ''}
             onChange={e => set('server', e.target.value)} placeholder="https://yourzulip.example.com"/>
         </div>
         <div className="field">
-          <label className="field-label">Bot email</label>
+          <label className="field-label">{t('notif.f.bot_email')}</label>
           <input className="input mono" value={config.bot_email || ''}
             onChange={e => set('bot_email', e.target.value)} placeholder="bot@yourzulip.example.com"/>
         </div>
         <div className="field">
-          <label className="field-label">Bot API key</label>
+          <label className="field-label">{t('notif.f.bot_api_key')}</label>
           <input className="input mono" type="password" value={config.bot_key || ''}
             onChange={e => set('bot_key', e.target.value)}/>
         </div>
         <div className="field">
-          <label className="field-label">Type</label>
+          <label className="field-label">{t('notif.f.type')}</label>
           <select className="select" value={config.kind || 'stream'} onChange={e => set('kind', e.target.value)}>
             <option value="stream">stream</option>
             <option value="private">private</option>
           </select>
         </div>
         <div className="field">
-          <label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· stream name or email(s)</span></label>
+          <label className="field-label">{t('notif.f.to')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· stream name or email(s)</span></label>
           <input className="input mono" value={config.to || ''}
             onChange={e => set('to', e.target.value)} placeholder="alerts / alice@example.com"/>
         </div>
         <div className="field">
-          <label className="field-label">Topic <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· streams only</span></label>
+          <label className="field-label">{t('notif.f.topic')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· streams only</span></label>
           <input className="input mono" value={config.topic || ''}
             onChange={e => set('topic', e.target.value)} placeholder="rampart"/>
         </div>
@@ -889,7 +889,7 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'lark') {
     return (
       <div className="field">
-        <label className="field-label">Webhook URL</label>
+        <label className="field-label">{t('notif.f.webhook_url')}</label>
         <input className="input mono" value={config.webhook_url || ''}
           onChange={e => set('webhook_url', e.target.value)} placeholder="https://open.larksuite.com/open-apis/bot/v2/hook/..."/>
       </div>
@@ -898,7 +898,7 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'goalert') {
     return (
       <div className="field">
-        <label className="field-label">Integration URL</label>
+        <label className="field-label">{t('notif.f.integration_url')}</label>
         <input className="input mono" value={config.integration_url || ''}
           onChange={e => set('integration_url', e.target.value)} placeholder="https://goalert.example.com/api/v2/generic/incoming?token=..."/>
       </div>
@@ -908,17 +908,17 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">API URL</label>
+          <label className="field-label">{t('notif.f.api_url')}</label>
           <input className="input mono" value={config.api_url || ''}
             onChange={e => set('api_url', e.target.value)} placeholder="https://alerta.example.com/api"/>
         </div>
         <div className="field">
-          <label className="field-label">API key</label>
+          <label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" type="password" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)}/>
         </div>
         <div className="field">
-          <label className="field-label">Environment</label>
+          <label className="field-label">{t('notif.f.environment')}</label>
           <input className="input" value={config.environment || ''}
             onChange={e => set('environment', e.target.value)} placeholder="Production"/>
         </div>
@@ -928,7 +928,7 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'alertnow') {
     return (
       <div className="field">
-        <label className="field-label">Webhook URL</label>
+        <label className="field-label">{t('notif.f.webhook_url')}</label>
         <input className="input mono" value={config.webhook_url || ''}
           onChange={e => set('webhook_url', e.target.value)} placeholder="https://api.alertnow.io/..."/>
       </div>
@@ -937,7 +937,7 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'signl4') {
     return (
       <div className="field">
-        <label className="field-label">Team secret</label>
+        <label className="field-label">{t('notif.f.team_secret')}</label>
         <input className="input mono" type="password" value={config.team_secret || ''}
           onChange={e => set('team_secret', e.target.value)} placeholder="UUID from the SIGNL4 connect URL"/>
       </div>
@@ -947,12 +947,12 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">Trigger URL</label>
+          <label className="field-label">{t('notif.f.trigger_url')}</label>
           <input className="input mono" value={config.trigger_url || ''}
             onChange={e => set('trigger_url', e.target.value)} placeholder="https://api.heiioncall.com/..."/>
         </div>
         <div className="field">
-          <label className="field-label">Close URL <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+          <label className="field-label">{t('notif.f.close_url')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· {t('common.optional')}</span></label>
           <input className="input mono" value={config.close_url || ''}
             onChange={e => set('close_url', e.target.value)} placeholder="https://api.heiioncall.com/.../close"/>
         </div>
@@ -962,7 +962,7 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'serverchan') {
     return (
       <div className="field">
-        <label className="field-label">SendKey</label>
+        <label className="field-label">{t('notif.f.sendkey')}</label>
         <input className="input mono" type="password" value={config.send_key || ''}
           onChange={e => set('send_key', e.target.value)} placeholder="SCT..."/>
       </div>
@@ -972,12 +972,12 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">Token</label>
+          <label className="field-label">{t('notif.f.token')}</label>
           <input className="input mono" type="password" value={config.token || ''}
             onChange={e => set('token', e.target.value)}/>
         </div>
         <div className="field">
-          <label className="field-label">Topic <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional, for group send</span></label>
+          <label className="field-label">{t('notif.f.topic')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional, for group send</span></label>
           <input className="input mono" value={config.topic || ''}
             onChange={e => set('topic', e.target.value)}/>
         </div>
@@ -988,12 +988,12 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">Push key</label>
+          <label className="field-label">{t('notif.f.push_key')}</label>
           <input className="input mono" type="password" value={config.push_key || ''}
             onChange={e => set('push_key', e.target.value)}/>
         </div>
         <div className="field">
-          <label className="field-label">Server <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+          <label className="field-label">{t('notif.f.server')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· {t('common.optional')}</span></label>
           <input className="input mono" value={config.server || ''}
             onChange={e => set('server', e.target.value)} placeholder="https://api2.pushdeer.com"/>
         </div>
@@ -1004,27 +1004,27 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">Access Key ID</label>
+          <label className="field-label">{t('notif.f.access_key_id')}</label>
           <input className="input mono" value={config.access_key_id || ''}
             onChange={e => set('access_key_id', e.target.value)} placeholder="LTAI..."/>
         </div>
         <div className="field">
-          <label className="field-label">Access Key Secret</label>
+          <label className="field-label">{t('notif.f.access_key_secret')}</label>
           <input className="input mono" type="password" value={config.access_key_secret || ''}
             onChange={e => set('access_key_secret', e.target.value)}/>
         </div>
         <div className="field">
-          <label className="field-label">Sign name</label>
+          <label className="field-label">{t('notif.f.sign_name')}</label>
           <input className="input" value={config.sign_name || ''}
             onChange={e => set('sign_name', e.target.value)}/>
         </div>
         <div className="field">
-          <label className="field-label">Template code</label>
+          <label className="field-label">{t('notif.f.template_code')}</label>
           <input className="input mono" value={config.template_code || ''}
             onChange={e => set('template_code', e.target.value)} placeholder="SMS_..."/>
         </div>
         <div className="field">
-          <label className="field-label">Phone numbers <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+          <label className="field-label">{t('notif.f.phone_numbers')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
           <input className="input mono" value={config.phone_numbers || ''}
             onChange={e => set('phone_numbers', e.target.value)}/>
         </div>
@@ -1035,17 +1035,17 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">Server</label>
+          <label className="field-label">{t('notif.f.server')}</label>
           <input className="input mono" value={config.server || ''}
             onChange={e => set('server', e.target.value)} placeholder="https://mastodon.social"/>
         </div>
         <div className="field">
-          <label className="field-label">Access token</label>
+          <label className="field-label">{t('notif.f.access_token')}</label>
           <input className="input mono" type="password" value={config.access_token || ''}
             onChange={e => set('access_token', e.target.value)}/>
         </div>
         <div className="field">
-          <label className="field-label">Visibility</label>
+          <label className="field-label">{t('notif.f.visibility')}</label>
           <select className="select" value={config.visibility || 'private'} onChange={e => set('visibility', e.target.value)}>
             <option value="public">public</option>
             <option value="unlisted">unlisted</option>
@@ -1059,7 +1059,7 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'pumble') {
     return (
       <div className="field">
-        <label className="field-label">Webhook URL</label>
+        <label className="field-label">{t('notif.f.webhook_url')}</label>
         <input className="input mono" value={config.webhook_url || ''}
           onChange={e => set('webhook_url', e.target.value)} placeholder="https://pumble.com/api/incoming-webhooks/..."/>
       </div>
@@ -1069,12 +1069,12 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">Webhook URL</label>
+          <label className="field-label">{t('notif.f.webhook_url')}</label>
           <input className="input mono" value={config.webhook_url || ''}
             onChange={e => set('webhook_url', e.target.value)} placeholder="https://yourorg.bitrix24.com/rest/<user>/<token>"/>
         </div>
         <div className="field">
-          <label className="field-label">USER_ID</label>
+          <label className="field-label">{t('notif.f.user_id')}</label>
           <input className="input mono" value={config.user_id || ''}
             onChange={e => set('user_id', e.target.value)} placeholder="1"/>
         </div>
@@ -1084,7 +1084,7 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'stackfield') {
     return (
       <div className="field">
-        <label className="field-label">Webhook URL</label>
+        <label className="field-label">{t('notif.f.webhook_url')}</label>
         <input className="input mono" value={config.webhook_url || ''}
           onChange={e => set('webhook_url', e.target.value)} placeholder="https://www.stackfield.com/api/incoming-webhook/..."/>
       </div>
@@ -1105,17 +1105,17 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">Base URL</label>
+          <label className="field-label">{t('notif.f.base_url')}</label>
           <input className="input mono" value={config.base_url || ''}
             onChange={e => set('base_url', e.target.value)} placeholder="http://homeassistant.local:8123"/>
         </div>
         <div className="field">
-          <label className="field-label">Long-lived access token</label>
+          <label className="field-label">{t('notif.f.long_lived_access_token')}</label>
           <input className="input mono" type="password" value={config.long_lived_token || ''}
             onChange={e => set('long_lived_token', e.target.value)}/>
         </div>
         <div className="field">
-          <label className="field-label">Notify service</label>
+          <label className="field-label">{t('notif.f.notify_service')}</label>
           <input className="input mono" value={config.notify_service || ''}
             onChange={e => set('notify_service', e.target.value)} placeholder="mobile_app_phone / persistent_notification"/>
         </div>
@@ -1126,22 +1126,22 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">Username</label>
+          <label className="field-label">{t('notif.f.username')}</label>
           <input className="input" value={config.username || ''}
             onChange={e => set('username', e.target.value)}/>
         </div>
         <div className="field">
-          <label className="field-label">API key</label>
+          <label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" type="password" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)}/>
         </div>
         <div className="field">
-          <label className="field-label">From</label>
+          <label className="field-label">{t('notif.f.from')}</label>
           <input className="input mono" value={config.from || ''}
             onChange={e => set('from', e.target.value)} placeholder="Rampart"/>
         </div>
         <div className="field">
-          <label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated E.164</span></label>
+          <label className="field-label">{t('notif.f.to')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated E.164</span></label>
           <input className="input mono" value={config.to || ''}
             onChange={e => set('to', e.target.value)} placeholder="+15551234567"/>
         </div>
@@ -1152,22 +1152,22 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">API username</label>
+          <label className="field-label">{t('notif.f.api_username')}</label>
           <input className="input mono" value={config.api_username || ''}
             onChange={e => set('api_username', e.target.value)}/>
         </div>
         <div className="field">
-          <label className="field-label">API password</label>
+          <label className="field-label">{t('notif.f.api_password')}</label>
           <input className="input mono" type="password" value={config.api_password || ''}
             onChange={e => set('api_password', e.target.value)}/>
         </div>
         <div className="field">
-          <label className="field-label">From</label>
+          <label className="field-label">{t('notif.f.from')}</label>
           <input className="input mono" value={config.from || ''}
             onChange={e => set('from', e.target.value)} placeholder="Rampart"/>
         </div>
         <div className="field">
-          <label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated E.164</span></label>
+          <label className="field-label">{t('notif.f.to')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated E.164</span></label>
           <input className="input mono" value={config.to || ''}
             onChange={e => set('to', e.target.value)}/>
         </div>
@@ -1177,7 +1177,7 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'callmebot') {
     return (
       <div className="field">
-        <label className="field-label">Endpoint URL</label>
+        <label className="field-label">{t('notif.f.endpoint_url')}</label>
         <input className="input mono" value={config.endpoint_url || ''}
           onChange={e => set('endpoint_url', e.target.value)} placeholder="https://api.callmebot.com/whatsapp.php?phone=...&apikey=..."/>
       </div>
@@ -1187,17 +1187,17 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">API key</label>
+          <label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" type="password" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)}/>
         </div>
         <div className="field">
-          <label className="field-label">From</label>
+          <label className="field-label">{t('notif.f.from')}</label>
           <input className="input mono" value={config.from || ''}
             onChange={e => set('from', e.target.value)} placeholder="+15551234567"/>
         </div>
         <div className="field">
-          <label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+          <label className="field-label">{t('notif.f.to')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
           <input className="input mono" value={config.to || ''}
             onChange={e => set('to', e.target.value)}/>
         </div>
@@ -1208,12 +1208,12 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">API token</label>
+          <label className="field-label">{t('notif.f.api_token')}</label>
           <input className="input mono" type="password" value={config.api_token || ''}
             onChange={e => set('api_token', e.target.value)}/>
         </div>
         <div className="field">
-          <label className="field-label">Group</label>
+          <label className="field-label">{t('notif.f.group')}</label>
           <input className="input" value={config.group || ''}
             onChange={e => set('group', e.target.value)} placeholder="rampart"/>
         </div>
@@ -1224,22 +1224,22 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">Base URL</label>
+          <label className="field-label">{t('notif.f.base_url')}</label>
           <input className="input mono" value={config.base_url || ''}
             onChange={e => set('base_url', e.target.value)} placeholder="http://waha.local:3000"/>
         </div>
         <div className="field">
-          <label className="field-label">Session</label>
+          <label className="field-label">{t('notif.f.session')}</label>
           <input className="input mono" value={config.session || ''}
             onChange={e => set('session', e.target.value)} placeholder="default"/>
         </div>
         <div className="field">
-          <label className="field-label">Chat ID</label>
+          <label className="field-label">{t('notif.f.chat_id')}</label>
           <input className="input mono" value={config.chat_id || ''}
             onChange={e => set('chat_id', e.target.value)} placeholder="15551234567@c.us"/>
         </div>
         <div className="field">
-          <label className="field-label">API key <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+          <label className="field-label">{t('notif.f.api_key')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· {t('common.optional')}</span></label>
           <input className="input mono" type="password" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)}/>
         </div>
@@ -1250,17 +1250,17 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">Gateway ID</label>
+          <label className="field-label">{t('notif.f.gateway_id')}</label>
           <input className="input mono" value={config.gateway_id || ''}
             onChange={e => set('gateway_id', e.target.value)} placeholder="*MYGW01"/>
         </div>
         <div className="field">
-          <label className="field-label">Secret</label>
+          <label className="field-label">{t('notif.f.secret')}</label>
           <input className="input mono" type="password" value={config.secret || ''}
             onChange={e => set('secret', e.target.value)}/>
         </div>
         <div className="field">
-          <label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· Threema ID, email, or phone</span></label>
+          <label className="field-label">{t('notif.f.to')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· Threema ID, email, or phone</span></label>
           <input className="input mono" value={config.to || ''}
             onChange={e => set('to', e.target.value)}/>
         </div>
@@ -1271,12 +1271,12 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">Bot token</label>
+          <label className="field-label">{t('notif.f.bot_token')}</label>
           <input className="input mono" type="password" value={config.bot_token || ''}
             onChange={e => set('bot_token', e.target.value)}/>
         </div>
         <div className="field">
-          <label className="field-label">Chat ID</label>
+          <label className="field-label">{t('notif.f.chat_id')}</label>
           <input className="input mono" value={config.chat_id || ''}
             onChange={e => set('chat_id', e.target.value)}/>
         </div>
@@ -1287,12 +1287,12 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">API key</label>
+          <label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" type="password" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)}/>
         </div>
         <div className="field">
-          <label className="field-label">Device tokens <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+          <label className="field-label">{t('notif.f.device_tokens')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
           <input className="input mono" value={(config.to || []).join(',')}
             onChange={e => set('to', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}/>
         </div>
@@ -1302,7 +1302,7 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'zoho_cliq') {
     return (
       <div className="field">
-        <label className="field-label">Webhook URL</label>
+        <label className="field-label">{t('notif.f.webhook_url')}</label>
         <input className="input mono" value={config.webhook_url || ''}
           onChange={e => set('webhook_url', e.target.value)} placeholder="https://cliq.zoho.com/api/v2/channelsbyname/...incoming?zapikey=..."/>
       </div>
@@ -1312,23 +1312,23 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">API key</label>
+          <label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" type="password" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)}/>
         </div>
         <div className="field">
-          <label className="field-label">Numbers <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+          <label className="field-label">{t('notif.f.numbers')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
           <input className="input mono" value={config.numbers || ''}
             onChange={e => set('numbers', e.target.value)}/>
         </div>
         <div className="field">
-          <label className="field-label">Quality</label>
+          <label className="field-label">{t('notif.f.quality')}</label>
           <select className="select" value={config.quality || 'economy'} onChange={e => set('quality', e.target.value)}>
             <option>lowcost</option><option>economy</option><option>high</option>
           </select>
         </div>
         <div className="field">
-          <label className="field-label">Sender ID <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+          <label className="field-label">{t('notif.f.sender_id')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· {t('common.optional')}</span></label>
           <input className="input mono" value={config.sender_id || ''}
             onChange={e => set('sender_id', e.target.value)}/>
         </div>
@@ -1339,17 +1339,17 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">Base URL</label>
+          <label className="field-label">{t('notif.f.base_url')}</label>
           <input className="input mono" value={config.base_url || ''}
             onChange={e => set('base_url', e.target.value)} placeholder="http://smseagle.local"/>
         </div>
         <div className="field">
-          <label className="field-label">Access token</label>
+          <label className="field-label">{t('notif.f.access_token')}</label>
           <input className="input mono" type="password" value={config.access_token || ''}
             onChange={e => set('access_token', e.target.value)}/>
         </div>
         <div className="field">
-          <label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated E.164</span></label>
+          <label className="field-label">{t('notif.f.to')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated E.164</span></label>
           <input className="input mono" value={config.to || ''}
             onChange={e => set('to', e.target.value)}/>
         </div>
@@ -1360,22 +1360,22 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">API login</label>
+          <label className="field-label">{t('notif.f.api_login')}</label>
           <input className="input" value={config.api_login || ''}
             onChange={e => set('api_login', e.target.value)}/>
         </div>
         <div className="field">
-          <label className="field-label">API key</label>
+          <label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" type="password" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)}/>
         </div>
         <div className="field">
-          <label className="field-label">Sender</label>
+          <label className="field-label">{t('notif.f.sender')}</label>
           <input className="input mono" value={config.sender || ''}
             onChange={e => set('sender', e.target.value)} placeholder="Rampart"/>
         </div>
         <div className="field">
-          <label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+          <label className="field-label">{t('notif.f.to')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
           <input className="input mono" value={config.to || ''}
             onChange={e => set('to', e.target.value)}/>
         </div>
@@ -1385,13 +1385,13 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'whatsapp_whapi') {
     return (
       <>
-        <div className="field"><label className="field-label">API token</label>
+        <div className="field"><label className="field-label">{t('notif.f.api_token')}</label>
           <input className="input mono" type="password" value={config.api_token || ''}
             onChange={e => set('api_token', e.target.value)}/></div>
-        <div className="field"><label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· jid (15551234567@s.whatsapp.net)</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.to')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· jid (15551234567@s.whatsapp.net)</span></label>
           <input className="input mono" value={config.to || ''}
             onChange={e => set('to', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Base URL <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.base_url')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· {t('common.optional')}</span></label>
           <input className="input mono" value={config.base_url || ''}
             onChange={e => set('base_url', e.target.value)} placeholder="https://gate.whapi.cloud"/></div>
       </>
@@ -1400,10 +1400,10 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'whatsapp_360') {
     return (
       <>
-        <div className="field"><label className="field-label">API key</label>
+        <div className="field"><label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" type="password" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Phone</label>
+        <div className="field"><label className="field-label">{t('notif.f.phone')}</label>
           <input className="input mono" value={config.phone || ''}
             onChange={e => set('phone', e.target.value)} placeholder="15551234567"/></div>
       </>
@@ -1412,16 +1412,16 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'whatsapp_evolution') {
     return (
       <>
-        <div className="field"><label className="field-label">Base URL</label>
+        <div className="field"><label className="field-label">{t('notif.f.base_url')}</label>
           <input className="input mono" value={config.base_url || ''}
             onChange={e => set('base_url', e.target.value)} placeholder="http://evolution.local:8080"/></div>
-        <div className="field"><label className="field-label">API key</label>
+        <div className="field"><label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" type="password" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Instance</label>
+        <div className="field"><label className="field-label">{t('notif.f.instance')}</label>
           <input className="input mono" value={config.instance || ''}
             onChange={e => set('instance', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Number</label>
+        <div className="field"><label className="field-label">{t('notif.f.number')}</label>
           <input className="input mono" value={config.number || ''}
             onChange={e => set('number', e.target.value)} placeholder="15551234567"/></div>
       </>
@@ -1429,7 +1429,7 @@ function ConfigForm({ kind, config, setConfig }) {
   }
   if (kind === 'flock') {
     return (
-      <div className="field"><label className="field-label">Webhook URL</label>
+      <div className="field"><label className="field-label">{t('notif.f.webhook_url')}</label>
         <input className="input mono" value={config.webhook_url || ''}
           onChange={e => set('webhook_url', e.target.value)} placeholder="https://api.flock.com/hooks/sendMessage/..."/></div>
     );
@@ -1437,16 +1437,16 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'serwersms') {
     return (
       <>
-        <div className="field"><label className="field-label">Username</label>
+        <div className="field"><label className="field-label">{t('notif.f.username')}</label>
           <input className="input" value={config.username || ''}
             onChange={e => set('username', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Password</label>
+        <div className="field"><label className="field-label">{t('notif.f.password')}</label>
           <input className="input mono" type="password" value={config.password || ''}
             onChange={e => set('password', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Sender</label>
+        <div className="field"><label className="field-label">{t('notif.f.sender')}</label>
           <input className="input mono" value={config.sender || ''}
             onChange={e => set('sender', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Phone <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.phone')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
           <input className="input mono" value={config.phone || ''}
             onChange={e => set('phone', e.target.value)}/></div>
       </>
@@ -1455,13 +1455,13 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'smsplanet') {
     return (
       <>
-        <div className="field"><label className="field-label">API key</label>
+        <div className="field"><label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" type="password" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Sender</label>
+        <div className="field"><label className="field-label">{t('notif.f.sender')}</label>
           <input className="input mono" value={config.sender || ''}
             onChange={e => set('sender', e.target.value)}/></div>
-        <div className="field"><label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.to')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
           <input className="input mono" value={config.to || ''}
             onChange={e => set('to', e.target.value)}/></div>
       </>
@@ -1470,13 +1470,13 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'smsc') {
     return (
       <>
-        <div className="field"><label className="field-label">Login</label>
+        <div className="field"><label className="field-label">{t('notif.f.login')}</label>
           <input className="input" value={config.login || ''}
             onChange={e => set('login', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Password</label>
+        <div className="field"><label className="field-label">{t('notif.f.password')}</label>
           <input className="input mono" type="password" value={config.psw || ''}
             onChange={e => set('psw', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Phones <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.phones')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
           <input className="input mono" value={config.phones || ''}
             onChange={e => set('phones', e.target.value)}/></div>
       </>
@@ -1485,16 +1485,16 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'cellsynt') {
     return (
       <>
-        <div className="field"><label className="field-label">Username</label>
+        <div className="field"><label className="field-label">{t('notif.f.username')}</label>
           <input className="input" value={config.username || ''}
             onChange={e => set('username', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Password</label>
+        <div className="field"><label className="field-label">{t('notif.f.password')}</label>
           <input className="input mono" type="password" value={config.password || ''}
             onChange={e => set('password', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Originator</label>
+        <div className="field"><label className="field-label">{t('notif.f.originator')}</label>
           <input className="input mono" value={config.originator || ''}
             onChange={e => set('originator', e.target.value)} placeholder="Rampart"/></div>
-        <div className="field"><label className="field-label">Destination <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.destination')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
           <input className="input mono" value={config.destination || ''}
             onChange={e => set('destination', e.target.value)} placeholder="0046701234567"/></div>
       </>
@@ -1503,13 +1503,13 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'sevenio') {
     return (
       <>
-        <div className="field"><label className="field-label">API key</label>
+        <div className="field"><label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" type="password" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)}/></div>
-        <div className="field"><label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated E.164</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.to')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated E.164</span></label>
           <input className="input mono" value={config.to || ''}
             onChange={e => set('to', e.target.value)}/></div>
-        <div className="field"><label className="field-label">From <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.from')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· {t('common.optional')}</span></label>
           <input className="input mono" value={config.from || ''}
             onChange={e => set('from', e.target.value)}/></div>
       </>
@@ -1518,13 +1518,13 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'gtxmessaging') {
     return (
       <>
-        <div className="field"><label className="field-label">API key</label>
+        <div className="field"><label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" type="password" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Sender ID</label>
+        <div className="field"><label className="field-label">{t('notif.f.sender_id')}</label>
           <input className="input mono" value={config.sender_id || ''}
             onChange={e => set('sender_id', e.target.value)}/></div>
-        <div className="field"><label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.to')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
           <input className="input mono" value={config.to || ''}
             onChange={e => set('to', e.target.value)}/></div>
       </>
@@ -1533,13 +1533,13 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'onesender') {
     return (
       <>
-        <div className="field"><label className="field-label">Base URL</label>
+        <div className="field"><label className="field-label">{t('notif.f.base_url')}</label>
           <input className="input mono" value={config.base_url || ''}
             onChange={e => set('base_url', e.target.value)} placeholder="http://onesender.local"/></div>
-        <div className="field"><label className="field-label">API token</label>
+        <div className="field"><label className="field-label">{t('notif.f.api_token')}</label>
           <input className="input mono" type="password" value={config.api_token || ''}
             onChange={e => set('api_token', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Recipient</label>
+        <div className="field"><label className="field-label">{t('notif.f.recipient')}</label>
           <input className="input mono" value={config.recipient || ''}
             onChange={e => set('recipient', e.target.value)} placeholder="15551234567"/></div>
       </>
@@ -1548,16 +1548,16 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'promosms') {
     return (
       <>
-        <div className="field"><label className="field-label">Username</label>
+        <div className="field"><label className="field-label">{t('notif.f.username')}</label>
           <input className="input" value={config.username || ''}
             onChange={e => set('username', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Password</label>
+        <div className="field"><label className="field-label">{t('notif.f.password')}</label>
           <input className="input mono" type="password" value={config.password || ''}
             onChange={e => set('password', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Sender</label>
+        <div className="field"><label className="field-label">{t('notif.f.sender')}</label>
           <input className="input mono" value={config.sender || ''}
             onChange={e => set('sender', e.target.value)}/></div>
-        <div className="field"><label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.to')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
           <input className="input mono" value={config.to || ''}
             onChange={e => set('to', e.target.value)}/></div>
       </>
@@ -1566,13 +1566,13 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'smspartner') {
     return (
       <>
-        <div className="field"><label className="field-label">API key</label>
+        <div className="field"><label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" type="password" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Sender</label>
+        <div className="field"><label className="field-label">{t('notif.f.sender')}</label>
           <input className="input mono" value={config.sender || ''}
             onChange={e => set('sender', e.target.value)}/></div>
-        <div className="field"><label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.to')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
           <input className="input mono" value={config.to || ''}
             onChange={e => set('to', e.target.value)}/></div>
       </>
@@ -1581,13 +1581,13 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'sms_ir') {
     return (
       <>
-        <div className="field"><label className="field-label">API key</label>
+        <div className="field"><label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" type="password" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Line number</label>
+        <div className="field"><label className="field-label">{t('notif.f.line_number')}</label>
           <input className="input mono" value={config.line_number || ''}
             onChange={e => set('line_number', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Mobiles <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.mobiles')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
           <input className="input mono" value={config.mobiles || ''}
             onChange={e => set('mobiles', e.target.value)}/></div>
       </>
@@ -1596,10 +1596,10 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'freemobile') {
     return (
       <>
-        <div className="field"><label className="field-label">User</label>
+        <div className="field"><label className="field-label">{t('notif.f.user')}</label>
           <input className="input" value={config.user || ''}
             onChange={e => set('user', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Pass</label>
+        <div className="field"><label className="field-label">{t('notif.f.pass')}</label>
           <input className="input mono" type="password" value={config.pass || ''}
             onChange={e => set('pass', e.target.value)}/></div>
       </>
@@ -1608,10 +1608,10 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'flashduty') {
     return (
       <>
-        <div className="field"><label className="field-label">Integration URL</label>
+        <div className="field"><label className="field-label">{t('notif.f.integration_url')}</label>
           <input className="input mono" value={config.integration_url || ''}
             onChange={e => set('integration_url', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Severity</label>
+        <div className="field"><label className="field-label">{t('notif.f.severity')}</label>
           <select className="select" value={config.severity || 'Warning'} onChange={e => set('severity', e.target.value)}>
             <option>Info</option><option>Warning</option><option>Critical</option>
           </select>
@@ -1622,16 +1622,16 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'teltonika') {
     return (
       <>
-        <div className="field"><label className="field-label">Base URL</label>
+        <div className="field"><label className="field-label">{t('notif.f.base_url')}</label>
           <input className="input mono" value={config.base_url || ''}
             onChange={e => set('base_url', e.target.value)} placeholder="http://192.168.1.1"/></div>
-        <div className="field"><label className="field-label">Username</label>
+        <div className="field"><label className="field-label">{t('notif.f.username')}</label>
           <input className="input" value={config.username || ''}
             onChange={e => set('username', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Password</label>
+        <div className="field"><label className="field-label">{t('notif.f.password')}</label>
           <input className="input mono" type="password" value={config.password || ''}
             onChange={e => set('password', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Number</label>
+        <div className="field"><label className="field-label">{t('notif.f.number')}</label>
           <input className="input mono" value={config.number || ''}
             onChange={e => set('number', e.target.value)}/></div>
       </>
@@ -1640,15 +1640,15 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'kook') {
     return (
       <>
-        <div className="field"><label className="field-label">Bot token</label>
+        <div className="field"><label className="field-label">{t('notif.f.bot_token')}</label>
           <input className="input mono" type="password" value={config.bot_token || ''}
             onChange={e => set('bot_token', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Target type</label>
+        <div className="field"><label className="field-label">{t('notif.f.target_type')}</label>
           <select className="select" value={config.target_type || 'GROUP'} onChange={e => set('target_type', e.target.value)}>
             <option>GROUP</option><option>PERSON</option>
           </select>
         </div>
-        <div className="field"><label className="field-label">Target ID</label>
+        <div className="field"><label className="field-label">{t('notif.f.target_id')}</label>
           <input className="input mono" value={config.target_id || ''}
             onChange={e => set('target_id', e.target.value)}/></div>
       </>
@@ -1657,13 +1657,13 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'nostr') {
     return (
       <>
-        <div className="field"><label className="field-label">Bridge URL</label>
+        <div className="field"><label className="field-label">{t('notif.f.bridge_url')}</label>
           <input className="input mono" value={config.bridge_url || ''}
             onChange={e => set('bridge_url', e.target.value)} placeholder="http://nostr-bridge.local/dm"/></div>
-        <div className="field"><label className="field-label">Recipient <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· npub or hex pubkey</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.recipient')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· npub or hex pubkey</span></label>
           <input className="input mono" value={config.recipient || ''}
             onChange={e => set('recipient', e.target.value)}/></div>
-        <div className="field"><label className="field-label">API key <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.api_key')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· {t('common.optional')}</span></label>
           <input className="input mono" type="password" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)}/></div>
       </>
@@ -1672,18 +1672,18 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'onebot') {
     return (
       <>
-        <div className="field"><label className="field-label">HTTP URL</label>
+        <div className="field"><label className="field-label">{t('notif.f.http_url')}</label>
           <input className="input mono" value={config.http_url || ''}
             onChange={e => set('http_url', e.target.value)} placeholder="http://onebot.local:5700"/></div>
-        <div className="field"><label className="field-label">Kind</label>
+        <div className="field"><label className="field-label">{t('notif.f.kind')}</label>
           <select className="select" value={config.kind || 'group'} onChange={e => set('kind', e.target.value)}>
             <option>group</option><option>private</option>
           </select>
         </div>
-        <div className="field"><label className="field-label">Target ID</label>
+        <div className="field"><label className="field-label">{t('notif.f.target_id')}</label>
           <input className="input mono" type="number" value={config.target_id || ''}
             onChange={e => set('target_id', parseInt(e.target.value, 10) || 0)}/></div>
-        <div className="field"><label className="field-label">Access token <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.access_token')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· {t('common.optional')}</span></label>
           <input className="input mono" type="password" value={config.access_token || ''}
             onChange={e => set('access_token', e.target.value)}/></div>
       </>
@@ -1692,10 +1692,10 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'onechat') {
     return (
       <>
-        <div className="field"><label className="field-label">Bot token</label>
+        <div className="field"><label className="field-label">{t('notif.f.bot_token')}</label>
           <input className="input mono" type="password" value={config.bot_token || ''}
             onChange={e => set('bot_token', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Chat ID</label>
+        <div className="field"><label className="field-label">{t('notif.f.chat_id')}</label>
           <input className="input mono" value={config.chat_id || ''}
             onChange={e => set('chat_id', e.target.value)}/></div>
       </>
@@ -1704,10 +1704,10 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'max_messenger') {
     return (
       <>
-        <div className="field"><label className="field-label">Access token</label>
+        <div className="field"><label className="field-label">{t('notif.f.access_token')}</label>
           <input className="input mono" type="password" value={config.access_token || ''}
             onChange={e => set('access_token', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Chat ID</label>
+        <div className="field"><label className="field-label">{t('notif.f.chat_id')}</label>
           <input className="input mono" value={config.chat_id || ''}
             onChange={e => set('chat_id', e.target.value)}/></div>
       </>
@@ -1716,19 +1716,19 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'halo_psa') {
     return (
       <>
-        <div className="field"><label className="field-label">Base URL</label>
+        <div className="field"><label className="field-label">{t('notif.f.base_url')}</label>
           <input className="input mono" value={config.base_url || ''}
             onChange={e => set('base_url', e.target.value)} placeholder="https://yourorg.halopsa.com"/></div>
-        <div className="field"><label className="field-label">Client ID</label>
+        <div className="field"><label className="field-label">{t('notif.f.client_id')}</label>
           <input className="input mono" value={config.client_id || ''}
             onChange={e => set('client_id', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Client secret</label>
+        <div className="field"><label className="field-label">{t('notif.f.client_secret')}</label>
           <input className="input mono" type="password" value={config.client_secret || ''}
             onChange={e => set('client_secret', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Team</label>
+        <div className="field"><label className="field-label">{t('notif.f.team')}</label>
           <input className="input" value={config.team || ''}
             onChange={e => set('team', e.target.value)} placeholder="Service Desk"/></div>
-        <div className="field"><label className="field-label">Ticket type ID</label>
+        <div className="field"><label className="field-label">{t('notif.f.ticket_type_id')}</label>
           <input className="input mono" type="number" value={config.ticket_type_id || ''}
             onChange={e => set('ticket_type_id', parseInt(e.target.value, 10) || 0)}/></div>
       </>
@@ -1737,19 +1737,19 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'jira_sm') {
     return (
       <>
-        <div className="field"><label className="field-label">Site URL</label>
+        <div className="field"><label className="field-label">{t('notif.f.site_url')}</label>
           <input className="input mono" value={config.site_url || ''}
             onChange={e => set('site_url', e.target.value)} placeholder="https://yourorg.atlassian.net"/></div>
-        <div className="field"><label className="field-label">Email</label>
+        <div className="field"><label className="field-label">{t('notif.f.email')}</label>
           <input className="input" value={config.email || ''}
             onChange={e => set('email', e.target.value)}/></div>
-        <div className="field"><label className="field-label">API token</label>
+        <div className="field"><label className="field-label">{t('notif.f.api_token')}</label>
           <input className="input mono" type="password" value={config.api_token || ''}
             onChange={e => set('api_token', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Project key</label>
+        <div className="field"><label className="field-label">{t('notif.f.project_key')}</label>
           <input className="input mono" value={config.project_key || ''}
             onChange={e => set('project_key', e.target.value)} placeholder="INC"/></div>
-        <div className="field"><label className="field-label">Issue type</label>
+        <div className="field"><label className="field-label">{t('notif.f.issue_type')}</label>
           <input className="input mono" value={config.issue_type || ''}
             onChange={e => set('issue_type', e.target.value)} placeholder="Incident"/></div>
       </>
@@ -1757,7 +1757,7 @@ function ConfigForm({ kind, config, setConfig }) {
   }
   if (kind === 'spug_push') {
     return (
-      <div className="field"><label className="field-label">Template code</label>
+      <div className="field"><label className="field-label">{t('notif.f.template_code')}</label>
         <input className="input mono" value={config.template_code || ''}
           onChange={e => set('template_code', e.target.value)}/></div>
     );
@@ -1765,10 +1765,10 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'wpush') {
     return (
       <>
-        <div className="field"><label className="field-label">API key</label>
+        <div className="field"><label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" type="password" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Channel <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.channel')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
           <input className="input mono" value={config.channel || ''}
             onChange={e => set('channel', e.target.value)} placeholder="wechat,email"/></div>
       </>
@@ -1777,13 +1777,13 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'vk') {
     return (
       <>
-        <div className="field"><label className="field-label">Access token</label>
+        <div className="field"><label className="field-label">{t('notif.f.access_token')}</label>
           <input className="input mono" type="password" value={config.access_token || ''}
             onChange={e => set('access_token', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Peer ID</label>
+        <div className="field"><label className="field-label">{t('notif.f.peer_id')}</label>
           <input className="input mono" type="number" value={config.peer_id || ''}
             onChange={e => set('peer_id', parseInt(e.target.value, 10) || 0)}/></div>
-        <div className="field"><label className="field-label">API version <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.api_version')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· {t('common.optional')}</span></label>
           <input className="input mono" value={config.api_version || ''}
             onChange={e => set('api_version', e.target.value)} placeholder="5.199"/></div>
       </>
@@ -1791,14 +1791,14 @@ function ConfigForm({ kind, config, setConfig }) {
   }
   if (kind === 'yzj') {
     return (
-      <div className="field"><label className="field-label">Webhook URL</label>
+      <div className="field"><label className="field-label">{t('notif.f.webhook_url')}</label>
         <input className="input mono" value={config.webhook_url || ''}
           onChange={e => set('webhook_url', e.target.value)}/></div>
     );
   }
   if (kind === 'google_sheets') {
     return (
-      <div className="field"><label className="field-label">Apps Script web-app URL</label>
+      <div className="field"><label className="field-label">{t('notif.f.apps_script_web_app_url')}</label>
         <input className="input mono" value={config.webhook_url || ''}
           onChange={e => set('webhook_url', e.target.value)} placeholder="https://script.google.com/macros/s/.../exec"/></div>
     );
@@ -1806,18 +1806,18 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'gorush') {
     return (
       <>
-        <div className="field"><label className="field-label">Server</label>
+        <div className="field"><label className="field-label">{t('notif.f.server')}</label>
           <input className="input mono" value={config.server || ''}
             onChange={e => set('server', e.target.value)} placeholder="http://gorush.local:8088"/></div>
-        <div className="field"><label className="field-label">Platform</label>
+        <div className="field"><label className="field-label">{t('notif.f.platform')}</label>
           <select className="select" value={config.platform || 'ios'} onChange={e => set('platform', e.target.value)}>
             <option>ios</option><option>android</option>
           </select>
         </div>
-        <div className="field"><label className="field-label">Tokens <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.tokens')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
           <input className="input mono" value={(config.tokens || []).join(',')}
             onChange={e => set('tokens', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}/></div>
-        <div className="field"><label className="field-label">Topic <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.topic')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· {t('common.optional')}</span></label>
           <input className="input mono" value={config.topic || ''}
             onChange={e => set('topic', e.target.value)}/></div>
       </>
@@ -1825,7 +1825,7 @@ function ConfigForm({ kind, config, setConfig }) {
   }
   if (kind === 'fluxer' || kind === 'splash') {
     return (
-      <div className="field"><label className="field-label">Webhook URL</label>
+      <div className="field"><label className="field-label">{t('notif.f.webhook_url')}</label>
         <input className="input mono" value={config.webhook_url || ''}
           onChange={e => set('webhook_url', e.target.value)}/></div>
     );
@@ -1833,13 +1833,13 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'messagebird') {
     return (
       <>
-        <div className="field"><label className="field-label">Access key</label>
+        <div className="field"><label className="field-label">{t('notif.f.access_key')}</label>
           <input className="input mono" type="password" value={config.access_key || ''}
             onChange={e => set('access_key', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Originator</label>
+        <div className="field"><label className="field-label">{t('notif.f.originator')}</label>
           <input className="input mono" value={config.originator || ''}
             onChange={e => set('originator', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Recipients <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.recipients')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
           <input className="input mono" value={config.recipients || ''}
             onChange={e => set('recipients', e.target.value)}/></div>
       </>
@@ -1848,16 +1848,16 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'plivo') {
     return (
       <>
-        <div className="field"><label className="field-label">Auth ID</label>
+        <div className="field"><label className="field-label">{t('notif.f.auth_id')}</label>
           <input className="input mono" value={config.auth_id || ''}
             onChange={e => set('auth_id', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Auth token</label>
+        <div className="field"><label className="field-label">{t('notif.f.auth_token')}</label>
           <input className="input mono" type="password" value={config.auth_token || ''}
             onChange={e => set('auth_token', e.target.value)}/></div>
-        <div className="field"><label className="field-label">From</label>
+        <div className="field"><label className="field-label">{t('notif.f.from')}</label>
           <input className="input mono" value={config.from || ''}
             onChange={e => set('from', e.target.value)} placeholder="+15551234567"/></div>
-        <div className="field"><label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· angle-bracket separated, e.g. {'+15551111<+15552222>'}</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.to')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· angle-bracket separated, e.g. {'+15551111<+15552222>'}</span></label>
           <input className="input mono" value={config.to || ''}
             onChange={e => set('to', e.target.value)}/></div>
       </>
@@ -1866,16 +1866,16 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'vonage') {
     return (
       <>
-        <div className="field"><label className="field-label">API key</label>
+        <div className="field"><label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)}/></div>
-        <div className="field"><label className="field-label">API secret</label>
+        <div className="field"><label className="field-label">{t('notif.f.api_secret')}</label>
           <input className="input mono" type="password" value={config.api_secret || ''}
             onChange={e => set('api_secret', e.target.value)}/></div>
-        <div className="field"><label className="field-label">From</label>
+        <div className="field"><label className="field-label">{t('notif.f.from')}</label>
           <input className="input mono" value={config.from || ''}
             onChange={e => set('from', e.target.value)}/></div>
-        <div className="field"><label className="field-label">To</label>
+        <div className="field"><label className="field-label">{t('notif.f.to')}</label>
           <input className="input mono" value={config.to || ''}
             onChange={e => set('to', e.target.value)} placeholder="15551234567"/></div>
       </>
@@ -1884,22 +1884,22 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'bandwidth') {
     return (
       <>
-        <div className="field"><label className="field-label">Account ID</label>
+        <div className="field"><label className="field-label">{t('notif.f.account_id')}</label>
           <input className="input mono" value={config.account_id || ''}
             onChange={e => set('account_id', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Username</label>
+        <div className="field"><label className="field-label">{t('notif.f.username')}</label>
           <input className="input" value={config.username || ''}
             onChange={e => set('username', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Password</label>
+        <div className="field"><label className="field-label">{t('notif.f.password')}</label>
           <input className="input mono" type="password" value={config.password || ''}
             onChange={e => set('password', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Application ID</label>
+        <div className="field"><label className="field-label">{t('notif.f.application_id')}</label>
           <input className="input mono" value={config.application_id || ''}
             onChange={e => set('application_id', e.target.value)}/></div>
-        <div className="field"><label className="field-label">From</label>
+        <div className="field"><label className="field-label">{t('notif.f.from')}</label>
           <input className="input mono" value={config.from || ''}
             onChange={e => set('from', e.target.value)} placeholder="+15551234567"/></div>
-        <div className="field"><label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.to')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
           <input className="input mono" value={config.to || ''}
             onChange={e => set('to', e.target.value)}/></div>
       </>
@@ -1908,10 +1908,10 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'webex') {
     return (
       <>
-        <div className="field"><label className="field-label">Bot token</label>
+        <div className="field"><label className="field-label">{t('notif.f.bot_token')}</label>
           <input className="input mono" type="password" value={config.bot_token || ''}
             onChange={e => set('bot_token', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Room ID</label>
+        <div className="field"><label className="field-label">{t('notif.f.room_id')}</label>
           <input className="input mono" value={config.room_id || ''}
             onChange={e => set('room_id', e.target.value)}/></div>
       </>
@@ -1920,10 +1920,10 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'pushcut') {
     return (
       <>
-        <div className="field"><label className="field-label">API key</label>
+        <div className="field"><label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" type="password" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Notification name</label>
+        <div className="field"><label className="field-label">{t('notif.f.notification_name')}</label>
           <input className="input mono" value={config.notification_name || ''}
             onChange={e => set('notification_name', e.target.value)}/></div>
       </>
@@ -1932,16 +1932,16 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'smsglobal') {
     return (
       <>
-        <div className="field"><label className="field-label">API key</label>
+        <div className="field"><label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)}/></div>
-        <div className="field"><label className="field-label">API secret</label>
+        <div className="field"><label className="field-label">{t('notif.f.api_secret')}</label>
           <input className="input mono" type="password" value={config.api_secret || ''}
             onChange={e => set('api_secret', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Origin</label>
+        <div className="field"><label className="field-label">{t('notif.f.origin')}</label>
           <input className="input mono" value={config.origin || ''}
             onChange={e => set('origin', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Destination <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.destination')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
           <input className="input mono" value={config.destination || ''}
             onChange={e => set('destination', e.target.value)}/></div>
       </>
@@ -1949,7 +1949,7 @@ function ConfigForm({ kind, config, setConfig }) {
   }
   if (kind === 'alertops') {
     return (
-      <div className="field"><label className="field-label">Integration URL</label>
+      <div className="field"><label className="field-label">{t('notif.f.integration_url')}</label>
         <input className="input mono" value={config.integration_url || ''}
           onChange={e => set('integration_url', e.target.value)}/></div>
     );
@@ -1957,19 +1957,19 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'mailgun') {
     return (
       <>
-        <div className="field"><label className="field-label">API key</label>
+        <div className="field"><label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" type="password" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Domain</label>
+        <div className="field"><label className="field-label">{t('notif.f.domain')}</label>
           <input className="input mono" value={config.domain || ''}
             onChange={e => set('domain', e.target.value)} placeholder="mg.example.com"/></div>
-        <div className="field"><label className="field-label">Base URL <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· EU: https://api.eu.mailgun.net</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.base_url')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· EU: https://api.eu.mailgun.net</span></label>
           <input className="input mono" value={config.base_url || ''}
             onChange={e => set('base_url', e.target.value)} placeholder="https://api.mailgun.net"/></div>
-        <div className="field"><label className="field-label">From</label>
+        <div className="field"><label className="field-label">{t('notif.f.from')}</label>
           <input className="input" value={config.from || ''}
             onChange={e => set('from', e.target.value)}/></div>
-        <div className="field"><label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.to')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
           <input className="input" value={config.to || ''}
             onChange={e => set('to', e.target.value)}/></div>
       </>
@@ -1978,16 +1978,16 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'mailjet') {
     return (
       <>
-        <div className="field"><label className="field-label">API key</label>
+        <div className="field"><label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)}/></div>
-        <div className="field"><label className="field-label">API secret</label>
+        <div className="field"><label className="field-label">{t('notif.f.api_secret')}</label>
           <input className="input mono" type="password" value={config.api_secret || ''}
             onChange={e => set('api_secret', e.target.value)}/></div>
-        <div className="field"><label className="field-label">From email</label>
+        <div className="field"><label className="field-label">{t('notif.f.from_email')}</label>
           <input className="input" value={config.from_email || ''}
             onChange={e => set('from_email', e.target.value)}/></div>
-        <div className="field"><label className="field-label">To email</label>
+        <div className="field"><label className="field-label">{t('notif.f.to_email')}</label>
           <input className="input" value={config.to_email || ''}
             onChange={e => set('to_email', e.target.value)}/></div>
       </>
@@ -1996,16 +1996,16 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'postmark') {
     return (
       <>
-        <div className="field"><label className="field-label">Server token</label>
+        <div className="field"><label className="field-label">{t('notif.f.server_token')}</label>
           <input className="input mono" type="password" value={config.server_token || ''}
             onChange={e => set('server_token', e.target.value)}/></div>
-        <div className="field"><label className="field-label">From</label>
+        <div className="field"><label className="field-label">{t('notif.f.from')}</label>
           <input className="input" value={config.from || ''}
             onChange={e => set('from', e.target.value)}/></div>
-        <div className="field"><label className="field-label">To</label>
+        <div className="field"><label className="field-label">{t('notif.f.to')}</label>
           <input className="input" value={config.to || ''}
             onChange={e => set('to', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Message stream <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.message_stream')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· {t('common.optional')}</span></label>
           <input className="input mono" value={config.message_stream || ''}
             onChange={e => set('message_stream', e.target.value)}/></div>
       </>
@@ -2014,13 +2014,13 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'mandrill') {
     return (
       <>
-        <div className="field"><label className="field-label">API key</label>
+        <div className="field"><label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" type="password" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)}/></div>
-        <div className="field"><label className="field-label">From email</label>
+        <div className="field"><label className="field-label">{t('notif.f.from_email')}</label>
           <input className="input" value={config.from_email || ''}
             onChange={e => set('from_email', e.target.value)}/></div>
-        <div className="field"><label className="field-label">To email</label>
+        <div className="field"><label className="field-label">{t('notif.f.to_email')}</label>
           <input className="input" value={config.to_email || ''}
             onChange={e => set('to_email', e.target.value)}/></div>
       </>
@@ -2029,16 +2029,16 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'sparkpost') {
     return (
       <>
-        <div className="field"><label className="field-label">API key</label>
+        <div className="field"><label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" type="password" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)}/></div>
-        <div className="field"><label className="field-label">From</label>
+        <div className="field"><label className="field-label">{t('notif.f.from')}</label>
           <input className="input" value={config.from || ''}
             onChange={e => set('from', e.target.value)}/></div>
-        <div className="field"><label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.to')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated</span></label>
           <input className="input" value={config.to || ''}
             onChange={e => set('to', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Base URL <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· EU: https://api.eu.sparkpost.com</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.base_url')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· EU: https://api.eu.sparkpost.com</span></label>
           <input className="input mono" value={config.base_url || ''}
             onChange={e => set('base_url', e.target.value)} placeholder="https://api.sparkpost.com"/></div>
       </>
@@ -2046,21 +2046,21 @@ function ConfigForm({ kind, config, setConfig }) {
   }
   if (kind === 'spike_sh' || kind === 'zenduty') {
     return (
-      <div className="field"><label className="field-label">Integration URL</label>
+      <div className="field"><label className="field-label">{t('notif.f.integration_url')}</label>
         <input className="input mono" value={config.integration_url || ''}
           onChange={e => set('integration_url', e.target.value)}/></div>
     );
   }
   if (kind === 'ringcentral') {
     return (
-      <div className="field"><label className="field-label">Webhook URL</label>
+      <div className="field"><label className="field-label">{t('notif.f.webhook_url')}</label>
         <input className="input mono" value={config.webhook_url || ''}
           onChange={e => set('webhook_url', e.target.value)} placeholder="https://hooks.ringcentral.com/webhook/..."/></div>
     );
   }
   if (kind === 'ilert') {
     return (
-      <div className="field"><label className="field-label">Integration key</label>
+      <div className="field"><label className="field-label">{t('notif.f.integration_key')}</label>
         <input className="input mono" type="password" value={config.integration_key || ''}
           onChange={e => set('integration_key', e.target.value)}/></div>
     );
@@ -2068,10 +2068,10 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'linear') {
     return (
       <>
-        <div className="field"><label className="field-label">API key</label>
+        <div className="field"><label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" type="password" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Team ID</label>
+        <div className="field"><label className="field-label">{t('notif.f.team_id')}</label>
           <input className="input mono" value={config.team_id || ''}
             onChange={e => set('team_id', e.target.value)}/></div>
       </>
@@ -2080,10 +2080,10 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'clickup') {
     return (
       <>
-        <div className="field"><label className="field-label">API token</label>
+        <div className="field"><label className="field-label">{t('notif.f.api_token')}</label>
           <input className="input mono" type="password" value={config.api_token || ''}
             onChange={e => set('api_token', e.target.value)}/></div>
-        <div className="field"><label className="field-label">List ID</label>
+        <div className="field"><label className="field-label">{t('notif.f.list_id')}</label>
           <input className="input mono" value={config.list_id || ''}
             onChange={e => set('list_id', e.target.value)}/></div>
       </>
@@ -2092,13 +2092,13 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'trello') {
     return (
       <>
-        <div className="field"><label className="field-label">Key</label>
+        <div className="field"><label className="field-label">{t('notif.f.key')}</label>
           <input className="input mono" value={config.key || ''}
             onChange={e => set('key', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Token</label>
+        <div className="field"><label className="field-label">{t('notif.f.token')}</label>
           <input className="input mono" type="password" value={config.token || ''}
             onChange={e => set('token', e.target.value)}/></div>
-        <div className="field"><label className="field-label">List ID</label>
+        <div className="field"><label className="field-label">{t('notif.f.list_id')}</label>
           <input className="input mono" value={config.list_id || ''}
             onChange={e => set('list_id', e.target.value)}/></div>
       </>
@@ -2107,16 +2107,16 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'github_issue') {
     return (
       <>
-        <div className="field"><label className="field-label">Personal access token</label>
+        <div className="field"><label className="field-label">{t('notif.f.personal_access_token')}</label>
           <input className="input mono" type="password" value={config.token || ''}
             onChange={e => set('token', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Owner</label>
+        <div className="field"><label className="field-label">{t('notif.f.owner')}</label>
           <input className="input mono" value={config.owner || ''}
             onChange={e => set('owner', e.target.value)} placeholder="myorg"/></div>
-        <div className="field"><label className="field-label">Repo</label>
+        <div className="field"><label className="field-label">{t('notif.f.repo')}</label>
           <input className="input mono" value={config.repo || ''}
             onChange={e => set('repo', e.target.value)} placeholder="incidents"/></div>
-        <div className="field"><label className="field-label">Labels <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated, optional</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.labels')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· comma-separated, optional</span></label>
           <input className="input mono" value={(config.labels || []).join(',')}
             onChange={e => set('labels', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}/></div>
       </>
@@ -2125,13 +2125,13 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'gitlab_issue') {
     return (
       <>
-        <div className="field"><label className="field-label">Base URL <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional, defaults to gitlab.com</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.base_url')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional, defaults to gitlab.com</span></label>
           <input className="input mono" value={config.base_url || ''}
             onChange={e => set('base_url', e.target.value)} placeholder="https://gitlab.example.com"/></div>
-        <div className="field"><label className="field-label">Personal access token</label>
+        <div className="field"><label className="field-label">{t('notif.f.personal_access_token')}</label>
           <input className="input mono" type="password" value={config.token || ''}
             onChange={e => set('token', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Project ID</label>
+        <div className="field"><label className="field-label">{t('notif.f.project_id')}</label>
           <input className="input mono" value={config.project_id || ''}
             onChange={e => set('project_id', e.target.value)}/></div>
       </>
@@ -2140,13 +2140,13 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'asana') {
     return (
       <>
-        <div className="field"><label className="field-label">Access token</label>
+        <div className="field"><label className="field-label">{t('notif.f.access_token')}</label>
           <input className="input mono" type="password" value={config.access_token || ''}
             onChange={e => set('access_token', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Workspace</label>
+        <div className="field"><label className="field-label">{t('notif.f.workspace')}</label>
           <input className="input mono" value={config.workspace || ''}
             onChange={e => set('workspace', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Project</label>
+        <div className="field"><label className="field-label">{t('notif.f.project')}</label>
           <input className="input mono" value={config.project || ''}
             onChange={e => set('project', e.target.value)}/></div>
       </>
@@ -2155,10 +2155,10 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'notion') {
     return (
       <>
-        <div className="field"><label className="field-label">Integration token</label>
+        <div className="field"><label className="field-label">{t('notif.f.integration_token')}</label>
           <input className="input mono" type="password" value={config.api_token || ''}
             onChange={e => set('api_token', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Database ID</label>
+        <div className="field"><label className="field-label">{t('notif.f.database_id')}</label>
           <input className="input mono" value={config.database_id || ''}
             onChange={e => set('database_id', e.target.value)}/></div>
       </>
@@ -2166,7 +2166,7 @@ function ConfigForm({ kind, config, setConfig }) {
   }
   if (kind === 'sentry') {
     return (
-      <div className="field"><label className="field-label">DSN</label>
+      <div className="field"><label className="field-label">{t('notif.f.dsn')}</label>
         <input className="input mono" type="password" value={config.dsn || ''}
           onChange={e => set('dsn', e.target.value)} placeholder="https://<public>@<host>/<project>"/></div>
     );
@@ -2174,10 +2174,10 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'rollbar') {
     return (
       <>
-        <div className="field"><label className="field-label">Access token</label>
+        <div className="field"><label className="field-label">{t('notif.f.access_token')}</label>
           <input className="input mono" type="password" value={config.access_token || ''}
             onChange={e => set('access_token', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Environment</label>
+        <div className="field"><label className="field-label">{t('notif.f.environment')}</label>
           <input className="input mono" value={config.environment || ''}
             onChange={e => set('environment', e.target.value)} placeholder="production"/></div>
       </>
@@ -2186,10 +2186,10 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'honeybadger') {
     return (
       <>
-        <div className="field"><label className="field-label">API key</label>
+        <div className="field"><label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" type="password" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Environment</label>
+        <div className="field"><label className="field-label">{t('notif.f.environment')}</label>
           <input className="input mono" value={config.environment || ''}
             onChange={e => set('environment', e.target.value)} placeholder="production"/></div>
       </>
@@ -2197,14 +2197,14 @@ function ConfigForm({ kind, config, setConfig }) {
   }
   if (kind === 'healthchecks_io') {
     return (
-      <div className="field"><label className="field-label">Ping URL</label>
+      <div className="field"><label className="field-label">{t('notif.f.ping_url')}</label>
         <input className="input mono" value={config.ping_url || ''}
           onChange={e => set('ping_url', e.target.value)} placeholder="https://hc-ping.com/&lt;uuid&gt;"/></div>
     );
   }
   if (kind === 'betterstack') {
     return (
-      <div className="field"><label className="field-label">Integration URL</label>
+      <div className="field"><label className="field-label">{t('notif.f.integration_url')}</label>
         <input className="input mono" value={config.integration_url || ''}
           onChange={e => set('integration_url', e.target.value)}/></div>
     );
@@ -2212,10 +2212,10 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'statuspage_io') {
     return (
       <>
-        <div className="field"><label className="field-label">API key</label>
+        <div className="field"><label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" type="password" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Page ID</label>
+        <div className="field"><label className="field-label">{t('notif.f.page_id')}</label>
           <input className="input mono" value={config.page_id || ''}
             onChange={e => set('page_id', e.target.value)}/></div>
       </>
@@ -2224,10 +2224,10 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'datadog') {
     return (
       <>
-        <div className="field"><label className="field-label">API key</label>
+        <div className="field"><label className="field-label">{t('notif.f.api_key')}</label>
           <input className="input mono" type="password" value={config.api_key || ''}
             onChange={e => set('api_key', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Site</label>
+        <div className="field"><label className="field-label">{t('notif.f.site')}</label>
           <select className="select" value={config.site || 'us1'} onChange={e => set('site', e.target.value)}>
             <option>us1</option><option>us3</option><option>us5</option><option>eu</option><option>us1-fed</option>
           </select>
@@ -2238,13 +2238,13 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'newrelic') {
     return (
       <>
-        <div className="field"><label className="field-label">Insert key</label>
+        <div className="field"><label className="field-label">{t('notif.f.insert_key')}</label>
           <input className="input mono" type="password" value={config.insert_key || ''}
             onChange={e => set('insert_key', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Account ID</label>
+        <div className="field"><label className="field-label">{t('notif.f.account_id')}</label>
           <input className="input mono" value={config.account_id || ''}
             onChange={e => set('account_id', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Region</label>
+        <div className="field"><label className="field-label">{t('notif.f.region')}</label>
           <select className="select" value={config.region || 'us'} onChange={e => set('region', e.target.value)}>
             <option>us</option><option>eu</option>
           </select>
@@ -2255,22 +2255,22 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'aws_sns') {
     return (
       <>
-        <div className="field"><label className="field-label">Region</label>
+        <div className="field"><label className="field-label">{t('notif.f.region')}</label>
           <input className="input mono" value={config.region || ''}
             onChange={e => set('region', e.target.value)} placeholder="us-east-1"/></div>
-        <div className="field"><label className="field-label">Topic ARN <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· or phone number</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.topic_arn')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· or phone number</span></label>
           <input className="input mono" value={config.topic_arn || ''}
             onChange={e => set('topic_arn', e.target.value)} placeholder="arn:aws:sns:us-east-1:123456789012:alerts"/></div>
-        <div className="field"><label className="field-label">Phone number (SMS, E.164)</label>
+        <div className="field"><label className="field-label">{t('notif.f.phone_number_sms_e_164')}</label>
           <input className="input mono" value={config.phone_number || ''}
             onChange={e => set('phone_number', e.target.value)} placeholder="+15555550100"/></div>
-        <div className="field"><label className="field-label">Access key ID</label>
+        <div className="field"><label className="field-label">{t('notif.f.access_key_id')}</label>
           <input className="input mono" value={config.access_key_id || ''}
             onChange={e => set('access_key_id', e.target.value)} placeholder="AKIA…"/></div>
-        <div className="field"><label className="field-label">Secret access key</label>
+        <div className="field"><label className="field-label">{t('notif.f.secret_access_key')}</label>
           <input className="input mono" type="password" value={config.secret_access_key || ''}
             onChange={e => set('secret_access_key', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Session token <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional, STS</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.session_token')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional, STS</span></label>
           <input className="input mono" type="password" value={config.session_token || ''}
             onChange={e => set('session_token', e.target.value)}/></div>
       </>
@@ -2279,7 +2279,7 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'webpush') {
     return (
       <>
-        <div className="field"><label className="field-label">Contact URI <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· optional</span></label>
+        <div className="field"><label className="field-label">{t('notif.f.contact_uri')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· {t('common.optional')}</span></label>
           <input className="input mono" value={config.subject || ''}
             onChange={e => set('subject', e.target.value)} placeholder="mailto:ops@example.com"/>
           <div className="field-hint">
@@ -2294,16 +2294,16 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'gcp_pubsub') {
     return (
       <>
-        <div className="field"><label className="field-label">Project ID</label>
+        <div className="field"><label className="field-label">{t('notif.f.project_id')}</label>
           <input className="input mono" value={config.project_id || ''}
             onChange={e => set('project_id', e.target.value)} placeholder="my-gcp-project"/></div>
-        <div className="field"><label className="field-label">Topic</label>
+        <div className="field"><label className="field-label">{t('notif.f.topic')}</label>
           <input className="input mono" value={config.topic || ''}
             onChange={e => set('topic', e.target.value)} placeholder="rampart-alerts"/></div>
-        <div className="field"><label className="field-label">Service account email</label>
+        <div className="field"><label className="field-label">{t('notif.f.service_account_email')}</label>
           <input className="input mono" value={config.client_email || ''}
             onChange={e => set('client_email', e.target.value)} placeholder="rampart@my-project.iam.gserviceaccount.com"/></div>
-        <div className="field"><label className="field-label">Private key (PEM, from service-account JSON)</label>
+        <div className="field"><label className="field-label">{t('notif.f.private_key_pem_from_service_account_json')}</label>
           <textarea className="input mono" rows={6} value={config.private_key || ''}
             onChange={e => set('private_key', e.target.value)}
             placeholder={'-----BEGIN ' + 'PRIVATE KEY-----\n...'}/></div>
@@ -2318,19 +2318,19 @@ function ConfigForm({ kind, config, setConfig }) {
   if (kind === 'azure_servicebus') {
     return (
       <>
-        <div className="field"><label className="field-label">Namespace</label>
+        <div className="field"><label className="field-label">{t('notif.f.namespace')}</label>
           <input className="input mono" value={config.namespace || ''}
             onChange={e => set('namespace', e.target.value)} placeholder="my-namespace (omit .servicebus.windows.net)"/></div>
-        <div className="field"><label className="field-label">Queue or topic</label>
+        <div className="field"><label className="field-label">{t('notif.f.queue_or_topic')}</label>
           <input className="input mono" value={config.entity || ''}
             onChange={e => set('entity', e.target.value)} placeholder="alerts"/></div>
-        <div className="field"><label className="field-label">SAS key name</label>
+        <div className="field"><label className="field-label">{t('notif.f.sas_key_name')}</label>
           <input className="input mono" value={config.sas_key_name || ''}
             onChange={e => set('sas_key_name', e.target.value)} placeholder="RootManageSharedAccessKey"/></div>
-        <div className="field"><label className="field-label">SAS key</label>
+        <div className="field"><label className="field-label">{t('notif.f.sas_key')}</label>
           <input className="input mono" type="password" value={config.sas_key || ''}
             onChange={e => set('sas_key', e.target.value)}/></div>
-        <div className="field"><label className="field-label">Token TTL (seconds)</label>
+        <div className="field"><label className="field-label">{t('notif.f.token_ttl_seconds')}</label>
           <input className="input mono" type="number" min="60" value={config.ttl_seconds || 300}
             onChange={e => set('ttl_seconds', Number(e.target.value) || 300)}/></div>
       </>
@@ -2340,22 +2340,22 @@ function ConfigForm({ kind, config, setConfig }) {
     return (
       <>
         <div className="field">
-          <label className="field-label">Account SID</label>
+          <label className="field-label">{t('notif.f.account_sid')}</label>
           <input className="input mono" value={config.account_sid || ''}
             onChange={e => set('account_sid', e.target.value)} placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"/>
         </div>
         <div className="field">
-          <label className="field-label">Auth token</label>
+          <label className="field-label">{t('notif.f.auth_token')}</label>
           <input className="input mono" type="password" value={config.auth_token || ''}
             onChange={e => set('auth_token', e.target.value)} placeholder="32-char token"/>
         </div>
         <div className="field">
-          <label className="field-label">From <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· E.164</span></label>
+          <label className="field-label">{t('notif.f.from')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· E.164</span></label>
           <input className="input mono" value={config.from || ''}
             onChange={e => set('from', e.target.value)} placeholder="+15551234567"/>
         </div>
         <div className="field">
-          <label className="field-label">To <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· E.164, comma-separated</span></label>
+          <label className="field-label">{t('notif.f.to')} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>· E.164, comma-separated</span></label>
           <input className="input mono" value={config.to || ''}
             onChange={e => set('to', e.target.value)} placeholder="+15559876543, +44..."/>
         </div>
