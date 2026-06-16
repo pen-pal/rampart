@@ -1863,6 +1863,8 @@ const fr = {
   'errors.volume_hint': 'Événements d\'erreur sur les 7 derniers jours',
   'errors.affected_users': 'Utilisateurs touchés',
   'dashboard.metrics.title': 'Séries de métriques',
+  'dashboard.incident.ongoing': 'En cours',
+  'dashboard.incident.resolved': 'Résolu',
   'dashboard.escalations.title': 'Escalades actives',
   'dashboard.escalations.step': 'étape {n}',
   'dashboard.escalations.acked': 'Acquittée',

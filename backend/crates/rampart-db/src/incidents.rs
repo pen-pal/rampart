@@ -155,6 +155,41 @@ pub async fn list_active(pool: &DbPool, page: StatusPageId) -> DbResult<Vec<Inci
         .collect())
 }
 
+/// Recent incidents across every status page — the dashboard's "Recent
+/// incidents" feed (active ones first, then newest). Capped at `limit`.
+pub async fn recent(pool: &DbPool, limit: i64) -> DbResult<Vec<Incident>> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT
+            id, status_page_id, title, content,
+            style AS "style: IncidentStyle",
+            pinned, active, resolved_at, created_at, created_by, dedup_key
+        FROM incidents
+        ORDER BY active DESC, created_at DESC
+        LIMIT $1
+        "#,
+        limit.clamp(1, 50),
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| Incident {
+            id: IncidentId::from_uuid(r.id),
+            status_page_id: StatusPageId::from_uuid(r.status_page_id),
+            title: r.title,
+            content: r.content,
+            style: r.style,
+            pinned: r.pinned,
+            active: r.active,
+            resolved_at: r.resolved_at,
+            created_at: r.created_at,
+            created_by: r.created_by.map(UserId::from_uuid),
+            dedup_key: r.dedup_key,
+        })
+        .collect())
+}
+
 /// Resolved incidents for the public history pane, newest-first. Capped
 /// at `limit` so a long-lived page can't dump its full history into one
 /// page response. The public-view shape only needs the title / content /

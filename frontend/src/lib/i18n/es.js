@@ -1649,6 +1649,8 @@ const es = {
   'errors.volume_hint': 'Eventos de error en los últimos 7 días',
   'errors.affected_users': 'Usuarios afectados',
   'dashboard.metrics.title': 'Series de métricas',
+  'dashboard.incident.ongoing': 'En curso',
+  'dashboard.incident.resolved': 'Resuelto',
   'dashboard.escalations.title': 'Escalados activos',
   'dashboard.escalations.step': 'paso {n}',
   'dashboard.escalations.acked': 'Reconocido',

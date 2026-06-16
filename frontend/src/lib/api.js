@@ -367,6 +367,7 @@ export const api = {
   incidents: {
     listForPage:  (pageId)              => request(`/v1/status-pages/${pageId}/incidents`),
     create:       (pageId, input)       => request(`/v1/status-pages/${pageId}/incidents`, { method: 'POST', body: input }),
+    recent:       ()                    => request('/v1/incidents/recent'),
     update:       (id, patch)           => request(`/v1/incidents/${id}`, { method: 'PATCH', body: patch }),
     remove:       (id)                  => request(`/v1/incidents/${id}`, { method: 'DELETE' }),
     resolve:      (id)                  => request(`/v1/incidents/${id}/resolve`, { method: 'POST' }),

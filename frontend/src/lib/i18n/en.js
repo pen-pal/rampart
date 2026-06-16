@@ -339,6 +339,8 @@ const en = {
   'slos.trend':                      'Achieved trend',
   'dashboard.errors.title':          'Recent errors',
   'dashboard.metrics.title':         'Metric series',
+  'dashboard.incident.ongoing':      'Ongoing',
+  'dashboard.incident.resolved':     'Resolved',
   'dashboard.escalations.title':     'Active escalations',
   'dashboard.escalations.step':      'step {n}',
   'dashboard.escalations.acked':     'Acknowledged',

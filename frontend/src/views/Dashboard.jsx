@@ -278,8 +278,12 @@ function MonitorRow({ m, active, onClick, uptimePct, draggable, dragging, onDrag
 // against a common time axis (most-recent-window samples). Each line is a
 // monitor; we key by short name so the legend stays readable.
 function buildTrend(historyById, monitorsById) {
+  // Rank by the count of UP heartbeats that actually carry a latency — a monitor
+  // that's currently down (or never records latency) would only plot gaps, so
+  // it shouldn't win a slot and leave the chart blank.
   const ids = [...historyById.keys()]
-    .map(id => ({ id, count: historyById.get(id).length }))
+    .map(id => ({ id, count: historyById.get(id).filter(h => h.status === 'up' && h.latency_ms != null).length }))
+    .filter(x => x.count > 0)
     .sort((a, b) => b.count - a.count)
     .slice(0, 4)
     .map(x => x.id);
@@ -947,9 +951,38 @@ export default function Dashboard({ user, onLogout } = {}) {
   const goToNewMonitor = ()   => { window.location.hash = '#/new-monitor'; };
   const goToStatusPage = ()   => { window.location.hash = '#/status-page'; };
 
-  // Stub data we don't have endpoints for yet. The empty states render cleanly.
-  const recentIncidents = [];
-  const upcomingMaint   = [];
+  // Recent status-page incidents (across all pages) + maintenance windows.
+  const incidentsState = useApi(() => api.incidents.recent(), [reloadKey], { pollMs: 60_000 });
+  const maintState     = useApi(() => api.maintenance.list(), [reloadKey], { pollMs: 60_000 });
+  const recentIncidents = useMemo(() => (incidentsState.data || []).map(i => ({
+    id: (i.id || '').slice(0, 8),
+    sev: i.style === 'major' || i.style === 'critical' ? 'down' : 'warn',
+    monitor: i.title,
+    note: i.active ? t('dashboard.incident.ongoing') : t('dashboard.incident.resolved'),
+    dur: '',
+    when: formatRelative(i.created_at),
+  })), [incidentsState.data]);
+  const upcomingMaint = useMemo(() => {
+    const now = Date.now();
+    return (maintState.data || [])
+      .map(w => ({ w, start: offsetDateTimeArrayToDate(w.start_at), end: offsetDateTimeArrayToDate(w.end_at) }))
+      // Active now or starting in the future, soonest first.
+      .filter(({ end }) => end && end.getTime() >= now)
+      .sort((a, b) => a.start - b.start)
+      .slice(0, 5)
+      .map(({ w, start, end }) => {
+        const mins = start && end ? Math.max(1, Math.round((end - start) / 60000)) : 0;
+        const dur = mins >= 60 ? `${(mins / 60).toFixed(mins % 60 ? 1 : 0)}h` : `${mins}m`;
+        return {
+          id: w.id,
+          title: w.name,
+          recurring: w.recurrence && w.recurrence !== 'none' && w.recurrence?.kind !== 'none',
+          when: start ? start.toLocaleString() : '',
+          dur,
+          monitors: (w.monitor_ids || []).length,
+        };
+      });
+  }, [maintState.data]);
 
   return (
     <div className="rampart">
