@@ -19,6 +19,28 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.86.0] — 2026-06-16
+
+### Security
+- **Decompression-bomb guard on public ingest.** `decompress` (OTLP/RUM/Sentry
+  endpoints) inflated `Content-Encoding: gzip|deflate` bodies with an unbounded
+  `read_to_end` — a few KB of crafted input could expand to gigabytes and OOM
+  the process. Now capped at 64 MiB; over-limit bodies are rejected (400)
+  rather than read.
+
+### Fixed
+- **RDAP**: an already-expired domain stayed `Warn` forever — the
+  `.max(0)` clamp floored the remaining time to 0 days. Now reports `Down` once
+  the expiration event is in the past.
+- **TLS**: a certificate that expired less than 24h ago reported `Warn` instead
+  of `Down`, because the remaining time was truncated to whole days (rounding to
+  0) before the sign check. Now branches on the raw seconds, so any past
+  `not_after` is `Down`.
+
+(All three surfaced + adversarially verified by the codebase audit.)
+
+---
+
 ## [0.85.0] — 2026-06-16
 
 ### Added
@@ -2180,6 +2202,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.86.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.86.0
 [0.85.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.85.0
 [0.84.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.84.0
 [0.83.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.83.0

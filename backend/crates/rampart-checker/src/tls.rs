@@ -213,10 +213,14 @@ fn inspect(der: &CertificateDer<'_>, warn_days: i64) -> CertVerdict {
     };
     let not_after = parsed.validity().not_after.timestamp();
     let now = OffsetDateTime::now_utc().unix_timestamp();
-    let delta_days = (not_after - now) / 86_400;
+    let delta_secs = not_after - now;
+    // Truncating to whole days first hid certs that expired <24h ago (delta_days
+    // rounds to 0, reading as "valid"). Branch on the raw seconds so any past
+    // not_after is Expired (Down), not a soft Warn.
+    let delta_days = delta_secs / 86_400;
 
     let subject = parsed.subject().to_string();
-    if delta_days < 0 {
+    if delta_secs < 0 {
         CertVerdict::Expired(-delta_days)
     } else if delta_days <= warn_days {
         CertVerdict::Warn(delta_days, subject)
