@@ -19,6 +19,15 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.59.4] — 2026-06-16
+
+### Tested
+- Extended the SLO test with an assertion on `slos::trend` (the achieved-ratio
+  sparkline data), completing direct coverage of the read aggregates added this
+  cycle (logs/RUM/errors/traces/SLO).
+
+---
+
 ## [0.59.3] — 2026-06-16
 
 ### Tested
@@ -1704,6 +1713,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.59.4]:     https://github.com/pen-pal/rampart/releases/tag/v0.59.4
 [0.59.3]:     https://github.com/pen-pal/rampart/releases/tag/v0.59.3
 [0.59.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.59.2
 [0.59.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.59.1
