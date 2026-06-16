@@ -19,6 +19,17 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.67.0] — 2026-06-16
+
+### Added
+- **Per-operation p95 latency trend.** Each row in the APM Operations table
+  expands to a p95-latency sparkline over the window (red when trending up),
+  via `GET /v1/traces/operation-trend` (`date_bin`-bucketed). A `→` link still
+  pivots to that service's traces. Spot a degrading operation at a glance.
+  i18n en/es/fr/de.
+
+---
+
 ## [0.66.2] — 2026-06-16
 
 ### Security
@@ -1862,6 +1873,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.67.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.67.0
 [0.66.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.66.2
 [0.66.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.66.1
 [0.66.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.66.0
