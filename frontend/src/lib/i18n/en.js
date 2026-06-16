@@ -1755,6 +1755,7 @@ const en = {
   'errors.err_name':                 'Name is required.',
   'errors.err_save':                 'Could not save the project.',
   'errors.no_issues':                'No issues in this view.',
+  'errors.volume_hint':              'Error events over the last 7 days',
   'errors.last_seen':                'last seen {when}',
   'errors.first_seen':               'first seen {when}',
   'errors.times_seen':               '{n} events',

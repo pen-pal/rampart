@@ -1633,6 +1633,7 @@ const es = {
   'rum.traced': 'Cargas con traza',
   'rum.load': 'Carga',
   'rum.trace': 'Traza',
+  'errors.volume_hint': 'Eventos de error en los últimos 7 días',
 };
 
 export default es;

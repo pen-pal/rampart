@@ -208,8 +208,10 @@ function ProjectForm({ channels, onCancel, onSaved }) {
 function ProjectIssues({ project, onBack, onOpenIssue }) {
   const [status, setStatus] = useState('unresolved');
   const issuesState = useApi(() => api.errorProjects.issues(project.id, status || undefined), [status]);
+  const histState = useApi(() => api.errorProjects.histogram(project.id, 168), []);
   const [copied, setCopied] = useState(false);
   const issues = issuesState.data || [];
+  const hist = histState.data || [];
   const dsn = dsnFor(project);
 
   const copyDsn = async () => {
@@ -230,6 +232,17 @@ function ProjectIssues({ project, onBack, onOpenIssue }) {
       </div>
 
       <SourceMaps projectId={project.id} />
+
+      {hist.length > 1 && (() => {
+        const max = Math.max(1, ...hist.map(b => b.count));
+        return (
+          <div title={t('errors.volume_hint')} style={{ display: 'flex', alignItems: 'flex-end', gap: 1, height: 44, marginBottom: 14 }}>
+            {hist.map((b, i) => (
+              <div key={i} title={`${b.count}`} style={{ flex: 1, height: `${Math.max((b.count / max) * 100, b.count ? 4 : 0)}%`, minHeight: b.count ? 2 : 0, background: 'var(--down)', opacity: .7, borderRadius: 1 }}/>
+            ))}
+          </div>
+        );
+      })()}
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
         {STATUSES.map(s => (

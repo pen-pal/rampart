@@ -442,6 +442,48 @@ pub async fn recent_open_issues(pool: &DbPool, limit: i64) -> DbResult<Vec<Error
     Ok(rows.into_iter().map(Into::into).collect())
 }
 
+/// One bucket of a project's error-event volume over time.
+#[derive(Debug, serde::Serialize)]
+pub struct ErrorBucket {
+    pub ts: time::OffsetDateTime,
+    pub count: i64,
+}
+
+/// Time-bucketed error-event volume for a project over the window — the
+/// Errors-view sparkline. ~`buckets` points, oldest first.
+pub async fn project_event_histogram(
+    pool: &DbPool,
+    project_id: ErrorProjectId,
+    hours: i32,
+    buckets: i64,
+) -> DbResult<Vec<ErrorBucket>> {
+    let hours = hours.clamp(1, 720);
+    let buckets = buckets.clamp(2, 200);
+    let step = ((hours as i64 * 3600) / buckets).max(1);
+    let rows = sqlx::query!(
+        r#"
+        SELECT date_bin(make_interval(secs => $3), ts,
+                        now() - make_interval(hours => $2)) AS "bucket!",
+               COUNT(*) AS "count!"
+        FROM error_events
+        WHERE project_id = $1 AND ts > now() - make_interval(hours => $2)
+        GROUP BY 1 ORDER BY 1
+        "#,
+        project_id.0,
+        hours,
+        step as f64,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| ErrorBucket {
+            ts: r.bucket,
+            count: r.count,
+        })
+        .collect())
+}
+
 pub async fn get_issue(pool: &DbPool, id: ErrorIssueId) -> DbResult<ErrorIssue> {
     let row = sqlx::query_as!(
         IssueRow,

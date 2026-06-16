@@ -1847,6 +1847,7 @@ const fr = {
   'rum.traced': 'Chargements tracés',
   'rum.load': 'Chargement',
   'rum.trace': 'Trace',
+  'errors.volume_hint': 'Événements d\'erreur sur les 7 derniers jours',
 };
 
 export default fr;
