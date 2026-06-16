@@ -19,6 +19,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.98.0] — 2026-06-16
+
+### Added
+- **Error-issue "Load older" keyset pagination.** A project's issue list can
+  now page past its cap via a `(last_seen, id)` keyset cursor (`before_id`,
+  resolved server-side) with a clamped `limit`, instead of a hard `LIMIT 200`.
+  (Audit #23.)
+
+---
+
 ## [0.97.0] — 2026-06-16
 
 ### Added
@@ -2367,6 +2377,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.98.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.98.0
 [0.97.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.97.0
 [0.96.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.96.0
 [0.95.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.95.2

@@ -530,7 +530,13 @@ export const api = {
     create: (input)     => request('/v1/error-projects', { method: 'POST', body: input }),
     update: (id, patch) => request(`/v1/error-projects/${id}`, { method: 'PATCH', body: patch }),
     remove: (id)        => request(`/v1/error-projects/${id}`, { method: 'DELETE' }),
-    issues: (id, status) => request(`/v1/error-projects/${id}/issues${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+    issues: (id, status, before_id) => {
+      const qs = new URLSearchParams();
+      if (status) qs.set('status', status);
+      if (before_id) qs.set('before_id', before_id);
+      const s = qs.toString();
+      return request(`/v1/error-projects/${id}/issues${s ? '?' + s : ''}`);
+    },
     histogram: (id, hours) => request(`/v1/error-projects/${id}/histogram${hours ? `?hours=${hours}` : ''}`),
   },
   errorIssues: {
