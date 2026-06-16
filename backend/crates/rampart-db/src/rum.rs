@@ -243,6 +243,47 @@ pub async fn browser_breakdown(
         .collect())
 }
 
+/// Page-views + p75 LCP grouped by app user — "which users have a bad
+/// experience". Only beacons that carried a `user_id`. Busiest first.
+#[derive(Debug, serde::Serialize)]
+pub struct RumUser {
+    pub user_id: String,
+    pub views: i64,
+    pub lcp_p75: Option<f64>,
+}
+
+pub async fn user_breakdown(
+    pool: &DbPool,
+    app: Option<&str>,
+    hours: i32,
+) -> DbResult<Vec<RumUser>> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT user_id AS "user_id!", count(*) AS "views!",
+               percentile_cont(0.75) WITHIN GROUP (ORDER BY lcp_ms) AS "lcp_p75"
+        FROM rum_events
+        WHERE user_id IS NOT NULL
+          AND ($1::text IS NULL OR app = $1)
+          AND received_at > now() - make_interval(hours => $2)
+        GROUP BY user_id
+        ORDER BY count(*) DESC
+        LIMIT 50
+        "#,
+        app,
+        hours.clamp(1, 2160),
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| RumUser {
+            user_id: r.user_id,
+            views: r.views,
+            lcp_p75: r.lcp_p75,
+        })
+        .collect())
+}
+
 /// Distinct app/site names seen recently (filter dropdown).
 pub async fn apps(pool: &DbPool) -> DbResult<Vec<String>> {
     let rows = sqlx::query_scalar!(

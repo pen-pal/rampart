@@ -1844,6 +1844,7 @@ const fr = {
   'traces.edge_open': 'Ouvrir les traces de ce service',
   'dashboard.errors.title': 'Erreurs récentes',
   'logs.window_hint': 'Fenêtre de l\'histogramme et du comptage par niveau',
+  'rum.users': 'Utilisateurs',
   'rum.browsers': 'Navigateurs',
   'rum.browser': 'Navigateur',
   'rum.when': 'Quand',
