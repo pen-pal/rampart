@@ -16,37 +16,56 @@ pub async fn insert_logs(pool: &DbPool, logs: &[ParsedLog]) -> DbResult<u64> {
     if logs.is_empty() {
         return Ok(0);
     }
-    let mut tx = pool.begin().await?;
-    let mut n = 0u64;
+    // One bulk INSERT via UNNEST instead of a per-row loop — column-parallel
+    // arrays expand into rows server-side, a single round-trip.
+    let n = logs.len();
+    let mut ids = Vec::with_capacity(n);
+    let mut ts = Vec::with_capacity(n);
+    let mut sev = Vec::with_capacity(n);
+    let mut sevt = Vec::with_capacity(n);
+    let mut svc = Vec::with_capacity(n);
+    let mut body = Vec::with_capacity(n);
+    let mut trace = Vec::with_capacity(n);
+    let mut span = Vec::with_capacity(n);
+    let mut attrs = Vec::with_capacity(n);
     for l in logs {
-        let ts = if l.time_ns > 0 {
+        ids.push(Uuid::now_v7());
+        ts.push(if l.time_ns > 0 {
             OffsetDateTime::from_unix_timestamp_nanos(l.time_ns as i128)
                 .unwrap_or_else(|_| OffsetDateTime::now_utc())
         } else {
             OffsetDateTime::now_utc()
-        };
-        let res = sqlx::query!(
-            r#"
-            INSERT INTO logs
-                (id, ts, severity, severity_text, service_name, body, trace_id, span_id, attributes)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            "#,
-            Uuid::now_v7(),
-            ts,
-            l.severity,
-            l.severity_text,
-            l.service_name,
-            l.body,
-            l.trace_id,
-            l.span_id,
-            l.attributes,
-        )
-        .execute(&mut *tx)
-        .await?;
-        n += res.rows_affected();
+        });
+        sev.push(l.severity);
+        sevt.push(l.severity_text.clone());
+        svc.push(l.service_name.clone());
+        body.push(l.body.clone());
+        trace.push(l.trace_id.clone());
+        span.push(l.span_id.clone());
+        attrs.push(l.attributes.clone());
     }
-    tx.commit().await?;
-    Ok(n)
+    let res = sqlx::query!(
+        r#"
+        INSERT INTO logs
+            (id, ts, severity, severity_text, service_name, body, trace_id, span_id, attributes)
+        SELECT * FROM UNNEST(
+            $1::uuid[], $2::timestamptz[], $3::int2[], $4::text[], $5::text[],
+            $6::text[], $7::text[], $8::text[], $9::jsonb[]
+        )
+        "#,
+        &ids,
+        &ts,
+        &sev,
+        &sevt as &[Option<String>],
+        &svc,
+        &body,
+        &trace as &[Option<String>],
+        &span as &[Option<String>],
+        &attrs,
+    )
+    .execute(pool)
+    .await?;
+    Ok(res.rows_affected())
 }
 
 struct LogRow {
