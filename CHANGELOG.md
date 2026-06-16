@@ -19,6 +19,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.101.1] — 2026-06-16
+
+### Security
+- **Re-verified the accepted `rustls-webpki` advisories (RUSTSEC-2026-0049 /
+  0098 / 0099 / 0104) and refreshed the rationale.** Confirmed the documented
+  debt still stands: fully clearing them would require either accepting an
+  `aws-lc-rs`/cmake C crypto provider (via `rumqttc` 0.25, which still offers no
+  `ring` opt-in) or dropping the MSSQL/NATS/MQTT probes — both trade away the
+  deliberate pure-Rust, C-toolchain-free build. Corrected a stale note: contrary
+  to the prior text, `async-nats` 0.49 *does* now expose a `ring` feature, but
+  bumping it alone clears nothing while `rumqttc` and `tiberius` (still latest at
+  0.12.3, no rustls-0.23 release) keep dragging the old webpki in. The advisories
+  are outbound-probe-TLS only with the CRL paths unreached by default config.
+  Re-confirmed `cargo tree -i aws-lc-rs|cmake|openssl` all return no matches.
+  See `docs/SECURITY-DEBT.md`.
+
+---
+
 ## [0.101.0] — 2026-06-16
 
 ### Added
