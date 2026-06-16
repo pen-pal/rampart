@@ -682,6 +682,9 @@ export default function NewMonitorWizard() {
           }
         }
       }
+    }
+    // Latency SLA for any connect-based kind.
+    if (fields.url || fields.hostname) {
       const ml = parseInt(maxLatency, 10);
       if (Number.isFinite(ml) && ml > 0) config.max_latency_ms = ml;
     }
@@ -1095,12 +1098,17 @@ export default function NewMonitorWizard() {
                         <div className="field-hint">{t('wizard.field.db_auth_hint')}</div>
                       </div>
                     )}
-                    <div className="field">
-                      <label className="field-label">{t('wizard.field.max_latency')} <span style={{ textTransform: 'none', color: 'var(--text-3)' }}>({t('wizard.optional')})</span></label>
-                      <input className="input mono" type="number" min="0" value={maxLatency} onChange={e => setMaxLatency(e.target.value)} placeholder="e.g. 500"/>
-                      <div className="field-hint">{t('wizard.field.max_latency_hint')}</div>
-                    </div>
                   </>
+                )}
+
+                {/* Latency SLA — meaningful for any connect-based check (the
+                    central gate marks a slow-but-up check down). */}
+                {(fields.url || fields.hostname) && (
+                  <div className="field">
+                    <label className="field-label">{t('wizard.field.max_latency')} <span style={{ textTransform: 'none', color: 'var(--text-3)' }}>({t('wizard.optional')})</span></label>
+                    <input className="input mono" type="number" min="0" value={maxLatency} onChange={e => setMaxLatency(e.target.value)} placeholder="e.g. 500"/>
+                    <div className="field-hint">{t('wizard.field.max_latency_hint')}</div>
+                  </div>
                 )}
 
                 {fields.keyword && (

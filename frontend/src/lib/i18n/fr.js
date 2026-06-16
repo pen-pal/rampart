@@ -1862,6 +1862,9 @@ const fr = {
   'wizard.field.db_auth_hint': 'Utilisé si aucune chaîne de connexion complète n\'est définie. Stocké dans la configuration du moniteur et envoyé au serveur à chaque vérification.',
   'wizard.field.bind_dn': 'DN de liaison',
   'wizard.field.bind_password': 'Mot de passe de liaison',
+  'monitor.config.mode_form': 'Formulaire',
+  'monitor.config.mode_json': 'JSON',
+  'monitor.config.invalid_json': 'La configuration n’est pas un JSON valide — passez en mode JSON pour la corriger.',
   'wizard.field.max_latency': 'Latence max. (ms)',
   'wizard.field.max_latency_hint': 'Marque la vérification comme hors service si elle répond plus lentement que cela — détection de dégradation distincte du délai de connexion. Vide = désactivé.',
 };

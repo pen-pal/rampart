@@ -1181,6 +1181,11 @@ function EditModal({ monitor, onCancel }) {
       ? JSON.stringify(monitor.config, null, 2)
       : '',
   );
+  // Probe-config editor mode: structured form (default when the kind has known
+  // fields) or raw JSON.
+  const [configMode,  setConfigMode]  = useState(
+    configFields(monitor.kind).length ? 'form' : 'json',
+  );
   // Per-monitor SLO target. Both fields are optional — an empty string
   // is treated as "clear" so the operator can disable an SLO by erasing
   // either value.
@@ -1475,16 +1480,33 @@ function EditModal({ monitor, onCancel }) {
           )}
 
           {/* ── Probe config ──────────────────────────────────────── */}
-          <div className="modal-section">{t('monitor.edit.section.probe')}</div>
-          <Field label="">
-            <textarea className="input mono" rows={6}
-              value={config} onChange={e => setConfig(e.target.value)}
-              placeholder={configPlaceholder(monitor.kind)}
-              style={{ minHeight: 120 }}/>
-            <div className="modal-hint">
-              {configHint(monitor.kind)}
-            </div>
-          </Field>
+          <div className="modal-section" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>{t('monitor.edit.section.probe')}</span>
+            {configFields(monitor.kind).length > 0 && (
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button type="button" className={`btn ${configMode === 'form' ? 'btn-accent' : 'btn-ghost'}`}
+                  style={{ padding: '3px 10px', fontSize: 12 }} onClick={() => setConfigMode('form')}>{t('monitor.config.mode_form')}</button>
+                <button type="button" className={`btn ${configMode === 'json' ? 'btn-accent' : 'btn-ghost'}`}
+                  style={{ padding: '3px 10px', fontSize: 12 }} onClick={() => setConfigMode('json')}>{t('monitor.config.mode_json')}</button>
+              </div>
+            )}
+          </div>
+          {configMode === 'form' && configFields(monitor.kind).length > 0 ? (
+            <>
+              <ProbeConfigForm kind={monitor.kind} config={config} setConfig={setConfig} />
+              <div className="modal-hint">{configHint(monitor.kind)}</div>
+            </>
+          ) : (
+            <Field label="">
+              <textarea className="input mono" rows={6}
+                value={config} onChange={e => setConfig(e.target.value)}
+                placeholder={configPlaceholder(monitor.kind)}
+                style={{ minHeight: 120 }}/>
+              <div className="modal-hint">
+                {configHint(monitor.kind)}
+              </div>
+            </Field>
+          )}
         </div>
 
         {/* Footer — sticky so the action buttons are always reachable. */}
@@ -1526,6 +1548,109 @@ function configPlaceholder(kind) {
     default:          return '{}';
   }
 }
+// Known config keys per kind, for the structured ("Form") config editor. Keys
+// not listed here are preserved untouched — switch to JSON mode to edit them.
+function configFields(kind) {
+  const latency = { key: 'max_latency_ms', label: 'Max latency (ms)', type: 'number', ph: 'e.g. 500' };
+  switch (kind) {
+    case 'http': case 'keyword': case 'json_query':
+      return [
+        { key: 'keyword', label: 'Keyword', type: 'text', ph: 'operational' },
+        { key: 'json_path', label: 'JSON path', type: 'text', ph: '$.status' },
+        { key: 'expected_value', label: 'Expected value', type: 'text', ph: 'ok' },
+        latency,
+      ];
+    case 'dns':
+      return [
+        { key: 'record_type', label: 'Record type', type: 'text', ph: 'A' },
+        { key: 'resolver', label: 'Resolver', type: 'text', ph: '1.1.1.1' },
+        { key: 'expected', label: 'Expected (substring)', type: 'text', ph: '' },
+      ];
+    case 'postgres': case 'mysql': case 'mssql': case 'mongodb':
+      return [
+        { key: 'user', label: 'Username', type: 'text', ph: kind },
+        { key: 'password', label: 'Password', type: 'password', ph: '' },
+        { key: 'database', label: 'Database', type: 'text', ph: kind },
+        { key: 'connection_string', label: 'Connection string', type: 'text', ph: '(overrides the above)' },
+        latency,
+      ];
+    case 'redis':
+      return [
+        { key: 'user', label: 'Username (ACL)', type: 'text', ph: 'default' },
+        { key: 'password', label: 'Password', type: 'password', ph: '' },
+        { key: 'db', label: 'DB number', type: 'number', ph: '0' },
+        { key: 'tls', label: 'TLS', type: 'bool' },
+        latency,
+      ];
+    case 'mqtt':
+      return [
+        { key: 'username', label: 'Username', type: 'text', ph: '' },
+        { key: 'password', label: 'Password', type: 'password', ph: '' },
+        { key: 'client_id', label: 'Client ID', type: 'text', ph: 'rampart' },
+        { key: 'tls', label: 'TLS', type: 'bool' },
+        latency,
+      ];
+    case 'ldap':
+      return [
+        { key: 'bind_dn', label: 'Bind DN', type: 'text', ph: 'cn=monitor,dc=example,dc=com' },
+        { key: 'bind_password', label: 'Bind password', type: 'password', ph: '' },
+        latency,
+      ];
+    case 'ssh': case 'smtp': case 'imap': case 'pop3': case 'ftp':
+      return [{ key: 'expect', label: 'Expect (greeting prefix)', type: 'text', ph: '220' }, latency];
+    case 'browser':
+      return [
+        { key: 'renderer_url', label: 'Renderer URL', type: 'text', ph: 'http://browserless:3000/content' },
+        { key: 'keyword', label: 'Keyword', type: 'text', ph: 'operational' },
+      ];
+    case 'tcp': case 'grpc': case 'mongodb': case 'memcached': case 'nats':
+    case 'cassandra': case 'kafka': case 'amqp': case 'websocket': case 'snmp':
+      return [latency];
+    default:
+      return [];
+  }
+}
+
+// Structured editor for the known config keys. Parses the JSON string, edits
+// the listed keys, preserves any unlisted keys, and writes back the serialized
+// JSON (so save uses the same path as the raw editor).
+function ProbeConfigForm({ kind, config, setConfig }) {
+  const fields = configFields(kind);
+  let obj = {};
+  let parseErr = false;
+  try {
+    obj = config.trim() ? JSON.parse(config) : {};
+    if (typeof obj !== 'object' || Array.isArray(obj)) { obj = {}; parseErr = true; }
+  } catch { parseErr = true; }
+  if (parseErr) {
+    return <div className="modal-hint" style={{ color: 'var(--down)' }}>{t('monitor.config.invalid_json')}</div>;
+  }
+  const setKey = (key, val, type) => {
+    const next = { ...obj };
+    if (val === '' || val == null || val === false) delete next[key];
+    else if (type === 'number') { const n = Number(val); if (Number.isFinite(n)) next[key] = n; else delete next[key]; }
+    else next[key] = val;
+    setConfig(Object.keys(next).length ? JSON.stringify(next, null, 2) : '');
+  };
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      {fields.map(f => (
+        <Field key={f.key} label={f.label}>
+          {f.type === 'bool'
+            ? <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}>
+                <input type="checkbox" checked={!!obj[f.key]} onChange={e => setKey(f.key, e.target.checked, 'bool')}/> {t('common.enabled') || 'enabled'}
+              </label>
+            : <input className="input mono"
+                type={f.type === 'password' ? 'password' : f.type === 'number' ? 'number' : 'text'}
+                value={obj[f.key] ?? ''} placeholder={f.ph}
+                autoComplete={f.type === 'password' ? 'new-password' : 'off'}
+                onChange={e => setKey(f.key, e.target.value, f.type)}/>}
+        </Field>
+      ))}
+    </div>
+  );
+}
+
 function configHint(kind) {
   switch (kind) {
     case 'dns':       return 'Keys: record_type (A | AAAA | CNAME | MX | TXT | NS | SRV | CAA | SOA), resolver (IP), expected (substring).';

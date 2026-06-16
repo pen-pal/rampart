@@ -1877,6 +1877,9 @@ const de = {
   'wizard.field.db_auth_hint': 'Wird verwendet, wenn keine vollständige Verbindungszeichenfolge gesetzt ist. Wird in der Monitor-Konfiguration gespeichert und bei jeder Prüfung an den Server gesendet.',
   'wizard.field.bind_dn': 'Bind-DN',
   'wizard.field.bind_password': 'Bind-Passwort',
+  'monitor.config.mode_form': 'Formular',
+  'monitor.config.mode_json': 'JSON',
+  'monitor.config.invalid_json': 'Konfiguration ist kein gültiges JSON — wechseln Sie in den JSON-Modus, um sie zu korrigieren.',
   'wizard.field.max_latency': 'Max. Latenz (ms)',
   'wizard.field.max_latency_hint': 'Markiert die Prüfung als ausgefallen, wenn sie langsamer antwortet — Degradationserkennung getrennt vom Verbindungs-Timeout. Leer = aus.',
 };
