@@ -83,3 +83,36 @@ Re-checked the standing upstream blocks; all unchanged, no action:
 
 Confirmed `cargo tree -i aws-lc-rs` / `-i cmake` / `-i openssl` still
 return "did not match any packages".
+
+## Re-verification — 2026-06-16 (post-v0.101.0)
+
+Re-checked latest versions of every blocking crate. The conclusion is
+unchanged — the `rustls-webpki` advisories stay ignored — but one
+rationale line is now stale and is corrected here (and in `deny.toml`):
+
+- **`async-nats`**: now **has** a fixed-release path. `async-nats 0.49.1`
+  (latest; we pin 0.36.0) exposes an explicit `ring` feature
+  (`ring = [dep:ring, tokio-rustls/ring]`) alongside `aws-lc-rs`, so it
+  *can* move to rustls 0.23 / webpki 0.103 **without** a C crypto
+  provider. The earlier note ("async-nats has no semver-compatible fixed
+  release") is therefore wrong as of today.
+- **…but bumping `async-nats` alone clears nothing.** The 0.102 advisory
+  is also dragged in by **`rumqttc` 0.24 → rustls 0.22**, and `rumqttc`
+  0.25.1 (latest) still only offers `use-rustls` with **no `ring` opt-in**
+  → it forces `aws-lc-rs`. The 0.101 advisory is dragged in by
+  **`tiberius` 0.12.3**, which is still the latest release (no fix exists
+  upstream at all). So `rustls-webpki` 0.101/0.102 remain in the tree
+  until *both* `rumqttc` gains a `ring` path **and** `tiberius` cuts a
+  rustls-0.23 release — or until we drop those probes.
+- **`scylla` / Cassandra-TLS**: unchanged — still no `ring`-only feature.
+- Confirmed `cargo tree -i aws-lc-rs` / `-i aws-lc-sys` / `-i cmake` /
+  `-i openssl` / `-i openssl-sys` all still return "did not match any
+  packages" — the pure-Rust, C-toolchain-free build invariant holds.
+
+**Decision:** keep the documented-debt stance. The only ways to fully
+clear the alerts today are to accept `aws-lc-rs`+cmake (via `rumqttc`
+0.25) or drop the MSSQL/NATS/MQTT probes — both trade away a deliberate
+build constraint. The advisories are outbound-probe-TLS only and the CRL
+paths are unreached by default config, so the residual risk is low.
+Revisit when `rumqttc` ships a `ring` path and `tiberius` cuts a
+rustls-0.23 release.

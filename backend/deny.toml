@@ -17,12 +17,15 @@ unmaintained = "workspace"
 ignore = [
     # rustls-webpki 0.102/0.101 cert name-constraint + CRL-parse panics, pulled
     # transitively by rumqttc -> rustls 0.22, async-nats 0.36 (0.102), and
-    # tiberius -> rustls 0.21 (0.101). Fix needs rustls 0.23 (webpki 0.103);
-    # blocked because rumqttc 0.25 pulls aws-lc-rs/cmake (breaks the pure-Rust
-    # build) and async-nats/tiberius have no semver-compatible fixed release.
+    # tiberius -> rustls 0.21 (0.101). Fix needs rustls 0.23 (webpki 0.103)
+    # across ALL THREE. Blocked: rumqttc 0.25.1 still only offers `use-rustls`
+    # (no `ring` opt-in -> forces aws-lc-rs/cmake, breaks the pure-Rust build);
+    # tiberius 0.12.3 is still latest with no rustls-0.23 release. async-nats
+    # 0.49.1 *does* now expose a `ring` feature, but bumping it alone clears
+    # nothing while rumqttc + tiberius still drag the old webpki in.
     # Only reachable on a TLS handshake to an operator-specified MQTT/NATS/MSSQL
     # target with a malicious cert; CRL path not exercised by default config.
-    # See docs/SECURITY-DEBT.md. Re-check on every probe-dep bump.
+    # See docs/SECURITY-DEBT.md (re-verified 2026-06-16). Re-check on probe bumps.
     "RUSTSEC-2026-0049",
     "RUSTSEC-2026-0098",
     "RUSTSEC-2026-0099",
