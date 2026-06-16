@@ -48,3 +48,26 @@ async fn service_map_edge_has_calls_errors_p95(pool: PgPool) {
     // Same-service parent/child pairs are not edges (web has no self-edge here).
     assert!(!edges.iter().any(|e| e.from_service == e.to_service));
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn operation_trend_returns_p95_series(pool: PgPool) {
+    // Several spans for one (service, operation) → at least one bucket of p95.
+    traces::insert_spans(
+        &pool,
+        &[
+            span("a1", None, "api", 100.0, false),
+            span("a2", None, "api", 150.0, false),
+            span("a3", None, "api", 200.0, false),
+        ],
+    )
+    .await
+    .unwrap();
+
+    let trend = traces::operation_trend(&pool, "api", "api op", 24, 24).await.unwrap();
+    assert!(!trend.is_empty(), "a recent bucket with p95");
+    // p95 of {100,150,200} sits in range.
+    assert!(trend.iter().all(|&p| (100.0..=200.0).contains(&p)));
+
+    // A different operation has no data.
+    assert!(traces::operation_trend(&pool, "api", "missing", 24, 24).await.unwrap().is_empty());
+}
