@@ -19,6 +19,17 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.68.2] — 2026-06-16
+
+### Changed
+- The **Metrics** empty state is more actionable — besides the push-gateway
+  curl, it now points to `rampart-api seed-demo` (demo metrics), Prometheus
+  `remote_write` (`/prom/write`), and the rampart-agent. (The view is empty only
+  when no metrics have been ingested; `list_series` has no time window.) i18n
+  en/es/fr/de.
+
+---
+
 ## [0.68.1] — 2026-06-16
 
 ### Documentation
@@ -1910,6 +1921,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.68.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.68.2
 [0.68.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.68.1
 [0.68.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.68.0
 [0.67.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.67.2
