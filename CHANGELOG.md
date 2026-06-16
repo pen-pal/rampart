@@ -19,6 +19,19 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.87.0] — 2026-06-16
+
+### Security
+- **OIDC: require a verified email before provisioning or linking an account.**
+  The callback trusted the `email` claim unconditionally, so anyone who could
+  register an *unverified* account at the configured IdP under a victim's
+  address could log in as — or auto-provision — that victim's Rampart user
+  (account takeover). The callback now rejects logins unless the provider
+  asserts `email_verified` true (tolerant of bool or `"true"`/`"false"` string
+  encodings). (Audit finding, HIGH.)
+
+---
+
 ## [0.86.0] — 2026-06-16
 
 ### Security
@@ -2202,6 +2215,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.87.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.87.0
 [0.86.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.86.0
 [0.85.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.85.0
 [0.84.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.84.0
