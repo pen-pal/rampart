@@ -10,14 +10,24 @@ copy-pasting ids between tools. This page maps the full correlation web.
 | :--- | :--- | :--- |
 | **Log line** | Trace | A log carrying a `trace_id` links straight to that trace's waterfall; the `span_id` is shown alongside. |
 | **Trace** | Logs | The trace detail view embeds the logs emitted under its `trace_id`. |
+| **Span** | Logs | Expanding a span in the waterfall shows the logs emitted under that exact `span_id` inline — finer than the whole-trace view. |
 | **Error issue** | Trace | An error event with trace context (`contexts.trace.trace_id`) links to the originating trace. |
 | **Trace** | Errors | The trace detail view lists error issues touched by that trace. |
 | **Trace span** | Profiling | Each span deep-links to a flamegraph scoped to its service and exact `[start, end]` window (epoch-ms). |
 | **RUM page-load** | Trace | A beacon carrying a backend `trace_id` links the browser page-load to its server trace. |
 | **Service-map edge** | Traces | Clicking a caller → callee edge opens the traces list filtered to that callee service. |
+| **APM operation** | Traces | An operation row in the APM table pivots to that service's traces (and expands a p95-latency trend). |
 
 These are bidirectional where it makes sense (log ↔ trace, error ↔ trace), so
 a pivot in one direction has a return path.
+
+### User identity
+
+The "who experienced this" question is answered in two tiers, both keyed on an
+application user id: **RUM** beacons carry `user_id` (`window.__rampartUser`),
+surfaced in the per-page drill-down and a Users breakdown; **error issues** list
+their affected users from the Sentry `user` context. Same identifier, so a user
+hitting both a slow page and an exception is recognizable across tiers.
 
 ## How the ids flow
 
