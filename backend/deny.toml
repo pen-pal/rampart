@@ -15,10 +15,14 @@ unmaintained = "workspace"
 # dependency-upgrade pass — see docs/SECURITY-DEBT.md. Review on every
 # `cargo update`.
 ignore = [
-    # rustls-webpki 0.102 (via rumqttc -> rustls 0.22): cert name-constraint
-    # + CRL-parse panics. Fix needs rustls 0.23 (webpki 0.103), gated on a
-    # rumqttc upgrade. MQTT probe verifies an operator-specified broker's
-    # cert; CRL path is not exercised by default config.
+    # rustls-webpki 0.102/0.101 cert name-constraint + CRL-parse panics, pulled
+    # transitively by rumqttc -> rustls 0.22, async-nats 0.36 (0.102), and
+    # tiberius -> rustls 0.21 (0.101). Fix needs rustls 0.23 (webpki 0.103);
+    # blocked because rumqttc 0.25 pulls aws-lc-rs/cmake (breaks the pure-Rust
+    # build) and async-nats/tiberius have no semver-compatible fixed release.
+    # Only reachable on a TLS handshake to an operator-specified MQTT/NATS/MSSQL
+    # target with a malicious cert; CRL path not exercised by default config.
+    # See docs/SECURITY-DEBT.md. Re-check on every probe-dep bump.
     "RUSTSEC-2026-0049",
     "RUSTSEC-2026-0098",
     "RUSTSEC-2026-0099",
