@@ -19,6 +19,14 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.57.1] — 2026-06-16
+
+### Changed
+- APM **Operations** and **Service map** tabs gain a 1h / 24h / 7d time-window
+  selector (were fixed at 24h), matching the logs histogram window control.
+
+---
+
 ## [0.57.0] — 2026-06-16
 
 ### Added
@@ -1636,6 +1644,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.57.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.57.1
 [0.57.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.57.0
 [0.56.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.56.0
 [0.55.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.55.1
