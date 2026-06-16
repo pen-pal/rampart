@@ -19,6 +19,18 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.89.0] — 2026-06-16
+
+### Performance
+- Added indexes matching the telemetry tiers' real read patterns (migration
+  `0101`), which previously fell back to sequential scans: `logs (ts DESC)` +
+  `logs (service_name, ts DESC)` + `logs (received_at)` for the log list and
+  histogram; `metric_samples (name, labels, ts DESC)` for the metric explorer
+  range query + anomaly baseline; `rum_events (url, ts DESC)` for the per-page
+  RUM query. (Audit findings #13/#14/#15.)
+
+---
+
 ## [0.88.0] — 2026-06-16
 
 ### Security
@@ -2236,6 +2248,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.89.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.89.0
 [0.88.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.88.0
 [0.87.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.87.0
 [0.86.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.86.0
