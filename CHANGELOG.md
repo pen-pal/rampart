@@ -19,6 +19,27 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.88.0] — 2026-06-16
+
+### Security
+- **Notification-channel secrets are no longer exposed on read.** Channel
+  `config` is decrypted by the DB layer, so the `/v1/notifications` list/get
+  endpoints were handing every authenticated user — including read-only ones —
+  the plaintext webhook URLs, bot tokens, API keys, and SMTP passwords of every
+  channel. Secret-shaped config keys are now masked (`••••••`) on all HTTP read
+  responses; an edit that leaves a masked value untouched restores the stored
+  secret on write, so editing still works. The notifier reads config straight
+  from the DB, so delivery is unaffected. Unit-tested.
+- **Synthetic monitor SSRF via redirects closed.** The synthetic probe let
+  `reqwest` auto-follow redirects, so a target could `302` to an internal
+  address that the initial SSRF guard never saw. Redirects are now followed
+  manually (up to 10 hops), re-resolving and SSRF-guarding every `Location`
+  before connecting, with RFC-correct method/body handling.
+
+(Both audit findings, HIGH.)
+
+---
+
 ## [0.87.0] — 2026-06-16
 
 ### Security
@@ -2215,6 +2236,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.88.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.88.0
 [0.87.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.87.0
 [0.86.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.86.0
 [0.85.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.85.0

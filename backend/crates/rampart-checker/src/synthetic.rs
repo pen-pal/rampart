@@ -94,48 +94,33 @@ impl Probe for SyntheticProbe {
             )
             .unwrap_or(Method::GET);
             let url = interpolate(&step.url, &vars);
-            // SSRF guard each step's (interpolated) URL before issuing it.
-            if let Ok(parsed) = reqwest::Url::parse(&url) {
-                if let Some(host) = parsed.host_str() {
-                    let port = parsed.port_or_known_default().unwrap_or(80);
-                    if let Err(blocked) = crate::ssrf::resolve_guarded(
-                        host,
-                        port,
-                        crate::ssrf::block_private_enabled(),
-                    )
-                    .await
-                    {
-                        return down(monitor, ts, started, None, &blocked.to_string());
-                    }
-                }
-            }
-            let mut req = client.request(method, &url);
-            for (k, v) in &step.headers {
-                req = req.header(k, interpolate(v, &vars));
-            }
-            if let Some(body) = &step.body {
-                req = req.body(interpolate(body, &vars));
-            }
-
-            let resp = match req.send().await {
+            // Issue the request, SSRF-guarding the target on every hop (the
+            // client follows no redirects itself — `send_guarded` re-resolves +
+            // re-guards each Location so a redirect can't reach an internal
+            // address the initial URL guard wouldn't have caught).
+            let hdrs: Vec<(String, String)> = step
+                .headers
+                .iter()
+                .map(|(k, v)| (k.clone(), interpolate(v, &vars)))
+                .collect();
+            let body = step.body.as_ref().map(|b| interpolate(b, &vars));
+            let resp = match send_guarded(
+                &client,
+                method,
+                url,
+                &hdrs,
+                body.as_deref(),
+                monitor.follow_redirect,
+            )
+            .await
+            {
                 Ok(r) => r,
-                Err(e) if e.is_timeout() => {
-                    return down(
-                        monitor,
-                        ts,
-                        started,
-                        last_status,
-                        &format!("{label}: request timed out"),
-                    )
+                Err(SendErr::Blocked(b)) => return down(monitor, ts, started, last_status, &b),
+                Err(SendErr::Timeout) => {
+                    return down(monitor, ts, started, last_status, &format!("{label}: request timed out"))
                 }
-                Err(e) => {
-                    return down(
-                        monitor,
-                        ts,
-                        started,
-                        last_status,
-                        &format!("{label}: request failed: {e}"),
-                    )
+                Err(SendErr::Failed(e)) => {
+                    return down(monitor, ts, started, last_status, &format!("{label}: request failed: {e}"))
                 }
             };
 
@@ -208,17 +193,86 @@ impl Probe for SyntheticProbe {
 }
 
 fn build_client(monitor: &Monitor) -> reqwest::Result<Client> {
-    let redirect = if monitor.follow_redirect {
-        reqwest::redirect::Policy::limited(10)
-    } else {
-        reqwest::redirect::Policy::none()
-    };
+    // Never let reqwest follow redirects on its own — `send_guarded` follows
+    // them manually so every hop is re-resolved + SSRF-guarded. Auto-follow
+    // would chase a `Location` to an internal address unchecked.
     ClientBuilder::new()
         .user_agent(USER_AGENT)
-        .redirect(redirect)
+        .redirect(reqwest::redirect::Policy::none())
         .danger_accept_invalid_certs(monitor.ignore_tls)
         .timeout(Duration::from_secs(monitor.timeout_seconds as u64))
         .build()
+}
+
+/// Failure modes from [`send_guarded`], mapped to distinct probe-down reasons.
+enum SendErr {
+    Blocked(String),
+    Timeout,
+    Failed(String),
+}
+
+/// Send `method url` (with headers/body), then follow redirects manually up to
+/// 10 hops — SSRF-guarding the resolved host on the initial request and on
+/// every `Location` before connecting. This closes the redirect-to-internal
+/// SSRF that reqwest's built-in redirect following would allow, since the
+/// async DNS guard can't run inside reqwest's synchronous redirect policy.
+async fn send_guarded(
+    client: &Client,
+    method: Method,
+    url: String,
+    headers: &[(String, String)],
+    body: Option<&str>,
+    follow_redirect: bool,
+) -> Result<reqwest::Response, SendErr> {
+    let mut current =
+        reqwest::Url::parse(&url).map_err(|e| SendErr::Failed(format!("bad url: {e}")))?;
+    let mut method = method;
+    let mut body = body.map(str::to_string);
+
+    for _ in 0..=10 {
+        if let Some(host) = current.host_str() {
+            let port = current.port_or_known_default().unwrap_or(80);
+            if let Err(blocked) =
+                crate::ssrf::resolve_guarded(host, port, crate::ssrf::block_private_enabled()).await
+            {
+                return Err(SendErr::Blocked(blocked.to_string()));
+            }
+        }
+        let mut req = client.request(method.clone(), current.clone());
+        for (k, v) in headers {
+            req = req.header(k, v);
+        }
+        if let Some(b) = &body {
+            req = req.body(b.clone());
+        }
+        let resp = match req.send().await {
+            Ok(r) => r,
+            Err(e) if e.is_timeout() => return Err(SendErr::Timeout),
+            Err(e) => return Err(SendErr::Failed(e.to_string())),
+        };
+        if !follow_redirect || !resp.status().is_redirection() {
+            return Ok(resp);
+        }
+        let Some(loc) = resp
+            .headers()
+            .get(reqwest::header::LOCATION)
+            .and_then(|v| v.to_str().ok())
+        else {
+            return Ok(resp); // redirect with no/invalid Location — hand it back as-is
+        };
+        let next = current
+            .join(loc)
+            .map_err(|e| SendErr::Failed(format!("bad redirect target: {e}")))?;
+        // Per RFC 7231: 303 (and 301/302 from an unsafe method) downgrade to GET
+        // and drop the body; 307/308 preserve method + body.
+        let code = resp.status().as_u16();
+        if code == 303 || ((code == 301 || code == 302) && method != Method::GET && method != Method::HEAD) {
+            method = Method::GET;
+            body = None;
+        }
+        current = next;
+    }
+    Err(SendErr::Failed("too many redirects".into()))
 }
 
 fn step_label(i: usize, step: &SyntheticStep) -> String {

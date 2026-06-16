@@ -15,6 +15,64 @@ use serde::Deserialize;
 use std::str::FromStr;
 use uuid::Uuid;
 
+/// Sentinel shown in place of a secret config value on the read path. On write,
+/// an incoming value still equal to this is restored from the stored config
+/// (so editing a channel without re-typing its secrets keeps them).
+const REDACTED: &str = "••••••";
+
+/// Channel `config` is decrypted by the DB layer (`secrets::open`) before it
+/// reaches here — so without redaction every authenticated user, including
+/// read-only ones, could read every channel's plaintext tokens/passwords. We
+/// mask secret-shaped keys on all HTTP read responses; the notifier reads
+/// config straight from the DB, so delivery is unaffected.
+fn is_secret_key(k: &str) -> bool {
+    let k = k.to_ascii_lowercase();
+    [
+        "token", "secret", "password", "passwd", "psw", "key", "dsn", "webhook",
+        "url", "sas", "auth", "credential", "signature", "bearer",
+    ]
+    .iter()
+    .any(|p| k.contains(p))
+}
+
+fn redact_config(v: &mut serde_json::Value) {
+    match v {
+        serde_json::Value::Object(map) => {
+            for (k, val) in map.iter_mut() {
+                if is_secret_key(k) && val.is_string() {
+                    *val = serde_json::Value::String(REDACTED.to_string());
+                } else {
+                    redact_config(val);
+                }
+            }
+        }
+        serde_json::Value::Array(arr) => arr.iter_mut().for_each(redact_config),
+        _ => {}
+    }
+}
+
+fn redacted(mut n: Notification) -> Notification {
+    redact_config(&mut n.config);
+    n
+}
+
+/// Restore any still-redacted values in an incoming config from the stored one,
+/// so an unchanged secret survives an edit instead of being overwritten with
+/// the mask sentinel.
+fn unredact_config(incoming: &mut serde_json::Value, existing: &serde_json::Value) {
+    if let (Some(io), Some(eo)) = (incoming.as_object_mut(), existing.as_object()) {
+        for (k, iv) in io.iter_mut() {
+            if iv.as_str() == Some(REDACTED) {
+                if let Some(ev) = eo.get(k) {
+                    *iv = ev.clone();
+                }
+            } else if let Some(ev) = eo.get(k) {
+                unredact_config(iv, ev);
+            }
+        }
+    }
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list).post(create))
@@ -42,7 +100,8 @@ fn parse_monitor(id: &str) -> Result<MonitorId, ApiError> {
 }
 
 async fn list(State(state): State<AppState>) -> Result<Json<Vec<Notification>>, ApiError> {
-    Ok(Json(rampart_db::notifications::list(state.pool()).await?))
+    let chans = rampart_db::notifications::list(state.pool()).await?;
+    Ok(Json(chans.into_iter().map(redacted).collect()))
 }
 
 async fn create(
@@ -65,7 +124,7 @@ async fn create(
         Some(serde_json::json!({ "name": n.name, "kind": n.kind })),
     )
     .await;
-    Ok((StatusCode::CREATED, Json(n)))
+    Ok((StatusCode::CREATED, Json(redacted(n))))
 }
 
 async fn get_one(
@@ -73,9 +132,9 @@ async fn get_one(
     Path(id): Path<String>,
 ) -> Result<Json<Notification>, ApiError> {
     let id = parse_notif(&id)?;
-    Ok(Json(
+    Ok(Json(redacted(
         rampart_db::notifications::get(state.pool(), id).await?,
-    ))
+    )))
 }
 
 async fn update(
@@ -83,9 +142,16 @@ async fn update(
     Extension(user): Extension<User>,
     headers: HeaderMap,
     Path(id): Path<String>,
-    Json(input): Json<UpdateNotification>,
+    Json(mut input): Json<UpdateNotification>,
 ) -> Result<Json<Notification>, ApiError> {
     let id = parse_notif(&id)?;
+    // If the client sent back redacted secrets unchanged, restore them from the
+    // stored config so an edit doesn't clobber tokens the user never saw.
+    if let Some(cfg) = input.config.as_mut() {
+        if let Ok(existing) = rampart_db::notifications::get(state.pool(), id).await {
+            unredact_config(cfg, &existing.config);
+        }
+    }
     let n = rampart_db::notifications::update(state.pool(), id, input).await?;
     crate::audit::record(
         state.pool(),
@@ -97,7 +163,7 @@ async fn update(
         Some(serde_json::json!({ "name": n.name, "active": n.active })),
     )
     .await;
-    Ok(Json(n))
+    Ok(Json(redacted(n)))
 }
 
 async fn remove(
@@ -138,9 +204,8 @@ async fn list_for_monitor(
     Path(mid): Path<String>,
 ) -> Result<Json<Vec<Notification>>, ApiError> {
     let mid = parse_monitor(&mid)?;
-    Ok(Json(
-        rampart_db::notifications::for_monitor(state.pool(), mid).await?,
-    ))
+    let chans = rampart_db::notifications::for_monitor(state.pool(), mid).await?;
+    Ok(Json(chans.into_iter().map(redacted).collect()))
 }
 
 async fn attach(
@@ -270,4 +335,46 @@ async fn send_test(
     .await
     .map_err(|e| ApiError::BadRequest(format!("channel dispatch failed: {e}")))?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[cfg(test)]
+mod redaction_tests {
+    use super::{redact_config, unredact_config, REDACTED};
+    use serde_json::json;
+
+    #[test]
+    fn redacts_secret_keys_keeps_plain_ones() {
+        let mut c = json!({
+            "webhook_url": "https://hooks/secret-token",
+            "bot_token": "abc123",
+            "api_key": "k-9",
+            "channel": "#ops",
+            "port": 443,
+            "from": "alerts@example.com"
+        });
+        redact_config(&mut c);
+        assert_eq!(c["webhook_url"], REDACTED);
+        assert_eq!(c["bot_token"], REDACTED);
+        assert_eq!(c["api_key"], REDACTED);
+        assert_eq!(c["channel"], "#ops"); // non-secret stays visible
+        assert_eq!(c["port"], 443); // non-string untouched
+        assert_eq!(c["from"], "alerts@example.com");
+    }
+
+    #[test]
+    fn unredact_restores_unchanged_but_keeps_edits() {
+        let existing = json!({ "bot_token": "real-token", "channel": "#ops" });
+        let mut incoming = json!({ "bot_token": REDACTED, "channel": "#new" });
+        unredact_config(&mut incoming, &existing);
+        assert_eq!(incoming["bot_token"], "real-token"); // masked → restored
+        assert_eq!(incoming["channel"], "#new"); // edited → kept
+    }
+
+    #[test]
+    fn unredact_keeps_a_freshly_typed_secret() {
+        let existing = json!({ "bot_token": "old" });
+        let mut incoming = json!({ "bot_token": "new-token" });
+        unredact_config(&mut incoming, &existing);
+        assert_eq!(incoming["bot_token"], "new-token");
+    }
 }
