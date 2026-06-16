@@ -35,6 +35,7 @@ pub struct SeedStats {
     pub rum: usize,
     pub metrics: usize,
     pub detection_findings: usize,
+    pub profiles: usize,
     pub skipped: bool,
 }
 
@@ -45,7 +46,7 @@ impl fmt::Display for SeedStats {
         }
         write!(
             f,
-            "seeded: {} monitors, {} heartbeats, {} error events, {} spans, {} logs, {} RUM events, {} metric samples, {} detection findings",
+            "seeded: {} monitors, {} heartbeats, {} error events, {} spans, {} logs, {} RUM events, {} metric samples, {} detection findings, {} profiles",
             self.monitors,
             self.heartbeats,
             self.error_events,
@@ -54,6 +55,7 @@ impl fmt::Display for SeedStats {
             self.rum,
             self.metrics,
             self.detection_findings,
+            self.profiles,
         )
     }
 }
@@ -92,6 +94,7 @@ pub async fn run(pool: &DbPool) -> Result<SeedStats> {
     seed_alert_rule(pool).await?;
     seed_detection(pool, &mut stats).await?;
     seed_slo(pool).await?;
+    seed_profiles(pool, &mut stats).await?;
 
     Ok(stats)
 }
@@ -345,6 +348,52 @@ async fn seed_logs(pool: &DbPool, stats: &mut SeedStats) -> Result<()> {
     }
     stats.logs += logs.len();
     rampart_db::logs::insert_logs(pool, &logs).await?;
+    Ok(())
+}
+
+/// One representative CPU flamegraph for `[demo] api` so the Profiling view
+/// shows a real merged tree out of the box (otherwise it reads "no profiles
+/// yet" on a fresh install). Folded stacks are the uniform internal form, so a
+/// few hand-written lines exercise the same read/merge path live ingest uses.
+async fn seed_profiles(pool: &DbPool, stats: &mut SeedStats) -> Result<()> {
+    use std::io::Write;
+    // `frame;frame;… count` — a plausible request-handling CPU profile.
+    let folded = "\
+main;tokio::runtime::worker;handle_request;router::dispatch;checkout::handler;db::query;pg::execute 420
+main;tokio::runtime::worker;handle_request;router::dispatch;checkout::handler;db::query;pg::parse 110
+main;tokio::runtime::worker;handle_request;router::dispatch;checkout::handler;serde_json::to_writer 90
+main;tokio::runtime::worker;handle_request;router::dispatch;cart::handler;db::query;pg::execute 260
+main;tokio::runtime::worker;handle_request;router::dispatch;cart::handler;cache::get 70
+main;tokio::runtime::worker;handle_request;router::dispatch;catalog::handler;search::rank 180
+main;tokio::runtime::worker;handle_request;middleware::auth;jwt::verify 130
+main;tokio::runtime::worker;handle_request;middleware::log;write_line 40
+main;tokio::runtime::worker;background::flush_metrics 50
+main;tokio::runtime::worker;background::reap_idle 20";
+    let sample_count: i32 = folded
+        .lines()
+        .filter_map(|l| l.rsplit_once(' ').and_then(|(_, n)| n.trim().parse::<i32>().ok()))
+        .sum();
+
+    let mut e = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    e.write_all(folded.as_bytes())?;
+    let folded_gz = e.finish()?;
+
+    // `received_at` (window filter) defaults to now() on insert, so the profile
+    // lands in the live window automatically. period_ns is the sampling period.
+    rampart_db::profiles::insert(
+        pool,
+        rampart_db::profiles::NewProfile {
+            service_name: "[demo] api",
+            profile_type: "cpu",
+            period_ns: 10_000_000,           // 10ms sampling period
+            duration_ns: 30 * 1_000_000_000, // 30s capture window
+            sample_count,
+            labels: json!({ "host": "demo-1", "env": "production" }),
+            folded_gz: &folded_gz,
+        },
+    )
+    .await?;
+    stats.profiles += 1;
     Ok(())
 }
 
