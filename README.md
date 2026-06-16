@@ -77,7 +77,9 @@ We built Rampart because we were tired of choosing between bloated SaaS tools an
 ## ✨ Features at a Glance
 
 ### 🔍 38 Probe Kinds
-Every probe supports per-monitor intervals, timeouts, retries, and re-alerts.
+Every probe supports per-monitor intervals, timeouts, retries, re-alerts, and an
+optional **latency SLA** (`max_latency_ms` — flag a slow-but-alive check down,
+distinct from the connection timeout).
 
 | Category | Supported Kinds |
 | :--- | :--- |
@@ -89,7 +91,7 @@ Every probe supports per-monitor intervals, timeouts, retries, and re-alerts.
 | 🏷️ **Banner Protocols** | SSH, SMTP, IMAP, FTP, POP3 (greeting prefix check, `expect` overridable) |
 | 🎯 **Specialty** | Push (anything POSTing to `/push/:token`), headless-browser keyword, Steam (A2S) |
 
-*HTTP probes include methods, accepted statuses, custom headers/body, follow-redirects, ignore-TLS, and proxy support. Soft-fail "warn" statuses are supported where applicable (e.g., NTP stratum 0).*
+*HTTP probes include methods, accepted statuses, custom headers/body, follow-redirects, ignore-TLS, and proxy support. Database + MQTT/LDAP probes take username/password (Redis ACL, LDAP bind DN) in the monitor form — or a full connection string. Soft-fail "warn" statuses are supported where applicable (e.g., NTP stratum 0).*
 
 ### 🔔 130 Notification Channels
 Liquid-templated subject + body, per-channel cooldown, HMAC-signed Generic Webhooks, and tag-based auto-routing.
@@ -124,11 +126,11 @@ self-hostable alternative to Datadog / Sentry / Site24x7 / ScoutAPM, in one bina
 
 | Tier | What it does | Wire-compatible with |
 | :--- | :--- | :--- |
-| 🐞 **Error tracking** | DSN-keyed event ingest, group-by-fingerprint into issues, new/regressed alerts, stack traces. | **Sentry SDKs** (point the DSN at Rampart — no Rampart SDK) |
-| 🧵 **Traces / APM** | Span ingest, per-trace waterfall, service dependency map, and a per-operation **APM rollup** (calls, error rate, p50/p95/p99 latency). | **OpenTelemetry** OTLP/HTTP (JSON + protobuf, gzip) |
-| 📃 **Logs** | Severity + service filtering, full-text body search (`tsvector`), **live tail**, per-level volume bar, and trace↔log correlation. | **OpenTelemetry** OTLP logs |
-| 👁️ **RUM** | Browser snippet → Core Web Vitals (p75 LCP/INP/CLS), per-page vitals, and **JS error capture** into the error tier. | drop-in `<script>`, no build step |
-| 🔥 **Profiling** | Continuous profiling → **flamegraph** (icicle, click-to-zoom) + top-functions table, merged over a service/type window. | **pprof**, **OTLP profiles**, and folded text |
+| 🐞 **Error tracking** | DSN-keyed event ingest, group-by-fingerprint into issues, new/regressed alerts, stack traces, **affected-users** + 7-day volume histogram, and error↔trace links. | **Sentry SDKs** (point the DSN at Rampart — no Rampart SDK) |
+| 🧵 **Traces / APM** | Span ingest, a proper call-tree **waterfall** (self-time, collapse, sticky ruler), a service **dependency map** (p95 + error edges, click→traces), and a per-operation **APM rollup** with a p95-latency trend. | **OpenTelemetry** OTLP/HTTP (JSON + protobuf, gzip) |
+| 📃 **Logs** | Severity + service filtering, full-text body search (`tsvector`), **live tail**, an ELK-style **volume histogram** (1h/24h/7d), and trace↔log correlation. | **OpenTelemetry** OTLP logs |
+| 👁️ **RUM** | Browser snippet → Core Web Vitals (p75 LCP/INP/CLS), per-page **drill-down** (who/browser/trace), **users** + browser breakdowns, RUM→trace links, and **JS error capture**. | drop-in `<script>`, no build step |
+| 🔥 **Profiling** | Continuous profiling → an interactive **flamegraph** (frame search, zoom breadcrumb, top-functions), with a trace span → profiling-window pivot. | **pprof**, **OTLP profiles**, and folded text |
 
 Cross-tier by design: a trace links to the logs emitted under its `trace_id`,
 an error issue jumps to its trace, and a browser exception becomes an error issue.
