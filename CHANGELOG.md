@@ -19,6 +19,15 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.58.0] — 2026-06-16
+
+### Added
+- **Error-volume histogram** on the Errors project view — a 7-day bar chart of
+  error events above the issue list (`GET /v1/error-projects/{id}/histogram`,
+  `date_bin` bucketed), so a spike is visible before you scan the issues.
+
+---
+
 ## [0.57.1] — 2026-06-16
 
 ### Changed
@@ -1644,6 +1653,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.58.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.58.0
 [0.57.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.57.1
 [0.57.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.57.0
 [0.56.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.56.0
