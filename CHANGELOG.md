@@ -19,6 +19,18 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.74.0] — 2026-06-16
+
+### Fixed
+- Fourteen `title` tooltips in the dashboard header/cards, the monitor detail
+  view, and the push-notification button were hardcoded English bypassing
+  i18n. They now route through `t()` and are translated in en/es/fr/de (new
+  `common.menu`/`detach`/`color`, `nav.open`, `monitor.send_test`,
+  `monitor.token_reissue_tip`, `dashboard.tip.*`, and
+  `notifications.push.subscribe_tip` keys).
+
+---
+
 ## [0.73.0] — 2026-06-16
 
 ### Fixed
@@ -1998,6 +2010,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.74.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.74.0
 [0.73.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.73.0
 [0.72.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.72.0
 [0.71.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.71.0

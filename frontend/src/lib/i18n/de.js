@@ -1908,6 +1908,19 @@ const de = {
   'validation.end_after_start':      'Die Endzeit muss nach der Startzeit liegen.',
   'maintenance.delete_confirm':      'Dieses Wartungsfenster löschen?',
   'notifications.channel.delete_confirm': 'Diesen Kanal löschen? Monitore, die ihn verwenden, benachrichtigen nicht mehr über diesen Kanal.',
+  'common.menu':                     'Menü',
+  'common.detach':                   'Trennen',
+  'common.color':                    'Farbe',
+  'nav.open':                        'Navigation öffnen',
+  'monitor.send_test':               'Test senden',
+  'monitor.token_reissue_tip':       'Neuen Token ausstellen; die aktuelle URL funktioniert sofort nicht mehr',
+  'dashboard.tip.channels':          'Benachrichtigungskanäle',
+  'dashboard.tip.rollup':            'Aggregationsfenster für Verfügbarkeit + Latenz oben',
+  'dashboard.tip.manage_incidents':  'Vorfälle im Statusseiten-Editor verwalten',
+  'dashboard.tip.schedule_maint':    'Ein Wartungsfenster planen',
+  'dashboard.tip.bulk_select':       'Für Massenaktion auswählen',
+  'dashboard.tip.no_channels':       'Keine Benachrichtigungskanäle angehängt — Wechsel werden erfasst, aber niemand wird benachrichtigt',
+  'notifications.push.subscribe_tip': 'Diesen Browser für Push-Benachrichtigungen anmelden',
 };
 
 export default de;

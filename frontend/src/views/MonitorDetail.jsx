@@ -1874,7 +1874,7 @@ function MonitorChannels({ monitorId }) {
               </div>
               <div style={{ fontSize: 10, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em' }}>{c.kind}</div>
             </div>
-            <button className="btn" onClick={() => sendTest(nid)} title="Send test" style={{ padding: '4px 8px', fontSize: 11 }}><Send size={11}/></button>
+            <button className="btn" onClick={() => sendTest(nid)} title={t('monitor.send_test')} style={{ padding: '4px 8px', fontSize: 11 }}><Send size={11}/></button>
             <button className="btn btn-danger" onClick={() => remove(nid)} aria-label={t('common.remove')} title="Remove from this monitor" style={{ padding: '4px 8px', fontSize: 11 }}><X size={11}/></button>
           </div>
         );
@@ -2531,7 +2531,7 @@ function PushUrlCard({ monitorId, token, lastPushAt, interval, config }) {
         <Zap size={14} color="var(--accent)"/>
         <h3 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>{t('monitor.push.title')}</h3>
         <button className="btn btn-ghost" onClick={regenerate} disabled={rotating} style={{ marginLeft: 'auto', padding: '0 12px', fontSize: 12 }}
-          title="Issue a new token; the current URL stops working immediately">
+          title={t('monitor.token_reissue_tip')}>
           {rotating ? 'Rotating…' : 'Regenerate'}
         </button>
       </div>
@@ -2615,7 +2615,7 @@ function TagsCard({ monitor }) {
             padding: '3px 4px 3px 9px', borderRadius: 999,
           }}>
             {t.name}
-            <button disabled={busy} onClick={() => detach(t.id)} title="Detach" style={{
+            <button disabled={busy} onClick={() => detach(t.id)} title={t('common.detach')} style={{
               background: 'rgba(255,255,255,.2)', border: 'none', color: '#fff',
               borderRadius: '50%', width: 16, height: 16, cursor: 'pointer',
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -2638,7 +2638,7 @@ function TagsCard({ monitor }) {
         ) : (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <input autoFocus className="input" placeholder="tag name" value={newName} onChange={e => setNewName(e.target.value)} style={{ width: 130, padding: '4px 8px', fontSize: 12 }}/>
-            <input type="color" value={newColor} onChange={e => setNewColor(e.target.value)} title="Color"/>
+            <input type="color" value={newColor} onChange={e => setNewColor(e.target.value)} title={t('common.color')}/>
             <button className="btn btn-accent" disabled={busy || !newName.trim()} onClick={createAndAttach} style={{ padding: '4px 8px', fontSize: 11 }}>Create</button>
             <button className="btn btn-ghost" disabled={busy} onClick={() => { setCreating(false); setNewName(''); }} aria-label={t('common.cancel')} style={{ padding: '4px 6px' }}><X size={11}/></button>
           </span>
@@ -2701,7 +2701,7 @@ function DependenciesCard({ monitor }) {
                 fontSize: 12, padding: '4px 6px 4px 10px', borderRadius: 999,
               }}>
                 {p?.name || pid.slice(0, 8)}
-                <button disabled={busy} onClick={() => detach(pid)} title="Detach" style={{
+                <button disabled={busy} onClick={() => detach(pid)} title={t('common.detach')} style={{
                   background: 'var(--border-2)', border: 'none', color: 'var(--text-2)',
                   borderRadius: '50%', width: 16, height: 16, cursor: 'pointer',
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
