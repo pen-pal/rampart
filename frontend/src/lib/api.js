@@ -535,6 +535,7 @@ export const api = {
     get:       (id) => request(`/v1/error-issues/${id}`),
     events:    (id) => request(`/v1/error-issues/${id}/events`),
     stats:     (id) => request(`/v1/error-issues/${id}/stats`),
+    affectedUsers: (id) => request(`/v1/error-issues/${id}/users`),
     resolve:   (id) => request(`/v1/error-issues/${id}/resolve`,   { method: 'POST' }),
     ignore:    (id) => request(`/v1/error-issues/${id}/ignore`,    { method: 'POST' }),
     unresolve: (id) => request(`/v1/error-issues/${id}/unresolve`, { method: 'POST' }),

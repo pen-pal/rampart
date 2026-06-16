@@ -512,6 +512,49 @@ pub struct IssueStats {
     pub by_environment: Vec<(String, i64)>,
 }
 
+/// One distinct user hit by an issue — the affected-users drill-down.
+#[derive(Debug, serde::Serialize)]
+pub struct AffectedUser {
+    pub ident: String,
+    pub events: i64,
+    pub last_seen: time::OffsetDateTime,
+}
+
+/// Distinct users affected by an issue (from the Sentry `user` context — id,
+/// else email, else username), most-recently-seen first.
+pub async fn issue_affected_users(
+    pool: &DbPool,
+    id: ErrorIssueId,
+    limit: i64,
+) -> DbResult<Vec<AffectedUser>> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT COALESCE(context->'user'->>'id',
+                        context->'user'->>'email',
+                        context->'user'->>'username') AS "ident!",
+               COUNT(*) AS "events!",
+               MAX(ts)  AS "last_seen!"
+        FROM error_events
+        WHERE issue_id = $1 AND context->'user' IS NOT NULL
+        GROUP BY 1
+        ORDER BY MAX(ts) DESC
+        LIMIT $2
+        "#,
+        id.0,
+        limit.clamp(1, 100),
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| AffectedUser {
+            ident: r.ident,
+            events: r.events,
+            last_seen: r.last_seen,
+        })
+        .collect())
+}
+
 pub async fn issue_stats(pool: &DbPool, id: ErrorIssueId) -> DbResult<IssueStats> {
     let users = sqlx::query_scalar!(
         r#"
