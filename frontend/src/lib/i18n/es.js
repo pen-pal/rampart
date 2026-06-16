@@ -1623,6 +1623,8 @@ const es = {
   'profiling.root': 'todo',
   'profiling.search_ph': 'Resaltar marcos…',
   'profiling.match_count': '{n} coincidencias',
+  'profiling.of_parent': '{pct}% del nodo padre',
+  'profiling.zoom_hint': 'Haz clic en un marco para ampliar · clic en el marco superior o Esc para restablecer',
   'profiling.click_highlight': 'Haz clic para resaltar en el flamegraph',
   'profiling.scoped_window': 'Limitado a la ventana temporal de un span (~{ms} ms)',
   'profiling.clear_window': 'Limpiar',

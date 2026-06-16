@@ -70,9 +70,14 @@ function diffColor(delta, maxAbs) {
 function layout(root) {
   const total = root.value || 1;
   const cells = [];
+  // node → its parent's value, so the info bar can show "% of parent" (how a
+  // frame splits its caller's time) alongside "% of total" — the two readings
+  // pro profilers (Datadog, ScoutAPM, pprof) put side by side.
+  const parentVal = new Map();
   let maxDepth = 0;
-  const walk = (node, depth, offset) => {
+  const walk = (node, depth, offset, parentValue) => {
     maxDepth = Math.max(maxDepth, depth);
+    parentVal.set(node, parentValue);
     cells.push({
       node,
       depth,
@@ -81,12 +86,12 @@ function layout(root) {
     });
     let childOffset = offset;
     for (const c of node.children || []) {
-      walk(c, depth + 1, childOffset);
+      walk(c, depth + 1, childOffset, node.value);
       childOffset += c.value;
     }
   };
-  walk(root, 0, 0);
-  return { cells, maxDepth };
+  walk(root, 0, 0, root.value || 1);
+  return { cells, maxDepth, parentVal };
 }
 
 // Self time = a node's own value minus what its children account for.
@@ -100,8 +105,15 @@ function Flamegraph({ root, unit, diff, highlight }) {
   const [stack, setStack] = useState([root]);
   const [hovered, setHovered] = useState(null);
   useEffect(() => { setStack([root]); setHovered(null); }, [root]);
+  // Esc resets the zoom to the full profile — the expected escape hatch when
+  // you've drilled several frames deep.
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') setStack([root]); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [root]);
   const zoom = stack[stack.length - 1] || root;
-  const { cells, maxDepth } = useMemo(() => layout(zoom), [zoom]);
+  const { cells, maxDepth, parentVal } = useMemo(() => layout(zoom), [zoom]);
   const grandTotal = root.value || 1;
   const maxAbs = useMemo(
     () => (diff ? Math.max(1, ...cells.map(c => Math.abs(c.node.delta || 0))) : 0),
@@ -112,6 +124,10 @@ function Flamegraph({ root, unit, diff, highlight }) {
 
   const info = hovered || zoom;
   const infoPct = ((info.value / grandTotal) * 100).toFixed(1);
+  // % of parent: how much of its caller's time this frame takes. Undefined for
+  // the profile root (no caller).
+  const parentValue = parentVal.get(info);
+  const parentPct = parentValue && info !== root ? ((info.value / parentValue) * 100).toFixed(1) : null;
 
   return (
     <div>
@@ -132,6 +148,7 @@ function Flamegraph({ root, unit, diff, highlight }) {
       <div className="flame-info">
         <span className="mono" title={info.name} style={{ maxWidth: 520, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{info.name}</span>
         <span>{info.value.toLocaleString()} {unit} · {infoPct}%</span>
+        {parentPct != null && <span>{t('profiling.of_parent', { pct: parentPct })}</span>}
         <span>{t('profiling.self')} {selfValue(info).toLocaleString()}</span>
         {diff && info.delta != null && <span style={{ color: info.delta > 0 ? 'var(--down)' : 'var(--accent-2)' }}>Δ {info.delta > 0 ? '+' : ''}{info.delta.toLocaleString()}</span>}
       </div>
@@ -147,7 +164,12 @@ function Flamegraph({ root, unit, diff, highlight }) {
               key={i}
               className={`flame-cell${isDim ? ' dim' : ''}${isMatch ? ' match' : ''}`}
               onMouseEnter={() => setHovered(c.node)}
-              onClick={() => (c.node.children && c.node.children.length ? setStack([...stack, c.node]) : null)}
+              onClick={() => {
+                // Depth-0 is the current zoom root: clicking it zooms back out
+                // one level. Any other frame with children zooms in.
+                if (c.depth === 0) { if (stack.length > 1) setStack(stack.slice(0, -1)); }
+                else if (c.node.children && c.node.children.length) setStack([...stack, c.node]);
+              }}
               style={{
                 left: `${c.x}%`,
                 width: `${c.w}%`,
@@ -161,6 +183,7 @@ function Flamegraph({ root, unit, diff, highlight }) {
           );
         })}
       </div>
+      <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 8 }}>{t('profiling.zoom_hint')}</div>
     </div>
   );
 }

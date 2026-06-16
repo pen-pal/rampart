@@ -19,6 +19,21 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.78.0] — 2026-06-16
+
+### Added
+- Livelier interactions across the app (`src/index.css`): buttons lift with a
+  soft shadow on hover (primary/accent buttons get a tinted glow) and press
+  down on click; cards lift gently; list rows show an inset accent edge on
+  hover. Ghost/icon buttons stay flat. All additive, scoped under `.rampart`,
+  and disabled under `prefers-reduced-motion`.
+- Flamegraph (Profiling) UX: the info bar now shows **% of parent** next to %
+  of total; **Esc** resets the zoom to the full profile; clicking the top
+  (zoomed-root) frame zooms back out one level; and an inline hint spells out
+  the zoom/reset controls.
+
+---
+
 ## [0.77.0] — 2026-06-16
 
 ### Added
@@ -2057,6 +2072,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.78.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.78.0
 [0.77.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.77.0
 [0.76.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.76.0
 [0.75.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.75.0
