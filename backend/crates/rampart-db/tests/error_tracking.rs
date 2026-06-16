@@ -45,3 +45,26 @@ async fn recent_open_and_histogram(pool: PgPool) {
     et::set_issue_status(&pool, recent[0].id, "resolved").await.unwrap();
     assert_eq!(et::recent_open_issues(&pool, 8).await.unwrap().len(), 1);
 }
+
+fn event_user(exc: &str, user: &str) -> ParsedEvent {
+    let mut e = event(exc, "same message");
+    e.raw = serde_json::json!({ "user": { "id": user } });
+    e
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn affected_users_distinct_with_counts(pool: PgPool) {
+    let project = et::find_or_create_by_name(&pool, "[demo] web").await.unwrap();
+    // Same exception+message → one issue; alice twice, bob once.
+    et::record_event(&pool, project.id, &event_user("Boom", "alice")).await.unwrap();
+    et::record_event(&pool, project.id, &event_user("Boom", "alice")).await.unwrap();
+    et::record_event(&pool, project.id, &event_user("Boom", "bob")).await.unwrap();
+    // An anonymous event (no user context) doesn't appear in the list.
+    et::record_event(&pool, project.id, &event("Boom", "same message")).await.unwrap();
+
+    let iid = et::recent_open_issues(&pool, 8).await.unwrap()[0].id;
+    let users = et::issue_affected_users(&pool, iid, 50).await.unwrap();
+    assert_eq!(users.len(), 2, "alice + bob, anon excluded");
+    assert_eq!(users.iter().find(|u| u.ident == "alice").unwrap().events, 2);
+    assert_eq!(users.iter().find(|u| u.ident == "bob").unwrap().events, 1);
+}
