@@ -19,6 +19,19 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.76.0] — 2026-06-16
+
+### Fixed
+- The notification-channel config forms had ~150 hardcoded English field
+  labels (across every channel kind) that bypassed i18n. All are now routed
+  through `t()` under the `notif.f.*` namespace, with es/fr/de translations for
+  the common terms (Webhook URL, Password, Server, Port, Region, Priority, …)
+  and an English fallback for purely technical identifiers (DSN, ARN, SAS key,
+  …) so they can be translated later without code changes. The inline
+  "· optional" suffix now reuses `common.optional`.
+
+---
+
 ## [0.75.0] — 2026-06-16
 
 ### Fixed
@@ -2022,6 +2035,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.76.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.76.0
 [0.75.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.75.0
 [0.74.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.74.0
 [0.73.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.73.0
