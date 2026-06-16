@@ -19,6 +19,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.70.0] — 2026-06-16
+
+### Fixed
+- **Dashboard "Recent incidents" + "Maintenance" were always empty** — both were
+  hardcoded stubs (`const recentIncidents = []`). Now wired: incidents via a new
+  cross-page `GET /v1/incidents/recent` (active first, then newest), maintenance
+  via the existing list filtered to active/upcoming windows, soonest first.
+- **Dashboard response-time chart was blank** when the busiest monitors were
+  down — it ranked by raw heartbeat count, so down demo services (latency =
+  null) won the slots and plotted only gaps. Now ranks by **up heartbeats that
+  carry a latency**, so the chart shows monitors with real samples.
+
+---
+
 ## [0.69.0] — 2026-06-16
 
 ### Added
@@ -1931,6 +1945,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.70.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.70.0
 [0.69.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.69.0
 [0.68.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.68.2
 [0.68.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.68.1
