@@ -1102,12 +1102,14 @@ export default function Dashboard({ user, onLogout } = {}) {
                 },
               } : {};
               return (
-                <div key={b.key} style={{ marginBottom: 4 }}>
+                // The whole bucket (header + its rows) is the drop zone, not
+                // just the thin header strip — otherwise dropping a monitor onto
+                // a row in the target group misses and the drag snaps back.
+                <div key={b.key} style={{ marginBottom: 4 }} {...dropHandlers}>
                   <div
                     className={`group-head${isDropZone && dropTarget === b.key ? ' drop-target' : ''}`}
                     style={{ paddingLeft: 12 + (b.depth || 0) * 14 }}
-                    onClick={() => toggleGroup(b.key)}
-                    {...dropHandlers}>
+                    onClick={() => toggleGroup(b.key)}>
                     {open ? <ChevronDown size={11}/> : <ChevronRight size={11}/>}
                     <span>{b.name}</span>
                     {loggedIn && b.key !== 'ungrouped' && (

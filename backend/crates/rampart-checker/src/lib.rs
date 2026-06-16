@@ -165,7 +165,7 @@ impl Probes {
                 return ssrf_blocked(monitor.id, &blocked.to_string());
             }
         }
-        match monitor.kind {
+        let hb = match monitor.kind {
             MonitorKind::Http | MonitorKind::Keyword | MonitorKind::JsonQuery => {
                 self.http.run(monitor).await
             }
@@ -205,7 +205,36 @@ impl Probes {
             | MonitorKind::Pop3 => self.banner.run(monitor).await,
             MonitorKind::Synthetic => self.synthetic.run(monitor).await,
             unsupported => unsupported_kind(monitor.id, unsupported),
-        }
+        };
+        apply_latency_threshold(monitor, hb)
+    }
+}
+
+/// Soft-SLA latency gate: when `config.max_latency_ms` is set, an otherwise-up
+/// check that responded *slower* than the threshold is marked **down** with a
+/// "slow" message — degraded detection distinct from the hard connection
+/// `timeout_seconds` (which fails the connect/query outright). Applies to every
+/// probe kind; a check that's already down, or has no measured latency, is left
+/// untouched.
+fn apply_latency_threshold(monitor: &Monitor, hb: Heartbeat) -> Heartbeat {
+    if hb.status != MonitorStatus::Up {
+        return hb;
+    }
+    let Some(max) = monitor
+        .config
+        .get("max_latency_ms")
+        .and_then(|v| v.as_i64())
+        .filter(|&m| m > 0)
+    else {
+        return hb;
+    };
+    match hb.latency_ms {
+        Some(latency) if (latency as i64) > max => Heartbeat {
+            status: MonitorStatus::Down,
+            msg: Some(format!("slow: {latency}ms > {max}ms threshold")),
+            ..hb
+        },
+        _ => hb,
     }
 }
 
@@ -262,4 +291,97 @@ fn unsupported_kind(monitor_id: MonitorId, kind: MonitorKind) -> Heartbeat {
 /// Saturating ms conversion that fits in i32.
 pub(crate) fn ms_i32(d: Duration) -> i32 {
     d.as_millis().min(i32::MAX as u128) as i32
+}
+
+#[cfg(test)]
+mod latency_tests {
+    use super::*;
+    use time::OffsetDateTime;
+
+    fn monitor(max_latency: Option<i64>) -> Monitor {
+        let now = OffsetDateTime::now_utc();
+        Monitor {
+            id: MonitorId::new(),
+            name: "db".into(),
+            kind: MonitorKind::Postgres,
+            url: None,
+            hostname: Some("db.internal".into()),
+            port: Some(5432),
+            config: match max_latency {
+                Some(m) => serde_json::json!({ "max_latency_ms": m }),
+                None => serde_json::Value::Null,
+            },
+            interval_seconds: 60,
+            retry_interval_sec: 60,
+            max_retries: 0,
+            timeout_seconds: 10,
+            resend_interval_sec: 0,
+            upside_down: false,
+            http_method: "GET".into(),
+            http_body: None,
+            http_headers: None,
+            accepted_statuses: vec![],
+            follow_redirect: true,
+            ignore_tls: false,
+            proxy_id: None,
+            push_token: None,
+            last_push_at: None,
+            last_run_started_at: None,
+            active: true,
+            current_status: MonitorStatus::Up,
+            created_at: now,
+            updated_at: now,
+            tags: Vec::new(),
+            cert_days_left: None,
+            cert_subject: None,
+            cert_checked_at: None,
+            group_id: None,
+            slo_target_pct: None,
+            slo_window_days: None,
+            agent_id: None,
+            escalation_policy_id: None,
+        }
+    }
+
+    fn up(latency_ms: Option<i32>) -> Heartbeat {
+        Heartbeat {
+            monitor_id: MonitorId::new(),
+            ts: OffsetDateTime::now_utc(),
+            status: MonitorStatus::Up,
+            latency_ms,
+            status_code: None,
+            msg: Some("ok".into()),
+            retries: 0,
+            important: false,
+        }
+    }
+
+    #[test]
+    fn no_threshold_keeps_up() {
+        let hb = apply_latency_threshold(&monitor(None), up(Some(5000)));
+        assert_eq!(hb.status, MonitorStatus::Up);
+    }
+
+    #[test]
+    fn under_threshold_keeps_up() {
+        let hb = apply_latency_threshold(&monitor(Some(1000)), up(Some(800)));
+        assert_eq!(hb.status, MonitorStatus::Up);
+    }
+
+    #[test]
+    fn over_threshold_marks_down() {
+        let hb = apply_latency_threshold(&monitor(Some(1000)), up(Some(1500)));
+        assert_eq!(hb.status, MonitorStatus::Down);
+        assert!(hb.msg.unwrap().contains("slow"));
+    }
+
+    #[test]
+    fn already_down_untouched() {
+        let mut hb = up(Some(9999));
+        hb.status = MonitorStatus::Down;
+        hb.msg = Some("connect refused".into());
+        let out = apply_latency_threshold(&monitor(Some(100)), hb);
+        assert_eq!(out.status, MonitorStatus::Down);
+        assert_eq!(out.msg.as_deref(), Some("connect refused"));
+    }
 }
