@@ -19,6 +19,15 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.70.1] — 2026-06-16
+
+### Fixed
+- Dashboard recent-incidents severity mapping used non-existent style values
+  (`major`/`critical`); the `IncidentStyle` enum is `danger`/`warning`/… — so a
+  `danger` incident now correctly shows as an outage, not degraded.
+
+---
+
 ## [0.70.0] — 2026-06-16
 
 ### Fixed
@@ -1945,6 +1954,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.70.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.70.1
 [0.70.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.70.0
 [0.69.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.69.0
 [0.68.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.68.2
