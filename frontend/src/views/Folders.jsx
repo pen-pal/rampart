@@ -259,7 +259,7 @@ function FolderCard({
               onKeyDown={e => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') { setEditing(false); setDraftName(group.name); } }}
               style={{ width: 200, padding: '5px 9px', fontSize: 14 }}/>
             <button className="btn btn-accent" style={{ padding: '5px 8px' }} disabled={busy} onClick={saveName}><Check size={13}/></button>
-            <button className="btn btn-ghost" style={{ padding: '5px 8px' }} onClick={() => { setEditing(false); setDraftName(group.name); }}><X size={13}/></button>
+            <button className="btn btn-ghost" style={{ padding: '5px 8px' }} onClick={() => { setEditing(false); setDraftName(group.name); }} aria-label={t('common.cancel')}><X size={13}/></button>
           </span>
         ) : (
           <>

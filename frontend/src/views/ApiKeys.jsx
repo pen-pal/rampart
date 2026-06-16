@@ -228,7 +228,7 @@ function CreateModal({ onCancel, onCreated }) {
       <div className="modal">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <h3 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>{t('apikeys.new')}</h3>
-          <button className="btn btn-ghost" onClick={onCancel} disabled={busy}><X size={14}/></button>
+          <button className="btn btn-ghost" onClick={onCancel} disabled={busy} aria-label={t('common.cancel')}><X size={14}/></button>
         </div>
 
         {err && <div className="banner-err">{err}</div>}

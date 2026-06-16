@@ -711,7 +711,7 @@ function SectionsManager({ pageId, monitors, attached, writable }) {
                 onKeyDown={e => { if (e.key === 'Enter') rename(sec.id); if (e.key === 'Escape') setEditing(null); }}
                 style={{ fontSize: 12.5, padding: '4px 8px', flex: 1 }}/>
               <button className="btn btn-accent" onClick={() => rename(sec.id)} disabled={busy === sec.id} style={{ padding: '3px 8px', fontSize: 11 }}><Check size={11}/></button>
-              <button className="btn btn-ghost" onClick={() => setEditing(null)} disabled={busy === sec.id} style={{ padding: '3px 8px', fontSize: 11 }}><X size={11}/></button>
+              <button className="btn btn-ghost" onClick={() => setEditing(null)} disabled={busy === sec.id} aria-label={t('common.cancel')} style={{ padding: '3px 8px', fontSize: 11 }}><X size={11}/></button>
             </>
           ) : (
             <>
@@ -1191,7 +1191,7 @@ function IncidentRow({ incident, busy, onResolve, onDelete, onPostUpdate }) {
             <input className="input" autoFocus value={title} onChange={e => setTitle(e.target.value)}
               style={{ fontSize: 13.5, fontWeight: 600, padding: '4px 8px', flex: 1 }}/>
             <button className="btn btn-accent" onClick={saveEdit} disabled={saving} style={{ padding: '3px 8px', fontSize: 11 }}><Check size={11}/></button>
-            <button className="btn btn-ghost" onClick={cancelEdit} disabled={saving} style={{ padding: '3px 8px', fontSize: 11 }}><X size={11}/></button>
+            <button className="btn btn-ghost" onClick={cancelEdit} disabled={saving} aria-label={t('common.cancel')} style={{ padding: '3px 8px', fontSize: 11 }}><X size={11}/></button>
           </>
         ) : (
           <>

@@ -96,7 +96,7 @@ export default function Silences() {
                   {s.expires_at ? t('silences.expires', { d: formatRelative(s.expires_at) }) : t('silences.indefinite')}
                 </div>
               </div>
-              <button className="btn btn-ghost" onClick={() => remove(s.id)} title={t('silences.remove')}><X size={14}/></button>
+              <button className="btn btn-ghost" onClick={() => remove(s.id)} aria-label={t('silences.remove')} title={t('silences.remove')}><X size={14}/></button>
             </div>
           ))}
         </div>

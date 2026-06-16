@@ -206,7 +206,7 @@ function CreateForm({ onCancel, onCreated }) {
     <div className="card" style={{ padding: 20, marginBottom: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>{t('users.new')}</h3>
-        <button className="btn btn-ghost" onClick={onCancel} disabled={busy}><X size={14}/></button>
+        <button className="btn btn-ghost" onClick={onCancel} disabled={busy} aria-label={t('common.cancel')}><X size={14}/></button>
       </div>
       {err && <div className="banner-err">{err}</div>}
 

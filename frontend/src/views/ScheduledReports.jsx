@@ -226,7 +226,7 @@ function ReportForm({ report, onCancel, onSaved }) {
     <div className="card" style={{ padding: 20, marginBottom: editing ? 0 : 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>{editing ? t('reports.edit') : t('reports.new')}</h3>
-        <button className="btn btn-ghost" onClick={onCancel} disabled={busy}><X size={14}/></button>
+        <button className="btn btn-ghost" onClick={onCancel} disabled={busy} aria-label={t('common.cancel')}><X size={14}/></button>
       </div>
       {err && <div className="banner-err">{err}</div>}
 

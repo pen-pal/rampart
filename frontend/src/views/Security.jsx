@@ -148,7 +148,7 @@ function Sessions() {
               {r.user_agent || t('security.sessions.unknown_device')} · {t('security.sessions.expires', { d: fmt(r.expires_at) })}
             </div>
           </div>
-          {!r.current && <button className="btn btn-ghost" disabled={busy} onClick={() => revoke(r.id)} title={t('security.sessions.revoke')}><X size={14}/></button>}
+          {!r.current && <button className="btn btn-ghost" disabled={busy} onClick={() => revoke(r.id)} aria-label={t('security.sessions.revoke')} title={t('security.sessions.revoke')}><X size={14}/></button>}
         </div>
       ))}
     </div>

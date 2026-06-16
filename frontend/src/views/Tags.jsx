@@ -194,7 +194,7 @@ function TagRow({ tag, usage, onPatch, onDelete }) {
         {editing ? (
           <span style={{ display: 'inline-flex', gap: 6 }}>
             <button className="btn btn-accent" disabled={busy} onClick={save} style={{ padding: '5px 8px' }}><Check size={13}/></button>
-            <button className="btn btn-ghost" onClick={() => { setEditing(false); setName(tag.name); setColor(tag.color); }} style={{ padding: '5px 8px' }}><X size={13}/></button>
+            <button className="btn btn-ghost" onClick={() => { setEditing(false); setName(tag.name); setColor(tag.color); }} aria-label={t('common.cancel')} style={{ padding: '5px 8px' }}><X size={13}/></button>
           </span>
         ) : (
           <button className="btn btn-ghost" style={{ padding: '5px 8px' }} title={t('tags.rename_recolour')} onClick={() => setEditing(true)}>
