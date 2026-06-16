@@ -19,6 +19,19 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.61.0] — 2026-06-16
+
+### Added
+- **Database monitor auth fields.** The add-monitor wizard now exposes
+  **username / password / database** fields for Postgres, MySQL, MSSQL, MongoDB,
+  and Redis (Redis: username + password + DB number) — written into
+  `config.{user,password,database|db}`, which the probes already read. The edit
+  modal's config-JSON helper gained matching per-kind placeholders + key hints.
+  Redis gained ACL **username** support (`config.user`, Redis 6+) in the probe.
+  i18n en/es/fr/de.
+
+---
+
 ## [0.60.0] — 2026-06-16
 
 ### Added
@@ -1724,6 +1737,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.61.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.61.0
 [0.60.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.60.0
 [0.59.4]:     https://github.com/pen-pal/rampart/releases/tag/v0.59.4
 [0.59.3]:     https://github.com/pen-pal/rampart/releases/tag/v0.59.3
