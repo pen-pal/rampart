@@ -298,6 +298,51 @@ async fn seed_logs(pool: &DbPool, stats: &mut SeedStats) -> Result<()> {
             attributes: json!({ "env": "production" }),
         });
     }
+    // Background traffic: a time-spread set so the demo Logs view, level
+    // counts, and histogram look populated rather than showing only 7 rows.
+    // Deterministic (index-hashed) so repeated seeds stay stable.
+    let services = ["[demo] api", "[demo] web", "[demo] payments", "[demo] worker"];
+    let info_bodies = [
+        "request completed status=200 path=/api/orders",
+        "cache hit key=session:abc duration=2ms",
+        "healthcheck ok",
+        "page rendered route=/dashboard in 140ms",
+        "job processed queue=emails id=8821",
+    ];
+    let warn_bodies = [
+        "slow query 540ms on orders",
+        "retrying upstream call attempt=2",
+        "rate limit near threshold client=10.0.0.9",
+    ];
+    let error_bodies = [
+        "charge failed: upstream timeout",
+        "unhandled rejection in worker job=reindex",
+        "connection reset by peer host=db-primary",
+    ];
+    for j in 0..150u64 {
+        let svc = services[(j as usize) % services.len()];
+        // index hash → mostly info, ~16% warn, ~6% error.
+        let r = (j.wrapping_mul(2_654_435_761) >> 13) % 100;
+        let (sev, sevt, body) = if r < 6 {
+            (17, "error", error_bodies[(j as usize) % error_bodies.len()])
+        } else if r < 22 {
+            (13, "warn", warn_bodies[(j as usize) % warn_bodies.len()])
+        } else {
+            (9, "info", info_bodies[(j as usize) % info_bodies.len()])
+        };
+        // ~every 5 min back from now → ~12.5h of history.
+        let offset_ns = (j as i64 + 10) * 300 * 1_000_000_000;
+        logs.push(rampart_core::log::ParsedLog {
+            time_ns: now_ns - offset_ns,
+            severity: sev,
+            severity_text: Some(sevt.to_string()),
+            service_name: svc.to_string(),
+            body: body.to_string(),
+            trace_id: None,
+            span_id: None,
+            attributes: json!({ "env": "production" }),
+        });
+    }
     stats.logs += logs.len();
     rampart_db::logs::insert_logs(pool, &logs).await?;
     Ok(())

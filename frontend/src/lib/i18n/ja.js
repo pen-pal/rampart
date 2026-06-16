@@ -402,7 +402,7 @@ const ja = {
   'monitor.maint_now.button':        '今すぐメンテナンス',
   'monitor.maint_now.title':         'このモニターの単発メンテナンス期間を今すぐ開始します',
   'monitor.maint_now.heading':       'メンテナンスを開始:',
-  'monitor.maint_now.window_name':   '手動メンテナンス',
+  'monitor.maint_now.window_name':   '手動メンテナンス · {monitor}',
   'monitor.maint_now.dur_1h':        '1時間',
   'monitor.maint_now.dur_4h':        '4時間',
   'monitor.maint_now.dur_24h':       '24時間',

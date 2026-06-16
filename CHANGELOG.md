@@ -19,6 +19,21 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.72.0] — 2026-06-16
+
+### Changed
+- "Maintenance now" windows are named `Manual maintenance · <monitor>` instead
+  of a bare `Manual maintenance`, so dashboard and status-page rows say which
+  monitor the window covers. Localized in all six languages.
+
+### Demo
+- `seed-demo` now emits ~150 time-spread background log lines (≈12.5h of
+  history across four services, mostly info with ~16% warn / ~6% error) on top
+  of the seven correlated lines, so the Logs view, level counts, and histogram
+  look populated rather than nearly empty. Deterministic across reseeds.
+
+---
+
 ## [0.71.0] — 2026-06-16
 
 ### Accessibility
@@ -1972,6 +1987,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.72.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.72.0
 [0.71.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.71.0
 [0.70.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.70.2
 [0.70.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.70.1

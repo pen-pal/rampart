@@ -3541,7 +3541,7 @@ checksum = "dc33ff2d4973d518d823d61aa239014831e521c75da58e3df4840d3f47749d09"
 
 [[package]]
 name = "rampart-agent"
-version = "0.71.0"
+version = "0.72.0"
 dependencies = [
  "anyhow",
  "rampart-checker",
@@ -3559,7 +3559,7 @@ dependencies = [
 
 [[package]]
 name = "rampart-api"
-version = "0.71.0"
+version = "0.72.0"
 dependencies = [
  "anyhow",
  "argon2",
@@ -3611,7 +3611,7 @@ dependencies = [
 
 [[package]]
 name = "rampart-checker"
-version = "0.71.0"
+version = "0.72.0"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -3653,7 +3653,7 @@ dependencies = [
 
 [[package]]
 name = "rampart-core"
-version = "0.71.0"
+version = "0.72.0"
 dependencies = [
  "hex",
  "once_cell",
@@ -3671,7 +3671,7 @@ dependencies = [
 
 [[package]]
 name = "rampart-db"
-version = "0.71.0"
+version = "0.72.0"
 dependencies = [
  "aes-gcm",
  "argon2",
@@ -3694,7 +3694,7 @@ dependencies = [
 
 [[package]]
 name = "rampart-notifier"
-version = "0.71.0"
+version = "0.72.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3728,7 +3728,7 @@ dependencies = [
 
 [[package]]
 name = "rampart-scheduler"
-version = "0.71.0"
+version = "0.72.0"
 dependencies = [
  "async-trait",
  "futures",

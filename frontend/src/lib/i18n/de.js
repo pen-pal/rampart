@@ -260,7 +260,7 @@ const de = {
   'monitor.maint_now.button':        'Wartung jetzt',
   'monitor.maint_now.title':         'Jetzt ein einmaliges Wartungsfenster für diesen Monitor starten',
   'monitor.maint_now.heading':       'Wartung starten für',
-  'monitor.maint_now.window_name':   'Manuelle Wartung',
+  'monitor.maint_now.window_name':   'Manuelle Wartung · {monitor}',
   'monitor.maint_now.dur_1h':        '1 Stunde',
   'monitor.maint_now.dur_4h':        '4 Stunden',
   'monitor.maint_now.dur_24h':       '24 Stunden',
