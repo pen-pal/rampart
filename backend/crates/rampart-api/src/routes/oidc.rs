@@ -128,6 +128,23 @@ struct UserInfo {
     email: Option<String>,
     #[serde(default)]
     name: Option<String>,
+    /// The provider's assertion that it has verified ownership of `email`.
+    /// We refuse to provision/link a Rampart account unless this is `true` —
+    /// otherwise anyone who can register an *unverified* account at the IdP
+    /// with a victim's address could take over the matching Rampart user.
+    #[serde(default, deserialize_with = "de_bool_lenient")]
+    email_verified: Option<bool>,
+}
+
+/// Some IdPs encode `email_verified` as a JSON bool, others as the strings
+/// "true"/"false". Accept either; absent/null/other → `None` (unverified).
+fn de_bool_lenient<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<bool>, D::Error> {
+    use serde::Deserialize;
+    Ok(match Option::<serde_json::Value>::deserialize(d)? {
+        Some(serde_json::Value::Bool(b)) => Some(b),
+        Some(serde_json::Value::String(s)) => Some(s.eq_ignore_ascii_case("true")),
+        _ => None,
+    })
 }
 
 async fn discover(client: &reqwest::Client, issuer: &str) -> Result<Discovery, ApiError> {
@@ -234,6 +251,17 @@ async fn callback(
         .json()
         .await
         .map_err(|e| ApiError::Internal(anyhow::anyhow!("oidc userinfo parse: {e}")))?;
+
+    // Refuse to trust an unverified email — otherwise an attacker who registers
+    // an unverified account at the IdP under a victim's address could log in as
+    // (or provision) that victim's Rampart user.
+    if info.email_verified != Some(true) {
+        return Err(ApiError::BadRequest(
+            "oidc: provider did not assert a verified email (email_verified=true); \
+             refusing to provision or link an account"
+                .into(),
+        ));
+    }
 
     let email = info
         .email
