@@ -112,6 +112,9 @@ pub struct TraceFilter<'a> {
     pub errors_only: bool,
     /// Substring on root operation / root service / trace_id.
     pub q: Option<&'a str>,
+    /// Keyset cursor for "load older": the last trace_id already shown. Returns
+    /// traces strictly older than that trace's `(started_at, trace_id)`.
+    pub before_id: Option<&'a str>,
     pub limit: i64,
 }
 
@@ -148,7 +151,10 @@ pub async fn list_traces(pool: &DbPool, f: TraceFilter<'_>) -> DbResult<Vec<Trac
                 OR r.name ILIKE '%' || $5 || '%'
                 OR r.service_name ILIKE '%' || $5 || '%'
                 OR s.trace_id ILIKE '%' || $5 || '%')
-        ORDER BY MIN(s.received_at) DESC
+           AND ($6::text IS NULL
+                OR (MIN(s.received_at), s.trace_id)
+                   < ((SELECT MIN(received_at) FROM spans WHERE trace_id = $6), $6))
+        ORDER BY MIN(s.received_at) DESC, s.trace_id DESC
         LIMIT $1
         "#,
         f.limit.clamp(1, 500),
@@ -156,6 +162,7 @@ pub async fn list_traces(pool: &DbPool, f: TraceFilter<'_>) -> DbResult<Vec<Trac
         f.min_duration_ms,
         f.errors_only,
         f.q,
+        f.before_id,
     )
     .fetch_all(pool)
     .await?;

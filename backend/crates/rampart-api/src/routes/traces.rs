@@ -38,6 +38,8 @@ struct ListQuery {
     #[serde(default)]
     errors_only: bool,
     q: Option<String>,
+    /// Keyset cursor for "load older" — the last trace_id already shown.
+    before_id: Option<String>,
 }
 
 async fn list(
@@ -47,11 +49,13 @@ async fn list(
     let ne = |o: &Option<String>| o.clone().filter(|x| !x.is_empty());
     let service = ne(&query.service);
     let q = ne(&query.q);
+    let before = ne(&query.before_id);
     let filter = rampart_db::traces::TraceFilter {
         service: service.as_deref(),
         min_duration_ms: query.min_duration_ms,
         errors_only: query.errors_only,
         q: q.as_deref(),
+        before_id: before.as_deref(),
         limit: query.limit.unwrap_or(100),
     };
     Ok(Json(
@@ -133,6 +137,7 @@ async fn export_csv(
         min_duration_ms: query.min_duration_ms,
         errors_only: query.errors_only,
         q: q.as_deref(),
+        before_id: None,
         limit,
     };
     let rows = rampart_db::traces::list_traces(s.pool(), filter).await?;
