@@ -19,6 +19,35 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.101.2] — 2026-06-16
+
+Fixes from an adversarial self-review of this session's changes.
+
+### Security
+- **Synthetic cookie jar is now host-scoped — fixes a cross-host cookie leak.**
+  The automatic jar added in v0.100.0 replayed every accumulated cookie as a
+  `Cookie` header on every step and every redirect hop without checking the
+  host, so an auth/session cookie set by one host could be sent to another —
+  either a later step targeting a different host, or a 3xx/open-redirect whose
+  `Location` points at another origin (the SSRF guard blocks only internal IPs,
+  not arbitrary external hosts). The jar is now keyed by issuing host and a
+  cookie is only ever replayed to the exact host that set it.
+
+### Fixed
+- **SLO range validation no longer crashes the monitor edit modal.** A local
+  variable shadowed the i18n `t()` function, so entering an out-of-range SLO
+  target/window threw `t is not a function` and left the modal stuck instead of
+  showing the range error. (Server-side validation was already the backstop.)
+- **Editing a synthetic monitor no longer drops `body_contains` assertions with
+  an empty/whitespace substring.** The config↔editor converters now round-trip
+  such assertions cleanly.
+- **Completed es/fr/de notification-hint localization.** Translated common nouns
+  left in English mid-sentence (`username`, `from number`, `from sender`,
+  `phones`, `line number`, `access token`); brand names, acronyms, and literal
+  API field tokens stay verbatim.
+
+---
+
 ## [0.101.1] — 2026-06-16
 
 ### Security
