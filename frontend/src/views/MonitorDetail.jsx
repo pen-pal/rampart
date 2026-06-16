@@ -1314,11 +1314,11 @@ function EditModal({ monitor, onCancel, onSaved }) {
     // send both (the form lets the user clear either one) so the patch
     // reflects exactly what's in the form.
     {
-      const t = sloTarget.trim();
-      if (t === '') {
+      const target = sloTarget.trim();
+      if (target === '') {
         patch.slo_target_pct = null;
       } else {
-        const n = parseFloat(t);
+        const n = parseFloat(target);
         if (!Number.isFinite(n) || n < 90 || n > 100) {
           setErr(t('validation.slo_target_range'));
           return;
