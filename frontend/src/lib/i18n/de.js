@@ -1898,6 +1898,16 @@ const de = {
   'monitor.config.invalid_json': 'Konfiguration ist kein gültiges JSON — wechseln Sie in den JSON-Modus, um sie zu korrigieren.',
   'wizard.field.max_latency': 'Max. Latenz (ms)',
   'wizard.field.max_latency_hint': 'Markiert die Prüfung als ausgefallen, wenn sie langsamer antwortet — Degradationserkennung getrennt vom Verbindungs-Timeout. Leer = aus.',
+  'validation.name_required':        'Name ist erforderlich.',
+  'validation.body_required':        'Text ist erforderlich.',
+  'validation.headers_json':         'Header müssen gültiges JSON sein.',
+  'validation.probe_json':           'Probe-Konfiguration muss gültiges JSON sein.',
+  'validation.probe_json_object':    'Probe-Konfiguration muss ein JSON-Objekt sein.',
+  'validation.slo_target_range':     'SLO-Ziel muss zwischen 90.0 und 100.0 liegen.',
+  'validation.slo_window_range':     'SLO-Fenster muss zwischen 1 und 90 Tagen liegen.',
+  'validation.end_after_start':      'Die Endzeit muss nach der Startzeit liegen.',
+  'maintenance.delete_confirm':      'Dieses Wartungsfenster löschen?',
+  'notifications.channel.delete_confirm': 'Diesen Kanal löschen? Monitore, die ihn verwenden, benachrichtigen nicht mehr über diesen Kanal.',
 };
 
 export default de;
