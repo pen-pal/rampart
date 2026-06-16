@@ -19,6 +19,17 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.57.0] — 2026-06-16
+
+### Added
+- **es / fr / de translations** for the ~41 strings added across this cycle's new
+  views (SLOs, interactive profiling, the reworked waterfall, RUM→trace, log
+  histogram window, dashboard SLO/error widgets). English fallback already
+  covered them; this restores full Spanish/French/German parity. ja/zh continue
+  to fall back to English pending native sign-off, matching their existing state.
+
+---
+
 ## [0.56.0] — 2026-06-15
 
 ### Changed
@@ -1625,6 +1636,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.57.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.57.0
 [0.56.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.56.0
 [0.55.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.55.1
 [0.55.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.55.0
