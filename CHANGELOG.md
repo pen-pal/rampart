@@ -19,6 +19,15 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.59.3] — 2026-06-16
+
+### Tested
+- Integration test for the enriched service map (`service_map`): per-edge call
+  count, error count, and p95 latency of the callee span, plus that same-service
+  parent/child pairs don't form an edge.
+
+---
+
 ## [0.59.2] — 2026-06-16
 
 ### Fixed
@@ -1695,6 +1704,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.59.3]:     https://github.com/pen-pal/rampart/releases/tag/v0.59.3
 [0.59.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.59.2
 [0.59.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.59.1
 [0.59.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.59.0
