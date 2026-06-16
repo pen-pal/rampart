@@ -68,7 +68,7 @@ async fn level_counts_and_query_roundtrip(pool: PgPool) {
     // The plain query honours the service filter.
     let rows = logs::query_logs(
         &pool,
-        LogFilter { service: Some("web"), min_severity: None, query: None, trace_id: None, span_id: None, limit: 50 },
+        LogFilter { service: Some("web"), min_severity: None, query: None, trace_id: None, span_id: None, hours: None, limit: 50 },
     )
     .await
     .unwrap();

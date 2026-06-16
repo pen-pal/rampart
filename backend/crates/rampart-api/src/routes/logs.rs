@@ -75,9 +75,21 @@ async fn list(
         query: query.q.as_deref().filter(|s| !s.is_empty()),
         trace_id: query.trace_id.as_deref(),
         span_id: query.span_id.as_deref().filter(|s| !s.is_empty()),
+        hours: window_hours(&query),
         limit: query.limit.unwrap_or(200),
     };
     Ok(Json(rampart_db::logs::query_logs(s.pool(), filter).await?))
+}
+
+/// The list/export time window: honour the `hours` param (default 24h), but
+/// leave it unbounded for the trace/span pivots, which want the full set for
+/// that trace regardless of age.
+fn window_hours(q: &LogQuery) -> Option<i32> {
+    if q.trace_id.is_some() || q.span_id.as_deref().is_some_and(|s| !s.is_empty()) {
+        None
+    } else {
+        Some(q.hours.unwrap_or(24))
+    }
 }
 
 async fn histogram(
@@ -116,6 +128,7 @@ async fn export_csv(
         query: query.q.as_deref().filter(|s| !s.is_empty()),
         trace_id: query.trace_id.as_deref(),
         span_id: query.span_id.as_deref().filter(|s| !s.is_empty()),
+        hours: window_hours(&query),
         limit,
     };
     let rows = rampart_db::logs::query_logs(s.pool(), filter).await?;

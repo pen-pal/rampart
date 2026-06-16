@@ -19,6 +19,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.90.0] — 2026-06-16
+
+### Fixed
+- **Logs list + CSV export now honour the time-window (`hours`) filter.** They
+  previously ignored it — the histogram and level counts respected the window
+  but the actual log rows always returned the newest N regardless of age, so a
+  narrowed window showed stale rows. `query_logs` now bounds `received_at` to
+  the window (default 24h); the trace/span pivots stay unbounded. (Audit #12.)
+- **Admin incident history is bounded.** `incidents::list_all` had no `LIMIT`,
+  so a page with a long incident history returned an unbounded payload. Clamped
+  to 500. (Audit #19.)
+
+---
+
 ## [0.89.0] — 2026-06-16
 
 ### Performance
@@ -2248,6 +2262,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.90.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.90.0
 [0.89.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.89.0
 [0.88.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.88.0
 [0.87.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.87.0
