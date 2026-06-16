@@ -19,6 +19,15 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.68.1] — 2026-06-16
+
+### Documentation
+- `docs/CORRELATION.md` updated for the span→logs link, the APM-operation→traces
+  pivot, and a **user-identity** section (the same app user id ties RUM loads to
+  error issues — "who experienced this" across tiers).
+
+---
+
 ## [0.68.0] — 2026-06-16
 
 ### Added
@@ -1901,6 +1910,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.68.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.68.1
 [0.68.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.68.0
 [0.67.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.67.2
 [0.67.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.67.1
