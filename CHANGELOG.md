@@ -19,6 +19,21 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.99.3] — 2026-06-16
+
+### Fixed
+- Logs keyset pagination ordered only by `ts DESC` while the cursor compared
+  `(ts, id)` — so rows sharing a timestamp could be skipped or duplicated across
+  "Load older" pages. `ORDER BY` is now `ts DESC, id DESC`, matching the cursor.
+
+### Tested
+- Unit tests for the self-metrics rate/mean derivation (incl. counter-reset
+  saturation) and for logs keyset pagination
+  (`keyset_pagination_covers_all_without_overlap`, with timestamp ties).
+  (The end-to-end CI smoke already runs in the `e2e` job across 5 browsers.)
+
+---
+
 ## [0.99.2] — 2026-06-16
 
 ### Performance
@@ -2427,6 +2442,7 @@ Full rationale in [`docs/DESIGN-ORIGINAL.md`](docs/DESIGN-ORIGINAL.md).
 ---
 
 [Unreleased]: https://github.com/pen-pal/rampart/compare/v0.42.0...HEAD
+[0.99.3]:     https://github.com/pen-pal/rampart/releases/tag/v0.99.3
 [0.99.2]:     https://github.com/pen-pal/rampart/releases/tag/v0.99.2
 [0.99.1]:     https://github.com/pen-pal/rampart/releases/tag/v0.99.1
 [0.99.0]:     https://github.com/pen-pal/rampart/releases/tag/v0.99.0
