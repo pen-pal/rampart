@@ -3,6 +3,7 @@
 //! Read responses redact the password (Proxy.password has `#[serde(skip_serializing)]`).
 //! Probe runtime gets the full row via the dedicated `rampart_db::proxies::get` path.
 
+use crate::auth::OrgContext;
 use crate::error::ApiError;
 use crate::state::AppState;
 use axum::extract::{Extension, Path, State};
@@ -29,8 +30,11 @@ fn parse(s: &str) -> Result<ProxyId, ApiError> {
         .map_err(|_| ApiError::BadRequest("invalid proxy id".into()))
 }
 
-async fn list(State(s): State<AppState>) -> Result<Json<Vec<Proxy>>, ApiError> {
-    Ok(Json(rampart_db::proxies::list(s.pool()).await?))
+async fn list(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+) -> Result<Json<Vec<Proxy>>, ApiError> {
+    Ok(Json(rampart_db::proxies::list(s.pool(), org.org_id).await?))
 }
 
 async fn create(
@@ -66,11 +70,12 @@ async fn create(
 async fn remove(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let pid = parse(&id)?;
-    rampart_db::proxies::delete(s.pool(), pid).await?;
+    rampart_db::proxies::delete(s.pool(), pid, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -92,12 +97,13 @@ struct SetActiveBody {
 async fn set_active(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path(id): Path<String>,
     Json(body): Json<SetActiveBody>,
 ) -> Result<StatusCode, ApiError> {
     let pid = parse(&id)?;
-    rampart_db::proxies::set_active(s.pool(), pid, body.active).await?;
+    rampart_db::proxies::set_active(s.pool(), pid, body.active, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,

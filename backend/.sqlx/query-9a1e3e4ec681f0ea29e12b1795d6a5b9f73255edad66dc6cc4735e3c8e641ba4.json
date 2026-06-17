@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, protocol, host, port, auth, username, password, active, created_at\n        FROM proxies\n        ORDER BY created_at DESC\n        ",
+  "query": "\n        SELECT id, protocol, host, port, auth, username, password, active, created_at\n        FROM proxies\n        WHERE org_id = $1\n        ORDER BY created_at DESC\n        ",
   "describe": {
     "columns": [
       {
@@ -104,7 +104,9 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid"
+      ]
     },
     "nullable": [
       false,
@@ -118,5 +120,5 @@
       false
     ]
   },
-  "hash": "62864f324b71648c26436bdc9e627bb674980bcece9b416b6c366f2e8513f079"
+  "hash": "9a1e3e4ec681f0ea29e12b1795d6a5b9f73255edad66dc6cc4735e3c8e641ba4"
 }

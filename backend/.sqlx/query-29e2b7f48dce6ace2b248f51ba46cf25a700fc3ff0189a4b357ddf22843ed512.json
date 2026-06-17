@@ -1,0 +1,125 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, protocol, host, port, auth, username, password, active, created_at\n        FROM proxies\n        WHERE id = $1 AND org_id = $2\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "proxies",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "protocol",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "proxies",
+            "name": "protocol"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "host",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "proxies",
+            "name": "host"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "port",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "proxies",
+            "name": "port"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "auth",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "proxies",
+            "name": "auth"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "username",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "proxies",
+            "name": "username"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "password",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "proxies",
+            "name": "password"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "active",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "proxies",
+            "name": "active"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "proxies",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "29e2b7f48dce6ace2b248f51ba46cf25a700fc3ff0189a4b357ddf22843ed512"
+}

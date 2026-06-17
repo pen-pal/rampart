@@ -1183,7 +1183,7 @@ async fn probe_once(probes: &Probes, monitor: &Monitor, pool: &DbPool) -> Heartb
         // HTTP-family kinds + a configured proxy route through the
         // dedicated HttpProbe::run_with_proxy path. Other kinds with a
         // dangling proxy_id (e.g. a TCP probe) silently ignore it.
-        match rampart_db::proxies::get(pool, pid).await {
+        match rampart_db::proxies::get_unscoped(pool, pid).await {
             Ok(proxy)
                 if proxy.active
                     && matches!(
