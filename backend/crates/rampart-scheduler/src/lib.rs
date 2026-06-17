@@ -308,7 +308,7 @@ impl Scheduler {
                     match rampart_db::detection::get(&self.pool, rule_id).await {
                         Ok(rule) => {
                             let grace = ((rule.window_seconds as i64) * 2).max(600);
-                            let active = rampart_db::detection::has_recent_finding(&self.pool, rule_id, grace)
+                            let active = rampart_db::detection::has_recent_finding(&self.pool, rule_id, grace, None)
                                 .await
                                 .unwrap_or(false);
                             if active {
