@@ -59,8 +59,12 @@ macro_rules! id {
     };
 }
 
-// Core entities. Kept tight — no WorkspaceId, no RotationId, no RuleId
-// (those were enterprise-scope and got dropped in the v1 → v2 slim).
+// Core entities.
+//
+// `OrgId` is the multi-tenancy tenant root (added in migration 0107). The
+// old `WorkspaceId`/`RotationId`/`RuleId` were dropped in the v1 → v2 slim;
+// `OrgId` reintroduces the tenant concept deliberately and minimally.
+id!(OrgId);
 id!(UserId);
 id!(SessionId);
 id!(MonitorId);

@@ -19,6 +19,28 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.107.0] — 2026-06-17
+
+### Added
+- **Multi-tenancy — Phase 1 foundation (behaviour-identical).** Introduces the
+  tenant root and user↔org membership without changing any behaviour: a new
+  `organizations` table + `org_members` join (role on the membership, the
+  many-to-many model that later enables MSP "one admin across customers"), and
+  `sessions.active_org_id`. Every install gets a well-known **Default org**
+  (`00000000-0000-0000-0000-000000000001`); migration 0107 backfills every
+  existing user into it with their current role and points every session at it.
+  `users::create` now atomically seeds the Default-org membership, so the
+  invariant "every user belongs to an org" holds for all creation paths. The
+  auth layer resolves an `OrgContext { org_id, role }` on every authenticated
+  request (cookie path from the session's active org with a Default-org
+  fallback; bearer path → Default org) and attaches it to request extensions.
+  No query filters by org and the RBAC guards still read `User.role`, so this
+  release is functionally identical to single-tenant — it is the additive,
+  reversible base for the phased rollout. See [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md)
+  for the full 6-phase plan and the tracked cross-tenant leak traps.
+
+---
+
 ## [0.106.1] — 2026-06-17
 
 ### Fixed

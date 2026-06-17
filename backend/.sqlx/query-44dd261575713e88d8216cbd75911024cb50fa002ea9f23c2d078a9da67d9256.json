@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO sessions (id, user_id, expires_at, ip_addr, user_agent)\n        VALUES ($1, $2, $3, $4, $5)\n        RETURNING id, user_id, created_at, expires_at\n        ",
+  "query": "\n        INSERT INTO sessions (id, user_id, expires_at, ip_addr, user_agent)\n        VALUES ($1, $2, $3, $4, $5)\n        RETURNING id, user_id, created_at, expires_at, active_org_id\n        ",
   "describe": {
     "columns": [
       {
@@ -46,6 +46,17 @@
             "name": "expires_at"
           }
         }
+      },
+      {
+        "ordinal": 4,
+        "name": "active_org_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "sessions",
+            "name": "active_org_id"
+          }
+        }
       }
     ],
     "parameters": {
@@ -61,8 +72,9 @@
       false,
       false,
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "2e1ddd4d49c50eaf315876f71d8f0154d4d0eb3bdfd240cd33f6644b36c0e404"
+  "hash": "44dd261575713e88d8216cbd75911024cb50fa002ea9f23c2d078a9da67d9256"
 }
