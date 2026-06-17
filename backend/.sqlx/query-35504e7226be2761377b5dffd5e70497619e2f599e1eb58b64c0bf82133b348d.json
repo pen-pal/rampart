@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE agents SET\n            name     = COALESCE($2, name),\n            location = CASE WHEN $4 THEN NULL ELSE COALESCE($3, location) END\n        WHERE id = $1 AND org_id = $5\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Bool",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "35504e7226be2761377b5dffd5e70497619e2f599e1eb58b64c0bf82133b348d"
+}

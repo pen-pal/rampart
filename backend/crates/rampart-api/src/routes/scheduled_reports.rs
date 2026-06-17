@@ -6,9 +6,10 @@
 //! sends due reports via the system SMTP sender; these routes only manage
 //! the rows. Admin-gated via the `require_admin` layer in routes/mod.rs.
 
+use crate::auth::OrgContext;
 use crate::error::ApiError;
 use crate::state::AppState;
-use axum::extract::{Path, State};
+use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
@@ -47,16 +48,22 @@ fn validate_cadence(cadence: &str) -> Result<(), ApiError> {
     }
 }
 
-async fn list(State(s): State<AppState>) -> Result<Json<Vec<ScheduledReport>>, ApiError> {
-    Ok(Json(rampart_db::scheduled_reports::list(s.pool()).await?))
+async fn list(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+) -> Result<Json<Vec<ScheduledReport>>, ApiError> {
+    Ok(Json(
+        rampart_db::scheduled_reports::list(s.pool(), org.org_id).await?,
+    ))
 }
 
 async fn get_one(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<ScheduledReport>, ApiError> {
     Ok(Json(
-        rampart_db::scheduled_reports::get(s.pool(), parse(&id)?).await?,
+        rampart_db::scheduled_reports::get(s.pool(), parse(&id)?, org.org_id).await?,
     ))
 }
 
@@ -74,6 +81,7 @@ async fn create(
 
 async fn update(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
     Json(input): Json<UpdateScheduledReport>,
 ) -> Result<Json<ScheduledReport>, ApiError> {
@@ -81,12 +89,16 @@ async fn update(
         validate_cadence(cadence)?;
     }
     Ok(Json(
-        rampart_db::scheduled_reports::update(s.pool(), parse(&id)?, input).await?,
+        rampart_db::scheduled_reports::update(s.pool(), parse(&id)?, input, org.org_id).await?,
     ))
 }
 
-async fn remove(State(s): State<AppState>, Path(id): Path<String>) -> Result<StatusCode, ApiError> {
-    rampart_db::scheduled_reports::delete(s.pool(), parse(&id)?).await?;
+async fn remove(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+    Path(id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    rampart_db::scheduled_reports::delete(s.pool(), parse(&id)?, org.org_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -97,10 +109,11 @@ async fn remove(State(s): State<AppState>, Path(id): Path<String>) -> Result<Sta
 /// of this router. Returns the (possibly mutated) report row.
 async fn send_now(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<ScheduledReport>, ApiError> {
     let id = parse(&id)?;
-    let report = rampart_db::scheduled_reports::get(s.pool(), id).await?;
+    let report = rampart_db::scheduled_reports::get(s.pool(), id, org.org_id).await?;
 
     if report.recipients.is_empty() {
         return Err(ApiError::BadRequest(
@@ -118,6 +131,6 @@ async fn send_now(
     // the new last_sent_at.
     rampart_db::scheduled_reports::mark_sent(s.pool(), id).await?;
     Ok(Json(
-        rampart_db::scheduled_reports::get(s.pool(), id).await?,
+        rampart_db::scheduled_reports::get(s.pool(), id, org.org_id).await?,
     ))
 }
