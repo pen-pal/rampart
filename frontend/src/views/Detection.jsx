@@ -62,6 +62,7 @@ function sevStyle(sev) {
 const emptyForm = () => ({
   name: '', description: '', severity: 'medium', service: '', min_level: 0,
   body_regex: '', attr_key: '', attr_val: '', threshold: 1, window_seconds: 300,
+  cooldown_seconds: 300,
   enabled: true, channel_ids: [], escalation_policy_id: '',
 });
 
@@ -257,6 +258,7 @@ function RuleForm({ rule, channels, onSaved, onCancel, setErr }) {
     service: rule.service || '', min_level: rule.min_level || 0, body_regex: rule.body_regex || '',
     attr_key: rule.attr_key || '', attr_val: rule.attr_val || '',
     threshold: rule.threshold, window_seconds: rule.window_seconds,
+    cooldown_seconds: rule.cooldown_seconds ?? 0,
     enabled: rule.enabled, channel_ids: [...(rule.channel_ids || [])],
     escalation_policy_id: rule.escalation_policy_id || '',
   } : emptyForm());
@@ -290,6 +292,7 @@ function RuleForm({ rule, channels, onSaved, onCancel, setErr }) {
       service: f.service.trim(), min_level: Number(f.min_level) || 0, body_regex: f.body_regex.trim(),
       attr_key: f.attr_key.trim(), attr_val: f.attr_val.trim(),
       threshold: Number(f.threshold), window_seconds: Number(f.window_seconds),
+      cooldown_seconds: Number(f.cooldown_seconds) || 0,
       enabled: f.enabled, channel_ids: f.channel_ids,
       escalation_policy_id: f.escalation_policy_id || null,
     };
@@ -354,6 +357,11 @@ function RuleForm({ rule, channels, onSaved, onCancel, setErr }) {
           <label className="field-label">{t('detection.f.window')}</label>
           <input className="input mono" type="number" min="1" value={f.window_seconds} onChange={e => set('window_seconds', e.target.value)}/>
         </div>
+      </div>
+      <div className="field">
+        <label className="field-label">{t('detection.f.cooldown')}</label>
+        <input className="input mono" type="number" min="0" value={f.cooldown_seconds} onChange={e => set('cooldown_seconds', e.target.value)}/>
+        <div className="field-hint">{t('detection.f.cooldown_hint')}</div>
       </div>
       <div className="field">
         <label className="field-label">{t('detection.f.channels')}</label>

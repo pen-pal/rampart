@@ -72,6 +72,11 @@ pub struct DetectionRule {
     pub threshold: i32,
     /// How far back a tick looks when it has no prior checkpoint (seconds).
     pub window_seconds: i32,
+    /// Suppression window: after raising a finding, don't raise another for
+    /// this rule until `cooldown_seconds` have elapsed (matches still advance
+    /// the watermark, so they aren't re-counted later). `0` = no cooldown —
+    /// raise on every tick that crosses the threshold (the legacy behavior).
+    pub cooldown_seconds: i32,
     pub channel_ids: Vec<NotificationId>,
     pub escalation_policy_id: Option<EscalationPolicyId>,
     /// Watermark: the upper bound of the last evaluated window. The next tick
@@ -111,6 +116,11 @@ pub struct NewDetectionRule {
     #[validate(range(min = 1, max = 86400))]
     #[serde(default = "default_window")]
     pub window_seconds: i32,
+    /// See [`DetectionRule::cooldown_seconds`]. New rules default to a 5-minute
+    /// suppression window so a noisy rule doesn't fire every tick out of the box.
+    #[validate(range(min = 0, max = 86400))]
+    #[serde(default = "default_cooldown")]
+    pub cooldown_seconds: i32,
     #[serde(default = "default_enabled")]
     pub enabled: bool,
     #[serde(default)]
@@ -123,6 +133,9 @@ fn default_threshold() -> i32 {
     1
 }
 fn default_window() -> i32 {
+    300
+}
+fn default_cooldown() -> i32 {
     300
 }
 fn default_enabled() -> bool {
@@ -160,6 +173,9 @@ pub struct UpdateDetectionRule {
     #[validate(range(min = 1, max = 86400))]
     #[serde(default)]
     pub window_seconds: Option<i32>,
+    #[validate(range(min = 0, max = 86400))]
+    #[serde(default)]
+    pub cooldown_seconds: Option<i32>,
     #[serde(default)]
     pub enabled: Option<bool>,
     #[serde(default)]

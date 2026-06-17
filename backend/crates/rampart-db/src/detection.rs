@@ -24,6 +24,7 @@ struct RuleRow {
     attr_val: String,
     threshold: i32,
     window_seconds: i32,
+    cooldown_seconds: i32,
     channel_ids: Vec<Uuid>,
     escalation_policy_id: Option<Uuid>,
     last_checked_at: Option<OffsetDateTime>,
@@ -45,6 +46,7 @@ impl From<RuleRow> for DetectionRule {
             attr_val: r.attr_val,
             threshold: r.threshold,
             window_seconds: r.window_seconds,
+            cooldown_seconds: r.cooldown_seconds,
             channel_ids: r
                 .channel_ids
                 .into_iter()
@@ -115,7 +117,7 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<DetectionRule>> {
         RuleRow,
         r#"
         SELECT id, name, description, enabled, severity, service, min_level,
-               body_regex, attr_key, attr_val, threshold, window_seconds,
+               body_regex, attr_key, attr_val, threshold, window_seconds, cooldown_seconds,
                channel_ids AS "channel_ids!", escalation_policy_id, last_checked_at, created_at
         FROM detection_rules
         ORDER BY created_at
@@ -131,7 +133,7 @@ pub async fn get(pool: &DbPool, id: DetectionRuleId) -> DbResult<DetectionRule> 
         RuleRow,
         r#"
         SELECT id, name, description, enabled, severity, service, min_level,
-               body_regex, attr_key, attr_val, threshold, window_seconds,
+               body_regex, attr_key, attr_val, threshold, window_seconds, cooldown_seconds,
                channel_ids AS "channel_ids!", escalation_policy_id, last_checked_at, created_at
         FROM detection_rules
         WHERE id = $1
@@ -152,8 +154,8 @@ pub async fn create(pool: &DbPool, input: NewDetectionRule) -> DbResult<Detectio
         INSERT INTO detection_rules
             (id, name, description, enabled, severity, service, min_level,
              body_regex, attr_key, attr_val, threshold, window_seconds, channel_ids,
-             escalation_policy_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+             escalation_policy_id, cooldown_seconds)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         "#,
         id.0,
         input.name,
@@ -169,6 +171,7 @@ pub async fn create(pool: &DbPool, input: NewDetectionRule) -> DbResult<Detectio
         input.window_seconds,
         &channel_ids,
         input.escalation_policy_id.map(|p| p.0),
+        input.cooldown_seconds,
     )
     .execute(pool)
     .await?;
@@ -196,7 +199,8 @@ pub async fn update(
             threshold      = COALESCE($11, threshold),
             window_seconds = COALESCE($12, window_seconds),
             channel_ids    = COALESCE($13, channel_ids),
-            escalation_policy_id = COALESCE($14, escalation_policy_id)
+            escalation_policy_id = COALESCE($14, escalation_policy_id),
+            cooldown_seconds = COALESCE($15, cooldown_seconds)
         WHERE id = $1
         "#,
         id.0,
@@ -213,6 +217,7 @@ pub async fn update(
         patch.window_seconds,
         channel_ids.as_deref(),
         patch.escalation_policy_id.map(|p| p.0),
+        patch.cooldown_seconds,
     )
     .execute(pool)
     .await?;
@@ -347,7 +352,13 @@ pub async fn evaluate_tick(pool: &DbPool) -> DbResult<Vec<FindingEvent>> {
         .await?;
         let (wfrom, wto, count) = (row.wfrom, row.wto, row.cnt);
 
-        if count >= rule.threshold as i64 {
+        // Suppression: within the cooldown window after a finding, keep
+        // advancing the watermark (so matches aren't re-counted) but don't raise
+        // a new finding — stops a sustained match stream firing every tick.
+        let suppressed = rule.cooldown_seconds > 0
+            && has_recent_finding(pool, rule.id, rule.cooldown_seconds as i64).await?;
+
+        if count >= rule.threshold as i64 && !suppressed {
             // Newest matching body as the analyst's sample (truncated).
             let sample = sqlx::query_scalar!(
                 r#"
