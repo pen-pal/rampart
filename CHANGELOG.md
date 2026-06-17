@@ -19,6 +19,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.120.0] — 2026-06-17
+
+### Added
+- **Multi-tenancy — Phase 3l: org-scoped dashboard aggregates.** The
+  cross-cutting "all monitors / all pages / all projects" dashboard reads now
+  filter by the request's org via a join to the owning root: the monitors
+  summary (`heartbeats::summary_window`) + history strip
+  (`heartbeats::recent_per_monitor`) join `monitors.org_id`; the recent-incidents
+  feed (`incidents::recent`) joins `status_pages.org_id`; the recent-open-errors
+  feed (`error_tracking::recent_open_issues`) joins `error_projects.org_id`. A
+  cross-org row can no longer surface in another org's dashboard tiles, history
+  bars, or recent feeds. Behaviour-identical for a single-org install (the join
+  matches every row). The org-member-scoped `assignable_users` read is deferred
+  to Phase 4 (it needs the membership model, not a column join). See
+  [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.119.0] — 2026-06-17
 
 ### Added
