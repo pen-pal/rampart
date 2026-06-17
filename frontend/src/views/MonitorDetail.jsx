@@ -1045,7 +1045,7 @@ export default function MonitorDetail({ monitorId, user }) {
           </div>
           <div style={{ height: 220 }}>
             {responseData.length > 0 ? (
-              <ResponsiveContainer>
+              <ResponsiveContainer initialDimension={{ width: 600, height: 220 }}>
                 <AreaChart data={responseData} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
                   <defs>
                     <linearGradient id="lat" x1="0" y1="0" x2="0" y2="1">
@@ -2442,7 +2442,7 @@ function BurndownCard({ data, windowDays, onWindowChange }) {
       </div>
       <div style={{ height: 200 }}>
         {chart.length > 0 ? (
-          <ResponsiveContainer>
+          <ResponsiveContainer initialDimension={{ width: 600, height: 200 }}>
             <AreaChart data={chart} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
               <defs>
                 <linearGradient id="burndown" x1="0" y1="0" x2="0" y2="1">
