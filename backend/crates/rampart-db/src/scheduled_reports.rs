@@ -5,6 +5,7 @@
 //! stamp `last_sent_at` after a successful send.
 
 use crate::{DbError, DbPool, DbResult};
+use rampart_core::ids::OrgId;
 use rampart_core::scheduled_report::ScheduledReport;
 use rampart_core::ScheduledReportId;
 use serde::Deserialize;
@@ -34,13 +35,15 @@ pub struct UpdateScheduledReport {
     pub cadence: Option<String>,
 }
 
-pub async fn list(pool: &DbPool) -> DbResult<Vec<ScheduledReport>> {
+pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<ScheduledReport>> {
     let rows = sqlx::query!(
         r#"
         SELECT id, name, recipients, cadence, last_sent_at, created_at
         FROM scheduled_reports
+        WHERE org_id = $1
         ORDER BY created_at DESC
         "#,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -57,14 +60,15 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<ScheduledReport>> {
         .collect())
 }
 
-pub async fn get(pool: &DbPool, id: ScheduledReportId) -> DbResult<ScheduledReport> {
+pub async fn get(pool: &DbPool, id: ScheduledReportId, org_id: OrgId) -> DbResult<ScheduledReport> {
     let r = sqlx::query!(
         r#"
         SELECT id, name, recipients, cadence, last_sent_at, created_at
         FROM scheduled_reports
-        WHERE id = $1
+        WHERE id = $1 AND org_id = $2
         "#,
         id.0,
+        org_id.0,
     )
     .fetch_optional(pool)
     .await?
@@ -108,19 +112,21 @@ pub async fn update(
     pool: &DbPool,
     id: ScheduledReportId,
     input: UpdateScheduledReport,
+    org_id: OrgId,
 ) -> DbResult<ScheduledReport> {
-    let cur = get(pool, id).await?;
+    let cur = get(pool, id, org_id).await?;
     let r = sqlx::query!(
         r#"
         UPDATE scheduled_reports
         SET name = $2, recipients = $3, cadence = $4
-        WHERE id = $1
+        WHERE id = $1 AND org_id = $5
         RETURNING id, name, recipients, cadence, last_sent_at, created_at
         "#,
         id.0,
         input.name.unwrap_or(cur.name),
         &input.recipients.unwrap_or(cur.recipients),
         input.cadence.unwrap_or(cur.cadence),
+        org_id.0,
     )
     .fetch_one(pool)
     .await?;
@@ -134,10 +140,14 @@ pub async fn update(
     })
 }
 
-pub async fn delete(pool: &DbPool, id: ScheduledReportId) -> DbResult<()> {
-    let r = sqlx::query!("DELETE FROM scheduled_reports WHERE id = $1", id.0)
-        .execute(pool)
-        .await?;
+pub async fn delete(pool: &DbPool, id: ScheduledReportId, org_id: OrgId) -> DbResult<()> {
+    let r = sqlx::query!(
+        "DELETE FROM scheduled_reports WHERE id = $1 AND org_id = $2",
+        id.0,
+        org_id.0,
+    )
+    .execute(pool)
+    .await?;
     if r.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }

@@ -21,6 +21,7 @@
 //! webhooks. Flip detection happens here against `monitors.current_status`
 //! since there is no local probe task holding in-memory state for these.
 
+use crate::auth::OrgContext;
 use crate::error::ApiError;
 use crate::state::AppState;
 use axum::extract::{Extension, Path, State};
@@ -72,8 +73,11 @@ fn parse(s: &str) -> Result<AgentId, ApiError> {
 
 // ---- operator management --------------------------------------------------
 
-async fn list(State(s): State<AppState>) -> Result<Json<Vec<Agent>>, ApiError> {
-    Ok(Json(rampart_db::agents::list(s.pool()).await?))
+async fn list(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+) -> Result<Json<Vec<Agent>>, ApiError> {
+    Ok(Json(rampart_db::agents::list(s.pool(), org.org_id).await?))
 }
 
 async fn create(
@@ -103,6 +107,7 @@ async fn create(
 async fn update(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path(id): Path<String>,
     Json(input): Json<UpdateAgent>,
@@ -111,7 +116,7 @@ async fn update(
     input
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
-    let agent = rampart_db::agents::update(s.pool(), agent_id, input).await?;
+    let agent = rampart_db::agents::update(s.pool(), agent_id, input, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -128,11 +133,12 @@ async fn update(
 async fn revoke(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let agent_id = parse(&id)?;
-    rampart_db::agents::delete(s.pool(), agent_id).await?;
+    rampart_db::agents::delete(s.pool(), agent_id, org.org_id).await?;
     // ON DELETE SET NULL just returned this agent's monitors to local
     // probing — poke so the scheduler starts their tasks immediately
     // instead of on the 30s fallback tick.

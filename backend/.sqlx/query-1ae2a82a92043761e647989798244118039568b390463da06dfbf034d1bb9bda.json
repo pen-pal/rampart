@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE scheduled_reports\n        SET name = $2, recipients = $3, cadence = $4\n        WHERE id = $1\n        RETURNING id, name, recipients, cadence, last_sent_at, created_at\n        ",
+  "query": "\n        SELECT a.id, a.name, a.location, a.version, a.last_seen_at, a.created_at,\n               COUNT(m.id) AS monitor_count\n        FROM agents a\n        LEFT JOIN monitors m ON m.agent_id = a.id\n        WHERE a.id = $1 AND a.org_id = $2\n        GROUP BY a.id\n        ",
   "describe": {
     "columns": [
       {
@@ -9,7 +9,7 @@
         "type_info": "Uuid",
         "origin": {
           "Table": {
-            "table": "scheduled_reports",
+            "table": "agents",
             "name": "id"
           }
         }
@@ -20,41 +20,41 @@
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "scheduled_reports",
+            "table": "agents",
             "name": "name"
           }
         }
       },
       {
         "ordinal": 2,
-        "name": "recipients",
-        "type_info": "TextArray",
+        "name": "location",
+        "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "scheduled_reports",
-            "name": "recipients"
+            "table": "agents",
+            "name": "location"
           }
         }
       },
       {
         "ordinal": 3,
-        "name": "cadence",
+        "name": "version",
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "scheduled_reports",
-            "name": "cadence"
+            "table": "agents",
+            "name": "version"
           }
         }
       },
       {
         "ordinal": 4,
-        "name": "last_sent_at",
+        "name": "last_seen_at",
         "type_info": "Timestamptz",
         "origin": {
           "Table": {
-            "table": "scheduled_reports",
-            "name": "last_sent_at"
+            "table": "agents",
+            "name": "last_seen_at"
           }
         }
       },
@@ -64,28 +64,33 @@
         "type_info": "Timestamptz",
         "origin": {
           "Table": {
-            "table": "scheduled_reports",
+            "table": "agents",
             "name": "created_at"
           }
         }
+      },
+      {
+        "ordinal": 6,
+        "name": "monitor_count",
+        "type_info": "Int8",
+        "origin": "Expression"
       }
     ],
     "parameters": {
       "Left": [
         "Uuid",
-        "Text",
-        "TextArray",
-        "Text"
+        "Uuid"
       ]
     },
     "nullable": [
       false,
       false,
-      false,
-      false,
       true,
-      false
+      true,
+      true,
+      false,
+      null
     ]
   },
-  "hash": "4d109ca3e47fe4b46f6f10121f5fe275b701217e3da9156f8bfdb11df640f89e"
+  "hash": "1ae2a82a92043761e647989798244118039568b390463da06dfbf034d1bb9bda"
 }
