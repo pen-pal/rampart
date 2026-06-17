@@ -19,6 +19,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.113.0] — 2026-06-17
+
+### Added
+- **Multi-tenancy — Phase 3e: org-scoped detection rules + delivery log.**
+  Continues the per-domain read-filtering rollout to `detection_rules` and the
+  `delivery_log`: detection management reads/mutations (`list`/`get`/`update`/
+  `delete`) and the delivery-log reads (`get`/`list`/`list_all` — the latter
+  backs the admin CSV export) take an `org_id` and filter by it, so a caller
+  only sees/edits its own org's detection rules and only exports its own
+  delivery history. The detection evaluation tick (`detection::evaluate_tick`)
+  stays unscoped via new `list_all`/`get_unscoped` siblings; `detection::preview`
+  is unchanged (it dry-runs over the logs tier, scoped in Phase 5); `create` +
+  `record` (the notifier-written delivery row) stay on the column DEFAULT.
+  Behaviour-identical for a single-org install. This completes org-scoped read
+  filtering for the alerting domain. See [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.112.0] — 2026-06-17
 
 ### Added
