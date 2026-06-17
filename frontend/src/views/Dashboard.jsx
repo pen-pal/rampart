@@ -1315,7 +1315,7 @@ export default function Dashboard({ user, onLogout } = {}) {
             </div>
             <div style={{ height: trend.rows.length > 0 ? 240 : 88 }}>
               {trend.rows.length > 0 ? (
-                <ResponsiveContainer>
+                <ResponsiveContainer initialDimension={{ width: 600, height: 240 }}>
                   <LineChart data={trend.rows} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
                     <XAxis dataKey="label" stroke="var(--text-3)"
                       tick={{ fontSize: 11, fontFamily: 'JetBrains Mono' }}
