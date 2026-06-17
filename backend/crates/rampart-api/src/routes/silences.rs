@@ -3,6 +3,7 @@
 //! (no monitor) or scoped to one monitor, with an optional expiry. The notifier
 //! enforces them at its dispatch chokepoint.
 
+use crate::auth::OrgContext;
 use crate::error::ApiError;
 use crate::state::AppState;
 use axum::extract::{Extension, Path, State};
@@ -21,8 +22,13 @@ pub fn router() -> Router<AppState> {
         .route("/{id}", axum::routing::delete(remove))
 }
 
-async fn list(State(s): State<AppState>) -> Result<Json<Vec<Silence>>, ApiError> {
-    Ok(Json(rampart_db::silences::list_active(s.pool()).await?))
+async fn list(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+) -> Result<Json<Vec<Silence>>, ApiError> {
+    Ok(Json(
+        rampart_db::silences::list_active(s.pool(), org.org_id).await?,
+    ))
 }
 
 #[derive(Deserialize)]
@@ -71,10 +77,11 @@ async fn create(
 async fn remove(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
-    if !rampart_db::silences::delete(s.pool(), id).await? {
+    if !rampart_db::silences::delete(s.pool(), id, org.org_id).await? {
         return Err(ApiError::NotFound);
     }
     crate::audit::record(

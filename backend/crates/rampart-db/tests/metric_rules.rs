@@ -1,11 +1,18 @@
 //! Integration tests for the metric-rule state machine
 //! (`rampart_db::metric_rules::evaluate_tick`, migration 0073).
 
+use rampart_core::ids::OrgId;
 use rampart_core::metric_rule::{NewMetricRule, RuleOp, RuleTransition};
+use rampart_core::org::DEFAULT_ORG_ID;
 use rampart_core::promtext::PromSample;
 use rampart_db::{metric_rules, metric_samples};
 use sqlx::PgPool;
 use std::collections::BTreeMap;
+
+/// Rules created in tests land in the Default org (column default).
+fn def_org() -> OrgId {
+    OrgId::from_uuid(DEFAULT_ORG_ID)
+}
 
 fn sample(name: &str, value: f64) -> PromSample {
     PromSample {
@@ -43,7 +50,7 @@ async fn fires_resolves_and_never_double_pages(pool: PgPool) {
     assert_eq!(events.len(), 1);
     assert_eq!(events[0].transition, RuleTransition::Fire);
     assert_eq!(events[0].value, Some(42.0));
-    assert!(metric_rules::get(&pool, r.id)
+    assert!(metric_rules::get(&pool, r.id, def_org())
         .await
         .unwrap()
         .firing_at
@@ -62,7 +69,7 @@ async fn fires_resolves_and_never_double_pages(pool: PgPool) {
     let events = metric_rules::evaluate_tick(&pool).await.unwrap();
     assert_eq!(events.len(), 1);
     assert_eq!(events[0].transition, RuleTransition::Resolve);
-    let fresh = metric_rules::get(&pool, r.id).await.unwrap();
+    let fresh = metric_rules::get(&pool, r.id, def_org()).await.unwrap();
     assert!(fresh.firing_at.is_none());
     assert!(fresh.breach_since.is_none());
 
@@ -81,7 +88,7 @@ async fn sustain_window_gates_firing(pool: PgPool) {
 
     // First breached tick: pending, no alert.
     assert!(metric_rules::evaluate_tick(&pool).await.unwrap().is_empty());
-    let pending = metric_rules::get(&pool, r.id).await.unwrap();
+    let pending = metric_rules::get(&pool, r.id, def_org()).await.unwrap();
     assert!(pending.breach_since.is_some());
     assert!(pending.firing_at.is_none());
 
@@ -113,7 +120,7 @@ async fn sustain_window_gates_firing(pool: PgPool) {
         .await
         .unwrap();
     assert!(metric_rules::evaluate_tick(&pool).await.unwrap().is_empty());
-    assert!(metric_rules::get(&pool, r2.id)
+    assert!(metric_rules::get(&pool, r2.id, def_org())
         .await
         .unwrap()
         .breach_since
@@ -140,7 +147,7 @@ async fn stale_series_resolves_instead_of_firing_forever(pool: PgPool) {
     assert_eq!(events.len(), 1);
     assert_eq!(events[0].transition, RuleTransition::Resolve);
     assert_eq!(events[0].value, None);
-    assert!(metric_rules::get(&pool, r.id)
+    assert!(metric_rules::get(&pool, r.id, def_org())
         .await
         .unwrap()
         .firing_at
@@ -161,6 +168,7 @@ async fn stale_series_resolves_instead_of_firing_forever(pool: PgPool) {
             channel_ids: None,
             escalation_policy_id: None,
         },
+        def_org(),
     )
     .await
     .unwrap();
