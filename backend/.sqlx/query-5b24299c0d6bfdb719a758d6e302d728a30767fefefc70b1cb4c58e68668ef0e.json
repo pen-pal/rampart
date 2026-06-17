@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT t.id AS tag_id,\n               (SELECT COUNT(*) FROM monitor_tags      m WHERE m.tag_id = t.id) AS \"monitors!: i64\",\n               (SELECT COUNT(*) FROM notification_tags n WHERE n.tag_id = t.id) AS \"channels!: i64\",\n               (SELECT COUNT(*) FROM group_tags        g WHERE g.tag_id = t.id) AS \"groups!: i64\"\n        FROM tags t\n        ",
+  "query": "\n        SELECT t.id AS tag_id,\n               (SELECT COUNT(*) FROM monitor_tags      m WHERE m.tag_id = t.id) AS \"monitors!: i64\",\n               (SELECT COUNT(*) FROM notification_tags n WHERE n.tag_id = t.id) AS \"channels!: i64\",\n               (SELECT COUNT(*) FROM group_tags        g WHERE g.tag_id = t.id) AS \"groups!: i64\"\n        FROM tags t\n        WHERE t.org_id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -34,7 +34,9 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid"
+      ]
     },
     "nullable": [
       false,
@@ -43,5 +45,5 @@
       null
     ]
   },
-  "hash": "34043c60943573df0ca1bf192572d2dcbb1022f2cee0ab8fcbdd6ec68e75d529"
+  "hash": "5b24299c0d6bfdb719a758d6e302d728a30767fefefc70b1cb4c58e68668ef0e"
 }

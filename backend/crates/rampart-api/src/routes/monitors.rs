@@ -999,16 +999,20 @@ fn parse_preset_id(s: &str) -> Result<rampart_core::MonitorPresetId, ApiError> {
 
 async fn list_presets(
     State(state): State<AppState>,
+    Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<rampart_core::MonitorPreset>>, ApiError> {
-    Ok(Json(rampart_db::monitor_presets::list(state.pool()).await?))
+    Ok(Json(
+        rampart_db::monitor_presets::list(state.pool(), org.org_id).await?,
+    ))
 }
 
 async fn get_preset(
     State(state): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<rampart_core::MonitorPreset>, ApiError> {
     Ok(Json(
-        rampart_db::monitor_presets::get(state.pool(), parse_preset_id(&id)?).await?,
+        rampart_db::monitor_presets::get(state.pool(), parse_preset_id(&id)?, org.org_id).await?,
     ))
 }
 
@@ -1038,11 +1042,12 @@ async fn create_preset(
 async fn delete_preset(
     State(state): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let preset_id = parse_preset_id(&id)?;
-    rampart_db::monitor_presets::delete(state.pool(), preset_id).await?;
+    rampart_db::monitor_presets::delete(state.pool(), preset_id, org.org_id).await?;
     crate::audit::record(
         state.pool(),
         &user,
@@ -1116,7 +1121,7 @@ async fn clone_one(
             let gid = Uuid::from_str(g)
                 .map(MonitorGroupId::from_uuid)
                 .map_err(|_| ApiError::BadRequest("invalid group_id".into()))?;
-            let exists = rampart_db::monitor_groups::list(state.pool())
+            let exists = rampart_db::monitor_groups::list(state.pool(), org.org_id)
                 .await?
                 .iter()
                 .any(|grp| grp.id == gid);

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, name, sort_order, parent_id, created_at FROM monitor_groups WHERE id = $1",
+  "query": "\n        SELECT id, name, kind, data, created_at\n        FROM monitor_presets\n        WHERE id = $1 AND org_id = $2\n        ",
   "describe": {
     "columns": [
       {
@@ -9,7 +9,7 @@
         "type_info": "Uuid",
         "origin": {
           "Table": {
-            "table": "monitor_groups",
+            "table": "monitor_presets",
             "name": "id"
           }
         }
@@ -20,30 +20,30 @@
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "monitor_groups",
+            "table": "monitor_presets",
             "name": "name"
           }
         }
       },
       {
         "ordinal": 2,
-        "name": "sort_order",
-        "type_info": "Int4",
+        "name": "kind",
+        "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "monitor_groups",
-            "name": "sort_order"
+            "table": "monitor_presets",
+            "name": "kind"
           }
         }
       },
       {
         "ordinal": 3,
-        "name": "parent_id",
-        "type_info": "Uuid",
+        "name": "data",
+        "type_info": "Jsonb",
         "origin": {
           "Table": {
-            "table": "monitor_groups",
-            "name": "parent_id"
+            "table": "monitor_presets",
+            "name": "data"
           }
         }
       },
@@ -53,7 +53,7 @@
         "type_info": "Timestamptz",
         "origin": {
           "Table": {
-            "table": "monitor_groups",
+            "table": "monitor_presets",
             "name": "created_at"
           }
         }
@@ -61,6 +61,7 @@
     ],
     "parameters": {
       "Left": [
+        "Uuid",
         "Uuid"
       ]
     },
@@ -68,9 +69,9 @@
       false,
       false,
       false,
-      true,
+      false,
       false
     ]
   },
-  "hash": "50170781f3f91edcad048f49958a43bf811ff83e443311fa0da21f7cfb93d258"
+  "hash": "2383aa98b2b9e4c0eb40d7cb17a9683fe7bcd23fcea0679ebcf6550d28fed974"
 }
