@@ -19,6 +19,22 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.116.0] — 2026-06-17
+
+### Added
+- **Multi-tenancy — Phase 3h: org-scoped API keys + proxies.** The API-key
+  management reads/mutations (`list`/`delete`) and proxy management
+  (`list`/`get`/`delete`/`set_active`) take an `org_id` and filter by it — a
+  cross-org id is a 404. The **auth-establishing** paths stay unscoped by
+  design: `api_keys::lookup` (the bearer-token resolver — it *is* the auth and
+  can't know the org before resolving the key) and the probe-routing
+  `proxies::get_unscoped` (the scheduler / test-now resolving a monitor's proxy
+  with no request context). `create` stays on the column DEFAULT (write-stamping
+  is Phase 4). Behaviour-identical for a single-org install. See
+  [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.115.0] — 2026-06-17
 
 ### Added
