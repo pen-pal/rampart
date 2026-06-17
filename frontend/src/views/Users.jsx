@@ -74,6 +74,7 @@ const tsToDate = (ts) => (Array.isArray(ts) ? offsetDateTimeArrayToDate(ts) : ne
 
 export default function Users() {
   const meState    = useApi(() => api.auth.me(), []);
+  const [reloadKey, setReloadKey] = useState(0);
   const usersState = useApi(() => api.users.list(), [reloadKey], { pollMs: 30_000 });
   const [creating, setCreating] = useState(false);
   const [busy,     setBusy]     = useState(null);
@@ -83,7 +84,6 @@ export default function Users() {
 
   // Reset password modal lives on the Security page for the caller; admin
   // password-set for other users isn't exposed via API yet.
-  const [reloadKey, setReloadKey] = useState(0);
   const reload = () => setReloadKey((k) => k + 1);
 
   const remove = async (id) => {
