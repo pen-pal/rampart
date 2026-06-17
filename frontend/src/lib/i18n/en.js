@@ -165,6 +165,7 @@ const en = {
   'common.close':                    'Close',
   'common.test':                     'Test',
   'common.clone':                    'Clone',
+  'common.more':                     'More',
   'common.pause':                    'Pause',
   'common.resume':                   'Resume',
   'common.loading':                  'Loading…',
