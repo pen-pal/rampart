@@ -22,6 +22,7 @@ fn rule(body_regex: &str, threshold: i32) -> NewDetectionRule {
         attr_val: String::new(),
         threshold,
         window_seconds: 300,
+        cooldown_seconds: 0,
         enabled: true,
         channel_ids: vec![],
         escalation_policy_id: None,
@@ -80,6 +81,27 @@ async fn regex_match_threshold_and_watermark(pool: PgPool) {
     assert_eq!(detection::list_findings(&pool, 50, true).await.unwrap().len(), 0);
     assert_eq!(detection::list_findings(&pool, 50, false).await.unwrap().len(), 1);
     let _ = r;
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn cooldown_suppresses_repeat_findings(pool: PgPool) {
+    let mut nr = rule("boom", 1);
+    nr.cooldown_seconds = 600; // 10-minute suppression window
+    detection::create(&pool, nr).await.unwrap();
+
+    // First crossing raises a finding.
+    insert_log(&pool, "svc", 9, "boom one").await;
+    assert_eq!(detection::evaluate_tick(&pool).await.unwrap().len(), 1);
+
+    // Further matches inside the cooldown are suppressed — the watermark still
+    // advances (no re-count) but no new finding is raised.
+    insert_log(&pool, "svc", 9, "boom two").await;
+    assert!(detection::evaluate_tick(&pool).await.unwrap().is_empty());
+    insert_log(&pool, "svc", 9, "boom three").await;
+    assert!(detection::evaluate_tick(&pool).await.unwrap().is_empty());
+
+    // Exactly one finding despite three matches across three ticks.
+    assert_eq!(detection::open_count(&pool).await.unwrap(), 1);
 }
 
 #[sqlx::test(migrations = "../../migrations")]

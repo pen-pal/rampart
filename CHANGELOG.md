@@ -19,6 +19,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.103.0] — 2026-06-17
+
+### Added
+- **Detection rules: per-rule suppression / cooldown** (first of the Detection
+  v2 work). A `cooldown_seconds` window stops a sustained match stream from
+  raising a finding on *every* scheduler tick — after a finding fires, repeats
+  are suppressed until the cooldown elapses (matches still advance the watermark,
+  so they aren't re-counted). `0` = the legacy alert-every-tick behavior; new
+  rules default to 300s. Editable in the rule form; migration `0103`. (Boolean
+  composition and per-entity GROUP BY aggregation are the remaining Detection v2
+  pieces, tracked separately.)
+
+---
+
 ## [0.102.1] — 2026-06-17
 
 ### Security
