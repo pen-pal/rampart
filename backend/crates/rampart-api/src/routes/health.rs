@@ -35,7 +35,13 @@ pub fn router() -> Router<AppState> {
 async fn liveness() -> impl IntoResponse {
     (
         StatusCode::OK,
-        Json(json!({ "status": "alive", "version": VERSION })),
+        Json(json!({
+            "status": "alive",
+            "version": VERSION,
+            // Surfaced so the dashboard can warn admins when channel secrets
+            // are stored unencrypted (no RAMPART_SECRET_KEY configured).
+            "secrets_at_rest": if rampart_db::secrets::is_enabled() { "encrypted" } else { "plaintext" },
+        })),
     )
 }
 
@@ -65,6 +71,20 @@ async fn metrics(State(state): State<AppState>) -> impl IntoResponse {
     let _ = writeln!(body, "# HELP rampart_build_info Build metadata.");
     let _ = writeln!(body, "# TYPE rampart_build_info gauge");
     let _ = writeln!(body, "rampart_build_info{{version=\"{VERSION}\"}} 1");
+
+    // Secrets-at-rest posture (1 = channel credentials encrypted via
+    // RAMPART_SECRET_KEY, 0 = stored plaintext). Lets ops alert on an
+    // unencrypted install.
+    let _ = writeln!(
+        body,
+        "# HELP rampart_secrets_at_rest_encrypted Whether channel secrets are encrypted at rest.",
+    );
+    let _ = writeln!(body, "# TYPE rampart_secrets_at_rest_encrypted gauge");
+    let _ = writeln!(
+        body,
+        "rampart_secrets_at_rest_encrypted {}",
+        if rampart_db::secrets::is_enabled() { 1 } else { 0 },
+    );
 
     let pool = state.pool();
 
