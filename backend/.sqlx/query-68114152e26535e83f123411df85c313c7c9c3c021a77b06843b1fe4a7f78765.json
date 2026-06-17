@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            id, status_page_id, title, content,\n            style AS \"style: IncidentStyle\",\n            pinned, active, resolved_at, created_at, created_by, dedup_key\n        FROM incidents\n        ORDER BY active DESC, created_at DESC\n        LIMIT $1\n        ",
+  "query": "\n        SELECT\n            i.id, i.status_page_id, i.title, i.content,\n            i.style AS \"style: IncidentStyle\",\n            i.pinned, i.active, i.resolved_at, i.created_at, i.created_by, i.dedup_key\n        FROM incidents i\n        JOIN status_pages sp ON sp.id = i.status_page_id\n        WHERE sp.org_id = $2\n        ORDER BY i.active DESC, i.created_at DESC\n        LIMIT $1\n        ",
   "describe": {
     "columns": [
       {
@@ -140,7 +140,8 @@
     ],
     "parameters": {
       "Left": [
-        "Int8"
+        "Int8",
+        "Uuid"
       ]
     },
     "nullable": [
@@ -157,5 +158,5 @@
       true
     ]
   },
-  "hash": "3c08fa1b3003f2b5f78b7e4c35373ed516cd11f0c7f557ee86c5f1e1f8a357db"
+  "hash": "68114152e26535e83f123411df85c313c7c9c3c021a77b06843b1fe4a7f78765"
 }

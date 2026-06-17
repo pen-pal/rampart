@@ -11,7 +11,7 @@ use rampart_core::error_tracking::{
     fingerprint, ErrorEvent, ErrorIssue, ErrorProject, NewErrorProject, ParsedEvent,
     UpdateErrorProject,
 };
-use rampart_core::ids::{ErrorIssueId, ErrorProjectId};
+use rampart_core::ids::{ErrorIssueId, ErrorProjectId, OrgId};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -432,18 +432,24 @@ pub async fn list_issues(
 }
 
 /// Most-recently-seen open issues across every project — the dashboard feed.
-pub async fn recent_open_issues(pool: &DbPool, limit: i64) -> DbResult<Vec<ErrorIssue>> {
+pub async fn recent_open_issues(
+    pool: &DbPool,
+    limit: i64,
+    org_id: OrgId,
+) -> DbResult<Vec<ErrorIssue>> {
     let rows = sqlx::query_as!(
         IssueRow,
         r#"
-        SELECT id, project_id, fingerprint, title, culprit, level, status,
-               first_seen, last_seen, times_seen, assignee
-        FROM error_issues
-        WHERE status = 'unresolved'
-        ORDER BY last_seen DESC
+        SELECT i.id, i.project_id, i.fingerprint, i.title, i.culprit, i.level, i.status,
+               i.first_seen, i.last_seen, i.times_seen, i.assignee
+        FROM error_issues i
+        JOIN error_projects p ON p.id = i.project_id
+        WHERE i.status = 'unresolved' AND p.org_id = $2
+        ORDER BY i.last_seen DESC
         LIMIT $1
         "#,
         limit.clamp(1, 50),
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;

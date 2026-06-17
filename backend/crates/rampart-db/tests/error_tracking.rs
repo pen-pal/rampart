@@ -2,8 +2,14 @@
 //! the cross-project recent-open feed and the per-project event histogram.
 
 use rampart_core::error_tracking::ParsedEvent;
+use rampart_core::ids::OrgId;
+use rampart_core::org::DEFAULT_ORG_ID;
 use rampart_db::error_tracking as et;
 use sqlx::PgPool;
+
+fn def_org() -> OrgId {
+    OrgId::from_uuid(DEFAULT_ORG_ID)
+}
 
 fn event(exc_type: &str, message: &str) -> ParsedEvent {
     ParsedEvent {
@@ -33,7 +39,7 @@ async fn recent_open_and_histogram(pool: PgPool) {
     et::record_event(&pool, project.id, &event("ValueError", "bad input")).await.unwrap();
 
     // Two open issues across all projects, newest-seen first.
-    let recent = et::recent_open_issues(&pool, 8).await.unwrap();
+    let recent = et::recent_open_issues(&pool, 8, def_org()).await.unwrap();
     assert_eq!(recent.len(), 2);
     assert!(recent.iter().all(|i| i.status == "unresolved"));
 
@@ -43,7 +49,7 @@ async fn recent_open_and_histogram(pool: PgPool) {
 
     // Resolving an issue drops it from the recent-open feed.
     et::set_issue_status(&pool, recent[0].id, "resolved").await.unwrap();
-    assert_eq!(et::recent_open_issues(&pool, 8).await.unwrap().len(), 1);
+    assert_eq!(et::recent_open_issues(&pool, 8, def_org()).await.unwrap().len(), 1);
 }
 
 fn event_user(exc: &str, user: &str) -> ParsedEvent {
@@ -62,7 +68,7 @@ async fn affected_users_distinct_with_counts(pool: PgPool) {
     // An anonymous event (no user context) doesn't appear in the list.
     et::record_event(&pool, project.id, &event("Boom", "same message")).await.unwrap();
 
-    let iid = et::recent_open_issues(&pool, 8).await.unwrap()[0].id;
+    let iid = et::recent_open_issues(&pool, 8, def_org()).await.unwrap()[0].id;
     let users = et::issue_affected_users(&pool, iid, 50).await.unwrap();
     assert_eq!(users.len(), 2, "alice + bob, anon excluded");
     assert_eq!(users.iter().find(|u| u.ident == "alice").unwrap().events, 2);

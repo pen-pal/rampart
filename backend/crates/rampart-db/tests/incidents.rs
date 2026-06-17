@@ -1,6 +1,8 @@
 //! Integration test for the cross-page recent-incidents feed used by the
 //! dashboard (`rampart_db::incidents::recent`).
 
+use rampart_core::ids::OrgId;
+use rampart_core::org::DEFAULT_ORG_ID;
 use rampart_core::status_page::NewStatusPage;
 use rampart_db::incidents::{self, NewIncident};
 use rampart_db::status_pages;
@@ -22,7 +24,9 @@ async fn recent_active_first_then_newest(pool: PgPool) {
     // Resolve the degraded one → inactive; the active outage should sort first.
     incidents::resolve(&pool, degraded.id, OffsetDateTime::now_utc()).await.unwrap();
 
-    let recent = incidents::recent(&pool, 10).await.unwrap();
+    let recent = incidents::recent(&pool, 10, OrgId::from_uuid(DEFAULT_ORG_ID))
+        .await
+        .unwrap();
     assert_eq!(recent.len(), 2);
     assert_eq!(recent[0].id, outage.id, "active incident sorts before resolved");
     assert!(recent[0].active && !recent[1].active);
