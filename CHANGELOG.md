@@ -19,6 +19,26 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.104.0] — 2026-06-17
+
+### Added
+- **Detection v2: boolean condition rules (AND / OR / NOT).** Detection rules can
+  now match on an arbitrary boolean tree instead of the single flat AND-chain —
+  e.g. `(service=auth AND body contains "failed") OR (severity≥error AND NOT
+  env=dev)`. Leaf predicates: service, min-severity, body-regex, body-contains,
+  attribute equality; each negatable. The tree is stored as JSONB (migration
+  `0104`) and compiled to a parameterized SQL `WHERE` via a query builder (every
+  leaf value is bound, never interpolated); tree size/depth are bounded and each
+  regex leaf is validated on write. A missing attribute reads as absent so
+  `NOT attr=val` matches records lacking the attribute (intuitive detection
+  semantics, not SQL's three-valued NULL drop). Rules with no tree keep using the
+  legacy flat fields unchanged. The rule form gains a "Boolean condition" mode
+  with an OR-of-AND-groups builder (NOT per condition). Verified end-to-end:
+  unit + DB eval tests, and a live API round-trip (create / validate-reject /
+  clear).
+
+---
+
 ## [0.103.0] — 2026-06-17
 
 ### Added
