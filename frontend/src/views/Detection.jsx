@@ -63,6 +63,7 @@ const emptyForm = () => ({
   name: '', description: '', severity: 'medium', service: '', min_level: 0,
   body_regex: '', attr_key: '', attr_val: '', threshold: 1, window_seconds: 300,
   cooldown_seconds: 300,
+  use_condition: false, groups: [emptyGroup()],
   enabled: true, channel_ids: [], escalation_policy_id: '',
 });
 
@@ -252,6 +253,123 @@ function RuleRow({ rule, writable, onEdit, onChanged, setErr }) {
   );
 }
 
+// ── Detection v2 boolean condition builder ──────────────────────────────────
+// UI model: a list of GROUPS joined by OR; within each group, PREDICATES joined
+// by AND, each optionally negated (NOT). Compiles to the backend's
+// And/Or/Not/leaf tree. Covers (A AND B) OR (C AND NOT D) — real grouping —
+// without a fully-recursive editor.
+const PRED_TYPES = [
+  ['service', 'detection.cond.pred.service'],
+  ['min_level', 'detection.cond.pred.min_level'],
+  ['body_contains', 'detection.cond.pred.body_contains'],
+  ['body_regex', 'detection.cond.pred.body_regex'],
+  ['attr', 'detection.cond.pred.attr'],
+];
+const emptyPred = () => ({ not: false, type: 'service', value: '', key: '' });
+const emptyGroup = () => ({ preds: [emptyPred()] });
+
+const predValid = (p) =>
+  p.type === 'attr'
+    ? !!(String(p.key).trim() && String(p.value).trim())
+    : p.type === 'min_level'
+      ? String(p.value).trim() !== ''
+      : !!String(p.value).trim();
+
+function predLeaf(p) {
+  let leaf;
+  switch (p.type) {
+    case 'service':       leaf = { type: 'service', value: String(p.value).trim() }; break;
+    case 'min_level':     leaf = { type: 'min_level', value: Number(p.value) || 0 }; break;
+    case 'body_regex':    leaf = { type: 'body_regex', value: p.value }; break;
+    case 'body_contains': leaf = { type: 'body_contains', value: p.value }; break;
+    case 'attr':          leaf = { type: 'attr', key: String(p.key).trim(), value: String(p.value).trim() }; break;
+    default:              return null;
+  }
+  return p.not ? { type: 'not', condition: leaf } : leaf;
+}
+
+// groups -> backend condition tree (null when nothing valid).
+function buildCondition(groups) {
+  const ands = (groups || [])
+    .map(g => (g.preds || []).filter(predValid).map(predLeaf).filter(Boolean))
+    .filter(ls => ls.length)
+    .map(ls => ({ type: 'and', conditions: ls }));
+  if (!ands.length) return null;
+  return ands.length === 1 ? ands[0] : { type: 'or', conditions: ands };
+}
+
+// backend condition tree -> groups (tolerant inverse for the shapes we emit).
+function leafToPred(l) {
+  let not = false;
+  let leaf = l;
+  if (l && l.type === 'not') { not = true; leaf = l.condition; }
+  const p = { not, type: (leaf && leaf.type) || 'service', value: '', key: '' };
+  if (leaf?.type === 'attr') { p.key = leaf.key || ''; p.value = leaf.value || ''; }
+  else if (leaf?.type === 'min_level') p.value = leaf.value ?? 0;
+  else p.value = leaf?.value || '';
+  return p;
+}
+function parseCondition(c) {
+  if (!c) return [emptyGroup()];
+  const andGroups = c.type === 'or' ? (c.conditions || []) : [c];
+  const groups = andGroups.map(g => {
+    const leaves = g && g.type === 'and' ? (g.conditions || []) : [g];
+    const preds = leaves.map(leafToPred);
+    return { preds: preds.length ? preds : [emptyPred()] };
+  });
+  return groups.length ? groups : [emptyGroup()];
+}
+
+function ConditionBuilder({ groups, setGroups }) {
+  const upd = (gi, fn) => setGroups(groups.map((g, i) => (i === gi ? fn(g) : g)));
+  const updPred = (gi, pi, patch) =>
+    upd(gi, g => ({ ...g, preds: g.preds.map((p, j) => (j === pi ? { ...p, ...patch } : p)) }));
+  const addPred = (gi) => upd(gi, g => ({ ...g, preds: [...g.preds, emptyPred()] }));
+  const delPred = (gi, pi) => upd(gi, g => ({ ...g, preds: g.preds.filter((_, j) => j !== pi) }));
+  const addGroup = () => setGroups([...groups, emptyGroup()]);
+  const delGroup = (gi) => setGroups(groups.filter((_, i) => i !== gi));
+  return (
+    <div className="field">
+      <label className="field-label">{t('detection.cond.title')}</label>
+      <div className="field-hint" style={{ marginBottom: 8 }}>{t('detection.cond.hint')}</div>
+      {groups.map((g, gi) => (
+        <div key={gi} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10, marginBottom: 8 }}>
+          {gi > 0 && <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', marginBottom: 6 }}>{t('detection.cond.or')}</div>}
+          {g.preds.map((p, pi) => (
+            <div key={pi} style={{ display: 'flex', gap: 6, marginBottom: 6, alignItems: 'center' }}>
+              <span style={{ width: 34, fontSize: 11, color: 'var(--text-3)' }}>{pi > 0 ? t('detection.cond.and') : ''}</span>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 12 }}>
+                <input type="checkbox" checked={p.not} onChange={e => updPred(gi, pi, { not: e.target.checked })}/>{t('detection.cond.not')}
+              </label>
+              <select className="select" style={{ flex: '0 0 160px' }} value={p.type} onChange={e => updPred(gi, pi, { type: e.target.value })}>
+                {PRED_TYPES.map(([v, l]) => <option key={v} value={v}>{t(l)}</option>)}
+              </select>
+              {p.type === 'attr' && (
+                <input className="input mono" style={{ flex: '0 0 120px' }} placeholder={t('detection.f.attr_key_ph')}
+                  value={p.key} onChange={e => updPred(gi, pi, { key: e.target.value })}/>
+              )}
+              <input className="input mono" style={{ flex: 1 }}
+                type={p.type === 'min_level' ? 'number' : 'text'}
+                placeholder={p.type === 'min_level' ? '0–24' : t('detection.cond.value_ph')}
+                value={p.value} onChange={e => updPred(gi, pi, { value: e.target.value })}/>
+              {g.preds.length > 1 && (
+                <button type="button" className="btn" style={{ padding: '4px 8px' }} onClick={() => delPred(gi, pi)} aria-label={t('common.remove')}>×</button>
+              )}
+            </div>
+          ))}
+          <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+            <button type="button" className="btn" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => addPred(gi)}>+ {t('detection.cond.add_cond')}</button>
+            {groups.length > 1 && (
+              <button type="button" className="btn" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => delGroup(gi)}>{t('detection.cond.del_group')}</button>
+            )}
+          </div>
+        </div>
+      ))}
+      <button type="button" className="btn" style={{ padding: '4px 10px', fontSize: 12 }} onClick={addGroup}>+ {t('detection.cond.add_group')}</button>
+    </div>
+  );
+}
+
 function RuleForm({ rule, channels, onSaved, onCancel, setErr }) {
   const [f, setF] = useState(rule ? {
     name: rule.name, description: rule.description || '', severity: rule.severity,
@@ -259,6 +377,7 @@ function RuleForm({ rule, channels, onSaved, onCancel, setErr }) {
     attr_key: rule.attr_key || '', attr_val: rule.attr_val || '',
     threshold: rule.threshold, window_seconds: rule.window_seconds,
     cooldown_seconds: rule.cooldown_seconds ?? 0,
+    use_condition: !!rule.condition, groups: parseCondition(rule.condition),
     enabled: rule.enabled, channel_ids: [...(rule.channel_ids || [])],
     escalation_policy_id: rule.escalation_policy_id || '',
   } : emptyForm());
@@ -293,6 +412,9 @@ function RuleForm({ rule, channels, onSaved, onCancel, setErr }) {
       attr_key: f.attr_key.trim(), attr_val: f.attr_val.trim(),
       threshold: Number(f.threshold), window_seconds: Number(f.window_seconds),
       cooldown_seconds: Number(f.cooldown_seconds) || 0,
+      // Detection v2: send the boolean tree when in condition mode, else null to
+      // clear it (the backend then uses the flat fields above).
+      condition: f.use_condition ? buildCondition(f.groups) : null,
       enabled: f.enabled, channel_ids: f.channel_ids,
       escalation_policy_id: f.escalation_policy_id || null,
     };
@@ -321,32 +443,45 @@ function RuleForm({ rule, channels, onSaved, onCancel, setErr }) {
         <label className="field-label">{t('detection.f.description')} <span style={{ textTransform: 'none', color: 'var(--text-3)' }}>({t('detection.f.optional')})</span></label>
         <input className="input" value={f.description} onChange={e => set('description', e.target.value)} placeholder={t('detection.f.description_ph')}/>
       </div>
-      <div className="grid2">
-        <div className="field">
-          <label className="field-label">{t('detection.f.service')} <span style={{ textTransform: 'none', color: 'var(--text-3)' }}>({t('detection.f.optional')})</span></label>
-          <input className="input mono" value={f.service} onChange={e => set('service', e.target.value)} placeholder={t('detection.any_service')}/>
-        </div>
-        <div className="field">
-          <label className="field-label">{t('detection.f.min_level')}</label>
-          <input className="input mono" type="number" min="0" max="24" value={f.min_level} onChange={e => set('min_level', e.target.value)}/>
-          <div className="field-hint">{t('detection.f.min_level_hint')}</div>
-        </div>
-      </div>
       <div className="field">
-        <label className="field-label">{t('detection.f.body_regex')} <span style={{ textTransform: 'none', color: 'var(--text-3)' }}>({t('detection.f.optional')})</span></label>
-        <input className="input mono" value={f.body_regex} onChange={e => set('body_regex', e.target.value)} placeholder={t('detection.f.body_regex_ph')}/>
-        <div className="field-hint">{t('detection.f.body_regex_hint')}</div>
+        <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input type="checkbox" checked={f.use_condition} onChange={e => set('use_condition', e.target.checked)}/>
+          {t('detection.f.use_condition')}
+        </label>
+        <div className="field-hint">{t('detection.f.use_condition_hint')}</div>
       </div>
-      <div className="grid2">
-        <div className="field">
-          <label className="field-label">{t('detection.f.attr_key')} <span style={{ textTransform: 'none', color: 'var(--text-3)' }}>({t('detection.f.optional')})</span></label>
-          <input className="input mono" value={f.attr_key} onChange={e => set('attr_key', e.target.value)} placeholder={t('detection.f.attr_key_ph')}/>
-        </div>
-        <div className="field">
-          <label className="field-label">{t('detection.f.attr_val')}</label>
-          <input className="input mono" value={f.attr_val} onChange={e => set('attr_val', e.target.value)} placeholder={t('detection.f.attr_val_ph')}/>
-        </div>
-      </div>
+      {f.use_condition ? (
+        <ConditionBuilder groups={f.groups} setGroups={g => set('groups', g)}/>
+      ) : (
+        <>
+          <div className="grid2">
+            <div className="field">
+              <label className="field-label">{t('detection.f.service')} <span style={{ textTransform: 'none', color: 'var(--text-3)' }}>({t('detection.f.optional')})</span></label>
+              <input className="input mono" value={f.service} onChange={e => set('service', e.target.value)} placeholder={t('detection.any_service')}/>
+            </div>
+            <div className="field">
+              <label className="field-label">{t('detection.f.min_level')}</label>
+              <input className="input mono" type="number" min="0" max="24" value={f.min_level} onChange={e => set('min_level', e.target.value)}/>
+              <div className="field-hint">{t('detection.f.min_level_hint')}</div>
+            </div>
+          </div>
+          <div className="field">
+            <label className="field-label">{t('detection.f.body_regex')} <span style={{ textTransform: 'none', color: 'var(--text-3)' }}>({t('detection.f.optional')})</span></label>
+            <input className="input mono" value={f.body_regex} onChange={e => set('body_regex', e.target.value)} placeholder={t('detection.f.body_regex_ph')}/>
+            <div className="field-hint">{t('detection.f.body_regex_hint')}</div>
+          </div>
+          <div className="grid2">
+            <div className="field">
+              <label className="field-label">{t('detection.f.attr_key')} <span style={{ textTransform: 'none', color: 'var(--text-3)' }}>({t('detection.f.optional')})</span></label>
+              <input className="input mono" value={f.attr_key} onChange={e => set('attr_key', e.target.value)} placeholder={t('detection.f.attr_key_ph')}/>
+            </div>
+            <div className="field">
+              <label className="field-label">{t('detection.f.attr_val')}</label>
+              <input className="input mono" value={f.attr_val} onChange={e => set('attr_val', e.target.value)} placeholder={t('detection.f.attr_val_ph')}/>
+            </div>
+          </div>
+        </>
+      )}
       <div className="grid2">
         <div className="field">
           <label className="field-label">{t('detection.f.threshold')}</label>
@@ -399,9 +534,11 @@ function RuleForm({ rule, channels, onSaved, onCancel, setErr }) {
         </div>
       )}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-        <button className="btn btn-ghost" onClick={runPreview} disabled={busy || previewing}>
-          {previewing ? <Loader2 size={13}/> : null} {t('detection.preview')}
-        </button>
+        {!f.use_condition && (
+          <button className="btn btn-ghost" onClick={runPreview} disabled={busy || previewing}>
+            {previewing ? <Loader2 size={13}/> : null} {t('detection.preview')}
+          </button>
+        )}
         <button className="btn btn-ghost" onClick={onCancel} disabled={busy}>{t('common.cancel')}</button>
         <button className="btn btn-accent" onClick={save} disabled={busy}>
           {busy ? <><Loader2 size={13}/> {t('common.saving')}</> : <><Save size={13}/> {t('common.save')}</>}

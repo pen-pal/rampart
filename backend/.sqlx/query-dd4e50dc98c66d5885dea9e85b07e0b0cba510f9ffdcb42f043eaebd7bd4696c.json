@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, name, description, enabled, severity, service, min_level,\n               body_regex, attr_key, attr_val, threshold, window_seconds, cooldown_seconds,\n               channel_ids AS \"channel_ids!\", escalation_policy_id, last_checked_at, created_at\n        FROM detection_rules\n        ORDER BY created_at\n        ",
+  "query": "\n        SELECT id, name, description, enabled, severity, service, min_level,\n               body_regex, attr_key, attr_val, threshold, window_seconds, cooldown_seconds,\n               condition,\n               channel_ids AS \"channel_ids!\", escalation_policy_id, last_checked_at, created_at\n        FROM detection_rules\n        ORDER BY created_at\n        ",
   "describe": {
     "columns": [
       {
@@ -148,6 +148,17 @@
       },
       {
         "ordinal": 13,
+        "name": "condition",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "detection_rules",
+            "name": "condition"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
         "name": "channel_ids!",
         "type_info": "UuidArray",
         "origin": {
@@ -158,7 +169,7 @@
         }
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "escalation_policy_id",
         "type_info": "Uuid",
         "origin": {
@@ -169,7 +180,7 @@
         }
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "last_checked_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -180,7 +191,7 @@
         }
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -208,11 +219,12 @@
       false,
       false,
       false,
+      true,
       false,
       true,
       true,
       false
     ]
   },
-  "hash": "23b278527975d6fdb99f8b30b2cc90c06e604a948d766d780fb7969ba6ad1808"
+  "hash": "dd4e50dc98c66d5885dea9e85b07e0b0cba510f9ffdcb42f043eaebd7bd4696c"
 }
