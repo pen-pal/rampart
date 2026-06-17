@@ -1,25 +1,32 @@
-//! SSRF guard for outbound probes.
+//! SSRF guard for outbound requests — shared by the probe engine
+//! (`rampart-checker`) and the notification delivery path (`rampart-notifier`).
 //!
-//! Rampart probes operator/editor-defined targets, so it is inherently an
-//! outbound-request engine. To stop it being abused to reach the cloud
-//! metadata endpoint or internal-only services, every probe that takes a
-//! user-supplied host resolves it through [`resolve_guarded`] first:
+//! Rampart makes outbound requests to operator/editor-defined targets (probe
+//! URLs, webhook/notification endpoints), so it is inherently an outbound
+//! engine. To stop it being abused to reach the cloud metadata endpoint or
+//! internal-only services, hosts are vetted before connect:
 //!
-//!   * **Always blocked** (no legitimate uptime reason): loopback, link-local
-//!     incl. the cloud metadata IP `169.254.169.254`, the v6 equivalents, and
+//!   * **Always blocked** (no legitimate reason): loopback, link-local incl. the
+//!     cloud metadata IP `169.254.169.254`, the v6 equivalents, and
 //!     unspecified/broadcast addresses.
 //!   * **Private ranges** (RFC1918, CGNAT 100.64/10, IPv6 ULA fc00::/7) are
 //!     blocked only when `RAMPART_SSRF_BLOCK_PRIVATE` is set — homelabs
 //!     legitimately monitor private IPs, so it is opt-in, but recommended for
 //!     multi-user / internet-exposed deployments.
 //!
-//! Callers connect to the returned, vetted [`SocketAddr`]s (pin them — e.g.
-//! `reqwest`'s `resolve_to_addrs`) so a DNS rebind can't swap in a blocked IP
-//! between the check and the connect.
+//! Two ways to use the guard:
+//!   * [`resolve_guarded`] — resolve + vet a `host:port`, returning the vetted
+//!     addresses (caller connects to these).
+//!   * [`GuardedResolver`] / [`guarded_client_builder`] — a `reqwest` DNS
+//!     resolver that vets at **connect** time, so every request *and every
+//!     redirect hop* is guarded with no TOCTOU/DNS-rebinding window. This is the
+//!     preferred integration: build the HTTP client via
+//!     [`guarded_client_builder`] and the guard is automatic.
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::sync::Arc;
 
-/// A probe target rejected by the guard.
+/// A target rejected by the guard.
 #[derive(Debug, Clone)]
 pub struct SsrfBlocked {
     pub host: String,
@@ -32,6 +39,8 @@ impl std::fmt::Display for SsrfBlocked {
     }
 }
 
+impl std::error::Error for SsrfBlocked {}
+
 /// Whether to also block private/internal ranges (env `RAMPART_SSRF_BLOCK_PRIVATE`).
 pub fn block_private_enabled() -> bool {
     matches!(
@@ -40,7 +49,7 @@ pub fn block_private_enabled() -> bool {
     )
 }
 
-/// IPs that must never be probed regardless of configuration.
+/// IPs that must never be reached regardless of configuration.
 pub fn is_always_blocked(ip: &IpAddr) -> bool {
     match ip {
         IpAddr::V4(v4) => {
@@ -122,6 +131,65 @@ pub async fn resolve_guarded(
     Ok(addrs)
 }
 
+/// A `reqwest` DNS resolver that vets every resolved address through the SSRF
+/// guard at connect time. Because reqwest calls the resolver for the initial
+/// request *and* for each followed redirect, this closes the TOCTOU /
+/// DNS-rebinding window that a check-then-connect-on-the-original-URL approach
+/// leaves open: the IP that is actually dialed is the IP that was vetted.
+#[derive(Debug, Clone)]
+pub struct GuardedResolver {
+    block_private: bool,
+}
+
+impl GuardedResolver {
+    /// Resolver honoring `RAMPART_SSRF_BLOCK_PRIVATE` (read once at build).
+    pub fn from_env() -> Self {
+        Self {
+            block_private: block_private_enabled(),
+        }
+    }
+}
+
+impl Default for GuardedResolver {
+    fn default() -> Self {
+        Self::from_env()
+    }
+}
+
+impl reqwest::dns::Resolve for GuardedResolver {
+    fn resolve(&self, name: reqwest::dns::Name) -> reqwest::dns::Resolving {
+        let host = name.as_str().to_string();
+        let block_private = self.block_private;
+        Box::pin(async move {
+            // Port 0: reqwest substitutes the URL's port (or the scheme default).
+            let addrs: Vec<SocketAddr> = tokio::net::lookup_host((host.as_str(), 0))
+                .await
+                .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { Box::new(e) })?
+                .collect();
+            if addrs.is_empty() {
+                return Err(Box::new(SsrfBlocked {
+                    host: host.clone(),
+                    reason: "DNS resolution empty",
+                }) as Box<dyn std::error::Error + Send + Sync>);
+            }
+            // Reject if ANY resolved address is blocked, so a host answering with
+            // [public, 169.254.169.254] can't trick the connector into the bad one.
+            for sa in &addrs {
+                check_ip(&host, sa.ip(), block_private)
+                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            }
+            Ok(Box::new(addrs.into_iter()) as reqwest::dns::Addrs)
+        })
+    }
+}
+
+/// A `reqwest::ClientBuilder` pre-wired with the [`GuardedResolver`]. Callers add
+/// their own timeouts / redirect policy / headers, then `.build()`. Every
+/// connection the resulting client makes is SSRF-vetted at dial time.
+pub fn guarded_client_builder() -> reqwest::ClientBuilder {
+    reqwest::Client::builder().dns_resolver(Arc::new(GuardedResolver::from_env()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -142,12 +210,7 @@ mod tests {
 
     #[test]
     fn public_ips_allowed() {
-        for s in [
-            "1.1.1.1",
-            "8.8.8.8",
-            "93.184.216.34",
-            "2606:4700:4700::1111",
-        ] {
+        for s in ["1.1.1.1", "8.8.8.8", "93.184.216.34", "2606:4700:4700::1111"] {
             assert!(!is_always_blocked(&ip(s)), "{s} should be allowed");
             assert!(!is_private(&ip(s)), "{s} not private");
         }
@@ -155,13 +218,7 @@ mod tests {
 
     #[test]
     fn private_ranges_detected() {
-        for s in [
-            "10.0.0.5",
-            "192.168.1.1",
-            "172.16.0.1",
-            "100.64.0.1",
-            "fc00::1",
-        ] {
+        for s in ["10.0.0.5", "192.168.1.1", "172.16.0.1", "100.64.0.1", "fc00::1"] {
             assert!(is_private(&ip(s)), "{s} should be private");
             assert!(!is_always_blocked(&ip(s)), "{s} private != always-blocked");
         }
