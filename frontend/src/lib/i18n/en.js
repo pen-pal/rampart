@@ -879,7 +879,7 @@ const en = {
   'wizard.err_create':               'Failed to create monitor.',
   'wizard.step1.eyebrow':            'Step 1 · Pick a check type',
   'wizard.step1.title':              'What do you want to monitor?',
-  'wizard.step1.blurb':              '38 types in the catalog — all ship today. HTTP family, the SQL family, Memcached, Cassandra/ScyllaDB, NTP, WebSocket, NATS, LDAP, AMQP, DNS/DoH/TLS/domain/RDAP, SNMP, mDNS, SSDP/UPnP, gRPC, MQTT, Kafka, Docker, Steam, RADIUS, headless-browser, and banner checks (SSH/SMTP/IMAP/FTP/POP3). Pick a kind to get started.',
+  'wizard.step1.blurb':              '41 types in the catalog — all ship today. HTTP family, the SQL family, Memcached, Cassandra/ScyllaDB, Elasticsearch, Vault, etcd, NTP, WebSocket, NATS, LDAP, AMQP, DNS/DoH/TLS/domain/RDAP, SNMP, mDNS, SSDP/UPnP, gRPC, MQTT, Kafka, Docker, Steam, RADIUS, headless-browser, and banner checks (SSH/SMTP/IMAP/FTP/POP3). Pick a kind to get started.',
   'wizard.step2.eyebrow':            'Step 2 · Configuration',
   'wizard.step2.title':              'Tell us what to check.',
   'wizard.step3.eyebrow':            'Step 3 · Schedule & alerting',

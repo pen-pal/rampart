@@ -1634,6 +1634,9 @@ function configPlaceholder(kind) {
     case 'imap':      return '{\n  "expect": "* OK"\n}';
     case 'pop3':      return '{\n  "expect": "+OK"\n}';
     case 'ftp':       return '{\n  "expect": "220"\n}';
+    case 'elasticsearch': return '{\n  "username": "elastic",\n  "password": "secret",\n  "allow_yellow": false\n}';
+    case 'etcd':      return '{\n  "username": "",\n  "password": ""\n}';
+    case 'vault':     return '{}';
     default:          return '{}';
   }
 }
@@ -1692,6 +1695,21 @@ function configFields(kind) {
         { key: 'renderer_url', label: 'Renderer URL', type: 'text', ph: 'http://browserless:3000/content' },
         { key: 'keyword', label: 'Keyword', type: 'text', ph: 'operational' },
       ];
+    case 'elasticsearch':
+      return [
+        { key: 'username', label: 'Username', type: 'text', ph: 'elastic' },
+        { key: 'password', label: 'Password', type: 'password', ph: '' },
+        { key: 'allow_yellow', label: 'Treat yellow as up', type: 'bool' },
+        latency,
+      ];
+    case 'etcd':
+      return [
+        { key: 'username', label: 'Username', type: 'text', ph: '' },
+        { key: 'password', label: 'Password', type: 'password', ph: '' },
+        latency,
+      ];
+    case 'vault':
+      return [latency];
     case 'tcp': case 'grpc': case 'mongodb': case 'memcached': case 'nats':
     case 'cassandra': case 'kafka': case 'amqp': case 'websocket': case 'snmp':
       return [latency];
@@ -1753,6 +1771,9 @@ function configHint(kind) {
     case 'redis':     return 'Auth keys: user (ACL, Redis 6+), password, db (number), tls (bool). Or connection_string. max_latency_ms marks a slow-but-up check down.';
     case 'mqtt':      return 'Auth keys: username, password, client_id, tls (bool). max_latency_ms marks a slow-but-up check down.';
     case 'ldap':      return 'Auth keys: bind_dn, bind_password (anonymous if omitted). max_latency_ms marks a slow-but-up check down.';
+    case 'elasticsearch': return 'Probes {url}/_cluster/health. Keys: username, password (basic auth), allow_yellow (bool — treat a yellow cluster as up).';
+    case 'vault':     return 'Probes {url}/v1/sys/health — 200 active, 429 standby (warn), 501 uninitialized, 503 sealed (down). No extra config.';
+    case 'etcd':      return 'Probes {url}/health — up when {"health":"true"}. Keys: username, password (basic auth).';
     default:          return 'Free-form JSON read by the probe runtime. Leave empty if this probe has no extra config.';
   }
 }

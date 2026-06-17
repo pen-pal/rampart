@@ -19,6 +19,8 @@ pub mod dns;
 pub mod docker;
 pub mod doh;
 pub mod domain;
+pub mod elasticsearch;
+pub mod etcd;
 pub mod grpc;
 pub mod http;
 pub mod kafka;
@@ -46,6 +48,7 @@ pub mod steam;
 pub mod synthetic;
 pub mod tcp;
 pub mod tls;
+pub mod vault;
 pub mod websocket;
 
 use async_trait::async_trait;
@@ -99,6 +102,9 @@ pub struct Probes {
     browser: browser::BrowserProbe,
     banner: banner::BannerProbe,
     synthetic: synthetic::SyntheticProbe,
+    elasticsearch: elasticsearch::ElasticsearchProbe,
+    vault: vault::VaultProbe,
+    etcd: etcd::EtcdProbe,
 }
 
 impl Probes {
@@ -136,6 +142,9 @@ impl Probes {
             browser: browser::BrowserProbe::new(),
             banner: banner::BannerProbe::new(),
             synthetic: synthetic::SyntheticProbe::new(),
+            elasticsearch: elasticsearch::ElasticsearchProbe::new(),
+            vault: vault::VaultProbe::new(),
+            etcd: etcd::EtcdProbe::new(),
         }
     }
 
@@ -201,6 +210,9 @@ impl Probes {
             MonitorKind::Kafka => self.kafka.run(monitor).await,
             MonitorKind::Radius => self.radius.run(monitor).await,
             MonitorKind::Browser => self.browser.run(monitor).await,
+            MonitorKind::Elasticsearch => self.elasticsearch.run(monitor).await,
+            MonitorKind::Vault => self.vault.run(monitor).await,
+            MonitorKind::Etcd => self.etcd.run(monitor).await,
             MonitorKind::Ssh
             | MonitorKind::Smtp
             | MonitorKind::Imap
@@ -256,6 +268,19 @@ fn ssrf_target(m: &Monitor) -> Option<(String, u16)> {
         // Guarded at the probe level, lookup-only, or no remote connect:
         Http | Keyword | JsonQuery | Tcp | Synthetic | Dns | Domain | Rdap | Doh | Push
         | Browser | Docker | Mdns | Ssdp => None,
+        // url-based app-health probes: derive host:port from monitor.url so the
+        // central pre-flight guard runs. The reqwest DNS-resolver hook on their
+        // guarded client is NOT invoked for a literal-IP URL (e.g.
+        // http://169.254.169.254), so the pre-flight `resolve_guarded` — which
+        // checks the IP whether literal or resolved — is what actually blocks
+        // metadata/loopback targets here.
+        Elasticsearch | Vault | Etcd => {
+            let url = m.url.as_deref().map(str::trim).filter(|u| !u.is_empty())?;
+            let parsed = reqwest::Url::parse(url).ok()?;
+            let host = parsed.host_str()?.to_string();
+            let port = parsed.port_or_known_default().unwrap_or(443);
+            Some((host, port))
+        }
         // Everything else connects to monitor.hostname:port.
         _ => {
             let host = m.hostname.clone().filter(|h| !h.trim().is_empty())?;
