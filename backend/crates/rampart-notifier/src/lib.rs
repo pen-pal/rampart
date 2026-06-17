@@ -54,6 +54,8 @@ pub enum ChannelError {
     Network(#[from] reqwest::Error),
     #[error("upstream returned {0}: {1}")]
     Upstream(u16, String),
+    #[error("blocked: {0}")]
+    Blocked(String),
     #[error("other: {0}")]
     Other(String),
 }
