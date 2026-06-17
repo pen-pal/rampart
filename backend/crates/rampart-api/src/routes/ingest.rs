@@ -27,9 +27,10 @@
 //! Incident logic is NOT duplicated here — we reuse
 //! `rampart_db::incidents::{create, resolve, find_active_by_dedup_key}`.
 
+use crate::auth::OrgContext;
 use crate::error::ApiError;
 use crate::state::AppState;
-use axum::extract::{Path, State};
+use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -82,28 +83,35 @@ fn parse_token_id(s: &str) -> Result<IngestTokenId, ApiError> {
 
 async fn list_tokens(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(page): Path<String>,
 ) -> Result<Json<Vec<IngestToken>>, ApiError> {
+    let page_id = parse_page(&page)?;
+    // Org-gate via the owning page; a cross-org page id 404s before listing.
+    rampart_db::status_pages::get(s.pool(), page_id, org.org_id).await?;
     Ok(Json(
-        rampart_db::ingest_tokens::list_for_page(s.pool(), parse_page(&page)?).await?,
+        rampart_db::ingest_tokens::list_for_page(s.pool(), page_id).await?,
     ))
 }
 
 async fn create_token(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(page): Path<String>,
     Json(input): Json<NewIngestToken>,
 ) -> Result<(StatusCode, Json<IngestToken>), ApiError> {
     let page_id = parse_page(&page)?;
+    rampart_db::status_pages::get(s.pool(), page_id, org.org_id).await?;
     let tok = rampart_db::ingest_tokens::create(s.pool(), page_id, input).await?;
     Ok((StatusCode::CREATED, Json(tok)))
 }
 
 async fn revoke_token(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::ingest_tokens::delete(s.pool(), parse_token_id(&id)?).await?;
+    rampart_db::ingest_tokens::delete(s.pool(), parse_token_id(&id)?, org.org_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -120,6 +128,7 @@ struct SetMappingBody {
 
 async fn set_token_mapping(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
     Json(body): Json<SetMappingBody>,
 ) -> Result<Json<IngestToken>, ApiError> {
@@ -127,8 +136,9 @@ async fn set_token_mapping(
         serde_json::from_value::<IngestMapping>(m.clone())
             .map_err(|e| ApiError::BadRequest(format!("invalid mapping: {e}")))?;
     }
-    let tok = rampart_db::ingest_tokens::set_mapping(s.pool(), parse_token_id(&id)?, body.mapping)
-        .await?;
+    let tok =
+        rampart_db::ingest_tokens::set_mapping(s.pool(), parse_token_id(&id)?, body.mapping, org.org_id)
+            .await?;
     Ok(Json(tok))
 }
 
