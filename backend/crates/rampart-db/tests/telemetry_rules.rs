@@ -4,11 +4,17 @@
 //! Exercises the per-kind windowed aggregate + the shared fire/resolve state
 //! machine against real tier rows (logs + spans, which need no FK setup).
 
+use rampart_core::ids::OrgId;
 use rampart_core::metric_rule::{RuleOp, RuleTransition};
+use rampart_core::org::DEFAULT_ORG_ID;
 use rampart_core::telemetry_rule::{NewTelemetryRule, TelemetryRuleKind};
 use rampart_db::telemetry_rules;
 use sqlx::PgPool;
 use uuid::Uuid;
+
+fn def_org() -> OrgId {
+    OrgId::from_uuid(DEFAULT_ORG_ID)
+}
 
 fn rule(kind: TelemetryRuleKind, op: RuleOp, threshold: f64, window: i32) -> NewTelemetryRule {
     NewTelemetryRule {
@@ -86,7 +92,7 @@ async fn log_volume_fires_and_resolves(pool: PgPool) {
     assert_eq!(ev.len(), 1);
     assert_eq!(ev[0].transition, RuleTransition::Fire);
     assert_eq!(ev[0].value, Some(3.0));
-    assert!(telemetry_rules::get(&pool, r.id)
+    assert!(telemetry_rules::get(&pool, r.id, def_org())
         .await
         .unwrap()
         .firing_at
@@ -106,7 +112,7 @@ async fn log_volume_fires_and_resolves(pool: PgPool) {
     let ev = telemetry_rules::evaluate_tick(&pool).await.unwrap();
     assert_eq!(ev.len(), 1);
     assert_eq!(ev[0].transition, RuleTransition::Resolve);
-    assert!(telemetry_rules::get(&pool, r.id)
+    assert!(telemetry_rules::get(&pool, r.id, def_org())
         .await
         .unwrap()
         .firing_at
@@ -176,7 +182,7 @@ async fn trace_latency_p95_and_no_data_resolves(pool: PgPool) {
     assert_eq!(ev.len(), 1);
     assert_eq!(ev[0].transition, RuleTransition::Resolve);
     assert_eq!(ev[0].value, None);
-    assert!(telemetry_rules::get(&pool, r.id)
+    assert!(telemetry_rules::get(&pool, r.id, def_org())
         .await
         .unwrap()
         .firing_at

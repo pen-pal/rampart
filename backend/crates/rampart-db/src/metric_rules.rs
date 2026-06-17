@@ -9,7 +9,7 @@
 //! channels.
 
 use crate::{DbError, DbPool, DbResult};
-use rampart_core::ids::{MetricRuleId, NotificationId};
+use rampart_core::ids::{MetricRuleId, NotificationId, OrgId};
 use rampart_core::metric_rule::{
     rule_transition, MetricRule, NewMetricRule, RuleOp, RuleTransition, UpdateMetricRule,
 };
@@ -65,7 +65,29 @@ impl From<RuleRow> for MetricRule {
     }
 }
 
-pub async fn list(pool: &DbPool) -> DbResult<Vec<MetricRule>> {
+/// Metric rules owned by one org — the management list (org-scoped).
+pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<MetricRule>> {
+    let rows = sqlx::query_as!(
+        RuleRow,
+        r#"
+        SELECT id, name, metric, labels AS "labels!", op, threshold, for_seconds,
+               enabled, channel_ids AS "channel_ids!", escalation_policy_id,
+               breach_since, firing_at, created_at
+        FROM metric_rules
+        WHERE org_id = $1
+        ORDER BY created_at
+        "#,
+        org_id.0,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(Into::into).collect())
+}
+
+/// Every metric rule across ALL orgs — for the scheduler evaluation tick,
+/// which must score every org's rules. Not org-scoped; never call on a
+/// request path (use [`list`]).
+pub async fn list_all(pool: &DbPool) -> DbResult<Vec<MetricRule>> {
     let rows = sqlx::query_as!(
         RuleRow,
         r#"
@@ -81,7 +103,29 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<MetricRule>> {
     Ok(rows.into_iter().map(Into::into).collect())
 }
 
-pub async fn get(pool: &DbPool, id: MetricRuleId) -> DbResult<MetricRule> {
+/// Fetch one rule scoped to an org (cross-org id → NotFound).
+pub async fn get(pool: &DbPool, id: MetricRuleId, org_id: OrgId) -> DbResult<MetricRule> {
+    let row = sqlx::query_as!(
+        RuleRow,
+        r#"
+        SELECT id, name, metric, labels AS "labels!", op, threshold, for_seconds,
+               enabled, channel_ids AS "channel_ids!", escalation_policy_id,
+               breach_since, firing_at, created_at
+        FROM metric_rules
+        WHERE id = $1 AND org_id = $2
+        "#,
+        id.0,
+        org_id.0,
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or(DbError::NotFound)?;
+    Ok(row.into())
+}
+
+/// Fetch one rule WITHOUT org scoping — for the scheduler and the
+/// just-inserted-row return in [`create`]. Not for request paths.
+pub async fn get_unscoped(pool: &DbPool, id: MetricRuleId) -> DbResult<MetricRule> {
     let row = sqlx::query_as!(
         RuleRow,
         r#"
@@ -120,13 +164,16 @@ pub async fn create(pool: &DbPool, input: NewMetricRule) -> DbResult<MetricRule>
     )
     .execute(pool)
     .await?;
-    get(pool, id).await
+    // Just-inserted row; org_id came from the column default (write-stamping
+    // from OrgContext lands in Phase 4). Return it unscoped.
+    get_unscoped(pool, id).await
 }
 
 pub async fn update(
     pool: &DbPool,
     id: MetricRuleId,
     patch: UpdateMetricRule,
+    org_id: OrgId,
 ) -> DbResult<MetricRule> {
     let channel_ids: Option<Vec<Uuid>> = patch.channel_ids.map(|v| v.iter().map(|c| c.0).collect());
     let result = sqlx::query!(
@@ -145,7 +192,7 @@ pub async fn update(
             -- firing markers describe the OLD condition.
             breach_since = NULL,
             firing_at    = NULL
-        WHERE id = $1
+        WHERE id = $1 AND org_id = $11
         "#,
         id.0,
         patch.name,
@@ -157,19 +204,24 @@ pub async fn update(
         patch.enabled,
         channel_ids.as_deref(),
         patch.escalation_policy_id.map(|p| p.0),
+        org_id.0,
     )
     .execute(pool)
     .await?;
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }
-    get(pool, id).await
+    get(pool, id, org_id).await
 }
 
-pub async fn delete(pool: &DbPool, id: MetricRuleId) -> DbResult<()> {
-    let result = sqlx::query!("DELETE FROM metric_rules WHERE id = $1", id.0)
-        .execute(pool)
-        .await?;
+pub async fn delete(pool: &DbPool, id: MetricRuleId, org_id: OrgId) -> DbResult<()> {
+    let result = sqlx::query!(
+        "DELETE FROM metric_rules WHERE id = $1 AND org_id = $2",
+        id.0,
+        org_id.0,
+    )
+    .execute(pool)
+    .await?;
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }
@@ -191,7 +243,7 @@ pub async fn evaluate_tick(pool: &DbPool) -> DbResult<Vec<RuleEvent>> {
     let now = OffsetDateTime::now_utc();
     let mut out = Vec::new();
 
-    for rule in list(pool).await?.into_iter().filter(|r| r.enabled) {
+    for rule in list_all(pool).await?.into_iter().filter(|r| r.enabled) {
         let latest = crate::metric_samples::latest(pool, &rule.metric, &rule.labels).await?;
         let fresh_value = latest.and_then(|(v, ts)| {
             ((now - ts).whole_seconds() < SAMPLE_FRESHNESS_SECONDS).then_some(v)

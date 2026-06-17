@@ -5,9 +5,10 @@
 //! routes are just management. Mounted in the editor slice — editors manage
 //! alerting, readonly users GET.
 
+use crate::auth::OrgContext;
 use crate::error::ApiError;
 use crate::state::AppState;
-use axum::extract::{Path, State};
+use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
@@ -29,8 +30,13 @@ fn parse_id(s: &str) -> Result<TelemetryRuleId, ApiError> {
         .map_err(|_| ApiError::BadRequest("invalid rule id".into()))
 }
 
-async fn list(State(s): State<AppState>) -> Result<Json<Vec<TelemetryRule>>, ApiError> {
-    Ok(Json(rampart_db::telemetry_rules::list(s.pool()).await?))
+async fn list(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+) -> Result<Json<Vec<TelemetryRule>>, ApiError> {
+    Ok(Json(
+        rampart_db::telemetry_rules::list(s.pool(), org.org_id).await?,
+    ))
 }
 
 async fn create(
@@ -46,6 +52,7 @@ async fn create(
 
 async fn update(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
     Json(input): Json<UpdateTelemetryRule>,
 ) -> Result<Json<TelemetryRule>, ApiError> {
@@ -54,14 +61,15 @@ async fn update(
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     Ok(Json(
-        rampart_db::telemetry_rules::update(s.pool(), rule_id, input).await?,
+        rampart_db::telemetry_rules::update(s.pool(), rule_id, input, org.org_id).await?,
     ))
 }
 
 async fn delete_rule(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::telemetry_rules::delete(s.pool(), parse_id(&id)?).await?;
+    rampart_db::telemetry_rules::delete(s.pool(), parse_id(&id)?, org.org_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }

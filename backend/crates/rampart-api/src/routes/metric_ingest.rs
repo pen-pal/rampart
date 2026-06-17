@@ -17,10 +17,11 @@
 //! GET /v1/metrics/series — distinct (name, label-set) series.
 //! GET /v1/metrics/query — bucketed range read for one series.
 
+use crate::auth::OrgContext;
 use crate::error::ApiError;
 use crate::state::AppState;
 use axum::extract::Path;
-use axum::extract::{Query, State};
+use axum::extract::{Extension, Query, State};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use rampart_core::ids::MetricRuleId;
@@ -50,8 +51,13 @@ fn parse_rule_id(s: &str) -> Result<MetricRuleId, ApiError> {
         .map_err(|_| ApiError::BadRequest("invalid rule id".into()))
 }
 
-async fn list_rules(State(s): State<AppState>) -> Result<Json<Vec<MetricRule>>, ApiError> {
-    Ok(Json(rampart_db::metric_rules::list(s.pool()).await?))
+async fn list_rules(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+) -> Result<Json<Vec<MetricRule>>, ApiError> {
+    Ok(Json(
+        rampart_db::metric_rules::list(s.pool(), org.org_id).await?,
+    ))
 }
 
 async fn create_rule(
@@ -70,6 +76,7 @@ async fn create_rule(
 
 async fn update_rule(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
     Json(input): Json<UpdateMetricRule>,
 ) -> Result<Json<MetricRule>, ApiError> {
@@ -83,16 +90,17 @@ async fn update_rule(
         }
     }
     Ok(Json(
-        rampart_db::metric_rules::update(s.pool(), rule_id, input).await?,
+        rampart_db::metric_rules::update(s.pool(), rule_id, input, org.org_id).await?,
     ))
 }
 
 async fn delete_rule(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<axum::http::StatusCode, ApiError> {
     let rule_id = parse_rule_id(&id)?;
-    rampart_db::metric_rules::delete(s.pool(), rule_id).await?;
+    rampart_db::metric_rules::delete(s.pool(), rule_id, org.org_id).await?;
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
