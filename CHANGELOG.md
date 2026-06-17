@@ -19,6 +19,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.110.0] — 2026-06-17
+
+### Added
+- **Multi-tenancy — Phase 3b: org-scoped alert rules + silences.** Continues the
+  per-domain read-filtering rollout to `metric_rules`, `telemetry_alert_rules`,
+  and `silences`: their management reads/mutations (`list`/`get`/`update`/
+  `delete`, silence `list_active`/`delete`) take an `org_id` and filter by it, so
+  a caller only sees/edits its own org's rules and a cross-org id is a 404 (one
+  org can no longer lift another's silence). The scheduler evaluation ticks
+  (`metric_rules::evaluate_tick`, `telemetry_rules::evaluate_tick`) and the
+  notifier silence chokepoint (`is_silenced`) stay unscoped via new
+  `list_all` / `get_unscoped` siblings — they must see every org's rules to
+  evaluate them. `create` stays on the column DEFAULT (write-stamping is Phase 4).
+  Behaviour-identical for a single-org install. See [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.109.0] — 2026-06-17
 
 ### Added
