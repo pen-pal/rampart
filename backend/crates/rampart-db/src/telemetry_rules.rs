@@ -8,7 +8,7 @@
 //! persistence and hands transitions back to the scheduler for fan-out.
 
 use crate::{DbError, DbPool, DbResult};
-use rampart_core::ids::{NotificationId, TelemetryRuleId};
+use rampart_core::ids::{NotificationId, OrgId, TelemetryRuleId};
 use rampart_core::metric_rule::{rule_transition, RuleOp, RuleTransition};
 use rampart_core::telemetry_rule::{
     NewTelemetryRule, TelemetryRule, TelemetryRuleKind, UpdateTelemetryRule,
@@ -64,7 +64,29 @@ impl From<RuleRow> for TelemetryRule {
     }
 }
 
-pub async fn list(pool: &DbPool) -> DbResult<Vec<TelemetryRule>> {
+/// Telemetry alert rules owned by one org — the management list (org-scoped).
+pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<TelemetryRule>> {
+    let rows = sqlx::query_as!(
+        RuleRow,
+        r#"
+        SELECT id, name, kind, target, match_text, min_level, op, threshold,
+               window_seconds, for_seconds, enabled,
+               channel_ids AS "channel_ids!", escalation_policy_id,
+               breach_since, firing_at, created_at
+        FROM telemetry_alert_rules
+        WHERE org_id = $1
+        ORDER BY created_at
+        "#,
+        org_id.0,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(Into::into).collect())
+}
+
+/// Every telemetry rule across ALL orgs — for the scheduler evaluation tick.
+/// Not org-scoped; never call on a request path (use [`list`]).
+pub async fn list_all(pool: &DbPool) -> DbResult<Vec<TelemetryRule>> {
     let rows = sqlx::query_as!(
         RuleRow,
         r#"
@@ -81,7 +103,30 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<TelemetryRule>> {
     Ok(rows.into_iter().map(Into::into).collect())
 }
 
-pub async fn get(pool: &DbPool, id: TelemetryRuleId) -> DbResult<TelemetryRule> {
+/// Fetch one rule scoped to an org (cross-org id → NotFound).
+pub async fn get(pool: &DbPool, id: TelemetryRuleId, org_id: OrgId) -> DbResult<TelemetryRule> {
+    let row = sqlx::query_as!(
+        RuleRow,
+        r#"
+        SELECT id, name, kind, target, match_text, min_level, op, threshold,
+               window_seconds, for_seconds, enabled,
+               channel_ids AS "channel_ids!", escalation_policy_id,
+               breach_since, firing_at, created_at
+        FROM telemetry_alert_rules
+        WHERE id = $1 AND org_id = $2
+        "#,
+        id.0,
+        org_id.0,
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or(DbError::NotFound)?;
+    Ok(row.into())
+}
+
+/// Fetch one rule WITHOUT org scoping — for the just-inserted-row return in
+/// [`create`]. Not for request paths.
+pub async fn get_unscoped(pool: &DbPool, id: TelemetryRuleId) -> DbResult<TelemetryRule> {
     let row = sqlx::query_as!(
         RuleRow,
         r#"
@@ -126,13 +171,15 @@ pub async fn create(pool: &DbPool, input: NewTelemetryRule) -> DbResult<Telemetr
     )
     .execute(pool)
     .await?;
-    get(pool, id).await
+    // org_id from the column default (write-stamping is Phase 4); return unscoped.
+    get_unscoped(pool, id).await
 }
 
 pub async fn update(
     pool: &DbPool,
     id: TelemetryRuleId,
     patch: UpdateTelemetryRule,
+    org_id: OrgId,
 ) -> DbResult<TelemetryRule> {
     let channel_ids: Option<Vec<Uuid>> = patch.channel_ids.map(|v| v.iter().map(|c| c.0).collect());
     let result = sqlx::query!(
@@ -154,7 +201,7 @@ pub async fn update(
             -- describe the OLD condition.
             breach_since   = NULL,
             firing_at      = NULL
-        WHERE id = $1
+        WHERE id = $1 AND org_id = $14
         "#,
         id.0,
         patch.name,
@@ -169,19 +216,24 @@ pub async fn update(
         patch.enabled,
         channel_ids.as_deref(),
         patch.escalation_policy_id.map(|p| p.0),
+        org_id.0,
     )
     .execute(pool)
     .await?;
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }
-    get(pool, id).await
+    get(pool, id, org_id).await
 }
 
-pub async fn delete(pool: &DbPool, id: TelemetryRuleId) -> DbResult<()> {
-    let result = sqlx::query!("DELETE FROM telemetry_alert_rules WHERE id = $1", id.0)
-        .execute(pool)
-        .await?;
+pub async fn delete(pool: &DbPool, id: TelemetryRuleId, org_id: OrgId) -> DbResult<()> {
+    let result = sqlx::query!(
+        "DELETE FROM telemetry_alert_rules WHERE id = $1 AND org_id = $2",
+        id.0,
+        org_id.0,
+    )
+    .execute(pool)
+    .await?;
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }
@@ -310,7 +362,7 @@ pub async fn evaluate_tick(pool: &DbPool) -> DbResult<Vec<RuleEvent>> {
     let now = OffsetDateTime::now_utc();
     let mut out = Vec::new();
 
-    for rule in list(pool).await?.into_iter().filter(|r| r.enabled) {
+    for rule in list_all(pool).await?.into_iter().filter(|r| r.enabled) {
         let value = observe(pool, &rule).await?;
         let breached = value
             .map(|v| rule.op.breached(v, rule.threshold))

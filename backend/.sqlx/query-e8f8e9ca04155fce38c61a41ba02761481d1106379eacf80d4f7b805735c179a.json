@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT s.id, s.monitor_id, m.name AS \"monitor_name?\",\n               s.reason, s.created_at, s.expires_at\n        FROM silences s\n        LEFT JOIN monitors m ON m.id = s.monitor_id\n        WHERE s.expires_at IS NULL OR s.expires_at > now()\n        ORDER BY s.created_at DESC\n        ",
+  "query": "\n        SELECT s.id, s.monitor_id, m.name AS \"monitor_name?\",\n               s.reason, s.created_at, s.expires_at\n        FROM silences s\n        LEFT JOIN monitors m ON m.id = s.monitor_id\n        WHERE s.org_id = $1\n          AND (s.expires_at IS NULL OR s.expires_at > now())\n        ORDER BY s.created_at DESC\n        ",
   "describe": {
     "columns": [
       {
@@ -71,7 +71,9 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid"
+      ]
     },
     "nullable": [
       false,
@@ -82,5 +84,5 @@
       true
     ]
   },
-  "hash": "02084829f1f24b96b84ba19e92eea863fa0cdcdaccf3f9ead38314968c0f4837"
+  "hash": "e8f8e9ca04155fce38c61a41ba02761481d1106379eacf80d4f7b805735c179a"
 }
