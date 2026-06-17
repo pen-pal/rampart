@@ -3,6 +3,7 @@
 //! Create returns the raw token exactly once. The list endpoint only
 //! exposes the prefix; the secret half never leaves the server again.
 
+use crate::auth::OrgContext;
 use crate::error::ApiError;
 use crate::state::AppState;
 use axum::extract::{Extension, Path, State};
@@ -29,8 +30,11 @@ fn parse(s: &str) -> Result<ApiKeyId, ApiError> {
         .map_err(|_| ApiError::BadRequest("invalid api key id".into()))
 }
 
-async fn list(State(s): State<AppState>) -> Result<Json<Vec<ApiKey>>, ApiError> {
-    Ok(Json(rampart_db::api_keys::list(s.pool()).await?))
+async fn list(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+) -> Result<Json<Vec<ApiKey>>, ApiError> {
+    Ok(Json(rampart_db::api_keys::list(s.pool(), org.org_id).await?))
 }
 
 async fn create(
@@ -67,11 +71,12 @@ async fn create(
 async fn revoke(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let key_id = parse(&id)?;
-    rampart_db::api_keys::delete(s.pool(), key_id).await?;
+    rampart_db::api_keys::delete(s.pool(), key_id, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
