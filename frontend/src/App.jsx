@@ -1,44 +1,66 @@
 import React, { lazy, Suspense, useEffect, useState } from 'react';
+
+// A dynamic import() can fail after a redeploy: the previous build's
+// content-hashed chunk filenames (e.g. `Maintenance-ABC123.js`) no longer exist
+// on the server, so navigating to a not-yet-loaded view 404s and the view
+// crashes to the error screen ("blank/black" page). Recover by reloading ONCE
+// to fetch a fresh index.html + chunk manifest. A short sessionStorage guard
+// prevents a reload loop if the import keeps failing for some other reason.
+function lazyWithReload(factory) {
+  return lazy(() =>
+    factory().catch((err) => {
+      const KEY = 'rampart:last-chunk-reload';
+      const last = Number(sessionStorage.getItem(KEY) || 0);
+      if (Date.now() - last > 10_000) {
+        sessionStorage.setItem(KEY, String(Date.now()));
+        window.location.reload();
+        return new Promise(() => {}); // never resolves — the reload takes over
+      }
+      throw err; // already reloaded recently → let the error boundary show
+    }),
+  );
+}
+
 // Views are lazy-loaded so that the initial bundle stays lean — each view
 // becomes its own async chunk and only loads when the route is visited.
-const Dashboard         = lazy(() => import('./views/Dashboard.jsx'));
-const MonitorDetail     = lazy(() => import('./views/MonitorDetail.jsx'));
-const StatusPageBuilder = lazy(() => import('./views/StatusPageBuilder.jsx'));
-const NewMonitorWizard  = lazy(() => import('./views/NewMonitorWizard.jsx'));
-const ImportMonitors    = lazy(() => import('./views/ImportMonitors.jsx'));
-const Login             = lazy(() => import('./views/Login.jsx'));
-const Notifications     = lazy(() => import('./views/Notifications.jsx'));
-const Escalations       = lazy(() => import('./views/Escalations.jsx'));
-const Traces            = lazy(() => import('./views/Traces.jsx'));
-const Logs              = lazy(() => import('./views/Logs.jsx'));
-const Profiling         = lazy(() => import('./views/Profiling.jsx'));
-const Errors            = lazy(() => import('./views/Errors.jsx'));
-const Rum               = lazy(() => import('./views/Rum.jsx'));
-const OnCall            = lazy(() => import('./views/OnCall.jsx'));
-const AlertRules        = lazy(() => import('./views/AlertRules.jsx'));
-const Detection         = lazy(() => import('./views/Detection.jsx'));
-const Slos              = lazy(() => import('./views/Slos.jsx'));
-const Silences          = lazy(() => import('./views/Silences.jsx'));
-const Maintenance       = lazy(() => import('./views/Maintenance.jsx'));
-const DependencyGraph   = lazy(() => import('./views/DependencyGraph.jsx'));
-const ApiKeys           = lazy(() => import('./views/ApiKeys.jsx'));
-const Proxies           = lazy(() => import('./views/Proxies.jsx'));
-const Agents            = lazy(() => import('./views/Agents.jsx'));
-const Security          = lazy(() => import('./views/Security.jsx'));
-const Users             = lazy(() => import('./views/Users.jsx'));
-const SmtpSettings      = lazy(() => import('./views/SmtpSettings.jsx'));
-const RetentionSettings = lazy(() => import('./views/RetentionSettings.jsx'));
-const IngestSettings    = lazy(() => import('./views/IngestSettings.jsx'));
-const Folders           = lazy(() => import('./views/Folders.jsx'));
-const Tags              = lazy(() => import('./views/Tags.jsx'));
-const AuditLog          = lazy(() => import('./views/AuditLog.jsx'));
-const ScheduledReports  = lazy(() => import('./views/ScheduledReports.jsx'));
-const DeliveryLog       = lazy(() => import('./views/DeliveryLog.jsx'));
-const Metrics           = lazy(() => import('./views/Metrics.jsx'));
-const Dashboards        = lazy(() => import('./views/Dashboards.jsx'));
-const MonitorTemplates  = lazy(() => import('./views/MonitorTemplates.jsx'));
-const StatusPageView    = lazy(() => import('./views/StatusPageView.jsx'));
-const ManageSubscription = lazy(() => import('./views/ManageSubscription.jsx'));
+const Dashboard         = lazyWithReload(() => import('./views/Dashboard.jsx'));
+const MonitorDetail     = lazyWithReload(() => import('./views/MonitorDetail.jsx'));
+const StatusPageBuilder = lazyWithReload(() => import('./views/StatusPageBuilder.jsx'));
+const NewMonitorWizard  = lazyWithReload(() => import('./views/NewMonitorWizard.jsx'));
+const ImportMonitors    = lazyWithReload(() => import('./views/ImportMonitors.jsx'));
+const Login             = lazyWithReload(() => import('./views/Login.jsx'));
+const Notifications     = lazyWithReload(() => import('./views/Notifications.jsx'));
+const Escalations       = lazyWithReload(() => import('./views/Escalations.jsx'));
+const Traces            = lazyWithReload(() => import('./views/Traces.jsx'));
+const Logs              = lazyWithReload(() => import('./views/Logs.jsx'));
+const Profiling         = lazyWithReload(() => import('./views/Profiling.jsx'));
+const Errors            = lazyWithReload(() => import('./views/Errors.jsx'));
+const Rum               = lazyWithReload(() => import('./views/Rum.jsx'));
+const OnCall            = lazyWithReload(() => import('./views/OnCall.jsx'));
+const AlertRules        = lazyWithReload(() => import('./views/AlertRules.jsx'));
+const Detection         = lazyWithReload(() => import('./views/Detection.jsx'));
+const Slos              = lazyWithReload(() => import('./views/Slos.jsx'));
+const Silences          = lazyWithReload(() => import('./views/Silences.jsx'));
+const Maintenance       = lazyWithReload(() => import('./views/Maintenance.jsx'));
+const DependencyGraph   = lazyWithReload(() => import('./views/DependencyGraph.jsx'));
+const ApiKeys           = lazyWithReload(() => import('./views/ApiKeys.jsx'));
+const Proxies           = lazyWithReload(() => import('./views/Proxies.jsx'));
+const Agents            = lazyWithReload(() => import('./views/Agents.jsx'));
+const Security          = lazyWithReload(() => import('./views/Security.jsx'));
+const Users             = lazyWithReload(() => import('./views/Users.jsx'));
+const SmtpSettings      = lazyWithReload(() => import('./views/SmtpSettings.jsx'));
+const RetentionSettings = lazyWithReload(() => import('./views/RetentionSettings.jsx'));
+const IngestSettings    = lazyWithReload(() => import('./views/IngestSettings.jsx'));
+const Folders           = lazyWithReload(() => import('./views/Folders.jsx'));
+const Tags              = lazyWithReload(() => import('./views/Tags.jsx'));
+const AuditLog          = lazyWithReload(() => import('./views/AuditLog.jsx'));
+const ScheduledReports  = lazyWithReload(() => import('./views/ScheduledReports.jsx'));
+const DeliveryLog       = lazyWithReload(() => import('./views/DeliveryLog.jsx'));
+const Metrics           = lazyWithReload(() => import('./views/Metrics.jsx'));
+const Dashboards        = lazyWithReload(() => import('./views/Dashboards.jsx'));
+const MonitorTemplates  = lazyWithReload(() => import('./views/MonitorTemplates.jsx'));
+const StatusPageView    = lazyWithReload(() => import('./views/StatusPageView.jsx'));
+const ManageSubscription = lazyWithReload(() => import('./views/ManageSubscription.jsx'));
 import { api } from './lib/api.js';
 import { isAdmin, canWrite } from './lib/roles.js';
 import { parseRoute } from './lib/router.js';
