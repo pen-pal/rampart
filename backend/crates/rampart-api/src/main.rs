@@ -18,6 +18,10 @@
 //!                         unless a telemetry token is configured + presented.
 //!   RAMPART_SECRET_KEY    32-byte key (64 hex / base64). When set, notification
 //!                         channel secrets are AES-256-GCM encrypted at rest.
+//!                         Unset → secrets stored PLAINTEXT (loud startup warn +
+//!                         /healthz `secrets_at_rest:"plaintext"` + UI banner).
+//!   RAMPART_REQUIRE_SECRET_KEY "1"/"true" → refuse to start unless
+//!                         RAMPART_SECRET_KEY is set (fail-closed at-rest crypto).
 //!   RAMPART_OIDC_ISSUER / _CLIENT_ID / _CLIENT_SECRET / _REDIRECT_URL
 //!                         when all set, enables OIDC SSO login. Optional
 //!                         RAMPART_OIDC_DEFAULT_ROLE = admin|editor|readonly.
@@ -123,6 +127,28 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
+    // Secrets-at-rest posture. Notification-channel credentials (webhook
+    // tokens, SMTP passwords, the API keys of 128 channels) live in JSONB;
+    // without RAMPART_SECRET_KEY they are stored as PLAINTEXT. Make that loud
+    // rather than silent, and let operators enforce encryption fail-closed the
+    // same way RAMPART_REQUIRE_INGEST_AUTH gates ingest.
+    if rampart_db::secrets::is_enabled() {
+        info!("secrets-at-rest: channel credentials encrypted (AES-256-GCM via RAMPART_SECRET_KEY)");
+    } else if require_secret_key() {
+        anyhow::bail!(
+            "RAMPART_REQUIRE_SECRET_KEY is set but RAMPART_SECRET_KEY is missing or invalid — \
+             refusing to start with plaintext channel secrets. Provide a 32-byte key \
+             (64 hex chars or base64)."
+        );
+    } else {
+        warn!(
+            "SECURITY: RAMPART_SECRET_KEY is not set — notification-channel credentials \
+             (webhook tokens, SMTP passwords, API keys) are stored as PLAINTEXT in the database. \
+             Set RAMPART_SECRET_KEY (32 bytes: 64 hex chars or base64) to enable AES-256-GCM \
+             encryption at rest, or RAMPART_REQUIRE_SECRET_KEY=1 to refuse startup without it."
+        );
+    }
+
     // Leader election. Only the replica holding the Postgres advisory lock
     // runs the scheduler / notifier digest flush / retention prune, so a
     // multi-replica deployment never double-probes or double-pages. On a
@@ -208,6 +234,16 @@ async fn main() -> anyhow::Result<()> {
 
     info!("rampart-api stopped cleanly");
     Ok(())
+}
+
+/// Whether encryption-at-rest is mandatory (`RAMPART_REQUIRE_SECRET_KEY`
+/// = `1`/`true`/`yes`). Mirrors `RAMPART_REQUIRE_INGEST_AUTH`: when set, the
+/// process refuses to start unless a valid `RAMPART_SECRET_KEY` is configured.
+fn require_secret_key() -> bool {
+    matches!(
+        std::env::var("RAMPART_REQUIRE_SECRET_KEY").as_deref(),
+        Ok("1") | Ok("true") | Ok("TRUE") | Ok("yes")
+    )
 }
 
 fn init_tracing() -> Option<rampart_api::self_telemetry::Guards> {
