@@ -63,7 +63,7 @@ pub async fn send_all(
     });
     let payload_bytes = serde_json::to_vec(&payload).unwrap_or_default();
 
-    let client = reqwest::Client::new();
+    let client = crate::http::client();
     let mut delivered = 0usize;
     let mut last_err: Option<String> = None;
 
