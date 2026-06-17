@@ -19,6 +19,31 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.122.0] — 2026-06-17
+
+### Security
+- **Multi-tenancy — Phase 3n: org-gate the incidents surface.** A follow-up
+  audit of the Phase-3 read-filtering sweep found the 3m note ("complete for
+  every request surface") was premature — several authenticated management
+  surfaces still operated on a tenant-root resource (or its child) by id with
+  no org check. First fix: **status-page incidents**. Incidents have no
+  `org_id` of their own; they inherit the owning page's org. Previously
+  `/v1/status-pages/{page}/incidents` (list/create) and the top-level
+  `/v1/incidents/{id}` operations (update / delete / resolve / updates
+  list+post) acted on any incident by id with no check that its page belonged
+  to the caller's org. They now gate through the owning page —
+  `status_pages::get(page, org)` (404 when the page is in another org) — so a
+  cross-org page or incident id is a 404. The public per-incident Atom feed
+  (resolved by slug), webhook auto-resolve ingest, and seed paths stay
+  intentionally unscoped. Behaviour-identical for a single-org install (the
+  only live org today). New integration test
+  `incidents_isolated_via_owning_page`. More 3n+ surface fixes
+  (error-tracking, bulk monitor ops, attach/detach junctions, tag-routing,
+  escalation episodes, detection findings) follow. See
+  [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.121.0] — 2026-06-17
 
 ### Added
