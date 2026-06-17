@@ -19,6 +19,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.118.0] — 2026-06-17
+
+### Added
+- **Multi-tenancy — Phase 3j: org-scoped tags, folders, presets, templates.**
+  Completes the monitors-core domain: tag management (`list`/`get`/`update`/
+  `usage`/`delete`), monitor-group/folder management (`list`/`update`/`delete`),
+  and the monitor-preset + monitor-template libraries (`list`/`get`/`delete` +
+  template instantiate) take an `org_id` and filter by it — a cross-org id is a
+  404, the tag-usage counts and the folder list show only the org's rows, and
+  cloning/instantiating validates the target folder/template belongs to the
+  caller's org. The tag-attach/hydrate helpers (used inside monitor/channel list
+  hydration) and the folder dependency-graph helpers stay parent-scoped and
+  unchanged. `create` stays on the column DEFAULT (write-stamping is Phase 4).
+  Behaviour-identical for a single-org install. See [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.117.0] — 2026-06-17
 
 ### Added
