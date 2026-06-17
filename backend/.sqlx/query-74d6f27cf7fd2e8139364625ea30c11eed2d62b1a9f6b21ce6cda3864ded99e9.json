@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE notifications\n        SET name = $2, config = $3, active = $4, template_id = $5, cooldown_seconds = $6,\n            digest_window_secs = $7, quiet_hours_start = $8, quiet_hours_end = $9,\n            rate_limit_per_hour = $10\n        WHERE id = $1\n        RETURNING id, kind AS \"kind: ChannelKind\", name, config, active,\n                  template_id, created_at, cooldown_seconds, digest_window_secs,\n                  quiet_hours_start, quiet_hours_end, rate_limit_per_hour, last_fired_at\n        ",
+  "query": "\n        UPDATE notifications\n        SET name = $2, config = $3, active = $4, template_id = $5, cooldown_seconds = $6,\n            digest_window_secs = $7, quiet_hours_start = $8, quiet_hours_end = $9,\n            rate_limit_per_hour = $10\n        WHERE id = $1 AND org_id = $11\n        RETURNING id, kind AS \"kind: ChannelKind\", name, config, active,\n                  template_id, created_at, cooldown_seconds, digest_window_secs,\n                  quiet_hours_start, quiet_hours_end, rate_limit_per_hour, last_fired_at\n        ",
   "describe": {
     "columns": [
       {
@@ -295,7 +295,8 @@
         "Int4",
         "Int2",
         "Int2",
-        "Int4"
+        "Int4",
+        "Uuid"
       ]
     },
     "nullable": [
@@ -314,5 +315,5 @@
       true
     ]
   },
-  "hash": "c4ee2f1fe8e215a6b970935a1c51835cd97d0fb0c9a103b7f68176e2fb96309f"
+  "hash": "74d6f27cf7fd2e8139364625ea30c11eed2d62b1a9f6b21ce6cda3864ded99e9"
 }
