@@ -19,6 +19,25 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.119.0] — 2026-06-17
+
+### Added
+- **Multi-tenancy — Phase 3k: org-scoped notification + incident templates.**
+  The notification-template library (`list`/`get`/`update`/`delete`) and the
+  incident-update template library (`list`/`get`/`update`/`delete`) take an
+  `org_id` and filter by it — a cross-org template id is a 404. The notifier's
+  render-time template resolver (`templates::get_render_strings`, keyed off a
+  channel's `template_id`) stays unscoped (no request context). `create` stays
+  on the column DEFAULT (write-stamping is Phase 4). Behaviour-identical for a
+  single-org install. **This completes Phase-3 org-scoped read filtering for
+  every tenant-root management surface** (monitors, alerting, status pages,
+  infra credentials, monitors-core, templates); the only remaining read paths
+  are the telemetry tier (inert until per-org ingest auth in Phase 5),
+  `settings`/`audit_log` (handled specially in Phase 6), and parent-scoped child
+  reads (already org-safe via their root). See [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.118.0] — 2026-06-17
 
 ### Added

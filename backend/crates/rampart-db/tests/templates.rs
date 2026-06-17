@@ -1,9 +1,15 @@
 //! Integration tests for `rampart_db::templates`.
 
+use rampart_core::ids::OrgId;
+use rampart_core::org::DEFAULT_ORG_ID;
 use rampart_db::templates::{
     create, delete, get, get_render_strings, list, update, NewTemplate, UpdateTemplate,
 };
 use sqlx::PgPool;
+
+fn def_org() -> OrgId {
+    OrgId::from_uuid(DEFAULT_ORG_ID)
+}
 
 fn sample(name: &str) -> NewTemplate {
     NewTemplate {
@@ -29,7 +35,7 @@ fn empty_patch() -> UpdateTemplate {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn list_empty_initially(pool: PgPool) {
-    assert!(list(&pool).await.unwrap().is_empty());
+    assert!(list(&pool, def_org()).await.unwrap().is_empty());
 }
 
 #[sqlx::test(migrations = "../../migrations")]
@@ -46,7 +52,7 @@ async fn create_round_trips_all_fields(pool: PgPool) {
         Some("[{{status}}] {{monitor.name}}")
     );
 
-    let again = get(&pool, t.id).await.unwrap();
+    let again = get(&pool, t.id, def_org()).await.unwrap();
     assert_eq!(again.name, t.name);
     assert_eq!(again.body_template, t.body_template);
 }
@@ -66,7 +72,7 @@ async fn update_changes_body_only(pool: PgPool) {
     let t = create(&pool, sample("Updatable")).await.unwrap();
     let mut patch = empty_patch();
     patch.body_template = Some("new body".into());
-    let patched = update(&pool, t.id, patch).await.unwrap();
+    let patched = update(&pool, t.id, patch, def_org()).await.unwrap();
     assert_eq!(patched.body_template, "new body");
     // Other fields preserved.
     assert_eq!(patched.name, "Updatable");
@@ -79,15 +85,15 @@ async fn update_can_clear_subject_with_explicit_none(pool: PgPool) {
     assert!(t.subject_template.is_some());
     let mut patch = empty_patch();
     patch.subject_template = Some(None);
-    let patched = update(&pool, t.id, patch).await.unwrap();
+    let patched = update(&pool, t.id, patch, def_org()).await.unwrap();
     assert!(patched.subject_template.is_none());
 }
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn delete_removes_template(pool: PgPool) {
     let t = create(&pool, sample("Gone")).await.unwrap();
-    delete(&pool, t.id).await.unwrap();
-    assert!(get(&pool, t.id).await.is_err());
+    delete(&pool, t.id, def_org()).await.unwrap();
+    assert!(get(&pool, t.id, def_org()).await.is_err());
 }
 
 #[sqlx::test(migrations = "../../migrations")]

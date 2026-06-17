@@ -5,9 +5,10 @@
 //! `require_write_or_readonly_get` layer in routes/mod.rs). Templates are
 //! global, not page-scoped, so there is no status_page_id in the path.
 
+use crate::auth::OrgContext;
 use crate::error::ApiError;
 use crate::state::AppState;
-use axum::extract::{Path, State};
+use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
@@ -28,16 +29,22 @@ fn parse(id: &str) -> Result<IncidentTemplateId, ApiError> {
         .map_err(|_| ApiError::BadRequest("invalid incident template id".into()))
 }
 
-async fn list(State(s): State<AppState>) -> Result<Json<Vec<IncidentTemplate>>, ApiError> {
-    Ok(Json(rampart_db::incident_templates::list(s.pool()).await?))
+async fn list(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+) -> Result<Json<Vec<IncidentTemplate>>, ApiError> {
+    Ok(Json(
+        rampart_db::incident_templates::list(s.pool(), org.org_id).await?,
+    ))
 }
 
 async fn get_one(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<IncidentTemplate>, ApiError> {
     Ok(Json(
-        rampart_db::incident_templates::get(s.pool(), parse(&id)?).await?,
+        rampart_db::incident_templates::get(s.pool(), parse(&id)?, org.org_id).await?,
     ))
 }
 
@@ -57,15 +64,20 @@ async fn create(
 
 async fn update(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
     Json(input): Json<UpdateIncidentTemplate>,
 ) -> Result<Json<IncidentTemplate>, ApiError> {
     Ok(Json(
-        rampart_db::incident_templates::update(s.pool(), parse(&id)?, input).await?,
+        rampart_db::incident_templates::update(s.pool(), parse(&id)?, input, org.org_id).await?,
     ))
 }
 
-async fn remove(State(s): State<AppState>, Path(id): Path<String>) -> Result<StatusCode, ApiError> {
-    rampart_db::incident_templates::delete(s.pool(), parse(&id)?).await?;
+async fn remove(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+    Path(id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    rampart_db::incident_templates::delete(s.pool(), parse(&id)?, org.org_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
