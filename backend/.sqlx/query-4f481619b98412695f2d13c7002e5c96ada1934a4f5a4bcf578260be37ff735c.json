@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM detection_rules WHERE id = $1 AND org_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4f481619b98412695f2d13c7002e5c96ada1934a4f5a4bcf578260be37ff735c"
+}

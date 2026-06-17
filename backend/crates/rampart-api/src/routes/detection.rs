@@ -5,9 +5,10 @@
 //! the findings they raise. Mounted in the editor slice — editors (incl. a SOC
 //! role) manage rules and acknowledge findings; readonly users GET.
 
+use crate::auth::OrgContext;
 use crate::error::ApiError;
 use crate::state::AppState;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Extension, Path, Query, State};
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -43,8 +44,11 @@ fn parse_finding_id(s: &str) -> Result<DetectionFindingId, ApiError> {
         .map_err(|_| ApiError::BadRequest("invalid finding id".into()))
 }
 
-async fn list(State(s): State<AppState>) -> Result<Json<Vec<DetectionRule>>, ApiError> {
-    Ok(Json(rampart_db::detection::list(s.pool()).await?))
+async fn list(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+) -> Result<Json<Vec<DetectionRule>>, ApiError> {
+    Ok(Json(rampart_db::detection::list(s.pool(), org.org_id).await?))
 }
 
 async fn create(
@@ -64,6 +68,7 @@ async fn create(
 
 async fn update(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
     Json(input): Json<UpdateDetectionRule>,
 ) -> Result<Json<DetectionRule>, ApiError> {
@@ -78,7 +83,7 @@ async fn update(
     }
     validate_condition(&s, input.condition.as_ref()).await?;
     Ok(Json(
-        rampart_db::detection::update(s.pool(), rule_id, input).await?,
+        rampart_db::detection::update(s.pool(), rule_id, input, org.org_id).await?,
     ))
 }
 
@@ -105,9 +110,10 @@ async fn validate_condition(
 
 async fn delete_rule(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::detection::delete(s.pool(), parse_rule_id(&id)?).await?;
+    rampart_db::detection::delete(s.pool(), parse_rule_id(&id)?, org.org_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
