@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, slug, title, description, theme, custom_domain, logo_url, custom_css,\n               (password_hash IS NOT NULL) AS \"private!\", created_at\n        FROM status_pages\n        ORDER BY created_at DESC\n        ",
+  "query": "\n        SELECT id, slug, title, description, theme, custom_domain, logo_url, custom_css,\n               (password_hash IS NOT NULL) AS \"private!\", created_at\n        FROM status_pages\n        WHERE id = $1 AND org_id = $2\n        ",
   "describe": {
     "columns": [
       {
@@ -110,7 +110,10 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
     },
     "nullable": [
       false,
@@ -125,5 +128,5 @@
       false
     ]
   },
-  "hash": "cb6d933aeba909cf4c363e16c704157055959a83c7b96b1bda4961e26b961193"
+  "hash": "adcbae6c9d50e65b87faa520c33320254756a3f688b180e51e4b420e17a8e3d3"
 }

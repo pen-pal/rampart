@@ -5,6 +5,7 @@
 //! other /v1 route. The public half intentionally does NOT — the page
 //! is meant to be linked from external sites.
 
+use crate::auth::OrgContext;
 use crate::error::ApiError;
 use crate::state::AppState;
 use axum::extract::{Extension, Path, Query, State};
@@ -142,16 +143,20 @@ fn validate_logo_url(logo: Option<&str>) -> Result<(), ApiError> {
     }
 }
 
-async fn list(State(s): State<AppState>) -> Result<Json<Vec<StatusPage>>, ApiError> {
-    Ok(Json(rampart_db::status_pages::list(s.pool()).await?))
+async fn list(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+) -> Result<Json<Vec<StatusPage>>, ApiError> {
+    Ok(Json(rampart_db::status_pages::list(s.pool(), org.org_id).await?))
 }
 
 async fn get_one(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<StatusPage>, ApiError> {
     Ok(Json(
-        rampart_db::status_pages::get(s.pool(), parse(&id)?).await?,
+        rampart_db::status_pages::get(s.pool(), parse(&id)?, org.org_id).await?,
     ))
 }
 
@@ -184,6 +189,7 @@ async fn create(
 
 async fn update(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
     Json(input): Json<UpdateStatusPage>,
 ) -> Result<Json<StatusPage>, ApiError> {
@@ -203,18 +209,19 @@ async fn update(
         validate_custom_css(Some(css))?;
     }
     Ok(Json(
-        rampart_db::status_pages::update(s.pool(), parse(&id)?, input).await?,
+        rampart_db::status_pages::update(s.pool(), parse(&id)?, input, org.org_id).await?,
     ))
 }
 
 async fn remove(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let page_id = parse(&id)?;
-    rampart_db::status_pages::delete(s.pool(), page_id).await?;
+    rampart_db::status_pages::delete(s.pool(), page_id, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
