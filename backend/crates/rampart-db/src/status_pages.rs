@@ -13,6 +13,7 @@ use rampart_core::status_page::{
     PublicIncidentUpdate, PublicResolvedIncident, PublicSection, PublicStatusMonitor,
     PublicStatusPage, StatusPage, StatusPageSection, UpdateStatusPage, UpdateStatusPageSection,
 };
+use rampart_core::ids::OrgId;
 use rampart_core::{MonitorId, StatusPageId, StatusPageSectionId};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -67,15 +68,29 @@ impl From<PageRow> for StatusPage {
     }
 }
 
-pub async fn list(pool: &DbPool) -> DbResult<Vec<StatusPage>> {
+/// Status pages owned by one org — the management list (org-scoped).
+pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<StatusPage>> {
+    list_inner(pool, Some(org_id)).await
+}
+
+/// Every status page across ALL orgs — for system callers (seed/import). Not
+/// org-scoped; never call on a request path (use [`list`]).
+pub async fn list_all(pool: &DbPool) -> DbResult<Vec<StatusPage>> {
+    list_inner(pool, None).await
+}
+
+async fn list_inner(pool: &DbPool, org_id: Option<OrgId>) -> DbResult<Vec<StatusPage>> {
+    let org_filter = org_id.map(|o| o.0);
     let rows = sqlx::query_as!(
         PageRow,
         r#"
         SELECT id, slug, title, description, theme, custom_domain, logo_url, custom_css,
                (password_hash IS NOT NULL) AS "private!", created_at
         FROM status_pages
+        WHERE ($1::uuid IS NULL OR org_id = $1)
         ORDER BY created_at DESC
         "#,
+        org_filter,
     )
     .fetch_all(pool)
     .await?;
@@ -105,16 +120,20 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<StatusPage>> {
     Ok(pages)
 }
 
-pub async fn get(pool: &DbPool, id: StatusPageId) -> DbResult<StatusPage> {
+/// Fetch one page scoped to an org (cross-org id → NotFound). Management path;
+/// the public view resolves by slug/host via [`get_by_slug`] /
+/// [`find_by_custom_domain`], which stay unscoped.
+pub async fn get(pool: &DbPool, id: StatusPageId, org_id: OrgId) -> DbResult<StatusPage> {
     let row = sqlx::query_as!(
         PageRow,
         r#"
         SELECT id, slug, title, description, theme, custom_domain, logo_url, custom_css,
                (password_hash IS NOT NULL) AS "private!", created_at
         FROM status_pages
-        WHERE id = $1
+        WHERE id = $1 AND org_id = $2
         "#,
         id.0,
+        org_id.0,
     )
     .fetch_optional(pool)
     .await?
@@ -133,6 +152,26 @@ pub async fn get_by_slug(pool: &DbPool, slug: &str) -> DbResult<StatusPage> {
         WHERE slug = $1
         "#,
         slug,
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or(DbError::NotFound)?;
+
+    hydrate(pool, row).await
+}
+
+/// Fetch one page WITHOUT org scoping — for the just-inserted-row return in
+/// [`create`]. Not for request paths (use [`get`]).
+pub async fn get_unscoped(pool: &DbPool, id: StatusPageId) -> DbResult<StatusPage> {
+    let row = sqlx::query_as!(
+        PageRow,
+        r#"
+        SELECT id, slug, title, description, theme, custom_domain, logo_url, custom_css,
+               (password_hash IS NOT NULL) AS "private!", created_at
+        FROM status_pages
+        WHERE id = $1
+        "#,
+        id.0,
     )
     .fetch_optional(pool)
     .await?
@@ -238,14 +277,19 @@ pub async fn create(pool: &DbPool, input: NewStatusPage) -> DbResult<StatusPage>
         .await?;
     }
     tx.commit().await?;
-    get(pool, id).await
+    get_unscoped(pool, id).await
 }
 
 pub async fn update(
     pool: &DbPool,
     id: StatusPageId,
     patch: UpdateStatusPage,
+    org_id: OrgId,
 ) -> DbResult<StatusPage> {
+    // Org-ownership gate: a page in another org 404s before any mutation. The
+    // per-field UPDATEs below all target this id, so the single check scopes
+    // the whole transaction.
+    get(pool, id, org_id).await?;
     let mut tx = pool.begin().await?;
 
     if let Some(title) = patch.title.as_deref() {
@@ -341,13 +385,17 @@ pub async fn update(
     }
 
     tx.commit().await?;
-    get(pool, id).await
+    get(pool, id, org_id).await
 }
 
-pub async fn delete(pool: &DbPool, id: StatusPageId) -> DbResult<()> {
-    let result = sqlx::query!("DELETE FROM status_pages WHERE id = $1", id.0)
-        .execute(pool)
-        .await?;
+pub async fn delete(pool: &DbPool, id: StatusPageId, org_id: OrgId) -> DbResult<()> {
+    let result = sqlx::query!(
+        "DELETE FROM status_pages WHERE id = $1 AND org_id = $2",
+        id.0,
+        org_id.0,
+    )
+    .execute(pool)
+    .await?;
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }

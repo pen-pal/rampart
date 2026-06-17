@@ -817,7 +817,7 @@ async fn seed_more_detection(pool: &DbPool, stats: &mut SeedStats) {
 /// A couple of status-page incidents so the dashboard "recent incidents" widget
 /// and the public page have history.
 async fn seed_incidents(pool: &DbPool, stats: &mut SeedStats) {
-    let Some(page) = rampart_db::status_pages::list(pool).await.ok()
+    let Some(page) = rampart_db::status_pages::list_all(pool).await.ok()
         .and_then(|p| p.into_iter().find(|p| p.slug == "demo"))
     else { return };
     let specs = [
@@ -835,7 +835,7 @@ async fn seed_incidents(pool: &DbPool, stats: &mut SeedStats) {
 
 /// A status-page email subscriber.
 async fn seed_subscribers(pool: &DbPool, stats: &mut SeedStats) {
-    let Some(page) = rampart_db::status_pages::list(pool).await.ok()
+    let Some(page) = rampart_db::status_pages::list_all(pool).await.ok()
         .and_then(|p| p.into_iter().find(|p| p.slug == "demo"))
     else { return };
     if rampart_db::subscribers::subscribe_email(pool, page.id, "ops@demo.example").await.is_ok() {

@@ -1,0 +1,131 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, slug, title, description, theme, custom_domain, logo_url, custom_css,\n               (password_hash IS NOT NULL) AS \"private!\", created_at\n        FROM status_pages\n        WHERE ($1::uuid IS NULL OR org_id = $1)\n        ORDER BY created_at DESC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "status_pages",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "slug",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "status_pages",
+            "name": "slug"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "title",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "status_pages",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "description",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "status_pages",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "theme",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "status_pages",
+            "name": "theme"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "custom_domain",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "status_pages",
+            "name": "custom_domain"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "logo_url",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "status_pages",
+            "name": "logo_url"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "custom_css",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "status_pages",
+            "name": "custom_css"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "private!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "status_pages",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      null,
+      false
+    ]
+  },
+  "hash": "4c893db948a51f1ef733c3f0d98e37de6ca60e822f809e4933cfa114ce345326"
+}
