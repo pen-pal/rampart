@@ -19,6 +19,18 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.101.8] — 2026-06-17
+
+### Changed
+- **Monitor header: secondary actions collapse into a "⋯ More" menu.** The
+  detail header packed up to nine buttons in one row, which crowded at laptop
+  width. Primary actions (Test now, Test notifications, Maintenance now,
+  Pause, Edit) stay inline; Clone, Save as template, CSV export, and Delete move
+  into a "⋯ More" overflow menu (click-away to dismiss, `role=menu`). Readonly
+  users — who only have CSV export — keep it inline. Verified headless at 1280px.
+
+---
+
 ## [0.101.7] — 2026-06-17
 
 ### Fixed
