@@ -38,7 +38,10 @@ pub mod rdap;
 pub mod redis;
 pub mod snmp;
 pub mod ssdp;
-pub mod ssrf;
+/// SSRF guard moved to the shared `rampart-ssrf` crate (also used by the
+/// notifier delivery path). Re-exported so existing `crate::ssrf::*` call sites
+/// keep working.
+pub use rampart_ssrf as ssrf;
 pub mod steam;
 pub mod synthetic;
 pub mod tcp;

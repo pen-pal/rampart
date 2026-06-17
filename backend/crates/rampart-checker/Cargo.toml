@@ -7,6 +7,7 @@ license      = { workspace = true }
 
 [dependencies]
 rampart-core = { path = "../rampart-core" }
+rampart-ssrf = { path = "../rampart-ssrf" }
 tokio       = { workspace = true }
 reqwest     = { workspace = true }
 async-trait = { workspace = true }
