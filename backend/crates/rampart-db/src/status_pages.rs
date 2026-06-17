@@ -368,7 +368,9 @@ pub async fn public_view(pool: &DbPool, slug: &str) -> DbResult<PublicStatusPage
     let mut by_id: Vec<(MonitorId, PublicStatusMonitor)> =
         Vec::with_capacity(page.monitor_ids.len());
     for mid in &page.monitor_ids {
-        let m = crate::monitors::get(pool, *mid).await?;
+        // Monitors linked to a (public) status page; the page is the org-scoped
+        // root, resolved in the status-pages domain phase. Fetch unscoped here.
+        let m = crate::monitors::get_unscoped(pool, *mid).await?;
         let uptime = heartbeats::uptime_pct(pool, *mid, 90 * 86400)
             .await?
             .map(|v| v as f32);

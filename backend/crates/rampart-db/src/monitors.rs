@@ -5,7 +5,7 @@
 //! the SQL layer.
 
 use crate::{DbError, DbPool, DbResult};
-use rampart_core::ids::{AgentId, EscalationPolicyId, MonitorGroupId, ProxyId, TagId};
+use rampart_core::ids::{AgentId, EscalationPolicyId, MonitorGroupId, OrgId, ProxyId, TagId};
 use rampart_core::monitor::{NewMonitor, UpdateMonitor};
 use rampart_core::{Monitor, MonitorId, MonitorKind, MonitorStatus};
 use time::OffsetDateTime;
@@ -269,16 +269,21 @@ pub async fn create(pool: &DbPool, input: NewMonitor) -> DbResult<Monitor> {
 /// replaces the old one atomically; any in-flight push requests still
 /// holding the old token start failing with 404 immediately. Errors
 /// with NotFound when the monitor doesn't exist or isn't a push kind.
-pub async fn regenerate_push_token(pool: &DbPool, id: MonitorId) -> DbResult<String> {
+pub async fn regenerate_push_token(
+    pool: &DbPool,
+    id: MonitorId,
+    org_id: OrgId,
+) -> DbResult<String> {
     let token = generate_push_token();
     let result = sqlx::query!(
         r#"
         UPDATE monitors
            SET push_token = $1, updated_at = NOW()
-         WHERE id = $2 AND kind = 'push'
+         WHERE id = $2 AND kind = 'push' AND org_id = $3
         "#,
         token,
         id.0,
+        org_id.0,
     )
     .execute(pool)
     .await?;
@@ -414,7 +419,55 @@ pub async fn bump_push_at(pool: &DbPool, id: MonitorId) -> DbResult<()> {
     Ok(())
 }
 
-pub async fn list(pool: &DbPool) -> DbResult<Vec<Monitor>> {
+/// Monitors owned by one org — the dashboard list. Multi-tenancy: this is the
+/// highest-risk cross-tenant enumeration surface, so it filters by `org_id`.
+/// (Tag hydration is by the org-filtered ids, so it can't leak cross-org tags.)
+pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<Monitor>> {
+    let rows = sqlx::query_as!(
+        MonitorRow,
+        r#"
+        SELECT
+            id, name,
+            kind   AS "kind: MonitorKind",
+            url, hostname, port, config,
+            interval_seconds, retry_interval_sec, max_retries,
+            timeout_seconds, resend_interval_sec, upside_down,
+            http_method, http_body, http_headers,
+            accepted_statuses, follow_redirect, ignore_tls, proxy_id,
+            push_token, last_push_at, last_run_started_at,
+            active,
+            current_status AS "current_status: MonitorStatus",
+            created_at, updated_at,
+            cert_days_left, cert_subject, cert_checked_at,
+            group_id,
+            slo_target_pct::float8 AS "slo_target_pct?",
+            slo_window_days, agent_id, escalation_policy_id
+        FROM monitors
+        WHERE org_id = $1
+        ORDER BY created_at DESC
+        "#,
+        org_id.0,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let mut monitors: Vec<Monitor> = rows.into_iter().map(Monitor::from).collect();
+    let ids: Vec<MonitorId> = monitors.iter().map(|m| m.id).collect();
+    let tag_map = crate::tags::hydrate_for_monitors(pool, &ids).await?;
+    for m in monitors.iter_mut() {
+        if let Some(t) = tag_map.get(&m.id) {
+            m.tags = t.clone();
+        }
+    }
+    Ok(monitors)
+}
+
+/// Every monitor across ALL orgs — for system callers that legitimately need
+/// the whole fleet (the scheduler's probe loop, retention/seed/import tooling,
+/// scheduled-report generation). NEVER call this on a request path: it is not
+/// org-scoped and would leak cross-tenant. The org-scoped [`list`] is the
+/// request-path entry point.
+pub async fn list_all(pool: &DbPool) -> DbResult<Vec<Monitor>> {
     let rows = sqlx::query_as!(
         MonitorRow,
         r#"
@@ -533,7 +586,51 @@ pub async fn list_stale_agent_monitors(pool: &DbPool) -> DbResult<Vec<(Monitor, 
         .collect())
 }
 
-pub async fn get(pool: &DbPool, id: MonitorId) -> DbResult<Monitor> {
+/// Fetch one monitor, scoped to an org. Returns `NotFound` if the monitor
+/// doesn't exist OR belongs to another org (so a cross-org id is an IDOR-safe
+/// 404, not a leak). The request path uses this; system/runtime callers that
+/// already hold a trusted `MonitorId` use [`get_unscoped`].
+pub async fn get(pool: &DbPool, id: MonitorId, org_id: OrgId) -> DbResult<Monitor> {
+    let row = sqlx::query_as!(
+        MonitorRow,
+        r#"
+        SELECT
+            id, name,
+            kind   AS "kind: MonitorKind",
+            url, hostname, port, config,
+            interval_seconds, retry_interval_sec, max_retries,
+            timeout_seconds, resend_interval_sec, upside_down,
+            http_method, http_body, http_headers,
+            accepted_statuses, follow_redirect, ignore_tls, proxy_id,
+            push_token, last_push_at, last_run_started_at,
+            active,
+            current_status AS "current_status: MonitorStatus",
+            created_at, updated_at,
+            cert_days_left, cert_subject, cert_checked_at,
+            group_id,
+            slo_target_pct::float8 AS "slo_target_pct?",
+            slo_window_days, agent_id, escalation_policy_id
+        FROM monitors
+        WHERE id = $1 AND org_id = $2
+        "#,
+        id.0,
+        org_id.0,
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or(DbError::NotFound)?;
+
+    let mut m: Monitor = row.into();
+    m.tags = crate::tags::list_for_monitor(pool, m.id).await?;
+    Ok(m)
+}
+
+/// Fetch one monitor WITHOUT org scoping — for system/runtime callers that
+/// already hold a trusted `MonitorId` (the scheduler probe loop, the notifier
+/// fan-out, push ingest, an agent reporting its own monitor, a status-page
+/// resolving a linked monitor). NEVER call this directly from a request
+/// handler that takes a user-supplied id — use the org-scoped [`get`].
+pub async fn get_unscoped(pool: &DbPool, id: MonitorId) -> DbResult<Monitor> {
     let row = sqlx::query_as!(
         MonitorRow,
         r#"
@@ -570,10 +667,18 @@ pub async fn get(pool: &DbPool, id: MonitorId) -> DbResult<Monitor> {
 /// Apply a partial update. Every column uses COALESCE so the absence
 /// of a field on `UpdateMonitor` leaves the row untouched. `kind` is
 /// intentionally not editable. Returns the freshly-hydrated monitor.
-pub async fn update(pool: &DbPool, id: MonitorId, patch: UpdateMonitor) -> DbResult<Monitor> {
+pub async fn update(
+    pool: &DbPool,
+    id: MonitorId,
+    patch: UpdateMonitor,
+    org_id: OrgId,
+) -> DbResult<Monitor> {
     let proxy_uuid: Option<Uuid> = patch.proxy_id.map(|p| p.0);
     let accepted: Option<&[i32]> = patch.accepted_statuses.as_deref();
 
+    // The primary UPDATE gates on org_id: a monitor in another org matches 0
+    // rows → NotFound below → the follow-up per-field UPDATEs (which target the
+    // same id) never run, so org scoping holds for the whole function.
     let result = sqlx::query!(
         r#"
         UPDATE monitors SET
@@ -596,7 +701,7 @@ pub async fn update(pool: &DbPool, id: MonitorId, patch: UpdateMonitor) -> DbRes
             ignore_tls          = COALESCE($18, ignore_tls),
             proxy_id            = COALESCE($19, proxy_id),
             updated_at          = NOW()
-        WHERE id = $1
+        WHERE id = $1 AND org_id = $20
         "#,
         id.0,
         patch.name,
@@ -617,6 +722,7 @@ pub async fn update(pool: &DbPool, id: MonitorId, patch: UpdateMonitor) -> DbRes
         patch.follow_redirect,
         patch.ignore_tls,
         proxy_uuid,
+        org_id.0,
     )
     .execute(pool)
     .await?;
@@ -684,24 +790,29 @@ pub async fn update(pool: &DbPool, id: MonitorId, patch: UpdateMonitor) -> DbRes
         .await?;
     }
 
-    get(pool, id).await
+    get(pool, id, org_id).await
 }
 
-pub async fn delete(pool: &DbPool, id: MonitorId) -> DbResult<()> {
-    let result = sqlx::query!("DELETE FROM monitors WHERE id = $1", id.0)
-        .execute(pool)
-        .await?;
+pub async fn delete(pool: &DbPool, id: MonitorId, org_id: OrgId) -> DbResult<()> {
+    let result = sqlx::query!(
+        "DELETE FROM monitors WHERE id = $1 AND org_id = $2",
+        id.0,
+        org_id.0,
+    )
+    .execute(pool)
+    .await?;
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }
     Ok(())
 }
 
-pub async fn set_active(pool: &DbPool, id: MonitorId, active: bool) -> DbResult<()> {
+pub async fn set_active(pool: &DbPool, id: MonitorId, active: bool, org_id: OrgId) -> DbResult<()> {
     let result = sqlx::query!(
-        "UPDATE monitors SET active = $1, updated_at = NOW() WHERE id = $2",
+        "UPDATE monitors SET active = $1, updated_at = NOW() WHERE id = $2 AND org_id = $3",
         active,
         id.0,
+        org_id.0,
     )
     .execute(pool)
     .await?;
@@ -732,16 +843,20 @@ pub async fn set_active_by_tag(pool: &DbPool, tag: TagId, active: bool) -> DbRes
     Ok(result.rows_affected())
 }
 
-/// Assign (or clear, with None) a monitor's group. Used by bulk ops.
+/// Assign (or clear, with None) a monitor's group. Used by bulk ops. Scoped to
+/// the monitor's org. (Validating the target group is in the same org lands
+/// with the monitor_groups domain; behaviour-identical while one org exists.)
 pub async fn set_group(
     pool: &DbPool,
     id: MonitorId,
     group: Option<MonitorGroupId>,
+    org_id: OrgId,
 ) -> DbResult<()> {
     let result = sqlx::query!(
-        "UPDATE monitors SET group_id = $1 WHERE id = $2",
+        "UPDATE monitors SET group_id = $1 WHERE id = $2 AND org_id = $3",
         group.map(|g| g.0),
         id.0,
+        org_id.0,
     )
     .execute(pool)
     .await?;
