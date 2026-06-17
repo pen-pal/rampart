@@ -19,6 +19,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.101.3] — 2026-06-17
+
+First of the post-audit security-hardening releases.
+
+### Security
+- **Secrets-at-rest is no longer a silent default.** Notification-channel
+  credentials are encrypted (AES-256-GCM) only when `RAMPART_SECRET_KEY` is set;
+  previously a key-less install stored webhook tokens, SMTP passwords, and every
+  channel's API keys as plaintext JSONB with no signal. Now:
+  - startup logs a prominent `SECURITY:` warning when no key is configured;
+  - `RAMPART_REQUIRE_SECRET_KEY=1` makes it fail-closed — the process refuses to
+    start without a key (mirrors `RAMPART_REQUIRE_INGEST_AUTH`);
+  - `/healthz` reports `secrets_at_rest: "encrypted" | "plaintext"` and `/metrics`
+    exposes `rampart_secrets_at_rest_encrypted` (1/0) for ops alerting;
+  - the dashboard shows an admin-only banner when secrets are stored plaintext.
+
+---
+
 ## [0.101.2] — 2026-06-16
 
 Fixes from an adversarial self-review of this session's changes.
