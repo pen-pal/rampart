@@ -1,8 +1,9 @@
 //! `/v1/notification-templates` routes.
 
+use crate::auth::OrgContext;
 use crate::error::ApiError;
 use crate::state::AppState;
-use axum::extract::{Path, State};
+use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -25,16 +26,20 @@ fn parse(id: &str) -> Result<NotificationTemplateId, ApiError> {
         .map_err(|_| ApiError::BadRequest("invalid template id".into()))
 }
 
-async fn list(State(s): State<AppState>) -> Result<Json<Vec<Template>>, ApiError> {
-    Ok(Json(rampart_db::templates::list(s.pool()).await?))
+async fn list(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+) -> Result<Json<Vec<Template>>, ApiError> {
+    Ok(Json(rampart_db::templates::list(s.pool(), org.org_id).await?))
 }
 
 async fn get_one(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<Template>, ApiError> {
     Ok(Json(
-        rampart_db::templates::get(s.pool(), parse(&id)?).await?,
+        rampart_db::templates::get(s.pool(), parse(&id)?, org.org_id).await?,
     ))
 }
 
@@ -54,16 +59,21 @@ async fn create(
 
 async fn update(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
     Json(input): Json<UpdateTemplate>,
 ) -> Result<Json<Template>, ApiError> {
     Ok(Json(
-        rampart_db::templates::update(s.pool(), parse(&id)?, input).await?,
+        rampart_db::templates::update(s.pool(), parse(&id)?, input, org.org_id).await?,
     ))
 }
 
-async fn remove(State(s): State<AppState>, Path(id): Path<String>) -> Result<StatusCode, ApiError> {
-    rampart_db::templates::delete(s.pool(), parse(&id)?).await?;
+async fn remove(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+    Path(id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    rampart_db::templates::delete(s.pool(), parse(&id)?, org.org_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE incident_templates\n        SET name  = $2,\n            body  = $3,\n            style = $4\n        WHERE id = $1\n        RETURNING id, name, body, style AS \"style: IncidentStyle\", created_at\n        ",
+  "query": "\n        UPDATE incident_templates\n        SET name  = $2,\n            body  = $3,\n            style = $4\n        WHERE id = $1 AND org_id = $5\n        RETURNING id, name, body, style AS \"style: IncidentStyle\", created_at\n        ",
   "describe": {
     "columns": [
       {
@@ -90,7 +90,8 @@
               ]
             }
           }
-        }
+        },
+        "Uuid"
       ]
     },
     "nullable": [
@@ -101,5 +102,5 @@
       false
     ]
   },
-  "hash": "85df335fe7a9b8e6b142f5ee3a687d2fcb445d9a79cebe5e8bb2db12cab2e3fb"
+  "hash": "fb7ac07c40796680600f0ad690bc2eca6606298a7b8e872d4f0d2c0a026aa528"
 }
