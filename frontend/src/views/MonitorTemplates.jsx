@@ -62,6 +62,7 @@ const css = `
 
 export default function MonitorTemplates({ user }) {
   const writable = canWrite(user);
+  const [reloadKey, setReloadKey] = useState(0);
   const templatesState = useApi(() => api.monitorTemplates.list(), [reloadKey], { pollMs: 60_000 });
   const [busy, setBusy] = useState(null);
   const [err,  setErr]  = useState(null);
@@ -70,7 +71,6 @@ export default function MonitorTemplates({ user }) {
   // From-scratch create form: null when closed.
   const [createState, setCreateState] = useState(null);
 
-  const [reloadKey, setReloadKey] = useState(0);
   const reload = () => setReloadKey((k) => k + 1);
 
   const remove = async (id) => {
