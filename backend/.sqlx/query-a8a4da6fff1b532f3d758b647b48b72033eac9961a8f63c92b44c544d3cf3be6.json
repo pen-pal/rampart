@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, name, kind, data, created_at\n        FROM monitor_presets\n        ORDER BY created_at DESC\n        ",
+  "query": "\n        SELECT id, name, description, spec, created_at\n        FROM monitor_templates\n        WHERE id = $1 AND org_id = $2\n        ",
   "describe": {
     "columns": [
       {
@@ -9,7 +9,7 @@
         "type_info": "Uuid",
         "origin": {
           "Table": {
-            "table": "monitor_presets",
+            "table": "monitor_templates",
             "name": "id"
           }
         }
@@ -20,30 +20,30 @@
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "monitor_presets",
+            "table": "monitor_templates",
             "name": "name"
           }
         }
       },
       {
         "ordinal": 2,
-        "name": "kind",
+        "name": "description",
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "monitor_presets",
-            "name": "kind"
+            "table": "monitor_templates",
+            "name": "description"
           }
         }
       },
       {
         "ordinal": 3,
-        "name": "data",
+        "name": "spec",
         "type_info": "Jsonb",
         "origin": {
           "Table": {
-            "table": "monitor_presets",
-            "name": "data"
+            "table": "monitor_templates",
+            "name": "spec"
           }
         }
       },
@@ -53,22 +53,25 @@
         "type_info": "Timestamptz",
         "origin": {
           "Table": {
-            "table": "monitor_presets",
+            "table": "monitor_templates",
             "name": "created_at"
           }
         }
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
     },
     "nullable": [
       false,
       false,
-      false,
+      true,
       false,
       false
     ]
   },
-  "hash": "bcbc8a19f90c1fa068eb39dbe78162c91be23330f9a94759df2ce33eebfedae4"
+  "hash": "a8a4da6fff1b532f3d758b647b48b72033eac9961a8f63c92b44c544d3cf3be6"
 }
