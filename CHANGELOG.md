@@ -19,6 +19,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.102.1] — 2026-06-17
+
+### Security
+- **Notification delivery now blocks literal-IP SSRF targets too.** The v0.101.4
+  notifier guard wired every channel through an SSRF-guarded DNS resolver — but
+  reqwest only invokes that resolver for *hostname* targets, so a channel URL
+  pointing straight at an IP (e.g. `http://169.254.169.254/…` for cloud metadata,
+  or `http://127.0.0.1`) connected without ever hitting the guard. The channel
+  dispatcher now runs a central pre-flight (`rampart_ssrf::guard_url`) over every
+  `http(s)` URL in a channel config — which resolves hostnames and checks
+  IP-literals directly — before any send. Verified headless: loopback + metadata
+  webhooks are blocked (`blocked by SSRF guard`), a public target still delivers.
+  (Found via the v0.102.0 probe live-test, which exposed the same reqwest
+  resolver-bypass on the probe path.)
+
+---
+
 ## [0.102.0] — 2026-06-17
 
 ### Added
