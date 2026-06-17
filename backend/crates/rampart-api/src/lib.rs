@@ -42,6 +42,24 @@ use tower_http::trace::TraceLayer;
 
 pub use state::AppState;
 
+/// CORS policy for the API.
+///
+/// Rampart sits behind a reverse proxy in production: the dashboard, the public
+/// status pages, and the browser-side scripts all ship from the same origin as
+/// the API, so `Any` origin/method/header is acceptable for the deployments we
+/// target. Operators wanting a stricter policy can layer one upstream.
+///
+/// SECURITY INVARIANT: with `allow_origin(Any)` we must NEVER also enable
+/// `allow_credentials(true)` — that combination either is rejected by browsers
+/// or, if forced, reflects credentials to any origin (a CSRF/credential-leak
+/// hole). The `cors_invariant_*` tests below enforce this.
+fn cors_layer() -> CorsLayer {
+    CorsLayer::new()
+        .allow_methods(Any)
+        .allow_headers(Any)
+        .allow_origin(Any)
+}
+
 /// Build a Router for the given AppState. Used by `main.rs` for the
 /// production binary and by `tests/` to drive the API in-process.
 pub fn build_router(state: AppState) -> Router {
@@ -158,20 +176,7 @@ pub fn build_router(state: AppState) -> Router {
             axum::http::StatusCode::REQUEST_TIMEOUT,
             Duration::from_secs(15),
         ))
-        .layer(
-            // CORS: Rampart sits behind a reverse proxy in production.
-            // The dashboard ships from the same origin as the API; the
-            // public status pages are server-rendered HTML; the
-            // browser-side scripts come from the same origin too. So
-            // `Any` here is acceptable for the actual deployments we
-            // target (single-origin behind proxy). Operators wanting
-            // a stricter policy can layer one upstream — that's the
-            // proxy's job, not ours.
-            CorsLayer::new()
-                .allow_methods(Any)
-                .allow_headers(Any)
-                .allow_origin(Any),
-        );
+        .layer(cors_layer());
 
     let protected_v1 = routes::v1_protected()
         // Per-key rate limit + `X-RateLimit-*` headers. Layered INNER to
@@ -340,4 +345,52 @@ fn set_rate_headers(h: &mut axum::http::HeaderMap, limit: u32, remaining: u32, r
 /// header values, so the unwrap can't fire in practice.
 fn num_header(n: u64) -> HeaderValue {
     HeaderValue::from_str(&n.to_string()).expect("numeric header value is always valid")
+}
+
+#[cfg(test)]
+mod cors_tests {
+    use super::cors_layer;
+    use axum::{routing::get, Router};
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+
+    // A CORS response that allows ANY origin must NOT also allow credentials —
+    // that pairing is a credential-leak/CSRF hole. This test drives a real
+    // request through the actual `cors_layer()` and fails if a future edit adds
+    // `.allow_credentials(true)` (or otherwise emits the credentials header)
+    // alongside the wildcard origin.
+    #[tokio::test]
+    async fn cors_invariant_no_credentials_with_wildcard_origin() {
+        let app = Router::new()
+            .route("/", get(|| async { "ok" }))
+            .layer(cors_layer());
+
+        let res = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/")
+                    .header("origin", "https://evil.example")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        let headers = res.headers();
+        // Wildcard origin is the intended policy…
+        assert_eq!(
+            headers
+                .get("access-control-allow-origin")
+                .and_then(|v| v.to_str().ok()),
+            Some("*"),
+            "expected wildcard allow-origin",
+        );
+        // …so credentials must never be allowed.
+        assert!(
+            headers.get("access-control-allow-credentials").is_none(),
+            "allow-credentials must NOT be set alongside a wildcard origin",
+        );
+        // Drain the body so the response is fully consumed.
+        let _ = res.into_body().collect().await;
+    }
 }
