@@ -19,6 +19,30 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.123.0] — 2026-06-17
+
+### Security
+- **Multi-tenancy — Phase 3o: org-scope the error-tracking surface.**
+  `error_projects` is a tenant-root with its own `org_id`, and its issues /
+  events / histograms / source maps inherit it, but only `recent_open_issues`
+  (the dashboard feed, 3l) was scoped. The full admin surface — project
+  `list` / `update` / `delete`, per-project issue list + histogram + source-map
+  list/upload/delete, and the top-level `/v1/error-issues/{id}` operations
+  (detail / stats / affected-users / events / resolve / ignore / unresolve /
+  assign) — acted on a project or issue id with no org check. They now gate:
+  `error_tracking::list/update/delete` filter `WHERE org_id`, and two
+  404-gates (`project_in_org`, `issue_in_org`) front every project- and
+  issue-keyed handler (the issue gate joins `error_issues → error_projects`).
+  The DSN-keyed Sentry ingest (`get_opt`), the RUM auto-provision +
+  event-record hot path (`find_or_create_by_name` / `record_event`), retention
+  `prune`, and `issues_for_trace` (trace↔error correlation) stay intentionally
+  unscoped; `assignable_users` (the assignee directory) is deferred to P4 with
+  the org-membership model. Behaviour-identical for a single-org install. New
+  integration test `error_projects_isolated_across_orgs`. See
+  [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.122.0] — 2026-06-17
 
 ### Security
