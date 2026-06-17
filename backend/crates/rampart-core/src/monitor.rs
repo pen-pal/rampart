@@ -93,6 +93,21 @@ pub enum MonitorKind {
     /// system.local` to confirm the server is past the CQL handshake
     /// and answering queries. Plaintext only today; TLS deferred.
     Cassandra,
+    /// Elasticsearch / OpenSearch cluster-health probe. GETs
+    /// `{url}/_cluster/health` and asserts the cluster `status`: green is Up,
+    /// yellow is Warn (unless `config.allow_yellow`), red is Down. `url` is the
+    /// cluster base (e.g. `https://es.internal:9200`); optional basic-auth via
+    /// `config.username`/`config.password`.
+    Elasticsearch,
+    /// HashiCorp Vault health probe. GETs `{url}/v1/sys/health` and maps the
+    /// documented status codes: 200 = unsealed + active (Up), 429 = unsealed
+    /// standby (Warn), 472/473 = DR/perf-standby (Warn), 501 = not initialized
+    /// (Down), 503 = sealed (Down). `url` is the Vault base.
+    Vault,
+    /// etcd health probe. GETs `{url}/health` and asserts the JSON
+    /// `{"health":"true"}` the endpoint returns. `url` is the etcd client base
+    /// (e.g. `http://etcd.internal:2379`).
+    Etcd,
     /// mDNS service-discovery probe (RFC 6762). Sends a multicast
     /// DNS query for `_services._dns-sd._udp.local` (the meta-service
     /// enumerator) to `224.0.0.251:5353` and counts unicast responses

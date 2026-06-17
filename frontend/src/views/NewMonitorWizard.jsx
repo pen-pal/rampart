@@ -250,6 +250,18 @@ const types = [
     example: 'Check a Cassandra / ScyllaDB node is past the CQL handshake and answering queries',
     placeholder: { hostname: 'cassandra.internal', port: '9042' } },
 
+  { id: 'elasticsearch', icon: Search,     name: 'Elasticsearch', desc: 'Cluster health (green/yellow/red)',
+    example: 'Confirm an Elasticsearch / OpenSearch cluster is green (yellow optional)',
+    placeholder: { url: 'https://es.internal:9200' } },
+
+  { id: 'vault',      icon: Lock,          name: 'Vault',         desc: 'sys/health — unsealed + active',
+    example: 'Alert when HashiCorp Vault is sealed, standby, or uninitialized',
+    placeholder: { url: 'https://vault.internal:8200' } },
+
+  { id: 'etcd',       icon: Server,        name: 'etcd',          desc: '/health endpoint',
+    example: 'Confirm an etcd member reports healthy (Kubernetes / platform backing store)',
+    placeholder: { url: 'http://etcd.internal:2379' } },
+
   { id: 'mdns',       icon: Radio,         name: 'mDNS',          desc: 'Multicast service discovery',
     example: 'Confirm at least one peer is advertising mDNS services on the link (LAN homelab probe)',
     placeholder: {} },
@@ -297,6 +309,9 @@ const fieldsFor = (kind) => {
   if (kind === 'rdap')      return { url: true };
   if (kind === 'snmp')      return { hostname: true, port: true };
   if (kind === 'cassandra') return { hostname: true, port: true };
+  if (kind === 'elasticsearch') return { url: true };
+  if (kind === 'vault')         return { url: true };
+  if (kind === 'etcd')          return { url: true };
   if (kind === 'mdns')      return {};
   if (kind === 'ssdp')      return {};
   if (kind === 'synthetic') return { synthetic: true };
