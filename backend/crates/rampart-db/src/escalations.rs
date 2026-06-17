@@ -11,7 +11,7 @@ use rampart_core::escalation::{
     EscalationEpisode, EscalationPolicy, EscalationStep, NewEscalationPolicy,
     UpdateEscalationPolicy,
 };
-use rampart_core::ids::{EscalationPolicyId, MonitorId, UserId};
+use rampart_core::ids::{EscalationPolicyId, MonitorId, OrgId, UserId};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -37,7 +37,8 @@ impl From<PolicyRow> for EscalationPolicy {
     }
 }
 
-pub async fn list(pool: &DbPool) -> DbResult<Vec<EscalationPolicy>> {
+/// Escalation policies owned by one org — the management list (org-scoped).
+pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<EscalationPolicy>> {
     let rows = sqlx::query_as!(
         PolicyRow,
         r#"
@@ -45,16 +46,42 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<EscalationPolicy>> {
                COUNT(m.id) AS monitor_count
         FROM escalation_policies p
         LEFT JOIN monitors m ON m.escalation_policy_id = p.id
+        WHERE p.org_id = $1
         GROUP BY p.id
         ORDER BY p.created_at
         "#,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
     Ok(rows.into_iter().map(Into::into).collect())
 }
 
-pub async fn get(pool: &DbPool, id: EscalationPolicyId) -> DbResult<EscalationPolicy> {
+/// Fetch one policy scoped to an org (cross-org id → NotFound). Request path.
+pub async fn get(pool: &DbPool, id: EscalationPolicyId, org_id: OrgId) -> DbResult<EscalationPolicy> {
+    let row = sqlx::query_as!(
+        PolicyRow,
+        r#"
+        SELECT p.id, p.name, p.steps AS "steps!", p.created_at,
+               COUNT(m.id) AS monitor_count
+        FROM escalation_policies p
+        LEFT JOIN monitors m ON m.escalation_policy_id = p.id
+        WHERE p.id = $1 AND p.org_id = $2
+        GROUP BY p.id
+        "#,
+        id.0,
+        org_id.0,
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or(DbError::NotFound)?;
+    Ok(row.into())
+}
+
+/// Fetch one policy WITHOUT org scoping — for the scheduler/notifier escalation
+/// page path (no request context) and the just-inserted-row return in
+/// [`create`]. Not for request paths.
+pub async fn get_unscoped(pool: &DbPool, id: EscalationPolicyId) -> DbResult<EscalationPolicy> {
     let row = sqlx::query_as!(
         PolicyRow,
         r#"
@@ -83,13 +110,15 @@ pub async fn create(pool: &DbPool, input: NewEscalationPolicy) -> DbResult<Escal
     )
     .execute(pool)
     .await?;
-    get(pool, id).await
+    // org_id from the column default (write-stamping is Phase 4); return unscoped.
+    get_unscoped(pool, id).await
 }
 
 pub async fn update(
     pool: &DbPool,
     id: EscalationPolicyId,
     patch: UpdateEscalationPolicy,
+    org_id: OrgId,
 ) -> DbResult<EscalationPolicy> {
     let steps = patch
         .steps
@@ -99,26 +128,31 @@ pub async fn update(
         UPDATE escalation_policies SET
             name  = COALESCE($2, name),
             steps = COALESCE($3, steps)
-        WHERE id = $1
+        WHERE id = $1 AND org_id = $4
         "#,
         id.0,
         patch.name,
         steps,
+        org_id.0,
     )
     .execute(pool)
     .await?;
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }
-    get(pool, id).await
+    get(pool, id, org_id).await
 }
 
-pub async fn delete(pool: &DbPool, id: EscalationPolicyId) -> DbResult<()> {
+pub async fn delete(pool: &DbPool, id: EscalationPolicyId, org_id: OrgId) -> DbResult<()> {
     // Monitors fall back to regular fan-out via ON DELETE SET NULL;
     // open episodes for this policy cascade away with it.
-    let result = sqlx::query!("DELETE FROM escalation_policies WHERE id = $1", id.0)
-        .execute(pool)
-        .await?;
+    let result = sqlx::query!(
+        "DELETE FROM escalation_policies WHERE id = $1 AND org_id = $2",
+        id.0,
+        org_id.0,
+    )
+    .execute(pool)
+    .await?;
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }

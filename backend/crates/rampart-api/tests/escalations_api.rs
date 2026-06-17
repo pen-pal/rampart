@@ -149,7 +149,7 @@ async fn monitor_attach_episode_and_ack(pool: PgPool) {
 
     // Open an episode through the db layer (the notifier does this in
     // prod; the test router runs without one) and ack it over the API.
-    let policy_typed = rampart_db::escalations::get(
+    let policy_typed = rampart_db::escalations::get_unscoped(
         &pool,
         rampart_core::ids::EscalationPolicyId::from_uuid(pid.parse().unwrap()),
     )

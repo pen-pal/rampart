@@ -217,7 +217,7 @@ impl Scheduler {
             }
         };
         for episode in due {
-            let policy = match rampart_db::escalations::get(&self.pool, episode.policy_id).await {
+            let policy = match rampart_db::escalations::get_unscoped(&self.pool, episode.policy_id).await {
                 Ok(p) => p,
                 Err(e) => {
                     warn!(policy = %episode.policy_id.0, error = %e, "escalation policy load failed");
@@ -593,7 +593,7 @@ impl Scheduler {
         fired: bool,
         event: &rampart_notifier::Event,
     ) {
-        let policy = match rampart_db::escalations::get(&self.pool, policy_id).await {
+        let policy = match rampart_db::escalations::get_unscoped(&self.pool, policy_id).await {
             Ok(p) => p,
             Err(e) => {
                 warn!(policy = %policy_id.0, error = %e, "escalation policy load failed");
@@ -670,7 +670,7 @@ impl Scheduler {
             // when the rule goes quiet (check_escalations detection branch).
             if let Some(policy_id) = ev.escalation_policy_id {
                 let subj = f.rule_id.0.to_string();
-                if let Ok(policy) = rampart_db::escalations::get(&self.pool, policy_id).await {
+                if let Ok(policy) = rampart_db::escalations::get_unscoped(&self.pool, policy_id).await {
                     match rampart_db::escalations::open_episode_for_subject(
                         &self.pool, "detection_rule", &subj, &policy,
                     )
