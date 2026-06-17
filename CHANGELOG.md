@@ -19,6 +19,22 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.112.0] — 2026-06-17
+
+### Added
+- **Multi-tenancy — Phase 3d: org-scoped notification channels.** Continues the
+  per-domain read-filtering rollout to `notifications` (alert channels): the
+  management reads/mutations (`list`/`get`/`update`/`delete`/`counts_per_monitor`)
+  take an `org_id` and filter by it — a cross-org channel id is a 404, and the
+  per-monitor channel-count badge only counts the org's channels. The notifier
+  fan-out resolves a channel to dispatch through `notifications::get_unscoped`
+  (no request context); seed/import use `list_all`. `create` + the
+  monitor↔channel junction (`attach`/`detach`/`for_monitor`) + `mark_fired` are
+  unchanged (junction org-validation is deferred enforcement). Behaviour-identical
+  for a single-org install. See [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.111.0] — 2026-06-17
 
 ### Added
