@@ -19,6 +19,21 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.111.0] — 2026-06-17
+
+### Added
+- **Multi-tenancy — Phase 3c: org-scoped SLOs + on-call schedules.** Continues
+  the per-domain read-filtering rollout to `slos` and `on_call_schedules`: their
+  management reads/mutations (`list`/`get`/`update`/`delete`, `list_with_snapshots`)
+  take an `org_id` and filter by it — a cross-org id is a 404. The scheduler SLO
+  evaluation tick (`slos::evaluate_tick`) and the on-call resolution
+  (`current_channel`/`current_target`, used by the escalation/notifier path) stay
+  unscoped via new `list_all` / `get_unscoped` siblings, since they must see every
+  org. `create` stays on the column DEFAULT (write-stamping is Phase 4).
+  Behaviour-identical for a single-org install. See [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.110.0] — 2026-06-17
 
 ### Added
