@@ -19,7 +19,7 @@ use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use rampart_core::ids::{IncidentId, StatusPageId};
+use rampart_core::ids::{IncidentId, OrgId, StatusPageId};
 use rampart_core::{Incident, IncidentUpdate};
 use rampart_db::incidents::{NewIncident, UpdateIncident};
 use rampart_db::users::User;
@@ -60,17 +60,40 @@ fn parse_incident(s: &str) -> Result<IncidentId, ApiError> {
         .map_err(|_| ApiError::BadRequest("invalid incident id".into()))
 }
 
+/// Confirm `page` belongs to the caller's org — 404 otherwise. The org-scoped
+/// `status_pages::get` returns `NotFound` when the page lives in another org,
+/// so a cross-org page id is invisible (IDOR-safe). Incidents have no `org_id`
+/// of their own; they inherit it from the owning page, so every authenticated
+/// incident operation gates through this.
+async fn gate_page(s: &AppState, page: StatusPageId, org: OrgId) -> Result<(), ApiError> {
+    rampart_db::status_pages::get(s.pool(), page, org).await?;
+    Ok(())
+}
+
+/// Resolve an incident by id and confirm its owning page is in the caller's
+/// org — 404 otherwise. Used by the top-level `/v1/incidents/:id` operations,
+/// which carry no page in the path.
+async fn gate_incident(s: &AppState, id: IncidentId, org: OrgId) -> Result<Incident, ApiError> {
+    let inc = rampart_db::incidents::get(s.pool(), id).await?;
+    gate_page(s, inc.status_page_id, org).await?;
+    Ok(inc)
+}
+
 async fn list_for_page(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(page): Path<String>,
 ) -> Result<Json<Vec<Incident>>, ApiError> {
+    let page_id = parse_page(&page)?;
+    gate_page(&s, page_id, org.org_id).await?;
     Ok(Json(
-        rampart_db::incidents::list_all(s.pool(), parse_page(&page)?, 500).await?,
+        rampart_db::incidents::list_all(s.pool(), page_id, 500).await?,
     ))
 }
 
 async fn create(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(page): Path<String>,
     Extension(user): Extension<User>,
     Json(input): Json<NewIncident>,
@@ -79,6 +102,7 @@ async fn create(
         return Err(ApiError::BadRequest("title is required".into()));
     }
     let page_id = parse_page(&page)?;
+    gate_page(&s, page_id, org.org_id).await?;
     let i = rampart_db::incidents::create(s.pool(), page_id, Some(user.id), input).await?;
     // Best-effort subscriber fan-out — failures are logged, not surfaced.
     fan_out_incident(s.clone(), page_id, i.clone(), None);
@@ -87,38 +111,45 @@ async fn create(
 
 async fn update(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
     Json(patch): Json<UpdateIncident>,
 ) -> Result<Json<Incident>, ApiError> {
-    Ok(Json(
-        rampart_db::incidents::update(s.pool(), parse_incident(&id)?, patch).await?,
-    ))
+    let id = parse_incident(&id)?;
+    gate_incident(&s, id, org.org_id).await?;
+    Ok(Json(rampart_db::incidents::update(s.pool(), id, patch).await?))
 }
 
 async fn delete_one(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::incidents::delete(s.pool(), parse_incident(&id)?).await?;
+    let id = parse_incident(&id)?;
+    gate_incident(&s, id, org.org_id).await?;
+    rampart_db::incidents::delete(s.pool(), id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
 async fn resolve(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::incidents::resolve(s.pool(), parse_incident(&id)?, OffsetDateTime::now_utc())
-        .await?;
+    let id = parse_incident(&id)?;
+    gate_incident(&s, id, org.org_id).await?;
+    rampart_db::incidents::resolve(s.pool(), id, OffsetDateTime::now_utc()).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
 async fn list_updates(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<Vec<IncidentUpdate>>, ApiError> {
-    Ok(Json(
-        rampart_db::incidents::list_updates(s.pool(), parse_incident(&id)?).await?,
-    ))
+    let id = parse_incident(&id)?;
+    gate_incident(&s, id, org.org_id).await?;
+    Ok(Json(rampart_db::incidents::list_updates(s.pool(), id).await?))
 }
 
 #[derive(Deserialize)]
@@ -128,6 +159,7 @@ struct UpdateBody {
 
 async fn post_update(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
     Extension(user): Extension<User>,
     Json(body): Json<UpdateBody>,
@@ -136,6 +168,7 @@ async fn post_update(
         return Err(ApiError::BadRequest("message is required".into()));
     }
     let incident_id = parse_incident(&id)?;
+    gate_incident(&s, incident_id, org.org_id).await?;
     rampart_db::incidents::post_update(s.pool(), incident_id, Some(user.id), body.message.clone())
         .await?;
     let inc = rampart_db::incidents::get(s.pool(), incident_id).await?;
