@@ -604,6 +604,15 @@ export const api = {
     ackFinding: (id) => request(`/v1/detection-rules/findings/${id}/ack`, { method: 'POST' }),
     preview: (spec) => request('/v1/detection-rules/preview', { method: 'POST', body: spec }),
   },
+  deployMarkers: {
+    list:   ({ hours = 24, service } = {}) => {
+      const p = new URLSearchParams({ hours: String(hours) });
+      if (service) p.set('service', service);
+      return request(`/v1/deploy-markers?${p.toString()}`);
+    },
+    create: (input) => request('/v1/deploy-markers', { method: 'POST', body: input }),
+    remove: (id)    => request(`/v1/deploy-markers/${id}`, { method: 'DELETE' }),
+  },
   maintenance: {
     list:        ()                  => request('/v1/maintenance-windows'),
     get:         (id)                => request(`/v1/maintenance-windows/${id}`),

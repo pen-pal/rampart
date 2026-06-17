@@ -1579,6 +1579,10 @@ const en = {
   // ── external metrics + alert rules ───────────────────────────────
   'metrics.title':                   'Metrics',
   'metrics.subtitle':                'External metrics pushed to Rampart, and threshold alert rules on top of them.',
+  'metrics.deploy.mark':             'Mark deploy',
+  'metrics.deploy.title':            'Mark a deploy',
+  'metrics.deploy.prompt':           'Label for this deploy / change marker (overlaid on the charts):',
+  'metrics.deploy.ok':               'Deploy marked',
   'metrics.back':                    'Dashboard',
   'metrics.tab.explore':             'Explore',
   'metrics.tab.rules':               'Rules',
