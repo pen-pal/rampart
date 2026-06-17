@@ -60,12 +60,12 @@ const css = `
 const tsToDate = (ts) => (Array.isArray(ts) ? offsetDateTimeArrayToDate(ts) : new Date(ts));
 
 export default function Proxies() {
+  const [reloadKey, setReloadKey] = useState(0);
   const proxiesState = useApi(() => api.proxies.list(), [reloadKey], { pollMs: 30_000 });
   const [creating, setCreating] = useState(false);
   const [busy,     setBusy]     = useState(null);
   const [err,      setErr]      = useState(null);
 
-  const [reloadKey, setReloadKey] = useState(0);
   const reload = () => setReloadKey((k) => k + 1);
 
   const remove = async (id) => {
