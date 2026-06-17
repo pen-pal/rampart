@@ -322,6 +322,9 @@ export default function MonitorDetail({ monitorId, user }) {
   const [maintBusy, setMaintBusy]             = useState(false);
   const [maintActive, setMaintActive]         = useState(null);
   const [maintError, setMaintError]           = useState(null);
+  // Secondary header actions (Clone / Save-as-template / CSV / Delete) collapse
+  // into a "⋯ More" overflow menu so the action row doesn't crowd at laptop width.
+  const [moreOpen, setMoreOpen]               = useState(false);
 
   const [monReload, setMonReload] = useState(0);
   const bumpMonitor = () => setMonReload((k) => k + 1);
@@ -743,12 +746,51 @@ export default function MonitorDetail({ monitorId, user }) {
               </button>
             )}
             {writable && <button className="btn" onClick={() => setEditing(true)} disabled={acting}><Edit3 size={13}/> {t('common.edit')}</button>}
-            {writable && <button className="btn" onClick={doClone} disabled={acting} title={t('monitor.action.clone_title')}><Copy size={13}/> {t('common.clone')}</button>}
-            {writable && <button className="btn" onClick={doSaveAsTemplate} disabled={acting} title={t('templates.save.title')}><FileStack size={13}/> {t('templates.save.button')}</button>}
-            <a className="btn" href={`/v1/monitors/${monitor.id}/heartbeats.csv`} title={t('monitor.action.csv_title')} download>
-              <Download size={13}/> {t('monitor.action.csv')}
-            </a>
-            {writable && <button className="btn btn-danger" onClick={doDelete} disabled={acting}><Trash2 size={13}/> {t('common.delete')}</button>}
+            {/* Readonly users only have CSV export, so show it inline with no
+                "More" wrapper. Writable users get the overflow menu. */}
+            {!writable && (
+              <a className="btn" href={`/v1/monitors/${monitor.id}/heartbeats.csv`} title={t('monitor.action.csv_title')} download>
+                <Download size={13}/> {t('monitor.action.csv')}
+              </a>
+            )}
+            {writable && (
+              <div style={{ position: 'relative' }}>
+                <button className="btn" onClick={() => setMoreOpen(o => !o)} disabled={acting}
+                  title={t('common.more')} aria-haspopup="menu" aria-expanded={moreOpen}>
+                  <MoreHorizontal size={13}/> {t('common.more')}
+                </button>
+                {moreOpen && (
+                  <>
+                    {/* Click-away backdrop. */}
+                    <div onClick={() => setMoreOpen(false)}
+                      style={{ position: 'fixed', inset: 0, zIndex: 19 }}/>
+                    <div className="card" role="menu" style={{
+                      position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 20,
+                      minWidth: 200, padding: 6, display: 'flex', flexDirection: 'column', gap: 2,
+                      boxShadow: '0 8px 24px rgba(0,0,0,.12)',
+                    }}>
+                      <button className="btn" style={{ justifyContent: 'flex-start' }} role="menuitem"
+                        onClick={() => { setMoreOpen(false); doClone(); }} disabled={acting} title={t('monitor.action.clone_title')}>
+                        <Copy size={13}/> {t('common.clone')}
+                      </button>
+                      <button className="btn" style={{ justifyContent: 'flex-start' }} role="menuitem"
+                        onClick={() => { setMoreOpen(false); doSaveAsTemplate(); }} disabled={acting} title={t('templates.save.title')}>
+                        <FileStack size={13}/> {t('templates.save.button')}
+                      </button>
+                      <a className="btn" style={{ justifyContent: 'flex-start' }} role="menuitem"
+                        href={`/v1/monitors/${monitor.id}/heartbeats.csv`} title={t('monitor.action.csv_title')} download
+                        onClick={() => setMoreOpen(false)}>
+                        <Download size={13}/> {t('monitor.action.csv')}
+                      </a>
+                      <button className="btn btn-danger" style={{ justifyContent: 'flex-start' }} role="menuitem"
+                        onClick={() => { setMoreOpen(false); doDelete(); }} disabled={acting}>
+                        <Trash2 size={13}/> {t('common.delete')}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
