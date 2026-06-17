@@ -83,8 +83,13 @@ fn issue_id(s: &str) -> Result<ErrorIssueId, ApiError> {
 
 // ─────────────────────────── projects ───────────────────────────
 
-async fn list_projects(State(s): State<AppState>) -> Result<Json<Vec<ErrorProject>>, ApiError> {
-    Ok(Json(rampart_db::error_tracking::list(s.pool()).await?))
+async fn list_projects(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+) -> Result<Json<Vec<ErrorProject>>, ApiError> {
+    Ok(Json(
+        rampart_db::error_tracking::list(s.pool(), org.org_id).await?,
+    ))
 }
 
 async fn create_project(
@@ -113,6 +118,7 @@ async fn create_project(
 
 async fn update_project(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Extension(user): Extension<User>,
     headers: HeaderMap,
     Path(id): Path<String>,
@@ -122,7 +128,7 @@ async fn update_project(
     input
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
-    let project = rampart_db::error_tracking::update(s.pool(), pid, input).await?;
+    let project = rampart_db::error_tracking::update(s.pool(), pid, input, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -138,12 +144,13 @@ async fn update_project(
 
 async fn delete_project(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Extension(user): Extension<User>,
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let pid = project_id(&id)?;
-    rampart_db::error_tracking::delete(s.pool(), pid).await?;
+    rampart_db::error_tracking::delete(s.pool(), pid, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -169,10 +176,12 @@ struct IssueQuery {
 
 async fn list_issues(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
     Query(q): Query<IssueQuery>,
 ) -> Result<Json<Vec<ErrorIssue>>, ApiError> {
     let pid = project_id(&id)?;
+    rampart_db::error_tracking::project_in_org(s.pool(), pid, org.org_id).await?;
     let before_id = q.before_id.as_deref().and_then(|s| uuid::Uuid::parse_str(s).ok());
     Ok(Json(
         rampart_db::error_tracking::list_issues(
@@ -193,10 +202,12 @@ struct HistQuery {
 
 async fn project_histogram(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
     Query(q): Query<HistQuery>,
 ) -> Result<Json<Vec<rampart_db::error_tracking::ErrorBucket>>, ApiError> {
     let pid = project_id(&id)?;
+    rampart_db::error_tracking::project_in_org(s.pool(), pid, org.org_id).await?;
     Ok(Json(
         rampart_db::error_tracking::project_event_histogram(s.pool(), pid, q.hours.unwrap_or(168), 48)
             .await?,
@@ -205,9 +216,11 @@ async fn project_histogram(
 
 async fn get_issue(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<ErrorIssue>, ApiError> {
     let iid = issue_id(&id)?;
+    rampart_db::error_tracking::issue_in_org(s.pool(), iid, org.org_id).await?;
     Ok(Json(
         rampart_db::error_tracking::get_issue(s.pool(), iid).await?,
     ))
@@ -215,9 +228,11 @@ async fn get_issue(
 
 async fn issue_stats(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<rampart_db::error_tracking::IssueStats>, ApiError> {
     let iid = issue_id(&id)?;
+    rampart_db::error_tracking::issue_in_org(s.pool(), iid, org.org_id).await?;
     Ok(Json(
         rampart_db::error_tracking::issue_stats(s.pool(), iid).await?,
     ))
@@ -225,9 +240,11 @@ async fn issue_stats(
 
 async fn issue_users(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<Vec<rampart_db::error_tracking::AffectedUser>>, ApiError> {
     let iid = issue_id(&id)?;
+    rampart_db::error_tracking::issue_in_org(s.pool(), iid, org.org_id).await?;
     Ok(Json(
         rampart_db::error_tracking::issue_affected_users(s.pool(), iid, 50).await?,
     ))
@@ -235,9 +252,11 @@ async fn issue_users(
 
 async fn list_events(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<Vec<ErrorEvent>>, ApiError> {
     let iid = issue_id(&id)?;
+    rampart_db::error_tracking::issue_in_org(s.pool(), iid, org.org_id).await?;
     let mut events = rampart_db::error_tracking::list_events(s.pool(), iid, 50).await?;
     symbolicate_events(s.pool(), &mut events).await;
     Ok(Json(events))
@@ -300,12 +319,14 @@ struct UploadSourceMap {
 
 async fn upload_sourcemap(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Extension(user): Extension<User>,
     headers: HeaderMap,
     Path(id): Path<String>,
     Json(input): Json<UploadSourceMap>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let pid = project_id(&id)?;
+    rampart_db::error_tracking::project_in_org(s.pool(), pid, org.org_id).await?;
     if input.release.trim().is_empty() || input.filename.trim().is_empty() {
         return Err(ApiError::BadRequest(
             "release and filename are required".into(),
@@ -337,19 +358,23 @@ async fn upload_sourcemap(
 
 async fn list_sourcemaps(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<Vec<rampart_db::source_maps::SourceMapMeta>>, ApiError> {
     let pid = project_id(&id)?;
+    rampart_db::error_tracking::project_in_org(s.pool(), pid, org.org_id).await?;
     Ok(Json(rampart_db::source_maps::list(s.pool(), pid.0).await?))
 }
 
 async fn delete_sourcemap(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Extension(user): Extension<User>,
     headers: HeaderMap,
     Path((id, map_id)): Path<(String, i64)>,
 ) -> Result<StatusCode, ApiError> {
     let pid = project_id(&id)?;
+    rampart_db::error_tracking::project_in_org(s.pool(), pid, org.org_id).await?;
     if !rampart_db::source_maps::delete(s.pool(), pid.0, map_id).await? {
         return Err(ApiError::NotFound);
     }
@@ -370,10 +395,12 @@ async fn set_status(
     s: &AppState,
     user: &User,
     headers: &HeaderMap,
+    org: &OrgContext,
     id: &str,
     status: &str,
 ) -> Result<Json<ErrorIssue>, ApiError> {
     let iid = issue_id(id)?;
+    rampart_db::error_tracking::issue_in_org(s.pool(), iid, org.org_id).await?;
     let issue = rampart_db::error_tracking::set_issue_status(s.pool(), iid, status).await?;
     crate::audit::record(
         s.pool(),
@@ -390,29 +417,32 @@ async fn set_status(
 
 async fn resolve(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Extension(user): Extension<User>,
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<ErrorIssue>, ApiError> {
-    set_status(&s, &user, &headers, &id, "resolved").await
+    set_status(&s, &user, &headers, &org, &id, "resolved").await
 }
 
 async fn ignore(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Extension(user): Extension<User>,
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<ErrorIssue>, ApiError> {
-    set_status(&s, &user, &headers, &id, "ignored").await
+    set_status(&s, &user, &headers, &org, &id, "ignored").await
 }
 
 async fn unresolve(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Extension(user): Extension<User>,
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<ErrorIssue>, ApiError> {
-    set_status(&s, &user, &headers, &id, "unresolved").await
+    set_status(&s, &user, &headers, &org, &id, "unresolved").await
 }
 
 #[derive(Deserialize)]
@@ -424,12 +454,14 @@ struct AssignBody {
 
 async fn assign(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Extension(user): Extension<User>,
     headers: HeaderMap,
     Path(id): Path<String>,
     Json(body): Json<AssignBody>,
 ) -> Result<Json<ErrorIssue>, ApiError> {
     let iid = issue_id(&id)?;
+    rampart_db::error_tracking::issue_in_org(s.pool(), iid, org.org_id).await?;
     let assignee = match body.assignee.as_deref().filter(|v| !v.is_empty()) {
         Some(u) => Some(
             Uuid::from_str(u)

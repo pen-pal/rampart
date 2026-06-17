@@ -72,19 +72,66 @@ impl From<ProjectRow> for ErrorProject {
     }
 }
 
-pub async fn list(pool: &DbPool) -> DbResult<Vec<ErrorProject>> {
+pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<ErrorProject>> {
     let rows = sqlx::query_as!(
         ProjectRow,
         r#"
         SELECT id, name, slug, public_key, platform, retention_days,
                alert_channel_ids AS "alert_channel_ids!", created_at
         FROM error_projects
+        WHERE org_id = $1
         ORDER BY created_at
         "#,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
     Ok(rows.into_iter().map(Into::into).collect())
+}
+
+/// 404-gate: succeed only when `project` belongs to `org`. Error-tracking
+/// children (issues, events, histograms, source maps) carry no `org_id` of
+/// their own — they inherit the project's — so the authenticated handlers gate
+/// through this before touching a project-keyed row. The ingest hot path
+/// ([`get_opt`], [`find_or_create_by_name`], [`record_event`]) has no org
+/// context and stays unscoped by design.
+pub async fn project_in_org(pool: &DbPool, project: ErrorProjectId, org_id: OrgId) -> DbResult<()> {
+    let ok = sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM error_projects WHERE id = $1 AND org_id = $2)",
+        project.0,
+        org_id.0,
+    )
+    .fetch_one(pool)
+    .await?;
+    if ok.unwrap_or(false) {
+        Ok(())
+    } else {
+        Err(DbError::NotFound)
+    }
+}
+
+/// 404-gate: succeed only when `issue`'s owning project belongs to `org`. Used
+/// by the top-level `/v1/error-issues/:id` operations, which carry no project
+/// in the path.
+pub async fn issue_in_org(pool: &DbPool, issue: ErrorIssueId, org_id: OrgId) -> DbResult<()> {
+    let ok = sqlx::query_scalar!(
+        r#"
+        SELECT EXISTS(
+            SELECT 1 FROM error_issues i
+            JOIN error_projects p ON p.id = i.project_id
+            WHERE i.id = $1 AND p.org_id = $2
+        )
+        "#,
+        issue.0,
+        org_id.0,
+    )
+    .fetch_one(pool)
+    .await?;
+    if ok.unwrap_or(false) {
+        Ok(())
+    } else {
+        Err(DbError::NotFound)
+    }
 }
 
 pub async fn get(pool: &DbPool, id: ErrorProjectId) -> DbResult<ErrorProject> {
@@ -167,6 +214,7 @@ pub async fn update(
     pool: &DbPool,
     id: ErrorProjectId,
     patch: UpdateErrorProject,
+    org_id: OrgId,
 ) -> DbResult<ErrorProject> {
     let channels = patch
         .alert_channel_ids
@@ -178,13 +226,14 @@ pub async fn update(
             platform          = COALESCE($3, platform),
             retention_days    = COALESCE($4, retention_days),
             alert_channel_ids = COALESCE($5, alert_channel_ids)
-        WHERE id = $1
+        WHERE id = $1 AND org_id = $6
         "#,
         id.0,
         patch.name,
         patch.platform,
         patch.retention_days,
         channels,
+        org_id.0,
     )
     .execute(pool)
     .await?;
@@ -194,10 +243,14 @@ pub async fn update(
     get(pool, id).await
 }
 
-pub async fn delete(pool: &DbPool, id: ErrorProjectId) -> DbResult<()> {
-    let result = sqlx::query!("DELETE FROM error_projects WHERE id = $1", id.0)
-        .execute(pool)
-        .await?;
+pub async fn delete(pool: &DbPool, id: ErrorProjectId, org_id: OrgId) -> DbResult<()> {
+    let result = sqlx::query!(
+        "DELETE FROM error_projects WHERE id = $1 AND org_id = $2",
+        id.0,
+        org_id.0,
+    )
+    .execute(pool)
+    .await?;
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }
