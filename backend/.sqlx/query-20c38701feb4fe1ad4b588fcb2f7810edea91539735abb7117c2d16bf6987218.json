@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, notification_id, channel_kind, event_kind,\n               monitor_id, ok, error, sent_at\n        FROM delivery_log\n        WHERE id = $1\n        ",
+  "query": "\n        SELECT id, notification_id, channel_kind, event_kind,\n               monitor_id, ok, error, sent_at\n        FROM delivery_log\n        WHERE id = $1 AND org_id = $2\n        ",
   "describe": {
     "columns": [
       {
@@ -94,7 +94,8 @@
     ],
     "parameters": {
       "Left": [
-        "Int8"
+        "Int8",
+        "Uuid"
       ]
     },
     "nullable": [
@@ -108,5 +109,5 @@
       false
     ]
   },
-  "hash": "1c915554280c9c52d921c4b03f8b6950db76b0432f7b25f2530553b7c17516d9"
+  "hash": "20c38701feb4fe1ad4b588fcb2f7810edea91539735abb7117c2d16bf6987218"
 }

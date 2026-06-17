@@ -8,7 +8,7 @@
 //! into the send path (the caller decides to swallow them).
 
 use crate::{DbPool, DbResult};
-use rampart_core::ids::NotificationId;
+use rampart_core::ids::{NotificationId, OrgId};
 use serde::Serialize;
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -75,15 +75,16 @@ pub async fn record(pool: &DbPool, entry: NewDelivery<'_>) -> DbResult<DeliveryE
 /// Load a single delivery attempt by id. Returns `None` when no row matches
 /// (the retry route turns that into a 404). The full row carries the
 /// `notification_id` the retry path needs to re-resolve the channel.
-pub async fn get(pool: &DbPool, id: i64) -> DbResult<Option<DeliveryEntry>> {
+pub async fn get(pool: &DbPool, id: i64, org_id: OrgId) -> DbResult<Option<DeliveryEntry>> {
     let row = sqlx::query!(
         r#"
         SELECT id, notification_id, channel_kind, event_kind,
                monitor_id, ok, error, sent_at
         FROM delivery_log
-        WHERE id = $1
+        WHERE id = $1 AND org_id = $2
         "#,
         id,
+        org_id.0,
     )
     .fetch_optional(pool)
     .await?;
@@ -109,6 +110,7 @@ pub async fn list(
     pool: &DbPool,
     limit: i64,
     before_ts: Option<OffsetDateTime>,
+    org_id: OrgId,
 ) -> DbResult<Vec<DeliveryEntry>> {
     let limit = limit.clamp(1, 500);
     let rows = sqlx::query!(
@@ -116,12 +118,14 @@ pub async fn list(
         SELECT id, notification_id, channel_kind, event_kind,
                monitor_id, ok, error, sent_at
         FROM delivery_log
-        WHERE ($1::timestamptz IS NULL OR sent_at < $1)
+        WHERE org_id = $3
+          AND ($1::timestamptz IS NULL OR sent_at < $1)
         ORDER BY sent_at DESC, id DESC
         LIMIT $2
         "#,
         before_ts,
         limit,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -146,17 +150,19 @@ pub async fn list(
 /// Unlike [`list`], this skips the keyset cursor and the 500-row clamp: an
 /// export is a single full dump, so the caller passes its own (larger) cap.
 /// `limit` is still floored at 1 to keep the query well-formed.
-pub async fn list_all(pool: &DbPool, limit: i64) -> DbResult<Vec<DeliveryEntry>> {
+pub async fn list_all(pool: &DbPool, limit: i64, org_id: OrgId) -> DbResult<Vec<DeliveryEntry>> {
     let limit = limit.max(1);
     let rows = sqlx::query!(
         r#"
         SELECT id, notification_id, channel_kind, event_kind,
                monitor_id, ok, error, sent_at
         FROM delivery_log
+        WHERE org_id = $2
         ORDER BY sent_at DESC, id DESC
         LIMIT $1
         "#,
         limit,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;

@@ -4,9 +4,10 @@
 //! notifier. Keyset-paginated by `sent_at`, newest-first — the same shape
 //! as the audit-log list route.
 
+use crate::auth::OrgContext;
 use crate::error::ApiError;
 use crate::state::AppState;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Extension, Path, Query, State};
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -37,10 +38,11 @@ fn default_limit() -> i64 {
 
 async fn list(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Query(q): Query<ListQuery>,
 ) -> Result<Json<Vec<DeliveryEntry>>, ApiError> {
     Ok(Json(
-        rampart_db::delivery_log::list(s.pool(), q.limit, q.before).await?,
+        rampart_db::delivery_log::list(s.pool(), q.limit, q.before, org.org_id).await?,
     ))
 }
 
@@ -53,9 +55,10 @@ async fn list(
 /// NULL), there's nothing to re-send through, so we reject with 409.
 async fn retry(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<i64>,
 ) -> Result<Json<DeliveryEntry>, ApiError> {
-    let entry = rampart_db::delivery_log::get(s.pool(), id)
+    let entry = rampart_db::delivery_log::get(s.pool(), id, org.org_id)
         .await?
         .ok_or(ApiError::NotFound)?;
 
@@ -83,8 +86,11 @@ const EXPORT_CAP: i64 = 50_000;
 /// rows newest-first and emits them as `text/csv` with an attachment
 /// `content-disposition`. Fields that contain a comma, quote, or newline are
 /// quoted per RFC 4180.
-async fn export_csv(State(s): State<AppState>) -> Result<impl IntoResponse, ApiError> {
-    let rows = rampart_db::delivery_log::list_all(s.pool(), EXPORT_CAP).await?;
+async fn export_csv(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+) -> Result<impl IntoResponse, ApiError> {
+    let rows = rampart_db::delivery_log::list_all(s.pool(), EXPORT_CAP, org.org_id).await?;
     if rows.len() as i64 == EXPORT_CAP {
         tracing::warn!(
             cap = EXPORT_CAP,
@@ -214,7 +220,8 @@ mod tests {
         .unwrap();
         assert!(!original.ok);
 
-        let entry = delivery_log::get(&pool, original.id)
+        let def_org = rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID);
+        let entry = delivery_log::get(&pool, original.id, def_org)
             .await
             .unwrap()
             .unwrap();
@@ -228,7 +235,7 @@ mod tests {
         assert_eq!(attempt.notification_id, Some(channel.id));
 
         // The log now holds two rows for this channel.
-        let all = delivery_log::list(&pool, 500, None).await.unwrap();
+        let all = delivery_log::list(&pool, 500, None, def_org).await.unwrap();
         let for_channel = all
             .iter()
             .filter(|r| r.notification_id == Some(channel.id))
