@@ -5,9 +5,11 @@
 
 use crate::{DbError, DbPool, DbResult};
 use rampart_core::detection::{
-    DetectionFinding, DetectionRule, DetectionSeverity, NewDetectionRule, UpdateDetectionRule,
+    DetectionCondition, DetectionFinding, DetectionRule, DetectionSeverity, NewDetectionRule,
+    UpdateDetectionRule,
 };
 use rampart_core::ids::{DetectionFindingId, DetectionRuleId, NotificationId};
+use sqlx::{Postgres, QueryBuilder, Row};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -25,6 +27,7 @@ struct RuleRow {
     threshold: i32,
     window_seconds: i32,
     cooldown_seconds: i32,
+    condition: Option<serde_json::Value>,
     channel_ids: Vec<Uuid>,
     escalation_policy_id: Option<Uuid>,
     last_checked_at: Option<OffsetDateTime>,
@@ -47,6 +50,7 @@ impl From<RuleRow> for DetectionRule {
             threshold: r.threshold,
             window_seconds: r.window_seconds,
             cooldown_seconds: r.cooldown_seconds,
+            condition: r.condition.and_then(|v| serde_json::from_value(v).ok()),
             channel_ids: r
                 .channel_ids
                 .into_iter()
@@ -118,6 +122,7 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<DetectionRule>> {
         r#"
         SELECT id, name, description, enabled, severity, service, min_level,
                body_regex, attr_key, attr_val, threshold, window_seconds, cooldown_seconds,
+               condition,
                channel_ids AS "channel_ids!", escalation_policy_id, last_checked_at, created_at
         FROM detection_rules
         ORDER BY created_at
@@ -134,6 +139,7 @@ pub async fn get(pool: &DbPool, id: DetectionRuleId) -> DbResult<DetectionRule> 
         r#"
         SELECT id, name, description, enabled, severity, service, min_level,
                body_regex, attr_key, attr_val, threshold, window_seconds, cooldown_seconds,
+               condition,
                channel_ids AS "channel_ids!", escalation_policy_id, last_checked_at, created_at
         FROM detection_rules
         WHERE id = $1
@@ -149,13 +155,16 @@ pub async fn get(pool: &DbPool, id: DetectionRuleId) -> DbResult<DetectionRule> 
 pub async fn create(pool: &DbPool, input: NewDetectionRule) -> DbResult<DetectionRule> {
     let id = DetectionRuleId::new();
     let channel_ids: Vec<Uuid> = input.channel_ids.iter().map(|c| c.0).collect();
+    // Serializing our own enum can't fail; `None` stores SQL NULL (legacy match).
+    let condition_json: Option<serde_json::Value> =
+        input.condition.as_ref().and_then(|c| serde_json::to_value(c).ok());
     sqlx::query!(
         r#"
         INSERT INTO detection_rules
             (id, name, description, enabled, severity, service, min_level,
              body_regex, attr_key, attr_val, threshold, window_seconds, channel_ids,
-             escalation_policy_id, cooldown_seconds)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+             escalation_policy_id, cooldown_seconds, condition)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         "#,
         id.0,
         input.name,
@@ -172,6 +181,7 @@ pub async fn create(pool: &DbPool, input: NewDetectionRule) -> DbResult<Detectio
         &channel_ids,
         input.escalation_policy_id.map(|p| p.0),
         input.cooldown_seconds,
+        condition_json,
     )
     .execute(pool)
     .await?;
@@ -184,6 +194,8 @@ pub async fn update(
     patch: UpdateDetectionRule,
 ) -> DbResult<DetectionRule> {
     let channel_ids: Option<Vec<Uuid>> = patch.channel_ids.map(|v| v.iter().map(|c| c.0).collect());
+    let condition_json: Option<serde_json::Value> =
+        patch.condition.as_ref().and_then(|c| serde_json::to_value(c).ok());
     let result = sqlx::query!(
         r#"
         UPDATE detection_rules SET
@@ -200,7 +212,11 @@ pub async fn update(
             window_seconds = COALESCE($12, window_seconds),
             channel_ids    = COALESCE($13, channel_ids),
             escalation_policy_id = COALESCE($14, escalation_policy_id),
-            cooldown_seconds = COALESCE($15, cooldown_seconds)
+            cooldown_seconds = COALESCE($15, cooldown_seconds),
+            -- Direct set (not COALESCE): the rule form is the sole updater and
+            -- always sends the full intended condition (tree, or null to clear
+            -- when switched back to the flat matcher).
+            condition      = $16
         WHERE id = $1
         "#,
         id.0,
@@ -218,6 +234,7 @@ pub async fn update(
         channel_ids.as_deref(),
         patch.escalation_policy_id.map(|p| p.0),
         patch.cooldown_seconds,
+        condition_json,
     )
     .execute(pool)
     .await?;
@@ -320,37 +337,14 @@ pub async fn evaluate_tick(pool: &DbPool) -> DbResult<Vec<FindingEvent>> {
     let mut out = Vec::new();
 
     for rule in list(pool).await?.into_iter().filter(|r| r.enabled) {
-        // Compute the window bounds and the match count in one statement so
-        // both ends use the DB clock — mixing an app-side `now` with
-        // DB-generated `ts` would skew the boundary. `wfrom` is the rule's
-        // watermark, or `now - window` on first run.
-        let row = sqlx::query!(
-            r#"
-            WITH bounds AS (
-                SELECT COALESCE($1::timestamptz, now() - make_interval(secs => $2)) AS wfrom,
-                       now() AS wto
-            )
-            SELECT b.wfrom AS "wfrom!", b.wto AS "wto!", COUNT(l.id) AS "cnt!"
-            FROM bounds b
-            LEFT JOIN logs l
-              ON l.ts > b.wfrom AND l.ts <= b.wto
-             AND ($3 = '' OR l.service_name = $3)
-             AND l.severity >= $4
-             AND ($5 = '' OR l.body ~* $5)
-             AND ($6 = '' OR l.attributes->>$6 = $7)
-            GROUP BY b.wfrom, b.wto
-            "#,
-            rule.last_checked_at,
-            rule.window_seconds as f64,
-            rule.service,
-            rule.min_level,
-            rule.body_regex,
-            rule.attr_key,
-            rule.attr_val,
-        )
-        .fetch_one(pool)
-        .await?;
-        let (wfrom, wto, count) = (row.wfrom, row.wto, row.cnt);
+        // Window bounds + match count in one statement so both ends use the DB
+        // clock. Detection v2 rules carry a boolean `condition` tree compiled to
+        // a parameterized WHERE; legacy rules use the flat field match. `wfrom`
+        // is the rule's watermark, or `now - window` on first run.
+        let (wfrom, wto, count) = match &rule.condition {
+            Some(cond) => tree_window(pool, &rule, cond).await?,
+            None => legacy_window(pool, &rule).await?,
+        };
 
         // Suppression: within the cooldown window after a finding, keep
         // advancing the watermark (so matches aren't re-counted) but don't raise
@@ -360,29 +354,10 @@ pub async fn evaluate_tick(pool: &DbPool) -> DbResult<Vec<FindingEvent>> {
 
         if count >= rule.threshold as i64 && !suppressed {
             // Newest matching body as the analyst's sample (truncated).
-            let sample = sqlx::query_scalar!(
-                r#"
-                SELECT LEFT(body, 500)
-                FROM logs
-                WHERE ts > $1 AND ts <= $2
-                  AND ($3 = '' OR service_name = $3)
-                  AND severity >= $4
-                  AND ($5 = '' OR body ~* $5)
-                  AND ($6 = '' OR attributes->>$6 = $7)
-                ORDER BY ts DESC
-                LIMIT 1
-                "#,
-                wfrom,
-                wto,
-                rule.service,
-                rule.min_level,
-                rule.body_regex,
-                rule.attr_key,
-                rule.attr_val,
-            )
-            .fetch_optional(pool)
-            .await?
-            .flatten();
+            let sample = match &rule.condition {
+                Some(cond) => tree_sample(pool, wfrom, wto, cond).await?,
+                None => legacy_sample(pool, &rule, wfrom, wto).await?,
+            };
 
             let service = (!rule.service.is_empty()).then(|| rule.service.clone());
             let fid = DetectionFindingId::new();
@@ -426,6 +401,183 @@ pub async fn evaluate_tick(pool: &DbPool) -> DbResult<Vec<FindingEvent>> {
         .await?;
     }
     Ok(out)
+}
+
+// ── match evaluation ────────────────────────────────────────────────────────
+// Two paths share the (wfrom, wto, count) + newest-sample shape: the legacy
+// flat-field match (compile-checked queries) and the Detection v2 boolean tree
+// (compiled to a parameterized WHERE via QueryBuilder — runtime-checked, so it
+// can't be a `query!` macro).
+
+/// Legacy flat-field window + count.
+async fn legacy_window(
+    pool: &DbPool,
+    rule: &DetectionRule,
+) -> DbResult<(OffsetDateTime, OffsetDateTime, i64)> {
+    let row = sqlx::query!(
+        r#"
+        WITH bounds AS (
+            SELECT COALESCE($1::timestamptz, now() - make_interval(secs => $2)) AS wfrom,
+                   now() AS wto
+        )
+        SELECT b.wfrom AS "wfrom!", b.wto AS "wto!", COUNT(l.id) AS "cnt!"
+        FROM bounds b
+        LEFT JOIN logs l
+          ON l.ts > b.wfrom AND l.ts <= b.wto
+         AND ($3 = '' OR l.service_name = $3)
+         AND l.severity >= $4
+         AND ($5 = '' OR l.body ~* $5)
+         AND ($6 = '' OR l.attributes->>$6 = $7)
+        GROUP BY b.wfrom, b.wto
+        "#,
+        rule.last_checked_at,
+        rule.window_seconds as f64,
+        rule.service,
+        rule.min_level,
+        rule.body_regex,
+        rule.attr_key,
+        rule.attr_val,
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok((row.wfrom, row.wto, row.cnt))
+}
+
+/// Legacy flat-field newest sample.
+async fn legacy_sample(
+    pool: &DbPool,
+    rule: &DetectionRule,
+    wfrom: OffsetDateTime,
+    wto: OffsetDateTime,
+) -> DbResult<Option<String>> {
+    Ok(sqlx::query_scalar!(
+        r#"
+        SELECT LEFT(body, 500)
+        FROM logs
+        WHERE ts > $1 AND ts <= $2
+          AND ($3 = '' OR service_name = $3)
+          AND severity >= $4
+          AND ($5 = '' OR body ~* $5)
+          AND ($6 = '' OR attributes->>$6 = $7)
+        ORDER BY ts DESC
+        LIMIT 1
+        "#,
+        wfrom,
+        wto,
+        rule.service,
+        rule.min_level,
+        rule.body_regex,
+        rule.attr_key,
+        rule.attr_val,
+    )
+    .fetch_optional(pool)
+    .await?
+    .flatten())
+}
+
+/// Boolean-tree window + count (Detection v2).
+async fn tree_window(
+    pool: &DbPool,
+    rule: &DetectionRule,
+    cond: &DetectionCondition,
+) -> DbResult<(OffsetDateTime, OffsetDateTime, i64)> {
+    let mut qb: QueryBuilder<Postgres> =
+        QueryBuilder::new("WITH bounds AS (SELECT COALESCE(");
+    qb.push_bind(rule.last_checked_at);
+    qb.push("::timestamptz, now() - make_interval(secs => ");
+    qb.push_bind(rule.window_seconds as f64);
+    qb.push(")) AS wfrom, now() AS wto) SELECT b.wfrom AS wfrom, b.wto AS wto, COUNT(l.id) AS cnt FROM bounds b LEFT JOIN logs l ON l.ts > b.wfrom AND l.ts <= b.wto AND (");
+    push_condition(&mut qb, cond);
+    qb.push(") GROUP BY b.wfrom, b.wto");
+    let row = qb.build().fetch_one(pool).await?;
+    Ok((row.try_get("wfrom")?, row.try_get("wto")?, row.try_get("cnt")?))
+}
+
+/// Boolean-tree newest sample (Detection v2).
+async fn tree_sample(
+    pool: &DbPool,
+    wfrom: OffsetDateTime,
+    wto: OffsetDateTime,
+    cond: &DetectionCondition,
+) -> DbResult<Option<String>> {
+    let mut qb: QueryBuilder<Postgres> =
+        QueryBuilder::new("SELECT LEFT(l.body, 500) AS sample FROM logs l WHERE l.ts > ");
+    qb.push_bind(wfrom);
+    qb.push(" AND l.ts <= ");
+    qb.push_bind(wto);
+    qb.push(" AND (");
+    push_condition(&mut qb, cond);
+    qb.push(") ORDER BY l.ts DESC LIMIT 1");
+    let row = qb.build().fetch_optional(pool).await?;
+    Ok(row.and_then(|r| r.try_get::<Option<String>, _>("sample").ok().flatten()))
+}
+
+/// Escape LIKE wildcards in a user substring so `BodyContains` matches it
+/// literally (the default `\` escape char applies).
+fn like_escape(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+}
+
+/// Compile a condition node into the running `QueryBuilder`, binding every leaf
+/// value as a parameter (no string interpolation of user input).
+fn push_condition(qb: &mut QueryBuilder<Postgres>, c: &DetectionCondition) {
+    match c {
+        DetectionCondition::And { conditions } => push_join(qb, conditions, " AND ", "TRUE"),
+        DetectionCondition::Or { conditions } => push_join(qb, conditions, " OR ", "FALSE"),
+        DetectionCondition::Not { condition } => {
+            qb.push("NOT (");
+            push_condition(qb, condition);
+            qb.push(")");
+        }
+        DetectionCondition::Service { value } => {
+            qb.push("l.service_name = ");
+            qb.push_bind(value.clone());
+        }
+        DetectionCondition::MinLevel { value } => {
+            qb.push("l.severity >= ");
+            qb.push_bind(*value);
+        }
+        DetectionCondition::BodyRegex { value } => {
+            qb.push("l.body ~* ");
+            qb.push_bind(value.clone());
+        }
+        DetectionCondition::BodyContains { value } => {
+            qb.push("l.body ILIKE ");
+            qb.push_bind(format!("%{}%", like_escape(value)));
+        }
+        DetectionCondition::Attr { key, value } => {
+            // COALESCE so a MISSING attribute reads as "" rather than NULL:
+            // `attr=val` is false for an absent key, and crucially `NOT attr=val`
+            // is TRUE for an absent key — the intuitive detection semantics
+            // (without COALESCE, NOT-of-NULL is NULL and silently drops the row).
+            qb.push("COALESCE(l.attributes->>");
+            qb.push_bind(key.clone());
+            qb.push(", '') = ");
+            qb.push_bind(value.clone());
+        }
+    }
+}
+
+fn push_join(
+    qb: &mut QueryBuilder<Postgres>,
+    conditions: &[DetectionCondition],
+    sep: &str,
+    empty: &str,
+) {
+    if conditions.is_empty() {
+        qb.push(empty);
+        return;
+    }
+    qb.push("(");
+    for (i, c) in conditions.iter().enumerate() {
+        if i > 0 {
+            qb.push(sep);
+        }
+        qb.push("(");
+        push_condition(qb, c);
+        qb.push(")");
+    }
+    qb.push(")");
 }
 
 /// Did this rule raise any finding within the last `secs` seconds? Drives the
