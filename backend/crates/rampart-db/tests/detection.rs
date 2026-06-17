@@ -23,6 +23,7 @@ fn rule(body_regex: &str, threshold: i32) -> NewDetectionRule {
         threshold,
         window_seconds: 300,
         cooldown_seconds: 0,
+        condition: None,
         enabled: true,
         channel_ids: vec![],
         escalation_policy_id: None,
@@ -81,6 +82,44 @@ async fn regex_match_threshold_and_watermark(pool: PgPool) {
     assert_eq!(detection::list_findings(&pool, 50, true).await.unwrap().len(), 0);
     assert_eq!(detection::list_findings(&pool, 50, false).await.unwrap().len(), 1);
     let _ = r;
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn boolean_condition_tree_matches(pool: PgPool) {
+    use rampart_core::DetectionCondition as C;
+    // (service=auth AND body contains "failed") OR (severity >= 17 AND NOT env=dev)
+    let mut nr = rule("", 1);
+    nr.condition = Some(C::Or {
+        conditions: vec![
+            C::And {
+                conditions: vec![
+                    C::Service { value: "auth".into() },
+                    C::BodyContains { value: "failed".into() },
+                ],
+            },
+            C::And {
+                conditions: vec![
+                    C::MinLevel { value: 17 },
+                    C::Not {
+                        condition: Box::new(C::Attr { key: "env".into(), value: "dev".into() }),
+                    },
+                ],
+            },
+        ],
+    });
+    detection::create(&pool, nr).await.unwrap();
+
+    // Branch 1: auth service + "failed" in body.
+    insert_log(&pool, "auth", 9, "failed login for bob").await;
+    assert_eq!(detection::evaluate_tick(&pool).await.unwrap().len(), 1);
+
+    // Branch 2: error severity on a non-dev record (default attrs = {}).
+    insert_log(&pool, "web", 17, "boom").await;
+    assert_eq!(detection::evaluate_tick(&pool).await.unwrap().len(), 1);
+
+    // Matches neither: web service, low severity, no "failed".
+    insert_log(&pool, "web", 9, "all good").await;
+    assert!(detection::evaluate_tick(&pool).await.unwrap().is_empty());
 }
 
 #[sqlx::test(migrations = "../../migrations")]
