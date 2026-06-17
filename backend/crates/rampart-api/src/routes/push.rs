@@ -150,8 +150,10 @@ async fn apply(
         Ping::Run => unreachable!("handled above"),
     };
 
-    // Flip detection needs the full row (current_status).
-    let monitor = rampart_db::monitors::get(state.pool(), monitor_id).await?;
+    // Flip detection needs the full row (current_status). The push token (not
+    // a session) authenticated this request and already resolved monitor_id,
+    // so fetch unscoped.
+    let monitor = rampart_db::monitors::get_unscoped(state.pool(), monitor_id).await?;
     ingest(
         state,
         &monitor,
