@@ -220,6 +220,7 @@ async fn apply_monitors(
 async fn create(
     State(state): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Json(input): Json<NewMonitor>,
 ) -> Result<(StatusCode, Json<Monitor>), ApiError> {
@@ -230,7 +231,8 @@ async fn create(
                 "push monitors are inbound-only and cannot be assigned to an agent".into(),
             ));
         }
-        rampart_db::agents::get(state.pool(), aid)
+        // The assigned agent must belong to the caller's org.
+        rampart_db::agents::get(state.pool(), aid, org.org_id)
             .await
             .map_err(|_| ApiError::BadRequest("unknown agent".into()))?;
     }
@@ -369,7 +371,7 @@ async fn update(
                 "push monitors are inbound-only and cannot be assigned to an agent".into(),
             ));
         }
-        rampart_db::agents::get(state.pool(), aid)
+        rampart_db::agents::get(state.pool(), aid, org.org_id)
             .await
             .map_err(|_| ApiError::BadRequest("unknown agent".into()))?;
     }
