@@ -19,6 +19,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.117.0] — 2026-06-17
+
+### Added
+- **Multi-tenancy — Phase 3i: org-scoped agents + scheduled reports.** Agent
+  management (`list`/`get`/`update`/`delete`) and scheduled-report management
+  (`list`/`get`/`update`/`delete`) take an `org_id` and filter by it — a
+  cross-org id is a 404, and assigning an agent to a monitor now validates the
+  agent belongs to the caller's org. The agent-token resolver
+  (`agents::lookup`/`touch_seen`) and the scheduler report path
+  (`due`/`mark_sent`/`render`) stay unscoped (auth / no-request-context).
+  `create` stays on the column DEFAULT (write-stamping is Phase 4).
+  Behaviour-identical for a single-org install. **This completes Phase-3
+  read filtering for the infra-credentials domain** (api-keys, proxies, agents,
+  scheduled-reports; `ingest_tokens` is parent-scoped via status pages and lands
+  with the status-page-children pass). See [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.116.0] — 2026-06-17
 
 ### Added
