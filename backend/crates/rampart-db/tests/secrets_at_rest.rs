@@ -3,6 +3,8 @@
 //! transparently return the original plaintext (so the notifier dispatch path,
 //! which goes through `notifications::get`, is unaffected).
 
+use rampart_core::ids::OrgId;
+use rampart_core::org::DEFAULT_ORG_ID;
 use rampart_core::ChannelKind;
 use rampart_db::notifications::{self, NewNotification};
 use sqlx::PgPool;
@@ -33,7 +35,9 @@ async fn channel_config_is_encrypted_at_rest(pool: PgPool) {
         .unwrap();
 
     // Read-back via the normal API path decrypts transparently.
-    let got = notifications::get(&pool, created.id).await.unwrap();
+    let got = notifications::get(&pool, created.id, OrgId::from_uuid(DEFAULT_ORG_ID))
+        .await
+        .unwrap();
     assert_eq!(got.config["token"], secret, "get() must return plaintext");
 
     // The raw column must NOT contain the plaintext — it's the sealed envelope.

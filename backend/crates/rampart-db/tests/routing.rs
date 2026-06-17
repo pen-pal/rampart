@@ -242,6 +242,7 @@ async fn dedupes_across_paths_and_skips_inactive(pool: PgPool) {
             quiet_hours_end: None,
             rate_limit_per_hour: None,
         },
+        rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID),
     )
     .await
     .unwrap();

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT mn.monitor_id, COUNT(*)::int8 AS \"count!\"\n        FROM monitor_notifications mn\n        JOIN notifications n ON n.id = mn.notification_id\n        WHERE n.active\n        GROUP BY mn.monitor_id\n        ",
+  "query": "\n        SELECT mn.monitor_id, COUNT(*)::int8 AS \"count!\"\n        FROM monitor_notifications mn\n        JOIN notifications n ON n.id = mn.notification_id\n        WHERE n.active AND n.org_id = $1\n        GROUP BY mn.monitor_id\n        ",
   "describe": {
     "columns": [
       {
@@ -22,12 +22,14 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid"
+      ]
     },
     "nullable": [
       false,
       null
     ]
   },
-  "hash": "c6a1387c7399871a527d3e9e8fe8857073ddb95f6fee0df44d356e4b2f08350b"
+  "hash": "1e9cc97271c22b0581f2a3848101730bd7db47cc8effbd578decc5c21aaf0903"
 }

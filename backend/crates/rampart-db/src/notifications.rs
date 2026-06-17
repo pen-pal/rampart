@@ -1,7 +1,7 @@
 //! Notification channel queries.
 
 use crate::{DbError, DbPool, DbResult};
-use rampart_core::ids::{MonitorId, NotificationId, NotificationTemplateId};
+use rampart_core::ids::{MonitorId, NotificationId, NotificationTemplateId, OrgId};
 use rampart_core::tag::TagBrief;
 use rampart_core::ChannelKind;
 use serde::{Deserialize, Serialize};
@@ -136,7 +136,53 @@ where
     serde::Deserialize::deserialize(d).map(Some)
 }
 
-pub async fn list(pool: &DbPool) -> DbResult<Vec<Notification>> {
+/// Notification channels owned by one org — the management list (org-scoped).
+pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<Notification>> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT id, kind AS "kind: ChannelKind", name, config, active,
+               template_id, created_at, cooldown_seconds, digest_window_secs,
+               quiet_hours_start, quiet_hours_end, rate_limit_per_hour, last_fired_at
+        FROM notifications
+        WHERE org_id = $1
+        ORDER BY created_at DESC
+        "#,
+        org_id.0,
+    )
+    .fetch_all(pool)
+    .await?;
+    let mut channels: Vec<Notification> = rows
+        .into_iter()
+        .map(|r| Notification {
+            id: NotificationId::from_uuid(r.id),
+            kind: r.kind,
+            name: r.name,
+            config: crate::secrets::open(r.config),
+            active: r.active,
+            template_id: r.template_id.map(NotificationTemplateId::from_uuid),
+            created_at: r.created_at,
+            cooldown_seconds: r.cooldown_seconds,
+            digest_window_secs: r.digest_window_secs,
+            quiet_hours_start: r.quiet_hours_start,
+            quiet_hours_end: r.quiet_hours_end,
+            rate_limit_per_hour: r.rate_limit_per_hour,
+            last_fired_at: r.last_fired_at,
+            tags: Vec::new(),
+        })
+        .collect();
+    let ids: Vec<NotificationId> = channels.iter().map(|c| c.id).collect();
+    let mut tag_map = crate::tags::hydrate_for_channels(pool, &ids).await?;
+    for c in channels.iter_mut() {
+        if let Some(t) = tag_map.remove(&c.id) {
+            c.tags = t;
+        }
+    }
+    Ok(channels)
+}
+
+/// Every channel across ALL orgs — for system callers (seed/import). Not
+/// org-scoped; never call on a request path (use [`list`]).
+pub async fn list_all(pool: &DbPool) -> DbResult<Vec<Notification>> {
     let rows = sqlx::query!(
         r#"
         SELECT id, kind AS "kind: ChannelKind", name, config, active,
@@ -177,7 +223,45 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<Notification>> {
     Ok(channels)
 }
 
-pub async fn get(pool: &DbPool, id: NotificationId) -> DbResult<Notification> {
+/// Fetch one channel scoped to an org (cross-org id → NotFound). Request path.
+pub async fn get(pool: &DbPool, id: NotificationId, org_id: OrgId) -> DbResult<Notification> {
+    let row = sqlx::query!(
+        r#"
+        SELECT id, kind AS "kind: ChannelKind", name, config, active,
+               template_id, created_at, cooldown_seconds, digest_window_secs,
+               quiet_hours_start, quiet_hours_end, rate_limit_per_hour, last_fired_at
+        FROM notifications
+        WHERE id = $1 AND org_id = $2
+        "#,
+        id.0,
+        org_id.0,
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or(DbError::NotFound)?;
+    let nid = NotificationId::from_uuid(row.id);
+    let mut tag_map = crate::tags::hydrate_for_channels(pool, &[nid]).await?;
+    Ok(Notification {
+        id: nid,
+        kind: row.kind,
+        name: row.name,
+        config: crate::secrets::open(row.config),
+        active: row.active,
+        template_id: row.template_id.map(NotificationTemplateId::from_uuid),
+        created_at: row.created_at,
+        cooldown_seconds: row.cooldown_seconds,
+        digest_window_secs: row.digest_window_secs,
+        quiet_hours_start: row.quiet_hours_start,
+        quiet_hours_end: row.quiet_hours_end,
+        rate_limit_per_hour: row.rate_limit_per_hour,
+        last_fired_at: row.last_fired_at,
+        tags: tag_map.remove(&nid).unwrap_or_default(),
+    })
+}
+
+/// Fetch one channel WITHOUT org scoping — for the notifier resolving a channel
+/// to dispatch through (no request context). Not for request paths.
+pub async fn get_unscoped(pool: &DbPool, id: NotificationId) -> DbResult<Notification> {
     let row = sqlx::query!(
         r#"
         SELECT id, kind AS "kind: ChannelKind", name, config, active,
@@ -260,8 +344,9 @@ pub async fn update(
     pool: &DbPool,
     id: NotificationId,
     input: UpdateNotification,
+    org_id: OrgId,
 ) -> DbResult<Notification> {
-    let cur = get(pool, id).await?;
+    let cur = get(pool, id, org_id).await?;
     let new_name = input.name.unwrap_or(cur.name);
     let new_config = input.config.unwrap_or(cur.config);
     let new_active = input.active.unwrap_or(cur.active);
@@ -293,7 +378,7 @@ pub async fn update(
         SET name = $2, config = $3, active = $4, template_id = $5, cooldown_seconds = $6,
             digest_window_secs = $7, quiet_hours_start = $8, quiet_hours_end = $9,
             rate_limit_per_hour = $10
-        WHERE id = $1
+        WHERE id = $1 AND org_id = $11
         RETURNING id, kind AS "kind: ChannelKind", name, config, active,
                   template_id, created_at, cooldown_seconds, digest_window_secs,
                   quiet_hours_start, quiet_hours_end, rate_limit_per_hour, last_fired_at
@@ -308,6 +393,7 @@ pub async fn update(
         new_quiet_start,
         new_quiet_end,
         new_rate,
+        org_id.0,
     )
     .fetch_one(pool)
     .await?;
@@ -337,15 +423,19 @@ pub struct MonitorChannelCount {
     pub count: i64,
 }
 
-pub async fn counts_per_monitor(pool: &DbPool) -> DbResult<Vec<MonitorChannelCount>> {
+pub async fn counts_per_monitor(
+    pool: &DbPool,
+    org_id: OrgId,
+) -> DbResult<Vec<MonitorChannelCount>> {
     let rows = sqlx::query!(
         r#"
         SELECT mn.monitor_id, COUNT(*)::int8 AS "count!"
         FROM monitor_notifications mn
         JOIN notifications n ON n.id = mn.notification_id
-        WHERE n.active
+        WHERE n.active AND n.org_id = $1
         GROUP BY mn.monitor_id
         "#,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -358,10 +448,14 @@ pub async fn counts_per_monitor(pool: &DbPool) -> DbResult<Vec<MonitorChannelCou
         .collect())
 }
 
-pub async fn delete(pool: &DbPool, id: NotificationId) -> DbResult<()> {
-    let r = sqlx::query!(r#"DELETE FROM notifications WHERE id = $1"#, id.0)
-        .execute(pool)
-        .await?;
+pub async fn delete(pool: &DbPool, id: NotificationId, org_id: OrgId) -> DbResult<()> {
+    let r = sqlx::query!(
+        r#"DELETE FROM notifications WHERE id = $1 AND org_id = $2"#,
+        id.0,
+        org_id.0,
+    )
+    .execute(pool)
+    .await?;
     if r.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }
