@@ -626,7 +626,7 @@ async fn push_hbs(pool: &DbPool, mon_uuid: uuid::Uuid, stats: &mut SeedStats) {
 
 /// First notification channel id (the seeded Slack webhook), if any.
 async fn demo_channel(pool: &DbPool) -> Option<rampart_core::ids::NotificationId> {
-    rampart_db::notifications::list(pool).await.ok()?.into_iter().next().map(|n| n.id)
+    rampart_db::notifications::list_all(pool).await.ok()?.into_iter().next().map(|n| n.id)
 }
 
 /// More app monitors across more probe kinds, a multi-step synthetic

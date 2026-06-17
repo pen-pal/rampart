@@ -233,7 +233,7 @@ pub async fn resend_delivery(
     entry: &rampart_db::delivery_log::DeliveryEntry,
     channel_id: NotificationId,
 ) -> anyhow::Result<rampart_db::delivery_log::DeliveryEntry> {
-    let chan = rampart_db::notifications::get(pool, channel_id).await?;
+    let chan = rampart_db::notifications::get_unscoped(pool, channel_id).await?;
 
     // Rebuild a representative monitor for rendering: the real one when it
     // still exists, otherwise a synthetic stand-in.
@@ -357,7 +357,7 @@ pub async fn send_event_to_channel(
             return Ok(false);
         }
     }
-    let chan = rampart_db::notifications::get(pool, channel_id).await?;
+    let chan = rampart_db::notifications::get_unscoped(pool, channel_id).await?;
 
     let subject = template::default_subject(event);
     let body = match chan.template_id {
@@ -877,7 +877,7 @@ async fn flush_channel(pool: &DbPool, id: NotificationId) -> anyhow::Result<()> 
     // config / template / window — reflects any edit made mid-window). If
     // the channel was deleted the FK cascade already cleared the buffer,
     // so a NotFound here means there's nothing left to do.
-    let chan = match rampart_db::notifications::get(pool, id).await {
+    let chan = match rampart_db::notifications::get_unscoped(pool, id).await {
         Ok(c) => c,
         Err(rampart_db::DbError::NotFound) => {
             rampart_db::digest_buffer::delete_by_ids(pool, &drained_ids).await?;
