@@ -185,11 +185,22 @@ startupProbe:
 # Safe to scale: the API tier is stateless (all state in Postgres), and the
 # scheduler / notifier / prune run only on the ONE replica that holds the
 # Postgres advisory lock (leader election, rampart_db::leader). So extra
-# replicas serve HTTP without duplicating probes or alerts; on the leader's
-# exit a follower takes over within ~10s (active-passive HA for the background
-# work, active-active for the API). Caveat: the live SSE heartbeat stream is
-# per-process, so real-time dashboard updates come from the leader replica;
-# all REST/data works on every replica.
+# replicas serve HTTP without duplicating probes or alerts (active-passive HA
+# for the background work, active-active for the API).
+#
+# Two composition caveats to plan for when running >1 replica:
+#
+#   * Background-work failover takes up to ~25s, not instant. The lock is only
+#     released when the dead leader's Postgres connection drops; a follower then
+#     re-acquires on its next attempt (RETRY ~10s) after the keepalive window
+#     (~15s) lapses. Probes/alerts pause for that window on an ungraceful leader
+#     loss (a graceful SIGTERM hands off faster).
+#   * OIDC login + the live SSE heartbeat stream are per-process. The OIDC PKCE
+#     `state` is held in the leader/handling pod's memory, so an SSO round-trip
+#     that lands on a different replica than it started on will fail — enable
+#     session affinity (sticky sessions) at the ingress/Service if you use OIDC
+#     across replicas. The SSE stream likewise comes from one process; all
+#     REST/data endpoints work on every replica.
 autoscaling:
   enabled: false
   minReplicas: 2
