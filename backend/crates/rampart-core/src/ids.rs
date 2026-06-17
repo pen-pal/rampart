@@ -94,3 +94,4 @@ id!(TelemetryRuleId);
 id!(DetectionRuleId);
 id!(DetectionFindingId);
 id!(SloId);
+id!(DeployMarkerId);

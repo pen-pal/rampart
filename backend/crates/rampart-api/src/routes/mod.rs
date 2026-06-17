@@ -14,6 +14,7 @@ pub mod api_keys;
 pub mod audit;
 pub mod auth;
 pub mod delivery_log;
+pub mod deploy_markers;
 pub mod detection;
 pub mod error_ingest;
 pub mod error_tracking;
@@ -163,6 +164,7 @@ pub fn v1_protected() -> Router<AppState> {
         .nest("/telemetry-rules", telemetry_rules::router())
         // /v1/detection-rules — SIEM log detection rules + their findings
         .nest("/detection-rules", detection::router())
+        .nest("/deploy-markers", deploy_markers::router())
         // /v1/slos — service level objectives + error budgets (editor)
         .nest("/slos", slos::router())
         // /v1/silences — mute alerts during deploys / known noise (editor)

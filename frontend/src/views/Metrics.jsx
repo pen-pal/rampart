@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import {
   ChevronLeft, Plus, Trash2, AlertCircle, Loader2, X, Pencil, Check, Copy,
-  Activity, BellRing, Flame, LineChart,
+  Activity, BellRing, Flame, LineChart, Flag,
 } from 'lucide-react';
 import { api, useApi, formatRelative, offsetDateTimeArrayToDate } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
-import { confirmDialog } from '../lib/notify.js';
+import { confirmDialog, promptDialog, toast } from '../lib/notify.js';
 import { canWrite } from '../lib/roles.js';
 
 const css = `
@@ -151,9 +151,21 @@ export default function Metrics({ user }) {
           <ChevronLeft size={14}/> {t('metrics.back')}
         </a>
 
-        <div style={{ marginBottom: 22 }}>
-          <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 4px', letterSpacing: '-.02em' }}>{t('metrics.title')}</h1>
-          <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 0 }}>{t('metrics.subtitle')}</p>
+        <div style={{ marginBottom: 22, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+          <div>
+            <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 4px', letterSpacing: '-.02em' }}>{t('metrics.title')}</h1>
+            <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 0 }}>{t('metrics.subtitle')}</p>
+          </div>
+          {writable && (
+            <button className="btn" onClick={async () => {
+              const title = await promptDialog({ title: t('metrics.deploy.title'), message: t('metrics.deploy.prompt'), confirmLabel: t('metrics.deploy.mark') });
+              if (!title || !title.trim()) return;
+              try { await api.deployMarkers.create({ title: title.trim() }); toast(t('metrics.deploy.ok'), 'success'); }
+              catch (e) { toast(e.message, 'error'); }
+            }}>
+              <Flag size={13}/> {t('metrics.deploy.mark')}
+            </button>
+          )}
         </div>
 
         <div className="tabs">
@@ -303,6 +315,14 @@ function SeriesChart({ name, labels, range }) {
     });
   }, [name, JSON.stringify(labels || {}), range]);
 
+  // Deploy markers within the same window, overlaid as vertical lines so a
+  // latency change can be correlated with "what shipped".
+  const markersState = useApi(
+    () => api.deployMarkers.list({ hours: Math.max(1, Math.round(r.secs / 3600)) }),
+    [range],
+    { pollMs: 60_000 },
+  );
+
   if (state.loading) {
     return <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-3)', fontSize: 13 }}>
       <Loader2 size={14} style={{ marginRight: 6 }}/> {t('common.loading')}
@@ -370,6 +390,23 @@ function SeriesChart({ name, labels, range }) {
         <polygon points={bandPts} fill="var(--accent)" opacity="0.12"/>
         <polyline points={avgPts} fill="none" stroke="var(--accent)" strokeWidth="1.8"
           strokeLinejoin="round" strokeLinecap="round"/>
+        {/* deploy markers: dashed vertical lines at each marker within the window */}
+        {(markersState.data || []).map((m) => {
+          const md = tsToDate(m.ts);
+          const x = md.getTime();
+          if (isNaN(x) || x < t0 || x > t1) return null;
+          const mx = X(md);
+          return (
+            <g key={m.id}>
+              <line x1={mx} x2={mx} y1={padT} y2={padT + plotH}
+                stroke="var(--warn, #f59e0b)" strokeWidth="1" strokeDasharray="3 2" opacity="0.8">
+                <title>{`${fmtTime(md)} · ${m.title}${m.description ? ' — ' + m.description : ''}`}</title>
+              </line>
+              <polygon points={`${mx - 3},${padT} ${mx + 3},${padT} ${mx},${padT + 5}`}
+                fill="var(--warn, #f59e0b)"/>
+            </g>
+          );
+        })}
         {/* invisible hover targets — one per bucket, native <title> tooltip */}
         {buckets.map((p, i) => (
           <rect key={i}

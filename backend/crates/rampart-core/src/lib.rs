@@ -12,6 +12,7 @@
 pub mod agent;
 pub mod api_key;
 pub mod cron;
+pub mod deploy_marker;
 pub mod detection;
 pub mod error;
 pub mod error_tracking;
@@ -48,6 +49,7 @@ pub mod testing;
 pub use agent::{Agent, AgentResult, IssuedAgent, NewAgent, UpdateAgent};
 pub use api_key::{ApiKey, IssuedApiKey, KeyScope, NewApiKey};
 pub use cron::{CronExpr, CronSchedule};
+pub use deploy_marker::{DeployMarker, NewDeployMarker};
 pub use detection::{
     DetectionCondition, DetectionFinding, DetectionRule, DetectionSeverity, NewDetectionRule,
     UpdateDetectionRule,
