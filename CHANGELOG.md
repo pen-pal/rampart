@@ -19,6 +19,28 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.106.1] — 2026-06-17
+
+### Fixed
+- **Console noise on the operator's own dashboard.** The boot host-header probe
+  (`GET /v1/public/status-pages/by-domain/{host}`) is fired on every bare-hash
+  load to detect whether the current hostname is a status-page custom domain.
+  When it isn't — i.e. the normal dashboard host — the endpoint returned `404`,
+  which the browser logs as a red console error even though the JS already
+  handled it as the expected "not a custom domain" answer. The endpoint now
+  returns `200 null` for a non-matching host; the frontend already treats a
+  falsy payload as "fall through to the dashboard" (App.jsx) / "page not found"
+  (StatusPageView), so behaviour is unchanged and the console stays clean.
+- **recharts `width(-1) height(-1)` warning.** The Dashboard response-time chart
+  and both MonitorDetail charts use `<ResponsiveContainer>`, whose dimensions
+  default to the `{-1,-1}` sentinel until its ResizeObserver fires — logging a
+  spurious "width/height should be greater than 0" warning on first paint. Each
+  now passes `initialDimension` matching its fixed-height parent, so the first
+  render starts with positive dims and the warning is gone (the observer still
+  corrects to the real size within a frame).
+
+---
+
 ## [0.106.0] — 2026-06-17
 
 ### Added
