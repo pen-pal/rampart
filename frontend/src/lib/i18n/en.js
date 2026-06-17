@@ -419,6 +419,8 @@ const en = {
   'detection.f.threshold':           'Threshold',
   'detection.f.threshold_hint':      'Raise a finding when at least this many new matches land in a tick.',
   'detection.f.window':              'Window (s)',
+  'detection.f.cooldown':            'Cooldown (s)',
+  'detection.f.cooldown_hint':       'After a finding, suppress repeats for this many seconds (matches still advance the watermark). 0 = alert every tick.',
   'detection.f.channels':            'Notify channels',
   'detection.f.escalation':          'Escalation policy',
   'detection.f.no_escalation':       'None',
