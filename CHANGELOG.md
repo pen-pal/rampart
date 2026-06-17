@@ -19,6 +19,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.105.0] — 2026-06-17
+
+### Added
+- **Detection v2: per-entity aggregation (`group_by`).** A detection rule can now
+  aggregate by a log attribute — e.g. `group_by = user`, threshold 5 fires once
+  per user with ≥5 matches in the window ("brute-force per account"), instead of
+  one global count. The tick groups by `attributes->>group_by`, raises a separate
+  finding per entity reaching the threshold (the finding records which entity),
+  and applies cooldown **per entity** so a noisy entity doesn't mute alerts for
+  others. Records lacking the attribute are ignored. Works with both the flat
+  match and the v2 boolean condition. Migration `0105`; the rule form gains a
+  "Group by attribute" field and findings show the entity. **This completes
+  Detection v2** (suppression + boolean composition + per-entity aggregation).
+  Verified: DB eval test (per-user threshold, entity recorded, under-threshold +
+  attribute-less records ignored) + live API round-trip.
+
+---
+
 ## [0.104.0] — 2026-06-17
 
 ### Added
