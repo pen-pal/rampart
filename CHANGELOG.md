@@ -19,6 +19,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.114.0] — 2026-06-17
+
+### Added
+- **Multi-tenancy — Phase 3f: org-scoped escalation policies.** The escalation
+  policy management reads/mutations (`list`/`get`/`update`/`delete`) take an
+  `org_id` and filter by it — a cross-org policy id is a 404. The episode
+  lifecycle the scheduler + notifier drive (open/resolve/advance/due + the
+  policy lookup at page time) stays unscoped via a new `get_unscoped` sibling,
+  since it runs with no request context. `create` stays on the column DEFAULT
+  (write-stamping is Phase 4); episode views (`list_open`/`open_for_monitor`/
+  `ack`) are parent-scoped through their policy/monitor and unchanged here.
+  Behaviour-identical for a single-org install. **This completes Phase-3
+  read filtering for the entire alerting domain** (channels, rules, silences,
+  SLOs, on-call, detection, delivery-log, escalations). See
+  [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.113.0] — 2026-06-17
 
 ### Added
