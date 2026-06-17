@@ -155,7 +155,9 @@ fn fan_out_incident(
                 return;
             }
         };
-        let page_row = match rampart_db::status_pages::get(state.pool(), page).await {
+        // Background fan-out (spawned, no request context); the page was
+        // org-checked when the incident was created, so fetch unscoped.
+        let page_row = match rampart_db::status_pages::get_unscoped(state.pool(), page).await {
             Ok(p) => p,
             Err(e) => {
                 tracing::warn!("status page lookup: {e}");
