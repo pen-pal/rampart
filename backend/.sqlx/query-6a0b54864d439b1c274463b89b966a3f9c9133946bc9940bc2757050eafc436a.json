@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE monitors SET group_id = $1 WHERE id = $2 AND org_id = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6a0b54864d439b1c274463b89b966a3f9c9133946bc9940bc2757050eafc436a"
+}

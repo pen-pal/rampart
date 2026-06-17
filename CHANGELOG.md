@@ -19,6 +19,30 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.109.0] — 2026-06-17
+
+### Added
+- **Multi-tenancy — Phase 3a: org-scoped monitors (read filtering begins).**
+  The monitors management surface now filters by the request's `OrgContext`:
+  `monitors::{list,get,update,delete,set_active,set_group,regenerate_push_token}`
+  take an `org_id` and add `WHERE org_id = $org`, so a caller only ever sees or
+  mutates its own org's monitors (a cross-org id is an IDOR-safe 404, not a
+  leak). System/runtime callers that legitimately span all orgs — the scheduler
+  probe loop, the notifier fan-out, push ingest, an agent reporting its own
+  monitor, a status page resolving a linked monitor, retention/seed/import
+  tooling — use new explicit unscoped siblings `monitors::list_all` /
+  `monitors::get_unscoped` (secure-by-default: the plain names are the scoped
+  ones). The `bulk` endpoint's monitor actions (pause/resume/delete/set-group)
+  are org-scoped through the same fns, so a bulk request can't touch another
+  org's monitors. Behaviour-identical for a single-org install (every row is the
+  Default org and the context resolves to it, so the filter returns everything).
+  First slice of the per-domain Phase-3 rollout; alerting / status-pages /
+  telemetry domains follow. New db test `read_filter_isolates_orgs` proves a
+  monitor in another org is invisible to the Default org. See
+  [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.108.0] — 2026-06-17
 
 ### Added

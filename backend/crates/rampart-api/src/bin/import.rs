@@ -192,7 +192,7 @@ async fn run(args: Args) -> anyhow::Result<ExitCode> {
     // operator wants dedup; cheaper than a per-row lookup and matches
     // how the API's own dashboard renders the list.
     let existing: std::collections::HashSet<String> = if args.skip_existing {
-        monitors::list(&pool)
+        monitors::list_all(&pool)
             .await?
             .into_iter()
             .map(|m| m.name)

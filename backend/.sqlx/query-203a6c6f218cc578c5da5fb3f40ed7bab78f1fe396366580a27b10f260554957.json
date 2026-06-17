@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE monitors\n           SET push_token = $1, updated_at = NOW()\n         WHERE id = $2 AND kind = 'push' AND org_id = $3\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "203a6c6f218cc578c5da5fb3f40ed7bab78f1fe396366580a27b10f260554957"
+}

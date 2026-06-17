@@ -239,8 +239,13 @@ pub async fn resend_delivery(
     // still exists, otherwise a synthetic stand-in.
     let monitor = match entry.monitor_id {
         Some(mid) => {
-            match rampart_db::monitors::get(pool, rampart_core::ids::MonitorId::from_uuid(mid))
-                .await
+            // Notifier fan-out runs with no request context; the monitor id
+            // comes from the alert being rendered, so fetch unscoped.
+            match rampart_db::monitors::get_unscoped(
+                pool,
+                rampart_core::ids::MonitorId::from_uuid(mid),
+            )
+            .await
             {
                 Ok(m) => m,
                 Err(rampart_db::DbError::NotFound) => synthetic_monitor(),

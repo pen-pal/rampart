@@ -229,7 +229,7 @@ impl Scheduler {
             let event = match episode.subject_kind.as_str() {
                 "monitor" => {
                     let Some(mid) = episode.monitor_id else { continue };
-                    let monitor = match rampart_db::monitors::get(&self.pool, mid).await {
+                    let monitor = match rampart_db::monitors::get_unscoped(&self.pool, mid).await {
                         Ok(m) => m,
                         Err(_) => continue, // monitor deleted; episode cascades away
                     };
@@ -862,7 +862,7 @@ impl Scheduler {
             // subscriber fan-out (in the notifier) work unchanged. The
             // notifier de-dups subscriber emails across the page.
             for mid in &w.monitor_ids {
-                let monitor = match rampart_db::monitors::get(&self.pool, *mid).await {
+                let monitor = match rampart_db::monitors::get_unscoped(&self.pool, *mid).await {
                     Ok(m) => m,
                     Err(e) => {
                         warn!(monitor = %mid, error = %e, "monitor hydrate for maintenance event failed");
@@ -885,7 +885,7 @@ impl Scheduler {
     /// for monitors that should be running but aren't; cancel tasks for
     /// monitors that have been deleted or deactivated.
     async fn reconcile(&self) -> Result<(), rampart_db::DbError> {
-        let live = rampart_db::monitors::list(&self.pool).await?;
+        let live = rampart_db::monitors::list_all(&self.pool).await?;
         // Agent-assigned monitors are probed remotely — the agent reports
         // heartbeats through the API ingest path. Running a local probe
         // task too would double-probe (and double-alert), so they're
@@ -967,7 +967,7 @@ impl Scheduler {
                         // effect on the very next probe rather than only
                         // after a delete + recreate. Single PK lookup;
                         // cheap even at thousands of monitors.
-                        match rampart_db::monitors::get(&pool_in_task, monitor_id).await {
+                        match rampart_db::monitors::get_unscoped(&pool_in_task, monitor_id).await {
                             Ok(fresh) => {
                                 if !fresh.active {
                                     // Reconcile will tear us down — exit
@@ -1411,7 +1411,7 @@ async fn check_slo_breaches(pool: &DbPool, batch: &[Heartbeat], notifier: Option
 
         // Hydrate the full monitor so the template engine + per-channel
         // adapters have the same shape they get for status flips.
-        let monitor = match rampart_db::monitors::get(pool, mid).await {
+        let monitor = match rampart_db::monitors::get_unscoped(pool, mid).await {
             Ok(m) => m,
             Err(e) => {
                 warn!(monitor = %mid, error = %e, "monitor hydrate for SLO event failed");
@@ -1470,7 +1470,7 @@ async fn fire_result_webhooks(pool: &DbPool, client: &reqwest::Client, batch: &[
     let mut target_for: HashMap<MonitorId, Option<Target>> = HashMap::new();
     for hb in batch {
         if let std::collections::hash_map::Entry::Vacant(e) = target_for.entry(hb.monitor_id) {
-            let target = match rampart_db::monitors::get(pool, hb.monitor_id).await {
+            let target = match rampart_db::monitors::get_unscoped(pool, hb.monitor_id).await {
                 Ok(m) => result_webhook_url(&m).map(|url| (url, result_webhook_secret(&m), m.name)),
                 Err(e2) => {
                     warn!(monitor = %hb.monitor_id, error = %e2, "result webhook monitor fetch failed");

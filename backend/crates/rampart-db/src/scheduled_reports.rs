@@ -214,7 +214,9 @@ fn cadence_label(cadence: &str) -> &'static str {
 /// due-report check and the API's send-now endpoint so the two never drift.
 pub async fn render(pool: &DbPool, report_name: &str, cadence: &str) -> DbResult<(String, String)> {
     let window_seconds = cadence_window_seconds(cadence);
-    let monitors = crate::monitors::list(pool).await?;
+    // System-side report generation over the whole fleet (scheduled reports
+    // become per-org in a later multi-tenancy phase).
+    let monitors = crate::monitors::list_all(pool).await?;
 
     let subject = format!("{} uptime report — {report_name}", cadence_label(cadence));
     let mut lines = Vec::with_capacity(monitors.len() + 2);

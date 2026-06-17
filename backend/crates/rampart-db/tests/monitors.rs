@@ -1,9 +1,17 @@
 //! Integration tests for `rampart_db::monitors`.
 
+use rampart_core::ids::OrgId;
 use rampart_core::monitor::NewMonitor;
+use rampart_core::org::DEFAULT_ORG_ID;
 use rampart_core::{MonitorKind, MonitorStatus};
 use rampart_db::monitors::{create, delete, get, list, set_active};
 use sqlx::PgPool;
+
+/// The org every `create`d monitor lands in (via the migration-0108 column
+/// default) until write-stamping arrives in a later phase.
+fn def_org() -> OrgId {
+    OrgId::from_uuid(DEFAULT_ORG_ID)
+}
 
 fn http_monitor(name: &str, url: &str) -> NewMonitor {
     NewMonitor {
@@ -36,7 +44,7 @@ fn http_monitor(name: &str, url: &str) -> NewMonitor {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn list_empty_by_default(pool: PgPool) {
-    let ms = list(&pool).await.unwrap();
+    let ms = list(&pool, def_org()).await.unwrap();
     assert!(ms.is_empty());
 }
 
@@ -50,7 +58,7 @@ async fn create_round_trips(pool: PgPool) {
     assert!(m.active);
     assert_eq!(m.current_status, MonitorStatus::Pending);
 
-    let got = get(&pool, m.id).await.unwrap();
+    let got = get(&pool, m.id, def_org()).await.unwrap();
     assert_eq!(got.id, m.id);
 }
 
@@ -65,7 +73,7 @@ async fn list_returns_all_in_recency_order(pool: PgPool) {
     let _c = create(&pool, http_monitor("c", "https://c.example.com"))
         .await
         .unwrap();
-    let ms = list(&pool).await.unwrap();
+    let ms = list(&pool, def_org()).await.unwrap();
     assert_eq!(ms.len(), 3);
 }
 
@@ -76,12 +84,12 @@ async fn set_active_toggles_field(pool: PgPool) {
         .unwrap();
     assert!(m.active);
 
-    set_active(&pool, m.id, false).await.unwrap();
-    let paused = get(&pool, m.id).await.unwrap();
+    set_active(&pool, m.id, false, def_org()).await.unwrap();
+    let paused = get(&pool, m.id, def_org()).await.unwrap();
     assert!(!paused.active);
 
-    set_active(&pool, m.id, true).await.unwrap();
-    let resumed = get(&pool, m.id).await.unwrap();
+    set_active(&pool, m.id, true, def_org()).await.unwrap();
+    let resumed = get(&pool, m.id, def_org()).await.unwrap();
     assert!(resumed.active);
 }
 
@@ -90,16 +98,18 @@ async fn delete_removes_from_list(pool: PgPool) {
     let m = create(&pool, http_monitor("gone", "https://gone.example.com"))
         .await
         .unwrap();
-    delete(&pool, m.id).await.unwrap();
-    assert!(get(&pool, m.id).await.is_err());
-    let ms = list(&pool).await.unwrap();
+    delete(&pool, m.id, def_org()).await.unwrap();
+    assert!(get(&pool, m.id, def_org()).await.is_err());
+    let ms = list(&pool, def_org()).await.unwrap();
     assert!(ms.is_empty());
 }
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn delete_missing_is_not_found(pool: PgPool) {
     use rampart_core::ids::MonitorId;
-    let err = delete(&pool, MonitorId::new()).await.unwrap_err();
+    let err = delete(&pool, MonitorId::new(), def_org())
+        .await
+        .unwrap_err();
     assert!(matches!(err, rampart_db::DbError::NotFound), "got: {err:?}");
 }
 
@@ -116,4 +126,37 @@ async fn create_tcp_monitor_persists_host_and_port(pool: PgPool) {
     assert_eq!(m.kind, MonitorKind::Tcp);
     assert_eq!(m.hostname.as_deref(), Some("redis.internal"));
     assert_eq!(m.port, Some(6379));
+}
+
+/// Multi-tenancy Phase 3: a monitor owned by another org is invisible to the
+/// Default org — `list` excludes it, `get` 404s, and a scoped mutation can't
+/// touch it — while the owning org sees it. Proves the org_id read filter.
+#[sqlx::test(migrations = "../../migrations")]
+async fn read_filter_isolates_orgs(pool: PgPool) {
+    // A second org + a monitor moved into it (create stamps Default; move it
+    // with a direct UPDATE since write-stamping by org is a later phase).
+    let other = rampart_db::orgs::create(&pool, "other", "Other")
+        .await
+        .unwrap();
+    let m = create(&pool, http_monitor("secret", "https://secret.example.com"))
+        .await
+        .unwrap();
+    sqlx::query("UPDATE monitors SET org_id = $1 WHERE id = $2")
+        .bind(other.id.0)
+        .bind(m.id.0)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    // Default org can't see or fetch it.
+    assert!(list(&pool, def_org()).await.unwrap().is_empty());
+    assert!(get(&pool, m.id, def_org()).await.is_err());
+    // A scoped mutation from the wrong org is a no-op NotFound.
+    assert!(delete(&pool, m.id, def_org()).await.is_err());
+
+    // The owning org sees it.
+    let owner_view = list(&pool, other.id).await.unwrap();
+    assert_eq!(owner_view.len(), 1);
+    assert_eq!(owner_view[0].id, m.id);
+    assert!(get(&pool, m.id, other.id).await.is_ok());
 }
