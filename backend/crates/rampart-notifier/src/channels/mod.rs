@@ -139,6 +139,61 @@ use rampart_core::ids::NotificationId;
 use rampart_core::ChannelKind;
 use rampart_db::DbPool;
 
+/// Recursively collect every `http(s)://` string value in a config blob.
+fn collect_urls(v: &serde_json::Value, out: &mut Vec<String>) {
+    match v {
+        serde_json::Value::String(s)
+            if s.starts_with("http://") || s.starts_with("https://") =>
+        {
+            out.push(s.clone());
+        }
+        serde_json::Value::Array(a) => a.iter().for_each(|x| collect_urls(x, out)),
+        serde_json::Value::Object(o) => o.values().for_each(|x| collect_urls(x, out)),
+        _ => {}
+    }
+}
+
+/// SSRF-vet every http(s) URL in a channel config. Central pre-flight so a
+/// literal-IP delivery target (which the reqwest DNS-resolver hook never sees)
+/// can't reach the cloud metadata endpoint or internal services.
+async fn guard_config_urls(config: &serde_json::Value) -> Result<(), ChannelError> {
+    let mut urls = Vec::new();
+    collect_urls(config, &mut urls);
+    for u in urls {
+        rampart_ssrf::guard_url(&u)
+            .await
+            .map_err(|e| ChannelError::Blocked(e.to_string()))?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod url_collect_tests {
+    use super::collect_urls;
+
+    #[test]
+    fn finds_nested_http_urls_only() {
+        let cfg = serde_json::json!({
+            "url": "http://127.0.0.1:9201/hook",
+            "nested": { "endpoint": "https://example.com/x" },
+            "list": ["http://a.test/1", "not-a-url", 5],
+            "token": "abc",
+            "ftp": "ftp://nope/x",
+        });
+        let mut out = Vec::new();
+        collect_urls(&cfg, &mut out);
+        out.sort();
+        assert_eq!(
+            out,
+            vec![
+                "http://127.0.0.1:9201/hook",
+                "http://a.test/1",
+                "https://example.com/x",
+            ],
+        );
+    }
+}
+
 /// Build an adapter from the persisted `(kind, config)` pair and ask it
 /// to send. Returns `Err(BadConfig)` for kinds we haven't built yet so
 /// the caller can log it instead of crashing the dispatcher.
@@ -155,6 +210,13 @@ pub async fn dispatch(
     pool: &DbPool,
     notification_id: NotificationId,
 ) -> Result<(), ChannelError> {
+    // SSRF pre-flight: vet every http(s) URL in the channel config before we
+    // send. The shared client's DNS resolver guards hostname targets at connect,
+    // but reqwest skips the resolver for literal-IP URLs (e.g.
+    // http://169.254.169.254), so a config URL pointing straight at an internal
+    // or metadata IP would otherwise bypass the guard entirely.
+    guard_config_urls(config).await?;
+
     // Web Push is a fan-out channel — handled directly, not via the
     // single-target `Channel` trait.
     if kind == ChannelKind::Webpush {

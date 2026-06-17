@@ -131,6 +131,31 @@ pub async fn resolve_guarded(
     Ok(addrs)
 }
 
+/// Pre-flight SSRF guard for a full URL. Use this on any outbound URL built
+/// from a guarded [`guarded_client_builder`] client: reqwest invokes the
+/// [`GuardedResolver`] only for *hostname* targets, so a literal-IP URL (e.g.
+/// `http://169.254.169.254/…`) connects without ever hitting the resolver. This
+/// parses the URL and vets the host through [`resolve_guarded`], which resolves
+/// a hostname and passes an IP-literal straight to the IP check — so it blocks
+/// both. Honors `RAMPART_SSRF_BLOCK_PRIVATE`.
+pub async fn guard_url(url: &str) -> Result<(), SsrfBlocked> {
+    let parsed = reqwest::Url::parse(url).map_err(|_| SsrfBlocked {
+        host: url.to_string(),
+        reason: "unparseable url",
+    })?;
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| SsrfBlocked {
+            host: url.to_string(),
+            reason: "url has no host",
+        })?
+        .to_string();
+    let port = parsed.port_or_known_default().unwrap_or(443);
+    resolve_guarded(&host, port, block_private_enabled())
+        .await
+        .map(|_| ())
+}
+
 /// A `reqwest` DNS resolver that vets every resolved address through the SSRF
 /// guard at connect time. Because reqwest calls the resolver for the initial
 /// request *and* for each followed redirect, this closes the TOCTOU /
@@ -231,5 +256,20 @@ mod tests {
         assert!(check_ip("h", ip("10.0.0.1"), true).is_err());
         // Metadata blocked regardless of the flag.
         assert!(check_ip("h", ip("169.254.169.254"), false).is_err());
+    }
+
+    // guard_url must block literal-IP URLs (loopback + cloud metadata) — the
+    // exact case the reqwest DNS-resolver hook never sees. A literal IP needs no
+    // network to "resolve", so these run offline.
+    #[tokio::test]
+    async fn guard_url_blocks_loopback_and_metadata_literals() {
+        assert!(guard_url("http://127.0.0.1:9201/").await.is_err());
+        assert!(guard_url("http://169.254.169.254/latest/meta-data/").await.is_err());
+        assert!(guard_url("http://[::1]:8080/").await.is_err());
+    }
+
+    #[tokio::test]
+    async fn guard_url_allows_public_literal() {
+        assert!(guard_url("https://1.1.1.1/").await.is_ok());
     }
 }
