@@ -19,6 +19,22 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.115.0] — 2026-06-17
+
+### Added
+- **Multi-tenancy — Phase 3g: org-scoped status pages.** The status-page
+  *management* reads/mutations (`list`/`get`/`update`/`delete`) take an `org_id`
+  and filter by it — a cross-org page id is a 404. The **public** surfaces stay
+  unscoped by design: `get_by_slug`, `find_by_custom_domain` (Host-header
+  routing), `public_view`, and `verify_page_password` resolve a published page
+  by its public slug/host with no session, exactly as before. System callers
+  (seed/import, the spawned incident email fan-out) use new `list_all` /
+  `get_unscoped` siblings. `create` stays on the column DEFAULT (write-stamping
+  is Phase 4); section management (parent-scoped via the page) is unchanged here.
+  Behaviour-identical for a single-org install. See [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.114.0] — 2026-06-17
 
 ### Added
