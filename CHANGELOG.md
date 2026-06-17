@@ -19,6 +19,32 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.101.6] — 2026-06-17
+
+### Fixed
+- **Blank/black page after a redeploy.** With the app open across a deploy, the
+  in-memory `index.html` references the previous build's content-hashed view
+  chunks (e.g. `Maintenance-ABC123.js`); navigating to a not-yet-loaded view
+  then 404s on the missing chunk and the view crashes to the error screen
+  (which reads as a blank/black page). Lazy views now auto-recover: a failed
+  chunk import reloads the page once (guarded against a reload loop) to fetch a
+  fresh `index.html` + chunk manifest. (`index.html` is already served
+  `no-cache` with immutable hashed assets, so the reload always gets the current
+  build.) Tip for an already-stuck tab: a hard refresh clears it.
+
+### Security
+- **Locked the CORS no-credentials invariant with a test.** Extracted the CORS
+  policy into `cors_layer()` and added a test that fails if `allow_credentials`
+  is ever enabled alongside the wildcard origin (a credential-leak/CSRF hole).
+
+### Docs
+- **Documented two HA composition caveats in the Helm values.** Corrected the
+  background-work failover estimate (up to ~25s on ungraceful leader loss, not
+  ~10s) and noted that OIDC login + the SSE stream are per-process, so OIDC
+  across replicas needs ingress session affinity (sticky sessions).
+
+---
+
 ## [0.101.5] — 2026-06-17
 
 ### Security
