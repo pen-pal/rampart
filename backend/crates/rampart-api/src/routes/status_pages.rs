@@ -382,16 +382,22 @@ async fn public_unlock(
 /// loads this on boot and, if it resolves, renders the public status view in
 /// place of the dashboard shell. We resolve the domain to a slug first, then
 /// reuse the same `public_view` projection so the payload is byte-identical to
-/// the slug route. A domain with no matching page returns 404, which the
-/// frontend treats as "not a custom-domain host" and falls through silently.
+/// the slug route.
+///
+/// A domain with no matching page returns `200 null` (not 404): this endpoint
+/// is fired as a probe on *every* dashboard boot (the bare-hash visitor), and
+/// a 404 there shows up as a red console error on the operator's own host even
+/// though it's the expected "this host isn't a custom domain" answer. Returning
+/// `null` keeps the probe silent; the frontend already treats a falsy payload
+/// as "not a custom-domain host" (App.jsx) / "page not found" (StatusPageView).
 async fn public_view_by_domain(
     State(s): State<AppState>,
     Path(host): Path<String>,
-) -> Result<Json<PublicStatusPage>, ApiError> {
-    let page = rampart_db::status_pages::find_by_custom_domain(s.pool(), &host)
-        .await?
-        .ok_or(ApiError::NotFound)?;
-    Ok(Json(public_view_guarded(&s, &page.slug).await?))
+) -> Result<Json<Option<PublicStatusPage>>, ApiError> {
+    let Some(page) = rampart_db::status_pages::find_by_custom_domain(s.pool(), &host).await? else {
+        return Ok(Json(None));
+    };
+    Ok(Json(Some(public_view_guarded(&s, &page.slug).await?)))
 }
 
 /// Query for `GET /v1/public/status-pages/:slug/day-latency`.
