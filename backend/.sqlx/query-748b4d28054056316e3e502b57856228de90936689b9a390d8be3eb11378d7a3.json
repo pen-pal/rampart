@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, rule_id, rule_name, severity, match_count, sample, service,\n               window_from, window_to, created_at, acknowledged_at\n        FROM detection_findings\n        WHERE $1::timestamptz IS NULL OR created_at > $1\n        ORDER BY created_at ASC\n        LIMIT $2\n        ",
+  "query": "\n        INSERT INTO detection_findings\n            (id, rule_id, rule_name, severity, match_count, sample,\n             service, entity, window_from, window_to)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)\n        RETURNING id, rule_id, rule_name, severity, match_count, sample,\n                  service, entity, window_from, window_to, created_at,\n                  acknowledged_at\n        ",
   "describe": {
     "columns": [
       {
@@ -82,6 +82,17 @@
       },
       {
         "ordinal": 7,
+        "name": "entity",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "detection_findings",
+            "name": "entity"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
         "name": "window_from",
         "type_info": "Timestamptz",
         "origin": {
@@ -92,7 +103,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "window_to",
         "type_info": "Timestamptz",
         "origin": {
@@ -103,7 +114,7 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -114,7 +125,7 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "acknowledged_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -127,8 +138,16 @@
     ],
     "parameters": {
       "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Int8",
+        "Text",
+        "Text",
+        "Text",
         "Timestamptz",
-        "Int8"
+        "Timestamptz"
       ]
     },
     "nullable": [
@@ -139,11 +158,12 @@
       false,
       true,
       true,
+      true,
       false,
       false,
       false,
       true
     ]
   },
-  "hash": "0dd854d25ce78b28da913eef984df91667527acc4e41dc386bf317795eab165f"
+  "hash": "748b4d28054056316e3e502b57856228de90936689b9a390d8be3eb11378d7a3"
 }

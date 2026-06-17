@@ -27,6 +27,7 @@ struct RuleRow {
     threshold: i32,
     window_seconds: i32,
     cooldown_seconds: i32,
+    group_by: String,
     condition: Option<serde_json::Value>,
     channel_ids: Vec<Uuid>,
     escalation_policy_id: Option<Uuid>,
@@ -50,6 +51,7 @@ impl From<RuleRow> for DetectionRule {
             threshold: r.threshold,
             window_seconds: r.window_seconds,
             cooldown_seconds: r.cooldown_seconds,
+            group_by: r.group_by,
             condition: r.condition.and_then(|v| serde_json::from_value(v).ok()),
             channel_ids: r
                 .channel_ids
@@ -73,6 +75,7 @@ struct FindingRow {
     match_count: i64,
     sample: Option<String>,
     service: Option<String>,
+    entity: Option<String>,
     window_from: OffsetDateTime,
     window_to: OffsetDateTime,
     created_at: OffsetDateTime,
@@ -89,6 +92,7 @@ impl From<FindingRow> for DetectionFinding {
             match_count: r.match_count,
             sample: r.sample,
             service: r.service,
+            entity: r.entity,
             window_from: r.window_from,
             window_to: r.window_to,
             created_at: r.created_at,
@@ -122,7 +126,7 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<DetectionRule>> {
         r#"
         SELECT id, name, description, enabled, severity, service, min_level,
                body_regex, attr_key, attr_val, threshold, window_seconds, cooldown_seconds,
-               condition,
+               group_by, condition,
                channel_ids AS "channel_ids!", escalation_policy_id, last_checked_at, created_at
         FROM detection_rules
         ORDER BY created_at
@@ -139,7 +143,7 @@ pub async fn get(pool: &DbPool, id: DetectionRuleId) -> DbResult<DetectionRule> 
         r#"
         SELECT id, name, description, enabled, severity, service, min_level,
                body_regex, attr_key, attr_val, threshold, window_seconds, cooldown_seconds,
-               condition,
+               group_by, condition,
                channel_ids AS "channel_ids!", escalation_policy_id, last_checked_at, created_at
         FROM detection_rules
         WHERE id = $1
@@ -163,8 +167,8 @@ pub async fn create(pool: &DbPool, input: NewDetectionRule) -> DbResult<Detectio
         INSERT INTO detection_rules
             (id, name, description, enabled, severity, service, min_level,
              body_regex, attr_key, attr_val, threshold, window_seconds, channel_ids,
-             escalation_policy_id, cooldown_seconds, condition)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+             escalation_policy_id, cooldown_seconds, condition, group_by)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
         "#,
         id.0,
         input.name,
@@ -182,6 +186,7 @@ pub async fn create(pool: &DbPool, input: NewDetectionRule) -> DbResult<Detectio
         input.escalation_policy_id.map(|p| p.0),
         input.cooldown_seconds,
         condition_json,
+        input.group_by,
     )
     .execute(pool)
     .await?;
@@ -216,7 +221,8 @@ pub async fn update(
             -- Direct set (not COALESCE): the rule form is the sole updater and
             -- always sends the full intended condition (tree, or null to clear
             -- when switched back to the flat matcher).
-            condition      = $16
+            condition      = $16,
+            group_by       = COALESCE($17, group_by)
         WHERE id = $1
         "#,
         id.0,
@@ -235,6 +241,7 @@ pub async fn update(
         patch.escalation_policy_id.map(|p| p.0),
         patch.cooldown_seconds,
         condition_json,
+        patch.group_by,
     )
     .execute(pool)
     .await?;
@@ -337,60 +344,55 @@ pub async fn evaluate_tick(pool: &DbPool) -> DbResult<Vec<FindingEvent>> {
     let mut out = Vec::new();
 
     for rule in list(pool).await?.into_iter().filter(|r| r.enabled) {
-        // Window bounds + match count in one statement so both ends use the DB
-        // clock. Detection v2 rules carry a boolean `condition` tree compiled to
-        // a parameterized WHERE; legacy rules use the flat field match. `wfrom`
-        // is the rule's watermark, or `now - window` on first run.
-        let (wfrom, wto, count) = match &rule.condition {
-            Some(cond) => tree_window(pool, &rule, cond).await?,
-            None => legacy_window(pool, &rule).await?,
-        };
-
-        // Suppression: within the cooldown window after a finding, keep
-        // advancing the watermark (so matches aren't re-counted) but don't raise
-        // a new finding — stops a sustained match stream firing every tick.
-        let suppressed = rule.cooldown_seconds > 0
-            && has_recent_finding(pool, rule.id, rule.cooldown_seconds as i64).await?;
-
-        if count >= rule.threshold as i64 && !suppressed {
-            // Newest matching body as the analyst's sample (truncated).
-            let sample = match &rule.condition {
-                Some(cond) => tree_sample(pool, wfrom, wto, cond).await?,
-                None => legacy_sample(pool, &rule, wfrom, wto).await?,
+        let cooldown = rule.cooldown_seconds as i64;
+        let wto = if rule.group_by.is_empty() {
+            // ── whole-match-set: one count, one finding ──────────────────────
+            // Window bounds + count in one statement so both ends use the DB
+            // clock. v2 rules carry a boolean `condition` tree compiled to a
+            // parameterized WHERE; legacy rules use the flat-field match.
+            let (wfrom, wto, count) = match &rule.condition {
+                Some(cond) => tree_window(pool, &rule, cond).await?,
+                None => legacy_window(pool, &rule).await?,
             };
-
-            let service = (!rule.service.is_empty()).then(|| rule.service.clone());
-            let fid = DetectionFindingId::new();
-            let frow = sqlx::query_as!(
-                FindingRow,
-                r#"
-                INSERT INTO detection_findings
-                    (id, rule_id, rule_name, severity, match_count, sample,
-                     service, window_from, window_to)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-                RETURNING id, rule_id, rule_name, severity, match_count, sample,
-                          service, window_from, window_to, created_at,
-                          acknowledged_at
-                "#,
-                fid.0,
-                rule.id.0,
-                rule.name,
-                rule.severity.as_str(),
-                count,
-                sample,
-                service,
-                wfrom,
-                wto,
-            )
-            .fetch_one(pool)
-            .await?;
-
-            out.push(FindingEvent {
-                finding: frow.into(),
-                channel_ids: rule.channel_ids.clone(),
-                escalation_policy_id: rule.escalation_policy_id,
-            });
-        }
+            // Cooldown: keep advancing the watermark but don't re-raise.
+            let suppressed = rule.cooldown_seconds > 0
+                && has_recent_finding(pool, rule.id, cooldown, None).await?;
+            if count >= rule.threshold as i64 && !suppressed {
+                let sample = match &rule.condition {
+                    Some(cond) => tree_sample(pool, wfrom, wto, cond).await?,
+                    None => legacy_sample(pool, &rule, wfrom, wto).await?,
+                };
+                let service = (!rule.service.is_empty()).then(|| rule.service.clone());
+                let frow =
+                    insert_finding(pool, &rule, count, sample, service, None, wfrom, wto).await?;
+                out.push(FindingEvent {
+                    finding: frow.into(),
+                    channel_ids: rule.channel_ids.clone(),
+                    escalation_policy_id: rule.escalation_policy_id,
+                });
+            }
+            wto
+        } else {
+            // ── per-entity (group_by): one finding per offending entity ──────
+            let (wfrom, wto) = compute_bounds(pool, &rule).await?;
+            for (entity, count, sample) in grouped_eval(pool, &rule, wfrom, wto).await? {
+                // Per-ENTITY cooldown: a noisy entity doesn't mute the others.
+                if rule.cooldown_seconds > 0
+                    && has_recent_finding(pool, rule.id, cooldown, Some(&entity)).await?
+                {
+                    continue;
+                }
+                let frow =
+                    insert_finding(pool, &rule, count, sample, None, Some(entity), wfrom, wto)
+                        .await?;
+                out.push(FindingEvent {
+                    finding: frow.into(),
+                    channel_ids: rule.channel_ids.clone(),
+                    escalation_policy_id: rule.escalation_policy_id,
+                });
+            }
+            wto
+        };
 
         sqlx::query!(
             "UPDATE detection_rules SET last_checked_at = $2 WHERE id = $1",
@@ -401,6 +403,45 @@ pub async fn evaluate_tick(pool: &DbPool) -> DbResult<Vec<FindingEvent>> {
         .await?;
     }
     Ok(out)
+}
+
+/// Insert one finding row (shared by the whole-set and per-entity paths).
+#[allow(clippy::too_many_arguments)]
+async fn insert_finding(
+    pool: &DbPool,
+    rule: &DetectionRule,
+    count: i64,
+    sample: Option<String>,
+    service: Option<String>,
+    entity: Option<String>,
+    wfrom: OffsetDateTime,
+    wto: OffsetDateTime,
+) -> DbResult<FindingRow> {
+    let fid = DetectionFindingId::new();
+    Ok(sqlx::query_as!(
+        FindingRow,
+        r#"
+        INSERT INTO detection_findings
+            (id, rule_id, rule_name, severity, match_count, sample,
+             service, entity, window_from, window_to)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        RETURNING id, rule_id, rule_name, severity, match_count, sample,
+                  service, entity, window_from, window_to, created_at,
+                  acknowledged_at
+        "#,
+        fid.0,
+        rule.id.0,
+        rule.name,
+        rule.severity.as_str(),
+        count,
+        sample,
+        service,
+        entity,
+        wfrom,
+        wto,
+    )
+    .fetch_one(pool)
+    .await?)
 }
 
 // ── match evaluation ────────────────────────────────────────────────────────
@@ -512,6 +553,88 @@ async fn tree_sample(
     Ok(row.and_then(|r| r.try_get::<Option<String>, _>("sample").ok().flatten()))
 }
 
+/// Window bounds on the DB clock (used by the per-entity path, which can't fold
+/// bounds + the grouped count into one fetch_one the way the whole-set path does).
+async fn compute_bounds(
+    pool: &DbPool,
+    rule: &DetectionRule,
+) -> DbResult<(OffsetDateTime, OffsetDateTime)> {
+    let row = sqlx::query!(
+        r#"SELECT COALESCE($1::timestamptz, now() - make_interval(secs => $2)) AS "wfrom!",
+                  now() AS "wto!""#,
+        rule.last_checked_at,
+        rule.window_seconds as f64,
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok((row.wfrom, row.wto))
+}
+
+/// Per-entity grouped evaluation: count matches per `attributes->>group_by`
+/// within the window (honoring the same flat/boolean match), and return each
+/// entity reaching the threshold with its newest sample. Records lacking the
+/// group-by attribute are ignored.
+async fn grouped_eval(
+    pool: &DbPool,
+    rule: &DetectionRule,
+    wfrom: OffsetDateTime,
+    wto: OffsetDateTime,
+) -> DbResult<Vec<(String, i64, Option<String>)>> {
+    let mut qb: QueryBuilder<Postgres> = QueryBuilder::new("SELECT l.attributes->>");
+    qb.push_bind(rule.group_by.clone());
+    qb.push(" AS entity, COUNT(*) AS cnt, (array_agg(LEFT(l.body, 500) ORDER BY l.ts DESC))[1] AS sample FROM logs l WHERE l.ts > ");
+    qb.push_bind(wfrom);
+    qb.push(" AND l.ts <= ");
+    qb.push_bind(wto);
+    qb.push(" AND l.attributes->>");
+    qb.push_bind(rule.group_by.clone());
+    qb.push(" IS NOT NULL AND (");
+    push_where(&mut qb, rule);
+    qb.push(") GROUP BY entity HAVING COUNT(*) >= ");
+    qb.push_bind(rule.threshold as i64);
+    let rows = qb.build().fetch_all(pool).await?;
+    rows.into_iter()
+        .map(|r| {
+            Ok((
+                r.try_get::<Option<String>, _>("entity")?.unwrap_or_default(),
+                r.try_get::<i64, _>("cnt")?,
+                r.try_get::<Option<String>, _>("sample")?,
+            ))
+        })
+        .collect()
+}
+
+/// Push the rule's match predicate (boolean tree if present, else the flat
+/// fields) into a running query builder.
+fn push_where(qb: &mut QueryBuilder<Postgres>, rule: &DetectionRule) {
+    match &rule.condition {
+        Some(c) => push_condition(qb, c),
+        None => push_flat(qb, rule),
+    }
+}
+
+/// The legacy flat-field match as bound SQL (mirrors `legacy_window`'s WHERE),
+/// for the grouped path which can't use the static `query!` macro.
+fn push_flat(qb: &mut QueryBuilder<Postgres>, rule: &DetectionRule) {
+    qb.push("(");
+    qb.push_bind(rule.service.clone());
+    qb.push(" = '' OR l.service_name = ");
+    qb.push_bind(rule.service.clone());
+    qb.push(") AND l.severity >= ");
+    qb.push_bind(rule.min_level);
+    qb.push(" AND (");
+    qb.push_bind(rule.body_regex.clone());
+    qb.push(" = '' OR l.body ~* ");
+    qb.push_bind(rule.body_regex.clone());
+    qb.push(") AND (");
+    qb.push_bind(rule.attr_key.clone());
+    qb.push(" = '' OR l.attributes->>");
+    qb.push_bind(rule.attr_key.clone());
+    qb.push(" = ");
+    qb.push_bind(rule.attr_val.clone());
+    qb.push(")");
+}
+
 /// Escape LIKE wildcards in a user substring so `BodyContains` matches it
 /// literally (the default `\` escape char applies).
 fn like_escape(s: &str) -> String {
@@ -580,22 +703,27 @@ fn push_join(
     qb.push(")");
 }
 
-/// Did this rule raise any finding within the last `secs` seconds? Drives the
-/// detection escalation auto-resolve: a quiet rule means the threat stopped.
+/// Did this rule raise any finding within the last `secs` seconds? Drives both
+/// the cooldown suppression and the detection escalation auto-resolve (a quiet
+/// rule means the threat stopped). When `entity` is `Some`, scope to that
+/// entity's findings — per-entity cooldown for group_by rules.
 pub async fn has_recent_finding(
     pool: &DbPool,
     rule_id: DetectionRuleId,
     secs: i64,
+    entity: Option<&str>,
 ) -> DbResult<bool> {
     let exists = sqlx::query_scalar!(
         r#"
         SELECT EXISTS(
             SELECT 1 FROM detection_findings
             WHERE rule_id = $1 AND created_at >= now() - make_interval(secs => $2)
+              AND ($3::text IS NULL OR entity = $3)
         ) AS "exists!"
         "#,
         rule_id.0,
         secs as f64,
+        entity,
     )
     .fetch_one(pool)
     .await?;
@@ -612,7 +740,7 @@ pub async fn list_findings(
     let rows = sqlx::query_as!(
         FindingRow,
         r#"
-        SELECT id, rule_id, rule_name, severity, match_count, sample, service,
+        SELECT id, rule_id, rule_name, severity, match_count, sample, service, entity,
                window_from, window_to, created_at, acknowledged_at
         FROM detection_findings
         WHERE NOT $2 OR acknowledged_at IS NULL
@@ -649,7 +777,7 @@ pub async fn fetch_since(
     let rows = sqlx::query_as!(
         FindingRow,
         r#"
-        SELECT id, rule_id, rule_name, severity, match_count, sample, service,
+        SELECT id, rule_id, rule_name, severity, match_count, sample, service, entity,
                window_from, window_to, created_at, acknowledged_at
         FROM detection_findings
         WHERE $1::timestamptz IS NULL OR created_at > $1
@@ -672,7 +800,7 @@ pub async fn ack_finding(pool: &DbPool, id: DetectionFindingId) -> DbResult<Dete
         UPDATE detection_findings
         SET acknowledged_at = COALESCE(acknowledged_at, now())
         WHERE id = $1
-        RETURNING id, rule_id, rule_name, severity, match_count, sample, service,
+        RETURNING id, rule_id, rule_name, severity, match_count, sample, service, entity,
                   window_from, window_to, created_at, acknowledged_at
         "#,
         id.0,

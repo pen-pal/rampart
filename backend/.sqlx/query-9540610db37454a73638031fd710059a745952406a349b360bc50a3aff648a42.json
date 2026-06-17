@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, name, description, enabled, severity, service, min_level,\n               body_regex, attr_key, attr_val, threshold, window_seconds, cooldown_seconds,\n               condition,\n               channel_ids AS \"channel_ids!\", escalation_policy_id, last_checked_at, created_at\n        FROM detection_rules\n        ORDER BY created_at\n        ",
+  "query": "\n        SELECT id, name, description, enabled, severity, service, min_level,\n               body_regex, attr_key, attr_val, threshold, window_seconds, cooldown_seconds,\n               group_by, condition,\n               channel_ids AS \"channel_ids!\", escalation_policy_id, last_checked_at, created_at\n        FROM detection_rules\n        WHERE id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -148,6 +148,17 @@
       },
       {
         "ordinal": 13,
+        "name": "group_by",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "detection_rules",
+            "name": "group_by"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
         "name": "condition",
         "type_info": "Jsonb",
         "origin": {
@@ -158,7 +169,7 @@
         }
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "channel_ids!",
         "type_info": "UuidArray",
         "origin": {
@@ -169,7 +180,7 @@
         }
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "escalation_policy_id",
         "type_info": "Uuid",
         "origin": {
@@ -180,7 +191,7 @@
         }
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
         "name": "last_checked_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -191,7 +202,7 @@
         }
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -203,9 +214,12 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid"
+      ]
     },
     "nullable": [
+      false,
       false,
       false,
       false,
@@ -226,5 +240,5 @@
       false
     ]
   },
-  "hash": "dd4e50dc98c66d5885dea9e85b07e0b0cba510f9ffdcb42f043eaebd7bd4696c"
+  "hash": "9540610db37454a73638031fd710059a745952406a349b360bc50a3aff648a42"
 }
