@@ -19,6 +19,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.101.4] — 2026-06-17
+
+### Security
+- **Notification delivery is now SSRF-guarded.** Outbound webhook/notification
+  HTTP went through bare, unguarded `reqwest` clients in ~128 channels, so an
+  editor (or a compromised editor key) could point a channel at
+  `169.254.169.254` (cloud metadata) or internal admin ports and exfiltrate via
+  the delivery — the SSRF guard previously covered only the probe path. The SSRF
+  guard was extracted into a shared `rampart-ssrf` crate that exposes a
+  `GuardedResolver` (a `reqwest` DNS resolver vetting every address at **connect**
+  time, so redirects are covered and there is no DNS-rebinding/TOCTOU window).
+  All notification channels now build their HTTP client through this guarded
+  resolver. The probe engine re-exports the same crate (no behavior change);
+  pinning the probe path through the resolver follows in a subsequent release.
+
+---
+
 ## [0.101.3] — 2026-06-17
 
 First of the post-audit security-hardening releases.
