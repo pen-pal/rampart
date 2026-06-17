@@ -197,3 +197,37 @@ async fn error_projects_isolated_across_orgs(pool: PgPool) {
     let (s, _, _) = request(&router, Method::DELETE, &format!("/v1/error-projects/{pid}"), None, Some(&admin)).await;
     assert_eq!(s, StatusCode::NOT_FOUND, "cross-org project DELETE");
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn bulk_edit_skips_cross_org_monitors(pool: PgPool) {
+    // The id-list bulk endpoints resolve each monitor WITHIN the caller's org;
+    // an id in another org is reported as skipped, never read or mutated.
+    let router = common::router(pool.clone());
+    let admin = register_admin(&router).await;
+
+    let keep: Value = common::json(&router, Method::POST, "/v1/monitors", Some(http_monitor("keep")), Some(&admin)).await;
+    let mv: Value = common::json(&router, Method::POST, "/v1/monitors", Some(http_monitor("move")), Some(&admin)).await;
+    let keep_id = keep["id"].as_str().unwrap();
+    let move_id = mv["id"].as_str().unwrap();
+
+    sqlx::query("INSERT INTO organizations (id, slug, name) VALUES ($1::uuid, 'other', 'Other') ON CONFLICT DO NOTHING")
+        .bind(OTHER_ORG).execute(&pool).await.unwrap();
+    sqlx::query("UPDATE monitors SET org_id = $1::uuid WHERE id = $2::uuid")
+        .bind(OTHER_ORG).bind(move_id).execute(&pool).await.unwrap();
+
+    // Bulk-edit BOTH ids with enabled=false: only the in-org monitor is touched.
+    let res: Value = common::json(
+        &router, Method::POST, "/v1/monitors/bulk-edit",
+        Some(json!({"ids": [keep_id, move_id], "patch": {"enabled": false}})), Some(&admin),
+    ).await;
+    assert_eq!(res["updated"], 1, "only the in-org monitor is updated");
+    assert_eq!(res["skipped"], 1, "the cross-org monitor is skipped");
+
+    // The cross-org monitor keeps its original (active) state — never paused.
+    let still_active: bool = sqlx::query_scalar("SELECT active FROM monitors WHERE id = $1::uuid")
+        .bind(move_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert!(still_active, "cross-org monitor must NOT have been mutated");
+}

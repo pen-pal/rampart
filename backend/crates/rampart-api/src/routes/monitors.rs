@@ -791,6 +791,7 @@ fn build_undo(
 /// picked up by the running probes.
 async fn bulk_edit(
     State(state): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Extension(user): Extension<User>,
     headers: HeaderMap,
     Query(query): Query<BulkEditQuery>,
@@ -862,9 +863,13 @@ async fn bulk_edit(
 
     // DRY-RUN: compute what WOULD change without opening a write transaction.
     if query.dry_run {
-        let (priors, would_skip) =
-            rampart_db::monitors::bulk_edit_preview(state.pool(), &ids, resolved.tags.is_some())
-                .await?;
+        let (priors, would_skip) = rampart_db::monitors::bulk_edit_preview(
+            state.pool(),
+            &ids,
+            resolved.tags.is_some(),
+            org.org_id,
+        )
+        .await?;
         let preview: Vec<BulkEditPreviewItem> = priors
             .iter()
             .map(|prior| BulkEditPreviewItem {
@@ -889,7 +894,7 @@ async fn bulk_edit(
         tags: resolved.tags.clone(),
     };
 
-    let outcome = rampart_db::monitors::bulk_edit(state.pool(), &ids, &patch).await?;
+    let outcome = rampart_db::monitors::bulk_edit(state.pool(), &ids, &patch, org.org_id).await?;
 
     // Build the inverse payload from the captured priors. POST it back to
     // revert. `undo.ids` are exactly the monitors that were mutated.
@@ -951,6 +956,7 @@ struct BulkByTagResult {
 /// — monitors already in the target state aren't recounted.
 async fn bulk_by_tag(
     State(state): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Extension(user): Extension<User>,
     headers: HeaderMap,
     Json(req): Json<BulkByTagRequest>,
@@ -966,7 +972,7 @@ async fn bulk_by_tag(
     };
 
     let affected =
-        rampart_db::monitors::set_active_by_tag(state.pool(), tag, active).await? as usize;
+        rampart_db::monitors::set_active_by_tag(state.pool(), tag, active, org.org_id).await? as usize;
     state.poke_scheduler();
 
     let action_name = if active { "resume" } else { "pause" };
