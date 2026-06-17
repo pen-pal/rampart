@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE monitors\n           SET active = $1, updated_at = NOW()\n         WHERE active <> $1\n           AND org_id = $3\n           AND id IN (SELECT monitor_id FROM monitor_tags WHERE tag_id = $2)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bool",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0263ff716fdc776db7513a8a50be1276c8a594f39161b0fc303194ed1e992b28"
+}

@@ -19,6 +19,27 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.124.0] — 2026-06-17
+
+### Security
+- **Multi-tenancy — Phase 3p: org-scope the bulk monitor operations.** The two
+  id-list / by-tag bulk endpoints took no `OrgContext` and resolved monitors by
+  id (or tag) with no org filter, so an editor could preview + mutate
+  (interval / timeout / active / group / tags) any org's monitors by id, or
+  pause/resume every monitor carrying a tag across all orgs:
+  - `POST /v1/monitors/bulk-edit` (+ `?dry_run`) — `bulk_edit` /
+    `bulk_edit_preview` now resolve each id `WHERE id = $ AND org_id = $`; an id
+    in another org is reported in the existing `skipped` bucket, never read or
+    mutated (the dry-run preview likewise can't see it).
+  - `POST /v1/monitors/bulk-by-tag` — `set_active_by_tag` now flips `active`
+    only on monitors `WHERE org_id = $` carrying the tag.
+  Behaviour-identical for a single-org install. New integration test
+  `bulk_edit_skips_cross_org_monitors` (a cross-org id in the batch is counted
+  skipped and the row is provably untouched). See
+  [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.123.0] — 2026-06-17
 
 ### Security
