@@ -188,6 +188,12 @@ pub struct DetectionRule {
     /// the watermark, so they aren't re-counted later). `0` = no cooldown —
     /// raise on every tick that crosses the threshold (the legacy behavior).
     pub cooldown_seconds: i32,
+    /// Per-entity aggregation key (a log attribute name). When non-empty, the
+    /// tick groups matches by `attributes->>group_by` and raises one finding per
+    /// entity whose count reaches `threshold` (e.g. group_by `user` + threshold
+    /// 5 → fires once per user with ≥5 matches). Records lacking the attribute
+    /// are ignored. Empty = aggregate the whole match set into one count.
+    pub group_by: String,
     pub channel_ids: Vec<NotificationId>,
     pub escalation_policy_id: Option<EscalationPolicyId>,
     /// Watermark: the upper bound of the last evaluated window. The next tick
@@ -235,6 +241,10 @@ pub struct NewDetectionRule {
     #[validate(range(min = 0, max = 86400))]
     #[serde(default = "default_cooldown")]
     pub cooldown_seconds: i32,
+    /// Per-entity aggregation key (a log attribute name); empty = no grouping.
+    #[validate(length(max = 200))]
+    #[serde(default)]
+    pub group_by: String,
     #[serde(default = "default_enabled")]
     pub enabled: bool,
     #[serde(default)]
@@ -294,6 +304,9 @@ pub struct UpdateDetectionRule {
     #[validate(range(min = 0, max = 86400))]
     #[serde(default)]
     pub cooldown_seconds: Option<i32>,
+    #[validate(length(max = 200))]
+    #[serde(default)]
+    pub group_by: Option<String>,
     #[serde(default)]
     pub enabled: Option<bool>,
     #[serde(default)]
@@ -314,6 +327,9 @@ pub struct DetectionFinding {
     pub match_count: i64,
     pub sample: Option<String>,
     pub service: Option<String>,
+    /// For per-entity (group_by) findings: the entity value that crossed the
+    /// threshold (e.g. the `user`/`src_ip`). `None` for whole-match-set findings.
+    pub entity: Option<String>,
     pub window_from: OffsetDateTime,
     pub window_to: OffsetDateTime,
     pub created_at: OffsetDateTime,

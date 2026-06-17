@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n                INSERT INTO detection_findings\n                    (id, rule_id, rule_name, severity, match_count, sample,\n                     service, window_from, window_to)\n                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)\n                RETURNING id, rule_id, rule_name, severity, match_count, sample,\n                          service, window_from, window_to, created_at,\n                          acknowledged_at\n                ",
+  "query": "\n        SELECT id, rule_id, rule_name, severity, match_count, sample, service, entity,\n               window_from, window_to, created_at, acknowledged_at\n        FROM detection_findings\n        WHERE $1::timestamptz IS NULL OR created_at > $1\n        ORDER BY created_at ASC\n        LIMIT $2\n        ",
   "describe": {
     "columns": [
       {
@@ -82,6 +82,17 @@
       },
       {
         "ordinal": 7,
+        "name": "entity",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "detection_findings",
+            "name": "entity"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
         "name": "window_from",
         "type_info": "Timestamptz",
         "origin": {
@@ -92,7 +103,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "window_to",
         "type_info": "Timestamptz",
         "origin": {
@@ -103,7 +114,7 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -114,7 +125,7 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "acknowledged_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -127,15 +138,8 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid",
-        "Uuid",
-        "Text",
-        "Text",
-        "Int8",
-        "Text",
-        "Text",
         "Timestamptz",
-        "Timestamptz"
+        "Int8"
       ]
     },
     "nullable": [
@@ -146,11 +150,12 @@
       false,
       true,
       true,
+      true,
       false,
       false,
       false,
       true
     ]
   },
-  "hash": "783b6e2f662e3354f05c9f89e4555b85285975f5dd47483f9831960758695aff"
+  "hash": "e0ed1a7a62bd7d3d7111e723a891a1fc2d7a9d50d4b5cbbcba0b6af8f57c5456"
 }

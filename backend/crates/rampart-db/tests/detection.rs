@@ -24,6 +24,7 @@ fn rule(body_regex: &str, threshold: i32) -> NewDetectionRule {
         window_seconds: 300,
         cooldown_seconds: 0,
         condition: None,
+        group_by: String::new(),
         enabled: true,
         channel_ids: vec![],
         escalation_policy_id: None,
@@ -38,6 +39,21 @@ async fn insert_log(pool: &PgPool, service: &str, severity: i16, body: &str) {
         severity,
         service,
         body,
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+async fn insert_log_attrs(pool: &PgPool, service: &str, severity: i16, body: &str, attrs: serde_json::Value) {
+    sqlx::query!(
+        r#"INSERT INTO logs (id, ts, severity, severity_text, service_name, body, attributes, received_at)
+           VALUES ($1, now(), $2, NULL, $3, $4, $5, now())"#,
+        Uuid::now_v7(),
+        severity,
+        service,
+        body,
+        attrs,
     )
     .execute(pool)
     .await
@@ -119,6 +135,29 @@ async fn boolean_condition_tree_matches(pool: PgPool) {
 
     // Matches neither: web service, low severity, no "failed".
     insert_log(&pool, "web", 9, "all good").await;
+    assert!(detection::evaluate_tick(&pool).await.unwrap().is_empty());
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn group_by_raises_per_entity_over_threshold(pool: PgPool) {
+    // ">=3 'failed' logs per user in the window" — fires once per offending user.
+    let mut nr = rule("failed", 3);
+    nr.group_by = "user".to_string();
+    detection::create(&pool, nr).await.unwrap();
+
+    // alice: 3 matches (over threshold). bob: 1 (under). carol: 0. A record with
+    // no `user` attribute is ignored.
+    for who in ["alice", "alice", "alice", "bob"] {
+        insert_log_attrs(&pool, "auth", 9, "failed login", serde_json::json!({ "user": who })).await;
+    }
+    insert_log_attrs(&pool, "auth", 9, "failed login", serde_json::json!({})).await; // no user → ignored
+
+    let ev = detection::evaluate_tick(&pool).await.unwrap();
+    assert_eq!(ev.len(), 1, "only alice crosses the per-user threshold");
+    assert_eq!(ev[0].finding.entity.as_deref(), Some("alice"));
+    assert_eq!(ev[0].finding.match_count, 3);
+
+    // Watermark advanced: a re-tick with no new logs raises nothing.
     assert!(detection::evaluate_tick(&pool).await.unwrap().is_empty());
 }
 

@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COALESCE($1::timestamptz, now() - make_interval(secs => $2)) AS \"wfrom!\",\n                  now() AS \"wto!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "wfrom!",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "wto!",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Float8"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "474265dfe9fb00bca3e3f21c108e7a204b22d38efdb8fa42faae7521a563abe4"
+}
