@@ -7,7 +7,7 @@
 
 use crate::{DbError, DbPool, DbResult};
 use rampart_core::api_key::{ApiKey, IssuedApiKey, KeyScope, NewApiKey};
-use rampart_core::ids::{ApiKeyId, UserId};
+use rampart_core::ids::{ApiKeyId, OrgId, UserId};
 use sha2::{Digest, Sha256};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -44,15 +44,20 @@ impl From<KeyRow> for ApiKey {
     }
 }
 
-pub async fn list(pool: &DbPool) -> DbResult<Vec<ApiKey>> {
+/// API keys owned by one org — the management list (org-scoped). The
+/// bearer-token resolver [`lookup`] stays unscoped: it IS the auth path and
+/// can't know the org before resolving the key.
+pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<ApiKey>> {
     let rows = sqlx::query_as!(
         KeyRow,
         r#"
         SELECT id, name, key_prefix, scope, created_by,
                created_at, last_used_at, expires_at, rate_limit_per_hour
         FROM api_keys
+        WHERE org_id = $1
         ORDER BY created_at DESC
         "#,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -95,10 +100,14 @@ pub async fn create(pool: &DbPool, input: NewApiKey, created_by: UserId) -> DbRe
     })
 }
 
-pub async fn delete(pool: &DbPool, id: ApiKeyId) -> DbResult<()> {
-    let result = sqlx::query!("DELETE FROM api_keys WHERE id = $1", id.0)
-        .execute(pool)
-        .await?;
+pub async fn delete(pool: &DbPool, id: ApiKeyId, org_id: OrgId) -> DbResult<()> {
+    let result = sqlx::query!(
+        "DELETE FROM api_keys WHERE id = $1 AND org_id = $2",
+        id.0,
+        org_id.0,
+    )
+    .execute(pool)
+    .await?;
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }
