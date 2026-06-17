@@ -18,6 +18,9 @@ pub struct Session {
     pub user_id: UserId,
     pub created_at: OffsetDateTime,
     pub expires_at: OffsetDateTime,
+    /// The org this session is currently acting in (multi-tenancy). `None`
+    /// means "not yet chosen" — the auth layer falls back to the Default org.
+    pub active_org_id: Option<Uuid>,
 }
 
 pub async fn create(
@@ -35,7 +38,7 @@ pub async fn create(
         r#"
         INSERT INTO sessions (id, user_id, expires_at, ip_addr, user_agent)
         VALUES ($1, $2, $3, $4, $5)
-        RETURNING id, user_id, created_at, expires_at
+        RETURNING id, user_id, created_at, expires_at, active_org_id
         "#,
         id,
         user_id.0,
@@ -51,13 +54,14 @@ pub async fn create(
         user_id: UserId::from_uuid(row.user_id),
         created_at: row.created_at,
         expires_at: row.expires_at,
+        active_org_id: row.active_org_id,
     })
 }
 
 pub async fn get(pool: &DbPool, id: Uuid) -> DbResult<Session> {
     let row = sqlx::query!(
         r#"
-        SELECT id, user_id, created_at, expires_at
+        SELECT id, user_id, created_at, expires_at, active_org_id
         FROM sessions
         WHERE id = $1 AND expires_at > NOW()
         "#,
@@ -72,7 +76,27 @@ pub async fn get(pool: &DbPool, id: Uuid) -> DbResult<Session> {
         user_id: UserId::from_uuid(row.user_id),
         created_at: row.created_at,
         expires_at: row.expires_at,
+        active_org_id: row.active_org_id,
     })
+}
+
+/// Switch the org a session is acting in. Scoped to the session's owner and
+/// validated against membership by the caller. Backs the (later) org switcher.
+pub async fn set_active_org(
+    pool: &DbPool,
+    session_id: Uuid,
+    user_id: UserId,
+    org_id: Uuid,
+) -> DbResult<bool> {
+    let r = sqlx::query!(
+        "UPDATE sessions SET active_org_id = $1 WHERE id = $2 AND user_id = $3",
+        org_id,
+        session_id,
+        user_id.0,
+    )
+    .execute(pool)
+    .await?;
+    Ok(r.rows_affected() > 0)
 }
 
 pub async fn delete(pool: &DbPool, id: Uuid) -> DbResult<()> {
