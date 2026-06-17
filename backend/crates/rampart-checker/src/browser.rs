@@ -33,8 +33,10 @@ pub struct BrowserProbe {
 
 impl BrowserProbe {
     pub fn new() -> Self {
-        // Same default-pool client as the http probe; reused for every
-        // browser monitor.
+        // Client connects to the operator-configured headless renderer
+        // (trusted infra, often internal), which fetches the target itself —
+        // so it is intentionally NOT built through the SSRF-guarded resolver
+        // (that would break an internal renderer under BLOCK_PRIVATE).
         Self {
             client: reqwest::Client::builder()
                 .user_agent("Rampart/0.4")
