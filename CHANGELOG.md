@@ -19,6 +19,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.101.5] — 2026-06-17
+
+### Security
+- **Probe HTTP connections are now SSRF-vetted at dial time (DNS-rebinding
+  fix).** The HTTP/keyword/JSON-query and synthetic probes resolved + guarded
+  the target host pre-flight but then connected to the original URL, leaving a
+  TOCTOU window where an attacker controlling the target's DNS could answer with
+  a public IP for the guard's lookup and an internal/metadata IP for the connect.
+  Their clients are now built through `rampart_ssrf::guarded_client_builder()`, so
+  the address actually dialed (including each manually-followed redirect hop) is
+  re-vetted by the guarded resolver. The pre-flight check is kept for the clear
+  "blocked by SSRF guard" heartbeat. Proxy and headless-renderer clients are
+  intentionally left unguarded — they connect to trusted operator infra (often
+  internal), and the target is still checked pre-flight. Completes the
+  post-audit SSRF-hardening trio (0.101.3–0.101.5).
+
+---
+
 ## [0.101.4] — 2026-06-17
 
 ### Security

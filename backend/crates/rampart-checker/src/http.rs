@@ -21,7 +21,7 @@ use once_cell::sync::OnceCell;
 use rampart_core::proxy::Proxy;
 use rampart_core::synthetic::Assertion;
 use rampart_core::{Heartbeat, Monitor, MonitorKind, MonitorStatus};
-use reqwest::{Client, ClientBuilder, Method, Version};
+use reqwest::{Client, Method, Version};
 use std::collections::BTreeMap;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
@@ -52,7 +52,10 @@ impl HttpProbe {
 
     fn client(&self) -> &Client {
         self.client.get_or_init(|| {
-            ClientBuilder::new()
+            // Built via the SSRF-guarded resolver so the address actually dialed
+            // is vetted at connect time — closes the DNS-rebinding/TOCTOU window
+            // the pre-flight resolve_guarded check alone would leave open.
+            crate::ssrf::guarded_client_builder()
                 .user_agent(USER_AGENT)
                 .redirect(reqwest::redirect::Policy::none()) // honored per-monitor below
                 .pool_idle_timeout(Duration::from_secs(60))
@@ -86,7 +89,11 @@ fn build_proxy_client(proxy: &Proxy) -> Result<Client, String> {
     } else if let Some(u) = proxy.username.as_deref() {
         p = p.basic_auth(u, "");
     }
-    ClientBuilder::new()
+    // NB: not built via the guarded resolver — the client connects to the
+    // operator-configured proxy host (trusted infra, often internal), and the
+    // proxy performs target resolution out of our reach. The target itself is
+    // still SSRF-checked pre-flight in `execute` before the request is issued.
+    reqwest::Client::builder()
         .user_agent(USER_AGENT)
         .redirect(reqwest::redirect::Policy::none())
         .proxy(p)
