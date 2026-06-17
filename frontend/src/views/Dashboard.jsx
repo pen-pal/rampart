@@ -10,13 +10,14 @@ import {
   Database, Radio, Lock, Hash,
   Menu, Folder, Tag as TagIcon, Calendar as CalIcon, Network, Key, ScrollText, Users as UsersIcon, Mail, Database as DbIcon, Settings, Upload, FileStack,
   Bookmark, Star, Check, Trash2, X, Copy, Share2, Download, RotateCcw,
+  ShieldAlert,
 } from 'lucide-react';
 import {
   api, useApi, formatRelative, offsetDateTimeArrayToDate, statusToClass,
 } from '../lib/api.js';
 import { useHeartbeatStream, useDebouncedTick } from '../lib/sse.js';
 import { ThemeToggle } from '../components/ThemeToggle.jsx';
-import { canWrite } from '../lib/roles.js';
+import { canWrite, isAdmin } from '../lib/roles.js';
 import { t } from '../lib/i18n.js';
 import { confirmDialog, promptDialog, toast } from '../lib/notify.js';
 import { useFocusTrap } from '../lib/useFocusTrap.js';
@@ -519,10 +520,15 @@ export default function Dashboard({ user, onLogout } = {}) {
   // response, so the header pill always reflects the running build and
   // can't drift like the hard-coded "v0.4.0" string it used to be.
   const [version, setVersion] = useState(null);
+  const [secretsPlaintext, setSecretsPlaintext] = useState(false);
   useEffect(() => {
     let cancelled = false;
     api.health.live()
-      .then(d => { if (!cancelled) setVersion(d?.version || null); })
+      .then(d => {
+        if (cancelled) return;
+        setVersion(d?.version || null);
+        setSecretsPlaintext(d?.secrets_at_rest === 'plaintext');
+      })
       .catch(() => {});
     return () => { cancelled = true; };
   }, []);
@@ -1067,6 +1073,21 @@ export default function Dashboard({ user, onLogout } = {}) {
           )}
         </div>
       </header>
+
+      {/* Admin-only warning when channel credentials are stored unencrypted
+          (no RAMPART_SECRET_KEY). Surfaces the silent plaintext-secrets default
+          so an operator notices and sets a key. */}
+      {secretsPlaintext && isAdmin(user) && (
+        <div role="alert" style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '10px 20px', fontSize: 13,
+          background: 'var(--warn-soft, #fff6e6)', color: 'var(--warn-text, #7a4d00)',
+          borderBottom: '1px solid var(--warn, #e0a23c)',
+        }}>
+          <ShieldAlert size={15}/>
+          <span>{t('security.secrets_plaintext')}</span>
+        </div>
+      )}
 
       {/* ─── layout ──────────────────────────────────────────────── */}
       <div className="dash-shell" style={{ display: 'grid', gridTemplateColumns: '320px 1fr' }}>

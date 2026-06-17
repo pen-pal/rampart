@@ -1222,6 +1222,7 @@ const en = {
   'settings.sampling.err_range':     'Each percentage must be between 0 and 100.',
 
   // ── security ─────────────────────────────────────────────────────
+  'security.secrets_plaintext':      'Notification-channel credentials are stored unencrypted. Set RAMPART_SECRET_KEY (32 bytes) to enable AES-256-GCM encryption at rest.',
   'security.title':                  'Security',
   'security.subtitle':               'Account-level protections. Two-factor auth gates the password login with a one-time code from your authenticator app.',
   'security.sessions.title':         'Active sessions',

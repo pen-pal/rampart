@@ -50,6 +50,13 @@ fn decode_key(s: &str) -> Option<[u8; 32]> {
     B64.decode(s).ok().and_then(|v| v.try_into().ok())
 }
 
+/// Whether secrets-at-rest encryption is active (a valid `RAMPART_SECRET_KEY`
+/// is configured). When `false`, secret-bearing JSONB columns are stored as
+/// plaintext — the startup path warns loudly and `/healthz` surfaces it.
+pub fn is_enabled() -> bool {
+    cipher().is_some()
+}
+
 /// Encrypt `v` if a key is configured; otherwise return it unchanged.
 pub fn seal(v: &Value) -> Value {
     seal_with(cipher(), v)
