@@ -49,6 +49,112 @@ impl DetectionSeverity {
     }
 }
 
+/// A boolean condition tree over a log record — the Detection v2 matcher.
+///
+/// Replaces the flat AND-chain (service + min_level + body_regex + attr) with an
+/// arbitrary `And` / `Or` / `Not` composition of leaf predicates, so a SOC can
+/// express real detection content like `(service=auth AND body~/failed/) OR
+/// (severity>=error AND NOT attr env=dev)`. Serialized to the `condition` JSONB
+/// column; the DB layer compiles it to a parameterized SQL `WHERE`. Rules with a
+/// null `condition` fall back to the legacy flat fields, so old rules keep
+/// working unchanged.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum DetectionCondition {
+    /// All sub-conditions must match. Empty = matches everything.
+    And { conditions: Vec<DetectionCondition> },
+    /// Any sub-condition matches. Empty = matches nothing.
+    Or { conditions: Vec<DetectionCondition> },
+    /// Negate the inner condition.
+    Not { condition: Box<DetectionCondition> },
+    /// `service_name = value`.
+    Service { value: String },
+    /// `severity >= value` (OTLP severity number).
+    MinLevel { value: i16 },
+    /// `body ~* value` (case-insensitive POSIX regex).
+    BodyRegex { value: String },
+    /// `body ILIKE %value%` (case-insensitive substring).
+    BodyContains { value: String },
+    /// `attributes->>key = value`.
+    Attr { key: String, value: String },
+}
+
+impl DetectionCondition {
+    /// Total node count — bounded on write so a pathological tree can't generate
+    /// unbounded SQL.
+    pub fn node_count(&self) -> usize {
+        1 + match self {
+            DetectionCondition::And { conditions } | DetectionCondition::Or { conditions } => {
+                conditions.iter().map(Self::node_count).sum()
+            }
+            DetectionCondition::Not { condition } => condition.node_count(),
+            _ => 0,
+        }
+    }
+
+    /// Nesting depth.
+    pub fn depth(&self) -> usize {
+        1 + match self {
+            DetectionCondition::And { conditions } | DetectionCondition::Or { conditions } => {
+                conditions.iter().map(Self::depth).max().unwrap_or(0)
+            }
+            DetectionCondition::Not { condition } => condition.depth(),
+            _ => 0,
+        }
+    }
+
+    /// Reject trees that are too large/deep or carry empty leaf values — keeps
+    /// the generated SQL bounded and the rule meaningful.
+    pub fn validate_tree(&self) -> Result<(), String> {
+        if self.node_count() > 64 {
+            return Err("condition has too many nodes (max 64)".into());
+        }
+        if self.depth() > 8 {
+            return Err("condition nests too deeply (max 8)".into());
+        }
+        self.validate_leaves()
+    }
+
+    /// Collect every `BodyRegex` leaf value, so callers can validate each
+    /// against the regex engine before the rule is stored.
+    pub fn body_regexes<'a>(&'a self, out: &mut Vec<&'a str>) {
+        match self {
+            DetectionCondition::And { conditions } | DetectionCondition::Or { conditions } => {
+                conditions.iter().for_each(|c| c.body_regexes(out));
+            }
+            DetectionCondition::Not { condition } => condition.body_regexes(out),
+            DetectionCondition::BodyRegex { value } => out.push(value),
+            _ => {}
+        }
+    }
+
+    fn validate_leaves(&self) -> Result<(), String> {
+        match self {
+            DetectionCondition::And { conditions } | DetectionCondition::Or { conditions } => {
+                conditions.iter().try_for_each(Self::validate_leaves)
+            }
+            DetectionCondition::Not { condition } => condition.validate_leaves(),
+            DetectionCondition::Service { value }
+            | DetectionCondition::BodyRegex { value }
+            | DetectionCondition::BodyContains { value } => {
+                if value.is_empty() {
+                    Err("leaf predicate has an empty value".into())
+                } else {
+                    Ok(())
+                }
+            }
+            DetectionCondition::Attr { key, value } => {
+                if key.is_empty() || value.is_empty() {
+                    Err("attr predicate needs both key and value".into())
+                } else {
+                    Ok(())
+                }
+            }
+            DetectionCondition::MinLevel { .. } => Ok(()),
+        }
+    }
+}
+
 /// A persisted detection rule over the log tier.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DetectionRule {
@@ -68,6 +174,11 @@ pub struct DetectionRule {
     /// Empty `attr_key` = no attribute constraint.
     pub attr_key: String,
     pub attr_val: String,
+    /// Detection v2 boolean condition tree. When set, it supersedes the flat
+    /// `service`/`min_level`/`body_regex`/`attr_*` fields above; when null, the
+    /// legacy flat match is used (so pre-v2 rules are unchanged).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub condition: Option<DetectionCondition>,
     /// Raise a finding when at least this many new matches land in a tick.
     pub threshold: i32,
     /// How far back a tick looks when it has no prior checkpoint (seconds).
@@ -110,6 +221,9 @@ pub struct NewDetectionRule {
     #[validate(length(max = 500))]
     #[serde(default)]
     pub attr_val: String,
+    /// Detection v2 boolean condition tree (supersedes the flat fields above).
+    #[serde(default)]
+    pub condition: Option<DetectionCondition>,
     #[validate(range(min = 1, max = 100_000))]
     #[serde(default = "default_threshold")]
     pub threshold: i32,
@@ -167,6 +281,10 @@ pub struct UpdateDetectionRule {
     #[validate(length(max = 500))]
     #[serde(default)]
     pub attr_val: Option<String>,
+    /// Detection v2 boolean condition tree. `Some` replaces the stored tree;
+    /// `None` leaves it unchanged (use a clearing path if you need to drop it).
+    #[serde(default)]
+    pub condition: Option<DetectionCondition>,
     #[validate(range(min = 1, max = 100_000))]
     #[serde(default)]
     pub threshold: Option<i32>,
@@ -217,5 +335,63 @@ mod tests {
             assert_eq!(DetectionSeverity::from_db(s.as_str()), s);
         }
         assert_eq!(DetectionSeverity::from_db("bogus"), DetectionSeverity::Medium);
+    }
+
+    use DetectionCondition as C;
+
+    fn sample_tree() -> DetectionCondition {
+        C::Or {
+            conditions: vec![
+                C::And {
+                    conditions: vec![
+                        C::Service { value: "auth".into() },
+                        C::BodyRegex { value: "fail".into() },
+                    ],
+                },
+                C::Not {
+                    condition: Box::new(C::Attr { key: "env".into(), value: "dev".into() }),
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn condition_node_count_and_depth() {
+        let t = sample_tree();
+        // Or + (And + Service + BodyRegex) + (Not + Attr) = 6 nodes.
+        assert_eq!(t.node_count(), 6);
+        // Or -> And -> Service = depth 3.
+        assert_eq!(t.depth(), 3);
+    }
+
+    #[test]
+    fn condition_serde_roundtrip() {
+        let t = sample_tree();
+        let json = serde_json::to_string(&t).unwrap();
+        assert!(json.contains("\"type\":\"or\""));
+        let back: DetectionCondition = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, t);
+    }
+
+    #[test]
+    fn condition_validate_rejects_empty_leaf_and_oversize() {
+        assert!(sample_tree().validate_tree().is_ok());
+        // Empty leaf value.
+        assert!(C::Service { value: String::new() }.validate_tree().is_err());
+        // Attr missing a side.
+        assert!(C::Attr { key: "k".into(), value: String::new() }.validate_tree().is_err());
+        // Too many nodes.
+        let big = C::And {
+            conditions: (0..70).map(|_| C::MinLevel { value: 1 }).collect(),
+        };
+        assert!(big.validate_tree().is_err());
+    }
+
+    #[test]
+    fn condition_collects_body_regexes() {
+        let t = sample_tree();
+        let mut out = Vec::new();
+        t.body_regexes(&mut out);
+        assert_eq!(out, vec!["fail"]);
     }
 }

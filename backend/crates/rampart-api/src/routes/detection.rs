@@ -57,6 +57,7 @@ async fn create(
     if !rampart_db::detection::regex_is_valid(s.pool(), &input.body_regex).await? {
         return Err(ApiError::BadRequest("body_regex is not a valid regex".into()));
     }
+    validate_condition(&s, input.condition.as_ref()).await?;
     let rule = rampart_db::detection::create(s.pool(), input).await?;
     Ok((StatusCode::CREATED, Json(rule)))
 }
@@ -75,9 +76,31 @@ async fn update(
             return Err(ApiError::BadRequest("body_regex is not a valid regex".into()));
         }
     }
+    validate_condition(&s, input.condition.as_ref()).await?;
     Ok(Json(
         rampart_db::detection::update(s.pool(), rule_id, input).await?,
     ))
+}
+
+/// Validate a Detection v2 boolean condition tree before it's stored: bounded
+/// size/depth + non-empty leaves (structural), plus a real regex check on every
+/// `BodyRegex` leaf so a bad pattern can't break the evaluation tick.
+async fn validate_condition(
+    s: &AppState,
+    cond: Option<&rampart_core::DetectionCondition>,
+) -> Result<(), ApiError> {
+    let Some(cond) = cond else { return Ok(()) };
+    cond.validate_tree().map_err(ApiError::BadRequest)?;
+    let mut regexes = Vec::new();
+    cond.body_regexes(&mut regexes);
+    for rx in regexes {
+        if !rampart_db::detection::regex_is_valid(s.pool(), rx).await? {
+            return Err(ApiError::BadRequest(format!(
+                "condition body_regex is not a valid regex: {rx}"
+            )));
+        }
+    }
+    Ok(())
 }
 
 async fn delete_rule(

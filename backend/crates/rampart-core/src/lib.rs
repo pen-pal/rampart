@@ -49,7 +49,8 @@ pub use agent::{Agent, AgentResult, IssuedAgent, NewAgent, UpdateAgent};
 pub use api_key::{ApiKey, IssuedApiKey, KeyScope, NewApiKey};
 pub use cron::{CronExpr, CronSchedule};
 pub use detection::{
-    DetectionFinding, DetectionRule, DetectionSeverity, NewDetectionRule, UpdateDetectionRule,
+    DetectionCondition, DetectionFinding, DetectionRule, DetectionSeverity, NewDetectionRule,
+    UpdateDetectionRule,
 };
 pub use error::{CoreError, Result};
 pub use error_tracking::{
