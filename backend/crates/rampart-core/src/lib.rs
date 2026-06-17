@@ -29,6 +29,7 @@ pub mod monitor_group;
 pub mod monitor_preset;
 pub mod notification;
 pub mod on_call;
+pub mod org;
 pub mod profile;
 pub mod promtext;
 pub mod proxy;
@@ -63,6 +64,7 @@ pub use escalation::{
     UpdateEscalationPolicy,
 };
 pub use heartbeat::Heartbeat;
+pub use org::{Org, OrgMember, NewOrg, DEFAULT_ORG_ID};
 pub use ids::{
     AgentId, ApiKeyId, BadgeId, DetectionFindingId, DetectionRuleId, ErrorIssueId, ErrorProjectId,
     IncidentId, IncidentTemplateId,

@@ -40,6 +40,22 @@ pub struct AuthApiKeyId {
     pub rate_limit_per_hour: i32,
 }
 
+/// Request-extension carrying the org the request is acting in (multi-tenancy)
+/// and the caller's role within that org. Inserted by `require_session` on
+/// every authenticated request alongside the `User`.
+///
+/// Phase 1 is forward-compat plumbing only: the cookie path resolves the org
+/// from the session's `active_org_id` (falling back to the Default org), the
+/// bearer/api-key path resolves to the Default org (keys don't carry an org
+/// yet), and `role` mirrors the user's global role. No query filters by org
+/// and the RBAC guards still read `User.role`, so behaviour is unchanged —
+/// later phases switch reads + guards to consult this context.
+#[derive(Debug, Clone, Copy)]
+pub struct OrgContext {
+    pub org_id: rampart_core::ids::OrgId,
+    pub role: rampart_core::Role,
+}
+
 /// Hash a plaintext password with Argon2id and per-password random salt.
 pub fn hash_password(plaintext: &str) -> Result<String, ApiError> {
     let salt = SaltString::generate(&mut OsRng);
@@ -201,7 +217,14 @@ pub async fn require_session(
         // `min(creator_role, key_scope_role)` would be stricter, but scopes
         // are the contract here, so the key's scope is authoritative.
         user.role = key.scope.as_role();
+        // Org context: api keys don't carry an org yet (Phase 4), so resolve
+        // to the Default org. Role mirrors the (key-scoped) user role.
+        let org_ctx = OrgContext {
+            org_id: rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID),
+            role: user.role,
+        };
         req.extensions_mut().insert(user);
+        req.extensions_mut().insert(org_ctx);
         // Stash the authenticating key id so a downstream layer (the
         // per-key rate limiter in `lib.rs`) can identify which key made
         // the request. Only set on the api-key path — cookie/session
@@ -227,7 +250,18 @@ pub async fn require_session(
         .await
         .map_err(|_| ApiError::Unauthorized)?;
 
+    // Org context: the session's active org, falling back to the Default org
+    // when unset. Role mirrors the user's global role this release.
+    let org_id = session
+        .active_org_id
+        .map(rampart_core::ids::OrgId::from_uuid)
+        .unwrap_or_else(|| rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID));
+    let org_ctx = OrgContext {
+        org_id,
+        role: user.role,
+    };
     req.extensions_mut().insert(user);
+    req.extensions_mut().insert(org_ctx);
     Ok(next.run(req).await)
 }
 

@@ -56,6 +56,12 @@ pub async fn create(pool: &DbPool, input: NewUser) -> DbResult<User> {
     let id = Uuid::now_v7();
     // Keep the is_admin shim in sync with the authoritative role.
     let is_admin = input.role.is_admin();
+    // The user row and its Default-org membership commit atomically: the
+    // multi-tenancy invariant (every user is a member of at least one org)
+    // must never be violated, even on a partial failure. Phase 1 seeds the
+    // membership into the Default org with the user's role; a later phase
+    // reworks provisioning to target a chosen org.
+    let mut tx = pool.begin().await?;
     let row = sqlx::query!(
         r#"
         INSERT INTO users (id, email, name, password_hash, is_admin, role)
@@ -70,7 +76,7 @@ pub async fn create(pool: &DbPool, input: NewUser) -> DbResult<User> {
         is_admin,
         input.role as Role,
     )
-    .fetch_one(pool)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|e| match &e {
         sqlx::Error::Database(d) if d.is_unique_violation() => {
@@ -78,6 +84,15 @@ pub async fn create(pool: &DbPool, input: NewUser) -> DbResult<User> {
         }
         _ => DbError::Sqlx(e),
     })?;
+
+    crate::orgs::upsert_member_tx(
+        &mut tx,
+        rampart_core::org::DEFAULT_ORG_ID,
+        row.id,
+        row.role,
+    )
+    .await?;
+    tx.commit().await?;
 
     Ok(User {
         id: UserId::from_uuid(row.id),
