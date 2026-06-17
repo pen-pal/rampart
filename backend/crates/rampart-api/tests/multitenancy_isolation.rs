@@ -122,3 +122,45 @@ async fn status_page_management_isolated_but_public_view_open(pool: PgPool) {
     let (s, _, _) = request(&router, Method::GET, "/v1/public/status-pages/acme", None, None).await;
     assert_eq!(s, StatusCode::OK, "public view stays open");
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn incidents_isolated_via_owning_page(pool: PgPool) {
+    // Incidents have no org_id of their own — they inherit the owning status
+    // page's org. Every authenticated incident op must gate through that page.
+    let router = common::router(pool.clone());
+    let admin = register_admin(&router).await;
+
+    let page: Value = common::json(
+        &router, Method::POST, "/v1/status-pages",
+        Some(json!({"slug":"ops","title":"Ops","monitor_ids":[]})), Some(&admin),
+    ).await;
+    let page_id = page["id"].as_str().unwrap();
+    let inc: Value = common::json(
+        &router, Method::POST, &format!("/v1/status-pages/{page_id}/incidents"),
+        Some(json!({"title":"Outage","content":"is down"})), Some(&admin),
+    ).await;
+    let inc_id = inc["id"].as_str().unwrap();
+    assert_eq!(
+        list_len(&router, &format!("/v1/status-pages/{page_id}/incidents"), &admin).await,
+        1
+    );
+
+    // Reparent the owning page into another org.
+    sqlx::query("INSERT INTO organizations (id, slug, name) VALUES ($1::uuid, 'other', 'Other') ON CONFLICT DO NOTHING")
+        .bind(OTHER_ORG).execute(&pool).await.unwrap();
+    sqlx::query("UPDATE status_pages SET org_id = $1::uuid WHERE id = $2::uuid")
+        .bind(OTHER_ORG).bind(page_id).execute(&pool).await.unwrap();
+
+    // Page-scoped list gates through the owning page → 404.
+    let (s, _, _) = request(&router, Method::GET, &format!("/v1/status-pages/{page_id}/incidents"), None, Some(&admin)).await;
+    assert_eq!(s, StatusCode::NOT_FOUND, "cross-org incident list");
+    // Top-level by-id ops resolve the incident → owning page → org → 404.
+    let (s, _, _) = request(&router, Method::GET, &format!("/v1/incidents/{inc_id}/updates"), None, Some(&admin)).await;
+    assert_eq!(s, StatusCode::NOT_FOUND, "cross-org incident updates");
+    let (s, _, _) = request(&router, Method::PATCH, &format!("/v1/incidents/{inc_id}"), Some(json!({"title":"x"})), Some(&admin)).await;
+    assert_eq!(s, StatusCode::NOT_FOUND, "cross-org incident PATCH");
+    let (s, _, _) = request(&router, Method::POST, &format!("/v1/incidents/{inc_id}/resolve"), None, Some(&admin)).await;
+    assert_eq!(s, StatusCode::NOT_FOUND, "cross-org incident resolve");
+    let (s, _, _) = request(&router, Method::DELETE, &format!("/v1/incidents/{inc_id}"), None, Some(&admin)).await;
+    assert_eq!(s, StatusCode::NOT_FOUND, "cross-org incident DELETE");
+}
