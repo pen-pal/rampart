@@ -305,7 +305,7 @@ impl Scheduler {
                     };
                     // Detection has no sustained firing state — it auto-resolves
                     // when the rule goes quiet (no finding within ~2× its window).
-                    match rampart_db::detection::get(&self.pool, rule_id).await {
+                    match rampart_db::detection::get_unscoped(&self.pool, rule_id).await {
                         Ok(rule) => {
                             let grace = ((rule.window_seconds as i64) * 2).max(600);
                             let active = rampart_db::detection::has_recent_finding(&self.pool, rule_id, grace, None)

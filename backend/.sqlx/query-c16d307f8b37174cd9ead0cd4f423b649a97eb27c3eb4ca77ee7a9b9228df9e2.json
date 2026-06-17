@@ -1,0 +1,245 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, name, description, enabled, severity, service, min_level,\n               body_regex, attr_key, attr_val, threshold, window_seconds, cooldown_seconds,\n               group_by, condition,\n               channel_ids AS \"channel_ids!\", escalation_policy_id, last_checked_at, created_at\n        FROM detection_rules\n        WHERE id = $1 AND org_id = $2\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "detection_rules",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "detection_rules",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "description",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "detection_rules",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "enabled",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "detection_rules",
+            "name": "enabled"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "severity",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "detection_rules",
+            "name": "severity"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "service",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "detection_rules",
+            "name": "service"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "min_level",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "detection_rules",
+            "name": "min_level"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "body_regex",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "detection_rules",
+            "name": "body_regex"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "attr_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "detection_rules",
+            "name": "attr_key"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "attr_val",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "detection_rules",
+            "name": "attr_val"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "threshold",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "detection_rules",
+            "name": "threshold"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "window_seconds",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "detection_rules",
+            "name": "window_seconds"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "cooldown_seconds",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "detection_rules",
+            "name": "cooldown_seconds"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "group_by",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "detection_rules",
+            "name": "group_by"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "condition",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "detection_rules",
+            "name": "condition"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "channel_ids!",
+        "type_info": "UuidArray",
+        "origin": {
+          "Table": {
+            "table": "detection_rules",
+            "name": "channel_ids"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "escalation_policy_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "detection_rules",
+            "name": "escalation_policy_id"
+          }
+        }
+      },
+      {
+        "ordinal": 17,
+        "name": "last_checked_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "detection_rules",
+            "name": "last_checked_at"
+          }
+        }
+      },
+      {
+        "ordinal": 18,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "detection_rules",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "c16d307f8b37174cd9ead0cd4f423b649a97eb27c3eb4ca77ee7a9b9228df9e2"
+}

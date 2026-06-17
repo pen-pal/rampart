@@ -8,7 +8,7 @@ use rampart_core::detection::{
     DetectionCondition, DetectionFinding, DetectionRule, DetectionSeverity, NewDetectionRule,
     UpdateDetectionRule,
 };
-use rampart_core::ids::{DetectionFindingId, DetectionRuleId, NotificationId};
+use rampart_core::ids::{DetectionFindingId, DetectionRuleId, NotificationId, OrgId};
 use sqlx::{Postgres, QueryBuilder, Row};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -120,7 +120,29 @@ pub async fn regex_is_valid(pool: &DbPool, pattern: &str) -> DbResult<bool> {
     }
 }
 
-pub async fn list(pool: &DbPool) -> DbResult<Vec<DetectionRule>> {
+/// Detection rules owned by one org — the management list (org-scoped).
+pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<DetectionRule>> {
+    let rows = sqlx::query_as!(
+        RuleRow,
+        r#"
+        SELECT id, name, description, enabled, severity, service, min_level,
+               body_regex, attr_key, attr_val, threshold, window_seconds, cooldown_seconds,
+               group_by, condition,
+               channel_ids AS "channel_ids!", escalation_policy_id, last_checked_at, created_at
+        FROM detection_rules
+        WHERE org_id = $1
+        ORDER BY created_at
+        "#,
+        org_id.0,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(Into::into).collect())
+}
+
+/// Every detection rule across ALL orgs — for the scheduler evaluation tick.
+/// Not org-scoped; never call on a request path (use [`list`]).
+pub async fn list_all(pool: &DbPool) -> DbResult<Vec<DetectionRule>> {
     let rows = sqlx::query_as!(
         RuleRow,
         r#"
@@ -137,7 +159,30 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<DetectionRule>> {
     Ok(rows.into_iter().map(Into::into).collect())
 }
 
-pub async fn get(pool: &DbPool, id: DetectionRuleId) -> DbResult<DetectionRule> {
+/// Fetch one rule scoped to an org (cross-org id → NotFound).
+pub async fn get(pool: &DbPool, id: DetectionRuleId, org_id: OrgId) -> DbResult<DetectionRule> {
+    let row = sqlx::query_as!(
+        RuleRow,
+        r#"
+        SELECT id, name, description, enabled, severity, service, min_level,
+               body_regex, attr_key, attr_val, threshold, window_seconds, cooldown_seconds,
+               group_by, condition,
+               channel_ids AS "channel_ids!", escalation_policy_id, last_checked_at, created_at
+        FROM detection_rules
+        WHERE id = $1 AND org_id = $2
+        "#,
+        id.0,
+        org_id.0,
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or(DbError::NotFound)?;
+    Ok(row.into())
+}
+
+/// Fetch one rule WITHOUT org scoping — for the scheduler and the
+/// just-inserted-row return in [`create`]. Not for request paths.
+pub async fn get_unscoped(pool: &DbPool, id: DetectionRuleId) -> DbResult<DetectionRule> {
     let row = sqlx::query_as!(
         RuleRow,
         r#"
@@ -190,13 +235,15 @@ pub async fn create(pool: &DbPool, input: NewDetectionRule) -> DbResult<Detectio
     )
     .execute(pool)
     .await?;
-    get(pool, id).await
+    // org_id from the column default (write-stamping is Phase 4); return unscoped.
+    get_unscoped(pool, id).await
 }
 
 pub async fn update(
     pool: &DbPool,
     id: DetectionRuleId,
     patch: UpdateDetectionRule,
+    org_id: OrgId,
 ) -> DbResult<DetectionRule> {
     let channel_ids: Option<Vec<Uuid>> = patch.channel_ids.map(|v| v.iter().map(|c| c.0).collect());
     let condition_json: Option<serde_json::Value> =
@@ -223,7 +270,7 @@ pub async fn update(
             -- when switched back to the flat matcher).
             condition      = $16,
             group_by       = COALESCE($17, group_by)
-        WHERE id = $1
+        WHERE id = $1 AND org_id = $18
         "#,
         id.0,
         patch.name,
@@ -242,19 +289,24 @@ pub async fn update(
         patch.cooldown_seconds,
         condition_json,
         patch.group_by,
+        org_id.0,
     )
     .execute(pool)
     .await?;
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }
-    get(pool, id).await
+    get(pool, id, org_id).await
 }
 
-pub async fn delete(pool: &DbPool, id: DetectionRuleId) -> DbResult<()> {
-    let result = sqlx::query!("DELETE FROM detection_rules WHERE id = $1", id.0)
-        .execute(pool)
-        .await?;
+pub async fn delete(pool: &DbPool, id: DetectionRuleId, org_id: OrgId) -> DbResult<()> {
+    let result = sqlx::query!(
+        "DELETE FROM detection_rules WHERE id = $1 AND org_id = $2",
+        id.0,
+        org_id.0,
+    )
+    .execute(pool)
+    .await?;
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }
@@ -343,7 +395,7 @@ pub struct FindingEvent {
 pub async fn evaluate_tick(pool: &DbPool) -> DbResult<Vec<FindingEvent>> {
     let mut out = Vec::new();
 
-    for rule in list(pool).await?.into_iter().filter(|r| r.enabled) {
+    for rule in list_all(pool).await?.into_iter().filter(|r| r.enabled) {
         let cooldown = rule.cooldown_seconds as i64;
         let wto = if rule.group_by.is_empty() {
             // ── whole-match-set: one count, one finding ──────────────────────
