@@ -218,7 +218,9 @@ async fn report_heartbeats(
     let mut rejected: Vec<RejectedResult> = Vec::new();
 
     for r in results {
-        let monitor = match rampart_db::monitors::get(s.pool(), r.monitor_id).await {
+        // Agent reporting heartbeats for monitors it was assigned; the agent
+        // credential is the authority, so resolve the monitor unscoped.
+        let monitor = match rampart_db::monitors::get_unscoped(s.pool(), r.monitor_id).await {
             Ok(m) => m,
             Err(_) => {
                 rejected.push(RejectedResult {

@@ -115,7 +115,7 @@ pub async fn run(pool: &DbPool) -> Result<SeedStats> {
     // `RAMPART_SEED_FORCE=1` overrides for the rare intentional case.
     let force = std::env::var("RAMPART_SEED_FORCE").is_ok_and(|v| v == "1" || v == "true");
     if !force {
-        let real = rampart_db::monitors::list(pool)
+        let real = rampart_db::monitors::list_all(pool)
             .await?
             .into_iter()
             .filter(|m| !m.name.starts_with("[demo]"))
@@ -735,7 +735,7 @@ async fn seed_maintenance(pool: &DbPool, stats: &mut SeedStats) {
     let Ok(win) = rampart_db::maintenance::create(pool, input).await else { return };
     stats.maintenance += 1;
     // Attach the database + cache monitors so the window names something.
-    if let Ok(mons) = rampart_db::monitors::list(pool).await {
+    if let Ok(mons) = rampart_db::monitors::list_all(pool).await {
         for m in mons.iter().filter(|m| m.name.contains("Database") || m.name.contains("Cache")) {
             let _ = rampart_db::maintenance::attach(pool, win.id, m.id).await;
         }
@@ -744,7 +744,7 @@ async fn seed_maintenance(pool: &DbPool, stats: &mut SeedStats) {
 
 /// A scoped, time-boxed silence on the cache monitor.
 async fn seed_silences(pool: &DbPool, stats: &mut SeedStats) {
-    let mon_uuid = rampart_db::monitors::list(pool).await.ok()
+    let mon_uuid = rampart_db::monitors::list_all(pool).await.ok()
         .and_then(|m| m.into_iter().find(|m| m.name.contains("Cache")).map(|m| m.id.0));
     let now = OffsetDateTime::now_utc();
     let s = rampart_db::silences::NewSilence {
@@ -882,7 +882,7 @@ async fn seed_tags(pool: &DbPool, stats: &mut SeedStats) {
         json!({ "name": "tier-1", "color": "#ef4444" }),
         json!({ "name": "team-payments", "color": "#6366f1" }),
     ];
-    let mons = rampart_db::monitors::list(pool).await.unwrap_or_default();
+    let mons = rampart_db::monitors::list_all(pool).await.unwrap_or_default();
     for spec in specs {
         if let Ok(input) = serde_json::from_value::<rampart_core::tag::NewTag>(spec) {
             if let Ok(tag) = rampart_db::tags::create(pool, input).await {

@@ -1,8 +1,11 @@
 //! `/v1/monitors` routes.
 //!
-//! Single-tenant: no workspace scoping. Authentication is enforced by
-//! the session / API-key middleware in `crate::auth`.
+//! Multi-tenancy: every request carries an `OrgContext` (inserted by the
+//! session / API-key middleware in `crate::auth`); handlers that read or
+//! mutate monitors pass `org.org_id` into the org-scoped db fns so a caller
+//! only ever sees its own org's monitors.
 
+use crate::auth::OrgContext;
 use crate::error::ApiError;
 use crate::state::AppState;
 use axum::extract::{Extension, Path, Query, State};
@@ -59,8 +62,11 @@ fn parse_monitor_id(s: &str) -> Result<MonitorId, ApiError> {
         .map_err(|_| ApiError::BadRequest("invalid monitor id".into()))
 }
 
-async fn list(State(state): State<AppState>) -> Result<Json<Vec<Monitor>>, ApiError> {
-    let monitors = rampart_db::monitors::list(state.pool()).await?;
+async fn list(
+    State(state): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+) -> Result<Json<Vec<Monitor>>, ApiError> {
+    let monitors = rampart_db::monitors::list(state.pool(), org.org_id).await?;
     Ok(Json(monitors))
 }
 
@@ -87,8 +93,9 @@ const SPEC_STRIP: &[&str] = &[
 /// timestamps / runtime). Keep the output in git; feed it back to `apply`.
 async fn export_monitors(
     State(state): State<AppState>,
+    Extension(org): Extension<OrgContext>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let monitors = rampart_db::monitors::list(state.pool()).await?;
+    let monitors = rampart_db::monitors::list(state.pool(), org.org_id).await?;
     let specs: Vec<serde_json::Value> = monitors
         .iter()
         .map(|m| {
@@ -128,11 +135,12 @@ struct ApplyResult {
 async fn apply_monitors(
     State(state): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Json(input): Json<ApplyInput>,
 ) -> Result<Json<ApplyResult>, ApiError> {
     use std::collections::{HashMap, HashSet};
-    let existing = rampart_db::monitors::list(state.pool()).await?;
+    let existing = rampart_db::monitors::list(state.pool(), org.org_id).await?;
     let mut by_name: HashMap<String, MonitorId> = HashMap::new();
     let mut dups: HashSet<String> = HashSet::new();
     for m in &existing {
@@ -160,7 +168,7 @@ async fn apply_monitors(
                 .map_err(|e| e.to_string())
                 .and_then(|p| p.validate().map(|_| p).map_err(|e| e.to_string()))
             {
-                Ok(patch) => match rampart_db::monitors::update(state.pool(), id, patch).await {
+                Ok(patch) => match rampart_db::monitors::update(state.pool(), id, patch, org.org_id).await {
                     Ok(_) => res.updated += 1,
                     Err(e) => res.errors.push(format!("{name}: {e}")),
                 },
@@ -184,7 +192,7 @@ async fn apply_monitors(
         for m in &existing {
             if !seen.contains(&m.name)
                 && !dups.contains(&m.name)
-                && rampart_db::monitors::delete(state.pool(), m.id)
+                && rampart_db::monitors::delete(state.pool(), m.id, org.org_id)
                     .await
                     .is_ok()
             {
@@ -313,21 +321,23 @@ async fn import_csv(
 
 async fn get_one(
     State(state): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<Monitor>, ApiError> {
     let monitor_id = parse_monitor_id(&id)?;
-    let monitor = rampart_db::monitors::get(state.pool(), monitor_id).await?;
+    let monitor = rampart_db::monitors::get(state.pool(), monitor_id, org.org_id).await?;
     Ok(Json(monitor))
 }
 
 async fn delete_one(
     State(state): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let monitor_id = parse_monitor_id(&id)?;
-    rampart_db::monitors::delete(state.pool(), monitor_id).await?;
+    rampart_db::monitors::delete(state.pool(), monitor_id, org.org_id).await?;
     state.poke_scheduler();
     crate::audit::record(
         state.pool(),
@@ -345,6 +355,7 @@ async fn delete_one(
 async fn update(
     State(state): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path(id): Path<String>,
     Json(input): Json<UpdateMonitor>,
@@ -352,7 +363,7 @@ async fn update(
     let monitor_id = parse_monitor_id(&id)?;
     input.validate()?;
     if let Some(Some(aid)) = input.agent_id {
-        let existing = rampart_db::monitors::get(state.pool(), monitor_id).await?;
+        let existing = rampart_db::monitors::get(state.pool(), monitor_id, org.org_id).await?;
         if existing.kind == rampart_core::MonitorKind::Push {
             return Err(ApiError::BadRequest(
                 "push monitors are inbound-only and cannot be assigned to an agent".into(),
@@ -362,7 +373,7 @@ async fn update(
             .await
             .map_err(|_| ApiError::BadRequest("unknown agent".into()))?;
     }
-    let monitor = rampart_db::monitors::update(state.pool(), monitor_id, input).await?;
+    let monitor = rampart_db::monitors::update(state.pool(), monitor_id, input, org.org_id).await?;
     // Interval / url / proxy_id changes need the running probe task to
     // pick up the new config — poke triggers a reload diff.
     state.poke_scheduler();
@@ -382,11 +393,12 @@ async fn update(
 async fn pause(
     State(state): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     let monitor_id = parse_monitor_id(&id)?;
-    rampart_db::monitors::set_active(state.pool(), monitor_id, false).await?;
+    rampart_db::monitors::set_active(state.pool(), monitor_id, false, org.org_id).await?;
     state.poke_scheduler();
     crate::audit::record(
         state.pool(),
@@ -404,11 +416,12 @@ async fn pause(
 async fn resume(
     State(state): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     let monitor_id = parse_monitor_id(&id)?;
-    rampart_db::monitors::set_active(state.pool(), monitor_id, true).await?;
+    rampart_db::monitors::set_active(state.pool(), monitor_id, true, org.org_id).await?;
     state.poke_scheduler();
     crate::audit::record(
         state.pool(),
@@ -455,6 +468,7 @@ struct BulkResult {
 async fn bulk(
     State(state): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Json(req): Json<BulkRequest>,
 ) -> Result<Json<BulkResult>, ApiError> {
@@ -508,11 +522,15 @@ async fn bulk(
             }
         };
         let res = match &req.action {
-            BulkAction::Pause => rampart_db::monitors::set_active(pool, mid, false).await,
-            BulkAction::Resume => rampart_db::monitors::set_active(pool, mid, true).await,
-            BulkAction::Delete => rampart_db::monitors::delete(pool, mid).await,
+            BulkAction::Pause => {
+                rampart_db::monitors::set_active(pool, mid, false, org.org_id).await
+            }
+            BulkAction::Resume => {
+                rampart_db::monitors::set_active(pool, mid, true, org.org_id).await
+            }
+            BulkAction::Delete => rampart_db::monitors::delete(pool, mid, org.org_id).await,
             BulkAction::SetGroup { .. } => {
-                rampart_db::monitors::set_group(pool, mid, group.flatten()).await
+                rampart_db::monitors::set_group(pool, mid, group.flatten(), org.org_id).await
             }
             BulkAction::AddTag { .. } => rampart_db::tags::attach(pool, mid, tag.unwrap()).await,
             BulkAction::RemoveTag { .. } => rampart_db::tags::detach(pool, mid, tag.unwrap()).await,
@@ -1074,6 +1092,7 @@ where
 async fn clone_one(
     State(state): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path(id): Path<String>,
     body: Option<Json<CloneRequest>>,
@@ -1081,7 +1100,7 @@ async fn clone_one(
     use rampart_core::ids::MonitorGroupId;
 
     let monitor_id = parse_monitor_id(&id)?;
-    let src = rampart_db::monitors::get(state.pool(), monitor_id).await?;
+    let src = rampart_db::monitors::get(state.pool(), monitor_id, org.org_id).await?;
 
     let req = body.map(|Json(b)| b).unwrap_or_default();
 
@@ -1165,11 +1184,12 @@ async fn clone_one(
 async fn test_now(
     State(state): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<rampart_core::Heartbeat>, ApiError> {
     let monitor_id = parse_monitor_id(&id)?;
-    let monitor = rampart_db::monitors::get(state.pool(), monitor_id).await?;
+    let monitor = rampart_db::monitors::get(state.pool(), monitor_id, org.org_id).await?;
     if monitor.kind == rampart_core::MonitorKind::Push {
         return Err(ApiError::BadRequest(
             "push monitors can't be probed from the server — they receive heartbeats, not send them".into(),
@@ -1231,12 +1251,13 @@ struct TestNotificationsResponse {
 async fn test_notifications(
     State(state): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<TestNotificationsResponse>, ApiError> {
     let monitor_id = parse_monitor_id(&id)?;
-    // 404 if the monitor doesn't exist.
-    let _ = rampart_db::monitors::get(state.pool(), monitor_id).await?;
+    // 404 if the monitor doesn't exist in this org.
+    let _ = rampart_db::monitors::get(state.pool(), monitor_id, org.org_id).await?;
 
     let channels =
         rampart_db::routing::resolve_channels_for_monitor(state.pool(), monitor_id).await?;
@@ -1347,11 +1368,13 @@ async fn test_notifications(
 async fn regenerate_push_token(
     State(state): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let monitor_id = parse_monitor_id(&id)?;
-    let token = rampart_db::monitors::regenerate_push_token(state.pool(), monitor_id).await?;
+    let token =
+        rampart_db::monitors::regenerate_push_token(state.pool(), monitor_id, org.org_id).await?;
     crate::audit::record(
         state.pool(),
         &user,
@@ -1501,10 +1524,11 @@ async fn reliability(
 /// endpoint in normal use.
 async fn slo_error_budget(
     State(state): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<rampart_db::heartbeats::ErrorBudget>, ApiError> {
     let monitor_id = parse_monitor_id(&id)?;
-    let monitor = rampart_db::monitors::get(state.pool(), monitor_id).await?;
+    let monitor = rampart_db::monitors::get(state.pool(), monitor_id, org.org_id).await?;
     let target = monitor.slo_target_pct.ok_or(ApiError::NotFound)?;
     let window_days = monitor.slo_window_days.ok_or(ApiError::NotFound)?;
     let budget =
@@ -1541,11 +1565,12 @@ pub struct BurndownQuery {
 
 async fn slo_burndown(
     State(state): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
     Query(q): Query<BurndownQuery>,
 ) -> Result<Json<BurndownDto>, ApiError> {
     let monitor_id = parse_monitor_id(&id)?;
-    let monitor = rampart_db::monitors::get(state.pool(), monitor_id).await?;
+    let monitor = rampart_db::monitors::get(state.pool(), monitor_id, org.org_id).await?;
     let target = monitor.slo_target_pct.ok_or(ApiError::NotFound)?;
     let configured_window = monitor.slo_window_days.ok_or(ApiError::NotFound)?;
     // Resolve the requested window: explicit `?window_days=` (whitelisted)
@@ -1614,12 +1639,13 @@ pub struct RollupsQuery {
 /// long past the raw-heartbeat retention horizon.
 async fn rollups(
     State(state): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
     Query(q): Query<RollupsQuery>,
 ) -> Result<Json<Vec<RollupDto>>, ApiError> {
     let monitor_id = parse_monitor_id(&id)?;
-    // 404 if the monitor doesn't exist (parity with the other read routes).
-    let _ = rampart_db::monitors::get(state.pool(), monitor_id).await?;
+    // 404 if the monitor doesn't exist in this org (parity with other reads).
+    let _ = rampart_db::monitors::get(state.pool(), monitor_id, org.org_id).await?;
 
     let to = q.to.unwrap_or_else(OffsetDateTime::now_utc);
     let from = q.from.unwrap_or_else(|| to - time::Duration::days(30));
@@ -1694,11 +1720,12 @@ fn parse_uptime_range(range: Option<&str>) -> Result<i64, ApiError> {
 /// that day, which the per-day map merges by summing.
 async fn uptime_history(
     State(state): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
     Query(q): Query<UptimeHistoryQuery>,
 ) -> Result<Json<Vec<UptimeHistoryPoint>>, ApiError> {
     let monitor_id = parse_monitor_id(&id)?;
-    let _ = rampart_db::monitors::get(state.pool(), monitor_id).await?;
+    let _ = rampart_db::monitors::get(state.pool(), monitor_id, org.org_id).await?;
 
     let days = parse_uptime_range(q.range.as_deref())?;
     let now = OffsetDateTime::now_utc();
