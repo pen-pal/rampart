@@ -1,0 +1,209 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, name, kind, target, match_text, min_level, op, threshold,\n               window_seconds, for_seconds, enabled,\n               channel_ids AS \"channel_ids!\", escalation_policy_id,\n               breach_since, firing_at, created_at\n        FROM telemetry_alert_rules\n        WHERE id = $1 AND org_id = $2\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "telemetry_alert_rules",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "telemetry_alert_rules",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "kind",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "telemetry_alert_rules",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "target",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "telemetry_alert_rules",
+            "name": "target"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "match_text",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "telemetry_alert_rules",
+            "name": "match_text"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "min_level",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "telemetry_alert_rules",
+            "name": "min_level"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "op",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "telemetry_alert_rules",
+            "name": "op"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "threshold",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "telemetry_alert_rules",
+            "name": "threshold"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "window_seconds",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "telemetry_alert_rules",
+            "name": "window_seconds"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "for_seconds",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "telemetry_alert_rules",
+            "name": "for_seconds"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "enabled",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "telemetry_alert_rules",
+            "name": "enabled"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "channel_ids!",
+        "type_info": "UuidArray",
+        "origin": {
+          "Table": {
+            "table": "telemetry_alert_rules",
+            "name": "channel_ids"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "escalation_policy_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "telemetry_alert_rules",
+            "name": "escalation_policy_id"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "breach_since",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "telemetry_alert_rules",
+            "name": "breach_since"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "firing_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "telemetry_alert_rules",
+            "name": "firing_at"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "telemetry_alert_rules",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "632c1bf66c337f2c1a4dfe165013a33957742746f0a5d11caad5a0e44fdf73de"
+}

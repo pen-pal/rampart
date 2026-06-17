@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE metric_rules SET\n            name        = COALESCE($2, name),\n            metric      = COALESCE($3, metric),\n            labels      = COALESCE($4, labels),\n            op          = COALESCE($5, op),\n            threshold   = COALESCE($6, threshold),\n            for_seconds = COALESCE($7, for_seconds),\n            enabled     = COALESCE($8, enabled),\n            channel_ids = COALESCE($9, channel_ids),\n            escalation_policy_id = COALESCE($10, escalation_policy_id),\n            -- Any edit resets in-flight breach state: the old pending /\n            -- firing markers describe the OLD condition.\n            breach_since = NULL,\n            firing_at    = NULL\n        WHERE id = $1 AND org_id = $11\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Jsonb",
+        "Text",
+        "Float8",
+        "Int4",
+        "Bool",
+        "UuidArray",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f82a885383f2726d489815599ba8e33ca7dbc933b5d590dbd36490e1172383f1"
+}

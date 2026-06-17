@@ -245,7 +245,7 @@ impl Scheduler {
                         Ok(u) => rampart_core::ids::TelemetryRuleId::from_uuid(u),
                         Err(_) => continue,
                     };
-                    match rampart_db::telemetry_rules::get(&self.pool, rule_id).await {
+                    match rampart_db::telemetry_rules::get_unscoped(&self.pool, rule_id).await {
                         // Still firing → keep climbing. Recovered/deleted → close.
                         Ok(rule) if rule.firing_at.is_some() => {
                             let down_for = (time::OffsetDateTime::now_utc() - episode.started_at).whole_seconds();
@@ -264,7 +264,7 @@ impl Scheduler {
                         Ok(u) => rampart_core::ids::MetricRuleId::from_uuid(u),
                         Err(_) => continue,
                     };
-                    match rampart_db::metric_rules::get(&self.pool, rule_id).await {
+                    match rampart_db::metric_rules::get_unscoped(&self.pool, rule_id).await {
                         Ok(rule) if rule.firing_at.is_some() => {
                             let down_for = (time::OffsetDateTime::now_utc() - episode.started_at).whole_seconds();
                             alert_escalation_event(&rule.name, format!("still firing, unacknowledged for {down_for}s"))
