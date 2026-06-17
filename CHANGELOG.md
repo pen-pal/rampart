@@ -19,6 +19,22 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.102.0] — 2026-06-17
+
+### Added
+- **Three new probe kinds — Elasticsearch/OpenSearch, Vault, etcd** (41 kinds
+  total). All HTTP-based health checks for common platform/SIEM infrastructure,
+  built on the SSRF-guarded client:
+  - **Elasticsearch / OpenSearch** — `GET {url}/_cluster/health`; green = up,
+    yellow = warn (or up with `allow_yellow`), red = down. Optional basic auth.
+  - **Vault** — `GET {url}/v1/sys/health`; maps Vault's status codes (200 active,
+    429 standby → warn, 501 uninitialized / 503 sealed → down).
+  - **etcd** — `GET {url}/health`; up when `{"health":"true"}`. Optional basic auth.
+  Wired through the new-monitor wizard catalog, the structured config editor
+  (username/password/allow_yellow), and migration `0102` (`monitor_kind` enum).
+
+---
+
 ## [0.101.8] — 2026-06-17
 
 ### Changed
