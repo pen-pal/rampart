@@ -24,7 +24,7 @@ use rampart_core::synthetic::{
     SyntheticPlan, SyntheticStep,
 };
 use rampart_core::{Heartbeat, Monitor, MonitorStatus};
-use reqwest::{Client, ClientBuilder, Method};
+use reqwest::{Client, Method};
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::str::FromStr;
@@ -206,8 +206,10 @@ impl Probe for SyntheticProbe {
 fn build_client(monitor: &Monitor) -> reqwest::Result<Client> {
     // Never let reqwest follow redirects on its own — `send_guarded` follows
     // them manually so every hop is re-resolved + SSRF-guarded. Auto-follow
-    // would chase a `Location` to an internal address unchecked.
-    ClientBuilder::new()
+    // would chase a `Location` to an internal address unchecked. The client is
+    // built via the guarded resolver too, so the connect itself is vetted
+    // (defence-in-depth against a rebind between check and dial).
+    crate::ssrf::guarded_client_builder()
         .user_agent(USER_AGENT)
         .redirect(reqwest::redirect::Policy::none())
         .danger_accept_invalid_certs(monitor.ignore_tls)
