@@ -6,7 +6,7 @@
 
 ### Self-hosted uptime monitoring **and** observability you can actually trust.
 
-**One Rust binary. One Postgres. 38 probe kinds. 128 notification channels.**<br/>
+**One Rust binary. One Postgres. 41 probe kinds. 128 notification channels.**<br/>
 Uptime + status pages, **error tracking, distributed traces, logs, and RUM** — one binary, no SaaS.<br/>
 Tier alerting • On-call rotations • Multi-step synthetics • **SSO (OIDC)** • **HA (leader election)** • encrypted secrets • SSRF-guarded probes • tamper-evident audit • 2FA.
 
