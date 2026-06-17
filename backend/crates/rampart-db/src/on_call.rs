@@ -6,7 +6,7 @@
 //! in `rampart_core::on_call`; this module only fetches the row.
 
 use crate::{DbError, DbPool, DbResult};
-use rampart_core::ids::{NotificationId, OnCallScheduleId};
+use rampart_core::ids::{NotificationId, OnCallScheduleId, OrgId};
 use rampart_core::on_call::{
     on_call_target, NewOnCallSchedule, OnCallSchedule, OnCallTarget, UpdateOnCallSchedule,
 };
@@ -40,7 +40,8 @@ impl From<ScheduleRow> for OnCallSchedule {
     }
 }
 
-pub async fn list(pool: &DbPool) -> DbResult<Vec<OnCallSchedule>> {
+/// On-call schedules owned by one org — the management list (org-scoped).
+pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<OnCallSchedule>> {
     let rows = sqlx::query_as!(
         ScheduleRow,
         r#"
@@ -48,15 +49,39 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<OnCallSchedule>> {
                participant_ids AS "participant_ids!",
                participant_user_ids AS "participant_user_ids!", created_at
         FROM on_call_schedules
+        WHERE org_id = $1
         ORDER BY created_at
         "#,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
     Ok(rows.into_iter().map(Into::into).collect())
 }
 
-pub async fn get(pool: &DbPool, id: OnCallScheduleId) -> DbResult<OnCallSchedule> {
+/// Fetch one schedule scoped to an org (cross-org id → NotFound).
+pub async fn get(pool: &DbPool, id: OnCallScheduleId, org_id: OrgId) -> DbResult<OnCallSchedule> {
+    let row = sqlx::query_as!(
+        ScheduleRow,
+        r#"
+        SELECT id, name, rotation_seconds, anchor,
+               participant_ids AS "participant_ids!",
+               participant_user_ids AS "participant_user_ids!", created_at
+        FROM on_call_schedules
+        WHERE id = $1 AND org_id = $2
+        "#,
+        id.0,
+        org_id.0,
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or(DbError::NotFound)?;
+    Ok(row.into())
+}
+
+/// Fetch one schedule WITHOUT org scoping — for the just-inserted-row return
+/// in [`create`]. Not for request paths.
+pub async fn get_unscoped(pool: &DbPool, id: OnCallScheduleId) -> DbResult<OnCallSchedule> {
     let row = sqlx::query_as!(
         ScheduleRow,
         r#"
@@ -91,13 +116,15 @@ pub async fn create(pool: &DbPool, input: NewOnCallSchedule) -> DbResult<OnCallS
     )
     .execute(pool)
     .await?;
-    get(pool, id).await
+    // org_id from the column default (write-stamping is Phase 4); return unscoped.
+    get_unscoped(pool, id).await
 }
 
 pub async fn update(
     pool: &DbPool,
     id: OnCallScheduleId,
     patch: UpdateOnCallSchedule,
+    org_id: OrgId,
 ) -> DbResult<OnCallSchedule> {
     let participants = patch
         .participant_ids
@@ -113,7 +140,7 @@ pub async fn update(
             anchor               = COALESCE($4, anchor),
             participant_ids      = COALESCE($5, participant_ids),
             participant_user_ids = COALESCE($6, participant_user_ids)
-        WHERE id = $1
+        WHERE id = $1 AND org_id = $7
         "#,
         id.0,
         patch.name,
@@ -121,22 +148,27 @@ pub async fn update(
         patch.anchor,
         participants,
         user_participants,
+        org_id.0,
     )
     .execute(pool)
     .await?;
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }
-    get(pool, id).await
+    get(pool, id, org_id).await
 }
 
-pub async fn delete(pool: &DbPool, id: OnCallScheduleId) -> DbResult<()> {
+pub async fn delete(pool: &DbPool, id: OnCallScheduleId, org_id: OrgId) -> DbResult<()> {
     // Escalation steps reference schedules by id in JSONB (no FK); a step
     // pointing at a deleted schedule simply resolves to nothing and is
     // skipped at page time, exactly like an unresolvable channel id.
-    let result = sqlx::query!("DELETE FROM on_call_schedules WHERE id = $1", id.0)
-        .execute(pool)
-        .await?;
+    let result = sqlx::query!(
+        "DELETE FROM on_call_schedules WHERE id = $1 AND org_id = $2",
+        id.0,
+        org_id.0,
+    )
+    .execute(pool)
+    .await?;
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }
@@ -150,7 +182,7 @@ pub async fn current_channel(
     id: OnCallScheduleId,
     at: OffsetDateTime,
 ) -> DbResult<Option<NotificationId>> {
-    let schedule = get(pool, id).await?;
+    let schedule = get_unscoped(pool, id).await?;
     Ok(rampart_core::on_call::on_call_channel(&schedule, at))
 }
 
@@ -160,6 +192,6 @@ pub async fn current_target(
     id: OnCallScheduleId,
     at: OffsetDateTime,
 ) -> DbResult<Option<OnCallTarget>> {
-    let schedule = get(pool, id).await?;
+    let schedule = get_unscoped(pool, id).await?;
     Ok(on_call_target(&schedule, at))
 }

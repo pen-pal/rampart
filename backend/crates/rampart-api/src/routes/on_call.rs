@@ -3,6 +3,7 @@
 //! /v1/on-call-schedules            — CRUD (editor; like channels)
 //! /v1/on-call-schedules/{id}/current — the channel on call right now
 
+use crate::auth::OrgContext;
 use crate::error::ApiError;
 use crate::state::AppState;
 use axum::extract::{Extension, Path, State};
@@ -31,8 +32,11 @@ fn parse(s: &str) -> Result<OnCallScheduleId, ApiError> {
         .map_err(|_| ApiError::BadRequest("invalid schedule id".into()))
 }
 
-async fn list(State(s): State<AppState>) -> Result<Json<Vec<OnCallSchedule>>, ApiError> {
-    Ok(Json(rampart_db::on_call::list(s.pool()).await?))
+async fn list(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+) -> Result<Json<Vec<OnCallSchedule>>, ApiError> {
+    Ok(Json(rampart_db::on_call::list(s.pool(), org.org_id).await?))
 }
 
 async fn create(
@@ -67,6 +71,7 @@ async fn create(
 async fn update(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path(id): Path<String>,
     Json(input): Json<UpdateOnCallSchedule>,
@@ -81,7 +86,7 @@ async fn update(
         || input.participant_ids.is_some()
         || input.participant_user_ids.is_some()
     {
-        let current = rampart_db::on_call::get(s.pool(), schedule_id).await?;
+        let current = rampart_db::on_call::get(s.pool(), schedule_id, org.org_id).await?;
         let rotation = input.rotation_seconds.unwrap_or(current.rotation_seconds);
         let chans = input
             .participant_ids
@@ -96,7 +101,7 @@ async fn update(
         rampart_core::on_call::validate_schedule(rotation, chans + users)
             .map_err(ApiError::BadRequest)?;
     }
-    let schedule = rampart_db::on_call::update(s.pool(), schedule_id, input).await?;
+    let schedule = rampart_db::on_call::update(s.pool(), schedule_id, input, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -113,11 +118,12 @@ async fn update(
 async fn delete(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let schedule_id = parse(&id)?;
-    rampart_db::on_call::delete(s.pool(), schedule_id).await?;
+    rampart_db::on_call::delete(s.pool(), schedule_id, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,

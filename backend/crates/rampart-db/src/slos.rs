@@ -7,7 +7,7 @@
 //! never talks to notification channels.
 
 use crate::{DbError, DbPool, DbResult};
-use rampart_core::ids::{EscalationPolicyId, MonitorId, NotificationId, SloId};
+use rampart_core::ids::{EscalationPolicyId, MonitorId, NotificationId, OrgId, SloId};
 use rampart_core::slo::{
     slo_transition, snapshot, NewSlo, SliKind, Slo, SloSnapshot, SloTransition, UpdateSlo,
 };
@@ -61,7 +61,28 @@ impl From<SloRow> for Slo {
     }
 }
 
-pub async fn list(pool: &DbPool) -> DbResult<Vec<Slo>> {
+/// SLOs owned by one org — the management list (org-scoped).
+pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<Slo>> {
+    let rows = sqlx::query_as!(
+        SloRow,
+        r#"
+        SELECT id, name, description, sli_kind, monitor_id, good_metric, total_metric,
+               labels AS "labels!", objective_pct AS "objective_pct!: f64", window_days, enabled,
+               channel_ids AS "channel_ids!", escalation_policy_id, breaching_at, created_at
+        FROM slos
+        WHERE org_id = $1
+        ORDER BY created_at
+        "#,
+        org_id.0,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(Into::into).collect())
+}
+
+/// Every SLO across ALL orgs — for the scheduler evaluation tick. Not
+/// org-scoped; never call on a request path (use [`list`]).
+pub async fn list_all(pool: &DbPool) -> DbResult<Vec<Slo>> {
     let rows = sqlx::query_as!(
         SloRow,
         r#"
@@ -77,7 +98,29 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<Slo>> {
     Ok(rows.into_iter().map(Into::into).collect())
 }
 
-pub async fn get(pool: &DbPool, id: SloId) -> DbResult<Slo> {
+/// Fetch one SLO scoped to an org (cross-org id → NotFound).
+pub async fn get(pool: &DbPool, id: SloId, org_id: OrgId) -> DbResult<Slo> {
+    let row = sqlx::query_as!(
+        SloRow,
+        r#"
+        SELECT id, name, description, sli_kind, monitor_id, good_metric, total_metric,
+               labels AS "labels!", objective_pct AS "objective_pct!: f64", window_days, enabled,
+               channel_ids AS "channel_ids!", escalation_policy_id, breaching_at, created_at
+        FROM slos
+        WHERE id = $1 AND org_id = $2
+        "#,
+        id.0,
+        org_id.0,
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or(DbError::NotFound)?;
+    Ok(row.into())
+}
+
+/// Fetch one SLO WITHOUT org scoping — for the scheduler and the
+/// just-inserted-row return in [`create`]. Not for request paths.
+pub async fn get_unscoped(pool: &DbPool, id: SloId) -> DbResult<Slo> {
     let row = sqlx::query_as!(
         SloRow,
         r#"
@@ -120,10 +163,11 @@ pub async fn create(pool: &DbPool, input: NewSlo) -> DbResult<Slo> {
     )
     .execute(pool)
     .await?;
-    get(pool, id).await
+    // org_id from the column default (write-stamping is Phase 4); return unscoped.
+    get_unscoped(pool, id).await
 }
 
-pub async fn update(pool: &DbPool, id: SloId, patch: UpdateSlo) -> DbResult<Slo> {
+pub async fn update(pool: &DbPool, id: SloId, patch: UpdateSlo, org_id: OrgId) -> DbResult<Slo> {
     let channel_ids: Option<Vec<Uuid>> =
         patch.channel_ids.map(|v| v.iter().map(|c| c.0).collect());
     let result = sqlx::query!(
@@ -141,7 +185,7 @@ pub async fn update(pool: &DbPool, id: SloId, patch: UpdateSlo) -> DbResult<Slo>
             escalation_policy_id = COALESCE($11, escalation_policy_id),
             -- An edit redefines the objective; clear the in-flight breach marker.
             breaching_at  = NULL
-        WHERE id = $1
+        WHERE id = $1 AND org_id = $12
         "#,
         id.0,
         patch.name,
@@ -154,19 +198,24 @@ pub async fn update(pool: &DbPool, id: SloId, patch: UpdateSlo) -> DbResult<Slo>
         patch.enabled,
         channel_ids.as_deref(),
         patch.escalation_policy_id.map(|p| p.0),
+        org_id.0,
     )
     .execute(pool)
     .await?;
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }
-    get(pool, id).await
+    get(pool, id, org_id).await
 }
 
-pub async fn delete(pool: &DbPool, id: SloId) -> DbResult<()> {
-    let result = sqlx::query!("DELETE FROM slos WHERE id = $1", id.0)
-        .execute(pool)
-        .await?;
+pub async fn delete(pool: &DbPool, id: SloId, org_id: OrgId) -> DbResult<()> {
+    let result = sqlx::query!(
+        "DELETE FROM slos WHERE id = $1 AND org_id = $2",
+        id.0,
+        org_id.0,
+    )
+    .execute(pool)
+    .await?;
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }
@@ -313,9 +362,9 @@ pub struct SloWithSnapshot {
     pub trend: Vec<f64>,
 }
 
-pub async fn list_with_snapshots(pool: &DbPool) -> DbResult<Vec<SloWithSnapshot>> {
+pub async fn list_with_snapshots(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<SloWithSnapshot>> {
     let mut out = Vec::new();
-    for slo in list(pool).await? {
+    for slo in list(pool, org_id).await? {
         let snapshot = compute(pool, &slo).await?;
         let trend = trend(pool, &slo, 24).await?;
         out.push(SloWithSnapshot { slo, snapshot, trend });
@@ -336,7 +385,7 @@ pub async fn evaluate_tick(pool: &DbPool) -> DbResult<Vec<SloEvent>> {
     let now = OffsetDateTime::now_utc();
     let mut out = Vec::new();
 
-    for slo in list(pool).await?.into_iter().filter(|s| s.enabled) {
+    for slo in list_all(pool).await?.into_iter().filter(|s| s.enabled) {
         let snapshot = compute(pool, &slo).await?;
         let transition = slo_transition(slo.breaching_at, snapshot.breaching);
         match transition {

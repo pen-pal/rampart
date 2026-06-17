@@ -6,9 +6,10 @@
 //! rate) so the UI renders without a second round-trip. Mounted in the editor
 //! slice — editors manage SLOs, readonly users GET.
 
+use crate::auth::OrgContext;
 use crate::error::ApiError;
 use crate::state::AppState;
-use axum::extract::{Path, State};
+use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
@@ -41,8 +42,11 @@ fn parse_id(s: &str) -> Result<SloId, ApiError> {
         .map_err(|_| ApiError::BadRequest("invalid slo id".into()))
 }
 
-async fn list(State(s): State<AppState>) -> Result<Json<Vec<SloView>>, ApiError> {
-    let rows = rampart_db::slos::list_with_snapshots(s.pool()).await?;
+async fn list(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+) -> Result<Json<Vec<SloView>>, ApiError> {
+    let rows = rampart_db::slos::list_with_snapshots(s.pool(), org.org_id).await?;
     Ok(Json(
         rows.into_iter()
             .map(|r| SloView {
@@ -68,6 +72,7 @@ async fn create(
 
 async fn update(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
     Json(input): Json<UpdateSlo>,
 ) -> Result<Json<Slo>, ApiError> {
@@ -75,14 +80,17 @@ async fn update(
     input
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
-    Ok(Json(rampart_db::slos::update(s.pool(), slo_id, input).await?))
+    Ok(Json(
+        rampart_db::slos::update(s.pool(), slo_id, input, org.org_id).await?,
+    ))
 }
 
 async fn delete_slo(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::slos::delete(s.pool(), parse_id(&id)?).await?;
+    rampart_db::slos::delete(s.pool(), parse_id(&id)?, org.org_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
