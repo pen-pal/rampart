@@ -19,6 +19,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.106.0] — 2026-06-17
+
+### Added
+- **Deploy markers — change-correlation for MTTR.** Point-in-time annotations
+  (deploys, config changes) with a title, optional description + service scope,
+  and timestamp. `POST /v1/deploy-markers` lets CI stamp a marker on each release
+  (via an API key); the Metrics charts overlay them as dashed vertical lines
+  (hover shows the label) so a latency or error change can be tied to "what
+  shipped". A "Mark deploy" button in the Metrics view creates one ad-hoc.
+  Migration `0106`; full CRUD (`GET ?hours=&service=`, POST, DELETE) verified by
+  a live round-trip. Completes the post-audit quick-wins (#101).
+
+---
+
 ## [0.105.0] — 2026-06-17
 
 ### Added
