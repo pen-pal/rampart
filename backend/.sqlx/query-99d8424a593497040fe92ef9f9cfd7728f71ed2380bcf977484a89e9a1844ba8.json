@@ -71,7 +71,10 @@
                 "cassandra",
                 "mdns",
                 "ssdp",
-                "synthetic"
+                "synthetic",
+                "elasticsearch",
+                "vault",
+                "etcd"
               ]
             }
           }
@@ -492,7 +495,10 @@
                 "cassandra",
                 "mdns",
                 "ssdp",
-                "synthetic"
+                "synthetic",
+                "elasticsearch",
+                "vault",
+                "etcd"
               ]
             }
           }
