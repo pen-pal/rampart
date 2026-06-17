@@ -1,6 +1,7 @@
 //! Tag repository.
 
 use crate::{DbError, DbPool, DbResult};
+use rampart_core::ids::OrgId;
 use rampart_core::tag::{NewTag, Tag, TagBrief, UpdateTag};
 use rampart_core::{MonitorId, TagId};
 use serde::Serialize;
@@ -26,21 +27,23 @@ impl From<TagRow> for Tag {
     }
 }
 
-pub async fn list(pool: &DbPool) -> DbResult<Vec<Tag>> {
+pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<Tag>> {
     let rows = sqlx::query_as!(
         TagRow,
-        r#"SELECT id, name, color, created_at FROM tags ORDER BY name"#,
+        r#"SELECT id, name, color, created_at FROM tags WHERE org_id = $1 ORDER BY name"#,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
     Ok(rows.into_iter().map(Into::into).collect())
 }
 
-pub async fn get(pool: &DbPool, id: TagId) -> DbResult<Tag> {
+pub async fn get(pool: &DbPool, id: TagId, org_id: OrgId) -> DbResult<Tag> {
     let row = sqlx::query_as!(
         TagRow,
-        r#"SELECT id, name, color, created_at FROM tags WHERE id = $1"#,
+        r#"SELECT id, name, color, created_at FROM tags WHERE id = $1 AND org_id = $2"#,
         id.0,
+        org_id.0,
     )
     .fetch_optional(pool)
     .await?
@@ -72,17 +75,18 @@ pub async fn create(pool: &DbPool, input: NewTag) -> DbResult<Tag> {
     Ok(row.into())
 }
 
-pub async fn update(pool: &DbPool, id: TagId, patch: UpdateTag) -> DbResult<Tag> {
+pub async fn update(pool: &DbPool, id: TagId, patch: UpdateTag, org_id: OrgId) -> DbResult<Tag> {
     let result = sqlx::query!(
         r#"
         UPDATE tags
            SET name  = COALESCE($2, name),
                color = COALESCE($3, color)
-         WHERE id = $1
+         WHERE id = $1 AND org_id = $4
         "#,
         id.0,
         patch.name,
         patch.color,
+        org_id.0,
     )
     .execute(pool)
     .await
@@ -95,7 +99,7 @@ pub async fn update(pool: &DbPool, id: TagId, patch: UpdateTag) -> DbResult<Tag>
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }
-    get(pool, id).await
+    get(pool, id, org_id).await
 }
 
 /// Per-tag usage counts: how many monitors, channels, and folders carry
@@ -109,7 +113,7 @@ pub struct TagUsage {
     pub groups: i64,
 }
 
-pub async fn usage(pool: &DbPool) -> DbResult<Vec<TagUsage>> {
+pub async fn usage(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<TagUsage>> {
     let rows = sqlx::query!(
         r#"
         SELECT t.id AS tag_id,
@@ -117,7 +121,9 @@ pub async fn usage(pool: &DbPool) -> DbResult<Vec<TagUsage>> {
                (SELECT COUNT(*) FROM notification_tags n WHERE n.tag_id = t.id) AS "channels!: i64",
                (SELECT COUNT(*) FROM group_tags        g WHERE g.tag_id = t.id) AS "groups!: i64"
         FROM tags t
+        WHERE t.org_id = $1
         "#,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -132,10 +138,14 @@ pub async fn usage(pool: &DbPool) -> DbResult<Vec<TagUsage>> {
         .collect())
 }
 
-pub async fn delete(pool: &DbPool, id: TagId) -> DbResult<()> {
-    let result = sqlx::query!("DELETE FROM tags WHERE id = $1", id.0)
-        .execute(pool)
-        .await?;
+pub async fn delete(pool: &DbPool, id: TagId, org_id: OrgId) -> DbResult<()> {
+    let result = sqlx::query!(
+        "DELETE FROM tags WHERE id = $1 AND org_id = $2",
+        id.0,
+        org_id.0,
+    )
+    .execute(pool)
+    .await?;
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }

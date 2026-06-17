@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, name, color, created_at FROM tags ORDER BY name",
+  "query": "\n        SELECT id, name, kind, data, created_at\n        FROM monitor_presets\n        WHERE org_id = $1\n        ORDER BY created_at DESC\n        ",
   "describe": {
     "columns": [
       {
@@ -9,7 +9,7 @@
         "type_info": "Uuid",
         "origin": {
           "Table": {
-            "table": "tags",
+            "table": "monitor_presets",
             "name": "id"
           }
         }
@@ -20,43 +20,57 @@
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "tags",
+            "table": "monitor_presets",
             "name": "name"
           }
         }
       },
       {
         "ordinal": 2,
-        "name": "color",
+        "name": "kind",
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "tags",
-            "name": "color"
+            "table": "monitor_presets",
+            "name": "kind"
           }
         }
       },
       {
         "ordinal": 3,
+        "name": "data",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "monitor_presets",
+            "name": "data"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
           "Table": {
-            "table": "tags",
+            "table": "monitor_presets",
             "name": "created_at"
           }
         }
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid"
+      ]
     },
     "nullable": [
+      false,
       false,
       false,
       false,
       false
     ]
   },
-  "hash": "726586a5ba32e853890aaaf4abf12a2b4d8850413b4604ccc31b0975c9d82914"
+  "hash": "7c6397624c13e1e2dd11cbac1d8a99fe764927c3e4a395910ec05063d6d33d31"
 }

@@ -13,7 +13,7 @@
 //! * `would_form_cycle(child, parent)` — guard for attach.
 
 use crate::{DbError, DbPool, DbResult};
-use rampart_core::ids::{MonitorGroupId, MonitorId};
+use rampart_core::ids::{MonitorGroupId, MonitorId, OrgId};
 use rampart_core::monitor_group::{MonitorGroup, NewMonitorGroup, UpdateMonitorGroup};
 use std::collections::HashSet;
 use time::OffsetDateTime;
@@ -39,14 +39,16 @@ impl From<GroupRow> for MonitorGroup {
     }
 }
 
-pub async fn list(pool: &DbPool) -> DbResult<Vec<MonitorGroup>> {
+pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<MonitorGroup>> {
     let rows = sqlx::query_as!(
         GroupRow,
         r#"
         SELECT id, name, sort_order, parent_id, created_at
         FROM monitor_groups
+        WHERE org_id = $1
         ORDER BY sort_order, name
         "#,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -76,17 +78,19 @@ pub async fn update(
     pool: &DbPool,
     id: MonitorGroupId,
     patch: UpdateMonitorGroup,
+    org_id: OrgId,
 ) -> DbResult<MonitorGroup> {
     let result = sqlx::query!(
         r#"
         UPDATE monitor_groups
            SET name       = COALESCE($2, name),
                sort_order = COALESCE($3, sort_order)
-         WHERE id = $1
+         WHERE id = $1 AND org_id = $4
         "#,
         id.0,
         patch.name,
         patch.sort_order,
+        org_id.0,
     )
     .execute(pool)
     .await?;
@@ -105,17 +109,19 @@ pub async fn update(
             }
         }
         sqlx::query!(
-            r#"UPDATE monitor_groups SET parent_id = $1 WHERE id = $2"#,
+            r#"UPDATE monitor_groups SET parent_id = $1 WHERE id = $2 AND org_id = $3"#,
             parent.map(|g| g.0),
             id.0,
+            org_id.0,
         )
         .execute(pool)
         .await?;
     }
     let row = sqlx::query_as!(
         GroupRow,
-        r#"SELECT id, name, sort_order, parent_id, created_at FROM monitor_groups WHERE id = $1"#,
+        r#"SELECT id, name, sort_order, parent_id, created_at FROM monitor_groups WHERE id = $1 AND org_id = $2"#,
         id.0,
+        org_id.0,
     )
     .fetch_one(pool)
     .await?;
@@ -150,10 +156,14 @@ pub async fn would_form_group_cycle(
     Ok(false)
 }
 
-pub async fn delete(pool: &DbPool, id: MonitorGroupId) -> DbResult<()> {
-    let result = sqlx::query!("DELETE FROM monitor_groups WHERE id = $1", id.0)
-        .execute(pool)
-        .await?;
+pub async fn delete(pool: &DbPool, id: MonitorGroupId, org_id: OrgId) -> DbResult<()> {
+    let result = sqlx::query!(
+        "DELETE FROM monitor_groups WHERE id = $1 AND org_id = $2",
+        id.0,
+        org_id.0,
+    )
+    .execute(pool)
+    .await?;
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }
