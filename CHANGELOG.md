@@ -19,6 +19,26 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.101.7] — 2026-06-17
+
+### Fixed
+- **Blank pages on many views — the real root cause (a render crash, not the
+  v0.101.6 stale-chunk issue).** Seven views (Maintenance, Scheduled reports,
+  API keys, Agents, Proxies, Users, Monitor templates) referenced their
+  `reloadKey` state in a `useApi(..., [reloadKey])` dependency array placed
+  *above* the `const [reloadKey, setReloadKey] = useState(0)` declaration.
+  Because `const` bindings sit in the temporal dead zone until declared, each of
+  those views threw `ReferenceError: Cannot access 'reloadKey' before
+  initialization` at render and crashed to a blank page (the build accepts it —
+  valid syntax — so only the running app surfaced it). Moved the declaration
+  above its first use in every affected view. Reproduced + verified the fix
+  headless against a seeded instance (all views now render). This also restores
+  the navigation drawer on those pages, since a crashed view rendered nothing at
+  all. Added a `reloadkey-order` test that fails CI if a view ever uses
+  `reloadKey` before declaring it again.
+
+---
+
 ## [0.101.6] — 2026-06-17
 
 ### Fixed
