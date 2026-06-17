@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, name, body, style AS \"style: IncidentStyle\", created_at\n        FROM incident_templates\n        WHERE id = $1\n        ",
+  "query": "\n        SELECT id, name, body, style AS \"style: IncidentStyle\", created_at\n        FROM incident_templates\n        WHERE org_id = $1\n        ORDER BY created_at DESC\n        ",
   "describe": {
     "columns": [
       {
@@ -85,5 +85,5 @@
       false
     ]
   },
-  "hash": "b606a2bf1aca719ec396e9fd9c330f9998252031c5bf791bc15f58b0eb95dafa"
+  "hash": "94867e2c9d519630745ebb86d6c8238ffacbc41576bcfab91e8d77e7b931503b"
 }

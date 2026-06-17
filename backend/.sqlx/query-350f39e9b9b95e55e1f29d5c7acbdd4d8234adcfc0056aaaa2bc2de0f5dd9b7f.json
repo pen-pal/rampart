@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, name, channel_kinds, event_kind, subject_template, body_template,\n               is_default, created_at\n        FROM notification_templates\n        WHERE id = $1\n        ",
+  "query": "\n        SELECT id, name, channel_kinds, event_kind, subject_template, body_template,\n               is_default, created_at\n        FROM notification_templates\n        WHERE org_id = $1\n        ORDER BY created_at DESC\n        ",
   "describe": {
     "columns": [
       {
@@ -108,5 +108,5 @@
       false
     ]
   },
-  "hash": "1649bd994759e02f174af0f5dc043524edeb852e4ed0d25b8468890584093cb8"
+  "hash": "350f39e9b9b95e55e1f29d5c7acbdd4d8234adcfc0056aaaa2bc2de0f5dd9b7f"
 }

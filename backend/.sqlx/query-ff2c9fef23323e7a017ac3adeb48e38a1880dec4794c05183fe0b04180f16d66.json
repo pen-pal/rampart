@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE notification_templates\n        SET name             = $2,\n            channel_kinds    = $3,\n            event_kind       = $4,\n            subject_template = $5,\n            body_template    = $6,\n            is_default       = $7\n        WHERE id = $1\n        RETURNING id, name, channel_kinds, event_kind, subject_template, body_template,\n                  is_default, created_at\n        ",
+  "query": "\n        SELECT id, name, channel_kinds, event_kind, subject_template, body_template,\n               is_default, created_at\n        FROM notification_templates\n        WHERE id = $1 AND org_id = $2\n        ",
   "describe": {
     "columns": [
       {
@@ -95,12 +95,7 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Text",
-        "TextArray",
-        "Text",
-        "Text",
-        "Text",
-        "Bool"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -114,5 +109,5 @@
       false
     ]
   },
-  "hash": "0af95e0e2fe455d09a3d5abeb253fcc262a37812560038a8241a4c8a1cc76bb2"
+  "hash": "ff2c9fef23323e7a017ac3adeb48e38a1880dec4794c05183fe0b04180f16d66"
 }
