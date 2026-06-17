@@ -5,6 +5,7 @@
 //! post updates, mark resolved.
 
 use crate::{DbError, DbPool, DbResult};
+use rampart_core::ids::OrgId;
 use rampart_core::{
     Incident, IncidentId, IncidentStyle, IncidentUpdate, IncidentUpdateId, StatusPageId, UserId,
 };
@@ -157,18 +158,21 @@ pub async fn list_active(pool: &DbPool, page: StatusPageId) -> DbResult<Vec<Inci
 
 /// Recent incidents across every status page — the dashboard's "Recent
 /// incidents" feed (active ones first, then newest). Capped at `limit`.
-pub async fn recent(pool: &DbPool, limit: i64) -> DbResult<Vec<Incident>> {
+pub async fn recent(pool: &DbPool, limit: i64, org_id: OrgId) -> DbResult<Vec<Incident>> {
     let rows = sqlx::query!(
         r#"
         SELECT
-            id, status_page_id, title, content,
-            style AS "style: IncidentStyle",
-            pinned, active, resolved_at, created_at, created_by, dedup_key
-        FROM incidents
-        ORDER BY active DESC, created_at DESC
+            i.id, i.status_page_id, i.title, i.content,
+            i.style AS "style: IncidentStyle",
+            i.pinned, i.active, i.resolved_at, i.created_at, i.created_by, i.dedup_key
+        FROM incidents i
+        JOIN status_pages sp ON sp.id = i.status_page_id
+        WHERE sp.org_id = $2
+        ORDER BY i.active DESC, i.created_at DESC
         LIMIT $1
         "#,
         limit.clamp(1, 50),
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;

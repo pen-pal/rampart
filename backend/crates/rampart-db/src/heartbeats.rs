@@ -4,6 +4,7 @@
 //! reads are by monitor + recent time window for the dashboard.
 
 use crate::{DbPool, DbResult};
+use rampart_core::ids::OrgId;
 use rampart_core::{Heartbeat, MonitorId, MonitorStatus};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -475,19 +476,24 @@ pub struct MonitorSummary {
 
 /// 24h-window rollup of every monitor that has heartbeats in the window.
 /// One query — fine to call on every dashboard render.
-pub async fn summary_window(pool: &DbPool, window_seconds: i64) -> DbResult<Vec<MonitorSummary>> {
+pub async fn summary_window(
+    pool: &DbPool,
+    window_seconds: i64,
+    org_id: OrgId,
+) -> DbResult<Vec<MonitorSummary>> {
     let since = OffsetDateTime::now_utc() - time::Duration::seconds(window_seconds);
     let rows = sqlx::query!(
         r#"
         WITH base AS (
             SELECT
-                monitor_id,
-                ts,
-                status,
-                latency_ms,
-                ROW_NUMBER() OVER (PARTITION BY monitor_id ORDER BY ts DESC) AS rn
-            FROM heartbeats
-            WHERE ts >= $1
+                h.monitor_id AS monitor_id,
+                h.ts         AS ts,
+                h.status     AS status,
+                h.latency_ms AS latency_ms,
+                ROW_NUMBER() OVER (PARTITION BY h.monitor_id ORDER BY h.ts DESC) AS rn
+            FROM heartbeats h
+            JOIN monitors m ON m.id = h.monitor_id
+            WHERE h.ts >= $1 AND m.org_id = $2
         )
         SELECT
             monitor_id,
@@ -501,6 +507,7 @@ pub async fn summary_window(pool: &DbPool, window_seconds: i64) -> DbResult<Vec<
         GROUP BY monitor_id
         "#,
         since,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -811,7 +818,11 @@ pub async fn error_budget_burndown(
 
 /// Last `per_monitor` heartbeats for every monitor, oldest-first within each
 /// monitor. One query for the dashboard history bars.
-pub async fn recent_per_monitor(pool: &DbPool, per_monitor: i64) -> DbResult<Vec<Heartbeat>> {
+pub async fn recent_per_monitor(
+    pool: &DbPool,
+    per_monitor: i64,
+    org_id: OrgId,
+) -> DbResult<Vec<Heartbeat>> {
     let rows = sqlx::query!(
         r#"
         SELECT
@@ -825,14 +836,17 @@ pub async fn recent_per_monitor(pool: &DbPool, per_monitor: i64) -> DbResult<Vec
             important
         FROM (
             SELECT
-                monitor_id, ts, status, latency_ms, status_code, msg, retries, important,
-                ROW_NUMBER() OVER (PARTITION BY monitor_id ORDER BY ts DESC) AS rn
-            FROM heartbeats
+                h.monitor_id, h.ts, h.status, h.latency_ms, h.status_code, h.msg, h.retries, h.important,
+                ROW_NUMBER() OVER (PARTITION BY h.monitor_id ORDER BY h.ts DESC) AS rn
+            FROM heartbeats h
+            JOIN monitors m ON m.id = h.monitor_id
+            WHERE m.org_id = $2
         ) t
         WHERE rn <= $1
         ORDER BY monitor_id, ts ASC
         "#,
         per_monitor,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
