@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, name, slug, public_key, platform, retention_days,\n               alert_channel_ids AS \"alert_channel_ids!\", created_at\n        FROM error_projects\n        ORDER BY created_at\n        ",
+  "query": "\n        SELECT id, name, slug, public_key, platform, retention_days,\n               alert_channel_ids AS \"alert_channel_ids!\", created_at\n        FROM error_projects\n        WHERE org_id = $1\n        ORDER BY created_at\n        ",
   "describe": {
     "columns": [
       {
@@ -93,7 +93,9 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid"
+      ]
     },
     "nullable": [
       false,
@@ -106,5 +108,5 @@
       false
     ]
   },
-  "hash": "14e5e951427b2e92da8b6d1022d83532664556026b2495a1213b211bcbdfa47a"
+  "hash": "32f606b2d483668b8d6bc0b73252dedf1b06b96d33dfec93eae5cd5a95ecae12"
 }

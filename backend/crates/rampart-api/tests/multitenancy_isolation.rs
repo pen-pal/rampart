@@ -164,3 +164,36 @@ async fn incidents_isolated_via_owning_page(pool: PgPool) {
     let (s, _, _) = request(&router, Method::DELETE, &format!("/v1/incidents/{inc_id}"), None, Some(&admin)).await;
     assert_eq!(s, StatusCode::NOT_FOUND, "cross-org incident DELETE");
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn error_projects_isolated_across_orgs(pool: PgPool) {
+    // error_projects is a tenant-root with its own org_id; its issues/events/
+    // histograms/source-maps inherit it. List is org-scoped; every project- and
+    // issue-keyed handler gates through the owning project's org.
+    let router = common::router(pool.clone());
+    let admin = register_admin(&router).await;
+
+    let proj: Value = common::json(
+        &router, Method::POST, "/v1/error-projects",
+        Some(json!({"name":"checkout"})), Some(&admin),
+    ).await;
+    let pid = proj["id"].as_str().unwrap();
+    assert_eq!(list_len(&router, "/v1/error-projects", &admin).await, 1);
+
+    sqlx::query("INSERT INTO organizations (id, slug, name) VALUES ($1::uuid, 'other', 'Other') ON CONFLICT DO NOTHING")
+        .bind(OTHER_ORG).execute(&pool).await.unwrap();
+    sqlx::query("UPDATE error_projects SET org_id = $1::uuid WHERE id = $2::uuid")
+        .bind(OTHER_ORG).bind(pid).execute(&pool).await.unwrap();
+
+    // List is org-scoped → project vanishes.
+    assert_eq!(list_len(&router, "/v1/error-projects", &admin).await, 0, "project list isolated");
+    // Project-keyed child + mutation handlers gate via project_in_org → 404.
+    let (s, _, _) = request(&router, Method::GET, &format!("/v1/error-projects/{pid}/issues"), None, Some(&admin)).await;
+    assert_eq!(s, StatusCode::NOT_FOUND, "cross-org issue list");
+    let (s, _, _) = request(&router, Method::GET, &format!("/v1/error-projects/{pid}/histogram"), None, Some(&admin)).await;
+    assert_eq!(s, StatusCode::NOT_FOUND, "cross-org histogram");
+    let (s, _, _) = request(&router, Method::PATCH, &format!("/v1/error-projects/{pid}"), Some(json!({"name":"x"})), Some(&admin)).await;
+    assert_eq!(s, StatusCode::NOT_FOUND, "cross-org project PATCH");
+    let (s, _, _) = request(&router, Method::DELETE, &format!("/v1/error-projects/{pid}"), None, Some(&admin)).await;
+    assert_eq!(s, StatusCode::NOT_FOUND, "cross-org project DELETE");
+}

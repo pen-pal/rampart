@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE error_projects SET\n            name              = COALESCE($2, name),\n            platform          = COALESCE($3, platform),\n            retention_days    = COALESCE($4, retention_days),\n            alert_channel_ids = COALESCE($5, alert_channel_ids)\n        WHERE id = $1 AND org_id = $6\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Int4",
+        "Jsonb",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "163875bef43e4bf6980267bf5aa04d18df984755285d221951e6134e2ae9baae"
+}
