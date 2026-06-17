@@ -55,7 +55,7 @@ impl Sendgrid {
         }
         Ok(Self {
             cfg,
-            client: reqwest::Client::new(),
+            client: crate::http::client(),
         })
     }
 }

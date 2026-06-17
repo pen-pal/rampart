@@ -75,7 +75,7 @@ async fn set_findings_cursor(pool: &DbPool, ts: OffsetDateTime) {
 /// Spawnable loop. Polls every `interval`; when enabled + leader, forwards new
 /// audit rows to the sink and advances the cursor only after a successful send.
 pub async fn run_loop(pool: DbPool, leadership: Arc<Leadership>, interval: Duration) {
-    let client = reqwest::Client::new();
+    let client = crate::http::client();
     loop {
         tokio::time::sleep(interval).await;
         if !leadership.is_leader() {

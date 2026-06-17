@@ -63,7 +63,7 @@ impl GcpPubsub {
             .map_err(|e| ChannelError::BadConfig(format!("private_key: {e}")))?;
         Ok(Self {
             cfg,
-            client: reqwest::Client::new(),
+            client: crate::http::client(),
             cached: Mutex::new(None),
         })
     }
