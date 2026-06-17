@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM proxies WHERE id = $1 AND org_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "563fa3c6c77d176b6140cd69d5849d7aaed0ddd28a57289511b2a75444d5f0dc"
+}

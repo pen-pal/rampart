@@ -1200,7 +1200,9 @@ async fn test_now(
     // through it the same way the scheduler does.
     let probes = rampart_checker::Probes::new();
     let hb = if let Some(pid) = monitor.proxy_id {
-        match rampart_db::proxies::get(state.pool(), pid).await {
+        // Probe routing (not a user-facing fetch): the monitor was already
+        // org-checked above, so resolve its proxy unscoped.
+        match rampart_db::proxies::get_unscoped(state.pool(), pid).await {
             Ok(proxy) => probes.http_with_proxy(&monitor, &proxy).await,
             // Proxy reference dangling — fall back to direct probe so the
             // test still completes; the surfaced status will show the

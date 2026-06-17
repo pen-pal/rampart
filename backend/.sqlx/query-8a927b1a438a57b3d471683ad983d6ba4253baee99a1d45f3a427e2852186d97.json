@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, name, key_prefix, scope, created_by,\n               created_at, last_used_at, expires_at, rate_limit_per_hour\n        FROM api_keys\n        ORDER BY created_at DESC\n        ",
+  "query": "\n        SELECT id, name, key_prefix, scope, created_by,\n               created_at, last_used_at, expires_at, rate_limit_per_hour\n        FROM api_keys\n        WHERE org_id = $1\n        ORDER BY created_at DESC\n        ",
   "describe": {
     "columns": [
       {
@@ -104,7 +104,9 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid"
+      ]
     },
     "nullable": [
       false,
@@ -118,5 +120,5 @@
       false
     ]
   },
-  "hash": "82b565df8fd21975200d3eebfff6402bea220b27153a2a3075de4baea6798c50"
+  "hash": "8a927b1a438a57b3d471683ad983d6ba4253baee99a1d45f3a427e2852186d97"
 }
