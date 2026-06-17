@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        WITH base AS (\n            SELECT\n                monitor_id,\n                ts,\n                status,\n                latency_ms,\n                ROW_NUMBER() OVER (PARTITION BY monitor_id ORDER BY ts DESC) AS rn\n            FROM heartbeats\n            WHERE ts >= $1\n        )\n        SELECT\n            monitor_id,\n            COUNT(*)::int8                                                            AS \"total!\",\n            COUNT(*) FILTER (WHERE status = 'up')::int8                               AS \"up!\",\n            AVG(latency_ms)\n                FILTER (WHERE status = 'up' AND latency_ms IS NOT NULL)::float8       AS avg_latency_ms,\n            (ARRAY_AGG(status     ORDER BY ts DESC))[1] AS \"last_status: MonitorStatus\",\n            (ARRAY_AGG(ts         ORDER BY ts DESC))[1] AS last_ts\n        FROM base\n        GROUP BY monitor_id\n        ",
+  "query": "\n        WITH base AS (\n            SELECT\n                h.monitor_id AS monitor_id,\n                h.ts         AS ts,\n                h.status     AS status,\n                h.latency_ms AS latency_ms,\n                ROW_NUMBER() OVER (PARTITION BY h.monitor_id ORDER BY h.ts DESC) AS rn\n            FROM heartbeats h\n            JOIN monitors m ON m.id = h.monitor_id\n            WHERE h.ts >= $1 AND m.org_id = $2\n        )\n        SELECT\n            monitor_id,\n            COUNT(*)::int8                                                            AS \"total!\",\n            COUNT(*) FILTER (WHERE status = 'up')::int8                               AS \"up!\",\n            AVG(latency_ms)\n                FILTER (WHERE status = 'up' AND latency_ms IS NOT NULL)::float8       AS avg_latency_ms,\n            (ARRAY_AGG(status     ORDER BY ts DESC))[1] AS \"last_status: MonitorStatus\",\n            (ARRAY_AGG(ts         ORDER BY ts DESC))[1] AS last_ts\n        FROM base\n        GROUP BY monitor_id\n        ",
   "describe": {
     "columns": [
       {
@@ -61,7 +61,8 @@
     ],
     "parameters": {
       "Left": [
-        "Timestamptz"
+        "Timestamptz",
+        "Uuid"
       ]
     },
     "nullable": [
@@ -73,5 +74,5 @@
       null
     ]
   },
-  "hash": "01bfb7e692bc1fb402da96043005ce4befa65f7167a98d8994694999a1b95e3f"
+  "hash": "fed193e6410322486357ed39e800a9a7331c86c441e7466d5dee5e92e5788bae"
 }
