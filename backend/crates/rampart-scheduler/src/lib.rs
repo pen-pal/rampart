@@ -285,7 +285,7 @@ impl Scheduler {
                     // Keep climbing while the budget is still breaching
                     // (evaluate_tick keeps `breaching_at` set); recovered or
                     // deleted → close.
-                    match rampart_db::slos::get(&self.pool, slo_id).await {
+                    match rampart_db::slos::get_unscoped(&self.pool, slo_id).await {
                         Ok(slo) if slo.breaching_at.is_some() => {
                             let down_for = (time::OffsetDateTime::now_utc() - episode.started_at).whole_seconds();
                             alert_escalation_event(&slo.name, format!("budget still breaching, unacknowledged for {down_for}s"))

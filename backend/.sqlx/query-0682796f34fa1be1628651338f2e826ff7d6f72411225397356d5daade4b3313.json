@@ -1,14 +1,15 @@
 {
   "db_name": "PostgreSQL",
-  "query": "DELETE FROM on_call_schedules WHERE id = $1",
+  "query": "DELETE FROM slos WHERE id = $1 AND org_id = $2",
   "describe": {
     "columns": [],
     "parameters": {
       "Left": [
+        "Uuid",
         "Uuid"
       ]
     },
     "nullable": []
   },
-  "hash": "d19dc33264379c05cae6462594bd4c7a8895f53eee86620058fa8c7802e82f21"
+  "hash": "0682796f34fa1be1628651338f2e826ff7d6f72411225397356d5daade4b3313"
 }

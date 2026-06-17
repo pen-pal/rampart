@@ -6,10 +6,16 @@
 //! indicator shares the same `evaluate_tick` machine; only the ratio source
 //! differs, so it isn't re-exercised here.
 
+use rampart_core::ids::OrgId;
+use rampart_core::org::DEFAULT_ORG_ID;
 use rampart_core::slo::{NewSlo, SliKind, SloTransition, UpdateSlo};
 use rampart_core::promtext::PromSample;
 use rampart_db::{metric_samples, slos};
 use sqlx::PgPool;
+
+fn def_org() -> OrgId {
+    OrgId::from_uuid(DEFAULT_ORG_ID)
+}
 use std::collections::BTreeMap;
 
 fn sample(name: &str, value: f64) -> PromSample {
@@ -68,7 +74,7 @@ async fn metric_budget_fires_and_resolves(pool: PgPool) {
     let ev = slos::evaluate_tick(&pool).await.unwrap();
     assert_eq!(ev.len(), 1);
     assert_eq!(ev[0].transition, SloTransition::Fire);
-    assert!(slos::get(&pool, slo.id).await.unwrap().breaching_at.is_some());
+    assert!(slos::get(&pool, slo.id, def_org()).await.unwrap().breaching_at.is_some());
 
     // Still breaching → no repeat page (de-dup).
     assert!(slos::evaluate_tick(&pool).await.unwrap().is_empty());
@@ -91,7 +97,7 @@ async fn metric_budget_fires_and_resolves(pool: PgPool) {
     let ev = slos::evaluate_tick(&pool).await.unwrap();
     assert_eq!(ev.len(), 1);
     assert_eq!(ev[0].transition, SloTransition::Resolve);
-    assert!(slos::get(&pool, slo.id).await.unwrap().breaching_at.is_none());
+    assert!(slos::get(&pool, slo.id, def_org()).await.unwrap().breaching_at.is_none());
 
     // Quiet again → nothing.
     assert!(slos::evaluate_tick(&pool).await.unwrap().is_empty());
@@ -100,7 +106,7 @@ async fn metric_budget_fires_and_resolves(pool: PgPool) {
 #[sqlx::test(migrations = "../../migrations")]
 async fn crud_and_update_clears_breach(pool: PgPool) {
     let slo = slos::create(&pool, metric_slo(99.0)).await.unwrap();
-    assert_eq!(slos::list(&pool).await.unwrap().len(), 1);
+    assert_eq!(slos::list(&pool, def_org()).await.unwrap().len(), 1);
 
     // Force it breaching, then an edit must clear the in-flight marker.
     metric_samples::insert_many(
@@ -111,7 +117,7 @@ async fn crud_and_update_clears_breach(pool: PgPool) {
     .unwrap();
     let ev = slos::evaluate_tick(&pool).await.unwrap();
     assert_eq!(ev[0].transition, SloTransition::Fire);
-    assert!(slos::get(&pool, slo.id).await.unwrap().breaching_at.is_some());
+    assert!(slos::get(&pool, slo.id, def_org()).await.unwrap().breaching_at.is_some());
 
     let updated = slos::update(
         &pool,
@@ -128,6 +134,7 @@ async fn crud_and_update_clears_breach(pool: PgPool) {
             channel_ids: None,
             escalation_policy_id: None,
         },
+        def_org(),
     )
     .await
     .unwrap();
@@ -151,11 +158,12 @@ async fn crud_and_update_clears_breach(pool: PgPool) {
             channel_ids: None,
             escalation_policy_id: None,
         },
+        def_org(),
     )
     .await
     .unwrap();
     assert!(slos::evaluate_tick(&pool).await.unwrap().is_empty());
 
-    slos::delete(&pool, slo.id).await.unwrap();
-    assert!(slos::list(&pool).await.unwrap().is_empty());
+    slos::delete(&pool, slo.id, def_org()).await.unwrap();
+    assert!(slos::list(&pool, def_org()).await.unwrap().is_empty());
 }
