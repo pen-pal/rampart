@@ -1,5 +1,6 @@
 //! `/v1/tags` CRUD + attach/detach against monitors.
 
+use crate::auth::OrgContext;
 use crate::error::ApiError;
 use crate::state::AppState;
 use axum::extract::{Extension, Path, State};
@@ -40,8 +41,11 @@ fn parse_monitor(s: &str) -> Result<MonitorId, ApiError> {
         .map_err(|_| ApiError::BadRequest("invalid monitor id".into()))
 }
 
-async fn list(State(s): State<AppState>) -> Result<Json<Vec<Tag>>, ApiError> {
-    Ok(Json(rampart_db::tags::list(s.pool()).await?))
+async fn list(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+) -> Result<Json<Vec<Tag>>, ApiError> {
+    Ok(Json(rampart_db::tags::list(s.pool(), org.org_id).await?))
 }
 
 async fn create(
@@ -70,6 +74,7 @@ async fn create(
 async fn update(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path(id): Path<String>,
     Json(input): Json<UpdateTag>,
@@ -78,7 +83,7 @@ async fn update(
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     let tid = parse_tag(&id)?;
-    let t = rampart_db::tags::update(s.pool(), tid, input).await?;
+    let t = rampart_db::tags::update(s.pool(), tid, input, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -92,18 +97,22 @@ async fn update(
     Ok(Json(t))
 }
 
-async fn usage(State(s): State<AppState>) -> Result<Json<Vec<TagUsage>>, ApiError> {
-    Ok(Json(rampart_db::tags::usage(s.pool()).await?))
+async fn usage(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+) -> Result<Json<Vec<TagUsage>>, ApiError> {
+    Ok(Json(rampart_db::tags::usage(s.pool(), org.org_id).await?))
 }
 
 async fn remove(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let tid = parse_tag(&id)?;
-    rampart_db::tags::delete(s.pool(), tid).await?;
+    rampart_db::tags::delete(s.pool(), tid, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,

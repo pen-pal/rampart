@@ -7,6 +7,7 @@
 //! whole point is reuse across monitors.
 
 use crate::{DbError, DbPool, DbResult};
+use rampart_core::ids::OrgId;
 use rampart_core::monitor_preset::{MonitorPreset, MonitorPresetKind, NewMonitorPreset};
 use rampart_core::MonitorPresetId;
 
@@ -18,13 +19,15 @@ fn parse_kind(s: &str) -> DbResult<MonitorPresetKind> {
         .ok_or_else(|| DbError::Conflict(format!("unknown monitor preset kind: {s}")))
 }
 
-pub async fn list(pool: &DbPool) -> DbResult<Vec<MonitorPreset>> {
+pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<MonitorPreset>> {
     let rows = sqlx::query!(
         r#"
         SELECT id, name, kind, data, created_at
         FROM monitor_presets
+        WHERE org_id = $1
         ORDER BY created_at DESC
         "#,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -41,14 +44,15 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<MonitorPreset>> {
         .collect()
 }
 
-pub async fn get(pool: &DbPool, id: MonitorPresetId) -> DbResult<MonitorPreset> {
+pub async fn get(pool: &DbPool, id: MonitorPresetId, org_id: OrgId) -> DbResult<MonitorPreset> {
     let r = sqlx::query!(
         r#"
         SELECT id, name, kind, data, created_at
         FROM monitor_presets
-        WHERE id = $1
+        WHERE id = $1 AND org_id = $2
         "#,
         id.0,
+        org_id.0,
     )
     .fetch_optional(pool)
     .await?
@@ -93,10 +97,14 @@ pub async fn create(pool: &DbPool, input: NewMonitorPreset) -> DbResult<MonitorP
     })
 }
 
-pub async fn delete(pool: &DbPool, id: MonitorPresetId) -> DbResult<()> {
-    let r = sqlx::query!("DELETE FROM monitor_presets WHERE id = $1", id.0)
-        .execute(pool)
-        .await?;
+pub async fn delete(pool: &DbPool, id: MonitorPresetId, org_id: OrgId) -> DbResult<()> {
+    let r = sqlx::query!(
+        "DELETE FROM monitor_presets WHERE id = $1 AND org_id = $2",
+        id.0,
+        org_id.0,
+    )
+    .execute(pool)
+    .await?;
     if r.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }

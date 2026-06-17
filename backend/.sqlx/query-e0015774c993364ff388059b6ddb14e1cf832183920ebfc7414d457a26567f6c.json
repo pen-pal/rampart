@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, name, description, spec, created_at\n        FROM monitor_templates\n        ORDER BY created_at DESC\n        ",
+  "query": "SELECT id, name, color, created_at FROM tags WHERE org_id = $1 ORDER BY name",
   "describe": {
     "columns": [
       {
@@ -9,7 +9,7 @@
         "type_info": "Uuid",
         "origin": {
           "Table": {
-            "table": "monitor_templates",
+            "table": "tags",
             "name": "id"
           }
         }
@@ -20,55 +20,45 @@
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "monitor_templates",
+            "table": "tags",
             "name": "name"
           }
         }
       },
       {
         "ordinal": 2,
-        "name": "description",
+        "name": "color",
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "monitor_templates",
-            "name": "description"
+            "table": "tags",
+            "name": "color"
           }
         }
       },
       {
         "ordinal": 3,
-        "name": "spec",
-        "type_info": "Jsonb",
-        "origin": {
-          "Table": {
-            "table": "monitor_templates",
-            "name": "spec"
-          }
-        }
-      },
-      {
-        "ordinal": 4,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
           "Table": {
-            "table": "monitor_templates",
+            "table": "tags",
             "name": "created_at"
           }
         }
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid"
+      ]
     },
     "nullable": [
       false,
       false,
-      true,
       false,
       false
     ]
   },
-  "hash": "9e0224a041cac10cb823623d3c1b592d8a2b62e203ce0dbea29cc9f64c65e7a8"
+  "hash": "e0015774c993364ff388059b6ddb14e1cf832183920ebfc7414d457a26567f6c"
 }

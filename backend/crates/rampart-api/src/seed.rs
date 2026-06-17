@@ -102,7 +102,8 @@ pub async fn run(pool: &DbPool) -> Result<SeedStats> {
 
     // Idempotency sentinel: the demo folder. Re-running on an already-seeded
     // demo is a clean no-op.
-    let groups = rampart_db::monitor_groups::list(pool).await?;
+    let groups =
+        rampart_db::monitor_groups::list(pool, rampart_core::org::Org::default_id()).await?;
     if groups.iter().any(|g| g.name == DEMO_GROUP) {
         stats.skipped = true;
         return Ok(stats);

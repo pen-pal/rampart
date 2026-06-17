@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, name, sort_order, parent_id, created_at\n        FROM monitor_groups\n        ORDER BY sort_order, name\n        ",
+  "query": "SELECT id, name, color, created_at FROM tags WHERE id = $1 AND org_id = $2",
   "describe": {
     "columns": [
       {
@@ -9,7 +9,7 @@
         "type_info": "Uuid",
         "origin": {
           "Table": {
-            "table": "monitor_groups",
+            "table": "tags",
             "name": "id"
           }
         }
@@ -20,55 +20,46 @@
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "monitor_groups",
+            "table": "tags",
             "name": "name"
           }
         }
       },
       {
         "ordinal": 2,
-        "name": "sort_order",
-        "type_info": "Int4",
+        "name": "color",
+        "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "monitor_groups",
-            "name": "sort_order"
+            "table": "tags",
+            "name": "color"
           }
         }
       },
       {
         "ordinal": 3,
-        "name": "parent_id",
-        "type_info": "Uuid",
-        "origin": {
-          "Table": {
-            "table": "monitor_groups",
-            "name": "parent_id"
-          }
-        }
-      },
-      {
-        "ordinal": 4,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
           "Table": {
-            "table": "monitor_groups",
+            "table": "tags",
             "name": "created_at"
           }
         }
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
     },
     "nullable": [
       false,
       false,
       false,
-      true,
       false
     ]
   },
-  "hash": "860a65f79ffcd4176eb7cbb99a3409b1001b9c2307896819e14797d7f320037a"
+  "hash": "ffde197a6be2072cf2a922d546527e552b224c19cf65fbc66035dfed4b4d35c5"
 }

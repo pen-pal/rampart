@@ -8,6 +8,7 @@
 //! whole point.
 
 use crate::{DbError, DbPool, DbResult};
+use rampart_core::ids::OrgId;
 use rampart_core::MonitorTemplateId;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
@@ -32,13 +33,15 @@ pub struct NewMonitorTemplate {
     pub spec: serde_json::Value,
 }
 
-pub async fn list(pool: &DbPool) -> DbResult<Vec<MonitorTemplate>> {
+pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<MonitorTemplate>> {
     let rows = sqlx::query!(
         r#"
         SELECT id, name, description, spec, created_at
         FROM monitor_templates
+        WHERE org_id = $1
         ORDER BY created_at DESC
         "#,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -54,14 +57,15 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<MonitorTemplate>> {
         .collect())
 }
 
-pub async fn get(pool: &DbPool, id: MonitorTemplateId) -> DbResult<MonitorTemplate> {
+pub async fn get(pool: &DbPool, id: MonitorTemplateId, org_id: OrgId) -> DbResult<MonitorTemplate> {
     let r = sqlx::query!(
         r#"
         SELECT id, name, description, spec, created_at
         FROM monitor_templates
-        WHERE id = $1
+        WHERE id = $1 AND org_id = $2
         "#,
         id.0,
+        org_id.0,
     )
     .fetch_optional(pool)
     .await?
@@ -99,10 +103,14 @@ pub async fn create(pool: &DbPool, input: NewMonitorTemplate) -> DbResult<Monito
     })
 }
 
-pub async fn delete(pool: &DbPool, id: MonitorTemplateId) -> DbResult<()> {
-    let r = sqlx::query!("DELETE FROM monitor_templates WHERE id = $1", id.0)
-        .execute(pool)
-        .await?;
+pub async fn delete(pool: &DbPool, id: MonitorTemplateId, org_id: OrgId) -> DbResult<()> {
+    let r = sqlx::query!(
+        "DELETE FROM monitor_templates WHERE id = $1 AND org_id = $2",
+        id.0,
+        org_id.0,
+    )
+    .execute(pool)
+    .await?;
     if r.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }

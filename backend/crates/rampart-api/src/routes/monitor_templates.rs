@@ -11,6 +11,7 @@
 //! Same RBAC slice as monitors (`editor_or_read`): readonly users GET,
 //! editors + admins mutate.
 
+use crate::auth::OrgContext;
 use crate::error::ApiError;
 use crate::state::AppState;
 use axum::extract::{Extension, Path, State};
@@ -39,18 +40,23 @@ fn parse_template_id(s: &str) -> Result<MonitorTemplateId, ApiError> {
         .map_err(|_| ApiError::BadRequest("invalid template id".into()))
 }
 
-async fn list(State(state): State<AppState>) -> Result<Json<Vec<MonitorTemplate>>, ApiError> {
+async fn list(
+    State(state): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+) -> Result<Json<Vec<MonitorTemplate>>, ApiError> {
     Ok(Json(
-        rampart_db::monitor_templates::list(state.pool()).await?,
+        rampart_db::monitor_templates::list(state.pool(), org.org_id).await?,
     ))
 }
 
 async fn get_one(
     State(state): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<MonitorTemplate>, ApiError> {
     Ok(Json(
-        rampart_db::monitor_templates::get(state.pool(), parse_template_id(&id)?).await?,
+        rampart_db::monitor_templates::get(state.pool(), parse_template_id(&id)?, org.org_id)
+            .await?,
     ))
 }
 
@@ -90,11 +96,12 @@ async fn create(
 async fn delete_one(
     State(state): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let template_id = parse_template_id(&id)?;
-    rampart_db::monitor_templates::delete(state.pool(), template_id).await?;
+    rampart_db::monitor_templates::delete(state.pool(), template_id, org.org_id).await?;
     crate::audit::record(
         state.pool(),
         &user,
@@ -122,12 +129,13 @@ pub struct InstantiateRequest {
 async fn instantiate(
     State(state): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path(id): Path<String>,
     body: Option<Json<InstantiateRequest>>,
 ) -> Result<(StatusCode, Json<Monitor>), ApiError> {
     let template_id = parse_template_id(&id)?;
-    let template = rampart_db::monitor_templates::get(state.pool(), template_id).await?;
+    let template = rampart_db::monitor_templates::get(state.pool(), template_id, org.org_id).await?;
 
     let mut new_monitor: NewMonitor = serde_json::from_value(template.spec)
         .map_err(|e| ApiError::BadRequest(format!("invalid monitor spec: {e}")))?;
