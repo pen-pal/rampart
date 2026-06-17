@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, name, recipients, cadence, last_sent_at, created_at\n        FROM scheduled_reports\n        WHERE id = $1\n        ",
+  "query": "\n        SELECT id, name, recipients, cadence, last_sent_at, created_at\n        FROM scheduled_reports\n        WHERE id = $1 AND org_id = $2\n        ",
   "describe": {
     "columns": [
       {
@@ -72,6 +72,7 @@
     ],
     "parameters": {
       "Left": [
+        "Uuid",
         "Uuid"
       ]
     },
@@ -84,5 +85,5 @@
       false
     ]
   },
-  "hash": "59b42e9832131260139f68f26ce17a5203dfa838b07ae5a9cfc4057cf4ec7732"
+  "hash": "e93680a0d8dd4acb971d38e75939befc6a29a438e43a1b79cbef2578195d7a79"
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT a.id, a.name, a.location, a.version, a.last_seen_at, a.created_at,\n               COUNT(m.id) AS monitor_count\n        FROM agents a\n        LEFT JOIN monitors m ON m.agent_id = a.id\n        WHERE a.id = $1\n        GROUP BY a.id\n        ",
+  "query": "\n        SELECT a.id, a.name, a.location, a.version, a.last_seen_at, a.created_at,\n               COUNT(m.id) AS monitor_count\n        FROM agents a\n        LEFT JOIN monitors m ON m.agent_id = a.id\n        WHERE a.org_id = $1\n        GROUP BY a.id\n        ORDER BY a.created_at\n        ",
   "describe": {
     "columns": [
       {
@@ -91,5 +91,5 @@
       null
     ]
   },
-  "hash": "4087dff67ad381005a4450e3c79f402699970a39225f1a6ddd176bac0f001c47"
+  "hash": "7669c34d05701c1f0b35a7f6e8f4085c544c43a680ac82ca4acfb757ec97e258"
 }
