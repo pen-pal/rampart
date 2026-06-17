@@ -31,7 +31,7 @@ cross-tenant leak on its own.
 | # | Phase | Gist | Status |
 |---|-------|------|--------|
 | 1 | **Foundation** | `organizations` + `org_members` tables, `sessions.active_org_id`, Default-org backfill, `OrgContext` plumbed through auth. Behaviour-identical. | ✅ shipped (v0.107.0) |
-| 2 | **Stamp `org_id` at write time** | Nullable `org_id` (default Default-org) on every tenant root; children inherit via FK; every INSERT stamps it. Reads still global. | planned |
+| 2 | **Per-resource `org_id` columns** | Nullable `org_id` (DEFAULT Default-org) on all 30 tenant roots; children inherit via FK; no behaviour change. Explicit per-INSERT stamping from `OrgContext` folds into Phase 4 (where non-default orgs first exist — until then the column DEFAULT is provably equivalent). | ✅ shipped (v0.108.0) |
 | 3 | **Read filtering (management API)** | `WHERE org_id = $ctx` on every management query + ID-set endpoint validation; scheduler/notifier given explicit unscoped/same-org helpers. | planned |
 | 4 | **Org-bound credentials + OIDC→org + org admin UI** | Pin org on api-keys / agents / ingest-tokens / DSNs; OIDC maps identity→org; `/v1/orgs` CRUD + switcher + members UI. | planned |
 | 5 | **Tenant the ingest tier** (riskiest) | Per-org ingest credentials resolve org from the credential (never the body); stamp `org_id` on spans/logs/profiles/RUM/metrics/errors; org-filter every search + aggregate. | planned |
