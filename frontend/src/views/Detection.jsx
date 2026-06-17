@@ -63,6 +63,7 @@ const emptyForm = () => ({
   name: '', description: '', severity: 'medium', service: '', min_level: 0,
   body_regex: '', attr_key: '', attr_val: '', threshold: 1, window_seconds: 300,
   cooldown_seconds: 300,
+  group_by: '',
   use_condition: false, groups: [emptyGroup()],
   enabled: true, channel_ids: [], escalation_policy_id: '',
 });
@@ -139,6 +140,7 @@ function Findings({ writable }) {
                   <span className="pill" style={sevStyle(f.severity)}>{t(`detection.sev.${f.severity}`)}</span>
                   <span style={{ fontSize: 14, fontWeight: 600 }}>{f.rule_name}</span>
                   <span className="pill">{f.match_count} {t('detection.matches')}</span>
+                  {f.entity && <span className="pill mono" style={{ background: 'var(--accent-soft)', color: 'var(--accent-2)' }}>{f.entity}</span>}
                   {f.service && <span className="pill mono">{f.service}</span>}
                   {f.acknowledged_at && <span className="pill" style={{ color: 'var(--up)' }}>{t('detection.acked')}</span>}
                 </div>
@@ -377,6 +379,7 @@ function RuleForm({ rule, channels, onSaved, onCancel, setErr }) {
     attr_key: rule.attr_key || '', attr_val: rule.attr_val || '',
     threshold: rule.threshold, window_seconds: rule.window_seconds,
     cooldown_seconds: rule.cooldown_seconds ?? 0,
+    group_by: rule.group_by || '',
     use_condition: !!rule.condition, groups: parseCondition(rule.condition),
     enabled: rule.enabled, channel_ids: [...(rule.channel_ids || [])],
     escalation_policy_id: rule.escalation_policy_id || '',
@@ -412,6 +415,7 @@ function RuleForm({ rule, channels, onSaved, onCancel, setErr }) {
       attr_key: f.attr_key.trim(), attr_val: f.attr_val.trim(),
       threshold: Number(f.threshold), window_seconds: Number(f.window_seconds),
       cooldown_seconds: Number(f.cooldown_seconds) || 0,
+      group_by: f.group_by.trim(),
       // Detection v2: send the boolean tree when in condition mode, else null to
       // clear it (the backend then uses the flat fields above).
       condition: f.use_condition ? buildCondition(f.groups) : null,
@@ -497,6 +501,11 @@ function RuleForm({ rule, channels, onSaved, onCancel, setErr }) {
         <label className="field-label">{t('detection.f.cooldown')}</label>
         <input className="input mono" type="number" min="0" value={f.cooldown_seconds} onChange={e => set('cooldown_seconds', e.target.value)}/>
         <div className="field-hint">{t('detection.f.cooldown_hint')}</div>
+      </div>
+      <div className="field">
+        <label className="field-label">{t('detection.f.group_by')} <span style={{ textTransform: 'none', color: 'var(--text-3)' }}>({t('detection.f.optional')})</span></label>
+        <input className="input mono" value={f.group_by} onChange={e => set('group_by', e.target.value)} placeholder={t('detection.f.group_by_ph')}/>
+        <div className="field-hint">{t('detection.f.group_by_hint')}</div>
       </div>
       <div className="field">
         <label className="field-label">{t('detection.f.channels')}</label>

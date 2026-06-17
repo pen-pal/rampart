@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, rule_id, rule_name, severity, match_count, sample, service,\n               window_from, window_to, created_at, acknowledged_at\n        FROM detection_findings\n        WHERE NOT $2 OR acknowledged_at IS NULL\n        ORDER BY created_at DESC\n        LIMIT $1\n        ",
+  "query": "\n        UPDATE detection_findings\n        SET acknowledged_at = COALESCE(acknowledged_at, now())\n        WHERE id = $1\n        RETURNING id, rule_id, rule_name, severity, match_count, sample, service, entity,\n                  window_from, window_to, created_at, acknowledged_at\n        ",
   "describe": {
     "columns": [
       {
@@ -82,6 +82,17 @@
       },
       {
         "ordinal": 7,
+        "name": "entity",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "detection_findings",
+            "name": "entity"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
         "name": "window_from",
         "type_info": "Timestamptz",
         "origin": {
@@ -92,7 +103,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "window_to",
         "type_info": "Timestamptz",
         "origin": {
@@ -103,7 +114,7 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -114,7 +125,7 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "acknowledged_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -127,8 +138,7 @@
     ],
     "parameters": {
       "Left": [
-        "Int8",
-        "Bool"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -139,11 +149,12 @@
       false,
       true,
       true,
+      true,
       false,
       false,
       false,
       true
     ]
   },
-  "hash": "ade0befc2569c3b7c3a99ac5504bddad77b38fceb7a547e557a0169119334c2b"
+  "hash": "da25a271808aa74b73c615e6eea46f970dc36fbd5e8c1ead49073b57c534e6a3"
 }

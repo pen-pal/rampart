@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE detection_findings\n        SET acknowledged_at = COALESCE(acknowledged_at, now())\n        WHERE id = $1\n        RETURNING id, rule_id, rule_name, severity, match_count, sample, service,\n                  window_from, window_to, created_at, acknowledged_at\n        ",
+  "query": "\n        SELECT id, rule_id, rule_name, severity, match_count, sample, service, entity,\n               window_from, window_to, created_at, acknowledged_at\n        FROM detection_findings\n        WHERE NOT $2 OR acknowledged_at IS NULL\n        ORDER BY created_at DESC\n        LIMIT $1\n        ",
   "describe": {
     "columns": [
       {
@@ -82,6 +82,17 @@
       },
       {
         "ordinal": 7,
+        "name": "entity",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "detection_findings",
+            "name": "entity"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
         "name": "window_from",
         "type_info": "Timestamptz",
         "origin": {
@@ -92,7 +103,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "window_to",
         "type_info": "Timestamptz",
         "origin": {
@@ -103,7 +114,7 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -114,7 +125,7 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "acknowledged_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -127,7 +138,8 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Int8",
+        "Bool"
       ]
     },
     "nullable": [
@@ -138,11 +150,12 @@
       false,
       true,
       true,
+      true,
       false,
       false,
       false,
       true
     ]
   },
-  "hash": "ebf5f348821a31d7262b18076b3af7345305f7c9fdcf47e208e83e3975f974e3"
+  "hash": "a4739d56f19be5286895d33a005dff3bb82a1702ddd2b8a5f2b67cda253c247d"
 }
