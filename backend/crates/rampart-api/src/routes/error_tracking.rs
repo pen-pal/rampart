@@ -9,6 +9,7 @@
 //! Ingest (Sentry-compatible, DSN-keyed) lives in `error_ingest`, mounted at
 //! the root `/api` surface outside the session layer.
 
+use crate::auth::OrgContext;
 use crate::error::ApiError;
 use crate::state::AppState;
 use axum::extract::{Extension, Path, Query, State};
@@ -59,9 +60,12 @@ pub fn issue_router() -> Router<AppState> {
         .route("/by-trace/{trace_id}", get(issues_by_trace))
 }
 
-async fn recent_issues(State(s): State<AppState>) -> Result<Json<Vec<ErrorIssue>>, ApiError> {
+async fn recent_issues(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+) -> Result<Json<Vec<ErrorIssue>>, ApiError> {
     Ok(Json(
-        rampart_db::error_tracking::recent_open_issues(s.pool(), 8).await?,
+        rampart_db::error_tracking::recent_open_issues(s.pool(), 8, org.org_id).await?,
     ))
 }
 

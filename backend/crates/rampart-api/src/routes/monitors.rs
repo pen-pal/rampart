@@ -1423,9 +1423,10 @@ pub struct MonitorSummaryDto {
 
 async fn summary(
     State(state): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Query(q): Query<SummaryQuery>,
 ) -> Result<Json<Vec<MonitorSummaryDto>>, ApiError> {
-    let rows = rampart_db::heartbeats::summary_window(state.pool(), q.window).await?;
+    let rows = rampart_db::heartbeats::summary_window(state.pool(), q.window, org.org_id).await?;
     Ok(Json(
         rows.into_iter()
             .map(|r| MonitorSummaryDto {
@@ -1457,10 +1458,11 @@ fn default_history_per() -> i64 {
 
 async fn history_all(
     State(state): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Query(q): Query<HistoryQuery>,
 ) -> Result<Json<Vec<Heartbeat>>, ApiError> {
     let per = q.per.clamp(1, 500);
-    let hbs = rampart_db::heartbeats::recent_per_monitor(state.pool(), per).await?;
+    let hbs = rampart_db::heartbeats::recent_per_monitor(state.pool(), per, org.org_id).await?;
     Ok(Json(hbs))
 }
 

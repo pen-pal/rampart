@@ -1,11 +1,17 @@
 //! Integration tests for `rampart_db::heartbeats`.
 
+use rampart_core::ids::OrgId;
 use rampart_core::monitor::NewMonitor;
+use rampart_core::org::DEFAULT_ORG_ID;
 use rampart_core::{Heartbeat, MonitorKind, MonitorStatus};
 use rampart_db::heartbeats::{insert_many, recent_for_monitor, recent_per_monitor, summary_window};
 use rampart_db::monitors;
 use sqlx::PgPool;
 use time::OffsetDateTime;
+
+fn def_org() -> OrgId {
+    OrgId::from_uuid(DEFAULT_ORG_ID)
+}
 
 fn http_monitor(name: &str) -> NewMonitor {
     NewMonitor {
@@ -117,7 +123,7 @@ async fn summary_window_computes_uptime_and_avg_latency(pool: PgPool) {
     ];
     insert_many(&pool, &hbs).await.unwrap();
 
-    let rollup = summary_window(&pool, 3600).await.unwrap();
+    let rollup = summary_window(&pool, 3600, def_org()).await.unwrap();
     let row = rollup
         .iter()
         .find(|r| r.monitor_id == m.id)
@@ -147,7 +153,7 @@ async fn summary_window_excludes_outside_window(pool: PgPool) {
     .await
     .unwrap();
 
-    let rollup = summary_window(&pool, 1800).await.unwrap(); // 30 min
+    let rollup = summary_window(&pool, 1800, def_org()).await.unwrap(); // 30 min
     let row = rollup
         .iter()
         .find(|r| r.monitor_id == m.id)
@@ -177,7 +183,7 @@ async fn recent_per_monitor_groups_correctly(pool: PgPool) {
     .await
     .unwrap();
 
-    let all = recent_per_monitor(&pool, 10).await.unwrap();
+    let all = recent_per_monitor(&pool, 10, def_org()).await.unwrap();
     let a_count = all.iter().filter(|h| h.monitor_id == a.id).count();
     let b_count = all.iter().filter(|h| h.monitor_id == b.id).count();
     assert_eq!(a_count, 2);

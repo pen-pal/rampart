@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, project_id, fingerprint, title, culprit, level, status,\n               first_seen, last_seen, times_seen, assignee\n        FROM error_issues\n        WHERE status = 'unresolved'\n        ORDER BY last_seen DESC\n        LIMIT $1\n        ",
+  "query": "\n        SELECT i.id, i.project_id, i.fingerprint, i.title, i.culprit, i.level, i.status,\n               i.first_seen, i.last_seen, i.times_seen, i.assignee\n        FROM error_issues i\n        JOIN error_projects p ON p.id = i.project_id\n        WHERE i.status = 'unresolved' AND p.org_id = $2\n        ORDER BY i.last_seen DESC\n        LIMIT $1\n        ",
   "describe": {
     "columns": [
       {
@@ -127,7 +127,8 @@
     ],
     "parameters": {
       "Left": [
-        "Int8"
+        "Int8",
+        "Uuid"
       ]
     },
     "nullable": [
@@ -144,5 +145,5 @@
       true
     ]
   },
-  "hash": "4ddc16d9f84db949dc331f37dcb67dc88ef659280ff2667d69f1f5672dcbeb4f"
+  "hash": "b9c5699d7e5a979f1e98930e128d5e9044020d9b59b7d8443a2e39d26ef8f2cd"
 }
