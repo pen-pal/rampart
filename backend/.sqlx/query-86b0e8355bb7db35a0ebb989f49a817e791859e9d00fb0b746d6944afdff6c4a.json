@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT name, interval_seconds, timeout_seconds, active, group_id\n            FROM monitors\n            WHERE id = $1\n            FOR UPDATE\n            ",
+  "query": "\n        SELECT name, interval_seconds, timeout_seconds, active, group_id\n        FROM monitors\n        WHERE id = $1 AND org_id = $2\n        ",
   "describe": {
     "columns": [
       {
@@ -61,6 +61,7 @@
     ],
     "parameters": {
       "Left": [
+        "Uuid",
         "Uuid"
       ]
     },
@@ -72,5 +73,5 @@
       true
     ]
   },
-  "hash": "b88648b0a10a3bba97fc49cc276fb6fbc62fbd4f5d40f4885dc8df17b7b9398a"
+  "hash": "86b0e8355bb7db35a0ebb989f49a817e791859e9d00fb0b746d6944afdff6c4a"
 }

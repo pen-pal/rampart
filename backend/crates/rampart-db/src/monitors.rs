@@ -827,16 +827,23 @@ pub async fn set_active(pool: &DbPool, id: MonitorId, active: bool, org_id: OrgI
 /// number of rows actually changed — a monitor already in the target
 /// state isn't re-counted (the `active <> $1` guard keeps the count to
 /// genuine transitions, which is what the operator wants to hear back).
-pub async fn set_active_by_tag(pool: &DbPool, tag: TagId, active: bool) -> DbResult<u64> {
+pub async fn set_active_by_tag(
+    pool: &DbPool,
+    tag: TagId,
+    active: bool,
+    org_id: OrgId,
+) -> DbResult<u64> {
     let result = sqlx::query!(
         r#"
         UPDATE monitors
            SET active = $1, updated_at = NOW()
          WHERE active <> $1
+           AND org_id = $3
            AND id IN (SELECT monitor_id FROM monitor_tags WHERE tag_id = $2)
         "#,
         active,
         tag.0,
+        org_id.0,
     )
     .execute(pool)
     .await?;
@@ -933,12 +940,13 @@ pub async fn bulk_edit_preview(
     pool: &DbPool,
     ids: &[MonitorId],
     want_tags: bool,
+    org_id: OrgId,
 ) -> DbResult<(Vec<MonitorPrior>, usize)> {
     let mut priors = Vec::new();
     let mut skipped_unknown = 0usize;
 
     for id in ids {
-        match load_prior(pool, *id, want_tags).await? {
+        match load_prior(pool, *id, want_tags, org_id).await? {
             Some(prior) => priors.push(prior),
             None => skipped_unknown += 1,
         }
@@ -948,12 +956,14 @@ pub async fn bulk_edit_preview(
 }
 
 /// Fetch the editable-field snapshot for one monitor. `None` when the id
-/// doesn't resolve. `with_tags` skips the tag read when the patch isn't
-/// touching tags (avoids a query per monitor for the common case).
+/// doesn't resolve *within `org_id`* — an id in another org is reported as
+/// unknown (skipped), never read. `with_tags` skips the tag read when the
+/// patch isn't touching tags (avoids a query per monitor for the common case).
 async fn load_prior<'e, E>(
     executor: E,
     id: MonitorId,
     with_tags: bool,
+    org_id: OrgId,
 ) -> DbResult<Option<MonitorPrior>>
 where
     E: sqlx::PgExecutor<'e> + Copy,
@@ -962,9 +972,10 @@ where
         r#"
         SELECT name, interval_seconds, timeout_seconds, active, group_id
         FROM monitors
-        WHERE id = $1
+        WHERE id = $1 AND org_id = $2
         "#,
         id.0,
+        org_id.0,
     )
     .fetch_optional(executor)
     .await?;
@@ -1008,6 +1019,7 @@ pub async fn bulk_edit(
     pool: &DbPool,
     ids: &[MonitorId],
     patch: &BulkEditPatch,
+    org_id: OrgId,
 ) -> DbResult<BulkEditOutcome> {
     let mut tx = pool.begin().await?;
 
@@ -1032,14 +1044,18 @@ pub async fn bulk_edit(
             r#"
             SELECT name, interval_seconds, timeout_seconds, active, group_id
             FROM monitors
-            WHERE id = $1
+            WHERE id = $1 AND org_id = $2
             FOR UPDATE
             "#,
             id.0,
+            org_id.0,
         )
         .fetch_optional(&mut *tx)
         .await?;
 
+        // Unknown id OR an id in another org: skip (counted as unknown), never
+        // touched. The subsequent column/group/tag updates run only on this
+        // org-confirmed, row-locked monitor.
         let Some(prior_row) = prior_row else {
             skipped_unknown += 1;
             continue;
