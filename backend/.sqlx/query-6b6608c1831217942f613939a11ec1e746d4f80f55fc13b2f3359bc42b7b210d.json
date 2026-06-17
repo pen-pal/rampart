@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE ingest_tokens\n        SET mapping = $2\n        WHERE id = $1\n        RETURNING id, status_page_id, token, label, mapping, created_at, last_used_at\n        ",
+  "query": "\n        UPDATE ingest_tokens\n        SET mapping = $2\n        WHERE id = $1\n          AND status_page_id IN (SELECT id FROM status_pages WHERE org_id = $3)\n        RETURNING id, status_page_id, token, label, mapping, created_at, last_used_at\n        ",
   "describe": {
     "columns": [
       {
@@ -84,7 +84,8 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Jsonb"
+        "Jsonb",
+        "Uuid"
       ]
     },
     "nullable": [
@@ -97,5 +98,5 @@
       true
     ]
   },
-  "hash": "3fedcc5b109ec7f2c70ca4024c4e825dd52e87f3e6954000f52066756bc3edd2"
+  "hash": "6b6608c1831217942f613939a11ec1e746d4f80f55fc13b2f3359bc42b7b210d"
 }

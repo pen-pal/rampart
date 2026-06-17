@@ -6,7 +6,7 @@
 //! hit on the UNIQUE index on `token`.
 
 use crate::{DbError, DbPool, DbResult};
-use rampart_core::ids::{IngestTokenId, StatusPageId};
+use rampart_core::ids::{IngestTokenId, OrgId, StatusPageId};
 use rampart_core::ingest_token::{IngestToken, NewIngestToken};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -98,17 +98,21 @@ pub async fn set_mapping(
     pool: &DbPool,
     id: IngestTokenId,
     mapping: Option<serde_json::Value>,
+    org_id: OrgId,
 ) -> DbResult<IngestToken> {
+    // Org-gate via the owning page (tokens inherit org from their status page).
     let row = sqlx::query_as!(
         TokenRow,
         r#"
         UPDATE ingest_tokens
         SET mapping = $2
         WHERE id = $1
+          AND status_page_id IN (SELECT id FROM status_pages WHERE org_id = $3)
         RETURNING id, status_page_id, token, label, mapping, created_at, last_used_at
         "#,
         id.0,
         mapping,
+        org_id.0,
     )
     .fetch_optional(pool)
     .await?
@@ -149,10 +153,18 @@ pub async fn find_by_token(pool: &DbPool, token: &str) -> DbResult<IngestToken> 
     Ok(row.into())
 }
 
-pub async fn delete(pool: &DbPool, id: IngestTokenId) -> DbResult<()> {
-    let result = sqlx::query!("DELETE FROM ingest_tokens WHERE id = $1", id.0)
-        .execute(pool)
-        .await?;
+pub async fn delete(pool: &DbPool, id: IngestTokenId, org_id: OrgId) -> DbResult<()> {
+    let result = sqlx::query!(
+        r#"
+        DELETE FROM ingest_tokens
+        WHERE id = $1
+          AND status_page_id IN (SELECT id FROM status_pages WHERE org_id = $2)
+        "#,
+        id.0,
+        org_id.0,
+    )
+    .execute(pool)
+    .await?;
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }
