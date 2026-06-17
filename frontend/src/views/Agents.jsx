@@ -72,13 +72,13 @@ const css = `
 const tsToDate = (ts) => (Array.isArray(ts) ? offsetDateTimeArrayToDate(ts) : new Date(ts));
 
 export default function Agents() {
+  const [reloadKey, setReloadKey] = useState(0);
   const agentsState = useApi(() => api.agents.list(), [reloadKey], { pollMs: 30_000 });
   const [creating, setCreating] = useState(false);
   const [issued,   setIssued]   = useState(null);  // shown once after create
   const [err,      setErr]      = useState(null);
   const [busy,     setBusy]     = useState(null);
 
-  const [reloadKey, setReloadKey] = useState(0);
   const reload = () => setReloadKey((k) => k + 1);
 
   const revoke = async (id) => {

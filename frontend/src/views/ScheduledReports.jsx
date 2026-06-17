@@ -69,6 +69,7 @@ const textToRecipients = (text) =>
 
 export default function ScheduledReports({ user }) {
   const admin = isAdmin(user);
+  const [reloadKey, setReloadKey] = useState(0);
   const reportsState = useApi(() => api.scheduledReports.list(), [reloadKey], { pollMs: 30_000 });
   const [creating, setCreating] = useState(false);
   const [editing,  setEditing]  = useState(null); // report being edited, or null
@@ -77,7 +78,6 @@ export default function ScheduledReports({ user }) {
   // Transient per-row send-now feedback: { [id]: 'sending' | 'sent' | 'err' }.
   const [sendState, setSendState] = useState({});
 
-  const [reloadKey, setReloadKey] = useState(0);
   const reload = () => setReloadKey((k) => k + 1);
 
   const remove = async (id) => {
