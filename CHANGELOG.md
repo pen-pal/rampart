@@ -19,6 +19,26 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.121.0] — 2026-06-17
+
+### Added
+- **Multi-tenancy — Phase 3m: org-gated status-page sections + ingest tokens.**
+  Closes a real cross-org gap: the status-page **section** management endpoints
+  (`/{id}/sections` list/create + `/{id}/sections/{sid}` update/delete +
+  monitor-section assign) and the **ingest-token** management endpoints
+  (list/create/revoke/set-mapping) previously operated on a page/token id with
+  no check that the owning page belonged to the caller's org. They now org-gate
+  through the parent page — section handlers verify the page via
+  `status_pages::get(page, org)` first, and `ingest_tokens::{delete,set_mapping}`
+  scope by `status_page_id IN (SELECT id FROM status_pages WHERE org_id = $)`.
+  A cross-org page/token id is now a 404. Behaviour-identical for a single-org
+  install. **This completes Phase-3 org-scoped read/management filtering for
+  every request surface except the deferred-with-their-phase items** (telemetry
+  reads → P5, settings/audit_log → P6, `assignable_users` → P4). See
+  [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.120.0] — 2026-06-17
 
 ### Added

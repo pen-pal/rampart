@@ -249,33 +249,44 @@ fn parse_monitor(id: &str) -> Result<MonitorId, ApiError> {
 
 async fn list_sections(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<Vec<StatusPageSection>>, ApiError> {
+    let page_id = parse(&id)?;
+    // Org-gate via the parent page (sections inherit org from it); a cross-org
+    // page id 404s here before any section is touched.
+    rampart_db::status_pages::get(s.pool(), page_id, org.org_id).await?;
     Ok(Json(
-        rampart_db::status_pages::list_sections(s.pool(), parse(&id)?).await?,
+        rampart_db::status_pages::list_sections(s.pool(), page_id).await?,
     ))
 }
 
 async fn create_section(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
     Json(input): Json<NewStatusPageSection>,
 ) -> Result<(StatusCode, Json<StatusPageSection>), ApiError> {
     input
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
-    let section = rampart_db::status_pages::create_section(s.pool(), parse(&id)?, input).await?;
+    let page_id = parse(&id)?;
+    rampart_db::status_pages::get(s.pool(), page_id, org.org_id).await?;
+    let section = rampart_db::status_pages::create_section(s.pool(), page_id, input).await?;
     Ok((StatusCode::CREATED, Json(section)))
 }
 
 async fn update_section(
     State(s): State<AppState>,
-    Path((_id, section_id)): Path<(String, String)>,
+    Extension(org): Extension<OrgContext>,
+    Path((id, section_id)): Path<(String, String)>,
     Json(input): Json<UpdateStatusPageSection>,
 ) -> Result<Json<StatusPageSection>, ApiError> {
     input
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    // Gate via the parent page from the path; the section belongs to it.
+    rampart_db::status_pages::get(s.pool(), parse(&id)?, org.org_id).await?;
     Ok(Json(
         rampart_db::status_pages::update_section(s.pool(), parse_section(&section_id)?, input)
             .await?,
@@ -284,20 +295,25 @@ async fn update_section(
 
 async fn delete_section(
     State(s): State<AppState>,
-    Path((_id, section_id)): Path<(String, String)>,
+    Extension(org): Extension<OrgContext>,
+    Path((id, section_id)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
+    rampart_db::status_pages::get(s.pool(), parse(&id)?, org.org_id).await?;
     rampart_db::status_pages::delete_section(s.pool(), parse_section(&section_id)?).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
 async fn assign_monitor_section(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path((id, monitor_id)): Path<(String, String)>,
     Json(req): Json<AssignSectionReq>,
 ) -> Result<StatusCode, ApiError> {
+    let page_id = parse(&id)?;
+    rampart_db::status_pages::get(s.pool(), page_id, org.org_id).await?;
     rampart_db::status_pages::assign_monitor_section(
         s.pool(),
-        parse(&id)?,
+        page_id,
         parse_monitor(&monitor_id)?,
         req.section_id,
     )
