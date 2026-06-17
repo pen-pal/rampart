@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT p.id, p.name, p.steps AS \"steps!\", p.created_at,\n               COUNT(m.id) AS monitor_count\n        FROM escalation_policies p\n        LEFT JOIN monitors m ON m.escalation_policy_id = p.id\n        GROUP BY p.id\n        ORDER BY p.created_at\n        ",
+  "query": "\n        SELECT p.id, p.name, p.steps AS \"steps!\", p.created_at,\n               COUNT(m.id) AS monitor_count\n        FROM escalation_policies p\n        LEFT JOIN monitors m ON m.escalation_policy_id = p.id\n        WHERE p.org_id = $1\n        GROUP BY p.id\n        ORDER BY p.created_at\n        ",
   "describe": {
     "columns": [
       {
@@ -55,7 +55,9 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid"
+      ]
     },
     "nullable": [
       false,
@@ -65,5 +67,5 @@
       null
     ]
   },
-  "hash": "6ba960c8875289ba973494bcd80ae4f4c809d28df8f3a853c185fe06c6c588d1"
+  "hash": "d29a709d32424d4d7289b99484c2803a97a8d01537bd70c08578daad23e4e634"
 }

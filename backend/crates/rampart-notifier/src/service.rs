@@ -415,7 +415,7 @@ async fn handle_escalation_flip(
     event: &Event,
     policy_id: rampart_core::ids::EscalationPolicyId,
 ) {
-    let policy = match rampart_db::escalations::get(pool, policy_id).await {
+    let policy = match rampart_db::escalations::get_unscoped(pool, policy_id).await {
         Ok(p) => p,
         Err(e) => {
             warn!(policy = %policy_id.0, error = %e, "escalation policy load failed");
