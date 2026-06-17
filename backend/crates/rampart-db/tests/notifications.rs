@@ -1,6 +1,8 @@
 //! Integration tests for `rampart_db::notifications`.
 
+use rampart_core::ids::OrgId;
 use rampart_core::monitor::NewMonitor;
+use rampart_core::org::DEFAULT_ORG_ID;
 use rampart_core::{ChannelKind, MonitorKind};
 use rampart_db::monitors;
 use rampart_db::notifications::{
@@ -8,6 +10,10 @@ use rampart_db::notifications::{
     NewNotification, UpdateNotification,
 };
 use sqlx::PgPool;
+
+fn def_org() -> OrgId {
+    OrgId::from_uuid(DEFAULT_ORG_ID)
+}
 
 fn http_monitor(name: &str) -> NewMonitor {
     NewMonitor {
@@ -69,7 +75,7 @@ fn empty_update() -> UpdateNotification {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn list_empty_initially(pool: PgPool) {
-    assert!(list(&pool).await.unwrap().is_empty());
+    assert!(list(&pool, def_org()).await.unwrap().is_empty());
 }
 
 #[sqlx::test(migrations = "../../migrations")]
@@ -80,7 +86,7 @@ async fn create_and_get(pool: PgPool) {
     assert!(n.active);
     assert!(n.template_id.is_none());
 
-    let g = get(&pool, n.id).await.unwrap();
+    let g = get(&pool, n.id, def_org()).await.unwrap();
     assert_eq!(g.id, n.id);
 }
 
@@ -90,7 +96,7 @@ async fn update_renames_and_disables(pool: PgPool) {
     let mut p = empty_update();
     p.name = Some("renamed".into());
     p.active = Some(false);
-    let patched = update(&pool, n.id, p).await.unwrap();
+    let patched = update(&pool, n.id, p, def_org()).await.unwrap();
     assert_eq!(patched.name, "renamed");
     assert!(!patched.active);
 }
@@ -116,13 +122,13 @@ async fn update_can_set_and_clear_template(pool: PgPool) {
     // Set
     let mut p = empty_update();
     p.template_id = Some(Some(t.id));
-    let patched = update(&pool, n.id, p).await.unwrap();
+    let patched = update(&pool, n.id, p, def_org()).await.unwrap();
     assert_eq!(patched.template_id, Some(t.id));
 
     // Clear
     let mut p = empty_update();
     p.template_id = Some(None);
-    let cleared = update(&pool, n.id, p).await.unwrap();
+    let cleared = update(&pool, n.id, p, def_org()).await.unwrap();
     assert!(cleared.template_id.is_none());
 }
 
@@ -165,7 +171,7 @@ async fn disabled_channels_excluded_from_for_monitor(pool: PgPool) {
 
     let mut p = empty_update();
     p.active = Some(false);
-    update(&pool, c.id, p).await.unwrap();
+    update(&pool, c.id, p, def_org()).await.unwrap();
 
     assert!(
         for_monitor(&pool, m.id).await.unwrap().is_empty(),
@@ -186,9 +192,9 @@ async fn counts_per_monitor_excludes_disabled(pool: PgPool) {
     // disable c2
     let mut p = empty_update();
     p.active = Some(false);
-    update(&pool, c2.id, p).await.unwrap();
+    update(&pool, c2.id, p, def_org()).await.unwrap();
 
-    let counts = counts_per_monitor(&pool).await.unwrap();
+    let counts = counts_per_monitor(&pool, def_org()).await.unwrap();
     let row = counts
         .iter()
         .find(|r| r.monitor_id == m.id)
@@ -201,7 +207,7 @@ async fn delete_channel_cascades_attachments(pool: PgPool) {
     let m = monitors::create(&pool, http_monitor("cas")).await.unwrap();
     let c = create(&pool, webhook_channel("ch")).await.unwrap();
     attach(&pool, m.id, c.id).await.unwrap();
-    delete(&pool, c.id).await.unwrap();
+    delete(&pool, c.id, def_org()).await.unwrap();
     // ON DELETE CASCADE on monitor_notifications.notification_id should
     // clear the row; monitor's channel list now empty.
     assert!(for_monitor(&pool, m.id).await.unwrap().is_empty());
