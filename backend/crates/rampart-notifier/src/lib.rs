@@ -20,6 +20,7 @@
 
 pub mod channels;
 pub mod event;
+pub mod http;
 pub mod service;
 pub mod siem;
 pub mod template;
