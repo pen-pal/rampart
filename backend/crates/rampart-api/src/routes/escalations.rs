@@ -4,6 +4,7 @@
 //! /v1/monitors/{id}/escalation     — the monitor's open episode, if any
 //! /v1/monitors/{id}/escalation/ack — stop the ladder (records who)
 
+use crate::auth::OrgContext;
 use crate::error::ApiError;
 use crate::state::AppState;
 use axum::extract::{Extension, Path, State};
@@ -78,8 +79,11 @@ fn parse_monitor(s: &str) -> Result<MonitorId, ApiError> {
         .map_err(|_| ApiError::BadRequest("invalid monitor id".into()))
 }
 
-async fn list(State(s): State<AppState>) -> Result<Json<Vec<EscalationPolicy>>, ApiError> {
-    Ok(Json(rampart_db::escalations::list(s.pool()).await?))
+async fn list(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+) -> Result<Json<Vec<EscalationPolicy>>, ApiError> {
+    Ok(Json(rampart_db::escalations::list(s.pool(), org.org_id).await?))
 }
 
 async fn create(
@@ -110,6 +114,7 @@ async fn create(
 async fn update(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path(id): Path<String>,
     Json(input): Json<UpdateEscalationPolicy>,
@@ -121,7 +126,7 @@ async fn update(
     if let Some(steps) = &input.steps {
         validate_steps(steps).map_err(ApiError::BadRequest)?;
     }
-    let policy = rampart_db::escalations::update(s.pool(), policy_id, input).await?;
+    let policy = rampart_db::escalations::update(s.pool(), policy_id, input, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -138,11 +143,12 @@ async fn update(
 async fn delete(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let policy_id = parse(&id)?;
-    rampart_db::escalations::delete(s.pool(), policy_id).await?;
+    rampart_db::escalations::delete(s.pool(), policy_id, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
