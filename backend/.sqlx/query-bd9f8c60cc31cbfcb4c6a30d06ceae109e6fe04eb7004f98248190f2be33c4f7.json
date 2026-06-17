@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, name, body, style AS \"style: IncidentStyle\", created_at\n        FROM incident_templates\n        ORDER BY created_at DESC\n        ",
+  "query": "\n        SELECT id, name, body, style AS \"style: IncidentStyle\", created_at\n        FROM incident_templates\n        WHERE id = $1 AND org_id = $2\n        ",
   "describe": {
     "columns": [
       {
@@ -73,7 +73,10 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
     },
     "nullable": [
       false,
@@ -83,5 +86,5 @@
       false
     ]
   },
-  "hash": "4c540e8a3d3d2613d940596a72b29af7178b4012e9b39e1586345a5c3af92026"
+  "hash": "bd9f8c60cc31cbfcb4c6a30d06ceae109e6fe04eb7004f98248190f2be33c4f7"
 }

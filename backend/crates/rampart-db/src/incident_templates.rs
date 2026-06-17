@@ -6,6 +6,7 @@
 //! of retyping. Global, not page-scoped — same phrasing everywhere.
 
 use crate::{DbError, DbPool, DbResult};
+use rampart_core::ids::OrgId;
 use rampart_core::{IncidentStyle, IncidentTemplate, IncidentTemplateId};
 use serde::Deserialize;
 use uuid::Uuid;
@@ -32,13 +33,15 @@ pub struct UpdateIncidentTemplate {
     pub style: Option<IncidentStyle>,
 }
 
-pub async fn list(pool: &DbPool) -> DbResult<Vec<IncidentTemplate>> {
+pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<IncidentTemplate>> {
     let rows = sqlx::query!(
         r#"
         SELECT id, name, body, style AS "style: IncidentStyle", created_at
         FROM incident_templates
+        WHERE org_id = $1
         ORDER BY created_at DESC
         "#,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -54,14 +57,15 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<IncidentTemplate>> {
         .collect())
 }
 
-pub async fn get(pool: &DbPool, id: IncidentTemplateId) -> DbResult<IncidentTemplate> {
+pub async fn get(pool: &DbPool, id: IncidentTemplateId, org_id: OrgId) -> DbResult<IncidentTemplate> {
     let r = sqlx::query!(
         r#"
         SELECT id, name, body, style AS "style: IncidentStyle", created_at
         FROM incident_templates
-        WHERE id = $1
+        WHERE id = $1 AND org_id = $2
         "#,
         id.0,
+        org_id.0,
     )
     .fetch_optional(pool)
     .await?
@@ -103,21 +107,23 @@ pub async fn update(
     pool: &DbPool,
     id: IncidentTemplateId,
     input: UpdateIncidentTemplate,
+    org_id: OrgId,
 ) -> DbResult<IncidentTemplate> {
-    let cur = get(pool, id).await?;
+    let cur = get(pool, id, org_id).await?;
     let r = sqlx::query!(
         r#"
         UPDATE incident_templates
         SET name  = $2,
             body  = $3,
             style = $4
-        WHERE id = $1
+        WHERE id = $1 AND org_id = $5
         RETURNING id, name, body, style AS "style: IncidentStyle", created_at
         "#,
         id.0,
         input.name.unwrap_or(cur.name),
         input.body.unwrap_or(cur.body),
         input.style.unwrap_or(cur.style) as IncidentStyle,
+        org_id.0,
     )
     .fetch_one(pool)
     .await?;
@@ -130,10 +136,14 @@ pub async fn update(
     })
 }
 
-pub async fn delete(pool: &DbPool, id: IncidentTemplateId) -> DbResult<()> {
-    let r = sqlx::query!("DELETE FROM incident_templates WHERE id = $1", id.0)
-        .execute(pool)
-        .await?;
+pub async fn delete(pool: &DbPool, id: IncidentTemplateId, org_id: OrgId) -> DbResult<()> {
+    let r = sqlx::query!(
+        "DELETE FROM incident_templates WHERE id = $1 AND org_id = $2",
+        id.0,
+        org_id.0,
+    )
+    .execute(pool)
+    .await?;
     if r.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }

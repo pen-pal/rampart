@@ -5,7 +5,7 @@
 //! reference one via `notifications.template_id`.
 
 use crate::{DbError, DbPool, DbResult};
-use rampart_core::ids::NotificationTemplateId;
+use rampart_core::ids::{NotificationTemplateId, OrgId};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -66,14 +66,16 @@ where
     serde::Deserialize::deserialize(d).map(Some)
 }
 
-pub async fn list(pool: &DbPool) -> DbResult<Vec<Template>> {
+pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<Template>> {
     let rows = sqlx::query!(
         r#"
         SELECT id, name, channel_kinds, event_kind, subject_template, body_template,
                is_default, created_at
         FROM notification_templates
+        WHERE org_id = $1
         ORDER BY created_at DESC
         "#,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -92,15 +94,16 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<Template>> {
         .collect())
 }
 
-pub async fn get(pool: &DbPool, id: NotificationTemplateId) -> DbResult<Template> {
+pub async fn get(pool: &DbPool, id: NotificationTemplateId, org_id: OrgId) -> DbResult<Template> {
     let r = sqlx::query!(
         r#"
         SELECT id, name, channel_kinds, event_kind, subject_template, body_template,
                is_default, created_at
         FROM notification_templates
-        WHERE id = $1
+        WHERE id = $1 AND org_id = $2
         "#,
         id.0,
+        org_id.0,
     )
     .fetch_optional(pool)
     .await?
@@ -159,8 +162,9 @@ pub async fn update(
     pool: &DbPool,
     id: NotificationTemplateId,
     input: UpdateTemplate,
+    org_id: OrgId,
 ) -> DbResult<Template> {
-    let cur = get(pool, id).await?;
+    let cur = get(pool, id, org_id).await?;
     let r = sqlx::query!(
         r#"
         UPDATE notification_templates
@@ -170,7 +174,7 @@ pub async fn update(
             subject_template = $5,
             body_template    = $6,
             is_default       = $7
-        WHERE id = $1
+        WHERE id = $1 AND org_id = $8
         RETURNING id, name, channel_kinds, event_kind, subject_template, body_template,
                   is_default, created_at
         "#,
@@ -181,6 +185,7 @@ pub async fn update(
         input.subject_template.unwrap_or(cur.subject_template),
         input.body_template.unwrap_or(cur.body_template),
         input.is_default.unwrap_or(cur.is_default),
+        org_id.0,
     )
     .fetch_one(pool)
     .await?;
@@ -196,10 +201,14 @@ pub async fn update(
     })
 }
 
-pub async fn delete(pool: &DbPool, id: NotificationTemplateId) -> DbResult<()> {
-    let r = sqlx::query!(r#"DELETE FROM notification_templates WHERE id = $1"#, id.0)
-        .execute(pool)
-        .await?;
+pub async fn delete(pool: &DbPool, id: NotificationTemplateId, org_id: OrgId) -> DbResult<()> {
+    let r = sqlx::query!(
+        r#"DELETE FROM notification_templates WHERE id = $1 AND org_id = $2"#,
+        id.0,
+        org_id.0,
+    )
+    .execute(pool)
+    .await?;
     if r.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }
