@@ -19,6 +19,34 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.108.0] — 2026-06-17
+
+### Added
+- **Multi-tenancy — Phase 2: per-resource `org_id` columns (behaviour-identical).**
+  Migration 0108 adds an `org_id` ownership column to all **30 tenant-root**
+  tables (monitors, status_pages, notifications, error_projects, the
+  independently-ingested telemetry tiers — logs/spans/metric_samples/rum_events
+  /profiles — rules, escalation/on-call, silences, slos, delivery_log, api_keys,
+  agents, proxies, deploy_markers, scheduled_reports, tags, …). The column is
+  nullable with a constant DEFAULT of the Default org
+  (`00000000-0000-0000-0000-000000000001`), so every existing and new row is
+  owned by the Default org with **no table rewrite, no backfill, no locking
+  scan** (metadata-only on PG 11+), and a plain `REFERENCES organizations(id)`
+  (ON DELETE RESTRICT) so an org can't be dropped while it owns rows. Child
+  tables (heartbeats, incidents, status_page_*, error_events, …) get no column —
+  they inherit org transitively via their NOT-NULL FK to a root; join tables and
+  instance-level tables (users, sessions, the tenancy machinery) are excluded by
+  design. `settings` and `audit_log` are deferred (they gain org scoping via PK
+  reshaping / a derived column in a later phase, not a generic nullable ALTER).
+  No query filters by org yet — reads remain global — so this release is
+  functionally identical to single-tenant. The root/child/global classification
+  was produced and adversarially verified across all 65 tables (the leak-critical
+  cases: `silences`/`slos` carry a *nullable* `monitor_id` so global silences /
+  metric-SLOs are roots, not children; `delivery_log` orphans on `SET NULL` so it
+  carries its own `org_id`). See [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.107.0] — 2026-06-17
 
 ### Added
