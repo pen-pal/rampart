@@ -19,6 +19,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.134.0] — 2026-06-18
+
+### Added
+- **Multi-tenancy — Phase 4d: org switcher + `/v1/auth/me` enrichment.**
+  `POST /v1/orgs/{id}/switch` persists the caller's active org
+  (`sessions.active_org_id`) for the current cookie session — gated on
+  membership (switching into an org you don't belong to → 404; bearer/API-key
+  callers have no session cookie → 401). `/v1/auth/me` now returns the caller's
+  `orgs` list + the resolved `active_org_id` (Default-org fallback when unset),
+  so the SPA can render an org switcher. Behaviour-identical for now — the
+  active org becomes the one that *scopes resources* in Phase 4e (where
+  `require_session` resolves `OrgContext` from `active_org_id`). New test
+  `switch_active_org_and_me_reflects_it`. See
+  [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.133.0] — 2026-06-18
 
 ### Added
