@@ -1,0 +1,4 @@
+# local-only; never commit
+.env
+**/node_modules/
+**/package-lock.json

@@ -1,0 +1,302 @@
+# =============================================================================
+# Rampart — the "everything" demo stack.
+#
+#   cd examples/everything
+#   cp .env.example .env          # optional: tweak creds / image
+#   docker compose up             # default profile (lean targets)
+#   docker compose --profile heavy up    # + the heavy/exotic probe targets
+#   docker compose --profile oidc  up    # + Dex SSO
+#
+#   → Rampart UI       http://localhost:3000  (demo@rampart.local / Rampart-Live-9271)
+#   → Demo app         http://localhost:8088
+#   → Webhook sink     http://localhost:8099  (every real delivery shows here)
+#   → Mailpit          http://localhost:8025  (real emails)
+#   → Prometheus       http://localhost:9090
+#   → Alertmanager     http://localhost:9093
+#   → Dex (oidc)       http://localhost:5556/dex
+#
+# ONE rampart container = API + ingest + scheduler + notifier (leader-elected).
+# A one-shot `provision` creates ALL config + captures runtime secrets to the
+# shared volume; the real services (demo-app, agent, crons) consume them.
+# Tear down with `docker compose down -v`.
+#
+# Image: defaults to the published image. To build from this repo instead:
+#   RAMPART_IMAGE= docker compose build rampart && RAMPART_IMAGE= docker compose up
+# (and uncomment the `build:` lines on rampart). The remote agent ALWAYS builds
+# from source (the published image omits the agent binary).
+# =============================================================================
+name: rampart-everything
+
+x-admin-env: &admin-env
+  RAMPART_ADMIN_EMAIL: ${RAMPART_ADMIN_EMAIL:-demo@rampart.local}
+  RAMPART_ADMIN_PASSWORD: ${RAMPART_ADMIN_PASSWORD:-Rampart-Live-9271}
+
+volumes:
+  shared: {}        # provision writes captured secrets here; consumers read them
+
+services:
+  # ── Rampart + its database ─────────────────────────────────────────────────
+  rampart-db:
+    image: postgres:17-alpine
+    environment: { POSTGRES_USER: rampart, POSTGRES_PASSWORD: rampart, POSTGRES_DB: rampart }
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U rampart"], interval: 5s, timeout: 3s, retries: 20 }
+    tmpfs: ["/var/lib/postgresql/data"]
+
+  rampart:
+    image: ${RAMPART_IMAGE:-ghcr.io/pen-pal/rampart:latest}
+    pull_policy: always
+    # build: { context: ../.., dockerfile: Dockerfile }   # uncomment to build from repo
+    restart: unless-stopped
+    environment:
+      <<: *admin-env
+      DATABASE_URL: postgres://rampart:rampart@rampart-db:5432/rampart
+      BIND_ADDR: 0.0.0.0:3000
+      RUST_LOG: rampart=info,info
+      # Secrets-at-rest (AES-256-GCM for the 128 channels' credentials). LEFT
+      # UNSET BY DEFAULT so the demo's REAL channel deliveries work end-to-end:
+      # on the published image (v0.137.x) the live monitor-flip fan-out reads the
+      # channel config without decrypting it (rampart-db routing::
+      # resolve_channels_for_monitor maps `config` raw), so with a key set the
+      # flip-path deliveries fail "missing field url" while /test + digest +
+      # scheduled paths still decrypt fine. Set RAMPART_SECRET_KEY=$(openssl rand
+      # -hex 32) in .env to demo encryption-at-rest (flip-path deliveries then
+      # degrade until that upstream bug is fixed). See README "Known caveats".
+      RAMPART_SECRET_KEY: ${RAMPART_SECRET_KEY:-}
+      # Self-observability: Rampart exports its OWN traces + logs back into itself.
+      RAMPART_OTLP_ENDPOINT: http://rampart:3000
+      # Inject the RUM snippet into the dashboard → real Core Web Vitals from using the UI.
+      RAMPART_SELF_RUM: "1"
+      # NOTE: RAMPART_SSRF_BLOCK_PRIVATE is deliberately UNSET so monitors/channels/
+      # hooks can reach in-network Docker service names. Loopback/metadata stay blocked.
+      # --- OIDC (only consulted when --profile oidc brings Dex up) ---
+      RAMPART_OIDC_ISSUER: ${RAMPART_OIDC_ISSUER:-}
+      RAMPART_OIDC_CLIENT_ID: ${RAMPART_OIDC_CLIENT_ID:-}
+      RAMPART_OIDC_CLIENT_SECRET: ${RAMPART_OIDC_CLIENT_SECRET:-}
+      RAMPART_OIDC_REDIRECT_URL: ${RAMPART_OIDC_REDIRECT_URL:-}
+      RAMPART_OIDC_DEFAULT_ROLE: ${RAMPART_OIDC_DEFAULT_ROLE:-editor}
+    ports: ["3000:3000"]
+    volumes:
+      # The `infra · docker container` monitor probes a container via the
+      # daemon socket. Mounted READ-ONLY on rampart (the prober). On some hosts
+      # the rampart user needs the docker group; if the docker monitor stays
+      # Down, that's the cause (still a real, not fabricated, result).
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    healthcheck:
+      # The runtime image ships only bash (no wget/curl/nc), and the default
+      # shell is dash (no /dev/tcp). Invoke bash explicitly and use its /dev/tcp
+      # to issue a minimal HTTP GET /readyz, requiring a 200.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/3000 && printf 'GET /readyz HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q ' 200'"]
+      interval: 5s
+      timeout: 3s
+      retries: 40
+    depends_on:
+      rampart-db: { condition: service_healthy }
+
+  # ── One-shot provisioner: creates ALL config + captures secrets ────────────
+  provision:
+    build: { context: ./provision }
+    environment:
+      <<: *admin-env
+      RAMPART_URL: http://rampart:3000
+      SINK_URL: http://webhook-sink:8099
+      MAILPIT_SMTP_HOST: mailpit
+      MAILPIT_SMTP_PORT: "1025"
+      PUBLIC_BASE: http://localhost:3000
+      SHARED_DIR: /shared
+    volumes:
+      - shared:/shared
+    depends_on:
+      rampart: { condition: service_healthy }
+    restart: "no"
+
+  # ── The instrumented demo application + its data stores ────────────────────
+  demo-db:
+    image: postgres:17-alpine
+    environment: { POSTGRES_USER: demo, POSTGRES_PASSWORD: demo, POSTGRES_DB: demo }
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U demo"], interval: 5s, timeout: 3s, retries: 20 }
+    tmpfs: ["/var/lib/postgresql/data"]
+
+  demo-redis:
+    image: redis:7-alpine
+
+  demo-backend:
+    build: { context: ./demo-app/backend }
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://demo:demo@demo-db:5432/demo
+      REDIS_URL: redis://demo-redis:6379
+      OTEL_SERVICE_NAME: demo-backend
+      RAMPART_OTLP: http://rampart:3000/otlp
+      RAMPART_PROFILES: http://rampart:3000/profiles
+    volumes:
+      - shared:/shared:ro     # entrypoint sources /shared/demo.env (SENTRY_DSN, endpoints)
+    depends_on:
+      demo-db: { condition: service_healthy }
+      demo-redis: { condition: service_started }
+      rampart: { condition: service_started }
+      provision: { condition: service_completed_successfully }
+
+  demo-frontend:
+    build: { context: ./demo-app/frontend }
+    ports: ["8088:80"]
+    depends_on:
+      demo-backend: { condition: service_started }
+
+  # ── webhook-sink: browser-viewable echo for sink-compatible channels ───────
+  webhook-sink:
+    build: { context: ./webhook-sink }
+    ports: ["8099:8099"]
+
+  # ── Mailpit: real SMTP sink + web UI ───────────────────────────────────────
+  mailpit:
+    image: axllent/mailpit:latest
+    ports: ["8025:8025"]    # web UI; SMTP on 1025 (in-network only)
+
+  # ── Probe targets (default / lean) ─────────────────────────────────────────
+  target-healthy:
+    image: nginx:alpine
+    container_name: rampart-everything-target-healthy   # referenced by the docker monitor
+  target-flaky:
+    image: python:3.12-alpine
+    command: ["python", "/flaky.py"]
+    volumes: ["./targets/flaky.py:/flaky.py:ro"]
+  # private-only target the REMOTE AGENT probes (no host port → only reachable inside)
+  agent-target:
+    image: nginx:alpine
+  # TLS targets: :8443 ~10-day cert (check_cert Warn), :9443 expired cert (tls Down)
+  tls-target:
+    build: { context: ./targets, dockerfile: Dockerfile.tls }
+
+  # ── Prometheus + Alertmanager ──────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+    ports: ["9090:9090"]
+    depends_on:
+      rampart: { condition: service_started }
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    volumes:
+      - ./alertmanager/alertmanager.tmpl.yml:/etc/alertmanager/alertmanager.tmpl.yml:ro
+      - ./alertmanager/entrypoint.sh:/entrypoint.sh:ro
+      - shared:/shared:ro
+    ports: ["9093:9093"]
+    depends_on:
+      provision: { condition: service_completed_successfully }
+
+  # ── Crons: real metric push + real push heartbeats ─────────────────────────
+  metrics-pusher:
+    image: curlimages/curl:8.11.1
+    entrypoint: ["sh", "/push-metrics.sh"]
+    volumes:
+      - ./metrics-pusher/push-metrics.sh:/push-metrics.sh:ro
+      - shared:/shared:ro
+    depends_on:
+      provision: { condition: service_completed_successfully }
+
+  push-cron:
+    image: curlimages/curl:8.11.1
+    entrypoint: ["sh", "/push-cron.sh"]
+    volumes:
+      - ./push-cron/push-cron.sh:/push-cron.sh:ro
+      - shared:/shared:ro
+    depends_on:
+      provision: { condition: service_completed_successfully }
+
+  # ── Remote probe agent (ALWAYS built from source) ──────────────────────────
+  rampart-agent:
+    build: { context: ../.., dockerfile: examples/everything/agent/Dockerfile }
+    restart: unless-stopped
+    volumes:
+      - shared:/shared:ro
+    depends_on:
+      rampart: { condition: service_started }
+      provision: { condition: service_completed_successfully }
+
+  # =========================================================================
+  # HEAVY profile — exotic probe targets. `docker compose --profile heavy up`.
+  # The heavy-folder monitors flip Up once these are running.
+  # =========================================================================
+  mysql:
+    image: mysql:8.4
+    profiles: ["heavy"]
+    environment: { MYSQL_ROOT_PASSWORD: demo, MYSQL_DATABASE: demo, MYSQL_USER: demo, MYSQL_PASSWORD: demo }
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    profiles: ["heavy"]
+    environment: { ACCEPT_EULA: "Y", MSSQL_SA_PASSWORD: "Rampart-Demo-9271" }
+  mongo:
+    image: mongo:7
+    profiles: ["heavy"]
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+    profiles: ["heavy"]
+    environment: { discovery.type: single-node, xpack.security.enabled: "false", ES_JAVA_OPTS: "-Xms512m -Xmx512m" }
+  vault:
+    image: hashicorp/vault:1.17
+    profiles: ["heavy"]
+    cap_add: ["IPC_LOCK"]
+    environment: { VAULT_DEV_ROOT_TOKEN_ID: demo, VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200" }
+  etcd:
+    image: gcr.io/etcd-development/etcd:v3.5.16
+    profiles: ["heavy"]
+    command: ["/usr/local/bin/etcd", "--advertise-client-urls", "http://0.0.0.0:2379", "--listen-client-urls", "http://0.0.0.0:2379"]
+  redpanda:
+    image: redpandadata/redpanda:v24.2.4
+    profiles: ["heavy"]
+    command: ["redpanda", "start", "--overprovisioned", "--smp", "1", "--memory", "512M", "--reserve-memory", "0M", "--node-id", "0", "--check=false", "--kafka-addr", "PLAINTEXT://0.0.0.0:9092", "--advertise-kafka-addr", "PLAINTEXT://redpanda:9092"]
+  cassandra:
+    image: cassandra:5.0
+    profiles: ["heavy"]
+  openldap:
+    image: osixia/openldap:1.5.0
+    profiles: ["heavy"]
+  rabbitmq:
+    image: rabbitmq:3.13-alpine
+    profiles: ["heavy"]
+  nats:
+    image: nats:2.10-alpine
+    profiles: ["heavy"]
+  memcached:
+    image: memcached:1.6-alpine
+    profiles: ["heavy"]
+  mosquitto:
+    image: eclipse-mosquitto:2
+    profiles: ["heavy"]
+    command: ["mosquitto", "-c", "/mosquitto-no-auth.conf"]
+  freeradius:
+    image: freeradius/freeradius-server:3.2
+    profiles: ["heavy"]
+  ntp:
+    image: cturl/ntp:latest
+    profiles: ["heavy"]
+  snmp:
+    image: polinux/snmpd:latest
+    profiles: ["heavy"]
+  openssh:
+    image: linuxserver/openssh-server:latest
+    profiles: ["heavy"]
+    environment: { PUID: "1000", PGID: "1000", USER_NAME: demo }
+  ftp:
+    image: delfer/alpine-ftp-server:latest
+    profiles: ["heavy"]
+    environment: { USERS: "demo|demo" }
+  dovecot:
+    image: dovecot/dovecot:latest
+    profiles: ["heavy"]
+  grpcbin:
+    image: moul/grpcbin:latest
+    profiles: ["heavy"]
+
+  # ── OIDC profile — Dex SSO. `docker compose --profile oidc up`. ────────────
+  dex:
+    image: dexidp/dex:v2.41.1
+    profiles: ["oidc"]
+    command: ["dex", "serve", "/etc/dex/dex.yaml"]
+    volumes:
+      - ./dex/dex.yaml:/etc/dex/dex.yaml:ro
+    ports: ["5556:5556"]

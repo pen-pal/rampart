@@ -1,0 +1,8 @@
+FROM debian:bookworm-slim
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends openssl faketime ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+COPY tls-entrypoint.sh /tls-entrypoint.sh
+RUN chmod +x /tls-entrypoint.sh
+EXPOSE 8443 9443
+ENTRYPOINT ["/tls-entrypoint.sh"]
