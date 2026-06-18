@@ -33,6 +33,7 @@ pub mod notifications;
 pub mod oidc;
 pub mod on_call;
 pub mod openapi;
+pub mod orgs;
 pub mod otlp;
 pub mod prefs;
 pub mod profiles;
@@ -225,7 +226,12 @@ pub fn v1_protected() -> Router<AppState> {
         // /v1/me/prefs — the caller's own dashboard views + default folder.
         .nest("/me", prefs::router())
         // /v1/sessions — list + revoke the caller's OWN sessions (any role).
-        .nest("/sessions", sessions::router());
+        .nest("/sessions", sessions::router())
+        // /v1/orgs — org CRUD + membership management. Authorization is
+        // PER-ORG (keyed on the path org id, not the active OrgContext), so
+        // it sits in the no-role-gate self_service subtree: each handler
+        // resolves the caller's role *in the targeted org* itself.
+        .nest("/orgs", orgs::router());
 
     Router::new()
         .merge(editor_or_read)
