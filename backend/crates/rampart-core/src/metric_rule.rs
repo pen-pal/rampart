@@ -1,6 +1,6 @@
 //! Threshold alert rules over ingested metrics.
 
-use crate::ids::{EscalationPolicyId, MetricRuleId, NotificationId};
+use crate::ids::{EscalationPolicyId, MetricRuleId, NotificationId, OrgId};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use validator::Validate;
@@ -78,6 +78,8 @@ impl RuleOp {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetricRule {
     pub id: MetricRuleId,
+    /// Owning tenant — scopes the scheduler's series reads (Phase 5).
+    pub org_id: OrgId,
     pub name: String,
     /// Metric name the rule watches.
     pub metric: String,

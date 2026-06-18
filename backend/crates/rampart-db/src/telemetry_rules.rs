@@ -18,6 +18,7 @@ use uuid::Uuid;
 
 struct RuleRow {
     id: Uuid,
+    org_id: Uuid,
     name: String,
     kind: String,
     target: String,
@@ -39,6 +40,7 @@ impl From<RuleRow> for TelemetryRule {
     fn from(r: RuleRow) -> Self {
         TelemetryRule {
             id: TelemetryRuleId::from_uuid(r.id),
+            org_id: OrgId::from_uuid(r.org_id),
             name: r.name,
             kind: TelemetryRuleKind::from_db(&r.kind),
             target: r.target,
@@ -69,7 +71,7 @@ pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<TelemetryRule>> 
     let rows = sqlx::query_as!(
         RuleRow,
         r#"
-        SELECT id, name, kind, target, match_text, min_level, op, threshold,
+        SELECT id, org_id AS "org_id!", name, kind, target, match_text, min_level, op, threshold,
                window_seconds, for_seconds, enabled,
                channel_ids AS "channel_ids!", escalation_policy_id,
                breach_since, firing_at, created_at
@@ -90,7 +92,7 @@ pub async fn list_all(pool: &DbPool) -> DbResult<Vec<TelemetryRule>> {
     let rows = sqlx::query_as!(
         RuleRow,
         r#"
-        SELECT id, name, kind, target, match_text, min_level, op, threshold,
+        SELECT id, org_id AS "org_id!", name, kind, target, match_text, min_level, op, threshold,
                window_seconds, for_seconds, enabled,
                channel_ids AS "channel_ids!", escalation_policy_id,
                breach_since, firing_at, created_at
@@ -108,7 +110,7 @@ pub async fn get(pool: &DbPool, id: TelemetryRuleId, org_id: OrgId) -> DbResult<
     let row = sqlx::query_as!(
         RuleRow,
         r#"
-        SELECT id, name, kind, target, match_text, min_level, op, threshold,
+        SELECT id, org_id AS "org_id!", name, kind, target, match_text, min_level, op, threshold,
                window_seconds, for_seconds, enabled,
                channel_ids AS "channel_ids!", escalation_policy_id,
                breach_since, firing_at, created_at
@@ -130,7 +132,7 @@ pub async fn get_unscoped(pool: &DbPool, id: TelemetryRuleId) -> DbResult<Teleme
     let row = sqlx::query_as!(
         RuleRow,
         r#"
-        SELECT id, name, kind, target, match_text, min_level, op, threshold,
+        SELECT id, org_id AS "org_id!", name, kind, target, match_text, min_level, op, threshold,
                window_seconds, for_seconds, enabled,
                channel_ids AS "channel_ids!", escalation_policy_id,
                breach_since, firing_at, created_at
@@ -260,16 +262,19 @@ async fn observe(pool: &DbPool, rule: &TelemetryRule) -> DbResult<Option<f64>> {
     let window = rule.window_seconds as f64;
     match rule.kind {
         TelemetryRuleKind::ErrorRate => {
+            // Resolve the error project by name WITHIN the rule's org — project
+            // names are unique per-org, not globally (Phase 5).
             let n = sqlx::query_scalar!(
                 r#"
                 SELECT COUNT(*) AS "count!"
                 FROM error_events e
+                JOIN error_projects p ON p.id = e.project_id AND p.org_id = $3
                 WHERE e.ts >= now() - make_interval(secs => $1)
-                  AND ($2 = '' OR e.project_id =
-                        (SELECT id FROM error_projects WHERE name = $2 LIMIT 1))
+                  AND ($2 = '' OR p.name = $2)
                 "#,
                 window,
                 rule.target,
+                rule.org_id.0,
             )
             .fetch_one(pool)
             .await?;
@@ -282,9 +287,11 @@ async fn observe(pool: &DbPool, rule: &TelemetryRule) -> DbResult<Option<f64>> {
                 FROM spans
                 WHERE received_at >= now() - make_interval(secs => $1)
                   AND ($2 = '' OR service_name = $2)
+                  AND org_id = $3
                 "#,
                 window,
                 rule.target,
+                rule.org_id.0,
             )
             .fetch_one(pool)
             .await?;
@@ -299,9 +306,11 @@ async fn observe(pool: &DbPool, rule: &TelemetryRule) -> DbResult<Option<f64>> {
                 FROM spans
                 WHERE received_at >= now() - make_interval(secs => $1)
                   AND ($2 = '' OR service_name = $2)
+                  AND org_id = $3
                 "#,
                 window,
                 rule.target,
+                rule.org_id.0,
             )
             .fetch_one(pool)
             .await?;
@@ -316,11 +325,13 @@ async fn observe(pool: &DbPool, rule: &TelemetryRule) -> DbResult<Option<f64>> {
                   AND severity >= $2
                   AND ($3 = '' OR service_name = $3)
                   AND ($4 = '' OR body ILIKE '%' || $4 || '%')
+                  AND org_id = $5
                 "#,
                 window,
                 rule.min_level,
                 rule.target,
                 rule.match_text,
+                rule.org_id.0,
             )
             .fetch_one(pool)
             .await?;
@@ -333,9 +344,11 @@ async fn observe(pool: &DbPool, rule: &TelemetryRule) -> DbResult<Option<f64>> {
                 FROM profiles
                 WHERE received_at >= now() - make_interval(secs => $1)
                   AND ($2 = '' OR service_name = $2)
+                  AND org_id = $3
                 "#,
                 window,
                 rule.target,
+                rule.org_id.0,
             )
             .fetch_one(pool)
             .await?;
@@ -349,9 +362,11 @@ async fn observe(pool: &DbPool, rule: &TelemetryRule) -> DbResult<Option<f64>> {
                 WHERE received_at >= now() - make_interval(secs => $1)
                   AND lcp_ms IS NOT NULL
                   AND ($2 = '' OR app = $2)
+                  AND org_id = $3
                 "#,
                 window,
                 rule.target,
+                rule.org_id.0,
             )
             .fetch_one(pool)
             .await?;

@@ -9,6 +9,7 @@
 //! `docs/design/PROFILING.md`.
 
 use crate::{DbPool, DbResult};
+use rampart_core::ids::OrgId;
 use serde::Serialize;
 use time::OffsetDateTime;
 
@@ -72,6 +73,7 @@ pub async fn list(
     profile_type: Option<&str>,
     hours: i32,
     limit: i64,
+    org_id: OrgId,
 ) -> DbResult<Vec<ProfileMeta>> {
     let rows = sqlx::query_as!(
         ProfileMeta,
@@ -89,6 +91,7 @@ pub async fn list(
         WHERE received_at >= now() - make_interval(hours => $1)
           AND ($2::text IS NULL OR service_name = $2)
           AND ($3::text IS NULL OR profile_type = $3)
+          AND org_id = $5
         ORDER BY received_at DESC
         LIMIT $4
         "#,
@@ -96,6 +99,7 @@ pub async fn list(
         service,
         profile_type,
         limit.clamp(1, 500),
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -110,6 +114,7 @@ pub async fn folded_in_window(
     profile_type: &str,
     from: OffsetDateTime,
     to: OffsetDateTime,
+    org_id: OrgId,
 ) -> DbResult<Vec<Vec<u8>>> {
     let rows = sqlx::query!(
         r#"
@@ -119,12 +124,14 @@ pub async fn folded_in_window(
           AND profile_type = $2
           AND received_at >= $3
           AND received_at <  $4
+          AND org_id = $5
         ORDER BY received_at
         "#,
         service,
         profile_type,
         from,
         to,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -133,10 +140,15 @@ pub async fn folded_in_window(
 
 /// The gzipped folded blob + type for a single profile (the per-profile
 /// flamegraph view).
-pub async fn fetch_folded(pool: &DbPool, id: i64) -> DbResult<Option<(String, Vec<u8>)>> {
+pub async fn fetch_folded(
+    pool: &DbPool,
+    id: i64,
+    org_id: OrgId,
+) -> DbResult<Option<(String, Vec<u8>)>> {
     let row = sqlx::query!(
-        r#"SELECT profile_type, folded FROM profiles WHERE id = $1"#,
+        r#"SELECT profile_type, folded FROM profiles WHERE id = $1 AND org_id = $2"#,
         id,
+        org_id.0,
     )
     .fetch_optional(pool)
     .await?;
@@ -144,9 +156,11 @@ pub async fn fetch_folded(pool: &DbPool, id: i64) -> DbResult<Option<(String, Ve
 }
 
 /// Distinct service names that have profiles (the service picker).
-pub async fn services(pool: &DbPool) -> DbResult<Vec<String>> {
+pub async fn services(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<String>> {
     let rows = sqlx::query_scalar!(
-        r#"SELECT DISTINCT service_name AS "service_name!" FROM profiles ORDER BY service_name"#
+        r#"SELECT DISTINCT service_name AS "service_name!" FROM profiles
+           WHERE org_id = $1 ORDER BY service_name"#,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -154,15 +168,21 @@ pub async fn services(pool: &DbPool) -> DbResult<Vec<String>> {
 }
 
 /// Distinct profile types, optionally scoped to a service (the type picker).
-pub async fn profile_types(pool: &DbPool, service: Option<&str>) -> DbResult<Vec<String>> {
+pub async fn profile_types(
+    pool: &DbPool,
+    service: Option<&str>,
+    org_id: OrgId,
+) -> DbResult<Vec<String>> {
     let rows = sqlx::query_scalar!(
         r#"
         SELECT DISTINCT profile_type AS "profile_type!"
         FROM profiles
         WHERE ($1::text IS NULL OR service_name = $1)
+          AND org_id = $2
         ORDER BY profile_type
         "#,
         service,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -207,15 +227,15 @@ mod tests {
         assert!(id1 > 0);
 
         // list — unscoped + scoped + miss
-        assert_eq!(list(&pool, None, None, 24, 100).await.unwrap().len(), 2);
+        assert_eq!(list(&pool, None, None, 24, 100, TEST_ORG).await.unwrap().len(), 2);
         assert_eq!(
-            list(&pool, Some("api"), Some("cpu"), 24, 100)
+            list(&pool, Some("api"), Some("cpu"), 24, 100, TEST_ORG)
                 .await
                 .unwrap()
                 .len(),
             2
         );
-        assert!(list(&pool, Some("nope"), None, 24, 100)
+        assert!(list(&pool, Some("nope"), None, 24, 100, TEST_ORG)
             .await
             .unwrap()
             .is_empty());
@@ -228,20 +248,21 @@ mod tests {
             "cpu",
             now - time::Duration::hours(1),
             now + time::Duration::hours(1),
+            TEST_ORG,
         )
         .await
         .unwrap();
         assert_eq!(blobs.len(), 2);
 
         // pickers
-        assert_eq!(services(&pool).await.unwrap(), vec!["api".to_string()]);
+        assert_eq!(services(&pool, TEST_ORG).await.unwrap(), vec!["api".to_string()]);
         assert_eq!(
-            profile_types(&pool, Some("api")).await.unwrap(),
+            profile_types(&pool, Some("api"), TEST_ORG).await.unwrap(),
             vec!["cpu".to_string()]
         );
 
         // single fetch carries the type
-        assert_eq!(fetch_folded(&pool, id1).await.unwrap().unwrap().0, "cpu");
+        assert_eq!(fetch_folded(&pool, id1, TEST_ORG).await.unwrap().unwrap().0, "cpu");
 
         // prune: fresh rows survive; an aged row is dropped
         assert_eq!(prune(&pool, 7).await.unwrap(), 0);

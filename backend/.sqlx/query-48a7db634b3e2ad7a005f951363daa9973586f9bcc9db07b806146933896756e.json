@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT profile_type, folded FROM profiles WHERE id = $1 AND org_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "profile_type",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "profiles",
+            "name": "profile_type"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "folded",
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "profiles",
+            "name": "folded"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "48a7db634b3e2ad7a005f951363daa9973586f9bcc9db07b806146933896756e"
+}

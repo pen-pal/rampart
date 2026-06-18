@@ -19,6 +19,38 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.143.0] — 2026-06-18
+
+### Changed
+- **Multi-tenancy — Phase 5 read-scoping (5-7/8/8b/9): telemetry reads are
+  org-scoped.** Every telemetry-tier read/search/aggregate now filters
+  `org_id`, mirroring the Phase-3 management read-filtering — so once ingest is
+  tenanted (5-1..4) one org never sees another's telemetry:
+  - **logs + traces** — `query_logs`/`level_counts`/`histogram`/`list_services`
+    and `list_traces`/`get_trace_spans`/`operation_stats`/`operation_trend`;
+    **`service_map` self-join is org-bound on BOTH sides**; trace_id/span_id
+    pivots filter org (no longer globally unique across orgs).
+  - **metrics** — `list_series`/`range_query`/`latest`/`baseline`; the
+    `/v1/metrics` `series`/`query` read handlers gained `OrgContext`.
+  - **scheduler reads** — `metric_rules`, `telemetry_rules`, `detection`, and
+    `slos` `evaluate_tick` now scope their telemetry reads to the rule/SLO's org
+    (the ErrorRate project lookup joins `error_projects` by per-org name).
+  - **RUM + profiles + error trace-pivot** — all read handlers scoped (incl.
+    `flamegraph_one` / `fetch_folded` by id and `issues_for_trace`).
+  `org_id` added to the `MetricRule`/`TelemetryRule`/`Slo`/`DetectionRule` core
+  structs (+ their SELECTs). Composite `(org_id, time)` indexes on
+  logs/spans/metric_samples/rum_events/profiles (migration 0111). Retention
+  `prune` deletes stay system-wide by design. Behaviour-identical for a
+  single-org install. New cross-org read-isolation test
+  `reads_are_isolated_per_org`; full db+api+scheduler suite green (450 tests).
+  Also: the remaining ingest `// P5` markers are now permanent comments
+  (self-metrics + the CLI importer deliberately use the Default org; the Sentry
+  DSN path is org-correct by project inheritance). **Ingest-stamp (5-1..6) +
+  read-scope (5-7..9) complete; only the ingest-key management UI (5-10)
+  remains.** See [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.142.0] — 2026-06-18
 
 ### Changed

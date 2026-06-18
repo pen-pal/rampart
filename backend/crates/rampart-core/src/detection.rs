@@ -11,7 +11,9 @@
 //! which is what a SOC analyst triages. The IO (matching + finding writes)
 //! lives in `rampart_db::detection`; this module is the shared vocabulary.
 
-use crate::ids::{DetectionFindingId, DetectionRuleId, EscalationPolicyId, NotificationId};
+use crate::ids::{
+    DetectionFindingId, DetectionRuleId, EscalationPolicyId, NotificationId, OrgId,
+};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use validator::Validate;
@@ -159,6 +161,8 @@ impl DetectionCondition {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DetectionRule {
     pub id: DetectionRuleId,
+    /// Owning tenant — scopes the scheduler's log reads (Phase 5).
+    pub org_id: OrgId,
     pub name: String,
     pub description: String,
     pub enabled: bool,

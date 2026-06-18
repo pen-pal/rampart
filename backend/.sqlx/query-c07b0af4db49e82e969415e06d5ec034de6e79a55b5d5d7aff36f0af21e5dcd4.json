@@ -1,0 +1,128 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT ts, user_id, session, ua, trace_id, lcp_ms, inp_ms, cls, load_ms\n        FROM rum_events\n        WHERE url = $1\n          AND received_at > now() - make_interval(hours => $2)\n          AND ($3::text IS NULL OR app = $3)\n          AND org_id = $5\n        ORDER BY ts DESC\n        LIMIT $4\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "ts",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rum_events",
+            "name": "ts"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rum_events",
+            "name": "user_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "session",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rum_events",
+            "name": "session"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "ua",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rum_events",
+            "name": "ua"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "trace_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rum_events",
+            "name": "trace_id"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "lcp_ms",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "rum_events",
+            "name": "lcp_ms"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "inp_ms",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "rum_events",
+            "name": "inp_ms"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "cls",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "rum_events",
+            "name": "cls"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "load_ms",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "rum_events",
+            "name": "load_ms"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int4",
+        "Text",
+        "Int8",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "c07b0af4db49e82e969415e06d5ec034de6e79a55b5d5d7aff36f0af21e5dcd4"
+}

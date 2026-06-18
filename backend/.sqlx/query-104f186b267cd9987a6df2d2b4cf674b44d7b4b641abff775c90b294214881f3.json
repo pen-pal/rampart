@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms)\n                FROM spans\n                WHERE received_at >= now() - make_interval(secs => $1)\n                  AND ($2 = '' OR service_name = $2)\n                  AND org_id = $3\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "percentile_cont",
+        "type_info": "Float8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Float8",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "104f186b267cd9987a6df2d2b4cf674b44d7b4b641abff775c90b294214881f3"
+}

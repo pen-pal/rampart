@@ -139,8 +139,11 @@ struct SeriesOut {
     samples: i64,
 }
 
-async fn series(State(s): State<AppState>) -> Result<Json<Vec<SeriesOut>>, ApiError> {
-    let series = rampart_db::metric_samples::list_series(s.pool()).await?;
+async fn series(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+) -> Result<Json<Vec<SeriesOut>>, ApiError> {
+    let series = rampart_db::metric_samples::list_series(s.pool(), org.org_id).await?;
     Ok(Json(
         series
             .into_iter()
@@ -187,6 +190,7 @@ fn parse_rfc3339(s: &str) -> Result<OffsetDateTime, ApiError> {
 
 async fn query(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Query(p): Query<QueryParams>,
 ) -> Result<Json<Vec<QueryPoint>>, ApiError> {
     let labels: serde_json::Value = match p.labels.as_deref() {
@@ -214,8 +218,16 @@ async fn query(
     }
     let step = p.step_seconds.unwrap_or(300).clamp(10, 86_400);
 
-    let points =
-        rampart_db::metric_samples::range_query(s.pool(), &p.name, &labels, from, to, step).await?;
+    let points = rampart_db::metric_samples::range_query(
+        s.pool(),
+        &p.name,
+        &labels,
+        from,
+        to,
+        step,
+        org.org_id,
+    )
+    .await?;
     Ok(Json(
         points
             .into_iter()

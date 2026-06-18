@@ -7,7 +7,7 @@
 //! split from the database so it can be unit-tested without I/O; migration 0098
 //! holds the schema.
 
-use crate::ids::{EscalationPolicyId, MonitorId, NotificationId, SloId};
+use crate::ids::{EscalationPolicyId, MonitorId, NotificationId, OrgId, SloId};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use validator::Validate;
@@ -45,6 +45,8 @@ pub const FAST_BURN_THRESHOLD: f64 = 14.4;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Slo {
     pub id: SloId,
+    /// Owning tenant — scopes the scheduler's metric_samples reads (Phase 5).
+    pub org_id: OrgId,
     pub name: String,
     pub description: String,
     pub sli_kind: SliKind,
