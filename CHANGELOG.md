@@ -19,6 +19,17 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.144.1] — 2026-06-18
+
+### Fixed
+- **Monitor detail "Config" tab no longer white-pages.** `ConfigPanel`
+  referenced the parent's `bumpMonitor` closure (via the Tags card's
+  `onChanged`) but only received `monitor` as a prop — a `ReferenceError` that
+  crashed the whole view when the Config tab was opened. `bumpMonitor` is now
+  threaded in as an `onChanged` prop.
+
+---
+
 ## [0.144.0] — 2026-06-18
 
 ### Added
