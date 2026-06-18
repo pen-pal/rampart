@@ -19,6 +19,27 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.127.0] — 2026-06-18
+
+### Security
+- **Multi-tenancy — Phase 3s: org-gate the escalation episodes.** Episodes
+  carry no `org_id` — they inherit the owning policy's (NOT-NULL `policy_id`).
+  The dashboard + ack endpoints ignored org:
+  - `GET /v1/escalation-policies/episodes` listed every org's open episodes
+    (monitor + rule subjects) → now `list_open_for_org` joins
+    `escalation_episodes → escalation_policies` and filters `WHERE p.org_id`.
+  - `POST /v1/escalation-policies/episodes/{id}/ack` (subject-agnostic ack by
+    episode id) → now gated by `episode_in_org` (same join) so a cross-org
+    episode id is a 404.
+  - the monitor-keyed `GET/POST /v1/monitors/{id}/escalation[/ack]` → now gate
+    through `monitors::get(id, org)` first.
+  The unscoped `list_open` / `ack_episode` / `ack` / `open_for_monitor` db fns
+  stay for the scheduler's advance scan + tests. Behaviour-identical for a
+  single-org install. New integration test `escalation_episodes_isolated`. See
+  [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.126.0] — 2026-06-18
 
 ### Security

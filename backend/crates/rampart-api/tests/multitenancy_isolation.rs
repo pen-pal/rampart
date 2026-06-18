@@ -292,3 +292,38 @@ async fn tag_routing_isolated(pool: PgPool) {
     let (s, _, _) = request(&router, Method::POST, &format!("/v1/monitor-groups/{gid}/tags/{tid}"), None, Some(&admin)).await;
     assert_eq!(s, StatusCode::NOT_FOUND, "tag a cross-org group");
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn escalation_episodes_isolated(pool: PgPool) {
+    // Escalation episodes carry no org_id; they inherit the owning policy's
+    // (NOT-NULL policy_id). The dashboard episode list is org-scoped and the
+    // subject-agnostic ack-by-id gates through the episode's policy org.
+    let router = common::router(pool.clone());
+    let admin = register_admin(&router).await;
+
+    let mon: Value = common::json(&router, Method::POST, "/v1/monitors", Some(http_monitor("svc")), Some(&admin)).await;
+    let mid = mon["id"].as_str().unwrap();
+    let pol: Value = common::json(
+        &router, Method::POST, "/v1/escalation-policies",
+        Some(json!({"name":"esc","steps":[{"wait_seconds":0,"channel_ids":[uuid::Uuid::new_v4()]}]})), Some(&admin),
+    ).await;
+    let pid = pol["id"].as_str().unwrap();
+
+    // Open an episode for that monitor under that policy (the scheduler does
+    // this in production; here we insert directly).
+    let eid = uuid::Uuid::new_v4().to_string();
+    sqlx::query("INSERT INTO escalation_episodes (id, policy_id, subject_kind, subject_ref, monitor_id) VALUES ($1::uuid, $2::uuid, 'monitor', $3, $4::uuid)")
+        .bind(&eid).bind(pid).bind(mid).bind(mid).execute(&pool).await.unwrap();
+    assert_eq!(list_len(&router, "/v1/escalation-policies/episodes", &admin).await, 1);
+
+    // Reparent the owning policy into another org.
+    sqlx::query("INSERT INTO organizations (id, slug, name) VALUES ($1::uuid, 'other', 'Other') ON CONFLICT DO NOTHING")
+        .bind(OTHER_ORG).execute(&pool).await.unwrap();
+    sqlx::query("UPDATE escalation_policies SET org_id = $1::uuid WHERE id = $2::uuid")
+        .bind(OTHER_ORG).bind(pid).execute(&pool).await.unwrap();
+
+    // Episode drops off the dashboard list; ack-by-id 404s.
+    assert_eq!(list_len(&router, "/v1/escalation-policies/episodes", &admin).await, 0, "episode list org-scoped");
+    let (s, _, _) = request(&router, Method::POST, &format!("/v1/escalation-policies/episodes/{eid}/ack"), None, Some(&admin)).await;
+    assert_eq!(s, StatusCode::NOT_FOUND, "cross-org episode ack");
+}
