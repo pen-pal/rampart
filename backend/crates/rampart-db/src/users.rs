@@ -132,6 +132,34 @@ pub async fn get_by_email(pool: &DbPool, email: &str) -> DbResult<UserWithHash> 
     })
 }
 
+/// Look up a user by email, returning the public [`User`] (no password hash
+/// or TOTP secret). `None` when no such user exists. Backs the member-invite
+/// flow, which resolves an *existing* user by email — it never creates one.
+pub async fn by_email(pool: &DbPool, email: &str) -> DbResult<Option<User>> {
+    let row = sqlx::query!(
+        r#"
+        SELECT id, email::text AS "email!", name, is_admin, role AS "role: Role",
+               created_at, last_login_at, totp_enabled
+        FROM users
+        WHERE email = $1::citext
+        "#,
+        email,
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row.map(|row| User {
+        id: UserId::from_uuid(row.id),
+        email: row.email,
+        name: row.name,
+        is_admin: row.is_admin,
+        role: row.role,
+        created_at: row.created_at,
+        last_login_at: row.last_login_at,
+        totp_enabled: row.totp_enabled,
+    }))
+}
+
 pub async fn get(pool: &DbPool, id: UserId) -> DbResult<User> {
     let row = sqlx::query!(
         r#"
