@@ -9,11 +9,14 @@ use rampart_db::status_pages;
 use sqlx::PgPool;
 use time::OffsetDateTime;
 
+const TEST_ORG: rampart_core::ids::OrgId =
+    rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID);
+
 #[sqlx::test(migrations = "../../migrations")]
 async fn recent_active_first_then_newest(pool: PgPool) {
     let page: NewStatusPage =
         serde_json::from_value(serde_json::json!({ "slug": "demo", "title": "Demo" })).unwrap();
-    let sp = status_pages::create(&pool, page).await.unwrap();
+    let sp = status_pages::create(&pool, page, TEST_ORG).await.unwrap();
 
     let mk = |title: &str, style: &str| -> NewIncident {
         serde_json::from_value(serde_json::json!({ "title": title, "content": "x", "style": style }))

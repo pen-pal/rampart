@@ -182,7 +182,11 @@ impl From<StaleAgentRow> for Monitor {
     }
 }
 
-pub async fn create(pool: &DbPool, input: NewMonitor) -> DbResult<Monitor> {
+pub async fn create(
+    pool: &DbPool,
+    input: NewMonitor,
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<Monitor> {
     let id = MonitorId::new();
     let proxy_uuid: Option<Uuid> = input.proxy_id.map(|p| p.0);
 
@@ -205,7 +209,8 @@ pub async fn create(pool: &DbPool, input: NewMonitor) -> DbResult<Monitor> {
             http_method, http_body, http_headers,
             accepted_statuses, follow_redirect, ignore_tls, proxy_id,
             push_token, group_id,
-            slo_target_pct, slo_window_days, agent_id, escalation_policy_id
+            slo_target_pct, slo_window_days, agent_id, escalation_policy_id,
+            org_id
         ) VALUES (
             $1, $2, $3, $4, $5, $6, $7,
             $8, $9, $10,
@@ -213,7 +218,8 @@ pub async fn create(pool: &DbPool, input: NewMonitor) -> DbResult<Monitor> {
             $14, $15, $16,
             $17, $18, $19, $20,
             $21, $22,
-            $23::float8::numeric, $24, $25, $26
+            $23::float8::numeric, $24, $25, $26,
+            $27
         )
         RETURNING
             id, name,
@@ -258,6 +264,7 @@ pub async fn create(pool: &DbPool, input: NewMonitor) -> DbResult<Monitor> {
         input.slo_window_days,
         input.agent_id.map(|a| a.0),
         input.escalation_policy_id.map(|e| e.0),
+        org_id.0,
     )
     .fetch_one(pool)
     .await?;

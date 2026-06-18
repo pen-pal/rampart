@@ -100,17 +100,21 @@ pub async fn get_unscoped(pool: &DbPool, id: EscalationPolicyId) -> DbResult<Esc
     Ok(row.into())
 }
 
-pub async fn create(pool: &DbPool, input: NewEscalationPolicy) -> DbResult<EscalationPolicy> {
+pub async fn create(
+    pool: &DbPool,
+    input: NewEscalationPolicy,
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<EscalationPolicy> {
     let id = EscalationPolicyId::new();
     sqlx::query!(
-        "INSERT INTO escalation_policies (id, name, steps) VALUES ($1, $2, $3)",
+        "INSERT INTO escalation_policies (id, name, steps, org_id) VALUES ($1, $2, $3, $4)",
         id.0,
         input.name,
         serde_json::to_value(&input.steps).unwrap_or_else(|_| serde_json::json!([])),
+        org_id.0,
     )
     .execute(pool)
     .await?;
-    // org_id from the column default (write-stamping is Phase 4); return unscoped.
     get_unscoped(pool, id).await
 }
 

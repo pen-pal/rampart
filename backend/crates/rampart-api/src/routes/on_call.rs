@@ -42,6 +42,7 @@ async fn list(
 async fn create(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Json(input): Json<NewOnCallSchedule>,
 ) -> Result<(StatusCode, Json<OnCallSchedule>), ApiError> {
@@ -54,7 +55,7 @@ async fn create(
     )
     .map_err(ApiError::BadRequest)?;
     let name = input.name.clone();
-    let schedule = rampart_db::on_call::create(s.pool(), input).await?;
+    let schedule = rampart_db::on_call::create(s.pool(), input, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,

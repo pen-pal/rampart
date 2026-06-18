@@ -143,13 +143,17 @@ pub async fn get_unscoped(pool: &DbPool, id: MetricRuleId) -> DbResult<MetricRul
     Ok(row.into())
 }
 
-pub async fn create(pool: &DbPool, input: NewMetricRule) -> DbResult<MetricRule> {
+pub async fn create(
+    pool: &DbPool,
+    input: NewMetricRule,
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<MetricRule> {
     let id = MetricRuleId::new();
     let channel_ids: Vec<Uuid> = input.channel_ids.iter().map(|c| c.0).collect();
     sqlx::query!(
         r#"
-        INSERT INTO metric_rules (id, name, metric, labels, op, threshold, for_seconds, enabled, channel_ids, escalation_policy_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        INSERT INTO metric_rules (id, name, metric, labels, op, threshold, for_seconds, enabled, channel_ids, escalation_policy_id, org_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         "#,
         id.0,
         input.name,
@@ -161,11 +165,11 @@ pub async fn create(pool: &DbPool, input: NewMetricRule) -> DbResult<MetricRule>
         input.enabled,
         &channel_ids,
         input.escalation_policy_id.map(|p| p.0),
+        org_id.0,
     )
     .execute(pool)
     .await?;
-    // Just-inserted row; org_id came from the column default (write-stamping
-    // from OrgContext lands in Phase 4). Return it unscoped.
+    // Just-inserted row; return it unscoped.
     get_unscoped(pool, id).await
 }
 

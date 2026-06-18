@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO monitor_presets (id, name, kind, data)\n        VALUES ($1, $2, $3, $4)\n        RETURNING id, name, kind, data, created_at\n        ",
+  "query": "\n        INSERT INTO monitor_groups (id, name, sort_order, parent_id, org_id)\n        VALUES ($1, $2, $3, $4, $5)\n        RETURNING id, name, sort_order, parent_id, created_at\n        ",
   "describe": {
     "columns": [
       {
@@ -9,7 +9,7 @@
         "type_info": "Uuid",
         "origin": {
           "Table": {
-            "table": "monitor_presets",
+            "table": "monitor_groups",
             "name": "id"
           }
         }
@@ -20,30 +20,30 @@
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "monitor_presets",
+            "table": "monitor_groups",
             "name": "name"
           }
         }
       },
       {
         "ordinal": 2,
-        "name": "kind",
-        "type_info": "Text",
+        "name": "sort_order",
+        "type_info": "Int4",
         "origin": {
           "Table": {
-            "table": "monitor_presets",
-            "name": "kind"
+            "table": "monitor_groups",
+            "name": "sort_order"
           }
         }
       },
       {
         "ordinal": 3,
-        "name": "data",
-        "type_info": "Jsonb",
+        "name": "parent_id",
+        "type_info": "Uuid",
         "origin": {
           "Table": {
-            "table": "monitor_presets",
-            "name": "data"
+            "table": "monitor_groups",
+            "name": "parent_id"
           }
         }
       },
@@ -53,7 +53,7 @@
         "type_info": "Timestamptz",
         "origin": {
           "Table": {
-            "table": "monitor_presets",
+            "table": "monitor_groups",
             "name": "created_at"
           }
         }
@@ -63,17 +63,18 @@
       "Left": [
         "Uuid",
         "Text",
-        "Text",
-        "Jsonb"
+        "Int4",
+        "Uuid",
+        "Uuid"
       ]
     },
     "nullable": [
       false,
       false,
       false,
-      false,
+      true,
       false
     ]
   },
-  "hash": "032d3293f96fce93fccb1cbea60d1d26dc1b6312761efe5927769017053858c3"
+  "hash": "d894f7adcc8d40bda2bca5831e3e9445c139f88b342ac98df2427e14a8cf18b4"
 }

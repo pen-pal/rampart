@@ -50,6 +50,7 @@ async fn get_one(
 
 async fn create(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Json(input): Json<NewIncidentTemplate>,
 ) -> Result<(StatusCode, Json<IncidentTemplate>), ApiError> {
     if input.name.trim().is_empty() {
@@ -58,7 +59,7 @@ async fn create(
     if input.body.trim().is_empty() {
         return Err(ApiError::BadRequest("body is required".into()));
     }
-    let t = rampart_db::incident_templates::create(s.pool(), input).await?;
+    let t = rampart_db::incident_templates::create(s.pool(), input, org.org_id).await?;
     Ok((StatusCode::CREATED, Json(t)))
 }
 

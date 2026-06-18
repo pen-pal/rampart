@@ -25,12 +25,16 @@ pub struct NewProfile<'a> {
 }
 
 /// Insert a profile, returning its id.
-pub async fn insert(pool: &DbPool, p: NewProfile<'_>) -> DbResult<i64> {
+pub async fn insert(
+    pool: &DbPool,
+    p: NewProfile<'_>,
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<i64> {
     let row = sqlx::query!(
         r#"
         INSERT INTO profiles
-            (service_name, profile_type, period_ns, duration_ns, sample_count, labels, folded)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+            (service_name, profile_type, period_ns, duration_ns, sample_count, labels, folded, org_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING id
         "#,
         p.service_name,
@@ -40,6 +44,7 @@ pub async fn insert(pool: &DbPool, p: NewProfile<'_>) -> DbResult<i64> {
         p.sample_count,
         p.labels,
         p.folded_gz,
+        org_id.0,
     )
     .fetch_one(pool)
     .await?;
@@ -180,6 +185,9 @@ mod tests {
     use super::*;
     use sqlx::PgPool;
 
+    const TEST_ORG: rampart_core::ids::OrgId =
+        rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID);
+
     fn np<'a>(service: &'a str, folded_gz: &'a [u8]) -> NewProfile<'a> {
         NewProfile {
             service_name: service,
@@ -194,8 +202,8 @@ mod tests {
 
     #[sqlx::test(migrations = "../../migrations")]
     async fn insert_list_window_pickers_prune(pool: PgPool) {
-        let id1 = insert(&pool, np("api", b"a;b 3\n")).await.unwrap();
-        insert(&pool, np("api", b"a;c 2\n")).await.unwrap();
+        let id1 = insert(&pool, np("api", b"a;b 3\n"), TEST_ORG).await.unwrap();
+        insert(&pool, np("api", b"a;c 2\n"), TEST_ORG).await.unwrap();
         assert!(id1 > 0);
 
         // list — unscoped + scoped + miss

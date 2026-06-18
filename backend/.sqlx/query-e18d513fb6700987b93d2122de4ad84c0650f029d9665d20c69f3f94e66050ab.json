@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO monitors (\n            id, name, kind, url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, group_id,\n            slo_target_pct, slo_window_days, agent_id, escalation_policy_id\n        ) VALUES (\n            $1, $2, $3, $4, $5, $6, $7,\n            $8, $9, $10,\n            $11, $12, $13,\n            $14, $15, $16,\n            $17, $18, $19, $20,\n            $21, $22,\n            $23::float8::numeric, $24, $25, $26\n        )\n        RETURNING\n            id, name,\n            kind   AS \"kind: MonitorKind\",\n            url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, last_push_at, last_run_started_at,\n            active,\n            current_status AS \"current_status: MonitorStatus\",\n            created_at, updated_at,\n            cert_days_left, cert_subject, cert_checked_at,\n            group_id,\n            slo_target_pct::float8 AS \"slo_target_pct?\",\n            slo_window_days, agent_id, escalation_policy_id\n        ",
+  "query": "\n        INSERT INTO monitors (\n            id, name, kind, url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, group_id,\n            slo_target_pct, slo_window_days, agent_id, escalation_policy_id,\n            org_id\n        ) VALUES (\n            $1, $2, $3, $4, $5, $6, $7,\n            $8, $9, $10,\n            $11, $12, $13,\n            $14, $15, $16,\n            $17, $18, $19, $20,\n            $21, $22,\n            $23::float8::numeric, $24, $25, $26,\n            $27\n        )\n        RETURNING\n            id, name,\n            kind   AS \"kind: MonitorKind\",\n            url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, last_push_at, last_run_started_at,\n            active,\n            current_status AS \"current_status: MonitorStatus\",\n            created_at, updated_at,\n            cert_days_left, cert_subject, cert_checked_at,\n            group_id,\n            slo_target_pct::float8 AS \"slo_target_pct?\",\n            slo_window_days, agent_id, escalation_policy_id\n        ",
   "describe": {
     "columns": [
       {
@@ -525,6 +525,7 @@
         "Float8",
         "Int4",
         "Uuid",
+        "Uuid",
         "Uuid"
       ]
     },
@@ -566,5 +567,5 @@
       true
     ]
   },
-  "hash": "99d8424a593497040fe92ef9f9cfd7728f71ed2380bcf977484a89e9a1844ba8"
+  "hash": "e18d513fb6700987b93d2122de4ad84c0650f029d9665d20c69f3f94e66050ab"
 }

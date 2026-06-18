@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO tags (id, name, color)\n        VALUES ($1, $2, $3)\n        RETURNING id, name, color, created_at\n        ",
+  "query": "\n        INSERT INTO monitor_templates (id, name, description, spec, org_id)\n        VALUES ($1, $2, $3, $4, $5)\n        RETURNING id, name, description, spec, created_at\n        ",
   "describe": {
     "columns": [
       {
@@ -9,7 +9,7 @@
         "type_info": "Uuid",
         "origin": {
           "Table": {
-            "table": "tags",
+            "table": "monitor_templates",
             "name": "id"
           }
         }
@@ -20,29 +20,40 @@
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "tags",
+            "table": "monitor_templates",
             "name": "name"
           }
         }
       },
       {
         "ordinal": 2,
-        "name": "color",
+        "name": "description",
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "tags",
-            "name": "color"
+            "table": "monitor_templates",
+            "name": "description"
           }
         }
       },
       {
         "ordinal": 3,
+        "name": "spec",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "monitor_templates",
+            "name": "spec"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
           "Table": {
-            "table": "tags",
+            "table": "monitor_templates",
             "name": "created_at"
           }
         }
@@ -52,15 +63,18 @@
       "Left": [
         "Uuid",
         "Text",
-        "Text"
+        "Text",
+        "Jsonb",
+        "Uuid"
       ]
     },
     "nullable": [
       false,
       false,
+      true,
       false,
       false
     ]
   },
-  "hash": "30b6d84b4b62b2ac4eddada30da3a8b18f2cc33a1b1631080141da847833e5ca"
+  "hash": "8d4e802be71e7d2585bb1b266ea1616929dad471d9dbb16c99ce0f49b912d75f"
 }

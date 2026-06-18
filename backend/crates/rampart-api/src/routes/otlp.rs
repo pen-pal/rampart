@@ -67,7 +67,13 @@ async fn ingest_logs(
         });
     }
 
-    rampart_db::logs::insert_logs(s.pool(), &logs).await?;
+    // P5: resolve org from ingest credential — OTLP token-less ingest uses Default.
+    rampart_db::logs::insert_logs(
+        s.pool(),
+        &logs,
+        rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID),
+    )
+    .await?;
     Ok(Json(serde_json::json!({})))
 }
 
@@ -101,7 +107,13 @@ async fn ingest_traces(
         spans.retain(|sp| rampart_core::sampling::keep(&sp.trace_id, sc.traces_pct));
     }
 
-    rampart_db::traces::insert_spans(s.pool(), &spans).await?;
+    // P5: resolve org from ingest credential — OTLP token-less ingest uses Default.
+    rampart_db::traces::insert_spans(
+        s.pool(),
+        &spans,
+        rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID),
+    )
+    .await?;
 
     // OTLP ExportTraceServiceResponse — an empty object signals full success.
     Ok(Json(serde_json::json!({})))

@@ -163,6 +163,7 @@ async fn get_one(
 async fn create(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Json(input): Json<NewStatusPage>,
 ) -> Result<(StatusCode, Json<StatusPage>), ApiError> {
@@ -173,7 +174,7 @@ async fn create(
     validate_logo_url(input.logo_url.as_deref())?;
     validate_custom_css(input.custom_css.as_deref())?;
     let slug = input.slug.clone();
-    let p = rampart_db::status_pages::create(s.pool(), input).await?;
+    let p = rampart_db::status_pages::create(s.pool(), input, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,

@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO detection_rules\n            (id, name, description, enabled, severity, service, min_level,\n             body_regex, attr_key, attr_val, threshold, window_seconds, channel_ids,\n             escalation_policy_id, cooldown_seconds, condition, group_by, org_id)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Bool",
+        "Text",
+        "Text",
+        "Int2",
+        "Text",
+        "Text",
+        "Text",
+        "Int4",
+        "Int4",
+        "UuidArray",
+        "Uuid",
+        "Int4",
+        "Jsonb",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b9274b9bedb77701f73bf7b01d40fdf84d0992af99f94a483668b1483335daf3"
+}

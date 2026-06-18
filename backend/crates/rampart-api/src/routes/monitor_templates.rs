@@ -63,6 +63,7 @@ async fn get_one(
 async fn create(
     State(state): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Json(mut input): Json<NewMonitorTemplate>,
 ) -> Result<(StatusCode, Json<MonitorTemplate>), ApiError> {
@@ -79,7 +80,7 @@ async fn create(
         .map_err(|e| ApiError::BadRequest(format!("invalid monitor spec: {e}")))?;
     spec.validate()?;
 
-    let template = rampart_db::monitor_templates::create(state.pool(), input).await?;
+    let template = rampart_db::monitor_templates::create(state.pool(), input, org.org_id).await?;
     crate::audit::record(
         state.pool(),
         &user,
@@ -148,7 +149,7 @@ async fn instantiate(
     }
 
     new_monitor.validate()?;
-    let monitor = rampart_db::monitors::create(state.pool(), new_monitor).await?;
+    let monitor = rampart_db::monitors::create(state.pool(), new_monitor, org.org_id).await?;
     state.poke_scheduler();
     crate::audit::record(
         state.pool(),

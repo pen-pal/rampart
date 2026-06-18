@@ -10,6 +10,9 @@ use rampart_db::detection;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+const TEST_ORG: rampart_core::ids::OrgId =
+    rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID);
+
 fn rule(body_regex: &str, threshold: i32) -> NewDetectionRule {
     NewDetectionRule {
         name: "test rule".to_string(),
@@ -62,7 +65,7 @@ async fn insert_log_attrs(pool: &PgPool, service: &str, severity: i16, body: &st
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn regex_match_threshold_and_watermark(pool: PgPool) {
-    let r = detection::create(&pool, rule("failed login", 2))
+    let r = detection::create(&pool, rule("failed login", 2), TEST_ORG)
         .await
         .unwrap();
 
@@ -123,7 +126,7 @@ async fn boolean_condition_tree_matches(pool: PgPool) {
             },
         ],
     });
-    detection::create(&pool, nr).await.unwrap();
+    detection::create(&pool, nr, TEST_ORG).await.unwrap();
 
     // Branch 1: auth service + "failed" in body.
     insert_log(&pool, "auth", 9, "failed login for bob").await;
@@ -143,7 +146,7 @@ async fn group_by_raises_per_entity_over_threshold(pool: PgPool) {
     // ">=3 'failed' logs per user in the window" — fires once per offending user.
     let mut nr = rule("failed", 3);
     nr.group_by = "user".to_string();
-    detection::create(&pool, nr).await.unwrap();
+    detection::create(&pool, nr, TEST_ORG).await.unwrap();
 
     // alice: 3 matches (over threshold). bob: 1 (under). carol: 0. A record with
     // no `user` attribute is ignored.
@@ -165,7 +168,7 @@ async fn group_by_raises_per_entity_over_threshold(pool: PgPool) {
 async fn cooldown_suppresses_repeat_findings(pool: PgPool) {
     let mut nr = rule("boom", 1);
     nr.cooldown_seconds = 600; // 10-minute suppression window
-    detection::create(&pool, nr).await.unwrap();
+    detection::create(&pool, nr, TEST_ORG).await.unwrap();
 
     // First crossing raises a finding.
     insert_log(&pool, "svc", 9, "boom one").await;
@@ -187,7 +190,7 @@ async fn service_scope_and_severity_floor(pool: PgPool) {
     let mut nr = rule("", 1);
     nr.service = "auth".to_string();
     nr.min_level = 17; // error+
-    detection::create(&pool, nr).await.unwrap();
+    detection::create(&pool, nr, TEST_ORG).await.unwrap();
 
     // Wrong service, and right service but below the severity floor → no match.
     insert_log(&pool, "web", 17, "boom").await;
@@ -221,7 +224,7 @@ async fn attribute_key_match(pool: PgPool) {
     let mut nr = rule("", 1);
     nr.attr_key = "event.action".to_string();
     nr.attr_val = "user.delete".to_string();
-    detection::create(&pool, nr).await.unwrap();
+    detection::create(&pool, nr, TEST_ORG).await.unwrap();
 
     // Wrong action, and a log with no attributes → no match.
     insert_log_attr(&pool, "auth", 9, "a", serde_json::json!({"event.action": "user.login"})).await;
@@ -239,7 +242,7 @@ async fn attribute_key_match(pool: PgPool) {
 async fn disabled_rule_is_inert(pool: PgPool) {
     let mut nr = rule("", 1);
     nr.enabled = false;
-    detection::create(&pool, nr).await.unwrap();
+    detection::create(&pool, nr, TEST_ORG).await.unwrap();
     insert_log(&pool, "auth", 17, "boom").await;
     assert!(detection::evaluate_tick(&pool).await.unwrap().is_empty());
 }

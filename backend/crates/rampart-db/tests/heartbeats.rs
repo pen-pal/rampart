@@ -72,7 +72,9 @@ async fn insert_many_empty_is_noop(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn round_trip_single_heartbeat(pool: PgPool) {
-    let m = monitors::create(&pool, http_monitor("rt")).await.unwrap();
+    let m = monitors::create(&pool, http_monitor("rt"), def_org())
+        .await
+        .unwrap();
     let h = hb(m.id, MonitorStatus::Up, 87, 1);
     insert_many(&pool, std::slice::from_ref(&h)).await.unwrap();
 
@@ -85,7 +87,9 @@ async fn round_trip_single_heartbeat(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn recent_for_monitor_orders_descending_by_ts(pool: PgPool) {
-    let m = monitors::create(&pool, http_monitor("ord")).await.unwrap();
+    let m = monitors::create(&pool, http_monitor("ord"), def_org())
+        .await
+        .unwrap();
     let hbs = vec![
         hb(m.id, MonitorStatus::Up, 50, 300), // oldest
         hb(m.id, MonitorStatus::Down, 100, 200),
@@ -103,7 +107,9 @@ async fn recent_for_monitor_orders_descending_by_ts(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn limit_respected(pool: PgPool) {
-    let m = monitors::create(&pool, http_monitor("lim")).await.unwrap();
+    let m = monitors::create(&pool, http_monitor("lim"), def_org())
+        .await
+        .unwrap();
     let hbs: Vec<_> = (0..50)
         .map(|i| hb(m.id, MonitorStatus::Up, 50, i))
         .collect();
@@ -114,7 +120,9 @@ async fn limit_respected(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn summary_window_computes_uptime_and_avg_latency(pool: PgPool) {
-    let m = monitors::create(&pool, http_monitor("sum")).await.unwrap();
+    let m = monitors::create(&pool, http_monitor("sum"), def_org())
+        .await
+        .unwrap();
     let hbs = vec![
         hb(m.id, MonitorStatus::Up, 50, 10),
         hb(m.id, MonitorStatus::Up, 100, 20),
@@ -142,7 +150,9 @@ async fn summary_window_computes_uptime_and_avg_latency(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn summary_window_excludes_outside_window(pool: PgPool) {
-    let m = monitors::create(&pool, http_monitor("win")).await.unwrap();
+    let m = monitors::create(&pool, http_monitor("win"), def_org())
+        .await
+        .unwrap();
     insert_many(
         &pool,
         &[
@@ -166,10 +176,10 @@ async fn summary_window_excludes_outside_window(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn recent_per_monitor_groups_correctly(pool: PgPool) {
-    let a = monitors::create(&pool, http_monitor("rpm-a"))
+    let a = monitors::create(&pool, http_monitor("rpm-a"), def_org())
         .await
         .unwrap();
-    let b = monitors::create(&pool, http_monitor("rpm-b"))
+    let b = monitors::create(&pool, http_monitor("rpm-b"), def_org())
         .await
         .unwrap();
     insert_many(
@@ -196,7 +206,7 @@ mod tests {
     //! `heartbeats::tests::error_budget*` match just these cases without
     //! dragging in every other heartbeat integration test.
 
-    use super::{hb, http_monitor};
+    use super::{def_org, hb, http_monitor};
     use rampart_core::MonitorStatus;
     use rampart_db::heartbeats::{error_budget, error_budget_burndown, insert_many, mtbf_mttr};
     use rampart_db::monitors;
@@ -204,7 +214,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../migrations")]
     async fn mtbf_empty_history(pool: PgPool) {
-        let m = monitors::create(&pool, http_monitor("mtbf-empty"))
+        let m = monitors::create(&pool, http_monitor("mtbf-empty"), def_org())
             .await
             .unwrap();
         let r = mtbf_mttr(&pool, m.id, 86_400).await.unwrap();
@@ -215,7 +225,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../migrations")]
     async fn mtbf_no_failures_when_always_up(pool: PgPool) {
-        let m = monitors::create(&pool, http_monitor("mtbf-allup"))
+        let m = monitors::create(&pool, http_monitor("mtbf-allup"), def_org())
             .await
             .unwrap();
         let hbs: Vec<_> = (0..5)
@@ -239,7 +249,7 @@ mod tests {
         //
         // total_up_secs   = 100 + 100 + 100 = 300 → MTBF = 300 / 1 failure  = 300
         // total_down_secs = 100               → MTTR = 100 / 1 recovery   = 100
-        let m = monitors::create(&pool, http_monitor("mtbf-basic"))
+        let m = monitors::create(&pool, http_monitor("mtbf-basic"), def_org())
             .await
             .unwrap();
         let hbs = vec![
@@ -261,7 +271,7 @@ mod tests {
     async fn mtbf_window_excludes_older_heartbeats(pool: PgPool) {
         // One failure inside the 1h window, one ancient failure outside
         // it. Only the in-window one should contribute.
-        let m = monitors::create(&pool, http_monitor("mtbf-window"))
+        let m = monitors::create(&pool, http_monitor("mtbf-window"), def_org())
             .await
             .unwrap();
         let hbs = vec![
@@ -294,7 +304,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../migrations")]
     async fn error_budget_empty_history_full_budget(pool: PgPool) {
-        let m = monitors::create(&pool, http_monitor("eb-empty"))
+        let m = monitors::create(&pool, http_monitor("eb-empty"), def_org())
             .await
             .unwrap();
         let b = error_budget(&pool, m.id, 30, 99.9).await.unwrap();
@@ -314,7 +324,7 @@ mod tests {
     async fn error_budget_consumed_by_down_segment(pool: PgPool) {
         // 200s down segment inside the window. Target 99.0% over 30d
         // allows 25_920s of downtime; 200s used → 25_720s remaining.
-        let m = monitors::create(&pool, http_monitor("eb-down"))
+        let m = monitors::create(&pool, http_monitor("eb-down"), def_org())
             .await
             .unwrap();
         let hbs = vec![
@@ -342,7 +352,7 @@ mod tests {
     async fn error_budget_exhausted_clamps_to_zero(pool: PgPool) {
         // Down segment far longer than the allowed budget. remaining must
         // clamp to 0 (not go negative) and remaining_pct must be 0.
-        let m = monitors::create(&pool, http_monitor("eb-blown"))
+        let m = monitors::create(&pool, http_monitor("eb-blown"), def_org())
             .await
             .unwrap();
         let hbs = vec![
@@ -376,7 +386,7 @@ mod tests {
         // must still serialise as finite numbers (not NaN), so the
         // helper reports remaining_pct = 100.0 when there's no downtime
         // to divide against an allowance of zero.
-        let m = monitors::create(&pool, http_monitor("eb-100pct"))
+        let m = monitors::create(&pool, http_monitor("eb-100pct"), def_org())
             .await
             .unwrap();
         let b = error_budget(&pool, m.id, 30, 100.0).await.unwrap();
@@ -397,7 +407,7 @@ mod tests {
         // No heartbeats → budget never depletes: every point sits at full
         // budget (100% remaining, 0 cumulative down). One point per day in
         // the window, oldest first.
-        let m = monitors::create(&pool, http_monitor("bd-empty"))
+        let m = monitors::create(&pool, http_monitor("bd-empty"), def_org())
             .await
             .unwrap();
         let pts = error_budget_burndown(&pool, m.id, 30, 99.9).await.unwrap();
@@ -424,7 +434,7 @@ mod tests {
         // remaining budget never recovers. Remaining-% is monotonically
         // non-increasing across the whole series, and the final cumulative
         // matches `error_budget`'s used-seconds for the same window.
-        let m = monitors::create(&pool, http_monitor("bd-down"))
+        let m = monitors::create(&pool, http_monitor("bd-down"), def_org())
             .await
             .unwrap();
         let hbs = vec![
@@ -472,7 +482,9 @@ mod tests {
 async fn insert_is_idempotent_on_conflict(pool: PgPool) {
     // Same (monitor_id, ts) → ON CONFLICT DO NOTHING. Caller can retry
     // without dup-key crash; row count unchanged.
-    let m = monitors::create(&pool, http_monitor("idem")).await.unwrap();
+    let m = monitors::create(&pool, http_monitor("idem"), def_org())
+        .await
+        .unwrap();
     let h = hb(m.id, MonitorStatus::Up, 50, 10);
     insert_many(&pool, std::slice::from_ref(&h)).await.unwrap();
     insert_many(&pool, std::slice::from_ref(&h)).await.unwrap();

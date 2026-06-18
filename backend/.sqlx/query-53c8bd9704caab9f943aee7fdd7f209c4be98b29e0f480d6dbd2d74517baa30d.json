@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO logs\n            (id, ts, severity, severity_text, service_name, body, trace_id, span_id, attributes, org_id)\n        SELECT * FROM UNNEST(\n            $1::uuid[], $2::timestamptz[], $3::int2[], $4::text[], $5::text[],\n            $6::text[], $7::text[], $8::text[], $9::jsonb[],\n            ARRAY_FILL($10::uuid, ARRAY[array_length($1::uuid[], 1)])\n        )\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "TimestamptzArray",
+        "Int2Array",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "JsonbArray",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "53c8bd9704caab9f943aee7fdd7f209c4be98b29e0f480d6dbd2d74517baa30d"
+}

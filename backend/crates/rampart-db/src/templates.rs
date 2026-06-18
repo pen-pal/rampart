@@ -120,13 +120,17 @@ pub async fn get(pool: &DbPool, id: NotificationTemplateId, org_id: OrgId) -> Db
     })
 }
 
-pub async fn create(pool: &DbPool, input: NewTemplate) -> DbResult<Template> {
+pub async fn create(
+    pool: &DbPool,
+    input: NewTemplate,
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<Template> {
     let id = Uuid::now_v7();
     let r = sqlx::query!(
         r#"
         INSERT INTO notification_templates
-            (id, name, channel_kinds, event_kind, subject_template, body_template, is_default)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+            (id, name, channel_kinds, event_kind, subject_template, body_template, is_default, org_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING id, name, channel_kinds, event_kind, subject_template, body_template,
                   is_default, created_at
         "#,
@@ -137,6 +141,7 @@ pub async fn create(pool: &DbPool, input: NewTemplate) -> DbResult<Template> {
         input.subject_template,
         input.body_template,
         input.is_default,
+        org_id.0,
     )
     .fetch_one(pool)
     .await

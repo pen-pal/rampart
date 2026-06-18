@@ -210,7 +210,15 @@ async fn run(args: Args) -> anyhow::Result<ExitCode> {
             skipped_dupe += 1;
             continue;
         }
-        match monitors::create(&pool, m.new_monitor).await {
+        // P5: resolve org from ingest credential — the CLI importer has no
+        // request context, so everything lands in the Default org.
+        match monitors::create(
+            &pool,
+            m.new_monitor,
+            rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID),
+        )
+        .await
+        {
             Ok(monitor) => {
                 info!(name = %monitor.name, kind = ?monitor.kind, id = %monitor.id.0, "imported");
                 imported += 1;

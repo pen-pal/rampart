@@ -79,18 +79,23 @@ pub async fn get(pool: &DbPool, id: MonitorTemplateId, org_id: OrgId) -> DbResul
     })
 }
 
-pub async fn create(pool: &DbPool, input: NewMonitorTemplate) -> DbResult<MonitorTemplate> {
+pub async fn create(
+    pool: &DbPool,
+    input: NewMonitorTemplate,
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<MonitorTemplate> {
     let id = MonitorTemplateId::new();
     let r = sqlx::query!(
         r#"
-        INSERT INTO monitor_templates (id, name, description, spec)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO monitor_templates (id, name, description, spec, org_id)
+        VALUES ($1, $2, $3, $4, $5)
         RETURNING id, name, description, spec, created_at
         "#,
         id.0,
         input.name,
         input.description,
         input.spec,
+        org_id.0,
     )
     .fetch_one(pool)
     .await?;

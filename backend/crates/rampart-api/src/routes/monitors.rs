@@ -179,7 +179,7 @@ async fn apply_monitors(
                 .map_err(|e| e.to_string())
                 .and_then(|n| n.validate().map(|_| n).map_err(|e| e.to_string()))
             {
-                Ok(nm) => match rampart_db::monitors::create(state.pool(), nm).await {
+                Ok(nm) => match rampart_db::monitors::create(state.pool(), nm, org.org_id).await {
                     Ok(_) => res.created += 1,
                     Err(e) => res.errors.push(format!("{name}: {e}")),
                 },
@@ -236,7 +236,7 @@ async fn create(
             .await
             .map_err(|_| ApiError::BadRequest("unknown agent".into()))?;
     }
-    let monitor = rampart_db::monitors::create(state.pool(), input).await?;
+    let monitor = rampart_db::monitors::create(state.pool(), input, org.org_id).await?;
     state.poke_scheduler();
     crate::audit::record(
         state.pool(),
@@ -276,6 +276,7 @@ struct ImportResult {
 async fn import_csv(
     State(state): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     body: String,
 ) -> Result<Json<ImportResult>, ApiError> {
@@ -295,7 +296,7 @@ async fn import_csv(
 
     for m in plan.mapped {
         let name = m.new_monitor.name.clone();
-        match rampart_db::monitors::create(pool, m.new_monitor).await {
+        match rampart_db::monitors::create(pool, m.new_monitor, org.org_id).await {
             Ok(_) => created += 1,
             Err(e) => skipped.push(ImportSkip {
                 row: name,
@@ -1055,13 +1056,14 @@ async fn get_preset(
 async fn create_preset(
     State(state): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Json(input): Json<rampart_core::NewMonitorPreset>,
 ) -> Result<(StatusCode, Json<rampart_core::MonitorPreset>), ApiError> {
     if input.name.trim().is_empty() {
         return Err(ApiError::BadRequest("name is required".into()));
     }
-    let preset = rampart_db::monitor_presets::create(state.pool(), input).await?;
+    let preset = rampart_db::monitor_presets::create(state.pool(), input, org.org_id).await?;
     crate::audit::record(
         state.pool(),
         &user,
@@ -1199,7 +1201,7 @@ async fn clone_one(
         agent_id: src.agent_id,
         escalation_policy_id: src.escalation_policy_id,
     };
-    let cloned = rampart_db::monitors::create(state.pool(), copy).await?;
+    let cloned = rampart_db::monitors::create(state.pool(), copy, org.org_id).await?;
     state.poke_scheduler();
     crate::audit::record(
         state.pool(),

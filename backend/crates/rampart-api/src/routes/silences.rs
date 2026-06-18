@@ -44,6 +44,7 @@ struct NewSilenceInput {
 async fn create(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Json(input): Json<NewSilenceInput>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
@@ -59,6 +60,7 @@ async fn create(
             created_by: Some(user.id.0),
             expires_at,
         },
+        org.org_id,
     )
     .await?;
     crate::audit::record(
