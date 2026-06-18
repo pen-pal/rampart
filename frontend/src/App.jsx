@@ -48,6 +48,7 @@ const Proxies           = lazyWithReload(() => import('./views/Proxies.jsx'));
 const Agents            = lazyWithReload(() => import('./views/Agents.jsx'));
 const Security          = lazyWithReload(() => import('./views/Security.jsx'));
 const Users             = lazyWithReload(() => import('./views/Users.jsx'));
+const Organizations     = lazyWithReload(() => import('./views/Organizations.jsx'));
 const SmtpSettings      = lazyWithReload(() => import('./views/SmtpSettings.jsx'));
 const RetentionSettings = lazyWithReload(() => import('./views/RetentionSettings.jsx'));
 const IngestSettings    = lazyWithReload(() => import('./views/IngestSettings.jsx'));
@@ -147,6 +148,7 @@ const VIEW_LABEL = {
   'agents':        'Probe agents',
   'security':      'Security',
   'users':         'Users',
+  'organizations': 'Organizations',
   'smtp-settings':      'SMTP',
   'retention-settings': 'Retention',
   'ingest-settings':    'Ingest',
@@ -215,7 +217,7 @@ export default function App() {
         const r = await api.auth.me();
         if (cancelled) return;
         if (r?.needs_setup)      setAuthState({ loading: false, user: null, needsSetup: true });
-        else if (r?.user)        setAuthState({ loading: false, user: r.user, needsSetup: false, mustSetup2fa: !!r.must_setup_2fa });
+        else if (r?.user)        setAuthState({ loading: false, user: r.user, needsSetup: false, mustSetup2fa: !!r.must_setup_2fa, orgs: r.orgs || [], activeOrgId: r.active_org_id || null });
         else                     setAuthState({ loading: false, user: null, needsSetup: false });
       } catch (e) {
         if (cancelled) return;
@@ -332,6 +334,7 @@ export default function App() {
     case 'agents':        view = <Agents />; break;
     case 'security':      view = <Security />; break;
     case 'users':         view = <Users />; break;
+    case 'organizations': view = <Organizations />; break;
     case 'smtp-settings':      view = <SmtpSettings />; break;
     case 'retention-settings': view = <RetentionSettings />; break;
     case 'ingest-settings':    view = <IngestSettings />; break;
@@ -370,7 +373,7 @@ export default function App() {
       {showThemeToggle && <FloatingLocalePicker />}
       <Toaster />
       <DialogHost />
-      {route.view !== 'login' && route.view !== 'public-status' && route.view !== 'manage-subscription' && <NavDrawer current={route.view} user={authState.user} />}
+      {route.view !== 'login' && route.view !== 'public-status' && route.view !== 'manage-subscription' && <NavDrawer current={route.view} user={authState.user} orgs={authState.orgs} activeOrgId={authState.activeOrgId} />}
     </>
   );
 }
@@ -424,6 +427,7 @@ const NAV_GROUPS = [
     { view: 'reports',      hash: '#/reports',      admin: true },
   ] },
   { section: 'Settings', items: [
+    { view: 'organizations',      hash: '#/organizations' },
     { view: 'security',           hash: '#/security',           admin: true },
     { view: 'smtp-settings',      hash: '#/settings/smtp',      admin: true },
     { view: 'retention-settings', hash: '#/settings/retention', admin: true },
@@ -433,9 +437,10 @@ const NAV_GROUPS = [
 
 const NAV_COLLAPSE_KEY = 'rampart:nav:open-sections';
 
-function NavDrawer({ current, user }) {
+function NavDrawer({ current, user, orgs, activeOrgId }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
+  const [switching, setSwitching] = useState(false);
   // Per-section expand overrides, persisted. Absent section → default rule
   // (open only the group holding the current view) so the drawer stays compact.
   const [overrides, setOverrides] = useState(() => {
@@ -467,6 +472,22 @@ function NavDrawer({ current, user }) {
     window.addEventListener('rampart:nav-open', onOpen);
     return () => window.removeEventListener('rampart:nav-open', onOpen);
   }, []);
+
+  // Org switcher: only meaningful with more than one org (single-org installs
+  // see nothing). Switching persists the active org on the session, then we
+  // reload so the per-org role (me().user.role) + all org-scoped data refresh.
+  const orgList = Array.isArray(orgs) ? orgs : [];
+  const showSwitcher = orgList.length > 1;
+  const switchOrg = async (id) => {
+    if (!id || id === activeOrgId || switching) return;
+    setSwitching(true);
+    try {
+      await api.orgs.switch(id);
+      window.location.reload();
+    } catch {
+      setSwitching(false);
+    }
+  };
 
   const visible = (it) => (admin || !it.admin) && (writable || !it.write);
   const ql = q.trim().toLowerCase();
@@ -545,6 +566,32 @@ function NavDrawer({ current, user }) {
                 }}
               />
             </div>
+
+            {showSwitcher && (
+              <div style={{ padding: '0 12px 10px' }}>
+                <label htmlFor="rampart-org-switch" style={{
+                  display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+                  letterSpacing: '.06em', color: 'var(--text-3, #a8a29e)', marginBottom: 5,
+                }}>{t('orgs.switcher_label')}</label>
+                <select
+                  id="rampart-org-switch"
+                  value={activeOrgId || ''}
+                  disabled={switching}
+                  onChange={(e) => switchOrg(e.target.value)}
+                  aria-label={t('orgs.switcher_label')}
+                  style={{
+                    width: '100%', padding: '8px 10px', borderRadius: 8, fontSize: 13,
+                    background: 'var(--bg, #fafaf9)', color: 'var(--text, #18181b)',
+                    border: '1px solid var(--border, #e7e5e4)', outline: 'none',
+                    fontFamily: 'inherit', cursor: switching ? 'wait' : 'pointer', boxSizing: 'border-box',
+                  }}
+                >
+                  {orgList.map(o => (
+                    <option key={o.id} value={o.id}>{o.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div style={{ overflowY: 'auto', padding: '0 8px 16px', flex: 1 }}>
               {groups.length === 0 && (

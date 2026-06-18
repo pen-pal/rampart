@@ -233,7 +233,7 @@ async fn me(State(state): State<AppState>, jar: CookieJar) -> Result<impl IntoRe
     let session = rampart_db::sessions::get(state.pool(), token)
         .await
         .map_err(|_| ApiError::Unauthorized)?;
-    let user = rampart_db::users::get(state.pool(), session.user_id)
+    let mut user = rampart_db::users::get(state.pool(), session.user_id)
         .await
         .map_err(|_| ApiError::Unauthorized)?;
 
@@ -262,6 +262,23 @@ async fn me(State(state): State<AppState>, jar: CookieJar) -> Result<impl IntoRe
     let active_org_id = session
         .active_org_id
         .unwrap_or(rampart_core::org::DEFAULT_ORG_ID);
+
+    // Effective role IN THE ACTIVE ORG — mirror require_session's resolution so the
+    // SPA (which gates UI on user.role) sees exactly the role Phase 4e enforces.
+    // Fall back to the Default-org role, then the global user.role, when the caller
+    // is not a member of the active org (revoked / stale). `user.is_admin` stays the
+    // GLOBAL flag (the 2FA `must_setup_2fa` logic above already keyed off it).
+    let default_org = rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID);
+    let want = rampart_core::ids::OrgId::from_uuid(active_org_id);
+    let effective_role = match rampart_db::orgs::member_role(state.pool(), want, user.id).await {
+        Ok(Some(r)) => r,
+        _ => rampart_db::orgs::member_role(state.pool(), default_org, user.id)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or(user.role),
+    };
+    user.role = effective_role;
 
     Ok(Json(json!({
         "user": user,

@@ -3,7 +3,8 @@
 mod common;
 
 use axum::http::{Method, StatusCode};
-use common::{register_admin, request, session_cookie};
+use common::{register_admin, request, session_cookie, user_with_role};
+use rampart_core::Role;
 use serde_json::json;
 use sqlx::PgPool;
 
@@ -123,6 +124,57 @@ async fn logout_clears_cookie_and_subsequent_request_401s(pool: PgPool) {
     // Re-using the old cookie should now 401 because the session row is gone.
     let (s3, _, _) = request(&r, Method::GET, "/v1/monitors", None, Some(&cookie)).await;
     assert_eq!(s3, StatusCode::UNAUTHORIZED);
+}
+
+/// me().user.role must reflect the caller's role IN THE ACTIVE ORG (Phase 4e
+/// enforcement), not their global users.role. A globally-Readonly user who is
+/// Admin of an org they create should see `role: "admin"` from me() once that
+/// org is their active one.
+#[sqlx::test(migrations = "../../migrations")]
+async fn me_reports_active_org_role_not_global_role(pool: PgPool) {
+    let r = common::router(pool.clone());
+    // Bootstrap the install so registration is locked and a Default org exists.
+    register_admin(&r).await;
+
+    // A globally-Readonly user.
+    let cookie = user_with_role(&pool, "reader@example.com", Role::Readonly).await;
+
+    // Baseline: active org is the Default org → me() shows the global role.
+    let (status, _, bytes) = request(&r, Method::GET, "/v1/auth/me", None, Some(&cookie)).await;
+    assert_eq!(status, StatusCode::OK);
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(body["user"]["role"], json!("readonly"), "default-org role");
+
+    // Create an org — the creator becomes its Admin.
+    let (status, _, bytes) = request(
+        &r,
+        Method::POST,
+        "/v1/orgs",
+        Some(json!({ "slug": "acme", "name": "Acme Inc" })),
+        Some(&cookie),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "create org");
+    let org: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let org_id = org["id"].as_str().unwrap();
+
+    // Switch the active org to the new one.
+    let (status, _, _) = request(
+        &r,
+        Method::POST,
+        &format!("/v1/orgs/{org_id}/switch"),
+        None,
+        Some(&cookie),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT, "switch org");
+
+    // me() must now report the per-org role (Admin), not the global Readonly.
+    let (status, _, bytes) = request(&r, Method::GET, "/v1/auth/me", None, Some(&cookie)).await;
+    assert_eq!(status, StatusCode::OK);
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(body["user"]["role"], json!("admin"), "active-org role wins");
+    assert_eq!(body["active_org_id"], json!(org_id), "active org surfaced");
 }
 
 #[sqlx::test(migrations = "../../migrations")]
