@@ -128,21 +128,27 @@ async fn remove(
 
 async fn list_for_monitor(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<Vec<TagBrief>>, ApiError> {
-    Ok(Json(
-        rampart_db::tags::list_for_monitor(s.pool(), parse_monitor(&id)?).await?,
-    ))
+    let mid = parse_monitor(&id)?;
+    // Gate through the owning monitor's org — cross-org monitor id is a 404.
+    rampart_db::monitors::get(s.pool(), mid, org.org_id).await?;
+    Ok(Json(rampart_db::tags::list_for_monitor(s.pool(), mid).await?))
 }
 
 async fn attach(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Extension(user): Extension<User>,
     headers: HeaderMap,
     Path((id, tag_id)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
     let mid = parse_monitor(&id)?;
     let tid = parse_tag(&tag_id)?;
+    // Both the monitor and the tag must belong to the caller's org.
+    rampart_db::monitors::get(s.pool(), mid, org.org_id).await?;
+    rampart_db::tags::get(s.pool(), tid, org.org_id).await?;
     rampart_db::tags::attach(s.pool(), mid, tid).await?;
     crate::audit::record(
         s.pool(),
@@ -159,12 +165,16 @@ async fn attach(
 
 async fn detach(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Extension(user): Extension<User>,
     headers: HeaderMap,
     Path((id, tag_id)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
     let mid = parse_monitor(&id)?;
     let tid = parse_tag(&tag_id)?;
+    // Both the monitor and the tag must belong to the caller's org.
+    rampart_db::monitors::get(s.pool(), mid, org.org_id).await?;
+    rampart_db::tags::get(s.pool(), tid, org.org_id).await?;
     rampart_db::tags::detach(s.pool(), mid, tid).await?;
     crate::audit::record(
         s.pool(),
