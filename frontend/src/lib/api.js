@@ -182,6 +182,23 @@ export const api = {
     totpVerify:  (challengeToken, code)   => request('/v1/auth/2fa/verify',  { method: 'POST', body: { challenge_token: challengeToken, code } }),
     oidcConfig:  ()                       => request('/v1/auth/oidc/config'),
   },
+  // ─── organizations (multi-tenancy) ───────────────────────────────────────
+  // Per-org RBAC: the caller's role is resolved IN the targeted org, so a user
+  // can be Admin in one org and Readonly in another. `list` returns only the
+  // orgs the caller belongs to; `members` includes the caller's own row so the
+  // UI can gate Admin-only controls on their per-org role. `switch` persists
+  // the active org on the session cookie — re-fetch me() afterwards.
+  orgs: {
+    list:          ()           => request('/v1/orgs'),
+    create:        (body)       => request('/v1/orgs', { method: 'POST', body }), // { slug, name }
+    get:           (id)         => request(`/v1/orgs/${id}`),
+    rename:        (id, name)   => request(`/v1/orgs/${id}`, { method: 'PATCH', body: { name } }),
+    members:       (id)         => request(`/v1/orgs/${id}/members`),
+    addMember:     (id, body)   => request(`/v1/orgs/${id}/members`, { method: 'POST', body }), // { email, role }
+    setMemberRole: (id, uid, role) => request(`/v1/orgs/${id}/members/${uid}`, { method: 'PATCH', body: { role } }),
+    removeMember:  (id, uid)    => request(`/v1/orgs/${id}/members/${uid}`, { method: 'DELETE' }),
+    switch:        (id)         => request(`/v1/orgs/${id}/switch`, { method: 'POST' }),
+  },
   notifications: {
     list:        ()                                  => request('/v1/notifications'),
     get:         (id)                                => request(`/v1/notifications/${id}`),
