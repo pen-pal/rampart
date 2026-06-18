@@ -19,6 +19,30 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.137.0] — 2026-06-18
+
+### Added
+- **Multi-tenancy — Phase 4g: org switcher + Organizations admin UI (Phase 4
+  complete).** The frontend now exposes multi-tenancy: an **org switcher** in
+  the nav drawer (shown only when the caller belongs to >1 org) that calls
+  `POST /v1/orgs/{id}/switch` and reloads so the per-org role + scoped data
+  refresh; and an **Organizations** settings page (`#/organizations`) to list
+  the caller's orgs, create one (becoming its Admin), and — when the caller is
+  an Admin of the selected org — manage members (add by email, change role,
+  remove, with last-admin protection surfaced) and rename. New `api.orgs.*`
+  client group. Coherence fix: `/v1/auth/me` now returns the caller's
+  **active-org** role (resolved like `require_session` — `member_role(active)`
+  → Default → global), so the SPA's role-gated UI matches Phase-4e enforcement
+  (`user.is_admin` stays the global flag for the 2FA policy). New test
+  `me_reports_active_org_role_not_global_role`; frontend vitest green.
+  **This completes Phase 4** (4a write-stamping · 4b primitives+role-mirror ·
+  4c `/v1/orgs` API · 4d switcher+me() · 4e per-org RBAC · 4f OIDC→org · 4g
+  UI). Multiple orgs are now fully usable; the Phase-6 enforcement flip (NOT
+  NULL / drop Default fallback / RLS) remains the only held MT work. See
+  [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.136.0] — 2026-06-18
 
 ### Added
