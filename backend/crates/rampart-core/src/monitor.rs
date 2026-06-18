@@ -237,6 +237,64 @@ impl MonitorStatus {
     }
 }
 
+/// Outcome of a TLS cert inspection, independent of probe/DB plumbing.
+/// `Valid` carries days-left (always >= 0 here) so the caller can both
+/// stash the snapshot and decide a status; `Expired` carries days-ago
+/// (>= 0); `Invalid` carries a handshake / parse error message.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CertState {
+    Valid { days_left: i32 },
+    Expired { days_ago: i32 },
+    Invalid { reason: String },
+}
+
+/// Pure decision: given the HTTP check's own status, an opt-in flag, the
+/// `ignore_tls` posture, the warn threshold, and the inspected cert state,
+/// return the status the heartbeat should carry.
+///
+/// Rules (matching the owner's spec):
+/// - `check_cert == false` → never touch the status (today's behaviour).
+/// - A hard HTTP failure (`http_status` already Down) stays Down — the cert
+///   never *upgrades* it; we only ever *downgrade* an otherwise-Up check.
+/// - Expired or invalid cert (and NOT `ignore_tls`) → Down.
+/// - `ignore_tls` suppresses the Down for an expired/invalid cert (the
+///   operator has explicitly opted out of TLS validity), but a valid cert
+///   that is merely near expiry still warns.
+/// - Valid cert with `days_left <= cert_expiry_days` → Warn (downgrade
+///   Up → Warn only).
+/// - Otherwise the status is unchanged.
+pub fn cert_adjusted_status(
+    http_status: MonitorStatus,
+    check_cert: bool,
+    ignore_tls: bool,
+    cert_expiry_days: i32,
+    cert: &CertState,
+) -> MonitorStatus {
+    if !check_cert {
+        return http_status;
+    }
+    // A genuine HTTP failure outranks any cert verdict.
+    if http_status == MonitorStatus::Down {
+        return MonitorStatus::Down;
+    }
+    match cert {
+        CertState::Expired { .. } | CertState::Invalid { .. } => {
+            if ignore_tls {
+                http_status
+            } else {
+                MonitorStatus::Down
+            }
+        }
+        CertState::Valid { days_left } => {
+            if *days_left <= cert_expiry_days && http_status == MonitorStatus::Up {
+                MonitorStatus::Warn
+            } else {
+                http_status
+            }
+        }
+    }
+}
+
 /// A live monitor row.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Monitor {
@@ -294,6 +352,16 @@ pub struct Monitor {
     pub cert_subject: Option<String>,
     #[serde(default)]
     pub cert_checked_at: Option<OffsetDateTime>,
+    // ── cert-expiry checking (opt-in) ─────────────────────────────────
+    /// When true, an http/https monitor ALSO evaluates the TLS cert and
+    /// can flip Warn (near-expiry) / Down (expired or invalid). Default
+    /// false → identical to today's behaviour. For `Tls`-kind monitors
+    /// the cert IS the check, so this flag is implicitly true.
+    #[serde(default)]
+    pub check_cert: bool,
+    /// Warn threshold in days: Warn when days-left <= this. Default 14.
+    #[serde(default = "default_cert_expiry_days")]
+    pub cert_expiry_days: i32,
     /// Optional cosmetic group. NULL → default bucket.
     #[serde(default)]
     pub group_id: Option<MonitorGroupId>,
@@ -383,6 +451,18 @@ pub struct NewMonitor {
     #[serde(default)]
     pub group_id: Option<MonitorGroupId>,
 
+    // ── cert-expiry checking (opt-in) ─────────────────────────────────
+    /// Opt an http/https monitor into TLS cert-expiry evaluation. Omit /
+    /// false → today's behaviour (cert recorded, never alerted on).
+    #[serde(default)]
+    pub check_cert: bool,
+
+    /// Warn threshold in days (1 — 365 inclusive). DB default is 14, so
+    /// callers can leave this unset and still get a sensible threshold.
+    #[validate(range(min = 1, max = 365))]
+    #[serde(default = "default_cert_expiry_days")]
+    pub cert_expiry_days: i32,
+
     /// Optional SLO target percent (90.0 — 100.0 inclusive).
     #[validate(range(min = 90.0, max = 100.0))]
     #[serde(default)]
@@ -443,6 +523,13 @@ pub struct UpdateMonitor {
     pub accepted_statuses: Option<Vec<i32>>,
     pub follow_redirect: Option<bool>,
     pub ignore_tls: Option<bool>,
+
+    // ── cert-expiry checking (opt-in) ─────────────────────────────────
+    /// Toggle TLS cert-expiry evaluation. Omit → leave unchanged.
+    pub check_cert: Option<bool>,
+    /// Update the warn threshold in days (1 — 365). Omit → unchanged.
+    #[validate(range(min = 1, max = 365))]
+    pub cert_expiry_days: Option<i32>,
 
     #[serde(default)]
     pub proxy_id: Option<ProxyId>,
@@ -540,6 +627,9 @@ fn default_follow_redirect() -> bool {
 }
 fn default_accepted_statuses() -> Vec<i32> {
     vec![200, 201, 202, 203, 204, 205, 206, 207, 208, 226]
+}
+fn default_cert_expiry_days() -> i32 {
+    14
 }
 
 #[cfg(test)]
@@ -704,5 +794,111 @@ mod tests {
         let nm: NewMonitor = serde_json::from_value(raw).unwrap();
         use validator::Validate;
         assert!(nm.validate().is_err());
+    }
+
+    #[test]
+    fn new_monitor_cert_defaults() {
+        // check_cert defaults off (existing monitors unchanged) and the
+        // threshold defaults to 14 when omitted.
+        let raw = serde_json::json!({"name": "x", "kind": "http"});
+        let nm: NewMonitor = serde_json::from_value(raw).unwrap();
+        assert!(!nm.check_cert);
+        assert_eq!(nm.cert_expiry_days, 14);
+    }
+
+    #[test]
+    fn new_monitor_rejects_out_of_range_cert_days() {
+        use validator::Validate;
+        let raw = serde_json::json!({"name": "x", "kind": "http", "cert_expiry_days": 0});
+        let nm: NewMonitor = serde_json::from_value(raw).unwrap();
+        assert!(nm.validate().is_err(), "0 days should be rejected");
+        let raw = serde_json::json!({"name": "x", "kind": "http", "cert_expiry_days": 366});
+        let nm: NewMonitor = serde_json::from_value(raw).unwrap();
+        assert!(nm.validate().is_err(), "366 days should be rejected");
+        let raw = serde_json::json!({"name": "x", "kind": "http", "cert_expiry_days": 30});
+        let nm: NewMonitor = serde_json::from_value(raw).unwrap();
+        assert!(nm.validate().is_ok(), "30 days is in range");
+    }
+
+    #[test]
+    fn cert_check_disabled_never_changes_status() {
+        // (a) check_cert=false leaves status unchanged regardless of cert.
+        for cert in [
+            CertState::Valid { days_left: 0 },
+            CertState::Expired { days_ago: 5 },
+            CertState::Invalid {
+                reason: "bad".into(),
+            },
+        ] {
+            assert_eq!(
+                cert_adjusted_status(MonitorStatus::Up, false, false, 14, &cert),
+                MonitorStatus::Up
+            );
+        }
+    }
+
+    #[test]
+    fn cert_near_expiry_downgrades_up_to_warn() {
+        // (b) days-left below threshold yields Warn.
+        let cert = CertState::Valid { days_left: 7 };
+        assert_eq!(
+            cert_adjusted_status(MonitorStatus::Up, true, false, 14, &cert),
+            MonitorStatus::Warn
+        );
+        // exactly at threshold also warns (<=).
+        let at = CertState::Valid { days_left: 14 };
+        assert_eq!(
+            cert_adjusted_status(MonitorStatus::Up, true, false, 14, &at),
+            MonitorStatus::Warn
+        );
+        // comfortably above threshold stays Up.
+        let far = CertState::Valid { days_left: 90 };
+        assert_eq!(
+            cert_adjusted_status(MonitorStatus::Up, true, false, 14, &far),
+            MonitorStatus::Up
+        );
+    }
+
+    #[test]
+    fn cert_expired_or_invalid_marks_down() {
+        // (c) expired/invalid cert yields Down.
+        let expired = CertState::Expired { days_ago: 3 };
+        assert_eq!(
+            cert_adjusted_status(MonitorStatus::Up, true, false, 14, &expired),
+            MonitorStatus::Down
+        );
+        let invalid = CertState::Invalid {
+            reason: "self-signed".into(),
+        };
+        assert_eq!(
+            cert_adjusted_status(MonitorStatus::Up, true, false, 14, &invalid),
+            MonitorStatus::Down
+        );
+    }
+
+    #[test]
+    fn cert_http_down_stays_down() {
+        // A hard HTTP failure is never upgraded by a healthy cert.
+        let good = CertState::Valid { days_left: 365 };
+        assert_eq!(
+            cert_adjusted_status(MonitorStatus::Down, true, false, 14, &good),
+            MonitorStatus::Down
+        );
+    }
+
+    #[test]
+    fn cert_ignore_tls_suppresses_down_but_not_warn() {
+        // ignore_tls: an expired/invalid cert no longer flips Down.
+        let expired = CertState::Expired { days_ago: 3 };
+        assert_eq!(
+            cert_adjusted_status(MonitorStatus::Up, true, true, 14, &expired),
+            MonitorStatus::Up
+        );
+        // ...but a valid-yet-near-expiry cert still warns.
+        let near = CertState::Valid { days_left: 2 };
+        assert_eq!(
+            cert_adjusted_status(MonitorStatus::Up, true, true, 14, &near),
+            MonitorStatus::Warn
+        );
     }
 }

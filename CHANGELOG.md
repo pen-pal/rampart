@@ -19,6 +19,29 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.132.0] — 2026-06-18
+
+### Added
+- **TLS certificate-expiry monitoring.** HTTPS HTTP monitors already captured a
+  cert snapshot (`cert_days_left` / `cert_subject` / `cert_checked_at`) but it
+  never affected status. Two new monitor fields make it actionable:
+  `check_cert` (opt-in, default off) and `cert_expiry_days` (warn threshold,
+  default 14, range 1..=365; migration `0109_cert_expiry_opts.sql`). The
+  decision is a pure, unit-tested `rampart_core::monitor::cert_adjusted_status`:
+  with `check_cert` on, an **expired/invalid** cert marks the monitor **Down**
+  (unless `ignore_tls`), and a **valid-but-near-expiry** cert downgrades
+  **Up→Warn**; a hard HTTP failure stays Down (the cert never upgrades it), and
+  with `check_cert` off behaviour is identical to before. The standalone `Tls`
+  monitor kind now honours `cert_expiry_days` (legacy `warn_days` config still
+  wins) and the scheduler refreshes a cert snapshot for `Tls` monitors so the
+  detail panel renders. Frontend: an "Also monitor TLS certificate expiry"
+  checkbox + threshold input on https HTTP monitors (and a threshold on `Tls`
+  monitors), plus cert subject / days-left / last-checked on the monitor detail.
+  Note: an opted-in HTTP monitor does a TLS handshake every tick so status
+  reflects live cert state.
+
+---
+
 ## [0.131.0] — 2026-06-18
 
 ### Changed

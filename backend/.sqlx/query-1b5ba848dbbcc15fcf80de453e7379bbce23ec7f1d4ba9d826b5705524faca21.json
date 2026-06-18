@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE monitors SET\n            name                = COALESCE($2, name),\n            url                 = COALESCE($3, url),\n            hostname            = COALESCE($4, hostname),\n            port                = COALESCE($5, port),\n            config              = COALESCE($6, config),\n            interval_seconds    = COALESCE($7, interval_seconds),\n            timeout_seconds     = COALESCE($8, timeout_seconds),\n            max_retries         = COALESCE($9, max_retries),\n            retry_interval_sec  = COALESCE($10, retry_interval_sec),\n            resend_interval_sec = COALESCE($11, resend_interval_sec),\n            upside_down         = COALESCE($12, upside_down),\n            http_method         = COALESCE($13, http_method),\n            http_body           = COALESCE($14, http_body),\n            http_headers        = COALESCE($15, http_headers),\n            accepted_statuses   = COALESCE($16, accepted_statuses),\n            follow_redirect     = COALESCE($17, follow_redirect),\n            ignore_tls          = COALESCE($18, ignore_tls),\n            proxy_id            = COALESCE($19, proxy_id),\n            check_cert          = COALESCE($20, check_cert),\n            cert_expiry_days    = COALESCE($21, cert_expiry_days),\n            updated_at          = NOW()\n        WHERE id = $1 AND org_id = $22\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Int4",
+        "Jsonb",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Bool",
+        "Text",
+        "Text",
+        "Jsonb",
+        "Int4Array",
+        "Bool",
+        "Bool",
+        "Uuid",
+        "Bool",
+        "Int4",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1b5ba848dbbcc15fcf80de453e7379bbce23ec7f1d4ba9d826b5705524faca21"
+}
