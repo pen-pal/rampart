@@ -162,6 +162,34 @@ pub async fn require_telemetry_token(
     }
 }
 
+/// Resolve the owning ORG for a shared-token ingest request (multi-tenancy
+/// Phase 5). The presented token (Bearer / `X-Rampart-Token` / `?k`) is looked
+/// up in `ingest_keys`: a hit returns that key's org (and bumps last-used). A
+/// MISS falls through to [`require_telemetry_token`] VERBATIM — preserving the
+/// legacy open-by-default / `RAMPART_REQUIRE_INGEST_AUTH` / constant-time
+/// global-token semantics exactly — and lands on the Default org. So a
+/// single-org install with no minted keys (or an existing global-token install)
+/// is byte-for-byte behaviour-identical; per-org isolation activates only once
+/// an operator mints org-scoped ingest keys.
+pub async fn resolve_ingest_org(
+    pool: &DbPool,
+    headers: &HeaderMap,
+    query_k: Option<&str>,
+) -> Result<rampart_core::ids::OrgId, ApiError> {
+    if let Some(tok) = presented_token(headers, query_k) {
+        if let Some((id, org_id, _origins)) = rampart_db::ingest_keys::find_by_token(pool, tok).await?
+        {
+            let _ = rampart_db::ingest_keys::touch_last_used(pool, id).await;
+            return Ok(org_id);
+        }
+    }
+    // Key miss → legacy global-token gate, verbatim, then the Default org.
+    require_telemetry_token(pool, headers, query_k).await?;
+    Ok(rampart_core::ids::OrgId::from_uuid(
+        rampart_core::org::DEFAULT_ORG_ID,
+    ))
+}
+
 /// Whether ingest auth is mandatory (`RAMPART_REQUIRE_INGEST_AUTH=1`/`true`).
 pub fn require_ingest_auth() -> bool {
     matches!(
