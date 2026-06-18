@@ -19,6 +19,28 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.131.0] — 2026-06-18
+
+### Changed
+- **Multi-tenancy — Phase 4b: org-membership primitives + the
+  users.role↔Default-membership mirror.** Additive `rampart-db::orgs` helpers
+  for the upcoming org CRUD / switcher / OIDC work: `update` (rename),
+  `get_by_slug` (the OIDC claim→org key), `remove_member`, `count_admins`
+  (last-admin protection), and `create_with_owner` (atomic org-create +
+  creator-as-Admin in one tx). **Critical correctness fix:** `users::set_role`
+  and `set_admin` now also upsert the user's **Default-org membership** with the
+  new role, in the same transaction — previously they wrote only `users.role`,
+  so the `org_members` row went stale after any post-creation role change. Phase
+  4e sources the per-org effective role from `org_members`, so without this
+  mirror single-org RBAC would enforce a stale role; the mirror keeps the
+  Default-only install behaviour-identical. Pure-additive + the mirror; no API
+  surface change. New tests incl. `set_role_mirrors_default_membership`,
+  `create_with_owner_makes_creator_admin`, `rename_and_get_by_slug`,
+  `remove_member_and_count_admins`. Full `rampart-db` + `rampart-api` suite
+  green. See [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.130.0] — 2026-06-18
 
 ### Changed
