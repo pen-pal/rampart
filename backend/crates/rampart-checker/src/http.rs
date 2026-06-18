@@ -18,6 +18,7 @@
 use crate::{ms_i32, Probe};
 use async_trait::async_trait;
 use once_cell::sync::OnceCell;
+use rampart_core::monitor::{cert_adjusted_status, CertState};
 use rampart_core::proxy::Proxy;
 use rampart_core::synthetic::Assertion;
 use rampart_core::{Heartbeat, Monitor, MonitorKind, MonitorStatus};
@@ -251,31 +252,43 @@ impl HttpProbe {
                 let raw_ok = status_matches && body_ok && version_ok && assert_fail.is_none();
                 let ok = if monitor.upside_down { !raw_ok } else { raw_ok };
 
+                let http_status = if ok {
+                    MonitorStatus::Up
+                } else {
+                    MonitorStatus::Down
+                };
+                let http_msg = if ok {
+                    None
+                } else if let Err(version_msg) = &version_check {
+                    // A version mismatch is the most specific failure —
+                    // surface its clear message ("expected HTTP/2, got
+                    // HTTP/1.1") rather than the generic match summary.
+                    Some(version_msg.clone())
+                } else if let Some(reason) = &assert_fail {
+                    // A failed assertion is specific — surface its reason.
+                    Some(format!("assertion failed: {reason}"))
+                } else {
+                    Some(format!(
+                        "status_match={status_matches} body_match={body_ok}"
+                    ))
+                };
+
+                // Opt-in TLS cert-expiry checking. When enabled on an https
+                // http-family monitor, inspect the leaf cert and possibly
+                // downgrade the status: expired/invalid (and not ignore_tls)
+                // → Down; near-expiry → Warn (Up only). A hard HTTP failure
+                // already-Down stays Down. When check_cert is false this is
+                // a no-op and behaviour is identical to today.
+                let (status, msg) =
+                    apply_cert_check(monitor, &url, http_status, http_msg).await;
+
                 Heartbeat {
                     monitor_id: monitor.id,
                     ts,
-                    status: if ok {
-                        MonitorStatus::Up
-                    } else {
-                        MonitorStatus::Down
-                    },
+                    status,
                     latency_ms: Some(ms_i32(elapsed)),
                     status_code: Some(status_code),
-                    msg: if ok {
-                        None
-                    } else if let Err(version_msg) = &version_check {
-                        // A version mismatch is the most specific failure —
-                        // surface its clear message ("expected HTTP/2, got
-                        // HTTP/1.1") rather than the generic match summary.
-                        Some(version_msg.clone())
-                    } else if let Some(reason) = &assert_fail {
-                        // A failed assertion is specific — surface its reason.
-                        Some(format!("assertion failed: {reason}"))
-                    } else {
-                        Some(format!(
-                            "status_match={status_matches} body_match={body_ok}"
-                        ))
-                    },
+                    msg,
                     retries: 0,
                     important: false,
                 }
@@ -315,6 +328,97 @@ fn err(monitor: &Monitor, ts: OffsetDateTime, started: Instant, msg: &str) -> He
         retries: 0,
         important: false,
     }
+}
+
+/// Opt-in TLS cert-expiry evaluation layered on top of the HTTP check.
+///
+/// Returns the (possibly adjusted) status + message. A no-op — returning
+/// the inputs unchanged — unless ALL of these hold:
+///   * `monitor.check_cert` is true (operator opted in), and
+///   * the kind is an http-family kind (Http/Keyword/JsonQuery), and
+///   * the URL is `https://`.
+///
+/// When active it re-uses the same `tls::fetch_cert` the scheduler uses to
+/// stash the snapshot, derives a [`CertState`], and asks
+/// [`cert_adjusted_status`] for the final status. Down/Warn carry a clear
+/// cert message; an unchanged status keeps the original HTTP message.
+async fn apply_cert_check(
+    monitor: &Monitor,
+    url: &str,
+    http_status: MonitorStatus,
+    http_msg: Option<String>,
+) -> (MonitorStatus, Option<String>) {
+    let is_http_family = matches!(
+        monitor.kind,
+        MonitorKind::Http | MonitorKind::Keyword | MonitorKind::JsonQuery
+    );
+    if !monitor.check_cert || !is_http_family || !url.starts_with("https://") {
+        return (http_status, http_msg);
+    }
+    let Some((host, port)) = parse_https(url) else {
+        return (http_status, http_msg);
+    };
+
+    let to = Duration::from_secs(monitor.timeout_seconds.max(1) as u64);
+    let cert = match crate::tls::fetch_cert(&host, port, to).await {
+        // fetch_cert verifies against the Mozilla roots, so a handshake
+        // success means a currently-valid chain; days_left is the headroom.
+        // (A negative value can only appear in the rare clock-skew window
+        // where not_after just passed but the handshake still completed —
+        // treat that as Expired for safety.)
+        Ok(snap) if snap.days_left >= 0 => CertState::Valid {
+            days_left: snap.days_left,
+        },
+        Ok(snap) => CertState::Expired {
+            days_ago: -snap.days_left,
+        },
+        // Handshake / parse failure (expired, self-signed, hostname
+        // mismatch, untrusted CA, …) — an invalid cert.
+        Err(reason) => CertState::Invalid { reason },
+    };
+
+    let status = cert_adjusted_status(
+        http_status,
+        monitor.check_cert,
+        monitor.ignore_tls,
+        monitor.cert_expiry_days,
+        &cert,
+    );
+
+    // Only rewrite the message when the cert actually changed the status,
+    // so a still-Up / still-Down check keeps its original message.
+    let msg = if status == http_status {
+        http_msg
+    } else {
+        Some(cert_msg(&cert, monitor.cert_expiry_days))
+    };
+    (status, msg)
+}
+
+/// Human-readable reason describing why a cert moved the status.
+fn cert_msg(cert: &CertState, threshold: i32) -> String {
+    match cert {
+        CertState::Valid { days_left } => {
+            format!("TLS cert expires in {days_left}d (<= {threshold}d threshold)")
+        }
+        CertState::Expired { days_ago } => format!("TLS cert expired {days_ago}d ago"),
+        CertState::Invalid { reason } => format!("TLS cert invalid: {reason}"),
+    }
+}
+
+/// Split an `https://host[:port][/path]` URL into (host, port). Mirrors the
+/// scheduler's helper; defaults to 443 when no explicit port is present.
+fn parse_https(url: &str) -> Option<(String, u16)> {
+    let rest = url.strip_prefix("https://")?;
+    let host_part = rest.split('/').next()?;
+    let (host, port) = match host_part.rsplit_once(':') {
+        Some((h, p)) => (h.to_string(), p.parse().ok()?),
+        None => (host_part.to_string(), 443u16),
+    };
+    if host.is_empty() {
+        return None;
+    }
+    Some((host, port))
 }
 
 /// Minimal JSONPath: dotted path traversal + equality compare.
@@ -517,5 +621,41 @@ mod tests {
         let body = r#"{"v":null}"#;
         let cfg = json!({"json_path": "v", "expected_value": null});
         assert!(json_path_matches(body, &cfg));
+    }
+
+    #[test]
+    fn parse_https_defaults_and_explicit_port() {
+        assert_eq!(
+            parse_https("https://example.com/health"),
+            Some(("example.com".into(), 443))
+        );
+        assert_eq!(
+            parse_https("https://example.com:8443/x"),
+            Some(("example.com".into(), 8443))
+        );
+        // plain http and empty host are not parsed for cert checking.
+        assert_eq!(parse_https("http://example.com"), None);
+        assert_eq!(parse_https("https:///nohost"), None);
+    }
+
+    #[test]
+    fn cert_msg_renders_each_state() {
+        assert_eq!(
+            cert_msg(&CertState::Valid { days_left: 7 }, 14),
+            "TLS cert expires in 7d (<= 14d threshold)"
+        );
+        assert_eq!(
+            cert_msg(&CertState::Expired { days_ago: 3 }, 14),
+            "TLS cert expired 3d ago"
+        );
+        assert_eq!(
+            cert_msg(
+                &CertState::Invalid {
+                    reason: "handshake: bad cert".into()
+                },
+                14
+            ),
+            "TLS cert invalid: handshake: bad cert"
+        );
     }
 }

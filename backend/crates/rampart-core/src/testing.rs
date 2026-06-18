@@ -42,6 +42,8 @@ pub fn sample_monitor() -> Monitor {
         cert_days_left: None,
         cert_subject: None,
         cert_checked_at: None,
+        check_cert: false,
+        cert_expiry_days: 14,
         group_id: None,
         slo_target_pct: None,
         slo_window_days: None,

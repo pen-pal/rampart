@@ -372,6 +372,10 @@ export default function NewMonitorWizard() {
   const [upsideDown,  setUpsideDown]  = useState(false);
   const [followRedir, setFollowRedir] = useState(true);
   const [ignoreTls,   setIgnoreTls]   = useState(false);
+  // Opt-in TLS cert-expiry checking on http/https monitors, plus the warn
+  // threshold (days). For tls-kind monitors the threshold rides along too.
+  const [checkCert,     setCheckCert]     = useState(false);
+  const [certExpiryDays, setCertExpiryDays] = useState('14');
   const [proxyId,     setProxyId]     = useState('');
 
   // HTTP request headers as raw "Name: value" lines, one per line. Kept as
@@ -648,6 +652,18 @@ export default function NewMonitorWizard() {
       payload.ignore_tls       = ignoreTls;
       const headers = parseHeaders(headersText);
       if (Object.keys(headers).length) payload.http_headers = headers;
+      // Opt-in TLS cert-expiry checking. Only meaningful for https targets;
+      // sent regardless so unchecking it persists, with the threshold riding
+      // along when the box is on.
+      payload.check_cert = checkCert;
+      if (checkCert) {
+        payload.cert_expiry_days = Math.min(365, Math.max(1, parseInt(certExpiryDays, 10) || 14));
+      }
+    }
+    // Standalone TLS monitor: the cert IS the check, so always send the warn
+    // threshold (the backend treats check_cert as implicitly true here).
+    if (type === 'tls') {
+      payload.cert_expiry_days = Math.min(365, Math.max(1, parseInt(certExpiryDays, 10) || 14));
     }
     if (fields.url      && url)      payload.url      = url;
     if (fields.hostname && hostname) payload.hostname = hostname;
@@ -895,6 +911,44 @@ export default function NewMonitorWizard() {
                       <span style={{ display: 'block', fontSize: 12, color: 'var(--text-3)' }}>{t('wizard.field.ignore_tls_hint')}</span>
                     </span>
                   </label>
+                )}
+
+                {/* Opt-in TLS cert-expiry checking — http/https monitors only.
+                    Shown for the HTTP family (only effective against https
+                    URLs); the threshold input appears once the box is on. */}
+                {fields.httpExtras && url.startsWith('https://') && (
+                  <div className="field">
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 8px', fontSize: 13, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={checkCert} onChange={e => setCheckCert(e.target.checked)}/>
+                      <span>
+                        {t('wizard.field.check_cert')}
+                        <span style={{ display: 'block', fontSize: 12, color: 'var(--text-3)' }}>{t('wizard.field.check_cert_hint')}</span>
+                      </span>
+                    </label>
+                    {checkCert && (
+                      <div style={{ marginLeft: 24 }}>
+                        <label className="field-label">{t('wizard.field.cert_expiry_days')}</label>
+                        <input className="input" type="number" min={1} max={365}
+                          value={certExpiryDays}
+                          onChange={e => setCertExpiryDays(e.target.value)}
+                          style={{ maxWidth: 120 }}/>
+                        <div className="field-hint">{t('wizard.field.cert_expiry_days_hint')}</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Standalone TLS monitor: the cert IS the check, so just the
+                    warn threshold (no opt-in checkbox needed). */}
+                {type === 'tls' && (
+                  <div className="field">
+                    <label className="field-label">{t('wizard.field.cert_expiry_days')}</label>
+                    <input className="input" type="number" min={1} max={365}
+                      value={certExpiryDays}
+                      onChange={e => setCertExpiryDays(e.target.value)}
+                      style={{ maxWidth: 120 }}/>
+                    <div className="field-hint">{t('wizard.field.cert_expiry_days_hint')}</div>
+                  </div>
                 )}
 
                 {fields.httpExtras && (
