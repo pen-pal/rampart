@@ -356,3 +356,24 @@ async fn detection_findings_isolated(pool: PgPool) {
     let (s, _, _) = request(&router, Method::POST, &format!("/v1/detection-rules/findings/{fid}/ack"), None, Some(&admin)).await;
     assert_eq!(s, StatusCode::NOT_FOUND, "cross-org finding ack");
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn monitor_heartbeat_reads_isolated(pool: PgPool) {
+    // The monitor-keyed heartbeat reads (reliability / heartbeats /
+    // heartbeats.csv) gate through monitors::get like their rollup siblings.
+    let router = common::router(pool.clone());
+    let admin = register_admin(&router).await;
+
+    let mon: Value = common::json(&router, Method::POST, "/v1/monitors", Some(http_monitor("svc")), Some(&admin)).await;
+    let mid = mon["id"].as_str().unwrap();
+
+    sqlx::query("INSERT INTO organizations (id, slug, name) VALUES ($1::uuid, 'other', 'Other') ON CONFLICT DO NOTHING")
+        .bind(OTHER_ORG).execute(&pool).await.unwrap();
+    sqlx::query("UPDATE monitors SET org_id = $1::uuid WHERE id = $2::uuid")
+        .bind(OTHER_ORG).bind(mid).execute(&pool).await.unwrap();
+
+    for path in ["reliability", "heartbeats", "heartbeats.csv"] {
+        let (s, _, _) = request(&router, Method::GET, &format!("/v1/monitors/{mid}/{path}"), None, Some(&admin)).await;
+        assert_eq!(s, StatusCode::NOT_FOUND, "cross-org monitor {path}");
+    }
+}

@@ -149,9 +149,14 @@ struct CurrentOnCall {
 /// schedule doesn't exist.
 async fn current(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<CurrentOnCall>, ApiError> {
     let schedule_id = parse(&id)?;
+    // Gate through the schedule's org — a cross-org schedule id is a 404.
+    // `current_target` stays unscoped (the notifier resolves it at alert
+    // time), so the org check lives here.
+    rampart_db::on_call::get(s.pool(), schedule_id, org.org_id).await?;
     let on_call =
         rampart_db::on_call::current_target(s.pool(), schedule_id, OffsetDateTime::now_utc())
             .await?;
