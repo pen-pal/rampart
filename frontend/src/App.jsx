@@ -52,6 +52,7 @@ const Organizations     = lazyWithReload(() => import('./views/Organizations.jsx
 const SmtpSettings      = lazyWithReload(() => import('./views/SmtpSettings.jsx'));
 const RetentionSettings = lazyWithReload(() => import('./views/RetentionSettings.jsx'));
 const IngestSettings    = lazyWithReload(() => import('./views/IngestSettings.jsx'));
+const IngestKeys        = lazyWithReload(() => import('./views/IngestKeys.jsx'));
 const Folders           = lazyWithReload(() => import('./views/Folders.jsx'));
 const Tags              = lazyWithReload(() => import('./views/Tags.jsx'));
 const AuditLog          = lazyWithReload(() => import('./views/AuditLog.jsx'));
@@ -152,6 +153,7 @@ const VIEW_LABEL = {
   'smtp-settings':      'SMTP',
   'retention-settings': 'Retention',
   'ingest-settings':    'Ingest',
+  'ingest-keys':        'Ingest keys',
   'folders':            'Folders',
   'audit':         'Audit log',
   'reports':       'Scheduled reports',
@@ -280,7 +282,7 @@ export default function App() {
   // source of truth on `authState.user`.
   const ADMIN_ONLY_VIEWS = new Set([
     'users', 'security', 'api-keys', 'proxies', 'agents', 'audit',
-    'smtp-settings', 'retention-settings', 'ingest-settings', 'reports', 'delivery-log',
+    'smtp-settings', 'retention-settings', 'ingest-settings', 'ingest-keys', 'reports', 'delivery-log',
   ]);
   if (
     !authState.loading
@@ -338,6 +340,7 @@ export default function App() {
     case 'smtp-settings':      view = <SmtpSettings />; break;
     case 'retention-settings': view = <RetentionSettings />; break;
     case 'ingest-settings':    view = <IngestSettings />; break;
+    case 'ingest-keys':        view = <IngestKeys />; break;
     case 'folders':            view = <Folders />; break;
     case 'tags':               view = <Tags />; break;
     case 'audit':         view = <AuditLog />; break;
@@ -432,6 +435,7 @@ const NAV_GROUPS = [
     { view: 'smtp-settings',      hash: '#/settings/smtp',      admin: true },
     { view: 'retention-settings', hash: '#/settings/retention', admin: true },
     { view: 'ingest-settings',    hash: '#/settings/ingest',    admin: true },
+    { view: 'ingest-keys',        hash: '#/settings/ingest-keys', admin: true },
   ] },
 ];
 

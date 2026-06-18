@@ -317,6 +317,11 @@ export const api = {
     create: (name, scope, exp, rateLimit) => request('/v1/api-keys', { method: 'POST', body: { name, scope: scope || 'read', expires_at: exp || null, ...(rateLimit != null ? { rate_limit_per_hour: Number(rateLimit) } : {}) } }),
     revoke: (id)                => request(`/v1/api-keys/${id}`, { method: 'DELETE' }),
   },
+  ingestKeys: {
+    list:   ()     => request('/v1/ingest-keys'),
+    create: (body) => request('/v1/ingest-keys', { method: 'POST', body }),
+    remove: (id)   => request(`/v1/ingest-keys/${id}`, { method: 'DELETE' }),
+  },
   audit: {
     list: (limit, before, kind, action, actor, from, to) => {
       const qs = new URLSearchParams();
