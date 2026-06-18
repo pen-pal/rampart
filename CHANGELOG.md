@@ -19,6 +19,28 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.144.0] — 2026-06-18
+
+### Added
+- **Multi-tenancy — Phase 5-10: ingest-key management API + UI (Phase 5
+  complete).** `GET/POST/DELETE /v1/ingest-keys` (admin-gated, scoped to the
+  caller's active org via Phase-4e per-org RBAC) to mint, list and revoke the
+  per-org ingest keys introduced in 5-0 — `POST` returns the plaintext token
+  exactly once; `DELETE` is org-scoped (a cross-org id is a 404, not a 403).
+  New Settings → **Ingest keys** view (mirrors API keys): list with kind +
+  allowed-origins + last-used, a create modal (kind select; RUM keys expose an
+  allowed-origins field), and a token-shown-once reveal/copy box with a `curl`
+  example. Creates/deletes are audited. New `ingest_keys_api` tests
+  (admin CRUD, editor-forbidden, cross-org-not-listed). **This completes
+  Phase 5** — the ingest tier is fully tenanted: OTLP/Prometheus/RUM/profiles
+  resolve their org from an ingest key (or fall back to Default), the agent and
+  Sentry-DSN paths carry their own org, all telemetry reads + scheduler ticks
+  are org-scoped, and operators manage org keys in the UI. The only remaining
+  MT phase is P6 (enforcement flip). See
+  [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.143.0] — 2026-06-18
 
 ### Changed
