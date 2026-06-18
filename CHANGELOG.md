@@ -19,6 +19,29 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.135.0] — 2026-06-18
+
+### Changed
+- **Multi-tenancy — Phase 4e: per-org RBAC.** `require_session` (cookie path)
+  now scopes each request to the session's **active org** and resolves the
+  caller's role **in that org** from `org_members`, instead of always using the
+  global `users.role`. The effective per-org role is written onto `user.role`,
+  so the existing RBAC guards (`require_admin`/`require_editor`/
+  `require_write_or_readonly_get`, all reading `user.role`) enforce per-org
+  permissions with no guard changes. This makes the 4d org switcher **effective**
+  — switch into an org where you're Readonly and writes 403; switch back to one
+  where you're Editor/Admin and they succeed. Non-member of the active org
+  (membership revoked mid-session) or unset active org → **Default-org
+  fallback** (never locks anyone out). `user.is_admin` stays the GLOBAL flag
+  (the 2FA-enforcement policy + global-admin surfaces key off it). The bearer/
+  API-key path is unchanged (role from the key's scope; Default org).
+  Behaviour-identical for a single-org install (the 4b mirror guarantees
+  `member_role(Default) == users.role`). New test `per_org_role_gates_writes`
+  (same user: Editor-write-ok in Default, Readonly-403 in the switched org).
+  Full api+db suite green. See [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.134.0] — 2026-06-18
 
 ### Added

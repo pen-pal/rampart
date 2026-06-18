@@ -246,20 +246,40 @@ pub async fn require_session(
     let session = rampart_db::sessions::get(state.pool(), token)
         .await
         .map_err(|_| ApiError::Unauthorized)?;
-    let user = rampart_db::users::get(state.pool(), session.user_id)
+    let mut user = rampart_db::users::get(state.pool(), session.user_id)
         .await
         .map_err(|_| ApiError::Unauthorized)?;
 
-    // Org context: the session's active org, falling back to the Default org
-    // when unset. Role mirrors the user's global role this release.
-    let org_id = session
+    // Org context (Phase 4e — per-org RBAC): scope to the session's active org
+    // and use the caller's role IN THAT ORG (from org_members), not their global
+    // role. Fall back to the Default org when active_org is unset OR when the
+    // user is no longer a member of it (membership revoked mid-session — never
+    // lock them out). `user.role` is overwritten with the per-org effective role
+    // so the existing RBAC guards (which read `user.role`) enforce per-org
+    // automatically; `user.is_admin` stays the GLOBAL flag (the 2FA-enforcement
+    // policy and global-admin surfaces key off it). Single-org behaviour is
+    // identical: active_org is unset → Default, and member_role(Default) mirrors
+    // users.role (maintained by users::set_role/set_admin + create seeding).
+    let default_org = rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID);
+    let want = session
         .active_org_id
         .map(rampart_core::ids::OrgId::from_uuid)
-        .unwrap_or_else(|| rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID));
-    let org_ctx = OrgContext {
-        org_id,
-        role: user.role,
+        .unwrap_or(default_org);
+    let (org_id, role) = match rampart_db::orgs::member_role(state.pool(), want, user.id).await {
+        Ok(Some(r)) => (want, r),
+        _ => {
+            // Not a member of the active org (revoked / stale) or lookup failed:
+            // fall back to the Default org + the caller's Default-org role.
+            let r = rampart_db::orgs::member_role(state.pool(), default_org, user.id)
+                .await
+                .ok()
+                .flatten()
+                .unwrap_or(user.role);
+            (default_org, r)
+        }
     };
+    user.role = role;
+    let org_ctx = OrgContext { org_id, role };
     req.extensions_mut().insert(user);
     req.extensions_mut().insert(org_ctx);
     Ok(next.run(req).await)

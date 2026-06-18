@@ -10,6 +10,7 @@ mod common;
 
 use axum::http::{Method, StatusCode};
 use common::{register_admin, request, router, user_with_role};
+use rampart_core::Role;
 use serde_json::{json, Value};
 use sqlx::PgPool;
 
@@ -197,4 +198,32 @@ async fn switch_active_org_and_me_reflects_it(pool: PgPool) {
         .bind(other).execute(&pool).await.unwrap();
     let (st, _, _) = request(&app, Method::POST, &format!("/v1/orgs/{other}/switch"), None, Some(&admin)).await;
     assert_eq!(st, StatusCode::NOT_FOUND, "switch into a non-member org → 404");
+}
+
+// ── 4e: per-org RBAC — the active org's role gates writes ─────────────────────
+#[sqlx::test(migrations = "../../migrations")]
+async fn per_org_role_gates_writes(pool: PgPool) {
+    let app = router(pool.clone());
+    let admin = register_admin(&app).await;
+    let beta = make_org(&app, &admin, "beta", "Beta").await;
+
+    // A second user, Editor globally → Editor in the Default org.
+    let ed = user_with_role(&pool, "ed@example.com", Role::Editor).await;
+    // Admin invites them into beta as READONLY.
+    let (st, _, _) = request(&app, Method::POST, &format!("/v1/orgs/{beta}/members"),
+        Some(json!({"email":"ed@example.com","role":"readonly"})), Some(&admin)).await;
+    assert_eq!(st, StatusCode::NO_CONTENT, "add ed to beta as readonly");
+
+    // In the Default org ed is an Editor → a write succeeds.
+    let (st, _, _) = request(&app, Method::POST, "/v1/tags",
+        Some(json!({"name":"in-default","color":"#ffffff"})), Some(&ed)).await;
+    assert!(st.is_success(), "editor in Default org → write ok, got {st}");
+
+    // Switch ed into beta (a member) → the SAME user is now Readonly there.
+    let (st, _, _) = request(&app, Method::POST, &format!("/v1/orgs/{beta}/switch"), None, Some(&ed)).await;
+    assert_eq!(st, StatusCode::NO_CONTENT, "ed switches into beta");
+    // Per-org RBAC: writes are now forbidden (Readonly in the active org).
+    let (st, _, _) = request(&app, Method::POST, "/v1/tags",
+        Some(json!({"name":"in-beta","color":"#ffffff"})), Some(&ed)).await;
+    assert_eq!(st, StatusCode::FORBIDDEN, "readonly in active org → write 403");
 }
