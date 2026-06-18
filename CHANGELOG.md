@@ -19,6 +19,29 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.128.0] — 2026-06-18
+
+### Security
+- **Multi-tenancy — Phase 3t: org-scope the detection findings feed.** Findings
+  carry no `org_id` — they inherit the owning rule's (NOT-NULL `rule_id`). The
+  rule CRUD was org-scoped back in 3e, but the findings triage surface wasn't:
+  - `GET /v1/detection-rules/findings` listed every org's findings → now
+    `list_findings_for_org` joins `detection_findings → detection_rules` and
+    filters `WHERE r.org_id`.
+  - `POST /v1/detection-rules/findings/{id}/ack` acked any org's finding by id
+    → now gated by `finding_in_org` (same join), so a cross-org finding id is a
+    404.
+  The unscoped `list_findings` and the SIEM exporter `fetch_since` stay as-is
+  for system/test callers. Behaviour-identical for a single-org install. New
+  integration test `detection_findings_isolated`. **This closes the main
+  Phase-3 audit sweep (3n–3t)** opened after the 3m "complete" claim proved
+  premature — incidents, error-tracking, bulk monitor ops, junctions,
+  tag-routing, escalation episodes and detection findings are now all
+  org-gated, with a 10-test cross-org isolation suite. See
+  [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.127.0] — 2026-06-18
 
 ### Security
