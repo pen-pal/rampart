@@ -5,7 +5,15 @@
 //!   * group_router    → /v1/monitor-groups/:id/{tags,channels}/...
 //!   * channel_router  → /v1/notifications/:id/tags/...
 //!   * monitor_router  → /v1/monitors/:id/{excludes,effective-channels}/...
+//!
+//! Every handler is org-gated through the root entity it touches (folder,
+//! channel, monitor) plus, where a second entity is named (tag / channel),
+//! that entity too — so a cross-org id on either end is a 404 and routing
+//! relationships never cross tenants. The notifier's own resolution path
+//! (`routing::resolve_channels_for_monitor`) stays unscoped — it must see the
+//! full picture at alert time.
 
+use crate::auth::OrgContext;
 use crate::error::ApiError;
 use crate::state::AppState;
 use axum::extract::{Extension, Path, State};
@@ -71,22 +79,47 @@ fn pt(s: &str) -> Result<TagId, ApiError> {
         .map_err(|_| ApiError::BadRequest("invalid tag id".into()))
 }
 
+// ── org gates ───────────────────────────────────────────────────────────────
+// Each returns 404 (NotFound) when the entity lives in another org.
+async fn gate_group(s: &AppState, g: MonitorGroupId, org: &OrgContext) -> Result<(), ApiError> {
+    rampart_db::monitor_groups::in_org(s.pool(), g, org.org_id).await?;
+    Ok(())
+}
+async fn gate_channel(s: &AppState, n: NotificationId, org: &OrgContext) -> Result<(), ApiError> {
+    rampart_db::notifications::get(s.pool(), n, org.org_id).await?;
+    Ok(())
+}
+async fn gate_tag(s: &AppState, t: TagId, org: &OrgContext) -> Result<(), ApiError> {
+    rampart_db::tags::get(s.pool(), t, org.org_id).await?;
+    Ok(())
+}
+async fn gate_monitor(s: &AppState, m: MonitorId, org: &OrgContext) -> Result<(), ApiError> {
+    rampart_db::monitors::get(s.pool(), m, org.org_id).await?;
+    Ok(())
+}
+
 // ── folder tags ───────────────────────────────────────────────────────────
 async fn list_group_tags(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<Vec<Uuid>>, ApiError> {
-    let ids = rampart_db::routing::group_tag_ids(s.pool(), pg(&id)?).await?;
+    let gid = pg(&id)?;
+    gate_group(&s, gid, &org).await?;
+    let ids = rampart_db::routing::group_tag_ids(s.pool(), gid).await?;
     Ok(Json(ids.into_iter().map(|t| t.0).collect()))
 }
 async fn add_group_tag(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Extension(user): Extension<User>,
     headers: HeaderMap,
     Path((id, tag)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
     let gid = pg(&id)?;
     let tid = pt(&tag)?;
+    gate_group(&s, gid, &org).await?;
+    gate_tag(&s, tid, &org).await?;
     rampart_db::routing::tag_group(s.pool(), gid, tid).await?;
     crate::audit::record(
         s.pool(),
@@ -102,12 +135,15 @@ async fn add_group_tag(
 }
 async fn del_group_tag(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Extension(user): Extension<User>,
     headers: HeaderMap,
     Path((id, tag)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
     let gid = pg(&id)?;
     let tid = pt(&tag)?;
+    gate_group(&s, gid, &org).await?;
+    gate_tag(&s, tid, &org).await?;
     rampart_db::routing::untag_group(s.pool(), gid, tid).await?;
     crate::audit::record(
         s.pool(),
@@ -125,19 +161,25 @@ async fn del_group_tag(
 // ── folder channels ─────────────────────────────────────────────────────────
 async fn list_group_channels(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<Vec<Uuid>>, ApiError> {
-    let ids = rampart_db::routing::group_channel_ids(s.pool(), pg(&id)?).await?;
+    let gid = pg(&id)?;
+    gate_group(&s, gid, &org).await?;
+    let ids = rampart_db::routing::group_channel_ids(s.pool(), gid).await?;
     Ok(Json(ids.into_iter().map(|n| n.0).collect()))
 }
 async fn add_group_channel(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Extension(user): Extension<User>,
     headers: HeaderMap,
     Path((id, notif)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
     let gid = pg(&id)?;
     let nid = pn(&notif)?;
+    gate_group(&s, gid, &org).await?;
+    gate_channel(&s, nid, &org).await?;
     rampart_db::routing::attach_group_channel(s.pool(), gid, nid).await?;
     crate::audit::record(
         s.pool(),
@@ -153,12 +195,15 @@ async fn add_group_channel(
 }
 async fn del_group_channel(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Extension(user): Extension<User>,
     headers: HeaderMap,
     Path((id, notif)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
     let gid = pg(&id)?;
     let nid = pn(&notif)?;
+    gate_group(&s, gid, &org).await?;
+    gate_channel(&s, nid, &org).await?;
     rampart_db::routing::detach_group_channel(s.pool(), gid, nid).await?;
     crate::audit::record(
         s.pool(),
@@ -176,19 +221,25 @@ async fn del_group_channel(
 // ── channel tags ────────────────────────────────────────────────────────────
 async fn list_channel_tags(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<Vec<Uuid>>, ApiError> {
-    let ids = rampart_db::routing::channel_tag_ids(s.pool(), pn(&id)?).await?;
+    let nid = pn(&id)?;
+    gate_channel(&s, nid, &org).await?;
+    let ids = rampart_db::routing::channel_tag_ids(s.pool(), nid).await?;
     Ok(Json(ids.into_iter().map(|t| t.0).collect()))
 }
 async fn add_channel_tag(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Extension(user): Extension<User>,
     headers: HeaderMap,
     Path((id, tag)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
     let nid = pn(&id)?;
     let tid = pt(&tag)?;
+    gate_channel(&s, nid, &org).await?;
+    gate_tag(&s, tid, &org).await?;
     rampart_db::routing::tag_channel(s.pool(), nid, tid).await?;
     crate::audit::record(
         s.pool(),
@@ -204,12 +255,15 @@ async fn add_channel_tag(
 }
 async fn del_channel_tag(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Extension(user): Extension<User>,
     headers: HeaderMap,
     Path((id, tag)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
     let nid = pn(&id)?;
     let tid = pt(&tag)?;
+    gate_channel(&s, nid, &org).await?;
+    gate_tag(&s, tid, &org).await?;
     rampart_db::routing::untag_channel(s.pool(), nid, tid).await?;
     crate::audit::record(
         s.pool(),
@@ -227,19 +281,25 @@ async fn del_channel_tag(
 // ── monitor excludes + resolved view ─────────────────────────────────────────
 async fn list_excludes(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<Vec<Uuid>>, ApiError> {
-    let ids = rampart_db::routing::monitor_exclude_ids(s.pool(), pm(&id)?).await?;
+    let mid = pm(&id)?;
+    gate_monitor(&s, mid, &org).await?;
+    let ids = rampart_db::routing::monitor_exclude_ids(s.pool(), mid).await?;
     Ok(Json(ids.into_iter().map(|n| n.0).collect()))
 }
 async fn add_exclude(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Extension(user): Extension<User>,
     headers: HeaderMap,
     Path((id, notif)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
     let mid = pm(&id)?;
     let nid = pn(&notif)?;
+    gate_monitor(&s, mid, &org).await?;
+    gate_channel(&s, nid, &org).await?;
     rampart_db::routing::exclude_channel(s.pool(), mid, nid).await?;
     crate::audit::record(
         s.pool(),
@@ -255,12 +315,15 @@ async fn add_exclude(
 }
 async fn del_exclude(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Extension(user): Extension<User>,
     headers: HeaderMap,
     Path((id, notif)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
     let mid = pm(&id)?;
     let nid = pn(&notif)?;
+    gate_monitor(&s, mid, &org).await?;
+    gate_channel(&s, nid, &org).await?;
     rampart_db::routing::unexclude_channel(s.pool(), mid, nid).await?;
     crate::audit::record(
         s.pool(),
@@ -280,8 +343,11 @@ async fn del_exclude(
 /// attachments. Returns notification ids.
 async fn effective_channels(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<Vec<Uuid>>, ApiError> {
-    let chans = rampart_db::routing::resolve_channels_for_monitor(s.pool(), pm(&id)?).await?;
+    let mid = pm(&id)?;
+    gate_monitor(&s, mid, &org).await?;
+    let chans = rampart_db::routing::resolve_channels_for_monitor(s.pool(), mid).await?;
     Ok(Json(chans.into_iter().map(|c| c.id.0).collect()))
 }
