@@ -88,7 +88,13 @@ pub async fn resolve_channels_for_monitor(
             id: NotificationId::from_uuid(r.id),
             kind: r.kind,
             name: r.name,
-            config: r.config,
+            // Decrypt the secrets-at-rest envelope, exactly as every other
+            // channel read path does (notifications::get/for_monitor). Without
+            // this the monitor-FLIP notifier fan-out received the sealed config
+            // and failed delivery ("missing field url") whenever
+            // RAMPART_SECRET_KEY was set — i.e. encryption-at-rest silently
+            // broke live alerting on state changes.
+            config: crate::secrets::open(r.config),
             active: r.active,
             template_id: r.template_id.map(NotificationTemplateId::from_uuid),
             created_at: r.created_at,
