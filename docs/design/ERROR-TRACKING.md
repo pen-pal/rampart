@@ -39,6 +39,31 @@ https://<public_key>@<rampart-host>/<project_id>
   param for the browser transport). We parse out `sentry_key`, look up the
   project, and accept.
 
+> **Gotcha — UUID project ids vs the stock SDK DSN parser.** Rampart mints
+> `project_id` as a **UUID** (e.g. `019edc0a-5f23-…`). The official Sentry SDKs'
+> DSN parser keeps only the **leading numeric run** of the project id — it turns
+> `019edc0a-…` into `019` — and then POSTs to `/api/019/envelope/`, which Rampart
+> 404s (no such project). Rampart's envelope/store routes work correctly with the
+> **full UUID**, so the fix is entirely client-side. Two options:
+>
+> 1. **Browser / `@sentry/*` v8 — use a `tunnel`.** Point the SDK's `tunnel` at
+>    the full-UUID envelope endpoint and carry the key as a query param; the SDK
+>    then posts the raw envelope verbatim with no project-id mangling:
+>    ```js
+>    Sentry.init({
+>      dsn: RAMPART_DSN,
+>      tunnel: `${host}/api/${fullUuidProjectId}/envelope/?sentry_key=${publicKey}`,
+>    });
+>    ```
+>    (This is exactly what the `examples/everything` demo backend does.)
+> 2. **Any client that builds requests directly** — just use the full UUID in the
+>    `/api/<uuid>/envelope/` path; the gotcha is only in the SDK's *DSN-string*
+>    parser, not in Rampart's routing.
+>
+> A future option is to mint short/numeric project ids that survive the SDK
+> parser, but that is a schema change; the tunnel workaround needs no server
+> change.
+
 ### Ingest endpoints (subset)
 
 - `POST /api/{project_id}/envelope/` — the modern envelope transport (newline-
