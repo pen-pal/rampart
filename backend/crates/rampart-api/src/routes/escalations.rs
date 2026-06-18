@@ -95,6 +95,7 @@ async fn list(
 async fn create(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Json(input): Json<NewEscalationPolicy>,
 ) -> Result<(StatusCode, Json<EscalationPolicy>), ApiError> {
@@ -103,7 +104,7 @@ async fn create(
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     validate_steps(&input.steps).map_err(ApiError::BadRequest)?;
     let name = input.name.clone();
-    let policy = rampart_db::escalations::create(s.pool(), input).await?;
+    let policy = rampart_db::escalations::create(s.pool(), input, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,

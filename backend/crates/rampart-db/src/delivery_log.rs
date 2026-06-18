@@ -43,11 +43,19 @@ pub struct NewDelivery<'a> {
 /// can't break dispatch. The returned [`DeliveryEntry`] lets the retry path
 /// hand the freshly-recorded attempt straight back to the API caller.
 pub async fn record(pool: &DbPool, entry: NewDelivery<'_>) -> DbResult<DeliveryEntry> {
+    // Derive org_id from the referenced notification so the row is filed under
+    // the same org as the channel it was sent through. When notification_id is
+    // NULL (system event) or the channel was deleted (FK is ON DELETE SET NULL,
+    // so the subselect yields no row), fall back to the Default org — without
+    // this the Phase-3 read filter on delivery_log would make the row invisible.
     let row = sqlx::query!(
         r#"
         INSERT INTO delivery_log
-            (notification_id, channel_kind, event_kind, monitor_id, ok, error)
-        VALUES ($1, $2, $3, $4, $5, $6)
+            (notification_id, channel_kind, event_kind, monitor_id, ok, error, org_id)
+        VALUES (
+            $1, $2, $3, $4, $5, $6,
+            COALESCE((SELECT org_id FROM notifications WHERE id = $1), $7::uuid)
+        )
         RETURNING id, notification_id, channel_kind, event_kind,
                   monitor_id, ok, error, sent_at
         "#,
@@ -57,6 +65,7 @@ pub async fn record(pool: &DbPool, entry: NewDelivery<'_>) -> DbResult<DeliveryE
         entry.monitor_id,
         entry.ok,
         entry.error,
+        rampart_core::org::DEFAULT_ORG_ID,
     )
     .fetch_one(pool)
     .await?;

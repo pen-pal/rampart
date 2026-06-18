@@ -89,14 +89,18 @@ pub async fn get_unscoped(pool: &DbPool, id: ProxyId) -> DbResult<Proxy> {
     Ok(row.into())
 }
 
-pub async fn create(pool: &DbPool, input: NewProxy) -> DbResult<Proxy> {
+pub async fn create(
+    pool: &DbPool,
+    input: NewProxy,
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<Proxy> {
     let id = ProxyId::new();
     let auth = input.username.is_some() || input.password.is_some();
     let row = sqlx::query_as!(
         ProxyRow,
         r#"
-        INSERT INTO proxies (id, protocol, host, port, auth, username, password, active)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO proxies (id, protocol, host, port, auth, username, password, active, org_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING id, protocol, host, port, auth, username, password, active, created_at
         "#,
         id.0,
@@ -107,6 +111,7 @@ pub async fn create(pool: &DbPool, input: NewProxy) -> DbResult<Proxy> {
         input.username,
         input.password,
         input.active,
+        org_id.0,
     )
     .fetch_one(pool)
     .await?;

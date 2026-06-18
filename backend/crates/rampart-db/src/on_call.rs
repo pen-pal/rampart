@@ -99,13 +99,17 @@ pub async fn get_unscoped(pool: &DbPool, id: OnCallScheduleId) -> DbResult<OnCal
     Ok(row.into())
 }
 
-pub async fn create(pool: &DbPool, input: NewOnCallSchedule) -> DbResult<OnCallSchedule> {
+pub async fn create(
+    pool: &DbPool,
+    input: NewOnCallSchedule,
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<OnCallSchedule> {
     let id = OnCallScheduleId::new();
     sqlx::query!(
         r#"
         INSERT INTO on_call_schedules
-            (id, name, rotation_seconds, anchor, participant_ids, participant_user_ids)
-        VALUES ($1, $2, $3, $4, $5, $6)
+            (id, name, rotation_seconds, anchor, participant_ids, participant_user_ids, org_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         "#,
         id.0,
         input.name,
@@ -113,10 +117,10 @@ pub async fn create(pool: &DbPool, input: NewOnCallSchedule) -> DbResult<OnCallS
         input.anchor,
         serde_json::to_value(&input.participant_ids).unwrap_or_else(|_| serde_json::json!([])),
         serde_json::to_value(&input.participant_user_ids).unwrap_or_else(|_| serde_json::json!([])),
+        org_id.0,
     )
     .execute(pool)
     .await?;
-    // org_id from the column default (write-stamping is Phase 4); return unscoped.
     get_unscoped(pool, id).await
 }
 

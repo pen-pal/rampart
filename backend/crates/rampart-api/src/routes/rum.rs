@@ -70,7 +70,13 @@ async fn ingest(
     };
     if let Ok(beacon) = serde_json::from_slice::<RumBeacon>(&raw) {
         if let Some(clean) = beacon.clean() {
-            let _ = rampart_db::rum::insert_event(s.pool(), &clean).await;
+            // P5: resolve org from ingest credential — RUM beacon is token-less.
+            let _ = rampart_db::rum::insert_event(
+                s.pool(),
+                &clean,
+                rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID),
+            )
+            .await;
         }
     }
     StatusCode::NO_CONTENT

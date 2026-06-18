@@ -232,7 +232,11 @@ async fn hydrate(pool: &DbPool, row: PageRow) -> DbResult<StatusPage> {
     Ok(page)
 }
 
-pub async fn create(pool: &DbPool, input: NewStatusPage) -> DbResult<StatusPage> {
+pub async fn create(
+    pool: &DbPool,
+    input: NewStatusPage,
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<StatusPage> {
     let id = StatusPageId::new();
     // Hash the plaintext password (if any) before opening the tx so a hash
     // failure aborts cleanly without a dangling transaction.
@@ -245,8 +249,8 @@ pub async fn create(pool: &DbPool, input: NewStatusPage) -> DbResult<StatusPage>
     sqlx::query!(
         r#"
         INSERT INTO status_pages
-            (id, slug, title, description, theme, custom_domain, logo_url, custom_css, password_hash)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            (id, slug, title, description, theme, custom_domain, logo_url, custom_css, password_hash, org_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         "#,
         id.0,
         input.slug,
@@ -257,6 +261,7 @@ pub async fn create(pool: &DbPool, input: NewStatusPage) -> DbResult<StatusPage>
         input.logo_url,
         input.custom_css,
         password_hash,
+        org_id.0,
     )
     .execute(&mut *tx)
     .await

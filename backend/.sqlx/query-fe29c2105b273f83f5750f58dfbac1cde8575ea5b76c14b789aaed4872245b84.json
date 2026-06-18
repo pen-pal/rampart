@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO api_keys (id, name, key_hash, key_prefix, scope, scopes, created_by, expires_at, rate_limit_per_hour)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)\n        RETURNING id, name, key_prefix, scope, created_by,\n                  created_at, last_used_at, expires_at, rate_limit_per_hour\n        ",
+  "query": "\n        INSERT INTO api_keys (id, name, key_hash, key_prefix, scope, scopes, created_by, expires_at, rate_limit_per_hour, org_id)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)\n        RETURNING id, name, key_prefix, scope, created_by,\n                  created_at, last_used_at, expires_at, rate_limit_per_hour\n        ",
   "describe": {
     "columns": [
       {
@@ -113,7 +113,8 @@
         "TextArray",
         "Uuid",
         "Timestamptz",
-        "Int4"
+        "Int4",
+        "Uuid"
       ]
     },
     "nullable": [
@@ -128,5 +129,5 @@
       false
     ]
   },
-  "hash": "ad04fc0d82110239a33c0a511d98b0779aec2928f27a2d811cab8ed2d38f314b"
+  "hash": "fe29c2105b273f83f5750f58dfbac1cde8575ea5b76c14b789aaed4872245b84"
 }

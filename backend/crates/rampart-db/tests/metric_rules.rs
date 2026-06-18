@@ -9,6 +9,9 @@ use rampart_db::{metric_rules, metric_samples};
 use sqlx::PgPool;
 use std::collections::BTreeMap;
 
+const TEST_ORG: rampart_core::ids::OrgId =
+    rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID);
+
 /// Rules created in tests land in the Default org (column default).
 fn def_org() -> OrgId {
     OrgId::from_uuid(DEFAULT_ORG_ID)
@@ -38,12 +41,12 @@ fn rule(metric: &str, threshold: f64, for_seconds: i32) -> NewMetricRule {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn fires_resolves_and_never_double_pages(pool: PgPool) {
-    let r = metric_rules::create(&pool, rule("queue_depth", 40.0, 0))
+    let r = metric_rules::create(&pool, rule("queue_depth", 40.0, 0), TEST_ORG)
         .await
         .unwrap();
 
     // Breach → immediate fire (for_seconds = 0).
-    metric_samples::insert_many(&pool, &[sample("queue_depth", 42.0)])
+    metric_samples::insert_many(&pool, &[sample("queue_depth", 42.0)], TEST_ORG)
         .await
         .unwrap();
     let events = metric_rules::evaluate_tick(&pool).await.unwrap();
@@ -57,13 +60,13 @@ async fn fires_resolves_and_never_double_pages(pool: PgPool) {
         .is_some());
 
     // Still breached → silent (no repeat page).
-    metric_samples::insert_many(&pool, &[sample("queue_depth", 45.0)])
+    metric_samples::insert_many(&pool, &[sample("queue_depth", 45.0)], TEST_ORG)
         .await
         .unwrap();
     assert!(metric_rules::evaluate_tick(&pool).await.unwrap().is_empty());
 
     // Back under → resolve once, state cleared.
-    metric_samples::insert_many(&pool, &[sample("queue_depth", 12.0)])
+    metric_samples::insert_many(&pool, &[sample("queue_depth", 12.0)], TEST_ORG)
         .await
         .unwrap();
     let events = metric_rules::evaluate_tick(&pool).await.unwrap();
@@ -79,10 +82,10 @@ async fn fires_resolves_and_never_double_pages(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn sustain_window_gates_firing(pool: PgPool) {
-    let r = metric_rules::create(&pool, rule("cpu_pct", 90.0, 300))
+    let r = metric_rules::create(&pool, rule("cpu_pct", 90.0, 300), TEST_ORG)
         .await
         .unwrap();
-    metric_samples::insert_many(&pool, &[sample("cpu_pct", 99.0)])
+    metric_samples::insert_many(&pool, &[sample("cpu_pct", 99.0)], TEST_ORG)
         .await
         .unwrap();
 
@@ -109,14 +112,14 @@ async fn sustain_window_gates_firing(pool: PgPool) {
 
     // Recovery before-fire path: new rule, breach, then recover inside
     // the window → silent clear, never an alert.
-    let r2 = metric_rules::create(&pool, rule("mem_pct", 90.0, 300))
+    let r2 = metric_rules::create(&pool, rule("mem_pct", 90.0, 300), TEST_ORG)
         .await
         .unwrap();
-    metric_samples::insert_many(&pool, &[sample("mem_pct", 95.0)])
+    metric_samples::insert_many(&pool, &[sample("mem_pct", 95.0)], TEST_ORG)
         .await
         .unwrap();
     assert!(metric_rules::evaluate_tick(&pool).await.unwrap().is_empty());
-    metric_samples::insert_many(&pool, &[sample("mem_pct", 50.0)])
+    metric_samples::insert_many(&pool, &[sample("mem_pct", 50.0)], TEST_ORG)
         .await
         .unwrap();
     assert!(metric_rules::evaluate_tick(&pool).await.unwrap().is_empty());
@@ -129,10 +132,10 @@ async fn sustain_window_gates_firing(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn stale_series_resolves_instead_of_firing_forever(pool: PgPool) {
-    let r = metric_rules::create(&pool, rule("batch_lag", 100.0, 0))
+    let r = metric_rules::create(&pool, rule("batch_lag", 100.0, 0), TEST_ORG)
         .await
         .unwrap();
-    metric_samples::insert_many(&pool, &[sample("batch_lag", 500.0)])
+    metric_samples::insert_many(&pool, &[sample("batch_lag", 500.0)], TEST_ORG)
         .await
         .unwrap();
     let events = metric_rules::evaluate_tick(&pool).await.unwrap();
@@ -172,7 +175,7 @@ async fn stale_series_resolves_instead_of_firing_forever(pool: PgPool) {
     )
     .await
     .unwrap();
-    metric_samples::insert_many(&pool, &[sample("batch_lag", 999.0)])
+    metric_samples::insert_many(&pool, &[sample("batch_lag", 999.0)], TEST_ORG)
         .await
         .unwrap();
     assert!(metric_rules::evaluate_tick(&pool).await.unwrap().is_empty());

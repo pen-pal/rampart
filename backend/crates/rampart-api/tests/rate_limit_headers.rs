@@ -17,6 +17,9 @@ use rampart_core::Role;
 use sqlx::PgPool;
 use tower::ServiceExt;
 
+const TEST_ORG: rampart_core::ids::OrgId =
+    rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID);
+
 /// Mint an admin-scope API key owned by a fresh admin user, with the given
 /// per-hour budget; return the raw bearer token.
 async fn admin_key_with_budget(pool: &PgPool, email: &str, rate_limit_per_hour: i32) -> String {
@@ -40,6 +43,7 @@ async fn admin_key_with_budget(pool: &PgPool, email: &str, rate_limit_per_hour: 
             rate_limit_per_hour,
         },
         owner.id,
+        TEST_ORG,
     )
     .await
     .expect("mint api key");

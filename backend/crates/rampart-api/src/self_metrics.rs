@@ -42,7 +42,14 @@ pub async fn run(metrics: Arc<HttpMetrics>, pool: DbPool) {
                 value: avg_ms,
             },
         ];
-        if let Err(e) = rampart_db::metric_samples::insert_many(&pool, &samples).await {
+        // P5: resolve org from ingest credential — internal background task.
+        if let Err(e) = rampart_db::metric_samples::insert_many(
+            &pool,
+            &samples,
+            rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID),
+        )
+        .await
+        {
             tracing::warn!(error = %e, "self-metrics insert failed");
         }
     }

@@ -145,15 +145,19 @@ pub async fn get_unscoped(pool: &DbPool, id: TelemetryRuleId) -> DbResult<Teleme
     Ok(row.into())
 }
 
-pub async fn create(pool: &DbPool, input: NewTelemetryRule) -> DbResult<TelemetryRule> {
+pub async fn create(
+    pool: &DbPool,
+    input: NewTelemetryRule,
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<TelemetryRule> {
     let id = TelemetryRuleId::new();
     let channel_ids: Vec<Uuid> = input.channel_ids.iter().map(|c| c.0).collect();
     sqlx::query!(
         r#"
         INSERT INTO telemetry_alert_rules
             (id, name, kind, target, match_text, min_level, op, threshold,
-             window_seconds, for_seconds, enabled, channel_ids, escalation_policy_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+             window_seconds, for_seconds, enabled, channel_ids, escalation_policy_id, org_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         "#,
         id.0,
         input.name,
@@ -168,10 +172,10 @@ pub async fn create(pool: &DbPool, input: NewTelemetryRule) -> DbResult<Telemetr
         input.enabled,
         &channel_ids,
         input.escalation_policy_id.map(|p| p.0),
+        org_id.0,
     )
     .execute(pool)
     .await?;
-    // org_id from the column default (write-stamping is Phase 4); return unscoped.
     get_unscoped(pool, id).await
 }
 

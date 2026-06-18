@@ -198,10 +198,11 @@ mod tests {
         // default the same way `main` does (idempotent across tests).
         let _ = rustls::crypto::ring::default_provider().install_default();
 
-        let monitor = rampart_db::monitors::create(&pool, http_monitor())
+        let def_org = rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID);
+        let monitor = rampart_db::monitors::create(&pool, http_monitor(), def_org)
             .await
             .unwrap();
-        let channel = notifications::create(&pool, webhook_channel())
+        let channel = notifications::create(&pool, webhook_channel(), def_org)
             .await
             .unwrap();
 
@@ -220,7 +221,6 @@ mod tests {
         .unwrap();
         assert!(!original.ok);
 
-        let def_org = rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID);
         let entry = delivery_log::get(&pool, original.id, def_org)
             .await
             .unwrap()

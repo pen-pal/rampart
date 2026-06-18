@@ -51,13 +51,14 @@ async fn list(
 async fn create(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Json(input): Json<NewTag>,
 ) -> Result<(StatusCode, Json<Tag>), ApiError> {
     input
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
-    let t = rampart_db::tags::create(s.pool(), input).await?;
+    let t = rampart_db::tags::create(s.pool(), input, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,

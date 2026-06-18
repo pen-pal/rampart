@@ -183,11 +183,17 @@ pub async fn find_or_create_by_name(pool: &DbPool, name: &str) -> DbResult<Error
             platform: Some("javascript".to_string()),
             alert_channel_ids: Vec::new(),
         },
+        // P5: resolve org from ingest credential — token-less RUM auto-create.
+        OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID),
     )
     .await
 }
 
-pub async fn create(pool: &DbPool, input: NewErrorProject) -> DbResult<ErrorProject> {
+pub async fn create(
+    pool: &DbPool,
+    input: NewErrorProject,
+    org_id: OrgId,
+) -> DbResult<ErrorProject> {
     let id = ErrorProjectId::new();
     let slug = slugify(&input.name);
     let public_key = random_token(KEY_LEN);
@@ -195,8 +201,8 @@ pub async fn create(pool: &DbPool, input: NewErrorProject) -> DbResult<ErrorProj
         serde_json::to_value(&input.alert_channel_ids).unwrap_or_else(|_| serde_json::json!([]));
     sqlx::query!(
         r#"
-        INSERT INTO error_projects (id, name, slug, public_key, platform, alert_channel_ids)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO error_projects (id, name, slug, public_key, platform, alert_channel_ids, org_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         "#,
         id.0,
         input.name,
@@ -204,6 +210,7 @@ pub async fn create(pool: &DbPool, input: NewErrorProject) -> DbResult<ErrorProj
         public_key,
         input.platform,
         channels,
+        org_id.0,
     )
     .execute(pool)
     .await?;

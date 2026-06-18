@@ -5,6 +5,9 @@ use rampart_core::log::ParsedLog;
 use rampart_db::logs::{self, LogFilter};
 use sqlx::PgPool;
 
+const TEST_ORG: rampart_core::ids::OrgId =
+    rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID);
+
 fn line(severity: i16, service: &str, body: &str) -> ParsedLog {
     ParsedLog {
         time_ns: 0, // server-stamps now()
@@ -28,6 +31,7 @@ async fn histogram_totals_and_error_split(pool: PgPool) {
             line(17, "api", "boom three"),  // error (>=17)
             line(21, "auth", "fatal four"), // fatal (>=17)
         ],
+        TEST_ORG,
     )
     .await
     .unwrap();
@@ -57,6 +61,7 @@ async fn level_counts_and_query_roundtrip(pool: PgPool) {
     logs::insert_logs(
         &pool,
         &[line(9, "api", "a"), line(17, "api", "b"), line(17, "web", "c")],
+        TEST_ORG,
     )
     .await
     .unwrap();
@@ -88,6 +93,7 @@ async fn keyset_pagination_covers_all_without_overlap(pool: PgPool) {
             line(9, "api", "four"),
             line(9, "api", "five"),
         ],
+        TEST_ORG,
     )
     .await
     .unwrap();

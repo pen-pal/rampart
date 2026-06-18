@@ -12,7 +12,11 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 /// Insert a batch of log records (one transaction). Returns rows written.
-pub async fn insert_logs(pool: &DbPool, logs: &[ParsedLog]) -> DbResult<u64> {
+pub async fn insert_logs(
+    pool: &DbPool,
+    logs: &[ParsedLog],
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<u64> {
     if logs.is_empty() {
         return Ok(0);
     }
@@ -47,10 +51,11 @@ pub async fn insert_logs(pool: &DbPool, logs: &[ParsedLog]) -> DbResult<u64> {
     let res = sqlx::query!(
         r#"
         INSERT INTO logs
-            (id, ts, severity, severity_text, service_name, body, trace_id, span_id, attributes)
+            (id, ts, severity, severity_text, service_name, body, trace_id, span_id, attributes, org_id)
         SELECT * FROM UNNEST(
             $1::uuid[], $2::timestamptz[], $3::int2[], $4::text[], $5::text[],
-            $6::text[], $7::text[], $8::text[], $9::jsonb[]
+            $6::text[], $7::text[], $8::text[], $9::jsonb[],
+            ARRAY_FILL($10::uuid, ARRAY[array_length($1::uuid[], 1)])
         )
         "#,
         &ids,
@@ -62,6 +67,7 @@ pub async fn insert_logs(pool: &DbPool, logs: &[ParsedLog]) -> DbResult<u64> {
         &trace as &[Option<String>],
         &span as &[Option<String>],
         &attrs,
+        org_id.0,
     )
     .execute(pool)
     .await?;

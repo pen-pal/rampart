@@ -9,12 +9,16 @@ use rampart_core::rum::{RumBeacon, RumPage, RumTracedLoad, RumVitals};
 use uuid::Uuid;
 
 /// Store one cleaned beacon.
-pub async fn insert_event(pool: &DbPool, b: &RumBeacon) -> DbResult<()> {
+pub async fn insert_event(
+    pool: &DbPool,
+    b: &RumBeacon,
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<()> {
     sqlx::query!(
         r#"
         INSERT INTO rum_events
-            (id, app, url, session, ua, trace_id, user_id, lcp_ms, fcp_ms, cls, inp_ms, ttfb_ms, load_ms)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            (id, app, url, session, ua, trace_id, user_id, lcp_ms, fcp_ms, cls, inp_ms, ttfb_ms, load_ms, org_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         "#,
         Uuid::now_v7(),
         b.app,
@@ -29,6 +33,7 @@ pub async fn insert_event(pool: &DbPool, b: &RumBeacon) -> DbResult<()> {
         b.metrics.inp,
         b.metrics.ttfb,
         b.metrics.load,
+        org_id.0,
     )
     .execute(pool)
     .await?;

@@ -64,7 +64,12 @@ pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<ApiKey>> {
     Ok(rows.into_iter().map(Into::into).collect())
 }
 
-pub async fn create(pool: &DbPool, input: NewApiKey, created_by: UserId) -> DbResult<IssuedApiKey> {
+pub async fn create(
+    pool: &DbPool,
+    input: NewApiKey,
+    created_by: UserId,
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<IssuedApiKey> {
     let token = generate_token();
     let hash = sha256_hex(&token);
     let prefix = token[..(TOKEN_PREFIX.len() + 8)].to_string();
@@ -73,8 +78,8 @@ pub async fn create(pool: &DbPool, input: NewApiKey, created_by: UserId) -> DbRe
     let row = sqlx::query_as!(
         KeyRow,
         r#"
-        INSERT INTO api_keys (id, name, key_hash, key_prefix, scope, scopes, created_by, expires_at, rate_limit_per_hour)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        INSERT INTO api_keys (id, name, key_hash, key_prefix, scope, scopes, created_by, expires_at, rate_limit_per_hour, org_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING id, name, key_prefix, scope, created_by,
                   created_at, last_used_at, expires_at, rate_limit_per_hour
         "#,
@@ -90,6 +95,7 @@ pub async fn create(pool: &DbPool, input: NewApiKey, created_by: UserId) -> DbRe
         created_by.0,
         input.expires_at,
         input.rate_limit_per_hour,
+        org_id.0,
     )
     .fetch_one(pool)
     .await?;

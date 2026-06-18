@@ -11,7 +11,11 @@ use time::OffsetDateTime;
 
 /// Bulk-insert one ingest payload, server-stamped with a single NOW() so
 /// a batch is atomic in time as well as in transaction.
-pub async fn insert_many(pool: &PgPool, samples: &[PromSample]) -> DbResult<()> {
+pub async fn insert_many(
+    pool: &PgPool,
+    samples: &[PromSample],
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<()> {
     if samples.is_empty() {
         return Ok(());
     }
@@ -24,13 +28,18 @@ pub async fn insert_many(pool: &PgPool, samples: &[PromSample]) -> DbResult<()> 
 
     sqlx::query!(
         r#"
-        INSERT INTO metric_samples (name, labels, value, ts)
-        SELECT * FROM UNNEST($1::text[], $2::jsonb[], $3::float8[], ARRAY_FILL(NOW(), ARRAY[$4::int]))
+        INSERT INTO metric_samples (name, labels, value, ts, org_id)
+        SELECT * FROM UNNEST(
+            $1::text[], $2::jsonb[], $3::float8[],
+            ARRAY_FILL(NOW(), ARRAY[$4::int]),
+            ARRAY_FILL($5::uuid, ARRAY[$4::int])
+        )
         "#,
         &names as &[&str],
         &labels,
         &values,
         samples.len() as i32,
+        org_id.0,
     )
     .execute(pool)
     .await?;

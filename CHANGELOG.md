@@ -19,6 +19,34 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.130.0] — 2026-06-18
+
+### Changed
+- **Multi-tenancy — Phase 4a: per-INSERT org-stamping.** Every tenant-root
+  create/insert now stamps `org_id` EXPLICITLY instead of relying on the
+  migration-0108 column DEFAULT, so the write path is correct the moment a
+  second org exists (Phase 3 had org-scoped every read; creates were
+  deliberately left on the DEFAULT until now). Each `rampart-db` create/insert
+  fn takes an explicit `org_id: OrgId` parameter (never from a request body —
+  prevents org-spoofing). Management creates (monitors, groups, presets,
+  templates, tags, notifications, notification/incident templates, escalation
+  policies, on-call, silences, metric/telemetry/detection rules, SLOs, status
+  pages, scheduled reports, API keys, agents, proxies, error projects,
+  maintenance windows, deploy markers) thread `org.org_id` from the request's
+  `OrgContext`. The **authenticated** `/v1/metrics/ingest` path stamps the
+  caller's org. Token-less ingest (OTLP logs/spans, Prometheus remote-write,
+  RUM, profiles, agent metric push, self-metrics, the import CLI) stamps the
+  Default org with a `// P5` marker (per-org ingest credentials land in Phase
+  5). `delivery_log::record` derives `org_id` from the related notification via
+  `COALESCE((SELECT org_id FROM notifications WHERE id=$), DEFAULT)`. Bulk
+  UNNEST inserts (logs/spans/metric_samples) stamp via `ARRAY_FILL`.
+  Behaviour-identical for the single-org install today. New regression test
+  `org_write_stamping.rs` proves creates stamp a non-Default org (not the
+  column DEFAULT). First slice of Phase 4 (org CRUD + switcher + OIDC→org +
+  per-org RBAC). See [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.129.0] — 2026-06-18
 
 ### Security

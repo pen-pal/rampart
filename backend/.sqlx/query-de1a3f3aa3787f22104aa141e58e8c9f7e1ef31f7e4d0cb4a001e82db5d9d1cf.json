@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO monitor_groups (id, name, sort_order, parent_id)\n        VALUES ($1, $2, $3, $4)\n        RETURNING id, name, sort_order, parent_id, created_at\n        ",
+  "query": "\n        INSERT INTO tags (id, name, color, org_id)\n        VALUES ($1, $2, $3, $4)\n        RETURNING id, name, color, created_at\n        ",
   "describe": {
     "columns": [
       {
@@ -9,7 +9,7 @@
         "type_info": "Uuid",
         "origin": {
           "Table": {
-            "table": "monitor_groups",
+            "table": "tags",
             "name": "id"
           }
         }
@@ -20,40 +20,29 @@
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "monitor_groups",
+            "table": "tags",
             "name": "name"
           }
         }
       },
       {
         "ordinal": 2,
-        "name": "sort_order",
-        "type_info": "Int4",
+        "name": "color",
+        "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "monitor_groups",
-            "name": "sort_order"
+            "table": "tags",
+            "name": "color"
           }
         }
       },
       {
         "ordinal": 3,
-        "name": "parent_id",
-        "type_info": "Uuid",
-        "origin": {
-          "Table": {
-            "table": "monitor_groups",
-            "name": "parent_id"
-          }
-        }
-      },
-      {
-        "ordinal": 4,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
           "Table": {
-            "table": "monitor_groups",
+            "table": "tags",
             "name": "created_at"
           }
         }
@@ -63,7 +52,7 @@
       "Left": [
         "Uuid",
         "Text",
-        "Int4",
+        "Text",
         "Uuid"
       ]
     },
@@ -71,9 +60,8 @@
       false,
       false,
       false,
-      true,
       false
     ]
   },
-  "hash": "e2ac89e014ca55ce459cf67c6010465be241990b148aacc17d8a1e0e174fe0ad"
+  "hash": "de1a3f3aa3787f22104aa141e58e8c9f7e1ef31f7e4d0cb4a001e82db5d9d1cf"
 }

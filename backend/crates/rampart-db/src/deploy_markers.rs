@@ -29,13 +29,17 @@ impl From<MarkerRow> for DeployMarker {
     }
 }
 
-pub async fn create(pool: &DbPool, input: NewDeployMarker) -> DbResult<DeployMarker> {
+pub async fn create(
+    pool: &DbPool,
+    input: NewDeployMarker,
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<DeployMarker> {
     let id = DeployMarkerId::new();
     let row = sqlx::query_as!(
         MarkerRow,
         r#"
-        INSERT INTO deploy_markers (id, ts, title, description, service)
-        VALUES ($1, COALESCE($2, now()), $3, $4, $5)
+        INSERT INTO deploy_markers (id, ts, title, description, service, org_id)
+        VALUES ($1, COALESCE($2, now()), $3, $4, $5, $6)
         RETURNING id, ts, title, description, service, created_at
         "#,
         id.0,
@@ -43,6 +47,7 @@ pub async fn create(pool: &DbPool, input: NewDeployMarker) -> DbResult<DeployMar
         input.title,
         input.description,
         input.service,
+        org_id.0,
     )
     .fetch_one(pool)
     .await?;

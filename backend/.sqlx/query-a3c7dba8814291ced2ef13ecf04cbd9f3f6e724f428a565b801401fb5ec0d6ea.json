@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO deploy_markers (id, ts, title, description, service)\n        VALUES ($1, COALESCE($2, now()), $3, $4, $5)\n        RETURNING id, ts, title, description, service, created_at\n        ",
+  "query": "\n        INSERT INTO agents (id, name, location, token_hash, org_id)\n        VALUES ($1, $2, $3, $4, $5)\n        RETURNING id, name, location, version, last_seen_at, created_at,\n                  0::bigint AS monitor_count\n        ",
   "describe": {
     "columns": [
       {
@@ -9,52 +9,52 @@
         "type_info": "Uuid",
         "origin": {
           "Table": {
-            "table": "deploy_markers",
+            "table": "agents",
             "name": "id"
           }
         }
       },
       {
         "ordinal": 1,
-        "name": "ts",
-        "type_info": "Timestamptz",
+        "name": "name",
+        "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "deploy_markers",
-            "name": "ts"
+            "table": "agents",
+            "name": "name"
           }
         }
       },
       {
         "ordinal": 2,
-        "name": "title",
+        "name": "location",
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "deploy_markers",
-            "name": "title"
+            "table": "agents",
+            "name": "location"
           }
         }
       },
       {
         "ordinal": 3,
-        "name": "description",
+        "name": "version",
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "deploy_markers",
-            "name": "description"
+            "table": "agents",
+            "name": "version"
           }
         }
       },
       {
         "ordinal": 4,
-        "name": "service",
-        "type_info": "Text",
+        "name": "last_seen_at",
+        "type_info": "Timestamptz",
         "origin": {
           "Table": {
-            "table": "deploy_markers",
-            "name": "service"
+            "table": "agents",
+            "name": "last_seen_at"
           }
         }
       },
@@ -64,29 +64,36 @@
         "type_info": "Timestamptz",
         "origin": {
           "Table": {
-            "table": "deploy_markers",
+            "table": "agents",
             "name": "created_at"
           }
         }
+      },
+      {
+        "ordinal": 6,
+        "name": "monitor_count",
+        "type_info": "Int8",
+        "origin": "Expression"
       }
     ],
     "parameters": {
       "Left": [
         "Uuid",
-        "Timestamptz",
         "Text",
         "Text",
-        "Text"
+        "Text",
+        "Uuid"
       ]
     },
     "nullable": [
       false,
       false,
+      true,
+      true,
+      true,
       false,
-      true,
-      true,
-      false
+      null
     ]
   },
-  "hash": "d1afd634268dc5a01eb52420972b9180402b494d6b9ef2155248725f2ffa09c9"
+  "hash": "a3c7dba8814291ced2ef13ecf04cbd9f3f6e724f428a565b801401fb5ec0d6ea"
 }
