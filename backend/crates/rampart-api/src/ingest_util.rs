@@ -176,9 +176,44 @@ pub async fn resolve_ingest_org(
     headers: &HeaderMap,
     query_k: Option<&str>,
 ) -> Result<rampart_core::ids::OrgId, ApiError> {
+    resolve_ingest(pool, headers, query_k, None).await
+}
+
+/// Like [`resolve_ingest_org`], but ALSO origin-binds the key (Phase 5-3 RUM).
+/// The RUM `?k` token necessarily ships in the browser snippet (public,
+/// forgeable), so when the matched ingest key carries `allowed_origins` the
+/// request's `Origin` MUST be in that list — otherwise a leaked/forged key
+/// can't misattribute beacons to another org from a different site. A key with
+/// no `allowed_origins` is unrestricted (same as the plain resolver).
+pub async fn resolve_ingest_org_origin(
+    pool: &DbPool,
+    headers: &HeaderMap,
+    query_k: Option<&str>,
+    origin: Option<&str>,
+) -> Result<rampart_core::ids::OrgId, ApiError> {
+    resolve_ingest(pool, headers, query_k, Some(origin)).await
+}
+
+/// Shared resolver. `enforce_origin`: `None` = don't origin-bind (OTLP / prom /
+/// profiles — no browser Origin); `Some(origin)` = enforce `allowed_origins`
+/// against `origin` when the key restricts origins (RUM).
+async fn resolve_ingest(
+    pool: &DbPool,
+    headers: &HeaderMap,
+    query_k: Option<&str>,
+    enforce_origin: Option<Option<&str>>,
+) -> Result<rampart_core::ids::OrgId, ApiError> {
     if let Some(tok) = presented_token(headers, query_k) {
-        if let Some((id, org_id, _origins)) = rampart_db::ingest_keys::find_by_token(pool, tok).await?
+        if let Some((id, org_id, allowed)) = rampart_db::ingest_keys::find_by_token(pool, tok).await?
         {
+            if let Some(origin) = enforce_origin {
+                if !allowed.is_empty() {
+                    let o = origin.unwrap_or("");
+                    if !allowed.iter().any(|a| a == o) {
+                        return Err(ApiError::Unauthorized);
+                    }
+                }
+            }
             let _ = rampart_db::ingest_keys::touch_last_used(pool, id).await;
             return Ok(org_id);
         }

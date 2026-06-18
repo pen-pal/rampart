@@ -58,25 +58,26 @@ async fn ingest(
     headers: HeaderMap,
     body: Bytes,
 ) -> StatusCode {
-    if crate::ingest_util::require_telemetry_token(s.pool(), &headers, q.k.as_deref())
-        .await
-        .is_err()
+    // Phase 5-3: resolve the org from the (public, ?k) RUM key, origin-bound.
+    let origin = headers.get("origin").and_then(|v| v.to_str().ok());
+    let org = match crate::ingest_util::resolve_ingest_org_origin(
+        s.pool(),
+        &headers,
+        q.k.as_deref(),
+        origin,
+    )
+    .await
     {
-        return StatusCode::UNAUTHORIZED;
-    }
+        Ok(o) => o,
+        Err(_) => return StatusCode::UNAUTHORIZED,
+    };
     let raw = match crate::ingest_util::decompress(&headers, &body) {
         Ok(r) => r,
         Err(_) => return StatusCode::NO_CONTENT,
     };
     if let Ok(beacon) = serde_json::from_slice::<RumBeacon>(&raw) {
         if let Some(clean) = beacon.clean() {
-            // P5: resolve org from ingest credential — RUM beacon is token-less.
-            let _ = rampart_db::rum::insert_event(
-                s.pool(),
-                &clean,
-                rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID),
-            )
-            .await;
+            let _ = rampart_db::rum::insert_event(s.pool(), &clean, org).await;
         }
     }
     StatusCode::NO_CONTENT
@@ -107,12 +108,19 @@ async fn ingest_error(
     headers: HeaderMap,
     body: Bytes,
 ) -> StatusCode {
-    if crate::ingest_util::require_telemetry_token(s.pool(), &headers, q.k.as_deref())
-        .await
-        .is_err()
+    // Phase 5-3: resolve the org from the (public, ?k) RUM key, origin-bound.
+    let origin = headers.get("origin").and_then(|v| v.to_str().ok());
+    let org = match crate::ingest_util::resolve_ingest_org_origin(
+        s.pool(),
+        &headers,
+        q.k.as_deref(),
+        origin,
+    )
+    .await
     {
-        return StatusCode::UNAUTHORIZED;
-    }
+        Ok(o) => o,
+        Err(_) => return StatusCode::UNAUTHORIZED,
+    };
     let raw = match crate::ingest_util::decompress(&headers, &body) {
         Ok(r) => r,
         Err(_) => return StatusCode::NO_CONTENT,
@@ -134,7 +142,8 @@ async fn ingest_error(
 
     // Provision (or reuse) the per-app browser project, then group + store the
     // error through the same path as SDK ingest.
-    let project = match rampart_db::error_tracking::find_or_create_by_name(s.pool(), &app).await {
+    let project = match rampart_db::error_tracking::find_or_create_by_name(s.pool(), &app, org).await
+    {
         Ok(p) => p,
         Err(_) => return StatusCode::NO_CONTENT,
     };
