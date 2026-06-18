@@ -158,18 +158,25 @@ pub async fn get_opt(pool: &DbPool, id: ErrorProjectId) -> DbResult<Option<Error
 /// RUM browser-error capture path, which has no DSN: a beacon names its app
 /// and we want its JS errors to land in a project named after that app,
 /// creating it on first sight. Returns the oldest match if names collide.
-pub async fn find_or_create_by_name(pool: &DbPool, name: &str) -> DbResult<ErrorProject> {
+pub async fn find_or_create_by_name(
+    pool: &DbPool,
+    name: &str,
+    org_id: OrgId,
+) -> DbResult<ErrorProject> {
+    // Phase 5-3: the lookup AND the auto-create are scoped to the resolved org,
+    // so two orgs can each have an app named e.g. "web" without colliding.
     let existing = sqlx::query_as!(
         ProjectRow,
         r#"
         SELECT id, name, slug, public_key, platform, retention_days,
                alert_channel_ids AS "alert_channel_ids!", created_at
         FROM error_projects
-        WHERE name = $1
+        WHERE name = $1 AND org_id = $2
         ORDER BY created_at
         LIMIT 1
         "#,
         name,
+        org_id.0,
     )
     .fetch_optional(pool)
     .await?;
@@ -183,8 +190,7 @@ pub async fn find_or_create_by_name(pool: &DbPool, name: &str) -> DbResult<Error
             platform: Some("javascript".to_string()),
             alert_channel_ids: Vec::new(),
         },
-        // P5: resolve org from ingest credential — token-less RUM auto-create.
-        OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID),
+        org_id,
     )
     .await
 }
