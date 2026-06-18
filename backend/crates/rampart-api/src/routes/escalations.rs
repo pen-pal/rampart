@@ -32,20 +32,26 @@ pub fn router() -> Router<AppState> {
 /// All currently-open escalation episodes (monitor + rule subjects).
 async fn open_episodes(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<EscalationEpisode>>, ApiError> {
-    Ok(Json(rampart_db::escalations::list_open(s.pool()).await?))
+    Ok(Json(
+        rampart_db::escalations::list_open_for_org(s.pool(), org.org_id).await?,
+    ))
 }
 
 /// Acknowledge any episode by id (stops the ladder). Subject-agnostic, so it
 /// works for rule episodes too (monitor episodes also have the per-monitor ack).
 async fn ack_episode_route(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Extension(user): Extension<User>,
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<EscalationEpisode>, ApiError> {
     let episode_id =
         Uuid::from_str(&id).map_err(|_| ApiError::BadRequest("invalid episode id".into()))?;
+    // Gate through the episode's owning policy's org — cross-org episode = 404.
+    rampart_db::escalations::episode_in_org(s.pool(), episode_id, org.org_id).await?;
     let ep = rampart_db::escalations::ack_episode(s.pool(), episode_id, user.id).await?;
     crate::audit::record(
         s.pool(),
@@ -165,9 +171,12 @@ async fn delete(
 /// The monitor's open episode — `null` body when the ladder is quiet.
 async fn episode(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<Option<EscalationEpisode>>, ApiError> {
     let monitor_id = parse_monitor(&id)?;
+    // Gate through the monitor's org — cross-org monitor id is a 404.
+    rampart_db::monitors::get(s.pool(), monitor_id, org.org_id).await?;
     Ok(Json(
         rampart_db::escalations::open_for_monitor(s.pool(), monitor_id).await?,
     ))
@@ -177,11 +186,14 @@ async fn episode(
 /// open or it's already acked — the UI treats both as "already handled".
 async fn ack(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Extension(user): Extension<User>,
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<EscalationEpisode>, ApiError> {
     let monitor_id = parse_monitor(&id)?;
+    // Gate through the monitor's org — cross-org monitor id is a 404.
+    rampart_db::monitors::get(s.pool(), monitor_id, org.org_id).await?;
     let episode = rampart_db::escalations::ack(s.pool(), monitor_id, user.id).await?;
     crate::audit::record(
         s.pool(),
