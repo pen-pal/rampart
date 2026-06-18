@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, name, location, version, last_seen_at, created_at,\n               0::bigint AS monitor_count\n        FROM agents\n        WHERE token_hash = $1\n        ",
+  "query": "\n        SELECT a.id, a.name, a.location, a.version, a.last_seen_at, a.created_at,\n               a.org_id AS \"org_id!\", COUNT(m.id) AS monitor_count\n        FROM agents a\n        LEFT JOIN monitors m ON m.agent_id = a.id\n        WHERE a.org_id = $1\n        GROUP BY a.id\n        ORDER BY a.created_at\n        ",
   "describe": {
     "columns": [
       {
@@ -71,6 +71,17 @@
       },
       {
         "ordinal": 6,
+        "name": "org_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "agents",
+            "name": "org_id"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
         "name": "monitor_count",
         "type_info": "Int8",
         "origin": "Expression"
@@ -78,7 +89,7 @@
     ],
     "parameters": {
       "Left": [
-        "Text"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -88,8 +99,9 @@
       true,
       true,
       false,
+      true,
       null
     ]
   },
-  "hash": "271aa699e6b4407a6e56f439159da3bf45763dff697fadefb2fcb091faf97381"
+  "hash": "314509b5d22eb47f6138c64a96280ab13819affde1738f603890e6c77e92da9f"
 }

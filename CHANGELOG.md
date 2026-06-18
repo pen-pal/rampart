@@ -19,6 +19,19 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.142.0] — 2026-06-18
+
+### Changed
+- **Multi-tenancy — Phase 5-4: agent metric push stamps the agent's org.** The
+  agent wire-protocol metric push now stamps pushed samples with the **agent's**
+  org (resolved from the agent token via `lookup`) instead of Default. `org_id`
+  is threaded onto the core `Agent` struct + `AgentRow` and every agent read
+  (`list`/`get`/`lookup`/`create` RETURNING, with a non-null `org_id!`
+  override). Retired the agent-push `// P5` marker. See
+  [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.141.0] — 2026-06-18
 
 ### Changed
