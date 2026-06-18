@@ -69,13 +69,14 @@ async fn get_one(
 
 async fn create(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Json(input): Json<NewScheduledReport>,
 ) -> Result<(StatusCode, Json<ScheduledReport>), ApiError> {
     if input.name.trim().is_empty() {
         return Err(ApiError::BadRequest("name is required".into()));
     }
     validate_cadence(&input.cadence)?;
-    let r = rampart_db::scheduled_reports::create(s.pool(), input).await?;
+    let r = rampart_db::scheduled_reports::create(s.pool(), input, org.org_id).await?;
     Ok((StatusCode::CREATED, Json(r)))
 }
 

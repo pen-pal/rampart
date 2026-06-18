@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO metric_samples (name, labels, value, ts, org_id)\n        SELECT * FROM UNNEST(\n            $1::text[], $2::jsonb[], $3::float8[],\n            ARRAY_FILL(NOW(), ARRAY[$4::int]),\n            ARRAY_FILL($5::uuid, ARRAY[$4::int])\n        )\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "JsonbArray",
+        "Float8Array",
+        "Int4",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "de0e1371601348f780203111ecfa1d236bd42e9fd12bd2971963f311cd61bba1"
+}

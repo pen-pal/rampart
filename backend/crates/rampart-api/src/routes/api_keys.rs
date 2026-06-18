@@ -40,6 +40,7 @@ async fn list(
 async fn create(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Json(input): Json<NewApiKey>,
 ) -> Result<(StatusCode, Json<IssuedApiKey>), ApiError> {
@@ -54,7 +55,7 @@ async fn create(
         }
     }
     let name = input.name.clone();
-    let issued = rampart_db::api_keys::create(s.pool(), input, user.id).await?;
+    let issued = rampart_db::api_keys::create(s.pool(), input, user.id, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,

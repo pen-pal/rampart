@@ -60,11 +60,12 @@ async fn list(
 async fn create(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Json(input): Json<NewMonitorGroup>,
 ) -> Result<(StatusCode, Json<MonitorGroup>), ApiError> {
     input.validate()?;
-    let g = rampart_db::monitor_groups::create(s.pool(), input).await?;
+    let g = rampart_db::monitor_groups::create(s.pool(), input, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,

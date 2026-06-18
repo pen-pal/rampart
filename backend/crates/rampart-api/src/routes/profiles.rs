@@ -168,6 +168,7 @@ async fn store(
 ) -> Result<(), ApiError> {
     let sample_count = map.values().sum::<i64>().clamp(0, i32::MAX as i64) as i32;
     let gz = gzip(profile::to_folded_text(&map).as_bytes())?;
+    // P5: resolve org from ingest credential — profiles ingest is token-less.
     rampart_db::profiles::insert(
         s.pool(),
         NewProfile {
@@ -179,6 +180,7 @@ async fn store(
             labels: serde_json::json!({}),
             folded_gz: &gz,
         },
+        rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID),
     )
     .await?;
     Ok(())

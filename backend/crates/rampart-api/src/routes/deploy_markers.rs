@@ -2,9 +2,10 @@
 //! the metric + response-time charts. GET is readonly; POST/DELETE need editor
 //! (enforced by the `require_write_or_readonly_get` layer on v1_protected).
 
+use crate::auth::OrgContext;
 use crate::error::ApiError;
 use crate::state::AppState;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Extension, Path, Query, State};
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
@@ -44,12 +45,13 @@ async fn list(
 
 async fn create(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Json(input): Json<NewDeployMarker>,
 ) -> Result<(StatusCode, Json<DeployMarker>), ApiError> {
     input
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
-    let marker = rampart_db::deploy_markers::create(s.pool(), input).await?;
+    let marker = rampart_db::deploy_markers::create(s.pool(), input, org.org_id).await?;
     Ok((StatusCode::CREATED, Json(marker)))
 }
 

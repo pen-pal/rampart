@@ -453,6 +453,9 @@ mod tests {
     use rampart_core::{Heartbeat, MonitorKind, MonitorStatus};
     use sqlx::PgPool;
 
+    const TEST_ORG: rampart_core::ids::OrgId =
+        rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID);
+
     fn http_monitor(name: &str) -> NewMonitor {
         NewMonitor {
             name: name.into(),
@@ -516,7 +519,7 @@ mod tests {
     #[sqlx::test(migrations = "../../migrations")]
     async fn old_heartbeats_roll_up_and_raw_is_deleted(pool: PgPool) {
         set_retention(&pool, 30, 400).await;
-        let m = crate::monitors::create(&pool, http_monitor("rollup"))
+        let m = crate::monitors::create(&pool, http_monitor("rollup"), TEST_ORG)
             .await
             .unwrap();
 
@@ -574,7 +577,7 @@ mod tests {
         // Raw tier 30d, rollup tier 100d. A rollup bucket 200 days old is
         // dropped; one 50 days old survives.
         set_retention(&pool, 30, 100).await;
-        let m = crate::monitors::create(&pool, http_monitor("rolldrop"))
+        let m = crate::monitors::create(&pool, http_monitor("rolldrop"), TEST_ORG)
             .await
             .unwrap();
 
@@ -614,7 +617,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../migrations")]
     async fn daily_uptime_from_rollups_aggregates_per_day(pool: PgPool) {
-        let m = crate::monitors::create(&pool, http_monitor("uphist"))
+        let m = crate::monitors::create(&pool, http_monitor("uphist"), TEST_ORG)
             .await
             .unwrap();
 
@@ -677,7 +680,7 @@ mod tests {
         // Running the sweep twice must not double-count: the second sweep
         // finds the raw rows already deleted, so the bucket is unchanged.
         set_retention(&pool, 30, 400).await;
-        let m = crate::monitors::create(&pool, http_monitor("idem"))
+        let m = crate::monitors::create(&pool, http_monitor("idem"), TEST_ORG)
             .await
             .unwrap();
         const D90: i64 = 90 * 86_400;

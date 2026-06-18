@@ -60,13 +60,14 @@ async fn list(
 
 async fn create(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Json(input): Json<NewSlo>,
 ) -> Result<(StatusCode, Json<Slo>), ApiError> {
     input
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     validate_indicator(&input)?;
-    let slo = rampart_db::slos::create(s.pool(), input).await?;
+    let slo = rampart_db::slos::create(s.pool(), input, org.org_id).await?;
     Ok((StatusCode::CREATED, Json(slo)))
 }
 

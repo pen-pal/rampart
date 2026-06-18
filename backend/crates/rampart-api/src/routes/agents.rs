@@ -83,6 +83,7 @@ async fn list(
 async fn create(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Json(input): Json<NewAgent>,
 ) -> Result<(StatusCode, Json<IssuedAgent>), ApiError> {
@@ -90,7 +91,7 @@ async fn create(
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     let name = input.name.clone();
-    let issued = rampart_db::agents::create(s.pool(), input).await?;
+    let issued = rampart_db::agents::create(s.pool(), input, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -310,7 +311,14 @@ async fn report_metrics(
             .labels
             .insert("agent".to_string(), agent.name.clone());
     }
-    rampart_db::metric_samples::insert_many(s.pool(), &parsed.samples).await?;
+    // P5: resolve org from ingest credential — agent wire-protocol push carries
+    // an agent token, not an OrgContext.
+    rampart_db::metric_samples::insert_many(
+        s.pool(),
+        &parsed.samples,
+        rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID),
+    )
+    .await?;
     Ok(Json(MetricsOutcome {
         accepted: parsed.samples.len(),
         skipped: parsed.skipped,

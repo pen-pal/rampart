@@ -201,7 +201,11 @@ pub async fn get_unscoped(pool: &DbPool, id: DetectionRuleId) -> DbResult<Detect
     Ok(row.into())
 }
 
-pub async fn create(pool: &DbPool, input: NewDetectionRule) -> DbResult<DetectionRule> {
+pub async fn create(
+    pool: &DbPool,
+    input: NewDetectionRule,
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<DetectionRule> {
     let id = DetectionRuleId::new();
     let channel_ids: Vec<Uuid> = input.channel_ids.iter().map(|c| c.0).collect();
     // Serializing our own enum can't fail; `None` stores SQL NULL (legacy match).
@@ -212,8 +216,8 @@ pub async fn create(pool: &DbPool, input: NewDetectionRule) -> DbResult<Detectio
         INSERT INTO detection_rules
             (id, name, description, enabled, severity, service, min_level,
              body_regex, attr_key, attr_val, threshold, window_seconds, channel_ids,
-             escalation_policy_id, cooldown_seconds, condition, group_by)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+             escalation_policy_id, cooldown_seconds, condition, group_by, org_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         "#,
         id.0,
         input.name,
@@ -232,10 +236,10 @@ pub async fn create(pool: &DbPool, input: NewDetectionRule) -> DbResult<Detectio
         input.cooldown_seconds,
         condition_json,
         input.group_by,
+        org_id.0,
     )
     .execute(pool)
     .await?;
-    // org_id from the column default (write-stamping is Phase 4); return unscoped.
     get_unscoped(pool, id).await
 }
 

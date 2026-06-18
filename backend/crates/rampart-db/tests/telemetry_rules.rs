@@ -12,6 +12,9 @@ use rampart_db::telemetry_rules;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+const TEST_ORG: rampart_core::ids::OrgId =
+    rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID);
+
 fn def_org() -> OrgId {
     OrgId::from_uuid(DEFAULT_ORG_ID)
 }
@@ -74,6 +77,7 @@ async fn log_volume_fires_and_resolves(pool: PgPool) {
             min_level: 13, // warn
             ..rule(TelemetryRuleKind::LogVolume, RuleOp::Gt, 2.0, 300)
         },
+        TEST_ORG,
     )
     .await
     .unwrap();
@@ -128,6 +132,7 @@ async fn log_volume_min_level_and_body_filter(pool: PgPool) {
             match_text: "timeout".to_string(),
             ..rule(TelemetryRuleKind::LogVolume, RuleOp::Gte, 1.0, 300)
         },
+        TEST_ORG,
     )
     .await
     .unwrap();
@@ -153,6 +158,7 @@ async fn trace_latency_p95_and_no_data_resolves(pool: PgPool) {
     let r = telemetry_rules::create(
         &pool,
         rule(TelemetryRuleKind::TraceLatency, RuleOp::Gt, 500.0, 300),
+        TEST_ORG,
     )
     .await
     .unwrap();
@@ -195,6 +201,7 @@ async fn trace_error_rate_percent(pool: PgPool) {
     telemetry_rules::create(
         &pool,
         rule(TelemetryRuleKind::TraceErrorRate, RuleOp::Gt, 25.0, 300),
+        TEST_ORG,
     )
     .await
     .unwrap();
@@ -225,6 +232,7 @@ async fn disabled_rule_is_never_evaluated(pool: PgPool) {
             enabled: false,
             ..rule(TelemetryRuleKind::LogVolume, RuleOp::Gt, 0.0, 300)
         },
+        TEST_ORG,
     )
     .await
     .unwrap();

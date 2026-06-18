@@ -95,6 +95,7 @@ async fn list_projects(
 async fn create_project(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Json(input): Json<NewErrorProject>,
 ) -> Result<(StatusCode, Json<ErrorProject>), ApiError> {
@@ -102,7 +103,7 @@ async fn create_project(
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     let name = input.name.clone();
-    let project = rampart_db::error_tracking::create(s.pool(), input).await?;
+    let project = rampart_db::error_tracking::create(s.pool(), input, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,

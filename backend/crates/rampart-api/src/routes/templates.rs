@@ -45,6 +45,7 @@ async fn get_one(
 
 async fn create(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Json(input): Json<NewTemplate>,
 ) -> Result<(StatusCode, Json<Template>), ApiError> {
     if input.name.trim().is_empty() {
@@ -53,7 +54,7 @@ async fn create(
     if input.body_template.trim().is_empty() {
         return Err(ApiError::BadRequest("body_template is required".into()));
     }
-    let t = rampart_db::templates::create(s.pool(), input).await?;
+    let t = rampart_db::templates::create(s.pool(), input, org.org_id).await?;
     Ok((StatusCode::CREATED, Json(t)))
 }
 

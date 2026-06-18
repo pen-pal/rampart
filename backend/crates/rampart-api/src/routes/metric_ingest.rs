@@ -62,6 +62,7 @@ async fn list_rules(
 
 async fn create_rule(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Json(input): Json<NewMetricRule>,
 ) -> Result<(axum::http::StatusCode, Json<MetricRule>), ApiError> {
     input
@@ -70,7 +71,7 @@ async fn create_rule(
     if !input.labels.is_object() {
         return Err(ApiError::BadRequest("labels must be a JSON object".into()));
     }
-    let rule = rampart_db::metric_rules::create(s.pool(), input).await?;
+    let rule = rampart_db::metric_rules::create(s.pool(), input, org.org_id).await?;
     Ok((axum::http::StatusCode::CREATED, Json(rule)))
 }
 
@@ -110,14 +111,20 @@ struct IngestOutcome {
     skipped: usize,
 }
 
-async fn ingest(State(s): State<AppState>, body: String) -> Result<Json<IngestOutcome>, ApiError> {
+async fn ingest(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+    body: String,
+) -> Result<Json<IngestOutcome>, ApiError> {
     let parsed = promtext::parse(&body);
     if parsed.samples.is_empty() && parsed.skipped > 0 {
         return Err(ApiError::BadRequest(
             "no parseable samples in payload (expected Prometheus text format)".into(),
         ));
     }
-    rampart_db::metric_samples::insert_many(s.pool(), &parsed.samples).await?;
+    // Authenticated ingest (require_session / write-scoped key): file under the
+    // caller's resolved org, not the Default org.
+    rampart_db::metric_samples::insert_many(s.pool(), &parsed.samples, org.org_id).await?;
     Ok(Json(IngestOutcome {
         accepted: parsed.samples.len(),
         skipped: parsed.skipped,

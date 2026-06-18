@@ -295,15 +295,19 @@ pub async fn get_unscoped(pool: &DbPool, id: NotificationId) -> DbResult<Notific
     })
 }
 
-pub async fn create(pool: &DbPool, input: NewNotification) -> DbResult<Notification> {
+pub async fn create(
+    pool: &DbPool,
+    input: NewNotification,
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<Notification> {
     let id = Uuid::now_v7();
     // Encrypt the credential-bearing config at rest (no-op without a key).
     let config_sealed = crate::secrets::seal(&input.config);
     let row = sqlx::query!(
         r#"
         INSERT INTO notifications (id, kind, name, config, active, template_id, cooldown_seconds, digest_window_secs,
-                                   quiet_hours_start, quiet_hours_end, rate_limit_per_hour)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                                   quiet_hours_start, quiet_hours_end, rate_limit_per_hour, org_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING id, kind AS "kind: ChannelKind", name, config, active,
                   template_id, created_at, cooldown_seconds, digest_window_secs,
                   quiet_hours_start, quiet_hours_end, rate_limit_per_hour, last_fired_at
@@ -319,6 +323,7 @@ pub async fn create(pool: &DbPool, input: NewNotification) -> DbResult<Notificat
         clamp_hour(input.quiet_hours_start),
         clamp_hour(input.quiet_hours_end),
         clamp_rate(input.rate_limit_per_hour),
+        org_id.0,
     )
     .fetch_one(pool)
     .await?;

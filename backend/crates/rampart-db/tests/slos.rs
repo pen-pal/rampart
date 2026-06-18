@@ -18,6 +18,9 @@ fn def_org() -> OrgId {
 }
 use std::collections::BTreeMap;
 
+const TEST_ORG: rampart_core::ids::OrgId =
+    rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID);
+
 fn sample(name: &str, value: f64) -> PromSample {
     PromSample {
         name: name.into(),
@@ -45,7 +48,7 @@ fn metric_slo(objective: f64) -> NewSlo {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn metric_budget_fires_and_resolves(pool: PgPool) {
-    let slo = slos::create(&pool, metric_slo(99.9)).await.unwrap();
+    let slo = slos::create(&pool, metric_slo(99.9), TEST_ORG).await.unwrap();
 
     // No samples yet → no data, no breach.
     let snap = slos::compute(&pool, &slo).await.unwrap();
@@ -57,6 +60,7 @@ async fn metric_budget_fires_and_resolves(pool: PgPool) {
     metric_samples::insert_many(
         &pool,
         &[sample("req_success", 990.0), sample("req_total", 1000.0)],
+        TEST_ORG,
     )
     .await
     .unwrap();
@@ -86,6 +90,7 @@ async fn metric_budget_fires_and_resolves(pool: PgPool) {
             sample("req_success", 1_000_000.0),
             sample("req_total", 1_000_000.0),
         ],
+        TEST_ORG,
     )
     .await
     .unwrap();
@@ -105,13 +110,14 @@ async fn metric_budget_fires_and_resolves(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn crud_and_update_clears_breach(pool: PgPool) {
-    let slo = slos::create(&pool, metric_slo(99.0)).await.unwrap();
+    let slo = slos::create(&pool, metric_slo(99.0), TEST_ORG).await.unwrap();
     assert_eq!(slos::list(&pool, def_org()).await.unwrap().len(), 1);
 
     // Force it breaching, then an edit must clear the in-flight marker.
     metric_samples::insert_many(
         &pool,
         &[sample("req_success", 50.0), sample("req_total", 100.0)],
+        TEST_ORG,
     )
     .await
     .unwrap();

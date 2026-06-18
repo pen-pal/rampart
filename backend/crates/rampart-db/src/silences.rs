@@ -50,17 +50,22 @@ pub async fn is_silenced(pool: &DbPool, monitor: Option<Uuid>) -> DbResult<bool>
     Ok(row.silenced)
 }
 
-pub async fn create(pool: &DbPool, s: NewSilence<'_>) -> DbResult<Uuid> {
+pub async fn create(
+    pool: &DbPool,
+    s: NewSilence<'_>,
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<Uuid> {
     let row = sqlx::query!(
         r#"
-        INSERT INTO silences (monitor_id, reason, created_by, expires_at)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO silences (monitor_id, reason, created_by, expires_at, org_id)
+        VALUES ($1, $2, $3, $4, $5)
         RETURNING id
         "#,
         s.monitor_id,
         s.reason,
         s.created_by,
         s.expires_at,
+        org_id.0,
     )
     .fetch_one(pool)
     .await?;
@@ -134,6 +139,7 @@ mod tests {
                 created_by: None,
                 expires_at: None,
             },
+            def_org(),
         )
         .await
         .unwrap();
@@ -153,6 +159,7 @@ mod tests {
                 created_by: None,
                 expires_at: Some(OffsetDateTime::now_utc() - time::Duration::hours(1)),
             },
+            def_org(),
         )
         .await
         .unwrap();

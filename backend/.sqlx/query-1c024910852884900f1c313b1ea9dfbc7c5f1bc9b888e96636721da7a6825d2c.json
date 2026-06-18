@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO scheduled_reports (id, name, recipients, cadence)\n        VALUES ($1, $2, $3, $4)\n        RETURNING id, name, recipients, cadence, last_sent_at, created_at\n        ",
+  "query": "\n        INSERT INTO monitor_presets (id, name, kind, data, org_id)\n        VALUES ($1, $2, $3, $4, $5)\n        RETURNING id, name, kind, data, created_at\n        ",
   "describe": {
     "columns": [
       {
@@ -9,7 +9,7 @@
         "type_info": "Uuid",
         "origin": {
           "Table": {
-            "table": "scheduled_reports",
+            "table": "monitor_presets",
             "name": "id"
           }
         }
@@ -20,51 +20,40 @@
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "scheduled_reports",
+            "table": "monitor_presets",
             "name": "name"
           }
         }
       },
       {
         "ordinal": 2,
-        "name": "recipients",
-        "type_info": "TextArray",
+        "name": "kind",
+        "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "scheduled_reports",
-            "name": "recipients"
+            "table": "monitor_presets",
+            "name": "kind"
           }
         }
       },
       {
         "ordinal": 3,
-        "name": "cadence",
-        "type_info": "Text",
+        "name": "data",
+        "type_info": "Jsonb",
         "origin": {
           "Table": {
-            "table": "scheduled_reports",
-            "name": "cadence"
+            "table": "monitor_presets",
+            "name": "data"
           }
         }
       },
       {
         "ordinal": 4,
-        "name": "last_sent_at",
-        "type_info": "Timestamptz",
-        "origin": {
-          "Table": {
-            "table": "scheduled_reports",
-            "name": "last_sent_at"
-          }
-        }
-      },
-      {
-        "ordinal": 5,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
           "Table": {
-            "table": "scheduled_reports",
+            "table": "monitor_presets",
             "name": "created_at"
           }
         }
@@ -74,8 +63,9 @@
       "Left": [
         "Uuid",
         "Text",
-        "TextArray",
-        "Text"
+        "Text",
+        "Jsonb",
+        "Uuid"
       ]
     },
     "nullable": [
@@ -83,9 +73,8 @@
       false,
       false,
       false,
-      true,
       false
     ]
   },
-  "hash": "5eb3776b265ac174ecd4b20cc715b107ad433518a1baa56b72404b43cbd1b9a4"
+  "hash": "1c024910852884900f1c313b1ea9dfbc7c5f1bc9b888e96636721da7a6825d2c"
 }

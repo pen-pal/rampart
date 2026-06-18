@@ -1,5 +1,6 @@
 //! `/v1/maintenance-windows` routes.
 
+use crate::auth::OrgContext;
 use crate::error::ApiError;
 use crate::state::AppState;
 use axum::extract::{Extension, Path, State};
@@ -48,6 +49,7 @@ async fn get_one(
 async fn create(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Json(input): Json<NewMaintenanceWindow>,
 ) -> Result<(StatusCode, Json<MaintenanceWindow>), ApiError> {
@@ -57,7 +59,7 @@ async fn create(
     if input.end_at <= input.start_at {
         return Err(ApiError::BadRequest("end_at must be after start_at".into()));
     }
-    let w = rampart_db::maintenance::create(s.pool(), input).await?;
+    let w = rampart_db::maintenance::create(s.pool(), input, org.org_id).await?;
     let rfc3339 = time::format_description::well_known::Rfc3339;
     crate::audit::record(
         s.pool(),

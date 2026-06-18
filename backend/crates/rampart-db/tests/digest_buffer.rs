@@ -25,6 +25,9 @@ use rampart_db::notifications::{create, NewNotification};
 use sqlx::PgPool;
 use time::OffsetDateTime;
 
+const TEST_ORG: rampart_core::ids::OrgId =
+    rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID);
+
 fn digest_channel(name: &str, window_secs: i32) -> NewNotification {
     NewNotification {
         kind: ChannelKind::Webhook,
@@ -49,7 +52,7 @@ fn event_json(label: &str) -> serde_json::Value {
 #[sqlx::test(migrations = "../../migrations")]
 async fn buffered_events_survive_restart(pool: PgPool) {
     // 1. A channel with a 1-second digest window.
-    let chan = create(&pool, digest_channel("digest-restart", 1))
+    let chan = create(&pool, digest_channel("digest-restart", 1), TEST_ORG)
         .await
         .expect("create channel");
     let id: NotificationId = chan.id;

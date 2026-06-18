@@ -73,19 +73,24 @@ pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<MonitorGroup>> {
     Ok(rows.into_iter().map(Into::into).collect())
 }
 
-pub async fn create(pool: &DbPool, input: NewMonitorGroup) -> DbResult<MonitorGroup> {
+pub async fn create(
+    pool: &DbPool,
+    input: NewMonitorGroup,
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<MonitorGroup> {
     let id = MonitorGroupId::new();
     let row = sqlx::query_as!(
         GroupRow,
         r#"
-        INSERT INTO monitor_groups (id, name, sort_order, parent_id)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO monitor_groups (id, name, sort_order, parent_id, org_id)
+        VALUES ($1, $2, $3, $4, $5)
         RETURNING id, name, sort_order, parent_id, created_at
         "#,
         id.0,
         input.name,
         input.sort_order,
         input.parent_id.map(|g| g.0),
+        org_id.0,
     )
     .fetch_one(pool)
     .await?;

@@ -40,6 +40,7 @@ async fn list(
 async fn create(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Json(input): Json<NewProxy>,
 ) -> Result<(StatusCode, Json<Proxy>), ApiError> {
@@ -53,7 +54,7 @@ async fn create(
             "protocol must be one of http / https / socks / socks5 / socks4".into(),
         ));
     }
-    let p = rampart_db::proxies::create(s.pool(), input).await?;
+    let p = rampart_db::proxies::create(s.pool(), input, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,

@@ -89,7 +89,11 @@ pub async fn get(pool: &DbPool, id: AgentId, org_id: OrgId) -> DbResult<Agent> {
     Ok(row.into())
 }
 
-pub async fn create(pool: &DbPool, input: NewAgent) -> DbResult<IssuedAgent> {
+pub async fn create(
+    pool: &DbPool,
+    input: NewAgent,
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<IssuedAgent> {
     let token = generate_token();
     let hash = sha256_hex(&token);
     let id = AgentId::new();
@@ -97,8 +101,8 @@ pub async fn create(pool: &DbPool, input: NewAgent) -> DbResult<IssuedAgent> {
     let row = sqlx::query_as!(
         AgentRow,
         r#"
-        INSERT INTO agents (id, name, location, token_hash)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO agents (id, name, location, token_hash, org_id)
+        VALUES ($1, $2, $3, $4, $5)
         RETURNING id, name, location, version, last_seen_at, created_at,
                   0::bigint AS monitor_count
         "#,
@@ -106,6 +110,7 @@ pub async fn create(pool: &DbPool, input: NewAgent) -> DbResult<IssuedAgent> {
         input.name,
         input.location,
         hash,
+        org_id.0,
     )
     .fetch_one(pool)
     .await?;

@@ -113,7 +113,11 @@ pub async fn get(pool: &DbPool, id: MaintenanceId) -> DbResult<MaintenanceWindow
     Ok(w)
 }
 
-pub async fn create(pool: &DbPool, input: NewMaintenanceWindow) -> DbResult<MaintenanceWindow> {
+pub async fn create(
+    pool: &DbPool,
+    input: NewMaintenanceWindow,
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<MaintenanceWindow> {
     let id = MaintenanceId::new();
     let mut tx = pool.begin().await?;
 
@@ -122,8 +126,8 @@ pub async fn create(pool: &DbPool, input: NewMaintenanceWindow) -> DbResult<Main
     sqlx::query!(
         r#"
         INSERT INTO maintenance_windows
-            (id, name, description, start_at, end_at, active, recurrence)
-        VALUES ($1, $2, $3, $4, $5, TRUE, $6)
+            (id, name, description, start_at, end_at, active, recurrence, org_id)
+        VALUES ($1, $2, $3, $4, $5, TRUE, $6, $7)
         "#,
         id.0,
         input.name,
@@ -131,6 +135,7 @@ pub async fn create(pool: &DbPool, input: NewMaintenanceWindow) -> DbResult<Main
         input.start_at,
         input.end_at,
         recurrence_json,
+        org_id.0,
     )
     .execute(&mut *tx)
     .await?;

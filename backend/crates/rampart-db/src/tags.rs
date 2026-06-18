@@ -51,18 +51,23 @@ pub async fn get(pool: &DbPool, id: TagId, org_id: OrgId) -> DbResult<Tag> {
     Ok(row.into())
 }
 
-pub async fn create(pool: &DbPool, input: NewTag) -> DbResult<Tag> {
+pub async fn create(
+    pool: &DbPool,
+    input: NewTag,
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<Tag> {
     let id = TagId::new();
     let row = sqlx::query_as!(
         TagRow,
         r#"
-        INSERT INTO tags (id, name, color)
-        VALUES ($1, $2, $3)
+        INSERT INTO tags (id, name, color, org_id)
+        VALUES ($1, $2, $3, $4)
         RETURNING id, name, color, created_at
         "#,
         id.0,
         input.name,
         input.color,
+        org_id.0,
     )
     .fetch_one(pool)
     .await

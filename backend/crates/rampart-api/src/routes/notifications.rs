@@ -111,13 +111,14 @@ async fn list(
 async fn create(
     State(state): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Json(input): Json<NewNotification>,
 ) -> Result<(StatusCode, Json<Notification>), ApiError> {
     if input.name.trim().is_empty() {
         return Err(ApiError::BadRequest("name is required".into()));
     }
-    let n = rampart_db::notifications::create(state.pool(), input).await?;
+    let n = rampart_db::notifications::create(state.pool(), input, org.org_id).await?;
     crate::audit::record(
         state.pool(),
         &user,

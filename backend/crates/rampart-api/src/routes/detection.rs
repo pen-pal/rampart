@@ -53,6 +53,7 @@ async fn list(
 
 async fn create(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Json(input): Json<NewDetectionRule>,
 ) -> Result<(StatusCode, Json<DetectionRule>), ApiError> {
     input
@@ -62,7 +63,7 @@ async fn create(
         return Err(ApiError::BadRequest("body_regex is not a valid regex".into()));
     }
     validate_condition(&s, input.condition.as_ref()).await?;
-    let rule = rampart_db::detection::create(s.pool(), input).await?;
+    let rule = rampart_db::detection::create(s.pool(), input, org.org_id).await?;
     Ok((StatusCode::CREATED, Json(rule)))
 }
 

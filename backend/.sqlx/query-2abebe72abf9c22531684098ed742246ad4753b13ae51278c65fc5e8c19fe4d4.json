@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO silences (monitor_id, reason, created_by, expires_at)\n        VALUES ($1, $2, $3, $4)\n        RETURNING id\n        ",
+  "query": "\n        INSERT INTO silences (monitor_id, reason, created_by, expires_at, org_id)\n        VALUES ($1, $2, $3, $4, $5)\n        RETURNING id\n        ",
   "describe": {
     "columns": [
       {
@@ -20,12 +20,13 @@
         "Uuid",
         "Text",
         "Uuid",
-        "Timestamptz"
+        "Timestamptz",
+        "Uuid"
       ]
     },
     "nullable": [
       false
     ]
   },
-  "hash": "a66c7eee6df752d8d2b7a5decb011bdbb3a3d55dd9a3ab2e98b7f7773d8f9213"
+  "hash": "2abebe72abf9c22531684098ed742246ad4753b13ae51278c65fc5e8c19fe4d4"
 }

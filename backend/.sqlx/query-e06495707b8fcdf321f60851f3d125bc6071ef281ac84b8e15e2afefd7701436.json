@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO profiles\n            (service_name, profile_type, period_ns, duration_ns, sample_count, labels, folded)\n        VALUES ($1, $2, $3, $4, $5, $6, $7)\n        RETURNING id\n        ",
+  "query": "\n        INSERT INTO profiles\n            (service_name, profile_type, period_ns, duration_ns, sample_count, labels, folded, org_id)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)\n        RETURNING id\n        ",
   "describe": {
     "columns": [
       {
@@ -23,12 +23,13 @@
         "Int8",
         "Int4",
         "Jsonb",
-        "Bytea"
+        "Bytea",
+        "Uuid"
       ]
     },
     "nullable": [
       false
     ]
   },
-  "hash": "c7c72839c0c8ef84bd13a10ae7b5e59353372680d8b5e983f7723a7f14828e87"
+  "hash": "e06495707b8fcdf321f60851f3d125bc6071ef281ac84b8e15e2afefd7701436"
 }
