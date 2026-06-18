@@ -24,6 +24,7 @@ struct AgentRow {
     version: Option<String>,
     last_seen_at: Option<OffsetDateTime>,
     created_at: OffsetDateTime,
+    org_id: Uuid,
     monitor_count: Option<i64>,
 }
 
@@ -40,6 +41,7 @@ impl From<AgentRow> for Agent {
             version: r.version,
             last_seen_at: r.last_seen_at,
             created_at: r.created_at,
+            org_id: OrgId::from_uuid(r.org_id),
             monitor_count: r.monitor_count.unwrap_or(0),
             online,
         }
@@ -53,7 +55,7 @@ pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<Agent>> {
         AgentRow,
         r#"
         SELECT a.id, a.name, a.location, a.version, a.last_seen_at, a.created_at,
-               COUNT(m.id) AS monitor_count
+               a.org_id AS "org_id!", COUNT(m.id) AS monitor_count
         FROM agents a
         LEFT JOIN monitors m ON m.agent_id = a.id
         WHERE a.org_id = $1
@@ -74,7 +76,7 @@ pub async fn get(pool: &DbPool, id: AgentId, org_id: OrgId) -> DbResult<Agent> {
         AgentRow,
         r#"
         SELECT a.id, a.name, a.location, a.version, a.last_seen_at, a.created_at,
-               COUNT(m.id) AS monitor_count
+               a.org_id AS "org_id!", COUNT(m.id) AS monitor_count
         FROM agents a
         LEFT JOIN monitors m ON m.agent_id = a.id
         WHERE a.id = $1 AND a.org_id = $2
@@ -104,7 +106,7 @@ pub async fn create(
         INSERT INTO agents (id, name, location, token_hash, org_id)
         VALUES ($1, $2, $3, $4, $5)
         RETURNING id, name, location, version, last_seen_at, created_at,
-                  0::bigint AS monitor_count
+                  org_id AS "org_id!", 0::bigint AS monitor_count
         "#,
         id.0,
         input.name,
@@ -178,7 +180,7 @@ pub async fn lookup(pool: &DbPool, token: &str) -> DbResult<Agent> {
         AgentRow,
         r#"
         SELECT id, name, location, version, last_seen_at, created_at,
-               0::bigint AS monitor_count
+               org_id AS "org_id!", 0::bigint AS monitor_count
         FROM agents
         WHERE token_hash = $1
         "#,
