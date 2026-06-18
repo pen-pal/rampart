@@ -30,4 +30,20 @@ impl Role {
     pub fn is_admin(&self) -> bool {
         matches!(self, Role::Admin)
     }
+
+    /// Privilege rank for ordered comparisons: `Admin (2) > Editor (1) >
+    /// Readonly (0)`. A higher rank can do everything a lower one can. Used
+    /// by per-org authorization to test "caller's role is at least X".
+    pub fn rank(&self) -> u8 {
+        match self {
+            Role::Admin => 2,
+            Role::Editor => 1,
+            Role::Readonly => 0,
+        }
+    }
+
+    /// True if this role is at least as privileged as `min`.
+    pub fn at_least(&self, min: Role) -> bool {
+        self.rank() >= min.rank()
+    }
 }

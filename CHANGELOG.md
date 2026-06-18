@@ -19,6 +19,31 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.133.0] — 2026-06-18
+
+### Added
+- **Multi-tenancy — Phase 4c: `/v1/orgs` org-CRUD + membership API.** New
+  `routes/orgs.rs` mounted in the self-service subtree (no global role layer —
+  authorization is **per-org**, keyed on the path org id, done in-handler):
+  - `GET /v1/orgs` — the caller's own orgs · `POST /v1/orgs` — any authenticated
+    user creates an org and atomically becomes its Admin (`create_with_owner`;
+    duplicate slug → 409; slug validated `^[a-z0-9-]{2,40}$`).
+  - `GET /v1/orgs/{id}` + `GET /v1/orgs/{id}/members` — any member (Readonly+).
+  - `PATCH /v1/orgs/{id}` (rename) + `POST/PATCH/DELETE …/members[/{uid}]` —
+    org **Admin** only.
+  Authorization helper `require_org_role`: non-member → **404** (hides org
+  existence, IDOR-safe), member-but-under-privileged → **403**, via a new
+  `Role::rank()`/`Role::at_least()` ordering (Admin>Editor>Readonly).
+  **Last-admin protection**: demoting or removing an org's final Admin → 409.
+  Member-add resolves an existing user by email (unknown → 404; never creates
+  users). No org-delete (FK `ON DELETE RESTRICT` on ~30 `org_id` columns). New
+  `orgs::list_members_detailed` (JOIN users for email/name) +
+  `users::by_email`. 5 integration tests (`orgs_api.rs`). The org switcher that
+  makes a non-Default org *active* lands in 4d. See
+  [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.132.0] — 2026-06-18
 
 ### Added
