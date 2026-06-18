@@ -79,7 +79,8 @@ pub use log::{coarse_level, level_min_severity, parse_otlp_logs_json, LogEntry, 
 pub use maintenance::{MaintenanceWindow, NewMaintenanceWindow};
 pub use metric_rule::{MetricRule, NewMetricRule, RuleOp, RuleTransition, UpdateMetricRule};
 pub use monitor::{
-    BackoffStrategy, Monitor, MonitorKind, MonitorStatus, NewMonitor, RetryBackoff, UpdateMonitor,
+    cert_adjusted_status, BackoffStrategy, CertState, Monitor, MonitorKind, MonitorStatus,
+    NewMonitor, RetryBackoff, UpdateMonitor,
 };
 pub use monitor_group::{MonitorGroup, NewMonitorGroup, UpdateMonitorGroup};
 pub use monitor_preset::{MonitorPreset, MonitorPresetKind, NewMonitorPreset};

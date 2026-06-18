@@ -151,6 +151,8 @@ fn map_one(raw: &Value) -> Result<MappedMonitor, SkippedMonitor> {
         slo_window_days: None,
         agent_id: None,
         escalation_policy_id: None,
+        check_cert: false,
+        cert_expiry_days: 14,
     };
 
     Ok(MappedMonitor {

@@ -503,6 +503,8 @@ export default function MonitorDetail({ monitorId, user }) {
     if (monitor.http_headers != null)      spec.http_headers = monitor.http_headers;
     if (monitor.follow_redirect != null)   spec.follow_redirect = monitor.follow_redirect;
     if (monitor.ignore_tls != null)        spec.ignore_tls = monitor.ignore_tls;
+    if (monitor.check_cert != null)        spec.check_cert = monitor.check_cert;
+    if (monitor.cert_expiry_days != null)  spec.cert_expiry_days = monitor.cert_expiry_days;
     if (monitor.max_retries != null)       spec.max_retries = monitor.max_retries;
     if (monitor.upside_down != null)       spec.upside_down = monitor.upside_down;
     if (monitor.config != null && Object.keys(monitor.config).length) spec.config = monitor.config;
@@ -953,8 +955,9 @@ export default function MonitorDetail({ monitorId, user }) {
           <PushUrlCard monitorId={monitor.id} token={monitor.push_token} lastPushAt={monitor.last_push_at} interval={monitor.interval_seconds} config={monitor.config}/>
         )}
 
-        {(monitor.kind === 'http' || monitor.kind === 'keyword' || monitor.kind === 'json_query')
-          && (monitor.url || '').startsWith('https://')
+        {((['http', 'keyword', 'json_query'].includes(monitor.kind)
+            && (monitor.url || '').startsWith('https://'))
+          || monitor.kind === 'tls')
           && monitor.cert_checked_at && (
           <CertCard monitor={monitor}/>
         )}
@@ -1247,6 +1250,11 @@ function EditModal({ monitor, onCancel, onSaved }) {
   const [headers,     setHeaders]     = useState(monitor.http_headers ? JSON.stringify(monitor.http_headers, null, 2) : '');
   const [follow,      setFollow]      = useState(!!monitor.follow_redirect);
   const [ignoreTls,   setIgnoreTls]   = useState(!!monitor.ignore_tls);
+  // Opt-in TLS cert-expiry checking + warn threshold (days).
+  const [checkCert,      setCheckCert]      = useState(!!monitor.check_cert);
+  const [certExpiryDays, setCertExpiryDays] = useState(
+    monitor.cert_expiry_days == null ? '14' : String(monitor.cert_expiry_days),
+  );
   const [upside,      setUpside]      = useState(!!monitor.upside_down);
   const [config,      setConfig]      = useState(
     monitor.config && Object.keys(monitor.config).length
@@ -1343,6 +1351,25 @@ function EditModal({ monitor, onCancel, onSaved }) {
       patch.accepted_statuses = acceptedStatuses;
       patch.http_body         = body || null;
       patch.http_headers      = headersJson;
+      // Opt-in TLS cert-expiry checking; threshold only meaningful when on.
+      patch.check_cert        = checkCert;
+      if (checkCert) {
+        const n = parseInt(certExpiryDays, 10);
+        if (!Number.isFinite(n) || n < 1 || n > 365) {
+          setErr(t('validation.cert_expiry_range'));
+          return;
+        }
+        patch.cert_expiry_days = n;
+      }
+    }
+    // Standalone TLS monitor: always send the warn threshold.
+    if (monitor.kind === 'tls') {
+      const n = parseInt(certExpiryDays, 10);
+      if (!Number.isFinite(n) || n < 1 || n > 365) {
+        setErr(t('validation.cert_expiry_range'));
+        return;
+      }
+      patch.cert_expiry_days = n;
     }
     // Probe agent: empty string = local probing (null on the wire). Only
     // sent when the select rendered so a failed agents fetch can't clear
@@ -1506,6 +1533,21 @@ function EditModal({ monitor, onCancel, onSaved }) {
                 <Toggle label={t('monitor.edit.ignore_tls')} on={ignoreTls} setOn={setIgnoreTls}/>
                 <Toggle label={t('monitor.edit.upside_down')}       on={upside}    setOn={setUpside}/>
               </div>
+              {/* Opt-in TLS cert-expiry checking (https URLs only). */}
+              {(url || '').startsWith('https://') && (
+                <div style={{ marginTop: 12 }}>
+                  <Toggle label={t('wizard.field.check_cert')} on={checkCert} setOn={setCheckCert}/>
+                  {checkCert && (
+                    <div style={{ marginTop: 10 }}>
+                      <Field label={t('wizard.field.cert_expiry_days')}>
+                        <input className="input" type="number" min={1} max={365}
+                          value={certExpiryDays} onChange={e => setCertExpiryDays(e.target.value)}
+                          style={{ maxWidth: 120 }}/>
+                      </Field>
+                    </div>
+                  )}
+                </div>
+              )}
               {showAgents && (
                 <div style={{ marginTop: 14 }}>
                   <Field label={t('monitor.edit.agent')}>
@@ -1538,6 +1580,17 @@ function EditModal({ monitor, onCancel, onSaved }) {
             <>
               <div className="modal-section">{t('monitor.edit.section.behaviour')}</div>
               <Toggle label={t('monitor.edit.upside_down')} on={upside} setOn={setUpside}/>
+              {/* Standalone TLS monitor: warn threshold (days before expiry). */}
+              {monitor.kind === 'tls' && (
+                <div style={{ marginTop: 14 }}>
+                  <Field label={t('wizard.field.cert_expiry_days')}>
+                    <input className="input" type="number" min={1} max={365}
+                      value={certExpiryDays} onChange={e => setCertExpiryDays(e.target.value)}
+                      style={{ maxWidth: 120 }}/>
+                    <div className="modal-hint">{t('wizard.field.cert_expiry_days_hint')}</div>
+                  </Field>
+                </div>
+              )}
               {showAgents && (
                 <div style={{ marginTop: 14 }}>
                   <Field label={t('monitor.edit.agent')}>
@@ -2154,9 +2207,11 @@ function CertCard({ monitor }) {
   const days = monitor.cert_days_left;
   const checked = monitor.cert_checked_at;
   const checkedDate = Array.isArray(checked) ? offsetDateTimeArrayToDate(checked) : new Date(checked);
+  // Warn within the monitor's configured threshold (default 14).
+  const warnThreshold = monitor.cert_expiry_days || 14;
   const tone = days == null ? 'unknown'
     : days < 0  ? 'expired'
-    : days < 14 ? 'warn'
+    : days <= warnThreshold ? 'warn'
     : 'ok';
   const palette = {
     ok:      { bg: 'var(--up-soft)',   fg: 'var(--up-text)',   label: `${days} days left` },

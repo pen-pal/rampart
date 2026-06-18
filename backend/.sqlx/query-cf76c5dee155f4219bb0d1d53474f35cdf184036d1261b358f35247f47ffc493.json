@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            id, name,\n            kind   AS \"kind: MonitorKind\",\n            url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, last_push_at, last_run_started_at,\n            active,\n            current_status AS \"current_status: MonitorStatus\",\n            created_at, updated_at,\n            cert_days_left, cert_subject, cert_checked_at,\n            group_id,\n            slo_target_pct::float8 AS \"slo_target_pct?\",\n            slo_window_days, agent_id, escalation_policy_id\n        FROM monitors\n        WHERE id = $1 AND org_id = $2\n        ",
+  "query": "\n        SELECT\n            id, name,\n            kind   AS \"kind: MonitorKind\",\n            url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, last_push_at, last_run_started_at,\n            active,\n            current_status AS \"current_status: MonitorStatus\",\n            created_at, updated_at,\n            cert_days_left, cert_subject, cert_checked_at,\n            check_cert, cert_expiry_days,\n            group_id,\n            slo_target_pct::float8 AS \"slo_target_pct?\",\n            slo_window_days, agent_id, escalation_policy_id\n        FROM monitors\n        WHERE id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -399,6 +399,28 @@
       },
       {
         "ordinal": 30,
+        "name": "check_cert",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "check_cert"
+          }
+        }
+      },
+      {
+        "ordinal": 31,
+        "name": "cert_expiry_days",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "cert_expiry_days"
+          }
+        }
+      },
+      {
+        "ordinal": 32,
         "name": "group_id",
         "type_info": "Uuid",
         "origin": {
@@ -409,13 +431,13 @@
         }
       },
       {
-        "ordinal": 31,
+        "ordinal": 33,
         "name": "slo_target_pct?",
         "type_info": "Float8",
         "origin": "Expression"
       },
       {
-        "ordinal": 32,
+        "ordinal": 34,
         "name": "slo_window_days",
         "type_info": "Int4",
         "origin": {
@@ -426,7 +448,7 @@
         }
       },
       {
-        "ordinal": 33,
+        "ordinal": 35,
         "name": "agent_id",
         "type_info": "Uuid",
         "origin": {
@@ -437,7 +459,7 @@
         }
       },
       {
-        "ordinal": 34,
+        "ordinal": 36,
         "name": "escalation_policy_id",
         "type_info": "Uuid",
         "origin": {
@@ -450,7 +472,6 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid",
         "Uuid"
       ]
     },
@@ -485,6 +506,8 @@
       true,
       true,
       true,
+      false,
+      false,
       true,
       null,
       true,
@@ -492,5 +515,5 @@
       true
     ]
   },
-  "hash": "4cc5bc3b4d0bfd64d12d9da003efab1180474f20d669421ec08fd51ec71b6b09"
+  "hash": "cf76c5dee155f4219bb0d1d53474f35cdf184036d1261b358f35247f47ffc493"
 }

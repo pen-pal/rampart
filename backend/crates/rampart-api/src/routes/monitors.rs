@@ -1198,6 +1198,8 @@ async fn clone_one(
         slo_window_days: src.slo_window_days,
         agent_id: src.agent_id,
         escalation_policy_id: src.escalation_policy_id,
+        check_cert: false,
+        cert_expiry_days: 14,
     };
     let cloned = rampart_db::monitors::create(state.pool(), copy).await?;
     state.poke_scheduler();
@@ -1344,6 +1346,8 @@ async fn test_notifications(
         cert_days_left: None,
         cert_subject: None,
         cert_checked_at: None,
+        check_cert: false,
+        cert_expiry_days: 14,
         group_id: None,
         slo_target_pct: None,
         slo_window_days: None,

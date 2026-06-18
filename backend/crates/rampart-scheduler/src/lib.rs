@@ -1174,6 +1174,42 @@ async fn run_once(
             }
         }
     }
+
+    // Standalone Tls-kind monitors also surface the cert snapshot
+    // (subject / days-left / checked-at) so the detail-view CertCard can
+    // render the same panel an https HTTP monitor gets. Same hourly
+    // rate-limit. The probe already drives Up/Warn/Down; this only
+    // populates the side-band columns the UI reads.
+    if monitor.kind == MonitorKind::Tls {
+        if let Some(host) = monitor.hostname.clone().filter(|h| !h.trim().is_empty()) {
+            let port = monitor
+                .config
+                .get("port")
+                .and_then(|v| v.as_u64())
+                .or(monitor.port.map(|p| p as u64))
+                .unwrap_or(443) as u16;
+            let stale = monitor
+                .cert_checked_at
+                .map(|t| (time::OffsetDateTime::now_utc() - t).whole_seconds() >= 3600)
+                .unwrap_or(true);
+            if stale {
+                let pool = pool.clone();
+                let id = monitor.id;
+                let to = Duration::from_secs(monitor.timeout_seconds.max(10) as u64);
+                tokio::spawn(async move {
+                    if let Ok(snap) = rampart_checker::tls::fetch_cert(&host, port, to).await {
+                        let _ = rampart_db::monitors::set_cert_info(
+                            &pool,
+                            id,
+                            snap.days_left,
+                            &snap.subject,
+                        )
+                        .await;
+                    }
+                });
+            }
+        }
+    }
 }
 
 /// Dispatch a single real probe, routing HTTP-family + active-proxy
@@ -1774,6 +1810,8 @@ fn alert_monitor(name: String) -> Monitor {
         cert_days_left: None,
         cert_subject: None,
         cert_checked_at: None,
+        check_cert: false,
+        cert_expiry_days: 14,
         group_id: None,
         slo_target_pct: None,
         slo_window_days: None,
