@@ -13,6 +13,13 @@
 //!   RAMPART_OIDC_REDIRECT_URL   e.g. https://rampart.example.com/v1/auth/oidc/callback
 //!   RAMPART_OIDC_DEFAULT_ROLE   admin|editor|readonly (default readonly; the
 //!                               very first user provisioned becomes admin)
+//!   RAMPART_OIDC_ORG_CLAIM      optional userinfo claim (e.g. `groups`, a
+//!                               custom `org`, or Google's `hd`) mapping the
+//!                               identity to org(s) BY SLUG — each value is
+//!                               slug-normalised, matched to an existing org,
+//!                               granted membership (at DEFAULT_ROLE), and the
+//!                               first match becomes the session's active org.
+//!                               Unset ⇒ no org mapping (Default org as before).
 //!
 //! Routes (all public, mounted at /v1/auth/oidc):
 //!   GET /config    → { enabled } so the login page can show an SSO button
@@ -55,6 +62,10 @@ struct OidcConfig {
     client_secret: String,
     redirect_url: String,
     default_role: Role,
+    /// Optional userinfo claim that maps the identity to org(s) by slug
+    /// (Phase 4f). `None` ⇒ no org mapping — behaviour identical to pre-4f
+    /// (provision into the Default org, active org unset).
+    org_claim: Option<String>,
 }
 
 fn env(k: &str) -> Option<String> {
@@ -74,6 +85,7 @@ fn config() -> Option<OidcConfig> {
             Some("editor") => Role::Editor,
             _ => Role::Readonly,
         },
+        org_claim: env("RAMPART_OIDC_ORG_CLAIM"),
     })
 }
 
@@ -134,6 +146,53 @@ struct UserInfo {
     /// with a victim's address could take over the matching Rampart user.
     #[serde(default, deserialize_with = "de_bool_lenient")]
     email_verified: Option<bool>,
+    /// All other userinfo claims, captured so the configurable org-mapping
+    /// (Phase 4f) can read whichever claim `RAMPART_OIDC_ORG_CLAIM` names
+    /// (e.g. `groups`, a custom `org`, or Google's hosted-domain `hd`).
+    #[serde(flatten)]
+    extra: serde_json::Map<String, serde_json::Value>,
+}
+
+/// Slugs (org slugs) a userinfo claim maps to. The claim value may be a single
+/// string (`hd`, a custom `org`) or an array of strings (`groups`); each value
+/// is normalised to slug form (lowercase, non-`[a-z0-9]` runs → `-`) so e.g.
+/// `"Acme Corp"`→`acme-corp` and `"acme.com"`→`acme-com` match an org by slug.
+/// Empty when the claim is absent/of an unexpected shape.
+fn claim_org_slugs(extra: &serde_json::Map<String, serde_json::Value>, claim: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    match extra.get(claim) {
+        Some(serde_json::Value::String(s)) => out.push(normalize_slug(s)),
+        Some(serde_json::Value::Array(arr)) => {
+            for x in arr {
+                if let Some(s) = x.as_str() {
+                    out.push(normalize_slug(s));
+                }
+            }
+        }
+        _ => {}
+    }
+    out.retain(|s| s.len() >= 2);
+    out
+}
+
+/// Lowercase + collapse any run of non-alphanumeric chars to a single `-`,
+/// trimming leading/trailing `-`. Mirrors the org-slug charset (`[a-z0-9-]`).
+fn normalize_slug(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut prev_dash = false;
+    for c in s.trim().to_lowercase().chars() {
+        if c.is_ascii_alphanumeric() {
+            out.push(c);
+            prev_dash = false;
+        } else if !out.is_empty() && !prev_dash {
+            out.push('-');
+            prev_dash = true;
+        }
+    }
+    while out.ends_with('-') {
+        out.pop();
+    }
+    out
 }
 
 /// Some IdPs encode `email_verified` as a JSON bool, others as the strings
@@ -263,6 +322,14 @@ async fn callback(
         ));
     }
 
+    // Phase 4f: resolve the configured org-mapping claim now, before `info` is
+    // consumed below. Empty (and a no-op) unless RAMPART_OIDC_ORG_CLAIM is set.
+    let org_slugs: Vec<String> = cfg
+        .org_claim
+        .as_deref()
+        .map(|c| claim_org_slugs(&info.extra, c))
+        .unwrap_or_default();
+
     let email = info
         .email
         .map(|e| e.to_lowercase())
@@ -292,6 +359,21 @@ async fn callback(
             .await?
         }
     };
+
+    // Phase 4f: grant membership in each mapped org (matched by slug) and pick
+    // the first match as the active org. Unmatched slugs are ignored (no
+    // auto-create, no deny) — the user falls back to Default. Idempotent, so
+    // memberships re-sync on every login. No-op when org_slugs is empty.
+    let mut mapped_org: Option<rampart_core::ids::OrgId> = None;
+    for slug in &org_slugs {
+        if let Ok(org) = rampart_db::orgs::get_by_slug(app.pool(), slug).await {
+            rampart_db::orgs::upsert_member(app.pool(), org.id, user.id, cfg.default_role).await?;
+            if mapped_org.is_none() {
+                mapped_org = Some(org.id);
+            }
+        }
+    }
+
     rampart_db::users::mark_login(app.pool(), user.id)
         .await
         .ok();
@@ -307,6 +389,14 @@ async fn callback(
             .map(String::from),
     )
     .await?;
+
+    // Phase 4f: point the new session at the first mapped org (Phase 4e then
+    // scopes the user's requests there with their per-org role). Best-effort.
+    if let Some(org) = mapped_org {
+        rampart_db::sessions::set_active_org(app.pool(), session.id, user.id, org.0)
+            .await
+            .ok();
+    }
 
     let cookie = build_session_cookie(session.id, is_secure(&headers));
     Ok((
@@ -360,5 +450,42 @@ mod tests {
         stash("st1".into(), "ver1".into());
         assert_eq!(take("st1").as_deref(), Some("ver1"));
         assert_eq!(take("st1"), None); // consumed
+    }
+
+    // ── Phase 4f: org-claim → slug resolution ────────────────────────────────
+    fn obj(v: serde_json::Value) -> serde_json::Map<String, serde_json::Value> {
+        v.as_object().unwrap().clone()
+    }
+
+    #[test]
+    fn normalize_slug_cases() {
+        assert_eq!(normalize_slug("Acme Corp"), "acme-corp");
+        assert_eq!(normalize_slug("acme.com"), "acme-com");
+        assert_eq!(normalize_slug("  Already-Slug  "), "already-slug");
+        assert_eq!(normalize_slug("a/b__c"), "a-b-c");
+        assert_eq!(normalize_slug("--x--"), "x");
+    }
+
+    #[test]
+    fn claim_string_array_and_missing() {
+        // single-string claim (hd / custom org)
+        assert_eq!(
+            claim_org_slugs(&obj(serde_json::json!({"hd": "Acme.com"})), "hd"),
+            vec!["acme-com"]
+        );
+        // array claim (groups): non-strings ignored, sub-2-char dropped
+        assert_eq!(
+            claim_org_slugs(
+                &obj(serde_json::json!({"groups": ["Acme Corp", "beta", 42, "x"]})),
+                "groups"
+            ),
+            vec!["acme-corp", "beta"]
+        );
+        // absent claim → empty (no-op mapping)
+        assert!(claim_org_slugs(&obj(serde_json::json!({"groups": []})), "nope").is_empty());
+        // unexpected shape → empty
+        assert!(
+            claim_org_slugs(&obj(serde_json::json!({"org": {"k": true}})), "org").is_empty()
+        );
     }
 }
