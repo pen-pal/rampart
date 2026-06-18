@@ -210,8 +210,9 @@ async fn run(args: Args) -> anyhow::Result<ExitCode> {
             skipped_dupe += 1;
             continue;
         }
-        // P5: resolve org from ingest credential — the CLI importer has no
-        // request context, so everything lands in the Default org.
+        // The CLI importer is an admin provisioning tool (it creates monitors,
+        // not telemetry), with no request/ingest credential — imported monitors
+        // land in the Default org. (A future `--org` flag could target another.)
         match monitors::create(
             &pool,
             m.new_monitor,

@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT DISTINCT service_name AS \"service_name!\"\n        FROM logs\n        WHERE received_at > now() - make_interval(days => 7)\n          AND org_id = $1\n        ORDER BY service_name\n        LIMIT 500\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "service_name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "logs",
+            "name": "service_name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4235395c1b3733ba5b2e4425660fe06251cd500410f9d7a28d5816a41fd0edb3"
+}

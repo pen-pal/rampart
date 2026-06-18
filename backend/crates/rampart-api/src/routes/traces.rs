@@ -4,10 +4,11 @@
 //! /v1/traces/service-map  — service dependency edges
 //! /v1/traces/{trace_id}   — all spans of a trace (the waterfall)
 
+use crate::auth::OrgContext;
 use crate::csv::csv_escape;
 use crate::error::ApiError;
 use crate::state::AppState;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Extension, Path, Query, State};
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::{Json, Router};
@@ -44,6 +45,7 @@ struct ListQuery {
 
 async fn list(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Query(query): Query<ListQuery>,
 ) -> Result<Json<Vec<TraceSummary>>, ApiError> {
     let ne = |o: &Option<String>| o.clone().filter(|x| !x.is_empty());
@@ -59,7 +61,7 @@ async fn list(
         limit: query.limit.unwrap_or(100),
     };
     Ok(Json(
-        rampart_db::traces::list_traces(s.pool(), filter).await?,
+        rampart_db::traces::list_traces(s.pool(), filter, org.org_id).await?,
     ))
 }
 
@@ -70,10 +72,11 @@ struct MapQuery {
 
 async fn service_map(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Query(q): Query<MapQuery>,
 ) -> Result<Json<Vec<ServiceEdge>>, ApiError> {
     Ok(Json(
-        rampart_db::traces::service_map(s.pool(), q.hours.unwrap_or(24)).await?,
+        rampart_db::traces::service_map(s.pool(), q.hours.unwrap_or(24), org.org_id).await?,
     ))
 }
 
@@ -86,6 +89,7 @@ struct OpsQuery {
 
 async fn operations(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Query(q): Query<OpsQuery>,
 ) -> Result<Json<Vec<OperationStat>>, ApiError> {
     Ok(Json(
@@ -93,6 +97,7 @@ async fn operations(
             s.pool(),
             q.service.as_deref().unwrap_or(""),
             q.hours.unwrap_or(24),
+            org.org_id,
         )
         .await?,
     ))
@@ -107,6 +112,7 @@ struct OpTrendQuery {
 
 async fn operation_trend(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Query(q): Query<OpTrendQuery>,
 ) -> Result<Json<Vec<f64>>, ApiError> {
     Ok(Json(
@@ -116,6 +122,7 @@ async fn operation_trend(
             &q.operation,
             q.hours.unwrap_or(24),
             24,
+            org.org_id,
         )
         .await?,
     ))
@@ -126,6 +133,7 @@ async fn operation_trend(
 /// per trace; `limit` is accepted but clamped to [`EXPORT_CAP`].
 async fn export_csv(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Query(query): Query<ListQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
     let ne = |o: &Option<String>| o.clone().filter(|x| !x.is_empty());
@@ -140,7 +148,7 @@ async fn export_csv(
         before_id: None,
         limit,
     };
-    let rows = rampart_db::traces::list_traces(s.pool(), filter).await?;
+    let rows = rampart_db::traces::list_traces(s.pool(), filter, org.org_id).await?;
     let fmt = time::format_description::well_known::Rfc3339;
     let mut body = String::with_capacity(64 + rows.len() * 120);
     body.push_str("started_at,trace_id,root_service,root_name,duration_ms,span_count,error_count,services\n");
@@ -171,9 +179,10 @@ async fn export_csv(
 
 async fn detail(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(trace_id): Path<String>,
 ) -> Result<Json<Vec<Span>>, ApiError> {
     Ok(Json(
-        rampart_db::traces::get_trace_spans(s.pool(), &trace_id).await?,
+        rampart_db::traces::get_trace_spans(s.pool(), &trace_id, org.org_id).await?,
     ))
 }

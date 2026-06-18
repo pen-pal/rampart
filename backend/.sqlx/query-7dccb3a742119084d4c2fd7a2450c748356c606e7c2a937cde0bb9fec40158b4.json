@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT date_bin(make_interval(secs => $3), ts, $4) AS bucket,\n                       SUM(value) FILTER (WHERE name = $1)\n                         / NULLIF(SUM(value) FILTER (WHERE name = $2), 0) * 100.0 AS pct\n                FROM metric_samples\n                WHERE name IN ($1, $2) AND ts >= $4 AND labels @> $5 AND org_id = $6\n                GROUP BY bucket ORDER BY bucket\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "bucket",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "pct",
+        "type_info": "Float8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Float8",
+        "Timestamptz",
+        "Jsonb",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "7dccb3a742119084d4c2fd7a2450c748356c606e7c2a937cde0bb9fec40158b4"
+}

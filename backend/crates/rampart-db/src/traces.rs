@@ -7,6 +7,7 @@
 //! parent/child pairs. Spans age out via [`prune`].
 
 use crate::{DbError, DbPool, DbResult};
+use rampart_core::ids::OrgId;
 use rampart_core::trace::{ParsedSpan, ServiceEdge, Span, TraceSummary};
 use time::OffsetDateTime;
 
@@ -128,7 +129,11 @@ pub struct TraceFilter<'a> {
 /// span's service/operation, total duration, and error count. Filters apply
 /// post-aggregation (HAVING) so a service/duration/error/text query narrows the
 /// list without losing any of a matched trace's spans.
-pub async fn list_traces(pool: &DbPool, f: TraceFilter<'_>) -> DbResult<Vec<TraceSummary>> {
+pub async fn list_traces(
+    pool: &DbPool,
+    f: TraceFilter<'_>,
+    org_id: OrgId,
+) -> DbResult<Vec<TraceSummary>> {
     let rows = sqlx::query_as!(
         SummaryRow,
         r#"
@@ -146,8 +151,10 @@ pub async fn list_traces(pool: &DbPool, f: TraceFilter<'_>) -> DbResult<Vec<Trac
         LEFT JOIN LATERAL (
             SELECT service_name, name FROM spans rr
             WHERE rr.trace_id = s.trace_id AND rr.parent_span_id IS NULL
+              AND rr.org_id = $7
             ORDER BY rr.start_ns LIMIT 1
         ) r ON true
+        WHERE s.org_id = $7
         GROUP BY s.trace_id, r.service_name, r.name
         HAVING ($2::text IS NULL OR bool_or(s.service_name = $2))
            AND ($3::float8 IS NULL
@@ -159,7 +166,7 @@ pub async fn list_traces(pool: &DbPool, f: TraceFilter<'_>) -> DbResult<Vec<Trac
                 OR s.trace_id ILIKE '%' || $5 || '%')
            AND ($6::text IS NULL
                 OR (MIN(s.received_at), s.trace_id)
-                   < ((SELECT MIN(received_at) FROM spans WHERE trace_id = $6), $6))
+                   < ((SELECT MIN(received_at) FROM spans WHERE trace_id = $6 AND org_id = $7), $6))
         ORDER BY MIN(s.received_at) DESC, s.trace_id DESC
         LIMIT $1
         "#,
@@ -169,6 +176,7 @@ pub async fn list_traces(pool: &DbPool, f: TraceFilter<'_>) -> DbResult<Vec<Trac
         f.errors_only,
         f.q,
         f.before_id,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -211,8 +219,9 @@ impl From<SpanRow> for Span {
     }
 }
 
-/// All spans of one trace, ordered by start time (for the waterfall).
-pub async fn get_trace_spans(pool: &DbPool, trace_id: &str) -> DbResult<Vec<Span>> {
+/// All spans of one trace, ordered by start time (for the waterfall). Scoped to
+/// `org_id` — trace ids are no longer globally unique across tenants (Phase 5).
+pub async fn get_trace_spans(pool: &DbPool, trace_id: &str, org_id: OrgId) -> DbResult<Vec<Span>> {
     let rows = sqlx::query_as!(
         SpanRow,
         r#"
@@ -220,10 +229,11 @@ pub async fn get_trace_spans(pool: &DbPool, trace_id: &str) -> DbResult<Vec<Span
                start_ns, end_ns, duration_ms, status_code, status_message,
                attributes, received_at
         FROM spans
-        WHERE trace_id = $1
+        WHERE trace_id = $1 AND org_id = $2
         ORDER BY start_ns
         "#,
         trace_id,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -244,7 +254,11 @@ struct EdgeRow {
 /// Service dependency edges (caller → callee) from cross-service parent/child
 /// span pairs seen in the trailing window — call count, error count, and p95
 /// latency of the callee span, so the map can size + color edges by health.
-pub async fn service_map(pool: &DbPool, window_hours: i64) -> DbResult<Vec<ServiceEdge>> {
+pub async fn service_map(
+    pool: &DbPool,
+    window_hours: i64,
+    org_id: OrgId,
+) -> DbResult<Vec<ServiceEdge>> {
     let rows = sqlx::query_as!(
         EdgeRow,
         r#"
@@ -255,13 +269,16 @@ pub async fn service_map(pool: &DbPool, window_hours: i64) -> DbResult<Vec<Servi
                percentile_cont(0.95) WITHIN GROUP (ORDER BY child.duration_ms) AS "p95_ms"
         FROM spans child
         JOIN spans parent ON child.parent_span_id = parent.span_id
+                         AND parent.org_id = $2
         WHERE child.service_name <> parent.service_name
           AND child.received_at > now() - make_interval(hours => $1)
+          AND child.org_id = $2
         GROUP BY parent.service_name, child.service_name
         ORDER BY COUNT(*) DESC
         LIMIT 300
         "#,
         window_hours.clamp(1, 720) as i32,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -284,6 +301,7 @@ pub async fn operation_stats(
     pool: &DbPool,
     service: &str,
     window_hours: i64,
+    org_id: OrgId,
 ) -> DbResult<Vec<rampart_core::OperationStat>> {
     struct Row {
         service: Option<String>,
@@ -311,12 +329,14 @@ pub async fn operation_stats(
         FROM spans
         WHERE received_at > now() - make_interval(hours => $1)
           AND ($2 = '' OR service_name = $2)
+          AND org_id = $3
         GROUP BY service_name, name
         ORDER BY COUNT(*) DESC
         LIMIT 500
         "#,
         window_hours.clamp(1, 720) as i32,
         service,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -354,6 +374,7 @@ pub async fn operation_trend(
     operation: &str,
     window_hours: i64,
     buckets: i64,
+    org_id: OrgId,
 ) -> DbResult<Vec<f64>> {
     let hours = window_hours.clamp(1, 720);
     let buckets = buckets.clamp(2, 200);
@@ -366,12 +387,14 @@ pub async fn operation_trend(
         FROM spans
         WHERE service_name = $1 AND name = $2
           AND received_at > now() - make_interval(hours => $3)
+          AND org_id = $5
         GROUP BY 1 ORDER BY 1
         "#,
         service,
         operation,
         hours as i32,
         step as f64,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;

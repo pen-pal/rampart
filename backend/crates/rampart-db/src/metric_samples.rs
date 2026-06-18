@@ -5,6 +5,7 @@
 //! pushed in from outside via POST /v1/metrics/ingest.
 
 use crate::DbResult;
+use rampart_core::ids::OrgId;
 use rampart_core::promtext::PromSample;
 use sqlx::PgPool;
 use time::OffsetDateTime;
@@ -55,17 +56,19 @@ pub struct Series {
     pub samples: i64,
 }
 
-/// Every distinct (name, labels) series, newest-activity first. Bounded:
-/// the GROUP BY runs over the name+ts index and homelab cardinality.
-pub async fn list_series(pool: &PgPool) -> DbResult<Vec<Series>> {
+/// Every distinct (name, labels) series for one org, newest-activity first.
+/// Bounded: the GROUP BY runs over the name+ts index and homelab cardinality.
+pub async fn list_series(pool: &PgPool, org_id: OrgId) -> DbResult<Vec<Series>> {
     let rows = sqlx::query!(
         r#"
         SELECT name, labels AS "labels!", MAX(ts) AS "last_ts!", COUNT(*) AS "samples!"
         FROM metric_samples
+        WHERE org_id = $1
         GROUP BY name, labels
         ORDER BY MAX(ts) DESC
         LIMIT 1000
         "#,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -99,6 +102,7 @@ pub async fn range_query(
     from: OffsetDateTime,
     to: OffsetDateTime,
     step_seconds: i64,
+    org_id: OrgId,
 ) -> DbResult<Vec<RangePoint>> {
     let rows = sqlx::query!(
         r#"
@@ -109,7 +113,7 @@ pub async fn range_query(
             MAX(value)  AS "max!",
             COUNT(*)    AS "samples!"
         FROM metric_samples
-        WHERE name = $1 AND labels = $2 AND ts >= $3 AND ts <= $4
+        WHERE name = $1 AND labels = $2 AND ts >= $3 AND ts <= $4 AND org_id = $6
         GROUP BY 1
         ORDER BY 1
         "#,
@@ -118,6 +122,7 @@ pub async fn range_query(
         from,
         to,
         step_seconds as f64,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -141,17 +146,19 @@ pub async fn baseline(
     name: &str,
     labels: &serde_json::Value,
     window_secs: i64,
+    org_id: OrgId,
 ) -> DbResult<Option<(f64, f64)>> {
     let since = OffsetDateTime::now_utc() - time::Duration::seconds(window_secs);
     let row = sqlx::query!(
         r#"
         SELECT AVG(value) AS "mean", STDDEV_SAMP(value) AS "stddev", COUNT(*) AS "n!"
         FROM metric_samples
-        WHERE name = $1 AND labels = $2 AND ts >= $3
+        WHERE name = $1 AND labels = $2 AND ts >= $3 AND org_id = $4
         "#,
         name,
         labels,
         since,
+        org_id.0,
     )
     .fetch_one(pool)
     .await?;
@@ -167,17 +174,19 @@ pub async fn latest(
     pool: &PgPool,
     name: &str,
     labels: &serde_json::Value,
+    org_id: OrgId,
 ) -> DbResult<Option<(f64, OffsetDateTime)>> {
     let row = sqlx::query!(
         r#"
         SELECT value, ts
         FROM metric_samples
-        WHERE name = $1 AND labels = $2
+        WHERE name = $1 AND labels = $2 AND org_id = $3
         ORDER BY ts DESC
         LIMIT 1
         "#,
         name,
         labels,
+        org_id.0,
     )
     .fetch_optional(pool)
     .await?;

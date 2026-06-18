@@ -1,0 +1,91 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT service_name AS \"service\",\n               name         AS \"operation\",\n               COUNT(*)                                                     AS \"calls\",\n               COUNT(*) FILTER (WHERE status_code = 2)                      AS \"errors\",\n               percentile_cont(0.50) WITHIN GROUP (ORDER BY duration_ms)    AS \"p50\",\n               percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms)    AS \"p95\",\n               percentile_cont(0.99) WITHIN GROUP (ORDER BY duration_ms)    AS \"p99\",\n               AVG(duration_ms)                                             AS \"avg_ms\",\n               MAX(duration_ms)                                             AS \"max_ms\"\n        FROM spans\n        WHERE received_at > now() - make_interval(hours => $1)\n          AND ($2 = '' OR service_name = $2)\n          AND org_id = $3\n        GROUP BY service_name, name\n        ORDER BY COUNT(*) DESC\n        LIMIT 500\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "service",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "spans",
+            "name": "service_name"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "operation",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "spans",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "calls",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "errors",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "p50",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "p95",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "p99",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
+        "name": "avg_ms",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
+        "name": "max_ms",
+        "type_info": "Float8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "dbf213d5e98e9612ebd1658166e3092b8472821bf97cc440b8f1e05dc135547e"
+}

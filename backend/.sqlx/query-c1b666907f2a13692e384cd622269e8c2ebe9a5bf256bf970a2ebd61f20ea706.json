@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT folded\n        FROM profiles\n        WHERE service_name = $1\n          AND profile_type = $2\n          AND received_at >= $3\n          AND received_at <  $4\n          AND org_id = $5\n        ORDER BY received_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "folded",
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "profiles",
+            "name": "folded"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Timestamptz",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "c1b666907f2a13692e384cd622269e8c2ebe9a5bf256bf970a2ebd61f20ea706"
+}

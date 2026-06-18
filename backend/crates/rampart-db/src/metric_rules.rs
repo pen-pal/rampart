@@ -25,6 +25,7 @@ pub const ANOMALY_BASELINE_SECONDS: i64 = 6 * 3600;
 
 struct RuleRow {
     id: Uuid,
+    org_id: Uuid,
     name: String,
     metric: String,
     labels: serde_json::Value,
@@ -43,6 +44,7 @@ impl From<RuleRow> for MetricRule {
     fn from(r: RuleRow) -> Self {
         MetricRule {
             id: MetricRuleId::from_uuid(r.id),
+            org_id: OrgId::from_uuid(r.org_id),
             name: r.name,
             metric: r.metric,
             labels: r.labels,
@@ -70,7 +72,7 @@ pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<MetricRule>> {
     let rows = sqlx::query_as!(
         RuleRow,
         r#"
-        SELECT id, name, metric, labels AS "labels!", op, threshold, for_seconds,
+        SELECT id, org_id AS "org_id!", name, metric, labels AS "labels!", op, threshold, for_seconds,
                enabled, channel_ids AS "channel_ids!", escalation_policy_id,
                breach_since, firing_at, created_at
         FROM metric_rules
@@ -91,7 +93,7 @@ pub async fn list_all(pool: &DbPool) -> DbResult<Vec<MetricRule>> {
     let rows = sqlx::query_as!(
         RuleRow,
         r#"
-        SELECT id, name, metric, labels AS "labels!", op, threshold, for_seconds,
+        SELECT id, org_id AS "org_id!", name, metric, labels AS "labels!", op, threshold, for_seconds,
                enabled, channel_ids AS "channel_ids!", escalation_policy_id,
                breach_since, firing_at, created_at
         FROM metric_rules
@@ -108,7 +110,7 @@ pub async fn get(pool: &DbPool, id: MetricRuleId, org_id: OrgId) -> DbResult<Met
     let row = sqlx::query_as!(
         RuleRow,
         r#"
-        SELECT id, name, metric, labels AS "labels!", op, threshold, for_seconds,
+        SELECT id, org_id AS "org_id!", name, metric, labels AS "labels!", op, threshold, for_seconds,
                enabled, channel_ids AS "channel_ids!", escalation_policy_id,
                breach_since, firing_at, created_at
         FROM metric_rules
@@ -129,7 +131,7 @@ pub async fn get_unscoped(pool: &DbPool, id: MetricRuleId) -> DbResult<MetricRul
     let row = sqlx::query_as!(
         RuleRow,
         r#"
-        SELECT id, name, metric, labels AS "labels!", op, threshold, for_seconds,
+        SELECT id, org_id AS "org_id!", name, metric, labels AS "labels!", op, threshold, for_seconds,
                enabled, channel_ids AS "channel_ids!", escalation_policy_id,
                breach_since, firing_at, created_at
         FROM metric_rules
@@ -248,7 +250,8 @@ pub async fn evaluate_tick(pool: &DbPool) -> DbResult<Vec<RuleEvent>> {
     let mut out = Vec::new();
 
     for rule in list_all(pool).await?.into_iter().filter(|r| r.enabled) {
-        let latest = crate::metric_samples::latest(pool, &rule.metric, &rule.labels).await?;
+        let latest =
+            crate::metric_samples::latest(pool, &rule.metric, &rule.labels, rule.org_id).await?;
         let fresh_value = latest.and_then(|(v, ts)| {
             ((now - ts).whole_seconds() < SAMPLE_FRESHNESS_SECONDS).then_some(v)
         });
@@ -260,6 +263,7 @@ pub async fn evaluate_tick(pool: &DbPool) -> DbResult<Vec<RuleEvent>> {
                     &rule.metric,
                     &rule.labels,
                     ANOMALY_BASELINE_SECONDS,
+                    rule.org_id,
                 )
                 .await?
                 {

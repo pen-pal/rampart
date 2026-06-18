@@ -1,0 +1,116 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            id,\n            received_at,\n            service_name,\n            profile_type,\n            period_ns,\n            duration_ns,\n            sample_count,\n            labels AS \"labels!: serde_json::Value\"\n        FROM profiles\n        WHERE received_at >= now() - make_interval(hours => $1)\n          AND ($2::text IS NULL OR service_name = $2)\n          AND ($3::text IS NULL OR profile_type = $3)\n          AND org_id = $5\n        ORDER BY received_at DESC\n        LIMIT $4\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "profiles",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "received_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "profiles",
+            "name": "received_at"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "service_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "profiles",
+            "name": "service_name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "profile_type",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "profiles",
+            "name": "profile_type"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "period_ns",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "profiles",
+            "name": "period_ns"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "duration_ns",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "profiles",
+            "name": "duration_ns"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "sample_count",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "profiles",
+            "name": "sample_count"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "labels!: serde_json::Value",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "profiles",
+            "name": "labels"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Text",
+        "Int8",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "4ce0594c0650af413a5e4fb9d23f7eef3adaece1cd9cee31dae4b9fa9fc4d281"
+}
