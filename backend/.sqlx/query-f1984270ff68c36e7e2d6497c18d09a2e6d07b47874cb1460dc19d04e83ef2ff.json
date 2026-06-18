@@ -1,0 +1,56 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            TO_TIMESTAMP(FLOOR(EXTRACT(EPOCH FROM ts) / $5) * $5) AS \"bucket!\",\n            AVG(value)  AS \"avg!\",\n            MIN(value)  AS \"min!\",\n            MAX(value)  AS \"max!\",\n            COUNT(*)    AS \"samples!\"\n        FROM metric_samples\n        WHERE name = $1 AND labels = $2 AND ts >= $3 AND ts <= $4 AND org_id = $6\n        GROUP BY 1\n        ORDER BY 1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "bucket!",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "avg!",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "min!",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "max!",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "samples!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Jsonb",
+        "Timestamptz",
+        "Timestamptz",
+        "Numeric",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "f1984270ff68c36e7e2d6497c18d09a2e6d07b47874cb1460dc19d04e83ef2ff"
+}

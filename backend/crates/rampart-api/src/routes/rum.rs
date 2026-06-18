@@ -7,10 +7,11 @@
 //! Read (`/v1/rum`, editor/readonly):
 //!   GET /v1/rum/summary | /pages | /apps
 
+use crate::auth::OrgContext;
 use crate::error::ApiError;
 use crate::state::AppState;
 use axum::body::Bytes;
-use axum::extract::{Query, State};
+use axum::extract::{Extension, Query, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
@@ -197,51 +198,79 @@ struct RumQuery {
 
 async fn summary(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Query(q): Query<RumQuery>,
 ) -> Result<Json<RumVitals>, ApiError> {
     Ok(Json(
-        rampart_db::rum::summary(s.pool(), q.app.as_deref(), q.hours.unwrap_or(24)).await?,
+        rampart_db::rum::summary(s.pool(), q.app.as_deref(), q.hours.unwrap_or(24), org.org_id)
+            .await?,
     ))
 }
 
 async fn pages(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Query(q): Query<RumQuery>,
 ) -> Result<Json<Vec<RumPage>>, ApiError> {
     Ok(Json(
-        rampart_db::rum::pages(s.pool(), q.app.as_deref(), q.hours.unwrap_or(24)).await?,
+        rampart_db::rum::pages(s.pool(), q.app.as_deref(), q.hours.unwrap_or(24), org.org_id)
+            .await?,
     ))
 }
 
-async fn apps(State(s): State<AppState>) -> Result<Json<Vec<String>>, ApiError> {
-    Ok(Json(rampart_db::rum::apps(s.pool()).await?))
+async fn apps(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+) -> Result<Json<Vec<String>>, ApiError> {
+    Ok(Json(rampart_db::rum::apps(s.pool(), org.org_id).await?))
 }
 
 async fn traced(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Query(q): Query<RumQuery>,
 ) -> Result<Json<Vec<rampart_core::rum::RumTracedLoad>>, ApiError> {
     Ok(Json(
-        rampart_db::rum::recent_traced(s.pool(), q.app.as_deref(), q.hours.unwrap_or(24), 50)
-            .await?,
+        rampart_db::rum::recent_traced(
+            s.pool(),
+            q.app.as_deref(),
+            q.hours.unwrap_or(24),
+            50,
+            org.org_id,
+        )
+        .await?,
     ))
 }
 
 async fn browsers(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Query(q): Query<RumQuery>,
 ) -> Result<Json<Vec<rampart_db::rum::RumBrowser>>, ApiError> {
     Ok(Json(
-        rampart_db::rum::browser_breakdown(s.pool(), q.app.as_deref(), q.hours.unwrap_or(24)).await?,
+        rampart_db::rum::browser_breakdown(
+            s.pool(),
+            q.app.as_deref(),
+            q.hours.unwrap_or(24),
+            org.org_id,
+        )
+        .await?,
     ))
 }
 
 async fn users(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Query(q): Query<RumQuery>,
 ) -> Result<Json<Vec<rampart_db::rum::RumUser>>, ApiError> {
     Ok(Json(
-        rampart_db::rum::user_breakdown(s.pool(), q.app.as_deref(), q.hours.unwrap_or(24)).await?,
+        rampart_db::rum::user_breakdown(
+            s.pool(),
+            q.app.as_deref(),
+            q.hours.unwrap_or(24),
+            org.org_id,
+        )
+        .await?,
     ))
 }
 
@@ -254,11 +283,19 @@ struct PageQuery {
 
 async fn page(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Query(q): Query<PageQuery>,
 ) -> Result<Json<Vec<rampart_db::rum::RumSample>>, ApiError> {
     Ok(Json(
-        rampart_db::rum::page_samples(s.pool(), q.app.as_deref(), &q.url, q.hours.unwrap_or(24), 100)
-            .await?,
+        rampart_db::rum::page_samples(
+            s.pool(),
+            q.app.as_deref(),
+            &q.url,
+            q.hours.unwrap_or(24),
+            100,
+            org.org_id,
+        )
+        .await?,
     ))
 }
 

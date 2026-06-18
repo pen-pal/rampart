@@ -6,6 +6,7 @@
 //! via [`prune`]. Parsing lives in `rampart_core::log`.
 
 use crate::{DbPool, DbResult};
+use rampart_core::ids::OrgId;
 use rampart_core::log::{coarse_level, ParsedLog};
 use rampart_core::LogEntry;
 use time::OffsetDateTime;
@@ -126,8 +127,10 @@ pub struct LogFilter<'a> {
     pub limit: i64,
 }
 
-/// Recent logs matching the filter, newest first.
-pub async fn query_logs(pool: &DbPool, f: LogFilter<'_>) -> DbResult<Vec<LogEntry>> {
+/// Recent logs matching the filter, newest first. Scoped to `org_id` (the
+/// `before_id` keyset row is resolved within the same org so a cross-org cursor
+/// can't leak ordering).
+pub async fn query_logs(pool: &DbPool, f: LogFilter<'_>, org_id: OrgId) -> DbResult<Vec<LogEntry>> {
     let rows = sqlx::query_as!(
         LogRow,
         r#"
@@ -140,7 +143,9 @@ pub async fn query_logs(pool: &DbPool, f: LogFilter<'_>) -> DbResult<Vec<LogEntr
           AND ($4::text IS NULL OR trace_id = $4)
           AND ($6::text IS NULL OR span_id = $6)
           AND ($7::int4 IS NULL OR received_at > now() - make_interval(hours => $7))
-          AND ($8::uuid IS NULL OR (ts, id) < (SELECT ts, id FROM logs WHERE id = $8))
+          AND ($8::uuid IS NULL
+               OR (ts, id) < (SELECT ts, id FROM logs WHERE id = $8 AND org_id = $9))
+          AND org_id = $9
         ORDER BY ts DESC, id DESC
         LIMIT $5
         "#,
@@ -152,6 +157,7 @@ pub async fn query_logs(pool: &DbPool, f: LogFilter<'_>) -> DbResult<Vec<LogEntr
         f.span_id,
         f.hours.map(|h| h.clamp(1, 720)),
         f.before_id,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -165,6 +171,7 @@ pub async fn level_counts(
     pool: &DbPool,
     service: Option<&str>,
     hours: i32,
+    org_id: OrgId,
 ) -> DbResult<Vec<(String, i64)>> {
     let rows = sqlx::query!(
         r#"
@@ -172,10 +179,12 @@ pub async fn level_counts(
         FROM logs
         WHERE received_at > now() - make_interval(hours => $1)
           AND ($2::text IS NULL OR service_name = $2)
+          AND org_id = $3
         GROUP BY severity
         "#,
         hours.clamp(1, 720),
         service,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -204,6 +213,7 @@ pub async fn histogram(
     query: Option<&str>,
     hours: i32,
     buckets: i64,
+    org_id: OrgId,
 ) -> DbResult<Vec<LogBucket>> {
     let hours = hours.clamp(1, 720);
     let buckets = buckets.clamp(2, 200);
@@ -219,6 +229,7 @@ pub async fn histogram(
           AND ($1::text IS NULL OR service_name = $1)
           AND ($2::int2 IS NULL OR severity >= $2)
           AND ($3::text IS NULL OR body_tsv @@ websearch_to_tsquery('english', $3))
+          AND org_id = $6
         GROUP BY 1 ORDER BY 1
         "#,
         service,
@@ -226,6 +237,7 @@ pub async fn histogram(
         query,
         hours,
         step as f64,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -240,15 +252,17 @@ pub async fn histogram(
 }
 
 /// Distinct service names seen recently (for the filter dropdown).
-pub async fn list_services(pool: &DbPool) -> DbResult<Vec<String>> {
+pub async fn list_services(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<String>> {
     let rows = sqlx::query_scalar!(
         r#"
         SELECT DISTINCT service_name AS "service_name!"
         FROM logs
         WHERE received_at > now() - make_interval(days => 7)
+          AND org_id = $1
         ORDER BY service_name
         LIMIT 500
         "#,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;

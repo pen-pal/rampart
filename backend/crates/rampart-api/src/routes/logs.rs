@@ -5,10 +5,11 @@
 //!
 //! Ingest (OTLP) lives in `otlp`, mounted at the root `/otlp` surface.
 
+use crate::auth::OrgContext;
 use crate::csv::csv_escape;
 use crate::error::ApiError;
 use crate::state::AppState;
-use axum::extract::{Query, State};
+use axum::extract::{Extension, Query, State};
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::{Json, Router};
@@ -39,6 +40,7 @@ struct LevelsQuery {
 
 async fn levels(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Query(q): Query<LevelsQuery>,
 ) -> Result<Json<Vec<(String, i64)>>, ApiError> {
     Ok(Json(
@@ -46,6 +48,7 @@ async fn levels(
             s.pool(),
             q.service.as_deref().filter(|s| !s.is_empty()),
             q.hours.unwrap_or(24),
+            org.org_id,
         )
         .await?,
     ))
@@ -68,6 +71,7 @@ struct LogQuery {
 
 async fn list(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Query(query): Query<LogQuery>,
 ) -> Result<Json<Vec<LogEntry>>, ApiError> {
     let min_severity = query.level.as_deref().and_then(level_min_severity);
@@ -81,7 +85,9 @@ async fn list(
         before_id: query.before_id.as_deref().and_then(|s| uuid::Uuid::parse_str(s).ok()),
         limit: query.limit.unwrap_or(200),
     };
-    Ok(Json(rampart_db::logs::query_logs(s.pool(), filter).await?))
+    Ok(Json(
+        rampart_db::logs::query_logs(s.pool(), filter, org.org_id).await?,
+    ))
 }
 
 /// The list/export time window: honour the `hours` param (default 24h), but
@@ -97,6 +103,7 @@ fn window_hours(q: &LogQuery) -> Option<i32> {
 
 async fn histogram(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Query(query): Query<LogQuery>,
 ) -> Result<Json<Vec<rampart_db::logs::LogBucket>>, ApiError> {
     let min_severity = query.level.as_deref().and_then(level_min_severity);
@@ -108,19 +115,26 @@ async fn histogram(
             query.q.as_deref().filter(|s| !s.is_empty()),
             query.hours.unwrap_or(24),
             48,
+            org.org_id,
         )
         .await?,
     ))
 }
 
-async fn services(State(s): State<AppState>) -> Result<Json<Vec<String>>, ApiError> {
-    Ok(Json(rampart_db::logs::list_services(s.pool()).await?))
+async fn services(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+) -> Result<Json<Vec<String>>, ApiError> {
+    Ok(Json(
+        rampart_db::logs::list_services(s.pool(), org.org_id).await?,
+    ))
 }
 
 /// CSV export of logs honouring the same `service` / `level` / `q` / `trace_id`
 /// filters as the list route. `limit` is accepted but clamped to [`EXPORT_CAP`].
 async fn export_csv(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Query(query): Query<LogQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
     let min_severity = query.level.as_deref().and_then(level_min_severity);
@@ -135,7 +149,7 @@ async fn export_csv(
         before_id: None,
         limit,
     };
-    let rows = rampart_db::logs::query_logs(s.pool(), filter).await?;
+    let rows = rampart_db::logs::query_logs(s.pool(), filter, org.org_id).await?;
     let fmt = time::format_description::well_known::Rfc3339;
     let mut body = String::with_capacity(64 + rows.len() * 160);
     body.push_str("ts,level,severity,service,trace_id,span_id,body,attributes\n");

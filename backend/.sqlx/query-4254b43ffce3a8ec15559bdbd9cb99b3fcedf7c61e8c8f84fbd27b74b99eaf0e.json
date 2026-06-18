@@ -1,0 +1,60 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT ev.issue_id AS \"issue_id!\", i.title AS \"title!\", i.level AS \"level!\",\n               COUNT(*) AS \"count!\"\n        FROM error_events ev\n        JOIN error_issues i ON i.id = ev.issue_id\n        JOIN error_projects p ON p.id = ev.project_id AND p.org_id = $2\n        WHERE ev.trace_id = $1\n        GROUP BY ev.issue_id, i.title, i.level\n        ORDER BY COUNT(*) DESC\n        LIMIT 20\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "issue_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "error_events",
+            "name": "issue_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "title!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "error_issues",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "level!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "error_issues",
+            "name": "level"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "count!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "4254b43ffce3a8ec15559bdbd9cb99b3fcedf7c61e8c8f84fbd27b74b99eaf0e"
+}

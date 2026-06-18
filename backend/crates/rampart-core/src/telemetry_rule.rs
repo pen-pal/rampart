@@ -7,7 +7,7 @@
 //! aggregate over one tier, selected by [`TelemetryRuleKind`]. The IO that
 //! computes that aggregate lives in `rampart_db::telemetry_rules`.
 
-use crate::ids::{EscalationPolicyId, NotificationId, TelemetryRuleId};
+use crate::ids::{EscalationPolicyId, NotificationId, OrgId, TelemetryRuleId};
 use crate::metric_rule::RuleOp;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
@@ -75,6 +75,8 @@ impl TelemetryRuleKind {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TelemetryRule {
     pub id: TelemetryRuleId,
+    /// Owning tenant — scopes the scheduler's tier reads (Phase 5).
+    pub org_id: OrgId,
     pub name: String,
     pub kind: TelemetryRuleKind,
     /// Scope: project name (error_rate) or service name (trace/log kinds).

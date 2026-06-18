@@ -496,9 +496,10 @@ async fn assignable_users(
 /// Error issues touched by a given trace — the trace → errors correlation link.
 async fn issues_by_trace(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(trace_id): Path<String>,
 ) -> Result<Json<Vec<rampart_db::error_tracking::TraceErrorRef>>, ApiError> {
     Ok(Json(
-        rampart_db::error_tracking::issues_for_trace(s.pool(), &trace_id).await?,
+        rampart_db::error_tracking::issues_for_trace(s.pool(), &trace_id, org.org_id).await?,
     ))
 }

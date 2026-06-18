@@ -19,6 +19,7 @@ const FAST_BURN_WINDOW_SECONDS: i64 = 3600;
 
 struct SloRow {
     id: Uuid,
+    org_id: Uuid,
     name: String,
     description: String,
     sli_kind: String,
@@ -39,6 +40,7 @@ impl From<SloRow> for Slo {
     fn from(r: SloRow) -> Self {
         Slo {
             id: SloId::from_uuid(r.id),
+            org_id: OrgId::from_uuid(r.org_id),
             name: r.name,
             description: r.description,
             sli_kind: SliKind::from_db(&r.sli_kind),
@@ -66,7 +68,7 @@ pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<Slo>> {
     let rows = sqlx::query_as!(
         SloRow,
         r#"
-        SELECT id, name, description, sli_kind, monitor_id, good_metric, total_metric,
+        SELECT id, org_id AS "org_id!", name, description, sli_kind, monitor_id, good_metric, total_metric,
                labels AS "labels!", objective_pct AS "objective_pct!: f64", window_days, enabled,
                channel_ids AS "channel_ids!", escalation_policy_id, breaching_at, created_at
         FROM slos
@@ -86,7 +88,7 @@ pub async fn list_all(pool: &DbPool) -> DbResult<Vec<Slo>> {
     let rows = sqlx::query_as!(
         SloRow,
         r#"
-        SELECT id, name, description, sli_kind, monitor_id, good_metric, total_metric,
+        SELECT id, org_id AS "org_id!", name, description, sli_kind, monitor_id, good_metric, total_metric,
                labels AS "labels!", objective_pct AS "objective_pct!: f64", window_days, enabled,
                channel_ids AS "channel_ids!", escalation_policy_id, breaching_at, created_at
         FROM slos
@@ -103,7 +105,7 @@ pub async fn get(pool: &DbPool, id: SloId, org_id: OrgId) -> DbResult<Slo> {
     let row = sqlx::query_as!(
         SloRow,
         r#"
-        SELECT id, name, description, sli_kind, monitor_id, good_metric, total_metric,
+        SELECT id, org_id AS "org_id!", name, description, sli_kind, monitor_id, good_metric, total_metric,
                labels AS "labels!", objective_pct AS "objective_pct!: f64", window_days, enabled,
                channel_ids AS "channel_ids!", escalation_policy_id, breaching_at, created_at
         FROM slos
@@ -124,7 +126,7 @@ pub async fn get_unscoped(pool: &DbPool, id: SloId) -> DbResult<Slo> {
     let row = sqlx::query_as!(
         SloRow,
         r#"
-        SELECT id, name, description, sli_kind, monitor_id, good_metric, total_metric,
+        SELECT id, org_id AS "org_id!", name, description, sli_kind, monitor_id, good_metric, total_metric,
                labels AS "labels!", objective_pct AS "objective_pct!: f64", window_days, enabled,
                channel_ids AS "channel_ids!", escalation_policy_id, breaching_at, created_at
         FROM slos
@@ -257,6 +259,7 @@ async fn metric_ratio(
     total: &str,
     labels: &serde_json::Value,
     since: OffsetDateTime,
+    org_id: OrgId,
 ) -> DbResult<Option<f64>> {
     let row = sqlx::query!(
         r#"
@@ -264,12 +267,13 @@ async fn metric_ratio(
             COALESCE(SUM(value) FILTER (WHERE name = $1), 0)::float8 AS "good!",
             COALESCE(SUM(value) FILTER (WHERE name = $2), 0)::float8 AS "total!"
         FROM metric_samples
-        WHERE name IN ($1, $2) AND ts >= $3 AND labels @> $4
+        WHERE name IN ($1, $2) AND ts >= $3 AND labels @> $4 AND org_id = $5
         "#,
         good,
         total,
         since,
         labels,
+        org_id.0,
     )
     .fetch_one(pool)
     .await?;
@@ -288,7 +292,7 @@ async fn achieved(pool: &DbPool, slo: &Slo, window_seconds: i64) -> DbResult<Opt
             None => Ok(None),
         },
         SliKind::Metric => match (&slo.good_metric, &slo.total_metric) {
-            (Some(g), Some(t)) => metric_ratio(pool, g, t, &slo.labels, since).await,
+            (Some(g), Some(t)) => metric_ratio(pool, g, t, &slo.labels, since, slo.org_id).await,
             _ => Ok(None),
         },
     }
@@ -339,7 +343,7 @@ pub async fn trend(pool: &DbPool, slo: &Slo, buckets: i64) -> DbResult<Vec<f64>>
                        SUM(value) FILTER (WHERE name = $1)
                          / NULLIF(SUM(value) FILTER (WHERE name = $2), 0) * 100.0 AS pct
                 FROM metric_samples
-                WHERE name IN ($1, $2) AND ts >= $4 AND labels @> $5
+                WHERE name IN ($1, $2) AND ts >= $4 AND labels @> $5 AND org_id = $6
                 GROUP BY bucket ORDER BY bucket
                 "#,
                 g,
@@ -347,6 +351,7 @@ pub async fn trend(pool: &DbPool, slo: &Slo, buckets: i64) -> DbResult<Vec<f64>>
                 step as f64,
                 since,
                 &slo.labels,
+                slo.org_id.0,
             )
             .fetch_all(pool)
             .await?;

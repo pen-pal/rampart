@@ -5,6 +5,7 @@
 //! [`prune`]. Beacon parsing lives in `rampart_core::rum`.
 
 use crate::{DbPool, DbResult};
+use rampart_core::ids::OrgId;
 use rampart_core::rum::{RumBeacon, RumPage, RumTracedLoad, RumVitals};
 use uuid::Uuid;
 
@@ -61,6 +62,7 @@ pub async fn page_samples(
     url: &str,
     hours: i32,
     limit: i64,
+    org_id: OrgId,
 ) -> DbResult<Vec<RumSample>> {
     let rows = sqlx::query!(
         r#"
@@ -69,6 +71,7 @@ pub async fn page_samples(
         WHERE url = $1
           AND received_at > now() - make_interval(hours => $2)
           AND ($3::text IS NULL OR app = $3)
+          AND org_id = $5
         ORDER BY ts DESC
         LIMIT $4
         "#,
@@ -76,6 +79,7 @@ pub async fn page_samples(
         hours.clamp(1, 2160),
         app,
         limit.clamp(1, 200),
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -101,6 +105,7 @@ pub async fn recent_traced(
     app: Option<&str>,
     hours: i32,
     limit: i64,
+    org_id: OrgId,
 ) -> DbResult<Vec<RumTracedLoad>> {
     let rows = sqlx::query!(
         r#"
@@ -109,12 +114,14 @@ pub async fn recent_traced(
         WHERE trace_id IS NOT NULL
           AND received_at > now() - make_interval(hours => $1)
           AND ($2::text IS NULL OR app = $2)
+          AND org_id = $4
         ORDER BY ts DESC
         LIMIT $3
         "#,
         hours.clamp(1, 24 * 90),
         app,
         limit.clamp(1, 200),
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -130,7 +137,12 @@ pub async fn recent_traced(
 }
 
 /// p75 of each metric over the window (optionally filtered to one app).
-pub async fn summary(pool: &DbPool, app: Option<&str>, hours: i32) -> DbResult<RumVitals> {
+pub async fn summary(
+    pool: &DbPool,
+    app: Option<&str>,
+    hours: i32,
+    org_id: OrgId,
+) -> DbResult<RumVitals> {
     let r = sqlx::query!(
         r#"
         SELECT
@@ -144,9 +156,11 @@ pub async fn summary(pool: &DbPool, app: Option<&str>, hours: i32) -> DbResult<R
         FROM rum_events
         WHERE ($1::text IS NULL OR app = $1)
           AND received_at > now() - make_interval(hours => $2)
+          AND org_id = $3
         "#,
         app,
         hours.clamp(1, 2160),
+        org_id.0,
     )
     .fetch_one(pool)
     .await?;
@@ -162,7 +176,12 @@ pub async fn summary(pool: &DbPool, app: Option<&str>, hours: i32) -> DbResult<R
 }
 
 /// Per-URL rollup, busiest first.
-pub async fn pages(pool: &DbPool, app: Option<&str>, hours: i32) -> DbResult<Vec<RumPage>> {
+pub async fn pages(
+    pool: &DbPool,
+    app: Option<&str>,
+    hours: i32,
+    org_id: OrgId,
+) -> DbResult<Vec<RumPage>> {
     let rows = sqlx::query!(
         r#"
         SELECT
@@ -175,12 +194,14 @@ pub async fn pages(pool: &DbPool, app: Option<&str>, hours: i32) -> DbResult<Vec
         FROM rum_events
         WHERE ($1::text IS NULL OR app = $1)
           AND received_at > now() - make_interval(hours => $2)
+          AND org_id = $3
         GROUP BY url
         ORDER BY count(*) DESC
         LIMIT 200
         "#,
         app,
         hours.clamp(1, 2160),
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -212,6 +233,7 @@ pub async fn browser_breakdown(
     pool: &DbPool,
     app: Option<&str>,
     hours: i32,
+    org_id: OrgId,
 ) -> DbResult<Vec<RumBrowser>> {
     let rows = sqlx::query!(
         r#"
@@ -230,11 +252,13 @@ pub async fn browser_breakdown(
         FROM rum_events
         WHERE ($1::text IS NULL OR app = $1)
           AND received_at > now() - make_interval(hours => $2)
+          AND org_id = $3
         GROUP BY 1
         ORDER BY count(*) DESC
         "#,
         app,
         hours.clamp(1, 2160),
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -261,6 +285,7 @@ pub async fn user_breakdown(
     pool: &DbPool,
     app: Option<&str>,
     hours: i32,
+    org_id: OrgId,
 ) -> DbResult<Vec<RumUser>> {
     let rows = sqlx::query!(
         r#"
@@ -270,12 +295,14 @@ pub async fn user_breakdown(
         WHERE user_id IS NOT NULL
           AND ($1::text IS NULL OR app = $1)
           AND received_at > now() - make_interval(hours => $2)
+          AND org_id = $3
         GROUP BY user_id
         ORDER BY count(*) DESC
         LIMIT 50
         "#,
         app,
         hours.clamp(1, 2160),
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -290,15 +317,17 @@ pub async fn user_breakdown(
 }
 
 /// Distinct app/site names seen recently (filter dropdown).
-pub async fn apps(pool: &DbPool) -> DbResult<Vec<String>> {
+pub async fn apps(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<String>> {
     let rows = sqlx::query_scalar!(
         r#"
         SELECT DISTINCT app AS "app!"
         FROM rum_events
         WHERE received_at > now() - make_interval(days => 7)
+          AND org_id = $1
         ORDER BY app
         LIMIT 200
         "#,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
