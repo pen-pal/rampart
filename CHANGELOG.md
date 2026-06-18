@@ -19,6 +19,33 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.129.0] — 2026-06-18
+
+### Security
+- **Multi-tenancy — Phase 3u: org-gate the remaining monitor-keyed reads.** The
+  flagged tail of the audit sweep — three monitor-keyed heartbeat reads that
+  lacked the `monitors::get(id, org)` gate their `rollups` / `uptime_history`
+  siblings already had, plus the on-call "who's on now" read:
+  - `GET /v1/monitors/{id}/reliability`, `/heartbeats`, `/heartbeats.csv` now
+    gate the monitor's org first (cross-org monitor id → 404).
+  - `GET /v1/on-call-schedules/{id}/current` gates via `on_call::get(id, org)`;
+    the unscoped `current_target` evaluator (also used by the notifier) is
+    unchanged.
+  Behaviour-identical for a single-org install. New test
+  `monitor_heartbeat_reads_isolated`; the cross-org isolation suite is now 11
+  tests. **This closes the entire Phase-3 audit sweep (3n–3u).**
+
+### Fixed
+- **delivery-log CSV export test.** `export_csv_returns_text_csv_with_header`
+  drove the router directly, bypassing the session layer — so since the export
+  handler became org-scoped (3e, v0.113.0) its `Extension<OrgContext>` extractor
+  rejected with a 500 and the test had been silently red. The test now injects a
+  Default-org `OrgContext` by hand, mirroring `require_session`. Surfaced by the
+  first full-lib-suite run of the sweep; the whole `rampart-api` + `rampart-db`
+  suite is green.
+
+---
+
 ## [0.128.0] — 2026-06-18
 
 ### Security
