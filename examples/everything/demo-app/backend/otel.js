@@ -12,7 +12,7 @@ const { NodeSDK } = require('@opentelemetry/sdk-node');
 const { getNodeAutoInstrumentations } = require('@opentelemetry/auto-instrumentations-node');
 const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-http');
 const { OTLPLogExporter } = require('@opentelemetry/exporter-logs-otlp-http');
-const { LoggerProvider, BatchLogRecordProcessor } = require('@opentelemetry/sdk-logs');
+const { BatchLogRecordProcessor } = require('@opentelemetry/sdk-logs');
 const { Resource } = require('@opentelemetry/resources');
 const { ATTR_SERVICE_NAME } = require('@opentelemetry/semantic-conventions');
 const logsApi = require('@opentelemetry/api-logs');
@@ -29,36 +29,66 @@ let Sentry = null;
 if (process.env.SENTRY_DSN) {
   try {
     Sentry = require('@sentry/node');
+    // Rampart mints error-project ids as UUIDs (e.g. 019edc0a-5f23-…) and its
+    // documented DSN is `http://<public_key>@<host>/<uuid>`. But the Sentry
+    // SDK's DSN parser only keeps the LEADING NUMERIC run of the project id —
+    // it turns `019edc0a-…` into just `019` — so the SDK would POST to
+    // `/api/019/envelope/` and Rampart returns 404 (no such project). To deliver
+    // backend errors reliably we route the envelope through Sentry's `tunnel`:
+    // the SDK posts the raw envelope VERBATIM to the tunnel URL (no project-id
+    // mangling). We point the tunnel at the full-UUID envelope endpoint and
+    // carry the public key as `?sentry_key=` (the tunnel transport doesn't send
+    // the X-Sentry-Auth header, so Rampart authenticates off the query param).
+    const m = process.env.SENTRY_DSN.match(/^(https?):\/\/([^@]+)@([^/]+)\/(.+)$/);
+    const tunnel = m
+      ? `${m[1]}://${m[3]}/api/${m[4]}/envelope/?sentry_key=${m[2]}`
+      : undefined;
     Sentry.init({
       dsn: process.env.SENTRY_DSN,
+      tunnel,
       // Rampart's ingest is plain HTTP on the docker network — disable TLS checks
       // are not needed (http), but keep the SDK lean.
       tracesSampleRate: 0,
       environment: process.env.NODE_ENV || 'production',
       release: 'demo-backend@1.0.0',
       defaultIntegrations: false,
+      // CRITICAL: @sentry/node v8 is built on OpenTelemetry and, by default,
+      // registers its OWN global OTel tracer/context/propagation during init.
+      // That hijacks the API before our NodeSDK starts ("duplicate registration
+      // of API: trace/context/propagation"), so the auto-instrumented Express/
+      // pg/redis spans flow into Sentry's no-op tracer instead of our OTLP
+      // exporter — demo-backend traces never reach Rampart. We use Sentry ONLY
+      // as an error reporter here, so tell it to leave OTel alone and let the
+      // NodeSDK own tracing.
+      skipOpenTelemetrySetup: true,
     });
-    console.log('[otel] Sentry initialised → ' + process.env.SENTRY_DSN.replace(/\/\/.*@/, '//***@'));
+    console.log('[otel] Sentry initialised → ' + process.env.SENTRY_DSN.replace(/\/\/.*@/, '//***@')
+      + (tunnel ? ' (tunnel)' : ''));
   } catch (e) {
     console.log('[otel] Sentry init failed: ' + e.message);
   }
 }
 global.Sentry = Sentry;
 
-// ── traces ─────────────────────────────────────────────────────────────────
+// ── traces + logs ────────────────────────────────────────────────────────
+// IMPORTANT: the OTLP *logs* exporter MUST be handed to the NodeSDK via
+// `logRecordProcessors`. NodeSDK.start() registers its OWN global
+// LoggerProvider (an env-default one that ships to localhost:4318), and the
+// OpenTelemetry logs API silently refuses to overwrite an already-registered
+// global provider — so a later `logs.setGlobalLoggerProvider(...)` is a no-op
+// and every demo-backend log line would be dropped (ECONNREFUSED → :4318,
+// never reaching Rampart). Passing the processor into the SDK makes Rampart's
+// exporter the global provider that `logs.getLogger()` resolves to.
 const sdk = new NodeSDK({
   resource,
   traceExporter: new OTLPTraceExporter({ url: BASE + '/v1/traces' }),
+  logRecordProcessors: [
+    new BatchLogRecordProcessor(new OTLPLogExporter({ url: BASE + '/v1/logs' })),
+  ],
   instrumentations: [getNodeAutoInstrumentations()],
 });
 sdk.start();
 
-// ── logs ─────────────────────────────────────────────────────────────────
-const loggerProvider = new LoggerProvider({ resource });
-loggerProvider.addLogRecordProcessor(
-  new BatchLogRecordProcessor(new OTLPLogExporter({ url: BASE + '/v1/logs' })),
-);
-logsApi.logs.setGlobalLoggerProvider(loggerProvider);
 const otelLogger = logsApi.logs.getLogger(SERVICE);
 const SEV = { INFO: 9, WARN: 13, ERROR: 17 };
 // Exposed to the app for structured logging (the SIEM auth lines use this).
@@ -131,9 +161,9 @@ function profileOnce() {
 setInterval(profileOnce, 30000);
 setTimeout(profileOnce, 8000);
 
-// flush on exit
+// flush on exit. sdk.shutdown() now flushes BOTH traces and logs (the log
+// processor is owned by the NodeSDK), so no separate provider shutdown needed.
 process.on('SIGTERM', async () => {
   try { await sdk.shutdown(); } catch {}
-  try { await loggerProvider.shutdown(); } catch {}
   process.exit(0);
 });
