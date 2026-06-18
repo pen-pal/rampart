@@ -31,7 +31,7 @@ fn event(exc_type: &str, message: &str) -> ParsedEvent {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn recent_open_and_histogram(pool: PgPool) {
-    let project = et::find_or_create_by_name(&pool, "[demo] web").await.unwrap();
+    let project = et::find_or_create_by_name(&pool, "[demo] web", def_org()).await.unwrap();
 
     // Two distinct exceptions → two issues; the second exception twice → grouped.
     et::record_event(&pool, project.id, &event("TypeError", "x is undefined")).await.unwrap();
@@ -60,7 +60,7 @@ fn event_user(exc: &str, user: &str) -> ParsedEvent {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn affected_users_distinct_with_counts(pool: PgPool) {
-    let project = et::find_or_create_by_name(&pool, "[demo] web").await.unwrap();
+    let project = et::find_or_create_by_name(&pool, "[demo] web", def_org()).await.unwrap();
     // Same exception+message → one issue; alice twice, bob once.
     et::record_event(&pool, project.id, &event_user("Boom", "alice")).await.unwrap();
     et::record_event(&pool, project.id, &event_user("Boom", "alice")).await.unwrap();

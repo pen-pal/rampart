@@ -66,3 +66,60 @@ async fn otlp_logs_stamp_org_from_ingest_key(pool: PgPool) {
     assert_eq!(count_logs(&pool, DEFAULT_ORG).await, 1, "tokenless → Default");
     assert_eq!(count_logs(&pool, OTHER).await, 1, "Default ingest didn't touch the other org");
 }
+
+async fn post_rum(app: &axum::Router, token: &str, origin: &str) -> StatusCode {
+    app.clone()
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri(format!("/rum/v1/events?k={token}"))
+                .header("content-type", "application/json")
+                .header("origin", origin)
+                .body(Body::from(
+                    r#"{"url":"https://app.example/","app":"web","metrics":{"lcp":1200}}"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+        .status()
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn rum_origin_binding_and_org_stamp(pool: PgPool) {
+    let app = router(pool.clone());
+    sqlx::query("INSERT INTO organizations (id, slug, name) VALUES ($1::uuid, 'other', 'Other') ON CONFLICT DO NOTHING")
+        .bind(OTHER)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let other = OrgId::from_uuid(uuid::Uuid::parse_str(OTHER).unwrap());
+    // An origin-bound RUM key (public ?k token).
+    let (_k, token) = rampart_db::ingest_keys::create(
+        &pool,
+        other,
+        "rum",
+        "rum",
+        &["https://good.example".to_string()],
+    )
+    .await
+    .unwrap();
+
+    // Forged/leaked key used from a disallowed origin → rejected.
+    assert_eq!(
+        post_rum(&app, &token, "https://bad.example").await,
+        StatusCode::UNAUTHORIZED,
+        "wrong Origin → 401 (origin-binding)"
+    );
+    // Allowed origin → accepted, beacon stamped with the key's org.
+    assert_eq!(
+        post_rum(&app, &token, "https://good.example").await,
+        StatusCode::NO_CONTENT
+    );
+    let n: i64 = sqlx::query_scalar("SELECT count(*) FROM rum_events WHERE org_id = $1::uuid")
+        .bind(OTHER)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(n, 1, "RUM beacon stamped with the ingest key's org");
+}

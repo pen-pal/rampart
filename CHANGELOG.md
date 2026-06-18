@@ -19,6 +19,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.141.0] — 2026-06-18
+
+### Changed
+- **Multi-tenancy — Phase 5-3: RUM beacons + browser-error auto-provision are
+  org-aware (with origin-binding).** `/rum/v1/events` and `/rum/v1/errors` now
+  resolve the org from the (public, `?k`) RUM key via `resolve_ingest_org_origin`
+  and stamp beacons / auto-created error projects with it. Because the RUM token
+  necessarily ships in the browser snippet, a key may carry `allowed_origins`:
+  when set, the request `Origin` MUST match or the beacon is rejected (401),
+  preventing a leaked/forged key from misattributing data cross-org.
+  `error_tracking::find_or_create_by_name` is now org-scoped (lookup + create),
+  so two orgs can each have an app named e.g. "web" without colliding. New tests
+  `rum_origin_binding_and_org_stamp` (+ org-scoped find_or_create coverage).
+  See [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.140.0] — 2026-06-18
 
 ### Changed
