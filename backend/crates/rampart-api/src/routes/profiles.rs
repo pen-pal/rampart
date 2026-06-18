@@ -18,10 +18,11 @@
 //! serialized to canonical text, gzipped, and stored. Flamegraphs merge the
 //! folded maps in the window on read. See `docs/design/PROFILING.md`.
 
+use crate::auth::OrgContext;
 use crate::error::ApiError;
 use crate::state::AppState;
 use axum::body::Bytes;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Extension, Path, Query, State};
 use axum::http::HeaderMap;
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -207,6 +208,7 @@ struct ListQuery {
 
 async fn list(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Query(q): Query<ListQuery>,
 ) -> Result<Json<Vec<ProfileMeta>>, ApiError> {
     Ok(Json(
@@ -216,13 +218,19 @@ async fn list(
             non_empty(q.profile_type.as_deref()),
             q.hours.unwrap_or(24),
             200,
+            org.org_id,
         )
         .await?,
     ))
 }
 
-async fn services(State(s): State<AppState>) -> Result<Json<Vec<String>>, ApiError> {
-    Ok(Json(rampart_db::profiles::services(s.pool()).await?))
+async fn services(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+) -> Result<Json<Vec<String>>, ApiError> {
+    Ok(Json(
+        rampart_db::profiles::services(s.pool(), org.org_id).await?,
+    ))
 }
 
 #[derive(Deserialize)]
@@ -232,10 +240,12 @@ struct TypesQuery {
 
 async fn types(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Query(q): Query<TypesQuery>,
 ) -> Result<Json<Vec<String>>, ApiError> {
     Ok(Json(
-        rampart_db::profiles::profile_types(s.pool(), non_empty(q.service.as_deref())).await?,
+        rampart_db::profiles::profile_types(s.pool(), non_empty(q.service.as_deref()), org.org_id)
+            .await?,
     ))
 }
 
@@ -263,6 +273,7 @@ struct FlameQuery {
 
 async fn flamegraph_window(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Query(q): Query<FlameQuery>,
 ) -> Result<Json<FlameResponse>, ApiError> {
     let (from, to) = match (q.from_ms, q.to_ms) {
@@ -281,9 +292,15 @@ async fn flamegraph_window(
             (to - time::Duration::hours(hours as i64), to)
         }
     };
-    let blobs =
-        rampart_db::profiles::folded_in_window(s.pool(), &q.service, &q.profile_type, from, to)
-            .await?;
+    let blobs = rampart_db::profiles::folded_in_window(
+        s.pool(),
+        &q.service,
+        &q.profile_type,
+        from,
+        to,
+        org.org_id,
+    )
+    .await?;
     let merged = merge_blobs(&blobs)?;
     Ok(Json(build_response(&q.service, merged)))
 }
@@ -299,6 +316,7 @@ struct DiffResponse {
 
 async fn flamegraph_diff(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Query(q): Query<FlameQuery>,
 ) -> Result<Json<DiffResponse>, ApiError> {
     let hours = q.hours.unwrap_or(24).clamp(1, 24 * 90);
@@ -312,6 +330,7 @@ async fn flamegraph_diff(
             &q.profile_type,
             now - span,
             now,
+            org.org_id,
         )
         .await?,
     )?;
@@ -322,6 +341,7 @@ async fn flamegraph_diff(
             &q.profile_type,
             now - span - span,
             now - span,
+            org.org_id,
         )
         .await?,
     )?;
@@ -334,9 +354,12 @@ async fn flamegraph_diff(
 
 async fn flamegraph_one(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<i64>,
 ) -> Result<Json<FlameResponse>, ApiError> {
-    let Some((profile_type, gz)) = rampart_db::profiles::fetch_folded(s.pool(), id).await? else {
+    let Some((profile_type, gz)) =
+        rampart_db::profiles::fetch_folded(s.pool(), id, org.org_id).await?
+    else {
         return Err(ApiError::NotFound);
     };
     let map = parse_blob(&gz)?;

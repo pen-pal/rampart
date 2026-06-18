@@ -42,7 +42,8 @@ pub async fn run(metrics: Arc<HttpMetrics>, pool: DbPool) {
                 value: avg_ms,
             },
         ];
-        // P5: resolve org from ingest credential — internal background task.
+        // Rampart's own internal metrics: the operator/Default org by design —
+        // this is a system background task with no tenant credential to resolve.
         if let Err(e) = rampart_db::metric_samples::insert_many(
             &pool,
             &samples,

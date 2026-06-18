@@ -1,0 +1,54 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT name, labels AS \"labels!\", MAX(ts) AS \"last_ts!\", COUNT(*) AS \"samples!\"\n        FROM metric_samples\n        WHERE org_id = $1\n        GROUP BY name, labels\n        ORDER BY MAX(ts) DESC\n        LIMIT 1000\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "metric_samples",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "labels!",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "metric_samples",
+            "name": "labels"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "last_ts!",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "samples!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "b5e525d229f6bff95ebefb0060ee548b0c95ffafedf611f5bc1be90ba42ede0c"
+}

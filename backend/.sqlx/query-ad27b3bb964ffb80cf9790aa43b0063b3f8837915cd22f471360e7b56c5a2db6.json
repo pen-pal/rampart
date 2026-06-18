@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT DISTINCT profile_type AS \"profile_type!\"\n        FROM profiles\n        WHERE ($1::text IS NULL OR service_name = $1)\n          AND org_id = $2\n        ORDER BY profile_type\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "profile_type!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "profiles",
+            "name": "profile_type"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "ad27b3bb964ffb80cf9790aa43b0063b3f8837915cd22f471360e7b56c5a2db6"
+}

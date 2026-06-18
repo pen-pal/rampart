@@ -170,6 +170,7 @@ fn default_preview_window() -> i32 {
 /// Dry-run a rule spec over recent logs without saving — the "test rule" path.
 async fn preview(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Json(b): Json<PreviewBody>,
 ) -> Result<Json<rampart_db::detection::PreviewResult>, ApiError> {
     if !rampart_db::detection::regex_is_valid(s.pool(), &b.body_regex).await? {
@@ -186,6 +187,7 @@ async fn preview(
             &b.attr_key,
             &b.attr_val,
             window,
+            org.org_id,
         )
         .await?,
     ))

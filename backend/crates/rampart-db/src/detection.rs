@@ -15,6 +15,7 @@ use uuid::Uuid;
 
 struct RuleRow {
     id: Uuid,
+    org_id: Uuid,
     name: String,
     description: String,
     enabled: bool,
@@ -39,6 +40,7 @@ impl From<RuleRow> for DetectionRule {
     fn from(r: RuleRow) -> Self {
         DetectionRule {
             id: DetectionRuleId::from_uuid(r.id),
+            org_id: OrgId::from_uuid(r.org_id),
             name: r.name,
             description: r.description,
             enabled: r.enabled,
@@ -125,7 +127,7 @@ pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<DetectionRule>> 
     let rows = sqlx::query_as!(
         RuleRow,
         r#"
-        SELECT id, name, description, enabled, severity, service, min_level,
+        SELECT id, org_id AS "org_id!", name, description, enabled, severity, service, min_level,
                body_regex, attr_key, attr_val, threshold, window_seconds, cooldown_seconds,
                group_by, condition,
                channel_ids AS "channel_ids!", escalation_policy_id, last_checked_at, created_at
@@ -146,7 +148,7 @@ pub async fn list_all(pool: &DbPool) -> DbResult<Vec<DetectionRule>> {
     let rows = sqlx::query_as!(
         RuleRow,
         r#"
-        SELECT id, name, description, enabled, severity, service, min_level,
+        SELECT id, org_id AS "org_id!", name, description, enabled, severity, service, min_level,
                body_regex, attr_key, attr_val, threshold, window_seconds, cooldown_seconds,
                group_by, condition,
                channel_ids AS "channel_ids!", escalation_policy_id, last_checked_at, created_at
@@ -164,7 +166,7 @@ pub async fn get(pool: &DbPool, id: DetectionRuleId, org_id: OrgId) -> DbResult<
     let row = sqlx::query_as!(
         RuleRow,
         r#"
-        SELECT id, name, description, enabled, severity, service, min_level,
+        SELECT id, org_id AS "org_id!", name, description, enabled, severity, service, min_level,
                body_regex, attr_key, attr_val, threshold, window_seconds, cooldown_seconds,
                group_by, condition,
                channel_ids AS "channel_ids!", escalation_policy_id, last_checked_at, created_at
@@ -186,7 +188,7 @@ pub async fn get_unscoped(pool: &DbPool, id: DetectionRuleId) -> DbResult<Detect
     let row = sqlx::query_as!(
         RuleRow,
         r#"
-        SELECT id, name, description, enabled, severity, service, min_level,
+        SELECT id, org_id AS "org_id!", name, description, enabled, severity, service, min_level,
                body_regex, attr_key, attr_val, threshold, window_seconds, cooldown_seconds,
                group_by, condition,
                channel_ids AS "channel_ids!", escalation_policy_id, last_checked_at, created_at
@@ -337,6 +339,7 @@ pub async fn preview(
     attr_key: &str,
     attr_val: &str,
     window_seconds: i32,
+    org_id: OrgId,
 ) -> DbResult<PreviewResult> {
     let window = window_seconds as f64;
     let count = sqlx::query_scalar!(
@@ -348,6 +351,7 @@ pub async fn preview(
           AND severity >= $3
           AND ($4 = '' OR body ~* $4)
           AND ($5 = '' OR attributes->>$5 = $6)
+          AND org_id = $7
         "#,
         window,
         service,
@@ -355,6 +359,7 @@ pub async fn preview(
         body_regex,
         attr_key,
         attr_val,
+        org_id.0,
     )
     .fetch_one(pool)
     .await?;
@@ -368,6 +373,7 @@ pub async fn preview(
           AND severity >= $3
           AND ($4 = '' OR body ~* $4)
           AND ($5 = '' OR attributes->>$5 = $6)
+          AND org_id = $7
         ORDER BY ts DESC
         LIMIT 5
         "#,
@@ -377,6 +383,7 @@ pub async fn preview(
         body_regex,
         attr_key,
         attr_val,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -415,7 +422,7 @@ pub async fn evaluate_tick(pool: &DbPool) -> DbResult<Vec<FindingEvent>> {
                 && has_recent_finding(pool, rule.id, cooldown, None).await?;
             if count >= rule.threshold as i64 && !suppressed {
                 let sample = match &rule.condition {
-                    Some(cond) => tree_sample(pool, wfrom, wto, cond).await?,
+                    Some(cond) => tree_sample(pool, rule.org_id, wfrom, wto, cond).await?,
                     None => legacy_sample(pool, &rule, wfrom, wto).await?,
                 };
                 let service = (!rule.service.is_empty()).then(|| rule.service.clone());
@@ -525,6 +532,7 @@ async fn legacy_window(
          AND l.severity >= $4
          AND ($5 = '' OR l.body ~* $5)
          AND ($6 = '' OR l.attributes->>$6 = $7)
+         AND l.org_id = $8
         GROUP BY b.wfrom, b.wto
         "#,
         rule.last_checked_at,
@@ -534,6 +542,7 @@ async fn legacy_window(
         rule.body_regex,
         rule.attr_key,
         rule.attr_val,
+        rule.org_id.0,
     )
     .fetch_one(pool)
     .await?;
@@ -556,6 +565,7 @@ async fn legacy_sample(
           AND severity >= $4
           AND ($5 = '' OR body ~* $5)
           AND ($6 = '' OR attributes->>$6 = $7)
+          AND org_id = $8
         ORDER BY ts DESC
         LIMIT 1
         "#,
@@ -566,6 +576,7 @@ async fn legacy_sample(
         rule.body_regex,
         rule.attr_key,
         rule.attr_val,
+        rule.org_id.0,
     )
     .fetch_optional(pool)
     .await?
@@ -583,7 +594,9 @@ async fn tree_window(
     qb.push_bind(rule.last_checked_at);
     qb.push("::timestamptz, now() - make_interval(secs => ");
     qb.push_bind(rule.window_seconds as f64);
-    qb.push(")) AS wfrom, now() AS wto) SELECT b.wfrom AS wfrom, b.wto AS wto, COUNT(l.id) AS cnt FROM bounds b LEFT JOIN logs l ON l.ts > b.wfrom AND l.ts <= b.wto AND (");
+    qb.push(")) AS wfrom, now() AS wto) SELECT b.wfrom AS wfrom, b.wto AS wto, COUNT(l.id) AS cnt FROM bounds b LEFT JOIN logs l ON l.ts > b.wfrom AND l.ts <= b.wto AND l.org_id = ");
+    qb.push_bind(rule.org_id.0);
+    qb.push(" AND (");
     push_condition(&mut qb, cond);
     qb.push(") GROUP BY b.wfrom, b.wto");
     let row = qb.build().fetch_one(pool).await?;
@@ -593,6 +606,7 @@ async fn tree_window(
 /// Boolean-tree newest sample (Detection v2).
 async fn tree_sample(
     pool: &DbPool,
+    org_id: OrgId,
     wfrom: OffsetDateTime,
     wto: OffsetDateTime,
     cond: &DetectionCondition,
@@ -602,6 +616,8 @@ async fn tree_sample(
     qb.push_bind(wfrom);
     qb.push(" AND l.ts <= ");
     qb.push_bind(wto);
+    qb.push(" AND l.org_id = ");
+    qb.push_bind(org_id.0);
     qb.push(" AND (");
     push_condition(&mut qb, cond);
     qb.push(") ORDER BY l.ts DESC LIMIT 1");
@@ -642,6 +658,8 @@ async fn grouped_eval(
     qb.push_bind(wfrom);
     qb.push(" AND l.ts <= ");
     qb.push_bind(wto);
+    qb.push(" AND l.org_id = ");
+    qb.push_bind(rule.org_id.0);
     qb.push(" AND l.attributes->>");
     qb.push_bind(rule.group_by.clone());
     qb.push(" IS NOT NULL AND (");

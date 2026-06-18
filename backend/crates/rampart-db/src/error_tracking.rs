@@ -445,7 +445,11 @@ pub struct TraceErrorRef {
     pub count: i64,
 }
 
-pub async fn issues_for_trace(pool: &DbPool, trace_id: &str) -> DbResult<Vec<TraceErrorRef>> {
+pub async fn issues_for_trace(
+    pool: &DbPool,
+    trace_id: &str,
+    org_id: OrgId,
+) -> DbResult<Vec<TraceErrorRef>> {
     let rows = sqlx::query_as!(
         TraceErrorRef,
         r#"
@@ -453,12 +457,14 @@ pub async fn issues_for_trace(pool: &DbPool, trace_id: &str) -> DbResult<Vec<Tra
                COUNT(*) AS "count!"
         FROM error_events ev
         JOIN error_issues i ON i.id = ev.issue_id
+        JOIN error_projects p ON p.id = ev.project_id AND p.org_id = $2
         WHERE ev.trace_id = $1
         GROUP BY ev.issue_id, i.title, i.level
         ORDER BY COUNT(*) DESC
         LIMIT 20
         "#,
         trace_id,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
