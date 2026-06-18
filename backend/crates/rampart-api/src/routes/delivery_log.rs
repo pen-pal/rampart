@@ -265,10 +265,19 @@ mod tests {
         let state = AppState::new(pool, Arc::new(Notify::new()));
         let app = super::router().with_state(state);
 
+        // This test drives the router directly, bypassing the session layer
+        // that normally injects OrgContext — so add it by hand (Default org),
+        // exactly as `require_session` would. Without it the org-scoped export
+        // handler's `Extension<OrgContext>` extractor rejects with a 500.
+        let org = crate::auth::OrgContext {
+            org_id: rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID),
+            role: rampart_core::Role::Admin,
+        };
         let resp = app
             .oneshot(
                 Request::builder()
                     .uri("/export.csv")
+                    .extension(org)
                     .body(Body::empty())
                     .unwrap(),
             )

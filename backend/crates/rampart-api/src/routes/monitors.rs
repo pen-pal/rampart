@@ -1544,10 +1544,14 @@ pub struct ReliabilityQuery {
 
 async fn reliability(
     State(state): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
     Query(q): Query<ReliabilityQuery>,
 ) -> Result<Json<ReliabilityDto>, ApiError> {
     let monitor_id = parse_monitor_id(&id)?;
+    // Gate through the monitor's org — cross-org monitor id is a 404 (the
+    // sibling rollups / uptime_history reads already do this).
+    rampart_db::monitors::get(state.pool(), monitor_id, org.org_id).await?;
     let window_days = q.window_days.unwrap_or(RELIABILITY_WINDOW_DAYS_DEFAULT);
     if !RELIABILITY_WINDOW_DAYS_ALLOWED.contains(&window_days) {
         return Err(ApiError::BadRequest(
@@ -1832,10 +1836,13 @@ async fn uptime_history(
 
 async fn heartbeats(
     State(state): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
     Query(q): Query<HeartbeatsQuery>,
 ) -> Result<Json<Vec<Heartbeat>>, ApiError> {
     let monitor_id = parse_monitor_id(&id)?;
+    // Gate through the monitor's org — cross-org monitor id is a 404.
+    rampart_db::monitors::get(state.pool(), monitor_id, org.org_id).await?;
     let limit = q.limit.clamp(1, 2000);
     let hbs = rampart_db::heartbeats::recent_for_monitor_before(
         state.pool(),
@@ -1862,10 +1869,13 @@ pub struct CsvQuery {
 /// wanting more should narrow the window.
 async fn heartbeats_csv(
     State(state): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
     Query(q): Query<CsvQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
     let monitor_id = parse_monitor_id(&id)?;
+    // Gate through the monitor's org — cross-org monitor id is a 404.
+    rampart_db::monitors::get(state.pool(), monitor_id, org.org_id).await?;
     let until = q.until.unwrap_or_else(OffsetDateTime::now_utc);
     let since = q.since.unwrap_or_else(|| until - time::Duration::days(30));
     if since >= until {
