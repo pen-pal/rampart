@@ -266,3 +266,29 @@ async fn monitor_junctions_isolated(pool: PgPool) {
     let (s, _, _) = request(&router, Method::POST, &format!("/v1/monitors/{mine_id}/tags/{tag_id}"), None, Some(&admin)).await;
     assert_eq!(s, StatusCode::NOT_FOUND, "attach cross-org tag to my monitor");
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn tag_routing_isolated(pool: PgPool) {
+    // Folder-level tag-routing (group↔tag, group↔channel, monitor excludes)
+    // gates through the owning folder/monitor's org. A cross-org folder id is
+    // a 404 for every read and write.
+    let router = common::router(pool.clone());
+    let admin = register_admin(&router).await;
+
+    let grp: Value = common::json(&router, Method::POST, "/v1/monitor-groups", Some(json!({"name":"infra","sort_order":0})), Some(&admin)).await;
+    let gid = grp["id"].as_str().unwrap();
+    let tag: Value = common::json(&router, Method::POST, "/v1/tags", Some(json!({"name":"prod","color":"#0f0"})), Some(&admin)).await;
+    let tid = tag["id"].as_str().unwrap();
+
+    sqlx::query("INSERT INTO organizations (id, slug, name) VALUES ($1::uuid, 'other', 'Other') ON CONFLICT DO NOTHING")
+        .bind(OTHER_ORG).execute(&pool).await.unwrap();
+    sqlx::query("UPDATE monitor_groups SET org_id = $1::uuid WHERE id = $2::uuid")
+        .bind(OTHER_ORG).bind(gid).execute(&pool).await.unwrap();
+
+    let (s, _, _) = request(&router, Method::GET, &format!("/v1/monitor-groups/{gid}/tags"), None, Some(&admin)).await;
+    assert_eq!(s, StatusCode::NOT_FOUND, "list cross-org group tags");
+    let (s, _, _) = request(&router, Method::GET, &format!("/v1/monitor-groups/{gid}/channels"), None, Some(&admin)).await;
+    assert_eq!(s, StatusCode::NOT_FOUND, "list cross-org group channels");
+    let (s, _, _) = request(&router, Method::POST, &format!("/v1/monitor-groups/{gid}/tags/{tid}"), None, Some(&admin)).await;
+    assert_eq!(s, StatusCode::NOT_FOUND, "tag a cross-org group");
+}

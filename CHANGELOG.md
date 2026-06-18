@@ -19,6 +19,28 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.126.0] — 2026-06-18
+
+### Security
+- **Multi-tenancy — Phase 3r: org-gate the tag-routing surface.** The whole
+  `routes/routing.rs` module (folder↔tag, folder↔channel, channel↔tag, and
+  per-monitor channel excludes, plus the resolved-`effective-channels` read)
+  never extracted `OrgContext` and keyed purely on caller-supplied folder /
+  channel / monitor / tag ids — so an editor could read or rewrite another
+  org's alert routing (which channels a folder notifies, which tags route
+  where, per-monitor excludes). All 13 handlers now gate through the org-scoped
+  root getters before touching a routing junction: the folder via a new
+  `monitor_groups::in_org` (EXISTS gate — there's no single-id group getter),
+  the channel via `notifications::get`, the monitor via `monitors::get`, the tag
+  via `tags::get`; both named ends are checked, so a cross-org id on either side
+  is a 404. `routing::resolve_channels_for_monitor` itself stays unscoped — the
+  notifier calls it at alert time and must see the full resolution — but the
+  `effective-channels` HTTP handler now gates its monitor first. Behaviour-
+  identical for a single-org install. New integration test
+  `tag_routing_isolated`. See [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.125.0] — 2026-06-18
 
 ### Security
