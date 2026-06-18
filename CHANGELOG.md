@@ -19,6 +19,28 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.136.0] — 2026-06-18
+
+### Added
+- **Multi-tenancy — Phase 4f: OIDC → org mapping.** A new optional
+  `RAMPART_OIDC_ORG_CLAIM` env var names a userinfo claim (e.g. `groups`, a
+  custom `org`, or Google's hosted-domain `hd`) that maps an SSO identity to
+  org(s) **by slug**: at login each claim value is slug-normalised (lowercase,
+  non-`[a-z0-9]` runs → `-`, so `"Acme Corp"`→`acme-corp`, `"acme.com"`→
+  `acme-com`), matched to an existing org, the user is granted membership (at
+  `RAMPART_OIDC_DEFAULT_ROLE`), and the **first** match becomes the session's
+  active org (Phase 4e then scopes the user there with that role). Re-evaluated
+  idempotently on every login (memberships re-sync). Unmatched values are
+  ignored — **no auto-create, no deny** — and the user falls back to the
+  Default org. **When `RAMPART_OIDC_ORG_CLAIM` is unset, behaviour is exactly
+  as before** (provision into Default, active org unset); the `email_verified`
+  gate and first-user-admin bootstrap are unchanged. Claim resolution is a
+  pure, unit-tested function (`normalize_slug` + `claim_org_slugs` handle
+  string/array/missing/wrong-shape). See
+  [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.135.0] — 2026-06-18
 
 ### Changed
