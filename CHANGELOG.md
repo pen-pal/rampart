@@ -19,6 +19,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.140.0] — 2026-06-18
+
+### Changed
+- **Multi-tenancy — Phase 5-2: Prometheus remote_write + profiles stamp the
+  resolved org.** `/prom/write` and all three profile ingest formats (folded /
+  pprof / OTLP) now resolve the owning org via `resolve_ingest_org` and stamp
+  metric samples / profiles with it instead of the hard-coded Default (the
+  profiles `store()` helper gained an `org` param threaded from each handler).
+  Org-keyed ingest lands in that org; token-less stays Default. Retired the
+  remaining metric/profile `// P5` markers. See
+  [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.139.0] — 2026-06-18
 
 ### Changed
