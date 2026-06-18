@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT EXISTS(\n            SELECT 1 FROM escalation_episodes e\n            JOIN escalation_policies p ON p.id = e.policy_id\n            WHERE e.id = $1 AND p.org_id = $2\n        )\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "exists",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "a228b4c1f7ee85c01d211694df3e56d1498248bec1138e5d93ba277d28bbcc99"
+}

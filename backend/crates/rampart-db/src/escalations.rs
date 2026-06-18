@@ -312,6 +312,52 @@ pub async fn list_open(pool: &DbPool) -> DbResult<Vec<EscalationEpisode>> {
     Ok(rows.into_iter().map(Into::into).collect())
 }
 
+/// Org-scoped twin of [`list_open`] for the authenticated dashboard: only
+/// episodes whose owning policy belongs to `org_id`. Every episode has a
+/// NOT-NULL `policy_id`, so the join covers monitor- and rule-subject episodes
+/// alike. The unscoped [`list_open`] stays for system/test callers.
+pub async fn list_open_for_org(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<EscalationEpisode>> {
+    let rows = sqlx::query_as!(
+        EpisodeRow,
+        r#"
+        SELECT e.id, e.monitor_id, e.subject_kind, e.subject_ref, e.policy_id, e.started_at,
+               e.last_step, e.next_escalation_at, e.acked_at, e.acked_by, e.resolved_at
+        FROM escalation_episodes e
+        JOIN escalation_policies p ON p.id = e.policy_id
+        WHERE e.resolved_at IS NULL AND p.org_id = $1
+        ORDER BY e.started_at DESC
+        "#,
+        org_id.0,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(Into::into).collect())
+}
+
+/// 404-gate: succeed only when `episode`'s owning policy belongs to `org`.
+/// Used by the subject-agnostic ack-by-episode-id handler, which carries no
+/// monitor in the path.
+pub async fn episode_in_org(pool: &DbPool, episode: Uuid, org_id: OrgId) -> DbResult<()> {
+    let ok = sqlx::query_scalar!(
+        r#"
+        SELECT EXISTS(
+            SELECT 1 FROM escalation_episodes e
+            JOIN escalation_policies p ON p.id = e.policy_id
+            WHERE e.id = $1 AND p.org_id = $2
+        )
+        "#,
+        episode,
+        org_id.0,
+    )
+    .fetch_one(pool)
+    .await?;
+    if ok.unwrap_or(false) {
+        Ok(())
+    } else {
+        Err(DbError::NotFound)
+    }
+}
+
 /// When the step AFTER `fired_step` becomes due, or None if the ladder
 /// is exhausted.
 fn next_due(policy: &EscalationPolicy, fired_step: i32) -> Option<OffsetDateTime> {
