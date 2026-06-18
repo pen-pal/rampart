@@ -327,3 +327,32 @@ async fn escalation_episodes_isolated(pool: PgPool) {
     let (s, _, _) = request(&router, Method::POST, &format!("/v1/escalation-policies/episodes/{eid}/ack"), None, Some(&admin)).await;
     assert_eq!(s, StatusCode::NOT_FOUND, "cross-org episode ack");
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn detection_findings_isolated(pool: PgPool) {
+    // detection_findings carry no org_id; they inherit the owning rule's
+    // (NOT-NULL rule_id). The triage feed is org-scoped and ack-by-id gates
+    // through the finding's rule org.
+    let router = common::router(pool.clone());
+    let admin = register_admin(&router).await;
+
+    // Insert a rule (org_id defaults to Default) + one open finding under it.
+    let rid = uuid::Uuid::new_v4().to_string();
+    let fid = uuid::Uuid::new_v4().to_string();
+    sqlx::query("INSERT INTO detection_rules (id, name) VALUES ($1::uuid, 'bruteforce')")
+        .bind(&rid).execute(&pool).await.unwrap();
+    sqlx::query("INSERT INTO detection_findings (id, rule_id, rule_name, severity, match_count, window_from, window_to) VALUES ($1::uuid, $2::uuid, 'bruteforce', 'high', 3, now(), now())")
+        .bind(&fid).bind(&rid).execute(&pool).await.unwrap();
+    assert_eq!(list_len(&router, "/v1/detection-rules/findings?open=true", &admin).await, 1);
+
+    // Reparent the owning rule into another org.
+    sqlx::query("INSERT INTO organizations (id, slug, name) VALUES ($1::uuid, 'other', 'Other') ON CONFLICT DO NOTHING")
+        .bind(OTHER_ORG).execute(&pool).await.unwrap();
+    sqlx::query("UPDATE detection_rules SET org_id = $1::uuid WHERE id = $2::uuid")
+        .bind(OTHER_ORG).bind(&rid).execute(&pool).await.unwrap();
+
+    // Feed drops the finding; ack-by-id 404s.
+    assert_eq!(list_len(&router, "/v1/detection-rules/findings?open=true", &admin).await, 0, "findings feed org-scoped");
+    let (s, _, _) = request(&router, Method::POST, &format!("/v1/detection-rules/findings/{fid}/ack"), None, Some(&admin)).await;
+    assert_eq!(s, StatusCode::NOT_FOUND, "cross-org finding ack");
+}
