@@ -132,9 +132,12 @@ struct DepList {
 
 async fn list_deps(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<DepList>, ApiError> {
     let mid = parse_monitor(&id)?;
+    // Gate through the monitor's org — a cross-org monitor id is a 404.
+    rampart_db::monitors::get(s.pool(), mid, org.org_id).await?;
     let parents = rampart_db::monitor_groups::parents_of(s.pool(), mid).await?;
     let children = rampart_db::monitor_groups::children_of(s.pool(), mid).await?;
     Ok(Json(DepList { parents, children }))
@@ -142,12 +145,16 @@ async fn list_deps(
 
 async fn attach_dep(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Extension(user): Extension<User>,
     headers: HeaderMap,
     Path((id, parent_id)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
     let child = parse_monitor(&id)?;
     let parent = parse_monitor(&parent_id)?;
+    // Both ends of the dependency edge must belong to the caller's org.
+    rampart_db::monitors::get(s.pool(), child, org.org_id).await?;
+    rampart_db::monitors::get(s.pool(), parent, org.org_id).await?;
     rampart_db::monitor_groups::attach_dependency(s.pool(), child, parent).await?;
     crate::audit::record(
         s.pool(),
@@ -164,12 +171,16 @@ async fn attach_dep(
 
 async fn detach_dep(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Extension(user): Extension<User>,
     headers: HeaderMap,
     Path((id, parent_id)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
     let child = parse_monitor(&id)?;
     let parent = parse_monitor(&parent_id)?;
+    // Both ends of the dependency edge must belong to the caller's org.
+    rampart_db::monitors::get(s.pool(), child, org.org_id).await?;
+    rampart_db::monitors::get(s.pool(), parent, org.org_id).await?;
     rampart_db::monitor_groups::detach_dependency(s.pool(), child, parent).await?;
     crate::audit::record(
         s.pool(),

@@ -211,21 +211,29 @@ pub struct AttachPath {
 
 async fn list_for_monitor(
     State(state): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(mid): Path<String>,
 ) -> Result<Json<Vec<Notification>>, ApiError> {
     let mid = parse_monitor(&mid)?;
+    // Gate through the owning monitor's org — a cross-org monitor id is a 404,
+    // so its attached channels can't be enumerated.
+    rampart_db::monitors::get(state.pool(), mid, org.org_id).await?;
     let chans = rampart_db::notifications::for_monitor(state.pool(), mid).await?;
     Ok(Json(chans.into_iter().map(redacted).collect()))
 }
 
 async fn attach(
     State(state): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Extension(user): Extension<User>,
     headers: HeaderMap,
     Path(AttachPath { mid, nid }): Path<AttachPath>,
 ) -> Result<StatusCode, ApiError> {
     let mid = parse_monitor(&mid)?;
     let nid = parse_notif(&nid)?;
+    // Both the monitor and the channel must belong to the caller's org.
+    rampart_db::monitors::get(state.pool(), mid, org.org_id).await?;
+    rampart_db::notifications::get(state.pool(), nid, org.org_id).await?;
     rampart_db::notifications::attach(state.pool(), mid, nid).await?;
     crate::audit::record(
         state.pool(),
@@ -242,12 +250,16 @@ async fn attach(
 
 async fn detach(
     State(state): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Extension(user): Extension<User>,
     headers: HeaderMap,
     Path(AttachPath { mid, nid }): Path<AttachPath>,
 ) -> Result<StatusCode, ApiError> {
     let mid = parse_monitor(&mid)?;
     let nid = parse_notif(&nid)?;
+    // Both the monitor and the channel must belong to the caller's org.
+    rampart_db::monitors::get(state.pool(), mid, org.org_id).await?;
+    rampart_db::notifications::get(state.pool(), nid, org.org_id).await?;
     rampart_db::notifications::detach(state.pool(), mid, nid).await?;
     crate::audit::record(
         state.pool(),

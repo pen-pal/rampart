@@ -513,6 +513,19 @@ async fn bulk(
     };
 
     let pool = state.pool();
+
+    // The tag / channel named by the action must itself belong to the caller's
+    // org, else a cross-org tag/channel could be attached to the caller's own
+    // monitors. Checked once (it's constant for the batch); a cross-org id 404s
+    // the whole request. The per-monitor org check happens inside the junction
+    // arms below (the column-scoped set_active/delete/set_group already gate).
+    if let Some(t) = tag {
+        rampart_db::tags::get(pool, t, org.org_id).await?;
+    }
+    if let Some(n) = notif {
+        rampart_db::notifications::get(pool, n, org.org_id).await?;
+    }
+
     let mut ok = 0usize;
     let mut failed = 0usize;
     for raw in &req.monitor_ids {
@@ -534,13 +547,30 @@ async fn bulk(
             BulkAction::SetGroup { .. } => {
                 rampart_db::monitors::set_group(pool, mid, group.flatten(), org.org_id).await
             }
-            BulkAction::AddTag { .. } => rampart_db::tags::attach(pool, mid, tag.unwrap()).await,
-            BulkAction::RemoveTag { .. } => rampart_db::tags::detach(pool, mid, tag.unwrap()).await,
+            // Junction arms key only on the monitor id, so gate the monitor's
+            // org first (the tag/channel was org-checked once above).
+            BulkAction::AddTag { .. } => match rampart_db::monitors::get(pool, mid, org.org_id).await
+            {
+                Ok(_) => rampart_db::tags::attach(pool, mid, tag.unwrap()).await,
+                Err(e) => Err(e),
+            },
+            BulkAction::RemoveTag { .. } => {
+                match rampart_db::monitors::get(pool, mid, org.org_id).await {
+                    Ok(_) => rampart_db::tags::detach(pool, mid, tag.unwrap()).await,
+                    Err(e) => Err(e),
+                }
+            }
             BulkAction::AttachChannel { .. } => {
-                rampart_db::notifications::attach(pool, mid, notif.unwrap()).await
+                match rampart_db::monitors::get(pool, mid, org.org_id).await {
+                    Ok(_) => rampart_db::notifications::attach(pool, mid, notif.unwrap()).await,
+                    Err(e) => Err(e),
+                }
             }
             BulkAction::DetachChannel { .. } => {
-                rampart_db::notifications::detach(pool, mid, notif.unwrap()).await
+                match rampart_db::monitors::get(pool, mid, org.org_id).await {
+                    Ok(_) => rampart_db::notifications::detach(pool, mid, notif.unwrap()).await,
+                    Err(e) => Err(e),
+                }
             }
         };
         match res {
