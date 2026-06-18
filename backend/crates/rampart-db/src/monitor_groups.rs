@@ -39,6 +39,24 @@ impl From<GroupRow> for MonitorGroup {
     }
 }
 
+/// 404-gate: succeed only when `group` belongs to `org`. There is no single-id
+/// group getter (the UI lists groups per org), so the tag-routing handlers that
+/// act on a folder by id gate through this before touching a routing junction.
+pub async fn in_org(pool: &DbPool, group: MonitorGroupId, org_id: OrgId) -> DbResult<()> {
+    let ok = sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM monitor_groups WHERE id = $1 AND org_id = $2)",
+        group.0,
+        org_id.0,
+    )
+    .fetch_one(pool)
+    .await?;
+    if ok.unwrap_or(false) {
+        Ok(())
+    } else {
+        Err(DbError::NotFound)
+    }
+}
+
 pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<MonitorGroup>> {
     let rows = sqlx::query_as!(
         GroupRow,
