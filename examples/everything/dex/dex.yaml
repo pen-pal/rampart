@@ -1,0 +1,38 @@
+# Dex — a minimal OIDC provider for the `oidc` compose profile. Rampart's
+# RAMPART_OIDC_* env (set on the rampart service when the profile is active)
+# points at this issuer. Log in at the dashboard's "Sign in with SSO" with the
+# static user below.
+#
+#   docker compose --profile oidc up
+#
+# Issuer must match what Rampart discovers: http://localhost:5556/dex (browser
+# redirect) — but the server-to-server token exchange uses the in-network name.
+# We set the issuer to the host-published URL so the browser-side redirect and
+# the discovery document agree; Rampart resolves dex by its compose name for the
+# back-channel. For a turnkey demo both are reachable.
+issuer: http://localhost:5556/dex
+
+storage:
+  type: memory
+
+web:
+  http: 0.0.0.0:5556
+
+oauth2:
+  skipApprovalScreen: true
+
+staticClients:
+  - id: rampart
+    name: Rampart
+    secret: rampart-oidc-secret
+    redirectURIs:
+      - http://localhost:3000/v1/auth/oidc/callback
+
+enablePasswordDB: true
+staticPasswords:
+  # email: sso-user@rampart.local  password: password
+  # bcrypt hash of "password"
+  - email: "sso-user@rampart.local"
+    hash: "$2b$10$vFtHMr766pntbrIcXZ2xFO1/H0L3D6z6nCOfslfEZ3JtpQvMdKbEK"
+    username: "sso-user"
+    userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"

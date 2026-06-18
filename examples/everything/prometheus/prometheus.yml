@@ -1,0 +1,35 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+# Push everything Prometheus scrapes into Rampart's metrics tier via
+# remote_write — so the Metrics view fills with REAL series from a real scrape,
+# and Rampart doubles as a metrics sink (not just a /metrics source).
+remote_write:
+  - url: http://rampart:3000/prom/write
+
+scrape_configs:
+  # Rampart's own Prometheus exposition: build info, monitors by status,
+  # alerting-pipeline gauges, ingest volume, per-table storage bytes.
+  - job_name: rampart
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["rampart:3000"]
+
+  # The instrumented demo backend's app metrics (prom-client).
+  - job_name: demo-backend
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["demo-backend:8080"]
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

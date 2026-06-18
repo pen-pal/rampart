@@ -48,6 +48,35 @@ It runs Rampart + Postgres + this seeder + a load generator + healthy/flaky
 probe targets + Prometheus + Alertmanager, all wired together. See
 `examples/full-stack/README.md` for the tour.
 
+## The "everything" stack — every feature, all real data
+
+For the most exhaustive demo — one that exercises **every** Rampart feature with
+**genuinely real** data (no seeded rows) — use `examples/everything/`:
+
+```bash
+cd examples/everything
+docker compose up                      # default profile (lean targets)
+docker compose --profile heavy up      # + exotic probe targets (mysql, redpanda, vault, …)
+docker compose --profile oidc  up      # + Dex SSO
+```
+
+One Rampart container (API + ingest + scheduler + notifier) + Postgres, a
+one-shot `provision` that creates **all config** (monitors of all 42 kinds, all
+~128 notification channels, escalation/on-call/SLO, maintenance, silence, status
+pages + incidents + ingest tokens, a 2nd org, api-keys, proxy, remote agent,
+scheduled report, deploy markers, presets, templates, rules, CSV round-trip,
+bulk ops) and captures runtime secrets to a shared volume. The **real** services
+then fill every telemetry tier: an instrumented Node app emits OTLP
+traces/logs/metrics + folded CPU profiles + `@sentry/node` errors + browser RUM;
+Prometheus scrapes + `remote_write`s; Alertmanager opens/closes incidents
+through the real ingest webhook; crons push real metrics + push-monitor
+heartbeats; and a from-source remote agent probes a private-only target. Real
+notification deliveries land in a browser-viewable `webhook-sink` and Mailpit.
+
+A `verify.sh` asserts every tier is non-empty. See
+`examples/everything/README.md` for the full tour, ports, and what to watch
+live.
+
 ## Idempotency + cleanup
 
 The seeder keys off the `[demo] Sample services` folder: if it already exists,
