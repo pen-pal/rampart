@@ -9,7 +9,21 @@ use crate::{DbError, DbPool, DbResult};
 use rampart_core::ids::{OrgId, UserId};
 use rampart_core::org::{Org, OrgMember};
 use rampart_core::Role;
+use serde::Serialize;
+use time::OffsetDateTime;
 use uuid::Uuid;
+
+/// A member of an org enriched with their user identity (email + display
+/// name), for the members-management UI. The JOIN against `users` keeps the
+/// API from making N follow-up lookups.
+#[derive(Debug, Clone, Serialize)]
+pub struct OrgMemberDetail {
+    pub user_id: UserId,
+    pub email: String,
+    pub name: Option<String>,
+    pub role: Role,
+    pub created_at: OffsetDateTime,
+}
 
 /// Create an org. `slug` must match `^[a-z0-9-]{2,40}$` (DB CHECK).
 pub async fn create(pool: &DbPool, slug: &str, name: &str) -> DbResult<Org> {
@@ -138,6 +152,38 @@ pub async fn list_members(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<OrgMembe
         .map(|r| OrgMember {
             org_id: OrgId::from_uuid(r.org_id),
             user_id: UserId::from_uuid(r.user_id),
+            role: r.role,
+            created_at: r.created_at,
+        })
+        .collect())
+}
+
+/// Every member of an org enriched with their email + display name, oldest
+/// first. Backs `GET /v1/orgs/{id}/members`. The JOIN guarantees only rows
+/// with a live user are returned (FK from `org_members.user_id`).
+pub async fn list_members_detailed(
+    pool: &DbPool,
+    org_id: OrgId,
+) -> DbResult<Vec<OrgMemberDetail>> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT m.user_id, u.email::text AS "email!", u.name,
+               m.role AS "role: Role", m.created_at
+        FROM org_members m
+        JOIN users u ON u.id = m.user_id
+        WHERE m.org_id = $1
+        ORDER BY m.created_at ASC
+        "#,
+        org_id.0,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| OrgMemberDetail {
+            user_id: UserId::from_uuid(r.user_id),
+            email: r.email,
+            name: r.name,
             role: r.role,
             created_at: r.created_at,
         })
