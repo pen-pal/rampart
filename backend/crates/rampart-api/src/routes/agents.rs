@@ -311,14 +311,9 @@ async fn report_metrics(
             .labels
             .insert("agent".to_string(), agent.name.clone());
     }
-    // P5: resolve org from ingest credential — agent wire-protocol push carries
-    // an agent token, not an OrgContext.
-    rampart_db::metric_samples::insert_many(
-        s.pool(),
-        &parsed.samples,
-        rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID),
-    )
-    .await?;
+    // Phase 5-4: stamp the pushed samples with the AGENT'S org (resolved from
+    // the agent token via lookup), not Default.
+    rampart_db::metric_samples::insert_many(s.pool(), &parsed.samples, agent.org_id).await?;
     Ok(Json(MetricsOutcome {
         accepted: parsed.samples.len(),
         skipped: parsed.skipped,

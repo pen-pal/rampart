@@ -10,7 +10,7 @@
 //! its SHA-256 hash is stored, and the raw value is shown exactly once
 //! in the [`IssuedAgent`] payload.
 
-use crate::ids::{AgentId, MonitorId};
+use crate::ids::{AgentId, MonitorId, OrgId};
 use crate::MonitorStatus;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
@@ -20,6 +20,10 @@ use validator::Validate;
 /// Agents poll every ~30s by default, so 90s tolerates two missed polls
 /// before the dashboard flips the badge.
 pub const ONLINE_GRACE_SECONDS: i64 = 90;
+
+fn default_org_id() -> OrgId {
+    OrgId::from_uuid(crate::org::DEFAULT_ORG_ID)
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Agent {
@@ -31,6 +35,10 @@ pub struct Agent {
     pub version: Option<String>,
     pub last_seen_at: Option<OffsetDateTime>,
     pub created_at: OffsetDateTime,
+    /// Owning org (multi-tenancy). The agent wire-protocol metric push stamps
+    /// telemetry with this. `serde(default)` keeps deserialization tolerant.
+    #[serde(default = "default_org_id")]
+    pub org_id: OrgId,
     /// Monitors currently assigned to this agent. Hydrated on list reads.
     #[serde(default)]
     pub monitor_count: i64,
