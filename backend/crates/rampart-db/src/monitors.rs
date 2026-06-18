@@ -43,6 +43,9 @@ struct MonitorRow {
     cert_days_left: Option<i32>,
     cert_subject: Option<String>,
     cert_checked_at: Option<OffsetDateTime>,
+    // cert-expiry checking (opt-in). NOT NULL columns with DB defaults.
+    check_cert: bool,
+    cert_expiry_days: i32,
     group_id: Option<Uuid>,
     // SLO settings. Both NULL when no SLO is configured for this monitor.
     // Stored as f64 / i32 here so the row maps cleanly onto Monitor without
@@ -88,6 +91,8 @@ impl From<MonitorRow> for Monitor {
             cert_days_left: r.cert_days_left,
             cert_subject: r.cert_subject,
             cert_checked_at: r.cert_checked_at,
+            check_cert: r.check_cert,
+            cert_expiry_days: r.cert_expiry_days,
             group_id: r.group_id.map(MonitorGroupId::from_uuid),
             slo_target_pct: r.slo_target_pct,
             slo_window_days: r.slo_window_days,
@@ -131,6 +136,8 @@ struct StaleAgentRow {
     cert_days_left: Option<i32>,
     cert_subject: Option<String>,
     cert_checked_at: Option<OffsetDateTime>,
+    check_cert: bool,
+    cert_expiry_days: i32,
     group_id: Option<Uuid>,
     slo_target_pct: Option<f64>,
     slo_window_days: Option<i32>,
@@ -172,6 +179,8 @@ impl From<StaleAgentRow> for Monitor {
             cert_days_left: r.cert_days_left,
             cert_subject: r.cert_subject,
             cert_checked_at: r.cert_checked_at,
+            check_cert: r.check_cert,
+            cert_expiry_days: r.cert_expiry_days,
             group_id: r.group_id,
             slo_target_pct: r.slo_target_pct,
             slo_window_days: r.slo_window_days,
@@ -210,7 +219,7 @@ pub async fn create(
             accepted_statuses, follow_redirect, ignore_tls, proxy_id,
             push_token, group_id,
             slo_target_pct, slo_window_days, agent_id, escalation_policy_id,
-            org_id
+            org_id, check_cert, cert_expiry_days
         ) VALUES (
             $1, $2, $3, $4, $5, $6, $7,
             $8, $9, $10,
@@ -219,7 +228,7 @@ pub async fn create(
             $17, $18, $19, $20,
             $21, $22,
             $23::float8::numeric, $24, $25, $26,
-            $27
+            $27, $28, $29
         )
         RETURNING
             id, name,
@@ -234,6 +243,7 @@ pub async fn create(
             current_status AS "current_status: MonitorStatus",
             created_at, updated_at,
             cert_days_left, cert_subject, cert_checked_at,
+            check_cert, cert_expiry_days,
             group_id,
             slo_target_pct::float8 AS "slo_target_pct?",
             slo_window_days, agent_id, escalation_policy_id
@@ -265,6 +275,8 @@ pub async fn create(
         input.agent_id.map(|a| a.0),
         input.escalation_policy_id.map(|e| e.0),
         org_id.0,
+        input.check_cert,
+        input.cert_expiry_days,
     )
     .fetch_one(pool)
     .await?;
@@ -446,6 +458,7 @@ pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<Monitor>> {
             current_status AS "current_status: MonitorStatus",
             created_at, updated_at,
             cert_days_left, cert_subject, cert_checked_at,
+            check_cert, cert_expiry_days,
             group_id,
             slo_target_pct::float8 AS "slo_target_pct?",
             slo_window_days, agent_id, escalation_policy_id
@@ -491,6 +504,7 @@ pub async fn list_all(pool: &DbPool) -> DbResult<Vec<Monitor>> {
             current_status AS "current_status: MonitorStatus",
             created_at, updated_at,
             cert_days_left, cert_subject, cert_checked_at,
+            check_cert, cert_expiry_days,
             group_id,
             slo_target_pct::float8 AS "slo_target_pct?",
             slo_window_days, agent_id, escalation_policy_id
@@ -531,6 +545,7 @@ pub async fn list_for_agent(pool: &DbPool, agent: AgentId) -> DbResult<Vec<Monit
             current_status AS "current_status: MonitorStatus",
             created_at, updated_at,
             cert_days_left, cert_subject, cert_checked_at,
+            check_cert, cert_expiry_days,
             group_id,
             slo_target_pct::float8 AS "slo_target_pct?",
             slo_window_days, agent_id, escalation_policy_id
@@ -568,6 +583,7 @@ pub async fn list_stale_agent_monitors(pool: &DbPool) -> DbResult<Vec<(Monitor, 
             m.current_status AS "current_status: MonitorStatus",
             m.created_at, m.updated_at,
             m.cert_days_left, m.cert_subject, m.cert_checked_at,
+            m.check_cert, m.cert_expiry_days,
             m.group_id,
             m.slo_target_pct::float8 AS "slo_target_pct?",
             m.slo_window_days, m.agent_id, m.escalation_policy_id,
@@ -614,6 +630,7 @@ pub async fn get(pool: &DbPool, id: MonitorId, org_id: OrgId) -> DbResult<Monito
             current_status AS "current_status: MonitorStatus",
             created_at, updated_at,
             cert_days_left, cert_subject, cert_checked_at,
+            check_cert, cert_expiry_days,
             group_id,
             slo_target_pct::float8 AS "slo_target_pct?",
             slo_window_days, agent_id, escalation_policy_id
@@ -654,6 +671,7 @@ pub async fn get_unscoped(pool: &DbPool, id: MonitorId) -> DbResult<Monitor> {
             current_status AS "current_status: MonitorStatus",
             created_at, updated_at,
             cert_days_left, cert_subject, cert_checked_at,
+            check_cert, cert_expiry_days,
             group_id,
             slo_target_pct::float8 AS "slo_target_pct?",
             slo_window_days, agent_id, escalation_policy_id
@@ -707,8 +725,10 @@ pub async fn update(
             follow_redirect     = COALESCE($17, follow_redirect),
             ignore_tls          = COALESCE($18, ignore_tls),
             proxy_id            = COALESCE($19, proxy_id),
+            check_cert          = COALESCE($20, check_cert),
+            cert_expiry_days    = COALESCE($21, cert_expiry_days),
             updated_at          = NOW()
-        WHERE id = $1 AND org_id = $20
+        WHERE id = $1 AND org_id = $22
         "#,
         id.0,
         patch.name,
@@ -729,6 +749,8 @@ pub async fn update(
         patch.follow_redirect,
         patch.ignore_tls,
         proxy_uuid,
+        patch.check_cert,
+        patch.cert_expiry_days,
         org_id.0,
     )
     .execute(pool)

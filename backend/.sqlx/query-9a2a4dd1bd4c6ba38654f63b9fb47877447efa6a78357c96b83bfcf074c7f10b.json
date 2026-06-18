@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            id, name,\n            kind   AS \"kind: MonitorKind\",\n            url, hostname, port, config,\n            interval_seconds, retry_interval_sec, max_retries,\n            timeout_seconds, resend_interval_sec, upside_down,\n            http_method, http_body, http_headers,\n            accepted_statuses, follow_redirect, ignore_tls, proxy_id,\n            push_token, last_push_at, last_run_started_at,\n            active,\n            current_status AS \"current_status: MonitorStatus\",\n            created_at, updated_at,\n            cert_days_left, cert_subject, cert_checked_at,\n            group_id,\n            slo_target_pct::float8 AS \"slo_target_pct?\",\n            slo_window_days, agent_id, escalation_policy_id\n        FROM monitors\n        WHERE id = $1\n        ",
+  "query": "\n        SELECT\n            m.id, m.name,\n            m.kind   AS \"kind: MonitorKind\",\n            m.url, m.hostname, m.port, m.config,\n            m.interval_seconds, m.retry_interval_sec, m.max_retries,\n            m.timeout_seconds, m.resend_interval_sec, m.upside_down,\n            m.http_method, m.http_body, m.http_headers,\n            m.accepted_statuses, m.follow_redirect, m.ignore_tls, m.proxy_id,\n            m.push_token, m.last_push_at, m.last_run_started_at,\n            m.active,\n            m.current_status AS \"current_status: MonitorStatus\",\n            m.created_at, m.updated_at,\n            m.cert_days_left, m.cert_subject, m.cert_checked_at,\n            m.check_cert, m.cert_expiry_days,\n            m.group_id,\n            m.slo_target_pct::float8 AS \"slo_target_pct?\",\n            m.slo_window_days, m.agent_id, m.escalation_policy_id,\n            a.name AS agent_name\n        FROM monitors m\n        JOIN agents a ON a.id = m.agent_id\n        WHERE m.active\n          AND m.current_status <> 'paused'\n          AND COALESCE(\n                (SELECT MAX(h.ts) FROM heartbeats h WHERE h.monitor_id = m.id),\n                m.updated_at\n              ) < NOW() - (m.interval_seconds * 2 + 30) * INTERVAL '1 second'\n        ",
   "describe": {
     "columns": [
       {
@@ -399,6 +399,28 @@
       },
       {
         "ordinal": 30,
+        "name": "check_cert",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "check_cert"
+          }
+        }
+      },
+      {
+        "ordinal": 31,
+        "name": "cert_expiry_days",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "cert_expiry_days"
+          }
+        }
+      },
+      {
+        "ordinal": 32,
         "name": "group_id",
         "type_info": "Uuid",
         "origin": {
@@ -409,13 +431,13 @@
         }
       },
       {
-        "ordinal": 31,
+        "ordinal": 33,
         "name": "slo_target_pct?",
         "type_info": "Float8",
         "origin": "Expression"
       },
       {
-        "ordinal": 32,
+        "ordinal": 34,
         "name": "slo_window_days",
         "type_info": "Int4",
         "origin": {
@@ -426,7 +448,7 @@
         }
       },
       {
-        "ordinal": 33,
+        "ordinal": 35,
         "name": "agent_id",
         "type_info": "Uuid",
         "origin": {
@@ -437,7 +459,7 @@
         }
       },
       {
-        "ordinal": 34,
+        "ordinal": 36,
         "name": "escalation_policy_id",
         "type_info": "Uuid",
         "origin": {
@@ -446,12 +468,21 @@
             "name": "escalation_policy_id"
           }
         }
+      },
+      {
+        "ordinal": 37,
+        "name": "agent_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "agents",
+            "name": "name"
+          }
+        }
       }
     ],
     "parameters": {
-      "Left": [
-        "Uuid"
-      ]
+      "Left": []
     },
     "nullable": [
       false,
@@ -484,12 +515,15 @@
       true,
       true,
       true,
+      false,
+      false,
       true,
       null,
       true,
       true,
-      true
+      true,
+      false
     ]
   },
-  "hash": "b93fd1b2f7f2f299c5cb9caffa446b40eb0c4a683de1501a85b64103c1bbe14f"
+  "hash": "9a2a4dd1bd4c6ba38654f63b9fb47877447efa6a78357c96b83bfcf074c7f10b"
 }

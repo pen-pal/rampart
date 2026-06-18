@@ -75,11 +75,16 @@ impl Probe for TlsProbe {
             .and_then(|v| v.as_u64())
             .or(monitor.port.map(|p| p as u64))
             .unwrap_or(443) as u16;
+        // Threshold precedence: legacy `config.warn_days` wins (so existing
+        // tls monitors keep their configured value), otherwise the
+        // first-class `cert_expiry_days` column (default 14). For a tls-kind
+        // monitor the cert IS the check, so `check_cert` is implicitly true
+        // and we always evaluate expiry here.
         let warn_days = monitor
             .config
             .get("warn_days")
             .and_then(|v| v.as_i64())
-            .unwrap_or(14);
+            .unwrap_or(monitor.cert_expiry_days as i64);
 
         let addr = format!("{host}:{port}");
         let server_name = match ServerName::try_from(host.to_string()) {

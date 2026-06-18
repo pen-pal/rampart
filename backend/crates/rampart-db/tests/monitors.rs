@@ -39,6 +39,8 @@ fn http_monitor(name: &str, url: &str) -> NewMonitor {
         slo_window_days: None,
         agent_id: None,
         escalation_policy_id: None,
+        check_cert: false,
+        cert_expiry_days: 14,
     }
 }
 

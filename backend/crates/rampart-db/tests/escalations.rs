@@ -60,6 +60,8 @@ async fn fixture(pool: &PgPool) -> (rampart_core::MonitorId, rampart_core::Escal
             slo_window_days: None,
             agent_id: None,
             escalation_policy_id: Some(policy.id),
+            check_cert: false,
+            cert_expiry_days: 14,
         },
         TEST_ORG,
     )
