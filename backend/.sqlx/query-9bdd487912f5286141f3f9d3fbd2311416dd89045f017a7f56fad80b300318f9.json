@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO api_keys (id, name, key_hash, key_prefix, scope, scopes, created_by, expires_at, rate_limit_per_hour, org_id)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)\n        RETURNING id, name, key_prefix, scope, created_by,\n                  created_at, last_used_at, expires_at, rate_limit_per_hour\n        ",
+  "query": "\n        INSERT INTO api_keys (id, name, key_hash, key_prefix, scope, scopes, created_by, expires_at, rate_limit_per_hour, org_id)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)\n        RETURNING id, name, key_prefix, scope, created_by,\n                  created_at, last_used_at, expires_at, rate_limit_per_hour,\n                  org_id AS \"org_id!\"\n        ",
   "describe": {
     "columns": [
       {
@@ -101,6 +101,17 @@
             "name": "rate_limit_per_hour"
           }
         }
+      },
+      {
+        "ordinal": 9,
+        "name": "org_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "api_keys",
+            "name": "org_id"
+          }
+        }
       }
     ],
     "parameters": {
@@ -126,8 +137,9 @@
       false,
       true,
       true,
+      false,
       false
     ]
   },
-  "hash": "fe29c2105b273f83f5750f58dfbac1cde8575ea5b76c14b789aaed4872245b84"
+  "hash": "9bdd487912f5286141f3f9d3fbd2311416dd89045f017a7f56fad80b300318f9"
 }

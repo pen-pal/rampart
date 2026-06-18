@@ -26,6 +26,10 @@ struct KeyRow {
     last_used_at: Option<OffsetDateTime>,
     expires_at: Option<OffsetDateTime>,
     rate_limit_per_hour: i32,
+    // The org that owns this key. Only the bearer-auth path ([`lookup`]) reads
+    // it (to scope the request to the key's org); the management list/create
+    // paths build a `KeyRow` and drop it via `From<KeyRow> for ApiKey`.
+    org_id: Uuid,
 }
 
 impl From<KeyRow> for ApiKey {
@@ -52,7 +56,8 @@ pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<ApiKey>> {
         KeyRow,
         r#"
         SELECT id, name, key_prefix, scope, created_by,
-               created_at, last_used_at, expires_at, rate_limit_per_hour
+               created_at, last_used_at, expires_at, rate_limit_per_hour,
+               org_id AS "org_id!"
         FROM api_keys
         WHERE org_id = $1
         ORDER BY created_at DESC
@@ -81,7 +86,8 @@ pub async fn create(
         INSERT INTO api_keys (id, name, key_hash, key_prefix, scope, scopes, created_by, expires_at, rate_limit_per_hour, org_id)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING id, name, key_prefix, scope, created_by,
-                  created_at, last_used_at, expires_at, rate_limit_per_hour
+                  created_at, last_used_at, expires_at, rate_limit_per_hour,
+                  org_id AS "org_id!"
         "#,
         id.0,
         input.name,
@@ -120,10 +126,11 @@ pub async fn delete(pool: &DbPool, id: ApiKeyId, org_id: OrgId) -> DbResult<()> 
     Ok(())
 }
 
-/// Resolve a raw bearer token to (key, created_by). Returns NotFound for
+/// Resolve a raw bearer token to (key, created_by, org). Returns NotFound for
 /// any of: unknown hash, expired, no `created_by` (orphan key — shouldn't
-/// happen but we defend against it).
-pub async fn lookup(pool: &DbPool, token: &str) -> DbResult<(ApiKey, UserId)> {
+/// happen but we defend against it). The org is the key's own owning org — the
+/// bearer-auth path scopes the request to it (single-org: always Default).
+pub async fn lookup(pool: &DbPool, token: &str) -> DbResult<(ApiKey, UserId, OrgId)> {
     if !token.starts_with(TOKEN_PREFIX) {
         return Err(DbError::NotFound);
     }
@@ -132,7 +139,8 @@ pub async fn lookup(pool: &DbPool, token: &str) -> DbResult<(ApiKey, UserId)> {
         KeyRow,
         r#"
         SELECT id, name, key_prefix, scope, created_by,
-               created_at, last_used_at, expires_at, rate_limit_per_hour
+               created_at, last_used_at, expires_at, rate_limit_per_hour,
+               org_id AS "org_id!"
         FROM api_keys
         WHERE key_hash = $1
           AND (expires_at IS NULL OR expires_at > NOW())
@@ -144,7 +152,8 @@ pub async fn lookup(pool: &DbPool, token: &str) -> DbResult<(ApiKey, UserId)> {
     .ok_or(DbError::NotFound)?;
 
     let created_by = row.created_by.ok_or(DbError::NotFound)?;
-    Ok((row.into(), UserId::from_uuid(created_by)))
+    let org_id = OrgId::from_uuid(row.org_id);
+    Ok((row.into(), UserId::from_uuid(created_by), org_id))
 }
 
 /// Fire-and-forget last-used bump. Called on every authenticated request

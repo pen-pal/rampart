@@ -36,8 +36,8 @@ fn rule(body_regex: &str, threshold: i32) -> NewDetectionRule {
 
 async fn insert_log(pool: &PgPool, service: &str, severity: i16, body: &str) {
     sqlx::query!(
-        r#"INSERT INTO logs (id, ts, severity, severity_text, service_name, body, attributes, received_at)
-           VALUES ($1, now(), $2, NULL, $3, $4, '{}'::jsonb, now())"#,
+        r#"INSERT INTO logs (id, ts, severity, severity_text, service_name, body, attributes, received_at, org_id)
+           VALUES ($1, now(), $2, NULL, $3, $4, '{}'::jsonb, now(), '00000000-0000-0000-0000-000000000001')"#,
         Uuid::now_v7(),
         severity,
         service,
@@ -50,8 +50,8 @@ async fn insert_log(pool: &PgPool, service: &str, severity: i16, body: &str) {
 
 async fn insert_log_attrs(pool: &PgPool, service: &str, severity: i16, body: &str, attrs: serde_json::Value) {
     sqlx::query!(
-        r#"INSERT INTO logs (id, ts, severity, severity_text, service_name, body, attributes, received_at)
-           VALUES ($1, now(), $2, NULL, $3, $4, $5, now())"#,
+        r#"INSERT INTO logs (id, ts, severity, severity_text, service_name, body, attributes, received_at, org_id)
+           VALUES ($1, now(), $2, NULL, $3, $4, $5, now(), '00000000-0000-0000-0000-000000000001')"#,
         Uuid::now_v7(),
         severity,
         service,
@@ -206,8 +206,8 @@ async fn service_scope_and_severity_floor(pool: PgPool) {
 
 async fn insert_log_attr(pool: &PgPool, service: &str, severity: i16, body: &str, attrs: serde_json::Value) {
     sqlx::query!(
-        r#"INSERT INTO logs (id, ts, severity, severity_text, service_name, body, attributes, received_at)
-           VALUES ($1, now(), $2, NULL, $3, $4, $5, now())"#,
+        r#"INSERT INTO logs (id, ts, severity, severity_text, service_name, body, attributes, received_at, org_id)
+           VALUES ($1, now(), $2, NULL, $3, $4, $5, now(), '00000000-0000-0000-0000-000000000001')"#,
         Uuid::now_v7(),
         severity,
         service,
