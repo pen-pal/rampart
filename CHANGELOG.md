@@ -19,6 +19,26 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.138.0] — 2026-06-18
+
+### Added
+- **Multi-tenancy — Phase 5-0: per-org ingest credentials (foundation).** New
+  `ingest_keys` table (migration 0110) + `rampart-db::ingest_keys` repo
+  (create/find_by_token/touch_last_used/list_for_org/delete), generalizing the
+  per-status-page `ingest_tokens` to per-**org** keys, plus a
+  `resolve_ingest_org(pool, headers, query_k) -> OrgId` helper. A telemetry
+  client (OTLP / Prometheus remote_write / RUM / profiles) presents the key in
+  the same `Bearer` / `X-Rampart-Token` / `?k` slot the global telemetry_token
+  uses today; a hit resolves the owning org, a **miss falls through to the
+  legacy global-token gate verbatim and lands on the Default org** — so
+  single-org / existing global-token installs are byte-for-byte
+  behaviour-identical, and per-org isolation activates only once an operator
+  mints org-scoped keys. Keys carry an optional `allowed_origins` for RUM
+  origin-binding (Phase 5-3). This slice adds capability only — no ingest path
+  is rewired yet (that's 5-1+). See [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.137.1] — 2026-06-18
 
 ### Fixed

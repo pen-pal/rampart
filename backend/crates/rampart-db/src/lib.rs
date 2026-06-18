@@ -18,6 +18,7 @@ pub mod escalations;
 pub mod heartbeats;
 pub mod incident_templates;
 pub mod incidents;
+pub mod ingest_keys;
 pub mod ingest_tokens;
 pub mod leader;
 pub mod logs;
