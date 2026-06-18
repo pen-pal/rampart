@@ -19,6 +19,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.139.0] — 2026-06-18
+
+### Changed
+- **Multi-tenancy — Phase 5-1: OTLP logs + traces stamp the resolved org.**
+  `/otlp/v1/logs` and `/otlp/v1/traces` now resolve the owning org via
+  `resolve_ingest_org` (which gates auth exactly as `require_telemetry_token`
+  did) and stamp ingested logs/spans with it instead of the hard-coded Default.
+  An OTLP client presenting an org-scoped ingest key lands in that org;
+  token-less ingest still falls back to Default (single-org unchanged). New
+  end-to-end test `otlp_logs_stamp_org_from_ingest_key`. See
+  [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.138.0] — 2026-06-18
 
 ### Added

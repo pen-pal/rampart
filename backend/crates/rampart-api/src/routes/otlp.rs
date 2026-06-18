@@ -36,7 +36,9 @@ async fn ingest_logs(
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Json<Value>, ApiError> {
-    crate::ingest_util::require_telemetry_token(s.pool(), &headers, None).await?;
+    // Phase 5: resolve the owning org from the ingest credential (gates auth
+    // internally, exactly as require_telemetry_token did; Default on key-miss).
+    let org = crate::ingest_util::resolve_ingest_org(s.pool(), &headers, None).await?;
     let content_type = headers
         .get("content-type")
         .and_then(|v| v.to_str().ok())
@@ -67,13 +69,7 @@ async fn ingest_logs(
         });
     }
 
-    // P5: resolve org from ingest credential — OTLP token-less ingest uses Default.
-    rampart_db::logs::insert_logs(
-        s.pool(),
-        &logs,
-        rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID),
-    )
-    .await?;
+    rampart_db::logs::insert_logs(s.pool(), &logs, org).await?;
     Ok(Json(serde_json::json!({})))
 }
 
@@ -82,7 +78,9 @@ async fn ingest_traces(
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Json<Value>, ApiError> {
-    crate::ingest_util::require_telemetry_token(s.pool(), &headers, None).await?;
+    // Phase 5: resolve the owning org from the ingest credential (gates auth
+    // internally, exactly as require_telemetry_token did; Default on key-miss).
+    let org = crate::ingest_util::resolve_ingest_org(s.pool(), &headers, None).await?;
     let content_type = headers
         .get("content-type")
         .and_then(|v| v.to_str().ok())
@@ -107,13 +105,7 @@ async fn ingest_traces(
         spans.retain(|sp| rampart_core::sampling::keep(&sp.trace_id, sc.traces_pct));
     }
 
-    // P5: resolve org from ingest credential — OTLP token-less ingest uses Default.
-    rampart_db::traces::insert_spans(
-        s.pool(),
-        &spans,
-        rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID),
-    )
-    .await?;
+    rampart_db::traces::insert_spans(s.pool(), &spans, org).await?;
 
     // OTLP ExportTraceServiceResponse — an empty object signals full success.
     Ok(Json(serde_json::json!({})))
