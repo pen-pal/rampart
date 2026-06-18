@@ -46,6 +46,7 @@ export function parseRoute(hash) {
   if (h === '#/agents')             return { view: 'agents',        id: null };
   if (h === '#/security')           return { view: 'security',      id: null };
   if (h === '#/users')              return { view: 'users',         id: null };
+  if (h === '#/organizations')      return { view: 'organizations', id: null };
   if (h === '#/folders')            return { view: 'folders',            id: null };
   if (h === '#/tags')               return { view: 'tags',               id: null };
   if (h === '#/settings/smtp')      return { view: 'smtp-settings',      id: null };
