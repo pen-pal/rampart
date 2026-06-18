@@ -23,6 +23,7 @@ pub mod health;
 pub mod incident_templates;
 pub mod incidents;
 pub mod ingest;
+pub mod ingest_keys;
 pub mod logs;
 pub mod maintenance;
 pub mod metric_ingest;
@@ -204,6 +205,8 @@ pub fn v1_protected() -> Router<AppState> {
         .merge(subscribers::settings_router())
         // /v1/api-keys — list/create/revoke
         .nest("/api-keys", api_keys::router())
+        // /v1/ingest-keys — per-org telemetry ingest credentials (list/create/delete)
+        .nest("/ingest-keys", ingest_keys::router())
         // /v1/proxies — list/create/delete/active
         .nest("/proxies", proxies::router())
         // /v1/agents — register (token mint) / rename / revoke
