@@ -1221,7 +1221,7 @@ export default function MonitorDetail({ monitorId, user }) {
 
         {/* ─── CONFIG TAB ─────────────────────────────────────────── */}
         {tab === 'config' && (
-          <ConfigPanel monitor={monitor}/>
+          <ConfigPanel monitor={monitor} onChanged={bumpMonitor}/>
         )}
 
         <div style={{ height: 40 }}/>
@@ -1860,7 +1860,7 @@ function Toggle({ label, on, setOn }) {
 }
 
 // ── Config panel ──────────────────────────────────────────────────────────
-function ConfigPanel({ monitor }) {
+function ConfigPanel({ monitor, onChanged }) {
   const row = (label, value, mono = false) => (
     <div style={{
       display: 'grid', gridTemplateColumns: '180px 1fr',
@@ -1907,7 +1907,7 @@ function ConfigPanel({ monitor }) {
         {row('Current status',   monitor.current_status, true)}
       </div>
 
-      <TagsCard monitor={monitor} onChanged={bumpMonitor}/>
+      <TagsCard monitor={monitor} onChanged={onChanged}/>
       <DependenciesCard monitor={monitor}/>
 
       {(monitor.kind === 'http' || monitor.kind === 'keyword' || monitor.kind === 'json_query') && (
