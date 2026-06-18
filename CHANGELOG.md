@@ -19,6 +19,22 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.137.1] — 2026-06-18
+
+### Fixed
+- **Encryption-at-rest no longer breaks live alerting.** The monitor-flip
+  notifier fan-out (`routing::resolve_channels_for_monitor`) returned the
+  channel `config` **without decrypting** the secrets-at-rest envelope — so
+  with `RAMPART_SECRET_KEY` set (the secure default), real down/up alert
+  deliveries failed with `missing field url`, while `/test`, digest and
+  scheduled-report paths (which go through `notifications::get`) worked. It now
+  decrypts via `secrets::open` like every other channel read path, so live
+  alerting works with encryption-at-rest enabled. Regression test
+  `flip_path_resolve_decrypts_channel_config`. Found by the new
+  `examples/everything` live demo.
+
+---
+
 ## [0.137.0] — 2026-06-18
 
 ### Added
