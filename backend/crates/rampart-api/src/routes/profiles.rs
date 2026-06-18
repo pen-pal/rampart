@@ -66,7 +66,9 @@ async fn ingest_folded(
     Query(q): Query<IngestQuery>,
     body: Bytes,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    crate::ingest_util::require_telemetry_token(s.pool(), &headers, None).await?;
+    // Phase 5: resolve the owning org from the ingest credential (auth-gated
+    // internally; Default on key-miss).
+    let org = crate::ingest_util::resolve_ingest_org(s.pool(), &headers, None).await?;
     // Honor Content-Encoding (gzip/deflate) like the OTLP path.
     let body = crate::ingest_util::decompress(&headers, &body)?;
     let text = String::from_utf8(body)
@@ -86,6 +88,7 @@ async fn ingest_folded(
         q.period_ns.unwrap_or(0),
         q.duration_ns.unwrap_or(0),
         map,
+        org,
     )
     .await?;
     Ok(Json(serde_json::json!({})))
@@ -97,7 +100,9 @@ async fn ingest_pprof(
     Query(q): Query<IngestQuery>,
     body: Bytes,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    crate::ingest_util::require_telemetry_token(s.pool(), &headers, None).await?;
+    // Phase 5: resolve the owning org from the ingest credential (auth-gated
+    // internally; Default on key-miss).
+    let org = crate::ingest_util::resolve_ingest_org(s.pool(), &headers, None).await?;
     // Strip any HTTP Content-Encoding first; the pprof payload is itself usually
     // gzipped (parse_pprof inflates that inner layer).
     let body = crate::ingest_util::decompress(&headers, &body)?;
@@ -120,6 +125,7 @@ async fn ingest_pprof(
         parsed.period_ns,
         parsed.duration_ns,
         parsed.folded,
+        org,
     )
     .await?;
     Ok(Json(serde_json::json!({})))
@@ -134,7 +140,9 @@ pub async fn ingest_otlp(
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    crate::ingest_util::require_telemetry_token(s.pool(), &headers, None).await?;
+    // Phase 5: resolve the owning org from the ingest credential (auth-gated
+    // internally; Default on key-miss).
+    let org = crate::ingest_util::resolve_ingest_org(s.pool(), &headers, None).await?;
     let body = crate::ingest_util::decompress(&headers, &body)?;
     let profiles =
         crate::otlp_profiles::parse_otlp_profiles(&body).map_err(ApiError::BadRequest)?;
@@ -150,6 +158,7 @@ pub async fn ingest_otlp(
             p.period_ns,
             p.duration_ns,
             p.folded,
+            org,
         )
         .await?;
     }
@@ -165,10 +174,10 @@ async fn store(
     period_ns: i64,
     duration_ns: i64,
     map: FoldedMap,
+    org: rampart_core::ids::OrgId,
 ) -> Result<(), ApiError> {
     let sample_count = map.values().sum::<i64>().clamp(0, i32::MAX as i64) as i32;
     let gz = gzip(profile::to_folded_text(&map).as_bytes())?;
-    // P5: resolve org from ingest credential — profiles ingest is token-less.
     rampart_db::profiles::insert(
         s.pool(),
         NewProfile {
@@ -180,7 +189,7 @@ async fn store(
             labels: serde_json::json!({}),
             folded_gz: &gz,
         },
-        rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID),
+        org,
     )
     .await?;
     Ok(())
