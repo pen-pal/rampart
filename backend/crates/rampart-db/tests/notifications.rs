@@ -11,6 +11,9 @@ use rampart_db::notifications::{
 };
 use sqlx::PgPool;
 
+const TEST_ORG: rampart_core::ids::OrgId =
+    rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID);
+
 fn def_org() -> OrgId {
     OrgId::from_uuid(DEFAULT_ORG_ID)
 }
@@ -80,7 +83,7 @@ async fn list_empty_initially(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn create_and_get(pool: PgPool) {
-    let n = create(&pool, webhook_channel("ch")).await.unwrap();
+    let n = create(&pool, webhook_channel("ch"), TEST_ORG).await.unwrap();
     assert_eq!(n.name, "ch");
     assert_eq!(n.kind, ChannelKind::Webhook);
     assert!(n.active);
@@ -92,7 +95,9 @@ async fn create_and_get(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn update_renames_and_disables(pool: PgPool) {
-    let n = create(&pool, webhook_channel("orig")).await.unwrap();
+    let n = create(&pool, webhook_channel("orig"), TEST_ORG)
+        .await
+        .unwrap();
     let mut p = empty_update();
     p.name = Some("renamed".into());
     p.active = Some(false);
@@ -114,10 +119,13 @@ async fn update_can_set_and_clear_template(pool: PgPool) {
             body_template: "body".into(),
             is_default: false,
         },
+        TEST_ORG,
     )
     .await
     .unwrap();
-    let n = create(&pool, webhook_channel("templ")).await.unwrap();
+    let n = create(&pool, webhook_channel("templ"), TEST_ORG)
+        .await
+        .unwrap();
 
     // Set
     let mut p = empty_update();
@@ -134,8 +142,10 @@ async fn update_can_set_and_clear_template(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn attach_detach_round_trip(pool: PgPool) {
-    let m = monitors::create(&pool, http_monitor("m1")).await.unwrap();
-    let c = create(&pool, webhook_channel("ch")).await.unwrap();
+    let m = monitors::create(&pool, http_monitor("m1"), TEST_ORG)
+        .await
+        .unwrap();
+    let c = create(&pool, webhook_channel("ch"), TEST_ORG).await.unwrap();
 
     let before = for_monitor(&pool, m.id).await.unwrap();
     assert!(before.is_empty());
@@ -151,8 +161,10 @@ async fn attach_detach_round_trip(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn attach_is_idempotent(pool: PgPool) {
-    let m = monitors::create(&pool, http_monitor("idem")).await.unwrap();
-    let c = create(&pool, webhook_channel("ch")).await.unwrap();
+    let m = monitors::create(&pool, http_monitor("idem"), TEST_ORG)
+        .await
+        .unwrap();
+    let c = create(&pool, webhook_channel("ch"), TEST_ORG).await.unwrap();
     attach(&pool, m.id, c.id).await.unwrap();
     attach(&pool, m.id, c.id).await.unwrap();
     assert_eq!(
@@ -164,8 +176,10 @@ async fn attach_is_idempotent(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn disabled_channels_excluded_from_for_monitor(pool: PgPool) {
-    let m = monitors::create(&pool, http_monitor("dis")).await.unwrap();
-    let c = create(&pool, webhook_channel("ch")).await.unwrap();
+    let m = monitors::create(&pool, http_monitor("dis"), TEST_ORG)
+        .await
+        .unwrap();
+    let c = create(&pool, webhook_channel("ch"), TEST_ORG).await.unwrap();
     attach(&pool, m.id, c.id).await.unwrap();
     assert_eq!(for_monitor(&pool, m.id).await.unwrap().len(), 1);
 
@@ -181,11 +195,11 @@ async fn disabled_channels_excluded_from_for_monitor(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn counts_per_monitor_excludes_disabled(pool: PgPool) {
-    let m = monitors::create(&pool, http_monitor("counts"))
+    let m = monitors::create(&pool, http_monitor("counts"), TEST_ORG)
         .await
         .unwrap();
-    let c1 = create(&pool, webhook_channel("c1")).await.unwrap();
-    let c2 = create(&pool, webhook_channel("c2")).await.unwrap();
+    let c1 = create(&pool, webhook_channel("c1"), TEST_ORG).await.unwrap();
+    let c2 = create(&pool, webhook_channel("c2"), TEST_ORG).await.unwrap();
     attach(&pool, m.id, c1.id).await.unwrap();
     attach(&pool, m.id, c2.id).await.unwrap();
 
@@ -204,8 +218,10 @@ async fn counts_per_monitor_excludes_disabled(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn delete_channel_cascades_attachments(pool: PgPool) {
-    let m = monitors::create(&pool, http_monitor("cas")).await.unwrap();
-    let c = create(&pool, webhook_channel("ch")).await.unwrap();
+    let m = monitors::create(&pool, http_monitor("cas"), TEST_ORG)
+        .await
+        .unwrap();
+    let c = create(&pool, webhook_channel("ch"), TEST_ORG).await.unwrap();
     attach(&pool, m.id, c.id).await.unwrap();
     delete(&pool, c.id, def_org()).await.unwrap();
     // ON DELETE CASCADE on monitor_notifications.notification_id should

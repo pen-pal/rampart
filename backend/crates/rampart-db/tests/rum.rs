@@ -6,6 +6,9 @@ use rampart_core::rum::RumBeacon;
 use rampart_db::rum;
 use sqlx::PgPool;
 
+const TEST_ORG: rampart_core::ids::OrgId =
+    rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID);
+
 fn beacon(url: &str, ua: &str, trace_id: Option<&str>, lcp: f64) -> RumBeacon {
     serde_json::from_value(serde_json::json!({
         "app": "web",
@@ -29,7 +32,7 @@ async fn browser_breakdown_classifies_and_counts(pool: PgPool) {
         beacon("/", FIREFOX, None, 1500.0),
         beacon("/", EDGE, None, 1200.0),
     ] {
-        rum::insert_event(&pool, &b).await.unwrap();
+        rum::insert_event(&pool, &b, TEST_ORG).await.unwrap();
     }
 
     let bd = rum::browser_breakdown(&pool, None, 24).await.unwrap();
@@ -45,10 +48,10 @@ async fn browser_breakdown_classifies_and_counts(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn recent_traced_returns_only_traced(pool: PgPool) {
-    rum::insert_event(&pool, &beacon("/checkout", CHROME, Some("trace-abc"), 3000.0))
+    rum::insert_event(&pool, &beacon("/checkout", CHROME, Some("trace-abc"), 3000.0), TEST_ORG)
         .await
         .unwrap();
-    rum::insert_event(&pool, &beacon("/", CHROME, None, 1500.0))
+    rum::insert_event(&pool, &beacon("/", CHROME, None, 1500.0), TEST_ORG)
         .await
         .unwrap();
 
@@ -72,9 +75,9 @@ fn beacon_user(url: &str, user: &str) -> RumBeacon {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn page_samples_drilldown_carries_user(pool: PgPool) {
-    rum::insert_event(&pool, &beacon_user("/checkout", "alice@example.com")).await.unwrap();
-    rum::insert_event(&pool, &beacon_user("/checkout", "bob@example.com")).await.unwrap();
-    rum::insert_event(&pool, &beacon("/other", CHROME, None, 1500.0)).await.unwrap();
+    rum::insert_event(&pool, &beacon_user("/checkout", "alice@example.com"), TEST_ORG).await.unwrap();
+    rum::insert_event(&pool, &beacon_user("/checkout", "bob@example.com"), TEST_ORG).await.unwrap();
+    rum::insert_event(&pool, &beacon("/other", CHROME, None, 1500.0), TEST_ORG).await.unwrap();
 
     let samples = rum::page_samples(&pool, None, "/checkout", 24, 100).await.unwrap();
     assert_eq!(samples.len(), 2, "only /checkout loads");
@@ -89,10 +92,10 @@ async fn page_samples_drilldown_carries_user(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn user_breakdown_groups_by_user(pool: PgPool) {
-    rum::insert_event(&pool, &beacon_user("/", "alice@example.com")).await.unwrap();
-    rum::insert_event(&pool, &beacon_user("/checkout", "alice@example.com")).await.unwrap();
-    rum::insert_event(&pool, &beacon_user("/", "bob@example.com")).await.unwrap();
-    rum::insert_event(&pool, &beacon("/", CHROME, None, 1500.0)).await.unwrap(); // anon
+    rum::insert_event(&pool, &beacon_user("/", "alice@example.com"), TEST_ORG).await.unwrap();
+    rum::insert_event(&pool, &beacon_user("/checkout", "alice@example.com"), TEST_ORG).await.unwrap();
+    rum::insert_event(&pool, &beacon_user("/", "bob@example.com"), TEST_ORG).await.unwrap();
+    rum::insert_event(&pool, &beacon("/", CHROME, None, 1500.0), TEST_ORG).await.unwrap(); // anon
 
     let bd = rum::user_breakdown(&pool, None, 24).await.unwrap();
     assert_eq!(bd.len(), 2, "only users with a user_id, anon excluded");

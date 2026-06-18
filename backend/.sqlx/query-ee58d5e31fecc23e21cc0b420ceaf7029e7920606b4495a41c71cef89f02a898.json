@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO delivery_log\n            (notification_id, channel_kind, event_kind, monitor_id, ok, error)\n        VALUES ($1, $2, $3, $4, $5, $6)\n        RETURNING id, notification_id, channel_kind, event_kind,\n                  monitor_id, ok, error, sent_at\n        ",
+  "query": "\n        INSERT INTO delivery_log\n            (notification_id, channel_kind, event_kind, monitor_id, ok, error, org_id)\n        VALUES (\n            $1, $2, $3, $4, $5, $6,\n            COALESCE((SELECT org_id FROM notifications WHERE id = $1), $7::uuid)\n        )\n        RETURNING id, notification_id, channel_kind, event_kind,\n                  monitor_id, ok, error, sent_at\n        ",
   "describe": {
     "columns": [
       {
@@ -99,7 +99,8 @@
         "Text",
         "Uuid",
         "Bool",
-        "Text"
+        "Text",
+        "Uuid"
       ]
     },
     "nullable": [
@@ -113,5 +114,5 @@
       false
     ]
   },
-  "hash": "7744ad18aca3ff099d2dcc10d8e57e64a8ed8431741b49049b620c81768529e7"
+  "hash": "ee58d5e31fecc23e21cc0b420ceaf7029e7920606b4495a41c71cef89f02a898"
 }

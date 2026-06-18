@@ -5,6 +5,9 @@ use rampart_core::trace::ParsedSpan;
 use rampart_db::traces;
 use sqlx::PgPool;
 
+const TEST_ORG: rampart_core::ids::OrgId =
+    rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID);
+
 fn span(id: &str, parent: Option<&str>, service: &str, dur_ms: f64, err: bool) -> ParsedSpan {
     ParsedSpan {
         trace_id: "trace-1".into(),
@@ -30,6 +33,7 @@ async fn service_map_edge_has_calls_errors_p95(pool: PgPool) {
             span("c1", Some("p"), "api", 100.0, false), // web -> api, ok
             span("c2", Some("p"), "api", 200.0, true),  // web -> api, error
         ],
+        TEST_ORG,
     )
     .await
     .unwrap();
@@ -59,6 +63,7 @@ async fn operation_trend_returns_p95_series(pool: PgPool) {
             span("a2", None, "api", 150.0, false),
             span("a3", None, "api", 200.0, false),
         ],
+        TEST_ORG,
     )
     .await
     .unwrap();

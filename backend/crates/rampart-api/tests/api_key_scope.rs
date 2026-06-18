@@ -23,6 +23,9 @@ use serde_json::json;
 use sqlx::PgPool;
 use tower::ServiceExt;
 
+const TEST_ORG: rampart_core::ids::OrgId =
+    rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID);
+
 fn new_monitor_body() -> serde_json::Value {
     json!({
         "name": "Example",
@@ -57,6 +60,7 @@ async fn key_with_scope(pool: &PgPool, email: &str, scope: KeyScope) -> String {
             rate_limit_per_hour: rampart_core::api_key::DEFAULT_RATE_LIMIT_PER_HOUR,
         },
         owner.id,
+        TEST_ORG,
     )
     .await
     .expect("mint api key");

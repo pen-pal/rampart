@@ -41,12 +41,13 @@ async fn list(
 
 async fn create(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Json(input): Json<NewTelemetryRule>,
 ) -> Result<(StatusCode, Json<TelemetryRule>), ApiError> {
     input
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
-    let rule = rampart_db::telemetry_rules::create(s.pool(), input).await?;
+    let rule = rampart_db::telemetry_rules::create(s.pool(), input, org.org_id).await?;
     Ok((StatusCode::CREATED, Json(rule)))
 }
 

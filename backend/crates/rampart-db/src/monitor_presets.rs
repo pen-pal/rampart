@@ -66,7 +66,11 @@ pub async fn get(pool: &DbPool, id: MonitorPresetId, org_id: OrgId) -> DbResult<
     })
 }
 
-pub async fn create(pool: &DbPool, input: NewMonitorPreset) -> DbResult<MonitorPreset> {
+pub async fn create(
+    pool: &DbPool,
+    input: NewMonitorPreset,
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<MonitorPreset> {
     let id = MonitorPresetId::new();
     // Default the bag to an empty object when the caller sent JSON null —
     // the column is NOT NULL.
@@ -77,14 +81,15 @@ pub async fn create(pool: &DbPool, input: NewMonitorPreset) -> DbResult<MonitorP
     };
     let r = sqlx::query!(
         r#"
-        INSERT INTO monitor_presets (id, name, kind, data)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO monitor_presets (id, name, kind, data, org_id)
+        VALUES ($1, $2, $3, $4, $5)
         RETURNING id, name, kind, data, created_at
         "#,
         id.0,
         input.name,
         input.kind.as_str(),
         data,
+        org_id.0,
     )
     .fetch_one(pool)
     .await?;

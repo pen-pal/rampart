@@ -7,6 +7,9 @@ use rampart_core::{MonitorKind, Role};
 use rampart_db::escalations;
 use sqlx::PgPool;
 
+const TEST_ORG: rampart_core::ids::OrgId =
+    rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID);
+
 async fn fixture(pool: &PgPool) -> (rampart_core::MonitorId, rampart_core::EscalationPolicy) {
     let policy = escalations::create(
         pool,
@@ -25,6 +28,7 @@ async fn fixture(pool: &PgPool) -> (rampart_core::MonitorId, rampart_core::Escal
                 },
             ],
         },
+        TEST_ORG,
     )
     .await
     .unwrap();
@@ -57,6 +61,7 @@ async fn fixture(pool: &PgPool) -> (rampart_core::MonitorId, rampart_core::Escal
             agent_id: None,
             escalation_policy_id: Some(policy.id),
         },
+        TEST_ORG,
     )
     .await
     .unwrap();
@@ -236,6 +241,7 @@ async fn ladder(pool: &PgPool, waits: &[i64]) -> rampart_core::EscalationPolicy 
                 })
                 .collect(),
         },
+        TEST_ORG,
     )
     .await
     .unwrap()

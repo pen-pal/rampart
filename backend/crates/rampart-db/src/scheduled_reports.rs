@@ -83,18 +83,23 @@ pub async fn get(pool: &DbPool, id: ScheduledReportId, org_id: OrgId) -> DbResul
     })
 }
 
-pub async fn create(pool: &DbPool, input: NewScheduledReport) -> DbResult<ScheduledReport> {
+pub async fn create(
+    pool: &DbPool,
+    input: NewScheduledReport,
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<ScheduledReport> {
     let id = Uuid::now_v7();
     let r = sqlx::query!(
         r#"
-        INSERT INTO scheduled_reports (id, name, recipients, cadence)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO scheduled_reports (id, name, recipients, cadence, org_id)
+        VALUES ($1, $2, $3, $4, $5)
         RETURNING id, name, recipients, cadence, last_sent_at, created_at
         "#,
         id,
         input.name,
         &input.recipients,
         input.cadence,
+        org_id.0,
     )
     .fetch_one(pool)
     .await?;

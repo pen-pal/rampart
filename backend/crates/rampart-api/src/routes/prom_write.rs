@@ -95,6 +95,12 @@ async fn remote_write(
         }
     }
 
-    rampart_db::metric_samples::insert_many(s.pool(), &samples).await?;
+    // P5: resolve org from ingest credential — Prometheus remote_write is token-less.
+    rampart_db::metric_samples::insert_many(
+        s.pool(),
+        &samples,
+        rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID),
+    )
+    .await?;
     Ok(StatusCode::NO_CONTENT)
 }

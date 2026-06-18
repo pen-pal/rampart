@@ -11,6 +11,9 @@ use rampart_db::notifications::NewNotification;
 use rampart_db::{monitor_groups, monitors, notifications, routing, tags};
 use sqlx::PgPool;
 
+const TEST_ORG: rampart_core::ids::OrgId =
+    rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID);
+
 fn http_monitor(name: &str) -> NewMonitor {
     NewMonitor {
         name: name.into(),
@@ -62,6 +65,7 @@ async fn mk_tag(pool: &PgPool, name: &str) -> rampart_core::ids::TagId {
             name: name.into(),
             color: "#14b8a6".into(),
         },
+        TEST_ORG,
     )
     .await
     .unwrap()
@@ -76,8 +80,8 @@ fn names(chans: &[notifications::Notification]) -> Vec<String> {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn explicit_attach_resolves(pool: PgPool) {
-    let m = monitors::create(&pool, http_monitor("m1")).await.unwrap();
-    let c = notifications::create(&pool, channel("explicit"))
+    let m = monitors::create(&pool, http_monitor("m1"), TEST_ORG).await.unwrap();
+    let c = notifications::create(&pool, channel("explicit"), TEST_ORG)
         .await
         .unwrap();
     notifications::attach(&pool, m.id, c.id).await.unwrap();
@@ -90,8 +94,8 @@ async fn explicit_attach_resolves(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn monitor_tag_match_resolves(pool: PgPool) {
-    let m = monitors::create(&pool, http_monitor("m1")).await.unwrap();
-    let c = notifications::create(&pool, channel("prod-pager"))
+    let m = monitors::create(&pool, http_monitor("m1"), TEST_ORG).await.unwrap();
+    let c = notifications::create(&pool, channel("prod-pager"), TEST_ORG)
         .await
         .unwrap();
     let prod = mk_tag(&pool, "prod").await;
@@ -114,13 +118,14 @@ async fn folder_tag_match_resolves(pool: PgPool) {
             sort_order: 0,
             parent_id: None,
         },
+        TEST_ORG,
     )
     .await
     .unwrap();
     let mut nm = http_monitor("m1");
     nm.group_id = Some(g.id);
-    let m = monitors::create(&pool, nm).await.unwrap();
-    let c = notifications::create(&pool, channel("edge-chan"))
+    let m = monitors::create(&pool, nm, TEST_ORG).await.unwrap();
+    let c = notifications::create(&pool, channel("edge-chan"), TEST_ORG)
         .await
         .unwrap();
     let edge = mk_tag(&pool, "edge").await;
@@ -143,13 +148,14 @@ async fn folder_attached_channel_resolves(pool: PgPool) {
             sort_order: 0,
             parent_id: None,
         },
+        TEST_ORG,
     )
     .await
     .unwrap();
     let mut nm = http_monitor("m1");
     nm.group_id = Some(g.id);
-    let m = monitors::create(&pool, nm).await.unwrap();
-    let c = notifications::create(&pool, channel("folder-chan"))
+    let m = monitors::create(&pool, nm, TEST_ORG).await.unwrap();
+    let c = notifications::create(&pool, channel("folder-chan"), TEST_ORG)
         .await
         .unwrap();
     routing::attach_group_channel(&pool, g.id, c.id)
@@ -171,13 +177,14 @@ async fn exclusion_wins_over_every_inclusion(pool: PgPool) {
             sort_order: 0,
             parent_id: None,
         },
+        TEST_ORG,
     )
     .await
     .unwrap();
     let mut nm = http_monitor("m1");
     nm.group_id = Some(g.id);
-    let m = monitors::create(&pool, nm).await.unwrap();
-    let c = notifications::create(&pool, channel("noisy"))
+    let m = monitors::create(&pool, nm, TEST_ORG).await.unwrap();
+    let c = notifications::create(&pool, channel("noisy"), TEST_ORG)
         .await
         .unwrap();
     let t = mk_tag(&pool, "t").await;
@@ -210,8 +217,10 @@ async fn exclusion_wins_over_every_inclusion(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn dedupes_across_paths_and_skips_inactive(pool: PgPool) {
-    let m = monitors::create(&pool, http_monitor("m1")).await.unwrap();
-    let c = notifications::create(&pool, channel("dup")).await.unwrap();
+    let m = monitors::create(&pool, http_monitor("m1"), TEST_ORG).await.unwrap();
+    let c = notifications::create(&pool, channel("dup"), TEST_ORG)
+        .await
+        .unwrap();
     let t = mk_tag(&pool, "t").await;
     // Same channel reachable via explicit attach AND tag match.
     notifications::attach(&pool, m.id, c.id).await.unwrap();
@@ -263,6 +272,7 @@ async fn nested_folder_tag_propagates_to_child_monitor(pool: PgPool) {
             sort_order: 0,
             parent_id: None,
         },
+        TEST_ORG,
     )
     .await
     .unwrap();
@@ -273,13 +283,14 @@ async fn nested_folder_tag_propagates_to_child_monitor(pool: PgPool) {
             sort_order: 0,
             parent_id: Some(prod.id),
         },
+        TEST_ORG,
     )
     .await
     .unwrap();
     let mut nm = http_monitor("m1");
     nm.group_id = Some(db.id);
-    let m = monitors::create(&pool, nm).await.unwrap();
-    let c = notifications::create(&pool, channel("prod-pager"))
+    let m = monitors::create(&pool, nm, TEST_ORG).await.unwrap();
+    let c = notifications::create(&pool, channel("prod-pager"), TEST_ORG)
         .await
         .unwrap();
     let prod_tag = mk_tag(&pool, "prod").await;
@@ -303,6 +314,7 @@ async fn nested_folder_attached_channel_propagates_to_child_monitor(pool: PgPool
             sort_order: 0,
             parent_id: None,
         },
+        TEST_ORG,
     )
     .await
     .unwrap();
@@ -313,6 +325,7 @@ async fn nested_folder_attached_channel_propagates_to_child_monitor(pool: PgPool
             sort_order: 0,
             parent_id: Some(root.id),
         },
+        TEST_ORG,
     )
     .await
     .unwrap();
@@ -323,13 +336,14 @@ async fn nested_folder_attached_channel_propagates_to_child_monitor(pool: PgPool
             sort_order: 0,
             parent_id: Some(mid.id),
         },
+        TEST_ORG,
     )
     .await
     .unwrap();
     let mut nm = http_monitor("m1");
     nm.group_id = Some(leaf.id);
-    let m = monitors::create(&pool, nm).await.unwrap();
-    let c = notifications::create(&pool, channel("ops-pager"))
+    let m = monitors::create(&pool, nm, TEST_ORG).await.unwrap();
+    let c = notifications::create(&pool, channel("ops-pager"), TEST_ORG)
         .await
         .unwrap();
     routing::attach_group_channel(&pool, root.id, c.id)
@@ -344,8 +358,8 @@ async fn nested_folder_attached_channel_propagates_to_child_monitor(pool: PgPool
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn no_tags_no_attach_yields_nothing(pool: PgPool) {
-    let m = monitors::create(&pool, http_monitor("m1")).await.unwrap();
-    let _c = notifications::create(&pool, channel("orphan"))
+    let m = monitors::create(&pool, http_monitor("m1"), TEST_ORG).await.unwrap();
+    let _c = notifications::create(&pool, channel("orphan"), TEST_ORG)
         .await
         .unwrap();
     let got = routing::resolve_channels_for_monitor(&pool, m.id)

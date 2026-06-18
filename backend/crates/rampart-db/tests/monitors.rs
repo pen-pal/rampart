@@ -50,7 +50,7 @@ async fn list_empty_by_default(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn create_round_trips(pool: PgPool) {
-    let m = create(&pool, http_monitor("api", "https://api.example.com"))
+    let m = create(&pool, http_monitor("api", "https://api.example.com"), def_org())
         .await
         .unwrap();
     assert_eq!(m.name, "api");
@@ -64,13 +64,13 @@ async fn create_round_trips(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn list_returns_all_in_recency_order(pool: PgPool) {
-    let _a = create(&pool, http_monitor("a", "https://a.example.com"))
+    let _a = create(&pool, http_monitor("a", "https://a.example.com"), def_org())
         .await
         .unwrap();
-    let _b = create(&pool, http_monitor("b", "https://b.example.com"))
+    let _b = create(&pool, http_monitor("b", "https://b.example.com"), def_org())
         .await
         .unwrap();
-    let _c = create(&pool, http_monitor("c", "https://c.example.com"))
+    let _c = create(&pool, http_monitor("c", "https://c.example.com"), def_org())
         .await
         .unwrap();
     let ms = list(&pool, def_org()).await.unwrap();
@@ -79,7 +79,7 @@ async fn list_returns_all_in_recency_order(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn set_active_toggles_field(pool: PgPool) {
-    let m = create(&pool, http_monitor("toggle", "https://x.example.com"))
+    let m = create(&pool, http_monitor("toggle", "https://x.example.com"), def_org())
         .await
         .unwrap();
     assert!(m.active);
@@ -95,7 +95,7 @@ async fn set_active_toggles_field(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn delete_removes_from_list(pool: PgPool) {
-    let m = create(&pool, http_monitor("gone", "https://gone.example.com"))
+    let m = create(&pool, http_monitor("gone", "https://gone.example.com"), def_org())
         .await
         .unwrap();
     delete(&pool, m.id, def_org()).await.unwrap();
@@ -122,7 +122,7 @@ async fn create_tcp_monitor_persists_host_and_port(pool: PgPool) {
     nm.port = Some(6379);
     nm.accepted_statuses = vec![];
 
-    let m = create(&pool, nm).await.unwrap();
+    let m = create(&pool, nm, def_org()).await.unwrap();
     assert_eq!(m.kind, MonitorKind::Tcp);
     assert_eq!(m.hostname.as_deref(), Some("redis.internal"));
     assert_eq!(m.port, Some(6379));
@@ -138,7 +138,7 @@ async fn read_filter_isolates_orgs(pool: PgPool) {
     let other = rampart_db::orgs::create(&pool, "other", "Other")
         .await
         .unwrap();
-    let m = create(&pool, http_monitor("secret", "https://secret.example.com"))
+    let m = create(&pool, http_monitor("secret", "https://secret.example.com"), def_org())
         .await
         .unwrap();
     sqlx::query("UPDATE monitors SET org_id = $1 WHERE id = $2")

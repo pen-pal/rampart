@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO incident_templates (id, name, body, style)\n        VALUES ($1, $2, $3, $4)\n        RETURNING id, name, body, style AS \"style: IncidentStyle\", created_at\n        ",
+  "query": "\n        INSERT INTO incident_templates (id, name, body, style, org_id)\n        VALUES ($1, $2, $3, $4, $5)\n        RETURNING id, name, body, style AS \"style: IncidentStyle\", created_at\n        ",
   "describe": {
     "columns": [
       {
@@ -90,7 +90,8 @@
               ]
             }
           }
-        }
+        },
+        "Uuid"
       ]
     },
     "nullable": [
@@ -101,5 +102,5 @@
       false
     ]
   },
-  "hash": "086b8574c280b6ea6df07b06986b4a795ae1c9eb8557f35f46070479ca44d646"
+  "hash": "0463f5467faf15b58af704988bcb4c836879db370c82dcdee970278b7bf89188"
 }

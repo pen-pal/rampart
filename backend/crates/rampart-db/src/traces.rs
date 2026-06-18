@@ -12,7 +12,11 @@ use time::OffsetDateTime;
 
 /// Insert a batch of spans, de-duplicating on `span_id` (exporters retransmit).
 /// Returns the number of new rows. Runs in one transaction.
-pub async fn insert_spans(pool: &DbPool, spans: &[ParsedSpan]) -> DbResult<u64> {
+pub async fn insert_spans(
+    pool: &DbPool,
+    spans: &[ParsedSpan],
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<u64> {
     if spans.is_empty() {
         return Ok(0);
     }
@@ -48,10 +52,11 @@ pub async fn insert_spans(pool: &DbPool, spans: &[ParsedSpan]) -> DbResult<u64> 
         r#"
         INSERT INTO spans
             (span_id, trace_id, parent_span_id, service_name, name, kind,
-             start_ns, end_ns, duration_ms, status_code, status_message, attributes)
+             start_ns, end_ns, duration_ms, status_code, status_message, attributes, org_id)
         SELECT * FROM UNNEST(
             $1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::int2[],
-            $7::int8[], $8::int8[], $9::float8[], $10::int2[], $11::text[], $12::jsonb[]
+            $7::int8[], $8::int8[], $9::float8[], $10::int2[], $11::text[], $12::jsonb[],
+            ARRAY_FILL($13::uuid, ARRAY[array_length($1::text[], 1)])
         )
         ON CONFLICT (span_id) DO NOTHING
         "#,
@@ -67,6 +72,7 @@ pub async fn insert_spans(pool: &DbPool, spans: &[ParsedSpan]) -> DbResult<u64> 
         &status_code,
         &status_msg as &[Option<String>],
         &attrs,
+        org_id.0,
     )
     .execute(pool)
     .await?;

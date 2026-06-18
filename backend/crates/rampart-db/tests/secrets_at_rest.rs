@@ -9,6 +9,9 @@ use rampart_core::ChannelKind;
 use rampart_db::notifications::{self, NewNotification};
 use sqlx::PgPool;
 
+const TEST_ORG: rampart_core::ids::OrgId =
+    rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID);
+
 fn new_webhook(secret: &str) -> NewNotification {
     NewNotification {
         kind: ChannelKind::Webhook,
@@ -30,7 +33,7 @@ async fn channel_config_is_encrypted_at_rest(pool: PgPool) {
     std::env::set_var("RAMPART_SECRET_KEY", "0".repeat(64)); // 32 bytes of 0x00 as hex
 
     let secret = "super-secret-bearer-token";
-    let created = notifications::create(&pool, new_webhook(secret))
+    let created = notifications::create(&pool, new_webhook(secret), TEST_ORG)
         .await
         .unwrap();
 

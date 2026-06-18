@@ -79,18 +79,23 @@ pub async fn get(pool: &DbPool, id: IncidentTemplateId, org_id: OrgId) -> DbResu
     })
 }
 
-pub async fn create(pool: &DbPool, input: NewIncidentTemplate) -> DbResult<IncidentTemplate> {
+pub async fn create(
+    pool: &DbPool,
+    input: NewIncidentTemplate,
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<IncidentTemplate> {
     let id = Uuid::now_v7();
     let r = sqlx::query!(
         r#"
-        INSERT INTO incident_templates (id, name, body, style)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO incident_templates (id, name, body, style, org_id)
+        VALUES ($1, $2, $3, $4, $5)
         RETURNING id, name, body, style AS "style: IncidentStyle", created_at
         "#,
         id,
         input.name,
         input.body,
         input.style as IncidentStyle,
+        org_id.0,
     )
     .fetch_one(pool)
     .await?;

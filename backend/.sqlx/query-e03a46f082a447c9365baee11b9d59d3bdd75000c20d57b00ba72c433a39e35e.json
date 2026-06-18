@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO notification_templates\n            (id, name, channel_kinds, event_kind, subject_template, body_template, is_default)\n        VALUES ($1, $2, $3, $4, $5, $6, $7)\n        RETURNING id, name, channel_kinds, event_kind, subject_template, body_template,\n                  is_default, created_at\n        ",
+  "query": "\n        INSERT INTO notification_templates\n            (id, name, channel_kinds, event_kind, subject_template, body_template, is_default, org_id)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)\n        RETURNING id, name, channel_kinds, event_kind, subject_template, body_template,\n                  is_default, created_at\n        ",
   "describe": {
     "columns": [
       {
@@ -100,7 +100,8 @@
         "Text",
         "Text",
         "Text",
-        "Bool"
+        "Bool",
+        "Uuid"
       ]
     },
     "nullable": [
@@ -114,5 +115,5 @@
       false
     ]
   },
-  "hash": "21d2d0d42a8c67a84089f7f605aeaf5c80613c47f794a71eb16b1a187c7ddc8b"
+  "hash": "e03a46f082a447c9365baee11b9d59d3bdd75000c20d57b00ba72c433a39e35e"
 }
