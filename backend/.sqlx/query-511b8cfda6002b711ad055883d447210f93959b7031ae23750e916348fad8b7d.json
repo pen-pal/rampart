@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO agents (id, name, location, token_hash, org_id)\n        VALUES ($1, $2, $3, $4, $5)\n        RETURNING id, name, location, version, last_seen_at, created_at,\n                  0::bigint AS monitor_count\n        ",
+  "query": "\n        INSERT INTO agents (id, name, location, token_hash, org_id)\n        VALUES ($1, $2, $3, $4, $5)\n        RETURNING id, name, location, version, last_seen_at, created_at,\n                  org_id AS \"org_id!\", 0::bigint AS monitor_count\n        ",
   "describe": {
     "columns": [
       {
@@ -71,6 +71,17 @@
       },
       {
         "ordinal": 6,
+        "name": "org_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "agents",
+            "name": "org_id"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
         "name": "monitor_count",
         "type_info": "Int8",
         "origin": "Expression"
@@ -92,8 +103,9 @@
       true,
       true,
       false,
+      true,
       null
     ]
   },
-  "hash": "a3c7dba8814291ced2ef13ecf04cbd9f3f6e724f428a565b801401fb5ec0d6ea"
+  "hash": "511b8cfda6002b711ad055883d447210f93959b7031ae23750e916348fad8b7d"
 }
