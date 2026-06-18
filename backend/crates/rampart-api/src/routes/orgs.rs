@@ -11,12 +11,14 @@
 //! org-delete endpoint — ~30 `org_id` columns have FK `ON DELETE RESTRICT`, so
 //! deleting an org with any data would fail; we don't expose the foot-gun.
 
+use crate::auth::SESSION_COOKIE;
 use crate::error::ApiError;
 use crate::state::AppState;
 use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
-use axum::routing::{get, patch};
+use axum::routing::{get, patch, post};
 use axum::{Json, Router};
+use axum_extra::extract::cookie::CookieJar;
 use rampart_core::ids::{OrgId, UserId};
 use rampart_core::org::Org;
 use rampart_core::Role;
@@ -36,6 +38,7 @@ pub fn router() -> Router<AppState> {
             "/{id}/members/{user_id}",
             patch(set_member_role).delete(remove_member),
         )
+        .route("/{id}/switch", post(switch))
 }
 
 // ── path parsing ────────────────────────────────────────────────────────────
@@ -240,6 +243,34 @@ async fn last_admin_demotion(
     } else {
         Ok(false)
     }
+}
+
+// ── POST /v1/orgs/{id}/switch — set the caller's active org ──────────────────
+
+/// Switch the caller's *active* org (persists `sessions.active_org_id` for this
+/// cookie session). The caller must be a member of the target org (non-member →
+/// 404, IDOR-safe). This is a cookie-session action — bearer/API-key callers
+/// have no session cookie and get 401. The choice surfaces immediately via
+/// `/v1/auth/me`; it becomes the org that scopes resources once `require_session`
+/// resolves the active org (Phase 4e).
+async fn switch(
+    State(s): State<AppState>,
+    Extension(user): Extension<User>,
+    jar: CookieJar,
+    Path(id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    let org = parse_org(&id)?;
+    // Membership gate (any role): you can only switch INTO an org you belong to.
+    require_org_role(s.pool(), org, &user, Role::Readonly).await?;
+    let token = jar
+        .get(SESSION_COOKIE)
+        .and_then(|c| Uuid::from_str(c.value()).ok())
+        .ok_or(ApiError::Unauthorized)?;
+    // Scoped to (session, user); a mismatched/expired session affects 0 rows.
+    if !rampart_db::sessions::set_active_org(s.pool(), token, user.id, org.0).await? {
+        return Err(ApiError::NotFound);
+    }
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // ── DELETE /v1/orgs/{id}/members/{user_id} — remove (org Admin only) ─────────

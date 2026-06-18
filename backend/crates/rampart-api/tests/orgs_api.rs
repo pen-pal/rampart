@@ -169,3 +169,32 @@ async fn slug_validation_and_duplicate(pool: PgPool) {
     let (status, _, _) = request(&app, Method::POST, "/v1/orgs", Some(org_body("dup", "Second")), Some(&admin)).await;
     assert_eq!(status, StatusCode::CONFLICT, "duplicate slug → 409");
 }
+
+// ── 4d: org switcher (set active_org_id) + /v1/auth/me enrichment ─────────────
+#[sqlx::test(migrations = "../../migrations")]
+async fn switch_active_org_and_me_reflects_it(pool: PgPool) {
+    let app = router(pool.clone());
+    let admin = register_admin(&app).await;
+    let acme = make_org(&app, &admin, "acme", "Acme Inc").await;
+
+    // /v1/auth/me now carries the org list (Default + acme) + an active org.
+    let (st, _, body) = request(&app, Method::GET, "/v1/auth/me", None, Some(&admin)).await;
+    assert_eq!(st, StatusCode::OK);
+    let me: Value = serde_json::from_slice(&body).unwrap();
+    assert!(me["orgs"].as_array().unwrap().len() >= 2, "me lists the caller's orgs");
+    assert!(me["active_org_id"].is_string(), "me carries an active org (Default fallback)");
+
+    // Switch into acme (the caller is its Admin → a member) → 204.
+    let (st, _, _) = request(&app, Method::POST, &format!("/v1/orgs/{acme}/switch"), None, Some(&admin)).await;
+    assert_eq!(st, StatusCode::NO_CONTENT, "switch into a joined org → 204");
+    let (_, _, body) = request(&app, Method::GET, "/v1/auth/me", None, Some(&admin)).await;
+    let me: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(me["active_org_id"].as_str().unwrap(), acme, "me reflects the switched org");
+
+    // Cannot switch into an org the caller is NOT a member of → 404.
+    let other = "00000000-0000-0000-0000-0000000c0ffe";
+    sqlx::query("INSERT INTO organizations (id, slug, name) VALUES ($1::uuid, 'other', 'Other') ON CONFLICT DO NOTHING")
+        .bind(other).execute(&pool).await.unwrap();
+    let (st, _, _) = request(&app, Method::POST, &format!("/v1/orgs/{other}/switch"), None, Some(&admin)).await;
+    assert_eq!(st, StatusCode::NOT_FOUND, "switch into a non-member org → 404");
+}

@@ -252,9 +252,23 @@ async fn me(State(state): State<AppState>, jar: CookieJar) -> Result<impl IntoRe
     };
     let must_setup_2fa = applies && !user.totp_enabled;
 
-    Ok(Json(
-        json!({ "user": user, "must_setup_2fa": must_setup_2fa }),
-    ))
+    // Multi-tenancy (Phase 4d): surface the caller's org list + active org so the
+    // SPA can render the org switcher. me() runs outside `require_session`, so it
+    // re-resolves the active org from the session itself (Default-org fallback
+    // when unset). Best-effort — a list failure mustn't break /me.
+    let orgs = rampart_db::orgs::list_for_user(state.pool(), user.id)
+        .await
+        .unwrap_or_default();
+    let active_org_id = session
+        .active_org_id
+        .unwrap_or(rampart_core::org::DEFAULT_ORG_ID);
+
+    Ok(Json(json!({
+        "user": user,
+        "must_setup_2fa": must_setup_2fa,
+        "orgs": orgs,
+        "active_org_id": active_org_id,
+    })))
 }
 
 // Silence the unused-import warning if we later refactor.
