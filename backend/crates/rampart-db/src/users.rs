@@ -235,17 +235,24 @@ pub async fn set_admin(pool: &DbPool, id: UserId, is_admin: bool) -> DbResult<()
     // Promote/demote via the boolean shim. Keep `role` authoritative and in
     // sync: admin → Admin, !admin → Editor (the sensible non-admin default).
     let role = if is_admin { Role::Admin } else { Role::Editor };
+    let mut tx = pool.begin().await?;
     let result = sqlx::query!(
         "UPDATE users SET is_admin = $1, role = $2 WHERE id = $3",
         is_admin,
         role as Role,
         id.0,
     )
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }
+    // Mirror onto the Default-org membership in the same tx. Phase-4 per-org
+    // RBAC sources the active-org role from `org_members`; without this mirror
+    // the Default membership goes stale and single-org RBAC would enforce the
+    // wrong role after any role change.
+    crate::orgs::upsert_member_tx(&mut tx, rampart_core::org::DEFAULT_ORG_ID, id.0, role).await?;
+    tx.commit().await?;
     // Privilege change — revoke the target's sessions so it takes effect now.
     crate::sessions::delete_for_user(pool, id).await?;
     Ok(())
@@ -254,17 +261,21 @@ pub async fn set_admin(pool: &DbPool, id: UserId, is_admin: bool) -> DbResult<()
 /// Set the authoritative RBAC role, keeping the `is_admin` shim in sync.
 pub async fn set_role(pool: &DbPool, id: UserId, role: Role) -> DbResult<()> {
     let is_admin = role.is_admin();
+    let mut tx = pool.begin().await?;
     let result = sqlx::query!(
         "UPDATE users SET role = $1, is_admin = $2 WHERE id = $3",
         role as Role,
         is_admin,
         id.0,
     )
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }
+    // Mirror onto the Default-org membership (see `set_admin`).
+    crate::orgs::upsert_member_tx(&mut tx, rampart_core::org::DEFAULT_ORG_ID, id.0, role).await?;
+    tx.commit().await?;
     // Privilege change — revoke the target's sessions so it takes effect now.
     crate::sessions::delete_for_user(pool, id).await?;
     Ok(())
