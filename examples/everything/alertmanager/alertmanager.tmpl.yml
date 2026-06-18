@@ -1,0 +1,16 @@
+# Template. The entrypoint substitutes __ALERTMANAGER_INGEST_URL__ with the real
+# ingest-token URL provision minted (read from /shared/ingest.env), then runs
+# Alertmanager. So every alert posts to a REAL per-status-page ingest token —
+# no fixed/seeded token.
+route:
+  receiver: rampart
+  group_by: ["alertname"]
+  group_wait: 10s
+  group_interval: 30s
+  repeat_interval: 5m
+
+receivers:
+  - name: rampart
+    webhook_configs:
+      - url: "__ALERTMANAGER_INGEST_URL__"
+        send_resolved: true
