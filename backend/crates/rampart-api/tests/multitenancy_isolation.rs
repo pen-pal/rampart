@@ -231,3 +231,38 @@ async fn bulk_edit_skips_cross_org_monitors(pool: PgPool) {
         .unwrap();
     assert!(still_active, "cross-org monitor must NOT have been mutated");
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn monitor_junctions_isolated(pool: PgPool) {
+    // Attaching a tag / channel to a monitor must verify BOTH ends are in the
+    // caller's org. Junction handlers key only on ids, so they gate through
+    // monitors::get + tags::get / notifications::get.
+    let router = common::router(pool.clone());
+    let admin = register_admin(&router).await;
+
+    let mine: Value = common::json(&router, Method::POST, "/v1/monitors", Some(http_monitor("mine")), Some(&admin)).await;
+    let mine_id = mine["id"].as_str().unwrap();
+    let tag: Value = common::json(&router, Method::POST, "/v1/tags", Some(json!({"name":"prod","color":"#0f0"})), Some(&admin)).await;
+    let tag_id = tag["id"].as_str().unwrap();
+    let victim: Value = common::json(&router, Method::POST, "/v1/monitors", Some(http_monitor("victim")), Some(&admin)).await;
+    let victim_id = victim["id"].as_str().unwrap();
+
+    sqlx::query("INSERT INTO organizations (id, slug, name) VALUES ($1::uuid, 'other', 'Other') ON CONFLICT DO NOTHING")
+        .bind(OTHER_ORG).execute(&pool).await.unwrap();
+    sqlx::query("UPDATE monitors SET org_id = $1::uuid WHERE id = $2::uuid")
+        .bind(OTHER_ORG).bind(victim_id).execute(&pool).await.unwrap();
+
+    // Cross-org monitor: can't list its tags/channels, can't attach to it.
+    let (s, _, _) = request(&router, Method::GET, &format!("/v1/monitors/{victim_id}/tags"), None, Some(&admin)).await;
+    assert_eq!(s, StatusCode::NOT_FOUND, "list cross-org monitor tags");
+    let (s, _, _) = request(&router, Method::GET, &format!("/v1/monitors/{victim_id}/notifications"), None, Some(&admin)).await;
+    assert_eq!(s, StatusCode::NOT_FOUND, "list cross-org monitor channels");
+    let (s, _, _) = request(&router, Method::POST, &format!("/v1/monitors/{victim_id}/tags/{tag_id}"), None, Some(&admin)).await;
+    assert_eq!(s, StatusCode::NOT_FOUND, "attach my tag to cross-org monitor");
+
+    // Reparent the TAG: can't attach a cross-org tag to my own monitor.
+    sqlx::query("UPDATE tags SET org_id = $1::uuid WHERE id = $2::uuid")
+        .bind(OTHER_ORG).bind(tag_id).execute(&pool).await.unwrap();
+    let (s, _, _) = request(&router, Method::POST, &format!("/v1/monitors/{mine_id}/tags/{tag_id}"), None, Some(&admin)).await;
+    assert_eq!(s, StatusCode::NOT_FOUND, "attach cross-org tag to my monitor");
+}

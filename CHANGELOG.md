@@ -19,6 +19,31 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.125.0] — 2026-06-18
+
+### Security
+- **Multi-tenancy — Phase 3q: org-gate the monitor-attached junctions.** The
+  attach/detach + list endpoints that wire a tag or notification channel to a
+  monitor (and the monitor↔monitor dependency edges) keyed purely on
+  caller-supplied ids with no org check, so an editor could read or rewire
+  another org's monitor relationships:
+  - `GET/POST/DELETE /v1/monitors/{id}/tags[/{tag}]`,
+    `/v1/monitors/{id}/notifications[/{nid}]`,
+    `/v1/monitors/{id}/dependencies[/{parent}]`
+  - the per-monitor arms of `POST /v1/monitors/bulk` (AddTag / RemoveTag /
+    AttachChannel / DetachChannel)
+  Each now gates through the org-scoped root getters before touching the
+  junction: the monitor via `monitors::get(id, org)`, and the other end (tag /
+  channel / parent-monitor) via `tags::get` / `notifications::get` /
+  `monitors::get` — so BOTH ends must belong to the caller's org or it's a 404.
+  The bulk handler validates the action's tag/channel once up front and the
+  monitor per row. No db-signature changes (the internal monitor hydration and
+  the seed path that call the junction fns directly are untouched).
+  Behaviour-identical for a single-org install. New integration test
+  `monitor_junctions_isolated`. See [`docs/MULTITENANCY.md`](docs/MULTITENANCY.md).
+
+---
+
 ## [0.124.0] — 2026-06-17
 
 ### Security
