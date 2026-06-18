@@ -126,21 +126,24 @@ struct FindingsQuery {
 
 async fn list_findings(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Query(q): Query<FindingsQuery>,
 ) -> Result<Json<Vec<DetectionFinding>>, ApiError> {
     let limit = q.limit.unwrap_or(100).clamp(1, 1000);
     Ok(Json(
-        rampart_db::detection::list_findings(s.pool(), limit, q.open).await?,
+        rampart_db::detection::list_findings_for_org(s.pool(), limit, q.open, org.org_id).await?,
     ))
 }
 
 async fn ack_finding(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<DetectionFinding>, ApiError> {
-    Ok(Json(
-        rampart_db::detection::ack_finding(s.pool(), parse_finding_id(&id)?).await?,
-    ))
+    let fid = parse_finding_id(&id)?;
+    // Gate through the finding's owning rule's org — cross-org finding = 404.
+    rampart_db::detection::finding_in_org(s.pool(), fid, org.org_id).await?;
+    Ok(Json(rampart_db::detection::ack_finding(s.pool(), fid).await?))
 }
 
 #[derive(Deserialize)]

@@ -807,6 +807,63 @@ pub async fn list_findings(
     Ok(rows.into_iter().map(Into::into).collect())
 }
 
+/// Org-scoped twin of [`list_findings`] for the authenticated triage feed:
+/// only findings whose owning rule belongs to `org_id` (every finding has a
+/// NOT-NULL `rule_id`). The unscoped [`list_findings`] and the SIEM exporter
+/// [`fetch_since`] stay as-is for system/test callers.
+pub async fn list_findings_for_org(
+    pool: &DbPool,
+    limit: i64,
+    open_only: bool,
+    org_id: OrgId,
+) -> DbResult<Vec<DetectionFinding>> {
+    let rows = sqlx::query_as!(
+        FindingRow,
+        r#"
+        SELECT f.id, f.rule_id, f.rule_name, f.severity, f.match_count, f.sample, f.service,
+               f.entity, f.window_from, f.window_to, f.created_at, f.acknowledged_at
+        FROM detection_findings f
+        JOIN detection_rules r ON r.id = f.rule_id
+        WHERE (NOT $2 OR f.acknowledged_at IS NULL) AND r.org_id = $3
+        ORDER BY f.created_at DESC
+        LIMIT $1
+        "#,
+        limit,
+        open_only,
+        org_id.0,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(Into::into).collect())
+}
+
+/// 404-gate: succeed only when `finding`'s owning rule belongs to `org`. Used
+/// by the ack-by-id handler.
+pub async fn finding_in_org(
+    pool: &DbPool,
+    finding: DetectionFindingId,
+    org_id: OrgId,
+) -> DbResult<()> {
+    let ok = sqlx::query_scalar!(
+        r#"
+        SELECT EXISTS(
+            SELECT 1 FROM detection_findings f
+            JOIN detection_rules r ON r.id = f.rule_id
+            WHERE f.id = $1 AND r.org_id = $2
+        ) AS "exists!"
+        "#,
+        finding.0,
+        org_id.0,
+    )
+    .fetch_one(pool)
+    .await?;
+    if ok {
+        Ok(())
+    } else {
+        Err(DbError::NotFound)
+    }
+}
+
 /// Count of unacknowledged findings — drives the nav badge.
 pub async fn open_count(pool: &DbPool) -> DbResult<i64> {
     let n = sqlx::query_scalar!(
