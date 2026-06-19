@@ -196,7 +196,7 @@ pub async fn require_session(
 ) -> Result<Response, ApiError> {
     // Try bearer first — cheap header read, no DB hit if absent.
     if let Some(token) = bearer_token(req.headers()) {
-        let (key, user_id) = rampart_db::api_keys::lookup(state.pool(), &token)
+        let (key, user_id, key_org) = rampart_db::api_keys::lookup(state.pool(), &token)
             .await
             .map_err(|_| ApiError::Unauthorized)?;
         // Fire-and-forget — don't block the request on the bump.
@@ -217,10 +217,12 @@ pub async fn require_session(
         // `min(creator_role, key_scope_role)` would be stricter, but scopes
         // are the contract here, so the key's scope is authoritative.
         user.role = key.scope.as_role();
-        // Org context: api keys don't carry an org yet (Phase 4), so resolve
-        // to the Default org. Role mirrors the (key-scoped) user role.
+        // Org context: the request is scoped to the KEY's own owning org
+        // (Phase 6 — keys are pinned to their minting org). Single-org installs
+        // mint every key in the Default org, so this stays Default there. Role
+        // mirrors the (key-scoped) user role.
         let org_ctx = OrgContext {
-            org_id: rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID),
+            org_id: key_org,
             role: user.role,
         };
         req.extensions_mut().insert(user);
