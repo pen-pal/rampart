@@ -42,12 +42,14 @@ const USER_AGENT: &str = concat!(
 
 pub struct HttpProbe {
     client: OnceCell<Client>,
+    insecure_client: OnceCell<Client>,
 }
 
 impl HttpProbe {
     pub fn new() -> Self {
         Self {
             client: OnceCell::new(),
+            insecure_client: OnceCell::new(),
         }
     }
 
@@ -64,6 +66,34 @@ impl HttpProbe {
                 .build()
                 .expect("reqwest client should build with default features")
         })
+    }
+
+    /// Variant of the pooled client that accepts invalid/self-signed TLS certs,
+    /// used when a monitor sets `ignore_tls`. Without this an HTTPS monitor
+    /// against a self-signed / private-CA endpoint fails the handshake with
+    /// "error sending request" even with `ignore_tls` set, so `check_cert`
+    /// could never read the cert's expiry. Mirrors the `synthetic` probe's
+    /// `danger_accept_invalid_certs(monitor.ignore_tls)`.
+    fn insecure_client(&self) -> &Client {
+        self.insecure_client.get_or_init(|| {
+            crate::ssrf::guarded_client_builder()
+                .user_agent(USER_AGENT)
+                .redirect(reqwest::redirect::Policy::none())
+                .pool_idle_timeout(Duration::from_secs(60))
+                .tcp_keepalive(Duration::from_secs(30))
+                .danger_accept_invalid_certs(true)
+                .build()
+                .expect("reqwest insecure client should build")
+        })
+    }
+
+    /// Pick the pooled client honouring the monitor's `ignore_tls` knob.
+    fn client_for(&self, monitor: &Monitor) -> &Client {
+        if monitor.ignore_tls {
+            self.insecure_client()
+        } else {
+            self.client()
+        }
     }
 
     /// Variant of `run` that routes through a proxy. We don't pool these
@@ -113,7 +143,8 @@ impl Probe for HttpProbe {
     async fn run(&self, monitor: &Monitor) -> Heartbeat {
         let started = Instant::now();
         let ts = OffsetDateTime::now_utc();
-        self.execute(monitor, self.client(), started, ts).await
+        self.execute(monitor, self.client_for(monitor), started, ts)
+            .await
     }
 }
 
@@ -360,7 +391,7 @@ async fn apply_cert_check(
     };
 
     let to = Duration::from_secs(monitor.timeout_seconds.max(1) as u64);
-    let cert = match crate::tls::fetch_cert(&host, port, to).await {
+    let cert = match crate::tls::fetch_cert(&host, port, to, monitor.ignore_tls).await {
         // fetch_cert verifies against the Mozilla roots, so a handshake
         // success means a currently-valid chain; days_left is the headroom.
         // (A negative value can only appear in the rare clock-skew window
