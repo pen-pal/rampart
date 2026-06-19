@@ -79,6 +79,13 @@ async fn ingest(
         return Err(ApiError::NotFound);
     }
 
+    // RLS: bind the project's owning org (the session-less ingest path has no
+    // OrgContext). error_events/issues inherit org from the project, so the
+    // record + alert below run under the project's tenant. No-op when
+    // RAMPART_RLS is off.
+    let org = rampart_db::error_tracking::org_for_project(s.pool(), pid).await?;
+    rampart_db::rls::with_org(org, async move {
+
     let raw = crate::ingest_util::decompress(&headers, &body)?;
     let event_json = if envelope {
         extract_envelope_event(&raw)
@@ -103,17 +110,23 @@ async fn ingest(
         let name = project.name.clone();
         let title = outcome.title.clone();
         let regressed = outcome.regressed;
-        tokio::spawn(async move {
+        // RLS: spawned tasks don't inherit the task-local, so re-enter the
+        // project's org. The alert channels are in the project's org and the
+        // dispatch reads org-scoped tables (notifications/silences/templates) —
+        // without this the spawn would run as the bypass owner under S7.
+        tokio::spawn(rampart_db::rls::with_org(org, async move {
             rampart_notifier::service::dispatch_error_alert(
                 &pool, &name, &channels, regressed, &title,
             )
             .await;
-        });
+        }));
     }
 
     Ok(Json(
         serde_json::json!({ "id": outcome.event_id.simple().to_string() }),
     ))
+    })
+    .await
 }
 
 /// Pull the DSN public key from `?sentry_key=` (browser transport) or the

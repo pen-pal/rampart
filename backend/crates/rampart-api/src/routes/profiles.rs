@@ -179,21 +179,26 @@ async fn store(
 ) -> Result<(), ApiError> {
     let sample_count = map.values().sum::<i64>().clamp(0, i32::MAX as i64) as i32;
     let gz = gzip(profile::to_folded_text(&map).as_bytes())?;
-    rampart_db::profiles::insert(
-        s.pool(),
-        NewProfile {
-            service_name: service,
-            profile_type,
-            period_ns,
-            duration_ns,
-            sample_count,
-            labels: serde_json::json!({}),
-            folded_gz: &gz,
-        },
-        org,
-    )
-    .await?;
-    Ok(())
+    // RLS: bind the resolved org around the insert (the single write point for
+    // all three ingest formats). No-op when RAMPART_RLS is off.
+    rampart_db::rls::with_org(org, async move {
+        rampart_db::profiles::insert(
+            s.pool(),
+            NewProfile {
+                service_name: service,
+                profile_type,
+                period_ns,
+                duration_ns,
+                sample_count,
+                labels: serde_json::json!({}),
+                folded_gz: &gz,
+            },
+            org,
+        )
+        .await?;
+        Ok(())
+    })
+    .await
 }
 
 // ── read ────────────────────────────────────────────────────────────────────
