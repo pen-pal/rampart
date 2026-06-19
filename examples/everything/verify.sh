@@ -51,6 +51,34 @@ atleast 1 "agents" "$(g /v1/agents)"
 atleast 1 "scheduled reports" "$(g /v1/scheduled-reports)"
 atleast 1 "deploy markers" "$(g '/v1/deploy-markers?hours=240')"
 atleast 2 "orgs (multi-tenancy)" "$(g /v1/orgs)"
+
+# --- RLS / multi-tenant ISOLATION (Postgres row-level security enforced) -----
+# Switch the admin session into Demo Team and assert its monitor list is its
+# OWN — a "demo-team ·" monitor is present, and a Default-only monitor is ABSENT
+# — proving cross-org isolation (app-level scoping + RAMPART_RLS=1 at the DB).
+ORGS="$(g /v1/orgs)"
+DT_ID="$(printf '%s' "$ORGS" | jq -r '.[]?|select(.slug=="demo-team").id' 2>/dev/null | head -1)"
+DEF_ID="$(printf '%s' "$ORGS" | jq -r 'map(select(.slug=="default"))|(.[0].id // empty)' 2>/dev/null | head -1)"
+if [ -n "$DT_ID" ]; then
+  curl -s -b "$CJ" -c "$CJ" -X POST "$API/v1/orgs/$DT_ID/switch" >/dev/null 2>&1
+  DTM="$(g /v1/monitors)"
+  names() { printf '%s' "$1" | jq -r '(if type=="array" then .[] else (.items[]?) end).name' 2>/dev/null; }
+  if names "$DTM" | grep -q '^demo-team · '; then
+    pass "Demo Team has its own 'demo-team ·' monitors (org-scoped read)"
+  else
+    fail "Demo Team monitors — expected a 'demo-team ·' monitor, found none"
+  fi
+  if names "$DTM" | grep -q '^edge · healthy nginx$'; then
+    fail "ISOLATION LEAK — a Default-only monitor ('edge · healthy nginx') is visible in Demo Team"
+  else
+    pass "isolation: Default-only monitor ABSENT from Demo Team (cross-org isolation enforced)"
+  fi
+  # switch back to Default so any later checks see the primary tenant
+  [ -n "$DEF_ID" ] && curl -s -b "$CJ" -c "$CJ" -X POST "$API/v1/orgs/$DEF_ID/switch" >/dev/null 2>&1
+else
+  fail "Demo Team org (slug=demo-team) not found — multi-tenant isolation not provisioned"
+fi
+
 atleast 1 "tags" "$(g /v1/tags)"
 atleast 2 "monitor groups/folders" "$(g /v1/monitor-groups)"
 
