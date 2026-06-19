@@ -407,34 +407,48 @@ pub async fn delete(pool: &DbPool, id: StatusPageId, org_id: OrgId) -> DbResult<
     Ok(())
 }
 
-/// Build the public projection of a page identified by its slug. One
-/// extra round trip per attached monitor to roll up 90-day uptime;
-/// good enough for status pages with tens of monitors. CTE-based
-/// aggregation is the next move if any page grows past that.
+/// Build the public projection of a page identified by its slug.
+///
+/// Rolls up every attached monitor's 90-day uptime / latency / daily strip /
+/// monthly chips. This is a PUBLIC, unauthenticated path, so the per-monitor
+/// stats are fetched with set-based (batch) queries — five queries total
+/// regardless of monitor count — instead of ~6 queries per monitor, removing
+/// the query/DoS-amplification on the render path. The assembled output is
+/// byte-identical to the previous per-monitor loop.
 pub async fn public_view(pool: &DbPool, slug: &str) -> DbResult<PublicStatusPage> {
     let page = get_by_slug(pool, slug).await?;
 
-    // Build the flat, page-ordered monitor projection (back-compat) once.
-    // We keep each monitor's id alongside its projection so we can partition
-    // the same projections into sections below without re-querying.
+    // Collect the page's monitor ids once, then roll up all of them with one
+    // batch query each. `page.monitor_ids` preserves page (position) order, so
+    // we iterate it below to build the flat projection in the SAME order the
+    // per-monitor loop produced.
+    let ids: Vec<Uuid> = page.monitor_ids.iter().map(|m| m.0).collect();
+    let fields = crate::monitors::public_fields_batch(pool, &ids).await?;
+    let uptime_map = heartbeats::uptime_pct_batch(pool, &ids, 90 * 86400).await?;
+    let avg_lat_map = heartbeats::avg_latency_ms_batch(pool, &ids, 86_400).await?;
+    let daily_map = heartbeats::daily_status_batch(pool, &ids, 90).await?;
+    let monthly_map = heartbeats::monthly_uptime_batch(pool, &ids, 12).await?;
+
+    // Build the flat, page-ordered monitor projection (back-compat) once. We
+    // keep each monitor's id alongside its projection so we can partition the
+    // same projections into sections below without re-querying.
     let mut monitors = Vec::with_capacity(page.monitor_ids.len());
     let mut by_id: Vec<(MonitorId, PublicStatusMonitor)> =
         Vec::with_capacity(page.monitor_ids.len());
     for mid in &page.monitor_ids {
-        // Monitors linked to a (public) status page; the page is the org-scoped
-        // root, resolved in the status-pages domain phase. Fetch unscoped here.
-        let m = crate::monitors::get_unscoped(pool, *mid).await?;
-        let uptime = heartbeats::uptime_pct(pool, *mid, 90 * 86400)
-            .await?
-            .map(|v| v as f32);
-        let avg_lat = heartbeats::avg_latency_ms(pool, *mid, 86_400)
-            .await?
-            .map(|v| v as f32);
-        let daily = heartbeats::daily_status(pool, *mid, 90).await?;
+        // A page id that no longer resolves to a monitor (deleted) preserves
+        // the previous behaviour: `get_unscoped` returned Err(NotFound) and `?`
+        // propagated, erroring the whole view rather than silently dropping it.
+        let (name, current_status) = fields.get(&mid.0).cloned().ok_or(DbError::NotFound)?;
+        let uptime = uptime_map.get(&mid.0).map(|v| *v as f32);
+        let avg_lat = avg_lat_map.get(&mid.0).map(|v| *v as f32);
+        // daily_status_batch guarantees an entry for every requested id (an
+        // all-'n' vec for monitors with no heartbeats), so this clone is safe.
+        let daily = daily_map.get(&mid.0).cloned().unwrap_or_default();
         // Vec<u8> of ASCII chars → String. Each byte is one of
         // 'u'/'d'/'w'/'m'/'n' as documented on PublicStatusMonitor.
         let daily_str = String::from_utf8(daily).unwrap_or_default();
-        let monthly = heartbeats::monthly_uptime(pool, *mid, 12).await?;
+        let monthly = monthly_map.get(&mid.0).cloned().unwrap_or_default();
         let monthly_points: Vec<MonthlyUptimePoint> = monthly
             .into_iter()
             .map(|p| MonthlyUptimePoint {
@@ -443,8 +457,8 @@ pub async fn public_view(pool: &DbPool, slug: &str) -> DbResult<PublicStatusPage
             })
             .collect();
         let pm = PublicStatusMonitor {
-            name: m.name,
-            current_status: m.current_status,
+            name,
+            current_status,
             uptime_90d: uptime,
             avg_latency_ms_24h: avg_lat,
             daily_status_90d: daily_str,
