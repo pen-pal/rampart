@@ -62,6 +62,10 @@ services:
       # -hex 32) in .env to demo encryption-at-rest (flip-path deliveries then
       # degrade until that upstream bug is fixed). See README "Known caveats".
       RAMPART_SECRET_KEY: ${RAMPART_SECRET_KEY:-}
+      # DB-layer multi-tenant isolation: Postgres RLS (ENABLE, owner-exempt). The
+      # rampart login role owns the tables, so the system loops + provisioning run
+      # exempt; per-org tenant requests run as rampart_app and are RLS-enforced.
+      RAMPART_RLS: "1"
       # Self-observability: Rampart exports its OWN traces + logs back into itself.
       RAMPART_OTLP_ENDPOINT: http://rampart:3000
       # Inject the RUM snippet into the dashboard → real Core Web Vitals from using the UI.
