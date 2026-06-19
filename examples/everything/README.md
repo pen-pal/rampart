@@ -131,12 +131,8 @@ bash verify.sh        # needs jq + curl; asserts every tier is non-empty
 - **Egress monitors** (`domain` WHOIS, `rdap`, `doh`, `steam`): need outbound
   internet; named `egress · … (needs internet)`. They show Down in an air-gapped
   network — that's a real result, not a fixture.
-- **`browser` monitor**: rendered by the bundled `renderer` service (browserless
-  chromium) — works out of the box; named `egress · browser (needs renderer)`.
-- **`via proxy` monitor**: routed through the bundled `proxy` service (tinyproxy,
-  aliased `proxy.demo.local:3128`) — works out of the box.
-- **`websocket` monitor**: the demo backend serves a real `ws://` endpoint on
-  :8080, so `net · websocket` completes a genuine upgrade handshake.
+- **`browser` monitor**: needs an external headless renderer service
+  (`renderer_url`); named `egress · browser (needs renderer)`.
 - **OIDC**: only active under `--profile oidc`; set the `RAMPART_OIDC_*` vars in
   `.env` (defaults target the bundled Dex; log in as `sso-user@rampart.local` /
   `password`).
@@ -161,20 +157,6 @@ bash verify.sh        # needs jq + curl; asserts every tier is non-empty
   is a harmless 500 (best-effort), so you'll see ~125 of the ~128 kinds.
 - **`heavy` profile is resource-hungry** (Elasticsearch, MSSQL, Cassandra, …).
   Give Docker a few GB of RAM, or bring up only the heavy services you want.
-- **A few exotic `heavy` probes stay Down against generic targets** — these are
-  real probe results, not fixtures: `heavy · amqp` (the lapin client needs an
-  explicit tokio executor/reactor that the current build doesn't wire up),
-  `heavy · grpc health` (grpcbin doesn't implement `grpc.health.v1.Health`), and
-  `heavy · radius` (freeradius needs a configured client + shared secret). The
-  TLS / IMAP / POP3 / NTP / WebSocket / browser / proxy probes all go Up.
-- **TLS monitors against self-signed certs** set `ignore_tls: true` so the
-  handshake completes and the probe can still evaluate the leaf's **expiry**
-  (Up / Warn / expired-Down) — a `tls` monitor checks cert lifetime, not chain
-  trust. Without the flag rustls rejects a self-signed/private-CA leaf with
-  `UnknownIssuer` (or `CaUsedAsEndEntity`) before expiry can be read. The probe
-  honouring `ignore_tls` shipped after v0.149.0, so on the published
-  `0.149.0` image `edge · tls healthy` / `cert-expiry warn` still show Down;
-  they go Up/Warn on the next release (or a local `docker compose build rampart`).
 - The remote-agent service **always builds from source** (`cargo build -p
   rampart-agent`) — the published image omits the agent binary. First `up` will
   spend a few minutes compiling it.

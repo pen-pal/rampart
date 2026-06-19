@@ -17,31 +17,6 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
-### Fixed
-- **`tls` + `http`(`check_cert`) monitors now honour `ignore_tls`.** The
-  certificate probes always validated against the Mozilla root store, so a
-  self-signed or private-CA endpoint failed the handshake (`UnknownIssuer` /
-  `CaUsedAsEndEntity`, or reqwest "error sending request") and could never
-  report its real expiry state (Up / Warn / expired-Down). When a monitor sets
-  `ignore_tls: true` the `tls` probe and the `http` probe's TLS client (plus the
-  shared `fetch_cert` cert-expiry reader) now complete the handshake with an
-  accept-any verifier — the same knob the `nats` / `synthetic` probes already
-  honour — then inspect the leaf's expiry. Trust verification still applies by
-  default.
-
-### Changed (examples/everything demo stack)
-- Bundled `renderer` (browserless chromium), `proxy` (tinyproxy, aliased
-  `proxy.demo.local:3128`), `load-driver` (continuous backend traffic) and
-  `rum-driver` (continuous RUM via the renderer) services so every telemetry
-  tier and the `browser` / `via proxy` monitors show live data out of the box —
-  no browser tab needs to stay open. Added a real `ws://` endpoint to the demo
-  backend for the `websocket` monitor; proxied the RUM snippet same-origin
-  through the frontend nginx so beacons work both from the host and in-network;
-  replaced two unpublished images (`cturl/ntp`, `freeradius/freeradius-server:3.2`)
-  that 404'd and aborted the `--profile heavy` pull; replaced the IMAP/POP3
-  target with a banner server; fixed the self-signed TLS target to present leaf
-  (not CA) certs.
-
 ---
 
 ## [0.149.0] — 2026-06-19

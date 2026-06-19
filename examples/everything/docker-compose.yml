@@ -146,29 +146,6 @@ services:
     depends_on:
       demo-backend: { condition: service_started }
 
-  # Continuous traffic driver — keeps the demo backend exercised so traces, logs,
-  # metrics, errors and SIEM detection show LIVE data without anyone keeping a
-  # browser tab open (the frontend's own auto-driver only runs while a page is
-  # open). This is what makes the demo "always full" when you browse Rampart.
-  load-driver:
-    image: curlimages/curl:8.11.1
-    restart: unless-stopped
-    entrypoint: ["sh", "/drive.sh"]
-    volumes: ["./load-driver/drive.sh:/drive.sh:ro"]
-    depends_on:
-      demo-backend: { condition: service_started }
-
-  # Continuous RUM driver — periodically renders the frontend through the
-  # browserless `renderer` so Core Web Vitals + browser JS errors keep flowing.
-  rum-driver:
-    image: curlimages/curl:8.11.1
-    restart: unless-stopped
-    entrypoint: ["sh", "/rum-drive.sh"]
-    volumes: ["./load-driver/rum-drive.sh:/rum-drive.sh:ro"]
-    depends_on:
-      demo-frontend: { condition: service_started }
-      renderer:      { condition: service_started }
-
   # ── webhook-sink: browser-viewable echo for sink-compatible channels ───────
   webhook-sink:
     build: { context: ./webhook-sink }
@@ -193,30 +170,6 @@ services:
   # TLS targets: :8443 ~10-day cert (check_cert Warn), :9443 expired cert (tls Down)
   tls-target:
     build: { context: ./targets, dockerfile: Dockerfile.tls }
-
-  # Headless-Chrome renderer for the `browser`-kind monitor. Rampart POSTs a
-  # browserless /content payload to http://renderer:3000 and asserts a keyword
-  # in the rendered HTML. Single-CONCURRENT keeps memory modest.
-  renderer:
-    image: ghcr.io/browserless/chromium:latest
-    environment:
-      CONCURRENT: "2"
-      TIMEOUT: "30000"
-      # browserless v2 reads auth from the TOKEN env. Empty string ⇒ no auth
-      # (in-network only). The image's own ./scripts/start.sh is the entrypoint.
-      TOKEN: ""
-
-  # Forward HTTP proxy the `edge · via proxy` monitor routes through. Aliased as
-  # proxy.demo.local so the monitor's proxy host (proxy.demo.local:3128) resolves
-  # on the compose network. tinyproxy listens on 8888 by default; we run it on 3128.
-  proxy:
-    image: vimagick/tinyproxy:latest
-    command: ["tinyproxy", "-d", "-c", "/etc/tinyproxy/tinyproxy.conf"]
-    volumes:
-      - ./targets/tinyproxy.conf:/etc/tinyproxy/tinyproxy.conf:ro
-    networks:
-      default:
-        aliases: ["proxy.demo.local"]
 
   # ── Prometheus + Alertmanager ──────────────────────────────────────────────
   prometheus:
@@ -320,14 +273,10 @@ services:
     profiles: ["heavy"]
     command: ["mosquitto", "-c", "/mosquitto-no-auth.conf"]
   freeradius:
-    # 3.2.5 pinned — the bare `3.2` tag was unpublished and 404s, aborting the
-    # whole `--profile heavy` pull.
-    image: freeradius/freeradius-server:3.2.5
+    image: freeradius/freeradius-server:3.2
     profiles: ["heavy"]
   ntp:
-    # Self-contained alpine+chrony NTP server (udp/123). Replaces the removed
-    # cturl/ntp image (404'd, aborting the whole `--profile heavy` pull).
-    build: { context: ./targets, dockerfile: Dockerfile.ntp }
+    image: cturl/ntp:latest
     profiles: ["heavy"]
   snmp:
     image: polinux/snmpd:latest
@@ -340,14 +289,8 @@ services:
     image: delfer/alpine-ftp-server:latest
     profiles: ["heavy"]
     environment: { USERS: "demo|demo" }
-  # IMAP (143) + POP3 (110) banner targets. The upstream dovecot image needs
-  # non-trivial plaintext-listener config; a tiny purpose-built server emits the
-  # exact `* OK` / `+OK` greetings the banner probe asserts. Hostname stays
-  # `dovecot` so the existing monitors resolve unchanged.
   dovecot:
-    image: python:3.12-alpine
-    command: ["python", "/banner-server.py"]
-    volumes: ["./targets/banner-server.py:/banner-server.py:ro"]
+    image: dovecot/dovecot:latest
     profiles: ["heavy"]
   grpcbin:
     image: moul/grpcbin:latest
