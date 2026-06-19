@@ -462,6 +462,239 @@ pub async fn monthly_uptime(
     Ok(out)
 }
 
+// ── Set-based (batch) rollups ──────────────────────────────────────────
+//
+// The four functions below mirror `uptime_pct`, `avg_latency_ms`,
+// `daily_status` and `monthly_uptime` exactly, but roll up MANY monitors in
+// one query each (`WHERE monitor_id = ANY($1)` + `GROUP BY monitor_id`). They
+// exist so the PUBLIC, unauthenticated status-page render path (status_pages::
+// public_view) does a fixed handful of queries instead of ~6 per monitor —
+// the query/DoS-amplification fix. Output is byte-identical to calling the
+// per-monitor fns once per id, so a monitor absent from the returned map MUST
+// be treated exactly as the per-monitor `None`/empty result by the caller.
+
+use std::collections::HashMap;
+
+/// Batch mirror of [`uptime_pct`]. Returns one entry per monitor that has at
+/// least one heartbeat in the window; the value is `ok/total*100`. A monitor
+/// with no heartbeats in the window is ABSENT from the map (NOT 0.0) — the
+/// caller renders that exactly like the per-monitor `None`.
+pub async fn uptime_pct_batch(
+    pool: &DbPool,
+    monitor_ids: &[Uuid],
+    window_seconds: i64,
+) -> DbResult<HashMap<Uuid, f64>> {
+    if monitor_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let since = OffsetDateTime::now_utc() - time::Duration::seconds(window_seconds);
+    let rows = sqlx::query!(
+        r#"
+        SELECT
+            monitor_id,
+            COUNT(*)                              AS "total!",
+            COUNT(*) FILTER (WHERE status = 'up') AS "ok_count!"
+        FROM heartbeats
+        WHERE monitor_id = ANY($1) AND ts >= $2
+        GROUP BY monitor_id
+        "#,
+        monitor_ids,
+        since,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let mut out = HashMap::with_capacity(rows.len());
+    for r in rows {
+        // GROUP BY only emits rows for monitors with heartbeats, so total > 0
+        // always holds here — matching the per-monitor `total == 0 → None`
+        // guard, which simply leaves such monitors out of the map.
+        if r.total > 0 {
+            out.insert(r.monitor_id, r.ok_count as f64 / r.total as f64 * 100.0);
+        }
+    }
+    Ok(out)
+}
+
+/// Batch mirror of [`avg_latency_ms`]. One entry per monitor that has at least
+/// one `up` heartbeat with a non-null latency in the window; absent otherwise
+/// (rendered as the per-monitor `None`).
+pub async fn avg_latency_ms_batch(
+    pool: &DbPool,
+    monitor_ids: &[Uuid],
+    window_seconds: i64,
+) -> DbResult<HashMap<Uuid, f64>> {
+    if monitor_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let since = OffsetDateTime::now_utc() - time::Duration::seconds(window_seconds);
+    let rows = sqlx::query!(
+        r#"
+        SELECT
+            monitor_id,
+            AVG(latency_ms)::float8 AS avg
+        FROM heartbeats
+        WHERE monitor_id = ANY($1) AND ts >= $2 AND status = 'up' AND latency_ms IS NOT NULL
+        GROUP BY monitor_id
+        "#,
+        monitor_ids,
+        since,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let mut out = HashMap::with_capacity(rows.len());
+    for r in rows {
+        // The WHERE clause guarantees each grouped monitor has ≥1 qualifying
+        // row, so AVG is non-null. Mirror the per-monitor fn (which returns
+        // None when nothing qualifies) by only inserting present values.
+        if let Some(avg) = r.avg {
+            out.insert(r.monitor_id, avg);
+        }
+    }
+    Ok(out)
+}
+
+/// Batch mirror of [`daily_status`]. Each value is a dense `days`-length
+/// `Vec<u8>` of `u`/`d`/`w`/`m`/`n` chars, oldest day first (today's bucket
+/// last) — identical to the per-monitor pivot. Every requested id is present
+/// in the map; one with no heartbeats maps to `vec![b'n'; days]` (the same
+/// value the per-monitor fn returns for an empty result).
+pub async fn daily_status_batch(
+    pool: &DbPool,
+    monitor_ids: &[Uuid],
+    days: i32,
+) -> DbResult<HashMap<Uuid, Vec<u8>>> {
+    // Seed every requested id with an all-'n' vector so monitors with zero
+    // rows match the per-monitor empty-result behaviour exactly.
+    let mut out: HashMap<Uuid, Vec<u8>> = monitor_ids
+        .iter()
+        .map(|id| (*id, vec![b'n'; days as usize]))
+        .collect();
+    if monitor_ids.is_empty() {
+        return Ok(out);
+    }
+    let since = OffsetDateTime::now_utc() - time::Duration::days(days as i64);
+    let rows = sqlx::query!(
+        r#"
+        SELECT
+            monitor_id,
+            (date_trunc('day', ts AT TIME ZONE 'UTC'))::date AS "day!",
+            BOOL_OR(status = 'down')        AS "any_down!",
+            BOOL_OR(status = 'warn')        AS "any_warn!",
+            BOOL_OR(status != 'maintenance') AS "any_real!"
+        FROM heartbeats
+        WHERE monitor_id = ANY($1) AND ts >= $2
+        GROUP BY monitor_id, (date_trunc('day', ts AT TIME ZONE 'UTC'))::date
+        "#,
+        monitor_ids,
+        since,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    // Same dense pivot as the per-monitor fn: today's bucket is the final
+    // element; delta-days from today gives the index.
+    let today = OffsetDateTime::now_utc().date();
+    for r in rows {
+        let delta = (today - r.day).whole_days();
+        if delta < 0 || delta >= days as i64 {
+            continue;
+        }
+        let idx = (days as i64 - 1 - delta) as usize;
+        // Every monitor_id in `rows` came from `monitor_ids`, so the seed
+        // entry always exists.
+        if let Some(v) = out.get_mut(&r.monitor_id) {
+            v[idx] = if r.any_down {
+                b'd'
+            } else if r.any_warn {
+                b'w'
+            } else if !r.any_real {
+                b'm'
+            } else {
+                b'u'
+            };
+        }
+    }
+    Ok(out)
+}
+
+/// Batch mirror of [`monthly_uptime`]. Each value is a dense `months`-length
+/// `Vec<MonthlyUptime>`, oldest month first (today's month last) — identical
+/// to the per-monitor calendar-month construction. Every requested id is
+/// present; one with no heartbeats maps to the dense vector with all
+/// `uptime_pct: None`.
+pub async fn monthly_uptime_batch(
+    pool: &DbPool,
+    monitor_ids: &[Uuid],
+    months: i32,
+) -> DbResult<HashMap<Uuid, Vec<MonthlyUptime>>> {
+    // Build the shared dense target (oldest month first, today's month last)
+    // once — it's identical across monitors. Each id gets its own clone with
+    // all `uptime_pct: None`, mirroring the per-monitor empty result.
+    let now = OffsetDateTime::now_utc().date();
+    let current_month_first =
+        time::Date::from_calendar_date(now.year(), now.month(), 1).unwrap_or(now);
+    let mut targets = Vec::with_capacity(months as usize);
+    let mut y = current_month_first.year();
+    let mut m_u8 = current_month_first.month() as u8;
+    for _ in 0..months {
+        let mth = time::Month::try_from(m_u8).unwrap_or(time::Month::January);
+        targets.push(time::Date::from_calendar_date(y, mth, 1).unwrap_or(current_month_first));
+        if m_u8 == 1 {
+            m_u8 = 12;
+            y -= 1;
+        } else {
+            m_u8 -= 1;
+        }
+    }
+    targets.reverse();
+    let template: Vec<MonthlyUptime> = targets
+        .into_iter()
+        .map(|d| MonthlyUptime {
+            year_month: d,
+            uptime_pct: None,
+        })
+        .collect();
+
+    let mut out: HashMap<Uuid, Vec<MonthlyUptime>> = monitor_ids
+        .iter()
+        .map(|id| (*id, template.clone()))
+        .collect();
+    if monitor_ids.is_empty() {
+        return Ok(out);
+    }
+
+    let since = OffsetDateTime::now_utc() - time::Duration::days((months as i64) * 32);
+    let rows = sqlx::query!(
+        r#"
+        SELECT
+            monitor_id,
+            (date_trunc('month', ts AT TIME ZONE 'UTC'))::date AS "month!",
+            COUNT(*)                              AS "total!",
+            COUNT(*) FILTER (WHERE status = 'up') AS "up!"
+        FROM heartbeats
+        WHERE monitor_id = ANY($1) AND ts >= $2
+        GROUP BY monitor_id, (date_trunc('month', ts AT TIME ZONE 'UTC'))::date
+        "#,
+        monitor_ids,
+        since,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    for r in rows {
+        if let Some(v) = out.get_mut(&r.monitor_id) {
+            if let Some(idx) = v.iter().position(|m| m.year_month == r.month) {
+                if r.total > 0 {
+                    v[idx].uptime_pct = Some(r.up as f32 / r.total as f32 * 100.0);
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+
 /// One row of per-monitor rollup stats over the last `window_seconds`.
 /// Monitors with no heartbeats in the window are absent from the result.
 #[derive(Debug, Clone)]
