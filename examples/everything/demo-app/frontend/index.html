@@ -4,11 +4,13 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Rampart · everything demo</title>
-  <!-- RUM: load Rampart's snippet. It reports this page's Core Web Vitals and
-       any browser JS errors to Rampart (app = demo-frontend). Assumes Rampart
-       is published on the host at :3000 — edit if yours is elsewhere. The
-       snippet auto-provisions an error-tracking project named after the app. -->
-  <script src="http://localhost:3000/rum/snippet.js" data-app="demo-frontend"></script>
+  <!-- RUM: load Rampart's snippet SAME-ORIGIN (nginx proxies /rum/* → rampart).
+       The snippet derives its beacon endpoint from its own origin, so this works
+       both from a host browser (origin localhost:8088) AND from the in-network
+       rum-driver (origin demo-frontend) — a hard-coded http://localhost:3000
+       would only resolve from the host. It reports Core Web Vitals + browser JS
+       errors (app = demo-frontend); auto-provisions an error project by app name. -->
+  <script src="/rum/snippet.js" data-app="demo-frontend"></script>
   <style>
     body { font-family: system-ui, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 16px; color: #1c1917; }
     pre { background: #f5f5f4; padding: 12px; border-radius: 8px; max-height: 320px; overflow: auto; font-size: 12px; }
