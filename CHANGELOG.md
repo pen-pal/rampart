@@ -19,7 +19,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
-## [0.146.0] — 2026-06-19
+## [0.147.0] — 2026-06-19
+
+### Changed
+- **Public status page: killed the 5N+ query amplification on the unauthenticated
+  render path.** A page with N monitors previously issued ~1+6N DB queries per
+  public hit (a per-monitor `get_unscoped` + four per-monitor heartbeat rollups
+  in a loop) — query/DoS-amplification on an anonymous surface. Now:
+  - **Set-based rollups:** four batch heartbeat fns (`uptime_pct_batch`,
+    `avg_latency_ms_batch`, `daily_status_batch`, `monthly_uptime_batch`, all
+    `WHERE monitor_id = ANY($1)` + `GROUP BY monitor_id`) plus a single
+    `monitors` name/status fetch collapse the render to ~7 queries regardless of
+    N. Output is byte-identical to the per-monitor path (covered by a new
+    `public_view_batch_parity` test).
+  - **Short-TTL per-slug cache (10s):** repeated public hits within the window
+    serve a cached projection (bounding queries-per-second under an incident
+    traffic spike). Private pages bypass the cache; both the slug and
+    custom-domain routes benefit; staleness is bounded by the TTL.
 
 ### Added
 - **Multi-tenancy Phase 6 — ingest enforcement behind `RAMPART_MULTI_ORG`.**
