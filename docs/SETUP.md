@@ -212,27 +212,27 @@ Before exposing to the internet:
    filter can't leak across orgs. It is **off by default** and fully
    reversible. To enable it:
 
-   1. **Grant the app's login role `BYPASSRLS` (operator prerequisite).** The
-      per-request tenant binding runs queries as the unprivileged `rampart_app`
-      role (created by migration 0114), but the system loops
-      (scheduler/prune/notifier/SIEM/self-metrics/migrate/import/leader) must
-      bypass RLS. Run once as a superuser, substituting your `DATABASE_URL`
-      user:
-      ```sql
-      ALTER ROLE <db_user> BYPASSRLS;
-      ```
-      Without this, the background loops cannot read across orgs once policies
-      are enforced. (The table *owner* is exempt-by-ownership too, but
-      `BYPASSRLS` is the robust guarantee.)
-   2. Set `RAMPART_RLS=1` (or `true`/`yes`) and restart. The pool now binds the
-      request's org onto each connection (`SET ROLE rampart_app` +
-      `app.current_org` GUC).
+   Set `RAMPART_RLS=1` (or `true`/`yes`) and restart. The pool then binds each
+   request's org onto its connection (`SET ROLE rampart_app` + the
+   `app.current_org` GUC), and the policies — `ENABLE`d by migration 0116 —
+   enforce per-org isolation on those tenant connections.
 
-   Note: as shipped, the org-isolation **policies are defined but DORMANT** —
-   no table has RLS `ENABLE`d/`FORCE`d, so `RAMPART_RLS` alone changes which
-   role/GUC each connection carries but does not yet *enforce* isolation.
-   Turning enforcement on (`ALTER TABLE … ENABLE/FORCE ROW LEVEL SECURITY`) is
-   a deliberate, separate step — review the policies in migration 0115 first.
+   **No `BYPASSRLS` grant is required** for the standard single-role
+   deployment. RLS is `ENABLE`d but **not** `FORCE`d, so the table *owner* (the
+   role that ran the migrations — your `DATABASE_URL` user) is exempt by
+   ownership. Therefore:
+   - with `RAMPART_RLS` off, every checkout stays the owner → nothing is
+     enforced → byte-identical to before;
+   - with it on, only tenant requests `SET ROLE rampart_app` (enforced); the
+     system loops (scheduler/prune/notifier/SIEM/self-metrics/migrate/import/
+     leader) bind no org, stay the owner, and bypass for free.
+
+   Only if your app connects as a role that does **not** own the tables
+   (uncommon — e.g. migrations applied by a separate admin role) must you grant
+   the runtime role `BYPASSRLS` (`ALTER ROLE <db_user> BYPASSRLS;`) so its
+   owner-less checkouts aren't policy-subject. Validate isolation on a shadow
+   database before enabling in production; `RAMPART_RLS=0` fully reverts
+   enforcement with no schema change.
 
 ---
 

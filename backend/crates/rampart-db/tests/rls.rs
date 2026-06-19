@@ -123,10 +123,11 @@ async fn rls_role_migration_is_idempotent(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../../migrations")]
-async fn policies_ship_dormant(pool: PgPool) {
-    // The shipped migrations define org_isolation policies but must leave RLS
-    // DORMANT — no table ENABLED or FORCED. (This guards against a future edit
-    // accidentally turning S7 on.)
+async fn policies_enabled_not_forced(pool: PgPool) {
+    // After S7 (migration 0116) the shipped migrations ENABLE RLS on exactly the
+    // policied tables — but must NEVER FORCE, so the owner login role stays
+    // exempt (flag-off + system loops keep full access). Assert: every policied
+    // table is ENABLED, none is FORCED, and the 34 org_isolation policies exist.
     let enabled: i64 = sqlx::query_scalar("SELECT count(*) FROM pg_class WHERE relrowsecurity")
         .fetch_one(&pool)
         .await
@@ -141,8 +142,8 @@ async fn policies_ship_dormant(pool: PgPool) {
             .fetch_one(&pool)
             .await
             .unwrap();
-    assert_eq!(enabled, 0, "no table may have RLS ENABLED in shipped migrations");
-    assert_eq!(forced, 0, "no table may have RLS FORCED in shipped migrations");
+    assert_eq!(enabled, 34, "all 34 policied tables must have RLS ENABLED after S7");
+    assert_eq!(forced, 0, "no table may be FORCED — the owner login role must stay exempt");
     assert_eq!(policies, 34, "30 root + 4 child org_isolation policies expected");
 }
 
@@ -210,7 +211,7 @@ async fn insert_as_rampart_app_succeeds(pool: PgPool) {
     .unwrap();
     conn.execute("SET ROLE rampart_app").await.unwrap();
 
-    // Plain INSERT into the RLS-FORCED monitors table (WITH CHECK org_id = A).
+    // Plain INSERT into the RLS-enabled monitors table (WITH CHECK org_id = A).
     sqlx::query("INSERT INTO monitors (id, name, kind, org_id) VALUES ($1, $2, 'http', $3)")
         .bind(Uuid::now_v7())
         .bind("inserted-as-app")
@@ -219,8 +220,9 @@ async fn insert_as_rampart_app_succeeds(pool: PgPool) {
         .await
         .expect("INSERT as rampart_app (matching org) must succeed");
 
-    // BIGSERIAL sequence exercise: delivery_log has no RLS enabled here, so this
-    // isolates the SEQUENCE grant (nextval on the owned sequence) under the role.
+    // BIGSERIAL sequence exercise: delivery_log is RLS-enabled (S7) and the bound
+    // org matches the WITH CHECK, so this also isolates the SEQUENCE grant
+    // (nextval on the owned sequence) under the rampart_app role.
     sqlx::query(
         "INSERT INTO delivery_log (channel_kind, event_kind, ok, org_id) \
          VALUES ('email', 'status_flip', true, $1)",
