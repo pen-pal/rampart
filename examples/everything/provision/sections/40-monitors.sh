@@ -41,16 +41,21 @@ m "edge · json_query (status)" \
   "{\"name\":\"edge · json_query (status)\",\"kind\":\"json_query\",\"url\":\"http://demo-backend:8080/status.json\",\"config\":{\"json_path\":\"status\",\"expected_value\":\"operational\"},\"interval_seconds\":30,\"group_id\":\"$GRP_EDGE\"}" >/dev/null
 
 # http + check_cert against the ~10-day cert → Warn (days-left < 14).
+# ignore_tls:true ⇒ the handshake to the self-signed lab cert succeeds (we are
+# checking EXPIRY here, not chain trust), then check_cert downgrades to Warn
+# because days-left (~10) < cert_expiry_days (14).
 m "edge · cert-expiry warn" \
-  "{\"name\":\"edge · cert-expiry warn\",\"kind\":\"http\",\"url\":\"https://tls-target:8443/\",\"ignore_tls\":false,\"check_cert\":true,\"cert_expiry_days\":14,\"interval_seconds\":60,\"group_id\":\"$GRP_EDGE\"}" >/dev/null
+  "{\"name\":\"edge · cert-expiry warn\",\"kind\":\"http\",\"url\":\"https://tls-target:8443/\",\"ignore_tls\":true,\"check_cert\":true,\"cert_expiry_days\":14,\"interval_seconds\":60,\"group_id\":\"$GRP_EDGE\"}" >/dev/null
 
-# tls against the EXPIRED cert → Down.
+# tls against the EXPIRED cert → Down (expired, not UnknownIssuer). ignore_tls
+# lets the handshake complete so the probe reports the real reason: expired cert.
 m "edge · tls expired (down)" \
-  "{\"name\":\"edge · tls expired (down)\",\"kind\":\"tls\",\"hostname\":\"tls-target\",\"config\":{\"port\":9443,\"warn_days\":14},\"interval_seconds\":60,\"group_id\":\"$GRP_EDGE\"}" >/dev/null
+  "{\"name\":\"edge · tls expired (down)\",\"kind\":\"tls\",\"hostname\":\"tls-target\",\"ignore_tls\":true,\"config\":{\"port\":9443,\"warn_days\":14},\"interval_seconds\":60,\"group_id\":\"$GRP_EDGE\"}" >/dev/null
 
-# tls healthy (the warn cert is still valid → Up, just warns soon)
+# tls healthy (the warn cert is still valid → Up, just warns soon). Self-signed,
+# so ignore_tls:true to complete the handshake; warn_days:3 < ~10d left ⇒ Up.
 m "edge · tls healthy" \
-  "{\"name\":\"edge · tls healthy\",\"kind\":\"tls\",\"hostname\":\"tls-target\",\"config\":{\"port\":8443,\"warn_days\":3},\"interval_seconds\":60,\"group_id\":\"$GRP_EDGE\"}" >/dev/null
+  "{\"name\":\"edge · tls healthy\",\"kind\":\"tls\",\"hostname\":\"tls-target\",\"ignore_tls\":true,\"config\":{\"port\":8443,\"warn_days\":3},\"interval_seconds\":60,\"group_id\":\"$GRP_EDGE\"}" >/dev/null
 
 # push: server mints a token; push-cron sends real heartbeats + a Down flip.
 export MON_PUSH_ID="$(m 'jobs · nightly backup (push)' \
@@ -117,7 +122,7 @@ m "egress · domain WHOIS (needs internet)" "{\"name\":\"egress · domain WHOIS 
 m "egress · rdap (needs internet)"  "{\"name\":\"egress · rdap (needs internet)\",\"kind\":\"rdap\",\"url\":\"https://rdap.org/\",\"config\":{\"domain\":\"example.com\",\"warn_days\":30},\"interval_seconds\":3600,\"group_id\":\"$GRP_NETWORK\"}" >/dev/null
 m "egress · doh (needs internet)"   "{\"name\":\"egress · doh (needs internet)\",\"kind\":\"doh\",\"url\":\"https://cloudflare-dns.com/dns-query\",\"config\":{\"query\":\"example.com\",\"rtype\":\"A\"},\"interval_seconds\":300,\"group_id\":\"$GRP_NETWORK\"}" >/dev/null
 m "egress · steam (needs internet)" "{\"name\":\"egress · steam (needs internet)\",\"kind\":\"steam\",\"hostname\":\"208.78.164.10\",\"interval_seconds\":300,\"group_id\":\"$GRP_NETWORK\"}" >/dev/null
-m "egress · browser (needs renderer)" "{\"name\":\"egress · browser (needs renderer)\",\"kind\":\"browser\",\"url\":\"http://demo-backend:8080/welcome\",\"config\":{\"renderer_url\":\"http://renderer:3000\",\"keyword\":\"operational\"},\"interval_seconds\":300,\"group_id\":\"$GRP_NETWORK\"}" >/dev/null
+m "egress · browser (needs renderer)" "{\"name\":\"egress · browser (needs renderer)\",\"kind\":\"browser\",\"url\":\"http://demo-backend:8080/welcome\",\"config\":{\"renderer_url\":\"http://renderer:3000/content\",\"keyword\":\"operational\"},\"interval_seconds\":300,\"group_id\":\"$GRP_NETWORK\"}" >/dev/null
 
 # --- a private-only target the REMOTE AGENT probes --------------------------
 # Reachable only from inside the network on a separate name; we assign it to the

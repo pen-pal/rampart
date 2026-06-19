@@ -1155,10 +1155,11 @@ async fn run_once(
                     let id = monitor.id;
                     let url_owned = url.to_string();
                     let to = Duration::from_secs(monitor.timeout_seconds.max(10) as u64);
+                    let insecure = monitor.ignore_tls;
                     tokio::spawn(async move {
                         if let Some((host, port)) = parse_https(&url_owned) {
                             if let Ok(snap) =
-                                rampart_checker::tls::fetch_cert(&host, port, to).await
+                                rampart_checker::tls::fetch_cert(&host, port, to, insecure).await
                             {
                                 let _ = rampart_db::monitors::set_cert_info(
                                     &pool,
@@ -1196,8 +1197,9 @@ async fn run_once(
                 let pool = pool.clone();
                 let id = monitor.id;
                 let to = Duration::from_secs(monitor.timeout_seconds.max(10) as u64);
+                let insecure = monitor.ignore_tls;
                 tokio::spawn(async move {
-                    if let Ok(snap) = rampart_checker::tls::fetch_cert(&host, port, to).await {
+                    if let Ok(snap) = rampart_checker::tls::fetch_cert(&host, port, to, insecure).await {
                         let _ = rampart_db::monitors::set_cert_info(
                             &pool,
                             id,

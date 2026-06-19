@@ -10,16 +10,31 @@
 set -e
 mkdir -p /certs
 
+# IMPORTANT: a bare `openssl req -x509` self-signed cert defaults to
+# basicConstraints CA:TRUE, so it presents as a root CA. Rampart's rustls-based
+# tls/check_cert prober then rejects the handshake with
+# `invalid peer certificate: CaUsedAsEndEntity` (a CA cert may not be the
+# end-entity/leaf), which made `edge · tls healthy` report Down instead of Up.
+# Mark both certs as leaf certs (CA:FALSE) + give them the serverAuth EKU so
+# they validate as proper TLS server endpoints. SAN also covers `tls-target`
+# (the hostname the monitors actually connect to).
+
 # ~10-day cert → check_cert WARN against a 14-day threshold.
 openssl req -x509 -newkey rsa:2048 -nodes \
   -keyout /certs/warn.key -out /certs/warn.crt -days 10 \
-  -subj "/CN=tls-warn" -addext "subjectAltName=DNS:tls-warn,DNS:localhost" 2>/dev/null
+  -subj "/CN=tls-warn" \
+  -addext "basicConstraints=critical,CA:FALSE" \
+  -addext "extendedKeyUsage=serverAuth" \
+  -addext "subjectAltName=DNS:tls-warn,DNS:tls-target,DNS:localhost" 2>/dev/null
 
 # Already-expired cert: issue it as if it were 2020, 30-day life → long expired.
 faketime "2020-01-01 00:00:00" \
   openssl req -x509 -newkey rsa:2048 -nodes \
     -keyout /certs/expired.key -out /certs/expired.crt -days 30 \
-    -subj "/CN=tls-expired" -addext "subjectAltName=DNS:tls-expired,DNS:localhost" 2>/dev/null
+    -subj "/CN=tls-expired" \
+    -addext "basicConstraints=critical,CA:FALSE" \
+    -addext "extendedKeyUsage=serverAuth" \
+    -addext "subjectAltName=DNS:tls-expired,DNS:tls-target,DNS:localhost" 2>/dev/null
 
 echo "[tls-target] warn cert (10d) + expired cert (2020) generated"
 echo "[tls-target] notAfter warn:    $(openssl x509 -enddate -noout -in /certs/warn.crt)"
