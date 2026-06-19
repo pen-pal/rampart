@@ -138,6 +138,21 @@ pub async fn get(pool: &DbPool, id: ErrorProjectId) -> DbResult<ErrorProject> {
     get_opt(pool, id).await?.ok_or(DbError::NotFound)
 }
 
+/// Resolve a project's owning org. Used by the (session-less) Sentry ingest
+/// path to bind RLS to the project's tenant — error_events/issues are children
+/// that inherit org from the project, so the org lives on `error_projects`.
+/// Returns NotFound for an unknown project id.
+pub async fn org_for_project(pool: &DbPool, id: ErrorProjectId) -> DbResult<OrgId> {
+    let org: Uuid = sqlx::query_scalar!(
+        r#"SELECT org_id AS "org_id!" FROM error_projects WHERE id = $1"#,
+        id.0,
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or(DbError::NotFound)?;
+    Ok(OrgId::from_uuid(org))
+}
+
 pub async fn get_opt(pool: &DbPool, id: ErrorProjectId) -> DbResult<Option<ErrorProject>> {
     let row = sqlx::query_as!(
         ProjectRow,

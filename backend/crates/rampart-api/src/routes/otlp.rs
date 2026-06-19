@@ -39,6 +39,10 @@ async fn ingest_logs(
     // Phase 5: resolve the owning org from the ingest credential (gates auth
     // internally, exactly as require_telemetry_token did; Default on key-miss).
     let org = crate::ingest_util::resolve_ingest_org(s.pool(), &headers, None).await?;
+    // RLS: bind the resolved org so the pool hook scopes the writes below to
+    // this tenant (no-op when RAMPART_RLS off). Ingest handlers carry no
+    // session, so the chokepoint is here rather than the auth middleware.
+    rampart_db::rls::with_org(org, async move {
     let content_type = headers
         .get("content-type")
         .and_then(|v| v.to_str().ok())
@@ -71,6 +75,7 @@ async fn ingest_logs(
 
     rampart_db::logs::insert_logs(s.pool(), &logs, org).await?;
     Ok(Json(serde_json::json!({})))
+    }).await
 }
 
 async fn ingest_traces(
@@ -81,6 +86,9 @@ async fn ingest_traces(
     // Phase 5: resolve the owning org from the ingest credential (gates auth
     // internally, exactly as require_telemetry_token did; Default on key-miss).
     let org = crate::ingest_util::resolve_ingest_org(s.pool(), &headers, None).await?;
+    // RLS: bind the resolved org so the writes below are tenant-scoped under
+    // the pool hook (no-op when RAMPART_RLS off).
+    rampart_db::rls::with_org(org, async move {
     let content_type = headers
         .get("content-type")
         .and_then(|v| v.to_str().ok())
@@ -109,4 +117,5 @@ async fn ingest_traces(
 
     // OTLP ExportTraceServiceResponse — an empty object signals full success.
     Ok(Json(serde_json::json!({})))
+    }).await
 }

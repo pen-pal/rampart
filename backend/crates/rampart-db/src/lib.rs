@@ -41,6 +41,7 @@ pub mod proxies;
 pub mod prune;
 pub mod rate_limit;
 pub mod recovery_codes;
+pub mod rls;
 pub mod routing;
 pub mod rum;
 pub mod scheduled_reports;
@@ -92,15 +93,83 @@ pub type DbResult<T> = Result<T, DbError>;
 /// Defaults to 16 connections — fine for a homelab. Raise via env for
 /// production. `acquire_timeout` 5s so DB pressure surfaces as 503s
 /// quickly rather than queueing requests until the user gives up.
+///
+/// ## Row-Level Security (defense-in-depth, `RAMPART_RLS`)
+///
+/// When `RAMPART_RLS` is set (default OFF), the pool installs `before_acquire`
+/// and `after_release` hooks that bind the per-request tenant org (read from
+/// the [`rls::CURRENT_ORG`] task-local) onto each checked-out connection.
+///
+/// With an org bound the hook issues `SET ROLE rampart_app` plus
+/// `set_config('app.current_org', …)` so the dormant org-isolation policies
+/// (migration 0115, enabled only by an operator) scope every statement to that
+/// org. With no org bound (system loops) it issues `RESET ROLE` and clears the
+/// GUC, so the connection runs as the BYPASSRLS owner and is unaffected.
+///
+/// The branch happens ONCE here at construction — flag-off installs NO hooks at
+/// all (the plain `.connect()` path), so a flag-off pool is byte-identical to
+/// before this feature existed.
 pub async fn connect(database_url: &str, max_connections: u32) -> DbResult<DbPool> {
-    let pool = PgPoolOptions::new()
+    let opts = PgPoolOptions::new()
         .max_connections(max_connections)
         .acquire_timeout(Duration::from_secs(5))
         .idle_timeout(Some(Duration::from_secs(600)))
-        .max_lifetime(Some(Duration::from_secs(1800)))
-        .connect(database_url)
-        .await?;
+        .max_lifetime(Some(Duration::from_secs(1800)));
+
+    let opts = if rls::rls_enabled() {
+        opts.before_acquire(|conn, _meta| Box::pin(bind_rls_org(conn)))
+            .after_release(|conn, _meta| Box::pin(reset_rls_org(conn)))
+    } else {
+        opts
+    };
+
+    let pool = opts.connect(database_url).await?;
     Ok(pool)
+}
+
+/// `before_acquire` hook: bind the current request's tenant org onto `conn`
+/// just before it is handed out, reading the [`rls::CURRENT_ORG`] task-local.
+///
+/// All-or-nothing + fail-loud: every statement runs in ONE batched simple
+/// query, so a partial apply is impossible, and any error propagates as `Err`
+/// (NEVER `Ok(false)`, which would silently recycle a possibly mis-bound
+/// connection). The org is a validated `Uuid`, so inlining it into the GUC
+/// literal is injection-safe.
+///
+/// We always `RESET ROLE` first so a connection that was previously bound to
+/// some other org (and is now being reused) can't leak the prior role/GUC: the
+/// reset returns it to the owner, then we set the new GUC, then assume the
+/// `rampart_app` role. Ordering GUC-before-role means the role switch can't
+/// strand the connection as `rampart_app` carrying a stale org.
+async fn bind_rls_org(conn: &mut sqlx::postgres::PgConnection) -> Result<bool, sqlx::Error> {
+    use sqlx::Executor;
+    let bound = rls::CURRENT_ORG.try_with(|o| *o).ok().flatten();
+    let sql = match bound {
+        Some(org) => format!(
+            "RESET ROLE; SELECT set_config('app.current_org', '{org}', false); SET ROLE rampart_app;"
+        ),
+        None => {
+            // No tenant bound (system loop): owner role, empty GUC.
+            "RESET ROLE; SELECT set_config('app.current_org', '', false);".to_string()
+        }
+    };
+    // `AssertSqlSafe`: the only interpolation is `org`, a validated `Uuid`
+    // (hyphenated hex only — no quotes/semicolons), so this is injection-safe.
+    conn.execute(sqlx::raw_sql(sqlx::AssertSqlSafe(sql)))
+        .await?;
+    Ok(true)
+}
+
+/// `after_release` hook: scrub the per-request binding so a returned connection
+/// goes back to the idle pool as the plain owner with an empty GUC. Fail-loud
+/// (`Err` not `Ok(false)`) — a connection we can't reset is dropped, not reused.
+async fn reset_rls_org(conn: &mut sqlx::postgres::PgConnection) -> Result<bool, sqlx::Error> {
+    use sqlx::Executor;
+    conn.execute(sqlx::raw_sql(
+        "RESET ROLE; SELECT set_config('app.current_org', '', false);",
+    ))
+    .await?;
+    Ok(true)
 }
 
 /// Run all pending migrations from the workspace `migrations/` directory.
