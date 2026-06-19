@@ -19,7 +19,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
-## [0.148.0] — 2026-06-19
+## [0.149.0] — 2026-06-19
+
+### Added
+- **Multi-tenancy: RLS enforcement turned on (S7) — `ENABLE`, not `FORCE`.**
+  Migration `0116` enables row-level security on exactly the 34 tables that
+  carry the `org_isolation` policy (derived from `pg_policies`, no hand-listing).
+  Because tables are `ENABLE`d but not `FORCE`d, the table **owner** (the
+  `DATABASE_URL` role that ran the migrations) stays exempt by ownership, so:
+  - `RAMPART_RLS` **off** (default) → every checkout is the owner → nothing
+    enforced → byte-identical to before;
+  - `RAMPART_RLS` **on** → tenant requests run as the non-owner `rampart_app`
+    role and are **enforced** by the policies; system loops bind no org, stay
+    the owner, and bypass for free.
+  This **removes the `ALTER ROLE … BYPASSRLS` prerequisite** for the standard
+  single-role deployment (the originally-planned `FORCE` would have required it
+  and risked blacking out the background loops if forgotten). `RAMPART_RLS=0`
+  reverts enforcement with no schema change. Multi-tenancy isolation is now
+  defended at both the app layer (`WHERE org_id`) and the database layer (RLS).
 
 ### Added
 - **Multi-tenancy: Postgres Row-Level Security scaffolding (defense-in-depth),
