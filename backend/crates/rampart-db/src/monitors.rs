@@ -689,6 +689,40 @@ pub async fn get_unscoped(pool: &DbPool, id: MonitorId) -> DbResult<Monitor> {
     Ok(m)
 }
 
+/// Batch-fetch ONLY the public-facing monitor fields (`name`,
+/// `current_status`) for a set of ids, returned as `id → (name, status)`.
+///
+/// Deliberately NOT [`get_unscoped`]: the public status-page projection only
+/// uses these two columns, whereas `get_unscoped` additionally pulls full
+/// config and a per-monitor tags query (2 round trips each) that the public
+/// view discards. This single query replaces N×`get_unscoped` calls on the
+/// unauthenticated render path. A monitor id with no matching row (a
+/// since-deleted monitor) is simply absent from the returned map, and the
+/// caller decides how to treat a miss.
+pub async fn public_fields_batch(
+    pool: &DbPool,
+    ids: &[Uuid],
+) -> DbResult<std::collections::HashMap<Uuid, (String, MonitorStatus)>> {
+    if ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let rows = sqlx::query!(
+        r#"
+        SELECT id, name, current_status AS "current_status: MonitorStatus"
+        FROM monitors
+        WHERE id = ANY($1)
+        "#,
+        ids,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|r| (r.id, (r.name, r.current_status)))
+        .collect())
+}
+
 /// Apply a partial update. Every column uses COALESCE so the absence
 /// of a field on `UpdateMonitor` leaves the row untouched. `kind` is
 /// intentionally not editable. Returns the freshly-hydrated monitor.

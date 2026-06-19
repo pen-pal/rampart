@@ -332,7 +332,7 @@ async fn assign_monitor_section(
 // viewers + browser auto-refresh) can hammer the DB. A short per-slug TTL cache
 // collapses that burst into one rollup per window; staleness is bounded by the
 // TTL, well within a status page's expectations.
-const PUBLIC_VIEW_TTL: std::time::Duration = std::time::Duration::from_secs(15);
+const PUBLIC_VIEW_TTL: std::time::Duration = std::time::Duration::from_secs(10);
 
 fn public_view_cache(
 ) -> &'static std::sync::Mutex<std::collections::HashMap<String, (std::time::Instant, PublicStatusPage)>>
