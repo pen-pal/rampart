@@ -5,10 +5,12 @@
 // json_query/synthetic monitors all reflect genuine behaviour.
 //
 // Run as `node -r ./otel.js server.js` so instrumentation loads first.
+const http = require('node:http');
 const express = require('express');
 const { Pool } = require('pg');
 const Redis = require('ioredis');
 const client = require('prom-client');
+const { WebSocketServer } = require('ws');
 
 const log = global.rlog || ((lvl, m) => console.log(`[${lvl}] ${m}`));
 const Sentry = global.Sentry;
@@ -163,7 +165,25 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: err.message });
 });
 
+// ── WebSocket endpoint: Rampart's `websocket` monitor (ws://demo-backend:8080/)
+// completes a real upgrade handshake against this, then we push a tick every
+// few seconds so the connection is genuinely live (not just an accept). Sharing
+// the express HTTP server means the same :8080 handles both HTTP probes and the
+// WS upgrade.
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server });
+wss.on('connection', (ws) => {
+  log('INFO', 'websocket client connected');
+  ws.send(JSON.stringify({ type: 'hello', service: 'demo-backend', ts: Date.now() }));
+  const tick = setInterval(() => {
+    try { ws.send(JSON.stringify({ type: 'tick', queue_depth: q, ts: Date.now() })); } catch {}
+  }, 3000);
+  ws.on('message', (data) => { try { ws.send(data); } catch {} }); // echo
+  ws.on('close', () => clearInterval(tick));
+  ws.on('error', () => clearInterval(tick));
+});
+
 const PORT = process.env.PORT || 8080;
 initDb().then(() => {
-  app.listen(PORT, () => log('INFO', `demo-backend listening on :${PORT}`));
+  server.listen(PORT, () => log('INFO', `demo-backend listening on :${PORT} (http + ws)`));
 });
