@@ -19,6 +19,26 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.146.0] — 2026-06-19
+
+### Added
+- **Multi-tenancy Phase 6 — ingest enforcement behind `RAMPART_MULTI_ORG`.**
+  Opt-in env flag (default **off** → existing installs byte-identical). When set,
+  a telemetry-ingest request whose token doesn't match a per-org `ingest_keys`
+  row is rejected with `401 Unauthorized` instead of falling back to the Default
+  org — so un-keyed or wrong-keyed OTLP / RUM / profiles / Prometheus traffic
+  can't land in (or be read from) the Default org. Turn it on only after minting
+  a per-org ingest key for each sender. Sentry DSN, agent, and push-token ingest
+  carry their own org and are unaffected. See `docs/MULTITENANCY.md`.
+
+### Notes
+- The cookie/session path is deliberately left graceful (no hard 403 on a stale
+  active org): the org-switch endpoint is membership-gated, and a revoked
+  membership falls back to the user's Default org rather than locking them out of
+  every request (the switch endpoint included). Postgres RLS remains deferred.
+
+---
+
 ## [0.145.0] — 2026-06-18
 
 ### Changed
