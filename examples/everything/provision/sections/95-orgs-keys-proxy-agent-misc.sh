@@ -21,6 +21,53 @@ if [ -n "$ORG2_ID" ]; then
   # switch active org → works since P4 shipped (cookie session)
   curl -s -b "$CJ" -c "$CJ" -X POST "$API/v1/orgs/$ORG2_ID/switch" >/dev/null 2>&1
   log "switched active org to Demo Team"
+
+  # --- populate Demo Team as a REAL second tenant -------------------------
+  # While switched IN, writes are org-stamped to Demo Team (Phase 4). These
+  # monitors + telemetry are isolated from Default — and with RAMPART_RLS=1
+  # that isolation is ENFORCED at the Postgres layer (defense-in-depth on top
+  # of the app-level scoping). ensure_monitor checks the CURRENT org's list,
+  # so re-runs are idempotent per-org.
+  m_dt1="$(ensure_monitor 'demo-team · web' \
+    '{"name":"demo-team · web","kind":"http","url":"http://target-healthy/","interval_seconds":30}')"
+  m_dt2="$(ensure_monitor 'demo-team · api ready' \
+    '{"name":"demo-team · api ready","kind":"http","url":"http://target-healthy/","interval_seconds":30}')"
+  m_dt3="$(ensure_monitor 'demo-team · keyword' \
+    '{"name":"demo-team · keyword","kind":"keyword","url":"http://target-healthy/","config":{"keyword":"Welcome"},"interval_seconds":60}')"
+  log "Demo Team monitors created (demo-team · web / api ready / keyword)"
+
+  # Mint a per-org ingest key (returns the raw token ONCE) so telemetry sent
+  # with it lands in Demo Team — proving per-org telemetry isolation.
+  DT_KEY="$(post /v1/ingest-keys '{"label":"demo-team ingest"}' | jq -r '.token // empty')"
+  if [ -n "$DT_KEY" ]; then
+    log "Demo Team ingest key minted (label='demo-team ingest')"
+    # Push a couple of REAL logs via the key (OTLP/JSON → /otlp/v1/logs,
+    # Bearer-authenticated). resolve_ingest_org maps the key → Demo Team.
+    NOW_NS="$(date -u +%s)000000000"
+    DT_LOGS="$(jq -nc --arg ts "$NOW_NS" '{
+      resourceLogs:[{
+        resource:{attributes:[{key:"service.name",value:{stringValue:"demo-team-svc"}}]},
+        scopeLogs:[{logRecords:[
+          {timeUnixNano:$ts,severityNumber:9,severityText:"INFO",
+           body:{stringValue:"demo-team checkout completed"}},
+          {timeUnixNano:$ts,severityNumber:17,severityText:"ERROR",
+           body:{stringValue:"demo-team payment gateway timeout"}}
+        ]}]}]}')"
+    LCODE="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/otlp/v1/logs" \
+      -H "authorization: Bearer $DT_KEY" -H 'content-type: application/json' \
+      --data-binary "$DT_LOGS")"
+    log "Demo Team logs pushed via ingest key → HTTP $LCODE (expected 200)"
+    # A few metric samples too. /v1/metrics/ingest is session-authed and files
+    # under the ACTIVE org — we're still switched into Demo Team, so these land
+    # there as well (a second, independent proof of per-org telemetry).
+    DT_METRICS="$(printf 'demo_team_queue_depth{service="demo-team-svc"} 7\ndemo_team_orders_total{service="demo-team-svc"} 42\n')"
+    MCODE="$(curl -s -b "$CJ" -o /dev/null -w '%{http_code}' -H 'content-type: text/plain' \
+      -X POST "$API/v1/metrics/ingest" --data-binary "$DT_METRICS")"
+    log "Demo Team metrics pushed (active-org session) → HTTP $MCODE (expected 200)"
+  else
+    log "WARN: could not mint Demo Team ingest key (telemetry isolation demo skipped)"
+  fi
+
   # non-member org → 404 (probe a random uuid)
   CODE="$(curl -s -b "$CJ" -o /dev/null -w '%{http_code}' "$API/v1/orgs/00000000-0000-0000-0000-000000000000")"
   log "non-member org GET returned HTTP $CODE (expected 404)"

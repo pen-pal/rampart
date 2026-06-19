@@ -69,8 +69,13 @@ Tear down: `docker compose down -v`.
 - **Incidents** — `provision` posts a firing+resolved alert through the real
   Alertmanager ingest webhook (opens then closes an incident); Alertmanager
   keeps doing so live as monitors flap.
-- **Multi-org** — a 2nd org `Demo Team` with a member (re-roled editor→readonly),
-  a real org switch, and a non-member 404 probe.
+- **Multi-tenancy (RLS enforced)** — two orgs (`Default` + a fully-populated
+  `Demo Team`) each with their OWN monitors (`demo-team · …`) and telemetry
+  (per-org ingest key → logs, plus org-scoped metrics). Isolation is enforced at
+  the Postgres layer via row-level security (`RAMPART_RLS=1`) — defense-in-depth
+  on top of the app-level scoping — so a switched-in tenant cannot see another
+  org's data. Also: a member (re-roled editor→readonly), a real org switch, and a
+  non-member 404 probe.
 - **Push monitor** — a `push-cron` worker sends real `run`/`complete`
   heartbeats, and `/fail`s every 6th cycle → a genuine Down flip → paging.
 - **Remote agent** — a from-source `rampart-agent` probes a private-only target
@@ -108,7 +113,7 @@ bash verify.sh        # needs jq + curl; asserts every tier is non-empty
 | Status pages | public page (sections, custom css/logo, subscriber, incident + updates) + a private password-protected page |
 | Incidents (ingest) | firing+resolved alerts through the real `/v1/public/ingest/alertmanager/<token>` |
 | Ingest tokens | minted per vendor (alertmanager, grafana, datadog, pagerduty, opsgenie, generic + mapping) |
-| Multi-org | 2nd org, member add + re-role, real switch, non-member 404 |
+| Multi-tenancy (RLS) | 2 orgs, each with isolated monitors + telemetry (per-org ingest key); isolation enforced at the Postgres layer via row-level security (`RAMPART_RLS=1`); + member re-role, real switch, non-member 404 |
 | API keys | read / write / admin scopes (the write key drives the metrics-pusher) |
 | Proxy | created + a monitor routed through it |
 | Remote agent | built from source, probes a private-only target |
