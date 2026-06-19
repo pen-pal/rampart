@@ -171,6 +171,11 @@ pub async fn require_telemetry_token(
 /// single-org install with no minted keys (or an existing global-token install)
 /// is byte-for-byte behaviour-identical; per-org isolation activates only once
 /// an operator mints org-scoped ingest keys.
+///
+/// When `RAMPART_MULTI_ORG` is set (Phase 6 enforcement), a key MISS is a hard
+/// `Unauthorized` instead — no Default fallback — so un-keyed / wrong-keyed
+/// telemetry cannot land in (or be read from) the Default org. See
+/// [`multi_org_enabled`].
 pub async fn resolve_ingest_org(
     pool: &DbPool,
     headers: &HeaderMap,
@@ -218,7 +223,16 @@ async fn resolve_ingest(
             return Ok(org_id);
         }
     }
-    // Key miss → legacy global-token gate, verbatim, then the Default org.
+    // Key miss. In multi-org mode every ingest request MUST carry a valid
+    // per-org ingest key — there is NO silent Default fallback, because that
+    // would let un-keyed or wrong-keyed telemetry land in (and then be read
+    // from) the Default org. Refuse outright. The flag is opt-in (default off)
+    // so single-org and legacy global-token installs are byte-identical; an
+    // operator flips it on only AFTER minting per-org ingest keys.
+    if multi_org_enabled() {
+        return Err(ApiError::Unauthorized);
+    }
+    // Single-org / legacy: global-token gate, verbatim, then the Default org.
     require_telemetry_token(pool, headers, query_k).await?;
     Ok(rampart_core::ids::OrgId::from_uuid(
         rampart_core::org::DEFAULT_ORG_ID,
@@ -227,8 +241,23 @@ async fn resolve_ingest(
 
 /// Whether ingest auth is mandatory (`RAMPART_REQUIRE_INGEST_AUTH=1`/`true`).
 pub fn require_ingest_auth() -> bool {
+    flag_set("RAMPART_REQUIRE_INGEST_AUTH")
+}
+
+/// Whether multi-org enforcement is on (`RAMPART_MULTI_ORG=1`/`true`). When set,
+/// an ingest request whose token doesn't match a per-org `ingest_keys` row is
+/// refused outright instead of silently resolving to the Default org (see
+/// [`resolve_ingest`]). Opt-in; default off keeps single-org and legacy
+/// global-token installs byte-for-byte identical. An operator flips this on only
+/// after minting per-org ingest keys, otherwise all un-keyed ingest 401s.
+pub fn multi_org_enabled() -> bool {
+    flag_set("RAMPART_MULTI_ORG")
+}
+
+/// Shared truthy-env parse for the boolean ops flags above.
+fn flag_set(var: &str) -> bool {
     matches!(
-        std::env::var("RAMPART_REQUIRE_INGEST_AUTH").as_deref(),
+        std::env::var(var).as_deref(),
         Ok("1") | Ok("true") | Ok("TRUE") | Ok("yes")
     )
 }
@@ -299,6 +328,24 @@ mod tests {
         assert_eq!(presented_token(&h, Some("qry")), Some("qry"));
         assert_eq!(presented_token(&h, None), None);
         assert_eq!(presented_token(&h, Some("")), None);
+    }
+
+    #[test]
+    fn flag_set_parses_truthy_only() {
+        // Unique var name so this can't race with other tests (or the real
+        // RAMPART_MULTI_ORG / RAMPART_REQUIRE_INGEST_AUTH flags).
+        let var = "RAMPART_TEST_FLAG_PARSE_8F2A";
+        std::env::remove_var(var);
+        assert!(!flag_set(var), "unset is false");
+        for v in ["1", "true", "TRUE", "yes"] {
+            std::env::set_var(var, v);
+            assert!(flag_set(var), "{v:?} should be truthy");
+        }
+        for v in ["0", "false", "no", "", "maybe"] {
+            std::env::set_var(var, v);
+            assert!(!flag_set(var), "{v:?} should be falsey");
+        }
+        std::env::remove_var(var);
     }
 
     #[test]
