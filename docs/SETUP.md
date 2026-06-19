@@ -206,6 +206,34 @@ Before exposing to the internet:
 8. **Heartbeat retention.** Same story — `heartbeats` grows
    unbounded today. Plan a pruning job until partition rotation lands.
 
+9. **(Optional) Row-Level Security (`RAMPART_RLS`).** Postgres RLS is a
+   *defense-in-depth* layer for multi-tenancy — the app already scopes every
+   query by `org_id` and is tested; RLS is belt-and-suspenders so a missed
+   filter can't leak across orgs. It is **off by default** and fully
+   reversible. To enable it:
+
+   1. **Grant the app's login role `BYPASSRLS` (operator prerequisite).** The
+      per-request tenant binding runs queries as the unprivileged `rampart_app`
+      role (created by migration 0114), but the system loops
+      (scheduler/prune/notifier/SIEM/self-metrics/migrate/import/leader) must
+      bypass RLS. Run once as a superuser, substituting your `DATABASE_URL`
+      user:
+      ```sql
+      ALTER ROLE <db_user> BYPASSRLS;
+      ```
+      Without this, the background loops cannot read across orgs once policies
+      are enforced. (The table *owner* is exempt-by-ownership too, but
+      `BYPASSRLS` is the robust guarantee.)
+   2. Set `RAMPART_RLS=1` (or `true`/`yes`) and restart. The pool now binds the
+      request's org onto each connection (`SET ROLE rampart_app` +
+      `app.current_org` GUC).
+
+   Note: as shipped, the org-isolation **policies are defined but DORMANT** —
+   no table has RLS `ENABLE`d/`FORCE`d, so `RAMPART_RLS` alone changes which
+   role/GUC each connection carries but does not yet *enforce* isolation.
+   Turning enforcement on (`ALTER TABLE … ENABLE/FORCE ROW LEVEL SECURITY`) is
+   a deliberate, separate step — review the policies in migration 0115 first.
+
 ---
 
 ## Common issues

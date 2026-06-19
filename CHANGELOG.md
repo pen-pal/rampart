@@ -19,6 +19,34 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.148.0] — 2026-06-19
+
+### Added
+- **Multi-tenancy: Postgres Row-Level Security scaffolding (defense-in-depth),
+  behind `RAMPART_RLS` (opt-in, default OFF — flag-off is byte-identical, the
+  full test suite passes unchanged).** This lands the safe, dormant slices
+  (S1–S6); RLS is not yet enforced (`ENABLE`/`FORCE` is a separate held step).
+  - `0114` — non-login `rampart_app` role + table/sequence grants (idempotent +
+    login-role-agnostic so the test cluster is unaffected). No RLS enabled.
+  - `0115` — `app_current_org()` helper (`NULLIF(current_setting(...,true),'')`
+    so an unset GUC yields NULL, never a 500) + `org_isolation` policies on the
+    30 tenant-root tables (+ 4 low-volume children via parent subquery);
+    `heartbeats`/`error_events` deliberately excluded. **Policies ship DORMANT —
+    no table has RLS enabled.**
+  - When `RAMPART_RLS=1`, a tokio task-local + sqlx `before_acquire` hook binds
+    the per-request org onto the connection (`SET ROLE rampart_app` +
+    `set_config('app.current_org', …)`); system loops (scheduler/prune/notifier/
+    self-metrics/migrate/import) bind no org and run as the BYPASSRLS owner. No
+    change to the ~418 repository fns.
+  - **Operator prerequisite (documented, for when RLS is force-enabled):** the
+    `DATABASE_URL` login role must hold `BYPASSRLS`.
+
+### Notes
+- The actual enforcement flip (`ENABLE`/`FORCE ROW LEVEL SECURITY`) is held for a
+  separate release after shadow-DB validation. See `docs/MULTITENANCY.md`.
+
+---
+
 ## [0.147.0] — 2026-06-19
 
 ### Changed

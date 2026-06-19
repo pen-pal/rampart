@@ -105,7 +105,7 @@ async fn create(
     gate_page(&s, page_id, org.org_id).await?;
     let i = rampart_db::incidents::create(s.pool(), page_id, Some(user.id), input).await?;
     // Best-effort subscriber fan-out — failures are logged, not surfaced.
-    fan_out_incident(s.clone(), page_id, i.clone(), None);
+    fan_out_incident(s.clone(), org.org_id, page_id, i.clone(), None);
     Ok((StatusCode::CREATED, Json(i)))
 }
 
@@ -172,7 +172,7 @@ async fn post_update(
     rampart_db::incidents::post_update(s.pool(), incident_id, Some(user.id), body.message.clone())
         .await?;
     let inc = rampart_db::incidents::get(s.pool(), incident_id).await?;
-    fan_out_incident(s.clone(), inc.status_page_id, inc, Some(body.message));
+    fan_out_incident(s.clone(), org.org_id, inc.status_page_id, inc, Some(body.message));
     Ok(StatusCode::CREATED)
 }
 
@@ -181,11 +181,17 @@ async fn post_update(
 /// the task — we never block the request on SMTP.
 fn fan_out_incident(
     state: AppState,
+    org: rampart_core::ids::OrgId,
     page: StatusPageId,
     incident: Incident,
     update_message: Option<String>,
 ) {
-    tokio::spawn(async move {
+    // RLS: the spawned task doesn't inherit the request's task-local, so bind
+    // the org explicitly. The page + subscribers belong to this org; without
+    // this the background read would run as the bypass owner under S7. The
+    // status-page read deliberately stays `get_unscoped` (the page was already
+    // org-checked) — the org binding just makes that lookup tenant-correct.
+    tokio::spawn(rampart_db::rls::with_org(org, async move {
         let cfg = match crate::smtp::load(state.pool()).await {
             Ok(Some(c)) => c,
             Ok(None) => return, // no SMTP configured — silent no-op
@@ -235,5 +241,5 @@ fn fan_out_incident(
                 tracing::warn!(recipient = %addr, error = %e, "subscriber email failed");
             }
         }
-    });
+    }));
 }

@@ -59,6 +59,8 @@ async fn remote_write(
     // Phase 5: resolve the owning org from the ingest credential (same optional
     // shared-token gate as before, now org-aware; Default on key-miss).
     let org = crate::ingest_util::resolve_ingest_org(s.pool(), &headers, None).await?;
+    // RLS: bind the resolved org for the write below (no-op when RAMPART_RLS off).
+    rampart_db::rls::with_org(org, async move {
 
     // remote_write bodies are snappy *block* format (not framed).
     let raw = snap::raw::Decoder::new()
@@ -98,4 +100,5 @@ async fn remote_write(
 
     rampart_db::metric_samples::insert_many(s.pool(), &samples, org).await?;
     Ok(StatusCode::NO_CONTENT)
+    }).await
 }

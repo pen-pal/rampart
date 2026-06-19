@@ -72,16 +72,20 @@ async fn ingest(
         Ok(o) => o,
         Err(_) => return StatusCode::UNAUTHORIZED,
     };
-    let raw = match crate::ingest_util::decompress(&headers, &body) {
-        Ok(r) => r,
-        Err(_) => return StatusCode::NO_CONTENT,
-    };
-    if let Ok(beacon) = serde_json::from_slice::<RumBeacon>(&raw) {
-        if let Some(clean) = beacon.clean() {
-            let _ = rampart_db::rum::insert_event(s.pool(), &clean, org).await;
+    // RLS: bind the resolved org for the write below (no-op when RAMPART_RLS off).
+    rampart_db::rls::with_org(org, async move {
+        let raw = match crate::ingest_util::decompress(&headers, &body) {
+            Ok(r) => r,
+            Err(_) => return StatusCode::NO_CONTENT,
+        };
+        if let Ok(beacon) = serde_json::from_slice::<RumBeacon>(&raw) {
+            if let Some(clean) = beacon.clean() {
+                let _ = rampart_db::rum::insert_event(s.pool(), &clean, org).await;
+            }
         }
-    }
-    StatusCode::NO_CONTENT
+        StatusCode::NO_CONTENT
+    })
+    .await
 }
 
 /// A browser JavaScript error captured by the RUM snippet's `window.onerror`
@@ -122,6 +126,9 @@ async fn ingest_error(
         Ok(o) => o,
         Err(_) => return StatusCode::UNAUTHORIZED,
     };
+    // RLS: bind the resolved org for the writes (project provision + event
+    // record) below (no-op when RAMPART_RLS off).
+    rampart_db::rls::with_org(org, async move {
     let raw = match crate::ingest_util::decompress(&headers, &body) {
         Ok(r) => r,
         Err(_) => return StatusCode::NO_CONTENT,
@@ -179,15 +186,21 @@ async fn ingest_error(
         let name = project.name.clone();
         let title = outcome.title.clone();
         let regressed = outcome.regressed;
-        tokio::spawn(async move {
+        // RLS: a spawned task does NOT inherit the task-local, so re-enter the
+        // org here. The alert channels belong to the project's org, and the
+        // dispatch reads notifications/silences/templates (org-scoped tables) —
+        // without this the spawn would run as the bypass owner under S7.
+        tokio::spawn(rampart_db::rls::with_org(org, async move {
             rampart_notifier::service::dispatch_error_alert(
                 &pool, &name, &channels, regressed, &title,
             )
             .await;
-        });
+        }));
     }
 
     StatusCode::NO_CONTENT
+    })
+    .await
 }
 
 #[derive(Deserialize)]
