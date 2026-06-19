@@ -236,7 +236,12 @@ pub async fn require_session(
             id: key.id,
             rate_limit_per_hour: key.rate_limit_per_hour,
         });
-        return Ok(next.run(req).await);
+        // RLS: bind the request's org so the pool's before_acquire hook scopes
+        // every DB hit downstream to this tenant (no-op when RAMPART_RLS off —
+        // the hooks aren't installed). Plumbing only here; policies are dormant.
+        return Ok(rampart_db::rls::CURRENT_ORG
+            .scope(Some(org_ctx.org_id.0), next.run(req))
+            .await);
     }
 
     let jar = CookieJar::from_headers(req.headers());
@@ -284,7 +289,11 @@ pub async fn require_session(
     let org_ctx = OrgContext { org_id, role };
     req.extensions_mut().insert(user);
     req.extensions_mut().insert(org_ctx);
-    Ok(next.run(req).await)
+    // RLS: bind the session's org for the downstream handler chain (no-op when
+    // RAMPART_RLS off — hooks not installed). Plumbing only; policies dormant.
+    Ok(rampart_db::rls::CURRENT_ORG
+        .scope(Some(org_ctx.org_id.0), next.run(req))
+        .await)
 }
 
 /// Extract a bearer token from the Authorization header. Trims whitespace
