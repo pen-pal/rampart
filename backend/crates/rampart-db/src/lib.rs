@@ -3,8 +3,11 @@
 //! Thin repository functions over sqlx. Raw SQL with sqlx's compile-time
 //! check; no query builder DSL.
 //!
-//! Single-tenant by design: no workspace_id scoping anywhere. AuthN/Z
-//! happens at the API layer.
+//! Multi-tenant (org-scoped): tenant-root tables carry an `org_id` and the
+//! repository fns take an `OrgId` to scope reads/writes; system callers use the
+//! explicit `*_all`/`*_unscoped` siblings. AuthN/Z happens at the API layer
+//! (which resolves the `OrgContext` and passes the org down). See
+//! `docs/MULTITENANCY.md`.
 
 pub mod agents;
 pub mod api_keys;

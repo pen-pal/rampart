@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO logs (id, ts, severity, severity_text, service_name, body, attributes, received_at, org_id)\n           VALUES ($1, now(), $2, NULL, $3, $4, $5, now(), '00000000-0000-0000-0000-000000000001')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int2",
+        "Text",
+        "Text",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4048eff9a9b9cd875d45c4233fdb86bfebe6a75f2e50fccb3303c4895dc7e563"
+}

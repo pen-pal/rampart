@@ -19,6 +19,32 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.145.0] — 2026-06-18
+
+### Changed
+- **Multi-tenancy Phase 6 (safe-reversible core): `org_id` enforcement begins.**
+  Behaviour-identical for a single-org (Default-only) install — the silent
+  cross-org fallbacks are NOT touched yet (that's the held, flag-gated part).
+  - Migration `0112`: `SET NOT NULL` + `DROP DEFAULT` on the `org_id` column of
+    all 30 tenant-root tables. A write that forgets to stamp `org_id` now fails
+    loud (constraint error) instead of silently re-filing into the Default org.
+    Every writer already stamps explicitly (Phase 4), so single-org is
+    unaffected. Reversible (`DROP NOT NULL` / `SET DEFAULT`).
+  - Migration `0113`: per-org uniqueness — `tags.name` and
+    `notification_templates.name` swap their global `UNIQUE(name)` for
+    `UNIQUE(org_id, name)`. All slug / DSN / token / domain / email constraints
+    stay global. Degenerates to the same invariant in single-org.
+  - Bearer (API-key) requests now resolve the org from the key's own
+    `api_keys.org_id` instead of a hard-coded Default. Single-org keys are all
+    Default, so this is behaviour-identical; it pins a key to its minting org.
+
+### Notes
+- RLS and the `RAMPART_MULTI_ORG` fallback-tightening (revoked-membership /
+  ingest key-miss) remain deferred — app-level `WHERE org_id` already ships and
+  is tested; see `docs/MULTITENANCY.md`.
+
+---
+
 ## [0.144.1] — 2026-06-18
 
 ### Fixed

@@ -38,8 +38,8 @@ fn rule(kind: TelemetryRuleKind, op: RuleOp, threshold: f64, window: i32) -> New
 
 async fn insert_log(pool: &PgPool, service: &str, severity: i16, body: &str) {
     sqlx::query!(
-        r#"INSERT INTO logs (id, ts, severity, severity_text, service_name, body, attributes, received_at)
-           VALUES ($1, now(), $2, NULL, $3, $4, '{}'::jsonb, now())"#,
+        r#"INSERT INTO logs (id, ts, severity, severity_text, service_name, body, attributes, received_at, org_id)
+           VALUES ($1, now(), $2, NULL, $3, $4, '{}'::jsonb, now(), '00000000-0000-0000-0000-000000000001')"#,
         Uuid::now_v7(),
         severity,
         service,
@@ -55,8 +55,8 @@ async fn insert_span(pool: &PgPool, service: &str, duration_ms: f64, status_code
     sqlx::query!(
         r#"INSERT INTO spans
              (span_id, trace_id, parent_span_id, service_name, name, start_ns, end_ns,
-              duration_ms, status_code, status_message, received_at)
-           VALUES ($1, $2, NULL, $3, 'op', 0, 0, $4, $5, NULL, now())"#,
+              duration_ms, status_code, status_message, received_at, org_id)
+           VALUES ($1, $2, NULL, $3, 'op', 0, 0, $4, $5, NULL, now(), '00000000-0000-0000-0000-000000000001')"#,
         span_id,
         Uuid::new_v4().simple().to_string(),
         service,

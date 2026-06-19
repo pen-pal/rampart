@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, name, key_prefix, scope, created_by,\n               created_at, last_used_at, expires_at, rate_limit_per_hour\n        FROM api_keys\n        WHERE org_id = $1\n        ORDER BY created_at DESC\n        ",
+  "query": "\n        SELECT id, name, key_prefix, scope, created_by,\n               created_at, last_used_at, expires_at, rate_limit_per_hour,\n               org_id AS \"org_id!\"\n        FROM api_keys\n        WHERE org_id = $1\n        ORDER BY created_at DESC\n        ",
   "describe": {
     "columns": [
       {
@@ -101,6 +101,17 @@
             "name": "rate_limit_per_hour"
           }
         }
+      },
+      {
+        "ordinal": 9,
+        "name": "org_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "api_keys",
+            "name": "org_id"
+          }
+        }
       }
     ],
     "parameters": {
@@ -117,8 +128,9 @@
       false,
       true,
       true,
+      false,
       false
     ]
   },
-  "hash": "8a927b1a438a57b3d471683ad983d6ba4253baee99a1d45f3a427e2852186d97"
+  "hash": "74bdf5d6d4dfcf824309262636ab7331418f98eda35ea16b581f3447b41371ff"
 }
