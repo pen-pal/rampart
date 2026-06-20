@@ -132,6 +132,14 @@ async fn main() -> anyhow::Result<()> {
     // without RAMPART_SECRET_KEY they are stored as PLAINTEXT. Make that loud
     // rather than silent, and let operators enforce encryption fail-closed the
     // same way RAMPART_REQUIRE_INGEST_AUTH gates ingest.
+    if rampart_db::secrets::weak_key_configured() {
+        anyhow::bail!(
+            "RAMPART_SECRET_KEY is set but is dangerously low-entropy (looks like a placeholder \
+             — e.g. all-zeros or a repeated byte). Every channel secret would be encrypted under \
+             a guessable key, which is worse than plaintext (false assurance). Provide a real \
+             32-byte random key, e.g. `openssl rand -hex 32`."
+        );
+    }
     if rampart_db::secrets::is_enabled() {
         info!("secrets-at-rest: channel credentials encrypted (AES-256-GCM via RAMPART_SECRET_KEY)");
     } else if require_secret_key() {
