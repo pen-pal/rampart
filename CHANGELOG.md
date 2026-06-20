@@ -29,6 +29,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.149.2] — 2026-06-20
+
+### Security
+- **Refuse to start under a low-entropy `RAMPART_SECRET_KEY`.** A placeholder key
+  (all-zeros, a repeated byte — anything with `< 8` distinct bytes) decoded fine
+  and silently encrypted every channel secret under a guessable key — *false*
+  at-rest assurance, worse than plaintext. The server now bails at startup with a
+  clear message (`openssl rand -hex 32`). A genuine random key (~30 distinct
+  bytes) is unaffected.
+- **SSRF-preflight the browser-probe target.** The `browser` monitor forwards
+  `monitor.url` to the renderer, which fetches it — so a target like
+  `http://169.254.169.254/…` was an SSRF the HTTP probe blocks but the browser
+  probe didn't. The target is now vetted via the shared SSRF guard (honors
+  `RAMPART_SSRF_BLOCK_PRIVATE`); the renderer connection stays unguarded
+  (operator infra). (six-persona audit rank 20.)
+
+---
+
 ## [0.149.1] — 2026-06-20
 
 ### Fixed
