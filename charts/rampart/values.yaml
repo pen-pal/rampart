@@ -14,14 +14,33 @@ fullnameOverride: ""
 
 replicaCount: 1
 
-# Container resources for the rampart-api pod.
+# Container resources for the rampart-api pod. ephemeral-storage is bounded so a
+# runaway scratch/log write (everything lands in the tmp emptyDir because the
+# root fs is read-only) can't fill the node and evict neighbours.
 resources:
   limits:
     cpu: 1000m
     memory: 512Mi
+    ephemeral-storage: 512Mi
   requests:
     cpu: 100m
     memory: 128Mi
+    ephemeral-storage: 64Mi
+
+# Graceful shutdown: how long the kubelet waits for the app to drain after
+# SIGTERM (the app handles SIGTERM with an in-flight-request drain).
+terminationGracePeriodSeconds: 30
+
+# preStop sleep (seconds) before SIGTERM, giving the ingress/kube-proxy time to
+# deregister this pod's endpoint so a rolling update drops zero in-flight
+# requests. Set 0 to disable the hook.
+preStopSleepSeconds: 5
+
+# The /tmp emptyDir scratch volume (required because readOnlyRootFilesystem).
+tmpDir:
+  # Hard cap so scratch growth is evicted at this size instead of filling the
+  # node's ephemeral storage.
+  sizeLimit: 256Mi
 
 # Pod-level security context.
 podSecurityContext:
