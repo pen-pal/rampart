@@ -19,7 +19,19 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
-## [0.149.0] — 2026-06-19
+## [0.149.1] — 2026-06-20
+
+### Fixed
+- **Audit-log tamper-evidence no longer false-positives after retention prune.**
+  `verify_chain` started from `prev_hash = NULL`, so once retention deleted the
+  oldest hashed rows it reported `ok:false` on every check (crying wolf, masking
+  real tampering). The prune now persists a **chain watermark** — the id + hash
+  of the newest hashed row it deletes — and `verify_chain` seeds the chain from
+  it, so a legitimate head-truncation verifies while deleting a surviving row or
+  editing any row still breaks the chain. The watermark is stored as a sealed
+  setting, so with `RAMPART_SECRET_KEY` set a DB-level attacker can't forge it to
+  mask a malicious head deletion. (Regression tests: head-truncation verifies;
+  post-watermark deletion still detected.)
 
 ### Added
 - **Multi-tenancy: RLS enforcement turned on (S7) — `ENABLE`, not `FORCE`.**
