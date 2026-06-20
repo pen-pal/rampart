@@ -50,6 +50,29 @@ fn decode_key(s: &str) -> Option<[u8; 32]> {
     B64.decode(s).ok().and_then(|v| v.try_into().ok())
 }
 
+/// A decoded key is "too weak" when it has trivially low byte entropy — an
+/// obvious placeholder like all-zeros or a single repeated byte. A real random
+/// 32-byte key has ~30 distinct bytes, so the `< 8`-distinct floor never rejects
+/// a genuine key but catches the degenerate ones that would encrypt every
+/// channel secret under a guessable key.
+fn key_too_weak(key: &[u8; 32]) -> bool {
+    use std::collections::BTreeSet;
+    key.iter().collect::<BTreeSet<_>>().len() < 8
+}
+
+/// True when `RAMPART_SECRET_KEY` is set and decodes to 32 bytes but is
+/// dangerously low-entropy. Checked at startup so the server refuses to run
+/// rather than provide false at-rest assurance under a placeholder key. An unset
+/// or unparseable key returns `false` (handled by the normal is_enabled /
+/// REQUIRE_SECRET_KEY path).
+pub fn weak_key_configured() -> bool {
+    std::env::var("RAMPART_SECRET_KEY")
+        .ok()
+        .and_then(|raw| decode_key(raw.trim()))
+        .map(|bytes| key_too_weak(&bytes))
+        .unwrap_or(false)
+}
+
 /// Whether secrets-at-rest encryption is active (a valid `RAMPART_SECRET_KEY`
 /// is configured). When `false`, secret-bearing JSONB columns are stored as
 /// plaintext — the startup path warns loudly and `/healthz` surfaces it.
@@ -163,5 +186,23 @@ mod tests {
         assert!(decode_key(&"a".repeat(64)).is_some()); // 64 hex
         assert!(decode_key(&B64.encode([1u8; 32])).is_some()); // base64
         assert!(decode_key("too-short").is_none());
+    }
+
+    #[test]
+    fn key_too_weak_rejects_placeholders_only() {
+        assert!(key_too_weak(&[0u8; 32]), "all-zeros is a placeholder");
+        assert!(key_too_weak(&[0xABu8; 32]), "single repeated byte is weak");
+        // 4 distinct bytes cycled → still < 8 distinct → weak.
+        let mut low = [0u8; 32];
+        for (i, b) in low.iter_mut().enumerate() {
+            *b = (i % 4) as u8;
+        }
+        assert!(key_too_weak(&low));
+        // A realistic high-entropy key (every byte distinct) is accepted.
+        let mut strong = [0u8; 32];
+        for (i, b) in strong.iter_mut().enumerate() {
+            *b = i as u8;
+        }
+        assert!(!key_too_weak(&strong));
     }
 }
