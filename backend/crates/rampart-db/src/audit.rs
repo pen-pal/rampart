@@ -166,8 +166,38 @@ pub struct VerifyReport {
     pub first_bad_id: Option<i64>,
 }
 
+/// Settings key holding the prune watermark: `{id, hash}` of the newest hashed
+/// audit row removed by retention. Listed in `settings` SECRET_KEYS, so when
+/// `RAMPART_SECRET_KEY` is set the value is sealed (AES-GCM) at rest — a
+/// DB-level attacker can't forge a watermark to mask a malicious head deletion
+/// without the key.
+const CHAIN_WATERMARK_KEY: &str = "audit_chain_watermark";
+
+/// Record the prune watermark so [`verify_chain`] knows the legitimate
+/// pre-prune chain head. Called by the retention prune right after it deletes
+/// the oldest audit rows. `hash` is the hash of the newest deleted hashed row —
+/// exactly the `prev_hash` the oldest *surviving* row links back to.
+pub async fn set_chain_watermark(pool: &DbPool, id: i64, hash: &str) -> DbResult<()> {
+    let v = serde_json::json!({ "id": id, "hash": hash });
+    crate::settings::put(pool, CHAIN_WATERMARK_KEY, &v).await
+}
+
+/// The hash recorded by the last prune, if any. [`verify_chain`] seeds the
+/// chain from this instead of `None` so routine retention isn't mistaken for
+/// tamper.
+async fn chain_watermark_hash(pool: &DbPool) -> DbResult<Option<String>> {
+    let raw = crate::settings::get(pool, CHAIN_WATERMARK_KEY).await?;
+    Ok(raw.and_then(|v| v.get("hash").and_then(|h| h.as_str()).map(str::to_owned)))
+}
+
 /// Re-walk the hash chain (rows with a hash, oldest first) and recompute each
 /// entry's hash. Any edit/delete/reorder breaks the chain at the affected row.
+///
+/// The chain is seeded from the prune watermark (the hash of the newest audit
+/// row retention deleted), so a legitimate head-truncation still verifies —
+/// while deleting a row *after* the watermark, or editing a surviving row,
+/// still breaks it. With `RAMPART_SECRET_KEY` set the watermark is sealed, so
+/// it can't be forged to hide a malicious head deletion either.
 pub async fn verify_chain(pool: &DbPool) -> DbResult<VerifyReport> {
     let rows = sqlx::query!(
         r#"
@@ -182,7 +212,9 @@ pub async fn verify_chain(pool: &DbPool) -> DbResult<VerifyReport> {
     .fetch_all(pool)
     .await?;
 
-    let mut prev: Option<String> = None;
+    // Seed from the prune watermark so retention head-truncation verifies;
+    // `None` (never pruned) keeps the original genesis-row behaviour.
+    let mut prev: Option<String> = chain_watermark_hash(pool).await?;
     let mut checked = 0i64;
     for r in rows {
         let expect = chain_hash(
