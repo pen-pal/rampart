@@ -75,6 +75,19 @@ impl Probe for BrowserProbe {
             Some(r) if !r.is_empty() => r,
             _ => return fail(monitor, ts, "config.renderer_url is required"),
         };
+
+        // SSRF preflight on the TARGET page. The renderer fetches monitor.url on
+        // our behalf, so a url pointing at a link-local / metadata / private
+        // address (e.g. http://169.254.169.254/…) is the same SSRF the HTTP probe
+        // already blocks. Honors RAMPART_SSRF_BLOCK_PRIVATE (no-op when unset).
+        // The renderer connection itself stays unguarded — it's operator infra.
+        if let Err(b) = crate::ssrf::guard_url(url).await {
+            return fail(
+                monitor,
+                ts,
+                &format!("SSRF blocked target {}: {}", b.host, b.reason),
+            );
+        }
         let keyword = match keyword {
             Some(k) if !k.is_empty() => k,
             _ => return fail(monitor, ts, "config.keyword is required"),
