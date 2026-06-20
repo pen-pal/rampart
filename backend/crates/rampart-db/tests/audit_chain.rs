@@ -51,6 +51,62 @@ async fn tampering_is_detected(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../../migrations")]
+async fn head_truncation_with_watermark_verifies(pool: PgPool) {
+    // Routine retention deletes the OLDEST rows. With a prune watermark seeded
+    // from the newest deleted row, the surviving chain must still verify (no
+    // false tamper report).
+    for a in ["w.one", "w.two", "w.three", "w.four"] {
+        audit::insert(&pool, entry(a)).await.unwrap();
+    }
+    let rows: Vec<(i64, String)> =
+        sqlx::query_as("SELECT id, hash FROM audit_log WHERE hash IS NOT NULL ORDER BY id ASC")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+    // Prune the first two rows; the 2nd is the newest deleted → the watermark.
+    let cut = &rows[1];
+    audit::set_chain_watermark(&pool, cut.0, &cut.1).await.unwrap();
+    sqlx::query("DELETE FROM audit_log WHERE id <= $1")
+        .bind(cut.0)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let r = audit::verify_chain(&pool).await.unwrap();
+    assert!(r.ok, "head-truncation with a watermark must verify");
+    assert_eq!(r.checked, 2, "the two surviving rows are checked");
+    assert!(r.first_bad_id.is_none());
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn deletion_after_watermark_still_detected(pool: PgPool) {
+    // The watermark must NOT mask a deletion of a surviving row (tampering
+    // after the prune point still breaks the chain).
+    for a in ["x.one", "x.two", "x.three", "x.four"] {
+        audit::insert(&pool, entry(a)).await.unwrap();
+    }
+    let rows: Vec<(i64, String)> =
+        sqlx::query_as("SELECT id, hash FROM audit_log WHERE hash IS NOT NULL ORDER BY id ASC")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+    // Watermark at row[0] (as if row[0] was pruned). Then delete row[2], a
+    // SURVIVING middle row → row[3]'s prev_hash linkage breaks.
+    audit::set_chain_watermark(&pool, rows[0].0, &rows[0].1)
+        .await
+        .unwrap();
+    sqlx::query("DELETE FROM audit_log WHERE id IN ($1, $2)")
+        .bind(rows[0].0)
+        .bind(rows[2].0)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let r = audit::verify_chain(&pool).await.unwrap();
+    assert!(!r.ok, "deleting a surviving row must still break the chain");
+}
+
+#[sqlx::test(migrations = "../../migrations")]
 async fn deletion_is_detected(pool: PgPool) {
     for a in ["d.one", "d.two", "d.three"] {
         audit::insert(&pool, entry(a)).await.unwrap();
