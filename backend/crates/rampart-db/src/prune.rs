@@ -382,6 +382,24 @@ pub async fn run_once(pool: &DbPool) -> DbResult<PruneStats> {
     tx.commit().await?;
 
     // audit_log keeps the flat tier — independent of the heartbeat txn.
+    // Capture the newest HASHED row about to be deleted: it is exactly the
+    // `prev_hash` the oldest surviving hashed row links back to, so we persist
+    // it as the chain watermark. Without this, verify_chain would expect the
+    // first surviving row to have prev_hash=NULL and falsely report tampering
+    // after every routine retention prune.
+    let audit_watermark = sqlx::query!(
+        r#"
+        SELECT id, hash AS "hash!"
+        FROM audit_log
+        WHERE ts < NOW() - make_interval(days => $1) AND hash IS NOT NULL
+        ORDER BY id DESC
+        LIMIT 1
+        "#,
+        cfg.audit_log,
+    )
+    .fetch_optional(pool)
+    .await?;
+
     stats.audit_deleted = sqlx::query!(
         "DELETE FROM audit_log WHERE ts < NOW() - make_interval(days => $1)",
         cfg.audit_log,
@@ -389,6 +407,11 @@ pub async fn run_once(pool: &DbPool) -> DbResult<PruneStats> {
     .execute(pool)
     .await?
     .rows_affected();
+
+    // Advance the chain watermark only when a hashed row was actually removed.
+    if let Some(w) = audit_watermark {
+        crate::audit::set_chain_watermark(pool, w.id, &w.hash).await?;
+    }
 
     // External metric samples: flat age-based tier, no rollup — telemetry
     // past its window is just gone, like audit rows.
