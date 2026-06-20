@@ -47,6 +47,11 @@ pub struct RetentionConfig {
     /// the heaviest tier per row.
     #[serde(default = "default_profiles")]
     pub profiles_days: i32,
+    /// How long security detection findings are retained, in days. Defaults to
+    /// 90 — findings are the security-event record and should outlive the
+    /// high-volume telemetry tiers (SOC/evidence norms), but not grow unbounded.
+    #[serde(default = "default_findings")]
+    pub findings_days: i32,
 }
 fn default_hb() -> i32 {
     365
@@ -72,6 +77,9 @@ fn default_rum() -> i32 {
 fn default_profiles() -> i32 {
     DEFAULT_PROFILES_DAYS
 }
+fn default_findings() -> i32 {
+    DEFAULT_FINDINGS_DAYS
+}
 
 /// Default metric-sample retention when the setting predates the field.
 pub const DEFAULT_METRICS_DAYS: i32 = 30;
@@ -83,6 +91,7 @@ pub const DEFAULT_LOGS_DAYS: i32 = 7;
 pub const DEFAULT_RUM_DAYS: i32 = 14;
 /// Default profile retention when the setting predates the field.
 pub const DEFAULT_PROFILES_DAYS: i32 = 7;
+pub const DEFAULT_FINDINGS_DAYS: i32 = 90;
 
 /// Default rollup-tier retention when no `retention_days` setting is
 /// present (or the row predates this field).
@@ -99,6 +108,7 @@ impl Default for RetentionConfig {
             logs_days: DEFAULT_LOGS_DAYS,
             rum_days: DEFAULT_RUM_DAYS,
             profiles_days: DEFAULT_PROFILES_DAYS,
+            findings_days: DEFAULT_FINDINGS_DAYS,
         }
     }
 }
@@ -126,6 +136,8 @@ pub struct PruneStats {
     pub audit_deleted: u64,
     /// Error-tracking events dropped past each project's retention window.
     pub errors_deleted: u64,
+    /// Security detection findings dropped past the findings-retention window.
+    pub findings_deleted: u64,
 }
 
 impl PruneStats {
@@ -140,6 +152,7 @@ impl PruneStats {
             && self.errors_deleted == 0
             && self.rum_deleted == 0
             && self.profiles_deleted == 0
+            && self.findings_deleted == 0
     }
 }
 
@@ -431,6 +444,17 @@ pub async fn run_once(pool: &DbPool) -> DbResult<PruneStats> {
     stats.errors_deleted = crate::error_tracking::prune(pool).await?;
     stats.rum_deleted = crate::rum::prune(pool, cfg.rum_days).await?;
     stats.profiles_deleted = crate::profiles::prune(pool, cfg.profiles_days).await?;
+
+    // Security detection findings: flat age-based tier (created_at). The
+    // findings feed is the security-event record — kept longer than telemetry
+    // but bounded so a noisy ruleset can't grow the table without limit.
+    stats.findings_deleted = sqlx::query!(
+        "DELETE FROM detection_findings WHERE created_at < NOW() - make_interval(days => $1)",
+        cfg.findings_days,
+    )
+    .execute(pool)
+    .await?
+    .rows_affected();
 
     Ok(stats)
 }
