@@ -954,6 +954,33 @@ impl Scheduler {
             )
             .await;
 
+            // Spread steady-state load: offset each task's tick phase by a
+            // random fraction of its interval (capped at 30s) so monitors that
+            // share an interval don't all fire in lockstep every cycle — a
+            // thundering herd on the DB + outbound probes, worst right after a
+            // boot/leadership-acquire when every task starts at once. The probe
+            // above already populated current state, so this only de-syncs the
+            // subsequent ticks. Cancellable so a paused/deleted monitor still
+            // tears down promptly.
+            let jitter_secs = {
+                use rand::Rng;
+                let cap = (initial_interval as u64).min(30);
+                if cap > 0 {
+                    rand::thread_rng().gen_range(0..=cap)
+                } else {
+                    0
+                }
+            };
+            if jitter_secs > 0 {
+                tokio::select! {
+                    _ = cancel_in_task.notified() => {
+                        info!(monitor = %monitor_id, "probe task cancelled");
+                        return;
+                    }
+                    _ = tokio::time::sleep(Duration::from_secs(jitter_secs)) => {}
+                }
+            }
+
             let mut interval = Duration::from_secs(initial_interval as u64);
             loop {
                 tokio::select! {
