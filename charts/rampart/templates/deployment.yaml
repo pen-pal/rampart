@@ -33,6 +33,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds | default 30 }}
       serviceAccountName: {{ include "rampart.serviceAccountName" . }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -45,6 +46,15 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["rampart-api"]
+          {{- if gt (int (.Values.preStopSleepSeconds | default 0)) 0 }}
+          # Sleep before SIGTERM so the ingress/kube-proxy deregisters this
+          # endpoint first — a rolling update then drops zero in-flight requests
+          # (the app drains on SIGTERM via with_graceful_shutdown).
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sleep", "{{ .Values.preStopSleepSeconds }}"]
+          {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
@@ -96,8 +106,10 @@ spec:
             {{- end }}
       volumes:
         # Needed because readOnlyRootFilesystem=true; the app still needs scratch space.
+        # Bounded so runaway scratch can't fill the node's ephemeral storage.
         - name: tmp
-          emptyDir: {}
+          emptyDir:
+            sizeLimit: {{ .Values.tmpDir.sizeLimit | default "256Mi" | quote }}
         {{- if .Values.persistence.enabled }}
         - name: data
           persistentVolumeClaim:

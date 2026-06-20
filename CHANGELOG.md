@@ -17,6 +17,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Helm chart (v0.4.0)
+- **Zero-downtime rolling updates + node-disk-fill guard.** The Deployment now
+  sets `terminationGracePeriodSeconds: 30` and an opt-out `preStop` sleep
+  (`preStopSleepSeconds: 5`) so the ingress/kube-proxy deregisters the endpoint
+  before the app drains — rolling updates drop zero in-flight requests. The
+  `/tmp` scratch `emptyDir` (required by `readOnlyRootFilesystem`) gets a
+  `sizeLimit` (256Mi) and the container gets `ephemeral-storage` requests/limits,
+  so runaway scratch can't fill the node and evict neighbours. (six-persona audit
+  ranks 2 + 3.)
+
 ---
 
 ## [0.149.1] — 2026-06-20

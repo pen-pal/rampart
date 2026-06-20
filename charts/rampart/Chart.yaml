@@ -6,7 +6,7 @@ description: >-
 type: application
 # Chart version (SemVer) — bump on chart changes; CI publishes this as the OCI
 # artifact tag. Independent of appVersion.
-version: 0.3.0
+version: 0.4.0
 # The Rampart release this chart's defaults target.
 appVersion: "0.9.0"
 kubeVersion: ">=1.23.0-0"
