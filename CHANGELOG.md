@@ -29,6 +29,26 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.150.0] — 2026-06-20
+
+### Added
+- **Retention for security detection findings.** `detection_findings` grew
+  unbounded; it now has a `findings_days` retention tier (default 90 — the
+  security-event record outlives the high-volume telemetry tiers but stays
+  bounded) pruned each sweep alongside the other tiers.
+
+### Changed
+- **Per-task startup jitter in the probe scheduler.** Every probe task fired its
+  first check immediately on start, so monitors sharing an interval ran in
+  lockstep — a thundering herd on the DB and outbound probes every cycle, worst
+  right after a boot/leadership-acquire. After the (still-immediate) first probe,
+  each task now offsets its tick phase by a random fraction of its interval
+  (capped at 30s), de-synchronizing steady-state load. The offset is cancellable
+  so a paused/deleted monitor still tears down promptly. (six-persona audit ranks
+  7 + 17.)
+
+---
+
 ## [0.149.2] — 2026-06-20
 
 ### Security
