@@ -149,10 +149,20 @@ pub fn parse_pprof(bytes: &[u8], value_index: Option<usize>) -> Result<Parsed, S
 fn maybe_gunzip(bytes: &[u8]) -> Result<Vec<u8>, String> {
     if bytes.starts_with(&[0x1f, 0x8b]) {
         use std::io::Read;
+        // Cap the inner inflate at the same 64 MiB ceiling the outer HTTP-layer
+        // decompressor uses — an uncapped read_to_end here lets a ~64 MiB gzip
+        // bomb inflate to tens of GiB and OOM the process. Read one byte past
+        // the cap so a body exactly at the limit passes while an over-limit one
+        // is rejected, not silently truncated.
+        const MAX: usize = crate::ingest_util::MAX_DECOMPRESSED;
         let mut out = Vec::new();
         flate2::read::GzDecoder::new(bytes)
+            .take(MAX as u64 + 1)
             .read_to_end(&mut out)
             .map_err(|_| "corrupt gzip pprof".to_string())?;
+        if out.len() > MAX {
+            return Err("decompressed pprof too large".to_string());
+        }
         Ok(out)
     } else {
         Ok(bytes.to_vec())
@@ -162,6 +172,27 @@ fn maybe_gunzip(bytes: &[u8]) -> Result<Vec<u8>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn maybe_gunzip_rejects_decompression_bomb() {
+        use std::io::Write;
+        // A tiny gzip that inflates past the 64 MiB cap must be rejected, not
+        // OOM the process. Compress (MAX+1) zero bytes → small input, over-cap
+        // output.
+        let bomb_len = crate::ingest_util::MAX_DECOMPRESSED + 1;
+        let mut enc = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+        enc.write_all(&vec![0u8; bomb_len]).unwrap();
+        let gz = enc.finish().unwrap();
+        assert!(gz.len() < 1024 * 1024, "bomb input should be tiny");
+        let err = maybe_gunzip(&gz).unwrap_err();
+        assert!(err.contains("too large"), "expected size rejection, got: {err}");
+
+        // A small, legitimate gzip still round-trips.
+        let mut enc = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+        enc.write_all(b"hello pprof").unwrap();
+        let small = enc.finish().unwrap();
+        assert_eq!(maybe_gunzip(&small).unwrap(), b"hello pprof");
+    }
 
     // Build a tiny pprof by hand: two samples sharing a root frame, encode it,
     // and assert the folded output + metadata.

@@ -62,7 +62,17 @@ async fn remote_write(
     // RLS: bind the resolved org for the write below (no-op when RAMPART_RLS off).
     rampart_db::rls::with_org(org, async move {
 
-    // remote_write bodies are snappy *block* format (not framed).
+    // remote_write bodies are snappy *block* format (not framed). The block
+    // header carries an attacker-declared decompressed length; `decompress_vec`
+    // eagerly allocates that much (capped only by snap's ~4 GiB limit) BEFORE
+    // any validation, so a tiny crafted POST can trigger a multi-GiB allocation
+    // and OOM the process. Reject by the declared length first — same 64 MiB
+    // ceiling the gzip/deflate paths enforce.
+    let declared = snap::raw::decompress_len(&body)
+        .map_err(|e| ApiError::BadRequest(format!("invalid snappy: {e}")))?;
+    if declared > crate::ingest_util::MAX_DECOMPRESSED {
+        return Err(ApiError::BadRequest("decompressed body too large".into()));
+    }
     let raw = snap::raw::Decoder::new()
         .decompress_vec(&body)
         .map_err(|e| ApiError::BadRequest(format!("invalid snappy: {e}")))?;

@@ -29,6 +29,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.152.2] — 2026-06-21
+
+### Security
+- **Two ingest decompression bombs could OOM the process (unauthenticated on a
+  default install).** The Prometheus `remote_write` path called snappy
+  `decompress_vec`, which eagerly allocates the block header's *attacker-declared*
+  decompressed length (up to ~4 GiB) before any validation — a tiny crafted POST
+  to `/prom/write` triggered a multi-GiB allocation. The pprof ingest path
+  inflated its inner gzip layer with an uncapped `read_to_end`, so a ~64 MiB
+  gzip bomb expanded to tens of GiB. Both now enforce the same 64 MiB ceiling
+  the gzip/deflate HTTP-layer decompressor already used (snappy: reject by
+  `decompress_len` first; pprof: `take(MAX+1)` + length check). Since ingest is
+  open by default when no telemetry token is configured, these were reachable
+  pre-auth. (Bug hunt.)
+
+---
+
 ## [0.152.1] — 2026-06-21
 
 ### Fixed
