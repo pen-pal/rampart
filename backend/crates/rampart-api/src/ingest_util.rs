@@ -46,7 +46,9 @@ pub fn decompress(headers: &HeaderMap, body: &[u8]) -> Result<Vec<u8>, ApiError>
 /// Hard ceiling on decompressed body size. A few KB of crafted gzip can inflate
 /// to gigabytes ("zip bomb"); without a cap, `read_to_end` would happily OOM
 /// the process. 64 MiB is far above any legitimate single OTLP/Sentry/RUM batch.
-const MAX_DECOMPRESSED: usize = 64 * 1024 * 1024;
+/// `pub(crate)` so the snappy (prom_write) and inner-gzip (pprof) decompressors
+/// — which don't go through [`inflate_capped`] — can enforce the same ceiling.
+pub(crate) const MAX_DECOMPRESSED: usize = 64 * 1024 * 1024;
 
 /// Inflate `reader` into memory, refusing anything past [`MAX_DECOMPRESSED`].
 /// Reads one byte past the cap so a body exactly at the limit still passes
