@@ -29,6 +29,18 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.150.3] — 2026-06-21
+
+### Added
+- **Self-observability metrics on `/metrics`.** Operators can now alert on
+  Rampart itself degrading: `rampart_notifier_events_dropped_total` (an alert/
+  page the notifier shed because its channel was full/closed — previously only a
+  log line) and DB-pool saturation gauges `rampart_db_pool_connections` +
+  `rampart_db_pool_idle` (idle→0 means queries are queuing). (six-persona audit
+  rank 14.)
+
+---
+
 ## [0.150.2] — 2026-06-21
 
 ### Added
