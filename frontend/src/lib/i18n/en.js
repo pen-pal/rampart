@@ -1314,6 +1314,8 @@ const en = {
   'settings.siem.kind':              'Sink',
   'settings.siem.target':            'Target',
   'settings.siem.target_hint':       'Webhook: a URL we POST a JSON array of audit entries to. Syslog: host:port we send one RFC5424 UDP line per entry to.',
+  'settings.siem.format':            'Event format',
+  'settings.siem.format_hint':       'JSON is raw Rampart events. CEF (ArcSight/Splunk) and LEEF (IBM QRadar) emit one normalized record per event so those SIEMs parse fields natively; over webhook they are POSTed as newline-delimited text/plain.',
   'settings.ingest.err_save':        'Save failed.',
   'settings.sampling.title':         'Ingest sampling',
   'settings.sampling.subtitle':      'Keep only a percentage of high-volume telemetry at ingest, to cap storage. Head sampling: traces are kept whole (by trace id), so waterfalls stay intact. 100 = keep everything (off).',

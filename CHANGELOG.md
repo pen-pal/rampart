@@ -29,6 +29,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.151.0] — 2026-06-21
+
+### Added
+- **SIEM export can emit CEF and LEEF, not just JSON.** The audit/findings
+  forwarder previously shipped raw Rampart JSON, which Splunk/QRadar/ArcSight
+  treat as an opaque blob. A new `format` setting (`json` | `cef` | `leef`)
+  renders each event into ArcSight **Common Event Format** or IBM QRadar **Log
+  Event Extended Format** so those SIEMs parse fields natively — severity-mapped,
+  `src`-aliased, with proper header/extension escaping. Works over every sink
+  (webhook posts CEF/LEEF as newline-delimited `text/plain`; syslog frames one
+  record per line). The mapping is generic over the event shape, so new
+  audit/finding fields appear automatically. Settings UI gains a format selector;
+  the default stays `json`, so existing configs are unchanged. (Six-persona audit
+  rank 12.) See [`docs/design/SIEM.md`](docs/design/SIEM.md).
+
+---
+
 ## [0.150.7] — 2026-06-21
 
 ### Security

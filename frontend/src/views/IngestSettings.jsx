@@ -193,7 +193,7 @@ function Sampling() {
 // SIEM / syslog export config — stream the audit log (security events) to an
 // external sink. Off by default.
 function SiemExport() {
-  const [cfg, setCfg] = useState({ enabled: false, kind: 'webhook', target: '' });
+  const [cfg, setCfg] = useState({ enabled: false, kind: 'webhook', target: '', format: 'json' });
   const [busy, setBusy] = useState(false);
   const [ok, setOk] = useState(false);
   const [err, setErr] = useState(null);
@@ -202,7 +202,7 @@ function SiemExport() {
     (async () => {
       try {
         const r = await api.siemExport.get();
-        if (r) setCfg({ enabled: !!r.enabled, kind: r.kind || 'webhook', target: r.target || '' });
+        if (r) setCfg({ enabled: !!r.enabled, kind: r.kind || 'webhook', target: r.target || '', format: r.format || 'json' });
       } catch { /* default off */ }
     })();
   }, []);
@@ -235,6 +235,15 @@ function SiemExport() {
           <option value="syslog">Syslog (UDP)</option>
           <option value="syslog_tcp">Syslog (TCP)</option>
         </select>
+      </div>
+      <div className="field">
+        <label className="field-label">{t('settings.siem.format')}</label>
+        <select className="input" value={cfg.format} onChange={e => setCfg({ ...cfg, format: e.target.value })}>
+          <option value="json">JSON (raw Rampart events)</option>
+          <option value="cef">CEF (ArcSight / Splunk)</option>
+          <option value="leef">LEEF (IBM QRadar)</option>
+        </select>
+        <div className="field-hint">{t('settings.siem.format_hint')}</div>
       </div>
       <div className="field">
         <label className="field-label">{t('settings.siem.target')}</label>
