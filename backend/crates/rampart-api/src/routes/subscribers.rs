@@ -4,9 +4,10 @@
 //! interest in a page). List + delete sit on the admin side. SMTP
 //! settings are admin-only.
 
+use crate::auth::OrgContext;
 use crate::error::ApiError;
 use crate::state::AppState;
-use axum::extract::{Path, State};
+use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse};
 use axum::routing::{get, post};
@@ -281,18 +282,31 @@ fn parse_sub(s: &str) -> Result<StatusPageSubscriberId, ApiError> {
 
 async fn list(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<Vec<Subscriber>>, ApiError> {
+    let page_id = parse_page(&id)?;
+    // Org-gate via the parent page: cross-org pages 404 here, so the
+    // subscriber list never leaks across tenants.
+    rampart_db::status_pages::get(s.pool(), page_id, org.org_id).await?;
     Ok(Json(
-        rampart_db::subscribers::list_for_page(s.pool(), parse_page(&id)?).await?,
+        rampart_db::subscribers::list_for_page(s.pool(), page_id).await?,
     ))
 }
 
 async fn delete_one(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::subscribers::delete(s.pool(), parse_sub(&id)?).await?;
+    let sub_id = parse_sub(&id)?;
+    // Resolve the subscriber's parent page, then org-gate it: a missing
+    // subscriber or one on another org's page both 404 (no leak).
+    let page_id = rampart_db::subscribers::page_for(s.pool(), sub_id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    rampart_db::status_pages::get(s.pool(), page_id, org.org_id).await?;
+    rampart_db::subscribers::delete(s.pool(), sub_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 

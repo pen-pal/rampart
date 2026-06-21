@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE maintenance_windows\n           SET name        = COALESCE($2, name),\n               description = CASE WHEN $3::BOOL THEN $4 ELSE description END,\n               start_at    = COALESCE($5, start_at),\n               end_at      = COALESCE($6, end_at),\n               recurrence  = COALESCE($7, recurrence)\n         WHERE id = $1 AND org_id = $8\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Bool",
+        "Text",
+        "Timestamptz",
+        "Timestamptz",
+        "Jsonb",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7cec04171c32e37b9eee105368a7e0b385434ac48ccae7c3f8f2a53212e87b95"
+}

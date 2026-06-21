@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, ts, title, description, service, created_at\n        FROM deploy_markers\n        WHERE ts > now() - make_interval(hours => $1)\n          AND ($2::text IS NULL OR service IS NULL OR service = $2)\n        ORDER BY ts DESC\n        LIMIT 500\n        ",
+  "query": "\n        SELECT id, ts, title, description, service, created_at\n        FROM deploy_markers\n        WHERE ts > now() - make_interval(hours => $1)\n          AND ($2::text IS NULL OR service IS NULL OR service = $2)\n          AND org_id = $3\n        ORDER BY ts DESC\n        LIMIT 500\n        ",
   "describe": {
     "columns": [
       {
@@ -73,7 +73,8 @@
     "parameters": {
       "Left": [
         "Int4",
-        "Text"
+        "Text",
+        "Uuid"
       ]
     },
     "nullable": [
@@ -85,5 +86,5 @@
       false
     ]
   },
-  "hash": "a9b31a2d045b0584b7ca4ea14533c3c8592c0c1f99977bf067e20f9511491ed6"
+  "hash": "29e7aec36cda65f6c86b548f8c1960a8846dffdea20e0371e0b399b2b58183cb"
 }
