@@ -336,11 +336,6 @@ pub async fn apps(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<String>> {
 
 /// Delete events older than `days`.
 pub async fn prune(pool: &DbPool, days: i32) -> DbResult<u64> {
-    let result = sqlx::query!(
-        "DELETE FROM rum_events WHERE received_at < now() - make_interval(days => $1)",
-        days,
-    )
-    .execute(pool)
-    .await?;
-    Ok(result.rows_affected())
+    // Chunked so a large RUM backlog doesn't lock the table in one big DELETE.
+    crate::prune::batched_delete(pool, "rum_events", "received_at", days).await
 }

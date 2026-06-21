@@ -191,13 +191,8 @@ pub async fn profile_types(
 
 /// Delete profiles older than `days`. Flat age-based tier, like trace spans.
 pub async fn prune(pool: &DbPool, days: i32) -> DbResult<u64> {
-    let result = sqlx::query!(
-        "DELETE FROM profiles WHERE received_at < now() - make_interval(days => $1)",
-        days,
-    )
-    .execute(pool)
-    .await?;
-    Ok(result.rows_affected())
+    // Chunked so a large profile backlog doesn't lock the table in one big DELETE.
+    crate::prune::batched_delete(pool, "profiles", "received_at", days).await
 }
 
 #[cfg(test)]
