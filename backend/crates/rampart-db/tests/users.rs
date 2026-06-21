@@ -5,7 +5,10 @@
 //! state and can run in parallel.
 
 use rampart_core::Role;
-use rampart_db::users::{count, create, get, get_by_email, mark_login, set_role, NewUser};
+use rampart_db::users::{
+    count, create, get, get_by_email, mark_login, record_totp_failure, reset_totp_failures, set_role,
+    totp_locked_until, NewUser,
+};
 use sqlx::PgPool;
 
 fn sample(email: &str) -> NewUser {
@@ -23,6 +26,30 @@ fn sample(email: &str) -> NewUser {
 async fn count_is_zero_on_fresh_db(pool: PgPool) {
     let n = count(&pool).await.unwrap();
     assert_eq!(n, 0, "fresh db should have no users");
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn totp_lockout_caps_failures_and_resets(pool: PgPool) {
+    let u = create(&pool, sample("totp@example.com")).await.unwrap();
+    // No lockout initially.
+    assert!(totp_locked_until(&pool, u.id).await.unwrap().is_none());
+
+    // 2 failures, max 3 → not locked yet.
+    assert!(!record_totp_failure(&pool, u.id, 3, 15).await.unwrap());
+    assert!(!record_totp_failure(&pool, u.id, 3, 15).await.unwrap());
+    assert!(totp_locked_until(&pool, u.id).await.unwrap().is_none());
+
+    // 3rd failure hits the cap → locked, and the lockout is readable + future.
+    assert!(record_totp_failure(&pool, u.id, 3, 15).await.unwrap());
+    let until = totp_locked_until(&pool, u.id).await.unwrap();
+    assert!(until.is_some(), "should be locked after hitting the cap");
+    assert!(until.unwrap() > time::OffsetDateTime::now_utc());
+
+    // A successful verify clears both the counter and the lockout.
+    reset_totp_failures(&pool, u.id).await.unwrap();
+    assert!(totp_locked_until(&pool, u.id).await.unwrap().is_none());
+    // After reset the counter restarts: one more failure is not a lockout.
+    assert!(!record_totp_failure(&pool, u.id, 3, 15).await.unwrap());
 }
 
 #[sqlx::test(migrations = "../../migrations")]

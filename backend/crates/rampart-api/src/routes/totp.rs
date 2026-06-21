@@ -28,6 +28,13 @@ use uuid::Uuid;
 
 const SESSION_TTL_SECS: i64 = 60 * 60 * 24 * 14;
 
+/// Consecutive failed 2FA codes before the account is locked out of the verify
+/// step. 5 failures per 15-minute window puts a 6-digit-TOTP brute-force at
+/// ~10^6 / (5*96/day) ≈ years — while leaving headroom for fat-fingers.
+const TOTP_MAX_ATTEMPTS: i32 = 5;
+/// Lockout duration once the cap is hit, in minutes.
+const TOTP_LOCKOUT_MINS: i32 = 15;
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/setup", post(setup))
@@ -151,6 +158,26 @@ async fn verify(
         .ok_or(ApiError::Unauthorized)?;
 
     let raw = rampart_db::users::get(state.pool(), user_id).await?;
+
+    // Brute-force gate: the verify step re-issues a fresh challenge on every
+    // wrong code, so without a durable cap a caller past the password gate could
+    // grind the 6-digit TOTP / recovery codes (MFA bypass). After
+    // TOTP_MAX_ATTEMPTS consecutive failures the account is locked out of the
+    // 2FA step for TOTP_LOCKOUT_MINS; refuse immediately and withhold a fresh
+    // challenge so the loop can't continue without a new (rate-limited) password
+    // round-trip. A successful verify clears the counter.
+    if let Some(until) = rampart_db::users::totp_locked_until(state.pool(), user_id).await? {
+        if until > time::OffsetDateTime::now_utc() {
+            return Ok((
+                StatusCode::TOO_MANY_REQUESTS,
+                Json(serde_json::json!({
+                    "error": "too_many_attempts",
+                })),
+            )
+                .into_response());
+        }
+    }
+
     // Re-load secret since `get` strips it.
     let with_hash = rampart_db::users::get_by_email(state.pool(), &raw.email).await?;
 
@@ -175,6 +202,23 @@ async fn verify(
             None,
         )
         .await;
+        let locked = rampart_db::users::record_totp_failure(
+            state.pool(),
+            user_id,
+            TOTP_MAX_ATTEMPTS,
+            TOTP_LOCKOUT_MINS,
+        )
+        .await?;
+        if locked {
+            // Hit the cap — refuse and DON'T re-issue a challenge.
+            return Ok((
+                StatusCode::TOO_MANY_REQUESTS,
+                Json(serde_json::json!({
+                    "error": "too_many_attempts",
+                })),
+            )
+                .into_response());
+        }
         // Re-issue a fresh challenge so retries don't require a full
         // password round-trip. Bound by the same 5-minute window.
         let next = state.issue_totp_challenge(user_id).await;
@@ -187,6 +231,11 @@ async fn verify(
         )
             .into_response());
     }
+
+    // Success — clear the brute-force counter.
+    rampart_db::users::reset_totp_failures(state.pool(), user_id)
+        .await
+        .ok();
 
     rampart_db::users::mark_login(state.pool(), user_id)
         .await

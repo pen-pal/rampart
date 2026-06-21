@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE users\n        SET totp_failed_attempts = totp_failed_attempts + 1,\n            totp_locked_until = CASE\n                WHEN totp_failed_attempts + 1 >= $2\n                THEN NOW() + make_interval(mins => $3)\n                ELSE totp_locked_until\n            END\n        WHERE id = $1\n        RETURNING (totp_locked_until IS NOT NULL AND totp_locked_until > NOW()) AS \"locked!\"\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "locked!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "2c9aa33bfb5cd3305c2acf76902a4a089851236b68d2cca8053162c79962971b"
+}
