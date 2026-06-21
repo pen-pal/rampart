@@ -56,12 +56,11 @@ impl Channel for Twilio {
     async fn send(&self, subject: &str, body: &str, _event: &Event) -> Result<(), ChannelError> {
         // SMS body: subject + truncated body, hard-capped at 1600 chars
         // (Twilio's segmented SMS limit). One API call per recipient.
+        // Truncate by CHARS, not bytes — a byte slice through a multi-byte
+        // char (emoji/CJK in a monitor name or error body) panics, and the
+        // panic in the spawned dispatch task silently drops the page.
         let combined = format!("{subject}\n\n{body}");
-        let text = if combined.len() > 1600 {
-            combined[..1600].to_string()
-        } else {
-            combined
-        };
+        let text: String = combined.chars().take(1600).collect();
 
         let url = format!(
             "https://api.twilio.com/2010-04-01/Accounts/{}/Messages.json",

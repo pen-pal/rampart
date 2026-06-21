@@ -29,6 +29,27 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.152.1] — 2026-06-21
+
+### Fixed
+- **Telegram/Twilio alerts could panic and silently vanish on Unicode.** Both
+  channels truncated the message with a **byte** slice (`combined[..1600]` /
+  `[..4000]`); when a multi-byte char (emoji/CJK/accents — common in monitor
+  names and probe error bodies) straddled the cut, Rust panicked. The panic was
+  in the spawned dispatch task whose `JoinError` is swallowed, so the page was
+  lost with no delivery-log row. Truncate by `chars()` instead (the pattern the
+  other channels already use). (Bug hunt.)
+- **A dead notification sink could hang dispatch forever and leak tasks.** The
+  shared outbound HTTP client set no request/connect timeout (reqwest has none
+  by default), so a sink that accepts the connection but never responds (tarpit,
+  overloaded collector, malicious operator-set webhook) wedged the dispatch task
+  indefinitely — and the fan-out then blocked awaiting it, leaking the task +
+  socket across flapping monitors. Add a 30s request / 10s connect timeout so a
+  dead target fails fast and the new transient-failure retry can kick in. (Bug
+  hunt.)
+
+---
+
 ## [0.152.0] — 2026-06-21
 
 ### Changed
