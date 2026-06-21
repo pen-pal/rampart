@@ -117,9 +117,10 @@ pub fn build_router(state: AppState) -> Router {
     //     a template / notification body / etc.
     //   - Content-Security-Policy: 'self' for everything except styles
     //     (the inline-CSS-in-JSX pattern needs 'unsafe-inline' in
-    //     style-src) and the QR-code fallback URL the 2FA enroll panel
-    //     loads from api.qrserver.com. 'frame-ancestors: none' is the
-    //     modern X-Frame-Options replacement.
+    //     style-src). The 2FA QR is now rendered client-side as an inline
+    //     SVG data: URI (covered by `data:` in img-src), so no third-party
+    //     QR host is allow-listed. 'frame-ancestors: none' is the modern
+    //     X-Frame-Options replacement.
     let security_headers = tower::ServiceBuilder::new()
         .layer(SetResponseHeaderLayer::if_not_present(
             header::STRICT_TRANSPORT_SECURITY,
@@ -151,7 +152,7 @@ pub fn build_router(state: AppState) -> Router {
                  script-src 'self'; \
                  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
                  font-src 'self' https://fonts.gstatic.com; \
-                 img-src 'self' data: https://api.qrserver.com https://api.star-history.com https://img.shields.io; \
+                 img-src 'self' data: https://api.star-history.com https://img.shields.io; \
                  connect-src 'self'; \
                  frame-ancestors 'none'; \
                  base-uri 'self'; \

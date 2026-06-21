@@ -29,7 +29,18 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
-## [0.150.6] — 2026-06-21
+## [0.150.7] — 2026-06-21
+
+### Security
+- **2FA QR no longer exfiltrates the TOTP secret to a third party.** The enroll
+  panel rendered its QR by loading an `<img>` from `api.qrserver.com` with the
+  full `otpauth://` URI — which embeds the base32 MFA seed — in the query string,
+  handing every user's 2FA secret to an external service. The QR is now generated
+  entirely client-side from the URI (zero-dependency `qrcode-generator` → inline
+  SVG `data:` URI); the seed never leaves the browser, and enrollment now works
+  offline / air-gapped. The CSP `img-src` allow-list drops `api.qrserver.com`
+  accordingly. (Six-persona audit rank 1; the local-fonts half of that item —
+  vendoring Google Fonts + tightening `style-src`/`font-src` — ships separately.)
 
 ### Changed
 - **Retention prune: chunked deletes on the flat high-volume tiers.** The
