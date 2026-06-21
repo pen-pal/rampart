@@ -29,7 +29,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
-## [0.150.1] — 2026-06-21
+## [0.150.2] — 2026-06-21
+
+### Added
+- **Audit-log every RBAC / org-membership change.** `org.create`, `org.rename`,
+  member add / role-change / remove now write an `audit_log` record (actor, IP,
+  target, before→after role) — the access-change events a SOC2 access review and
+  most security audits require, previously unrecorded. A CI guard
+  (`scripts/check-audit-coverage.sh`, wired into `ci.yml`) fails the build if a
+  future org-mutation handler ships without its audit call. (six-persona audit
+  rank 9.)
 
 ### Security
 - **TOTP / recovery-code brute-force lockout.** The 2FA verify step re-issued a
