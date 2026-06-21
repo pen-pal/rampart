@@ -226,7 +226,10 @@ pub async fn current_slo_uptime_pct(
             COUNT(*)                              AS total,
             COUNT(*) FILTER (WHERE status = 'up') AS ok_count
         FROM heartbeats
-        WHERE monitor_id = $1 AND ts >= $2
+        -- Planned maintenance is neither uptime nor downtime: exclude it from
+        -- both the numerator and denominator so a maintenance window doesn't
+        -- silently burn the SLO error budget.
+        WHERE monitor_id = $1 AND ts >= $2 AND status <> 'maintenance'
         "#,
         monitor.0,
         since,
