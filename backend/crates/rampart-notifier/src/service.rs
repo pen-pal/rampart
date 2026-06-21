@@ -559,15 +559,29 @@ struct ChannelDigest {
     events: Vec<Event>,
 }
 
+/// Count of notification events dropped because the notifier channel was full
+/// or closed — i.e. a dropped alert/page, the single most important self-failure
+/// for an operator to catch. Exposed at `/metrics` as
+/// `rampart_notifier_events_dropped_total` so it can be alerted on (a log line
+/// alone can't). Process-global, monotonic since boot.
+static DROPPED_EVENTS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Total notifier events dropped since process start (full/closed channel).
+pub fn dropped_events_total() -> u64 {
+    DROPPED_EVENTS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 #[derive(Clone)]
 pub struct NotifierHandle(mpsc::Sender<Event>);
 
 impl NotifierHandle {
-    /// Non-blocking enqueue. Drops the event with a warn-level log when
-    /// the buffer is full — we don't want notifier backpressure to stall
-    /// the scheduler.
+    /// Non-blocking enqueue. Drops the event with a warn-level log (and bumps
+    /// `rampart_notifier_events_dropped_total`) when the buffer is full — we
+    /// don't want notifier backpressure to stall the scheduler, but a dropped
+    /// page must be visible at /metrics, not just in logs.
     pub fn notify(&self, event: Event) {
         if let Err(e) = self.0.try_send(event) {
+            DROPPED_EVENTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             warn!(error = %e, "notifier channel full or closed — dropping event");
         }
     }
