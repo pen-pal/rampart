@@ -29,7 +29,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
-## [0.150.0] — 2026-06-20
+## [0.150.1] — 2026-06-21
+
+### Security
+- **TOTP / recovery-code brute-force lockout.** The 2FA verify step re-issued a
+  fresh challenge on every wrong code with no failure counter, so a caller past
+  the password gate could grind the 6-digit TOTP (10^6 space) or the recovery
+  codes — an MFA-bypass / account-takeover path. A durable per-account counter
+  (migration `0117`: `users.totp_failed_attempts` + `totp_locked_until`) now
+  locks the verify step after 5 consecutive failures for 15 minutes: while
+  locked the server refuses immediately **and withholds a fresh challenge**, so
+  the loop can't continue without a new (rate-limited) password round-trip. A
+  successful verify clears the counter. Durable so a restart can't reset an
+  attacker's count and the lockout holds across replicas. (six-persona audit
+  rank 8.)
 
 ### Added
 - **Retention for security detection findings.** `detection_findings` grew
