@@ -53,12 +53,11 @@ struct SendPayload<'a> {
 impl Channel for Telegram {
     async fn send(&self, subject: &str, body: &str, _event: &Event) -> Result<(), ChannelError> {
         // Telegram caps a single message at 4096 chars; truncate to be safe.
+        // Truncate by CHARS, not bytes — a byte slice through a multi-byte char
+        // (emoji/CJK in the alert text) panics in the spawned dispatch task and
+        // silently drops the page.
         let combined = format!("<b>{}</b>\n\n{}", html_escape(subject), html_escape(body));
-        let text = if combined.len() > 4000 {
-            combined[..4000].to_string()
-        } else {
-            combined
-        };
+        let text: String = combined.chars().take(4000).collect();
 
         let url = format!(
             "https://api.telegram.org/bot{}/sendMessage",
