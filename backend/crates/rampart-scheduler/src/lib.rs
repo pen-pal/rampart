@@ -41,6 +41,21 @@ use tracing::{error, info, warn};
 const BATCH_SIZE: usize = 256;
 const BATCH_FLUSH_INTERVAL: Duration = Duration::from_secs(1);
 
+/// Max wall-clock any single periodic leader check may run before it's skipped
+/// for this tick (and retried next). Bounds the worst-case delay before later
+/// checks — and escalation paging — get their turn when one scan is slow under
+/// DB pressure. Kept below the 30s slow-tick.
+const CHECK_TIMEOUT: Duration = Duration::from_secs(25);
+
+/// Run one periodic leader check under [`CHECK_TIMEOUT`]. A check that overruns
+/// is dropped (cancelled) for this tick rather than stalling the whole
+/// leader loop; checks are best-effort and retried next tick.
+async fn timed(name: &str, fut: impl std::future::Future<Output = ()>) {
+    if tokio::time::timeout(CHECK_TIMEOUT, fut).await.is_err() {
+        tracing::warn!(check = name, "periodic leader check timed out; skipped this tick");
+    }
+}
+
 /// Channel buffer between probe tasks and the writer.
 const HEARTBEAT_CHANNEL_BUFFER: usize = 4096;
 /// Broadcast ring depth for live SSE subscribers. Lagging consumers get
@@ -175,16 +190,19 @@ impl Scheduler {
                     error!(error = %e, "reconcile failed");
                 }
                 // Best-effort periodic checks, leader-only so they never
-                // duplicate across replicas. Failures are logged inside each
-                // scan — they must never stall the loop.
-                self.check_maintenance_transitions().await;
-                self.check_scheduled_reports().await;
-                self.check_stale_agents().await;
-                self.check_metric_rules().await;
-                self.check_telemetry_rules().await;
-                self.check_detection_rules().await;
-                self.check_slos().await;
-                self.check_escalations().await;
+                // duplicate across replicas. Each is timeout-bounded so one slow
+                // scan under DB pressure can't stall the loop; failures are
+                // logged inside each scan. Escalation advancement runs FIRST so
+                // open episodes page on time regardless of how slow the rule
+                // scans below get.
+                timed("escalations", self.check_escalations()).await;
+                timed("maintenance", self.check_maintenance_transitions()).await;
+                timed("scheduled_reports", self.check_scheduled_reports()).await;
+                timed("stale_agents", self.check_stale_agents()).await;
+                timed("metric_rules", self.check_metric_rules()).await;
+                timed("telemetry_rules", self.check_telemetry_rules()).await;
+                timed("detection_rules", self.check_detection_rules()).await;
+                timed("slos", self.check_slos()).await;
             }
 
             tokio::select! {
