@@ -29,7 +29,17 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
-## [0.150.4] — 2026-06-21
+## [0.150.5] — 2026-06-21
+
+### Fixed
+- **SLO error budget no longer burned by planned maintenance.** Both SLI
+  computations (`heartbeats::current_slo_uptime_pct` and the SLO evaluator's
+  `monitor_ratio`) divided up-count by `COUNT(*)` of *all* heartbeats, so a
+  maintenance window counted as non-up and ate the error budget. Both now
+  exclude `status = 'maintenance'` from numerator and denominator — maintenance
+  is neither uptime nor downtime. (The general status-page `uptime_pct` is left
+  unchanged. Rollup-stitching for windows beyond raw-heartbeat retention is a
+  separate follow-up.) (six-persona audit rank 16.)
 
 ### Changed
 - **Scheduler leader loop: timeout-bound each periodic check + advance
