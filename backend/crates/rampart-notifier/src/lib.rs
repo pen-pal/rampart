@@ -60,6 +60,29 @@ pub enum ChannelError {
     Other(String),
 }
 
+impl ChannelError {
+    /// Whether a failed dispatch is worth retrying. Transient transport errors
+    /// and retryable upstream statuses (408 Request Timeout, 429 Too Many
+    /// Requests, any 5xx) get another attempt; a `BadConfig`, an SSRF/`Blocked`
+    /// rejection, a permanent 4xx, or an unclassified `Other` would fail
+    /// identically on retry and just hammer the sink, so they are terminal.
+    ///
+    /// Retrying is at-least-once: it only re-sends on errors where the prior
+    /// attempt almost certainly did NOT deliver (transport failure, or an
+    /// upstream that explicitly didn't accept the request), so a duplicate
+    /// alert is possible but unlikely — and for alerting a rare duplicate beats
+    /// a dropped page.
+    pub fn is_retryable(&self) -> bool {
+        match self {
+            ChannelError::Network(_) => true,
+            ChannelError::Upstream(code, _) => {
+                *code == 408 || *code == 429 || (500..=599).contains(code)
+            }
+            ChannelError::BadConfig(_) | ChannelError::Blocked(_) | ChannelError::Other(_) => false,
+        }
+    }
+}
+
 /// What every channel adapter implements. The adapter owns its config
 /// (deserialized from the `notifications.config` JSONB column) and knows
 /// how to talk to its upstream. The `body` is the pre-rendered text from
@@ -67,4 +90,26 @@ pub enum ChannelError {
 #[async_trait]
 pub trait Channel: Send + Sync {
     async fn send(&self, subject: &str, body: &str, event: &Event) -> Result<(), ChannelError>;
+}
+
+#[cfg(test)]
+mod error_tests {
+    use super::ChannelError;
+
+    #[test]
+    fn retryable_classification() {
+        // Transient transport + retryable upstream statuses → retry.
+        assert!(ChannelError::Upstream(429, "rate limited".into()).is_retryable());
+        assert!(ChannelError::Upstream(408, "timeout".into()).is_retryable());
+        assert!(ChannelError::Upstream(500, "boom".into()).is_retryable());
+        assert!(ChannelError::Upstream(503, "unavailable".into()).is_retryable());
+
+        // Permanent failures → no retry (would fail identically + spam the sink).
+        assert!(!ChannelError::Upstream(400, "bad request".into()).is_retryable());
+        assert!(!ChannelError::Upstream(401, "unauthorized".into()).is_retryable());
+        assert!(!ChannelError::Upstream(404, "not found".into()).is_retryable());
+        assert!(!ChannelError::BadConfig("missing token".into()).is_retryable());
+        assert!(!ChannelError::Blocked("ssrf".into()).is_retryable());
+        assert!(!ChannelError::Other("weird".into()).is_retryable());
+    }
 }
