@@ -403,11 +403,6 @@ pub async fn operation_trend(
 
 /// Delete spans older than `days`. Returns rows removed.
 pub async fn prune(pool: &DbPool, days: i32) -> DbResult<u64> {
-    let result = sqlx::query!(
-        "DELETE FROM spans WHERE received_at < now() - make_interval(days => $1)",
-        days,
-    )
-    .execute(pool)
-    .await?;
-    Ok(result.rows_affected())
+    // Chunked so a large span backlog doesn't lock the table in one big DELETE.
+    crate::prune::batched_delete(pool, "spans", "received_at", days).await
 }
