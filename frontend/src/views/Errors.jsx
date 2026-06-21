@@ -8,7 +8,6 @@ import { confirmDialog } from '../lib/notify.js';
 import { canWrite } from '../lib/roles.js';
 
 const css = `
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
   .rampart {
     --bg:#fafaf9; --surface:#ffffff; --surface-2:#f5f5f4;
     --border:#e7e5e4; --border-2:#d6d3d1;

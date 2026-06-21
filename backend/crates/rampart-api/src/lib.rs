@@ -150,8 +150,8 @@ pub fn build_router(state: AppState) -> Router {
             HeaderValue::from_static(
                 "default-src 'self'; \
                  script-src 'self'; \
-                 style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
-                 font-src 'self' https://fonts.gstatic.com; \
+                 style-src 'self' 'unsafe-inline'; \
+                 font-src 'self'; \
                  img-src 'self' data: https://api.star-history.com https://img.shields.io; \
                  connect-src 'self'; \
                  frame-ancestors 'none'; \
