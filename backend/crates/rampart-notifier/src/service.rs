@@ -29,6 +29,14 @@ use tracing::{debug, info, warn};
 
 const CHANNEL_BUFFER: usize = 1024;
 
+/// A transiently-failed notification dispatch is retried up to this many times
+/// total (the first try plus retries) with exponential backoff, so a momentary
+/// network blip or upstream 429/5xx doesn't drop a page. Only
+/// [`ChannelError::is_retryable`] failures are retried; the bound caps the added
+/// latency at ~`BASE * (2^(N-1) - 1)` ms.
+const MAX_SEND_ATTEMPTS: u32 = 3;
+const RETRY_BACKOFF_BASE_MS: u64 = 500;
+
 /// Rolling 1-hour per-channel send timestamps, used to enforce
 /// `rate_limit_per_hour`. In-memory only (resets on restart) — the rate
 /// limit is a soft throttle to stop a flapping monitor from hammering an
@@ -799,9 +807,30 @@ async fn dispatch_one(pool: &DbPool, event: Event) -> anyhow::Result<()> {
         let id = row.id;
         let pool_clone = pool.clone();
         handles.push(tokio::spawn(async move {
-            match channels::dispatch(kind, &cfg, &subject, &body, &event, &pool_clone, id).await {
+            // Bounded retry with exponential backoff: re-send on transient
+            // failures (network / 429 / 5xx) so a momentary blip doesn't drop a
+            // page, but give up immediately on permanent errors (bad config,
+            // SSRF-blocked, 4xx) which would only fail identically.
+            let mut attempt = 1;
+            let outcome = loop {
+                match channels::dispatch(kind, &cfg, &subject, &body, &event, &pool_clone, id).await
+                {
+                    Ok(()) => break Ok(()),
+                    Err(e) if attempt < MAX_SEND_ATTEMPTS && e.is_retryable() => {
+                        let backoff = RETRY_BACKOFF_BASE_MS << (attempt - 1);
+                        warn!(
+                            channel = %name, kind = ?kind, attempt, error = %e,
+                            "notification failed; retrying in {backoff}ms",
+                        );
+                        tokio::time::sleep(Duration::from_millis(backoff)).await;
+                        attempt += 1;
+                    }
+                    Err(e) => break Err(e),
+                }
+            };
+            match outcome {
                 Ok(()) => {
-                    info!(channel = %name, kind = ?kind, "notification sent");
+                    info!(channel = %name, kind = ?kind, attempt, "notification sent");
                     // Record the successful attempt (best-effort).
                     record_delivery(&pool_clone, id, kind, &event, true, None).await;
                     // Bump last_fired_at so the next event respects the cooldown.
@@ -810,7 +839,8 @@ async fn dispatch_one(pool: &DbPool, event: Event) -> anyhow::Result<()> {
                     }
                 }
                 Err(e) => {
-                    warn!(channel = %name, kind = ?kind, error = %e, "notification failed");
+                    warn!(channel = %name, kind = ?kind, attempts = attempt, error = %e,
+                          "notification failed (gave up)");
                     // Record the failed attempt with its error (best-effort).
                     record_delivery(&pool_clone, id, kind, &event, false, Some(&e.to_string()))
                         .await;
