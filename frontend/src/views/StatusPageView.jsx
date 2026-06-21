@@ -102,7 +102,6 @@ function maintEndsIn(m) {
 }
 
 const css = `
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
   .public {
     --bg:#fafaf9; --surface:#ffffff; --surface-2:#f5f5f4;

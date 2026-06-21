@@ -4,7 +4,6 @@ import { api, useApi, formatRelative } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
 
 const css = `
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
   .rampart { --bg:#fafaf9; --surface:#fff; --surface-2:#f5f5f4; --border:#e7e5e4; --text:#1c1917; --text-2:#57534e; --text-3:#a8a29e; --accent:#14b8a6; --accent-2:#0d9488; --down:#ef4444;
     background:var(--bg); color:var(--text); font-family:Inter,system-ui,sans-serif; min-height:100vh; }
   .rampart * { box-sizing:border-box; }

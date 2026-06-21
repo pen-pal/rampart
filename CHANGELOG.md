@@ -29,6 +29,21 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.151.1] — 2026-06-21
+
+### Security
+- **Fonts are now self-hosted; the UI loads zero third-party assets.** Every
+  view's CSS `@import`ed Google Fonts from `fonts.googleapis.com` (39 files),
+  leaking each visitor's IP/User-Agent to Google on every page and breaking
+  air-gapped installs. Inter + JetBrains Mono are now bundled via `@fontsource`
+  and served same-origin, imported once at the app entry. The CSP drops
+  `fonts.googleapis.com` from `style-src` and `fonts.gstatic.com` from
+  `font-src` (both back to `'self'`) — combined with the prior client-side QR
+  fix, the dashboard CSP now allow-lists no external origins for scripts,
+  styles, or fonts. (Six-persona audit rank 1, fonts half.)
+
+---
+
 ## [0.151.0] — 2026-06-21
 
 ### Added
