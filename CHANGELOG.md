@@ -29,6 +29,34 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.152.5] — 2026-06-21
+
+### Security
+- **RDAP (and DoH) probes now dial through the SSRF guard.** The RDAP client
+  followed `rdap.org`'s 302 to per-TLD registries with an unguarded HTTP client —
+  and since the redirect target is server-controlled, a hostile/compromised RDAP
+  endpoint could redirect a probe to `169.254.169.254` (cloud metadata) or an
+  internal host. Both clients are now built via `guarded_client_builder()`, which
+  vets each hop's dialed IP. (Bug-hunt round 2.)
+
+### Fixed
+- **Two more remote-triggerable probe panics (byte-slice on a char boundary).**
+  The SSDP and WebSocket probes truncated an untrusted reply preview with a
+  **byte** slice (`&s[..80]` / `&m[..120]`) after only a byte-length check; a
+  multi-byte char (or the 3-byte U+FFFD lossy marker from an SSDP datagram)
+  straddling the cut panicked the probe task. Both truncate by `chars()` now.
+  (Bug-hunt round 2; same class as the Telegram/Twilio fix in 0.152.1.)
+- **Cron parser could silently mis-schedule on a huge step.** `"59/200 * * * *"`
+  computed `lo + step` in a `u8` that overflows; with release `overflow-checks`
+  off it wrapped silently (wrong cron bits → silent mis-scheduling), and panicked
+  in debug. Use `checked_add` and stop at the bound. (Bug-hunt round 2.)
+- **Status-page builder: a failed section assignment no longer shows as saved.**
+  The optimistic `assignSection` write wasn't rolled back on error (unlike the
+  sibling reorder handler), so a failed save looked permanent. Revert the
+  optimistic override in the catch. (Bug-hunt round 2.)
+
+---
+
 ## [0.152.4] — 2026-06-21
 
 ### Security
