@@ -1,7 +1,8 @@
 // Account-security view. v1 only covers TOTP enrolment + recovery codes;
 // password change / session management land here later.
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import qrcode from 'qrcode-generator';
 import {
   ChevronLeft, Shield, ShieldCheck, Copy, Check, AlertCircle, Loader2, X,
 } from 'lucide-react';
@@ -302,17 +303,26 @@ function Totp({ user }) {
 }
 
 function EnrollPanel({ secret, otpauth, code, setCode, busy, onConfirm, onCancel }) {
-  // QR rendered via the Google Charts shim — keeps the bundle small,
-  // works without any qrcode npm dep. For offline / air-gapped deploys
-  // the printed `secret` is the fallback (most apps accept manual entry).
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(otpauth)}`;
+  // QR rendered ENTIRELY client-side from the otpauth URI (zero-dep
+  // qrcode-generator → inline SVG data URI). The URI embeds the base32 TOTP
+  // secret, so it must never leave the browser — the previous api.qrserver.com
+  // shim exfiltrated the MFA seed to a third party. Works offline / air-gapped;
+  // the printed `secret` remains the manual-entry fallback.
+  const qrSrc = useMemo(() => {
+    if (!otpauth) return null;
+    const qr = qrcode(0, 'M');
+    qr.addData(otpauth);
+    qr.make();
+    const svg = qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+  }, [otpauth]);
 
   return (
     <>
       <ol style={{ paddingLeft: 18, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.7, margin: '0 0 14px' }}>
         <li>{t('security.totp.step_scan')}
           <div style={{ marginTop: 8, display: 'inline-block', padding: 6, background: '#fff', border: '1px solid var(--border)', borderRadius: 8 }}>
-            <img src={qrUrl} width="180" height="180" alt="otpauth QR" style={{ display: 'block' }}/>
+            {qrSrc && <img src={qrSrc} width="180" height="180" alt="otpauth QR" style={{ display: 'block' }}/>}
           </div>
         </li>
         <li>{t('security.totp.step_manual')} <code className="mono" style={{ padding: '2px 6px', background: 'var(--surface-2)', borderRadius: 4 }}>{secret}</code></li>
