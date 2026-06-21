@@ -271,11 +271,7 @@ pub async fn list_services(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<String>
 
 /// Delete logs older than `days`. Returns rows removed.
 pub async fn prune(pool: &DbPool, days: i32) -> DbResult<u64> {
-    let result = sqlx::query!(
-        "DELETE FROM logs WHERE received_at < now() - make_interval(days => $1)",
-        days,
-    )
-    .execute(pool)
-    .await?;
-    Ok(result.rows_affected())
+    // Chunked so a large backlog doesn't lock the high-volume logs table in one
+    // multi-minute DELETE (see prune::batched_delete).
+    crate::prune::batched_delete(pool, "logs", "received_at", days).await
 }

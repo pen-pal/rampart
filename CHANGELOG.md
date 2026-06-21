@@ -29,7 +29,18 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
-## [0.150.5] — 2026-06-21
+## [0.150.6] — 2026-06-21
+
+### Changed
+- **Retention prune: chunked deletes on the flat high-volume tiers.** The
+  age-based DELETEs for logs, spans, metric_samples, RUM, profiles, audit_log and
+  detection_findings ran as a single unbounded DELETE each, which on a large
+  backlog took a long ACCESS-EXCLUSIVE lock and ballooned WAL (a contributor to
+  the disk-pressure history). They now delete in 10k-row chunks via a shared
+  helper until drained, bounding each statement's lock/WAL footprint. The
+  heartbeat tier keeps its single rollup→delete transaction (its atomicity is
+  load-bearing: a crash must never drop raw rows not yet rolled up). (six-persona
+  audit rank 15.)
 
 ### Fixed
 - **SLO error budget no longer burned by planned maintenance.** Both SLI
