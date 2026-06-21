@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT COUNT(*) AS \"total!\", COUNT(*) FILTER (WHERE status = 'up') AS \"ok!\"\n        FROM heartbeats WHERE monitor_id = $1 AND ts >= $2\n        ",
+  "query": "\n        SELECT COUNT(*) AS \"total!\", COUNT(*) FILTER (WHERE status = 'up') AS \"ok!\"\n        -- Exclude planned maintenance from both numerator + denominator so it\n        -- never burns the SLO error budget (it is neither up nor down).\n        FROM heartbeats WHERE monitor_id = $1 AND ts >= $2 AND status <> 'maintenance'\n        ",
   "describe": {
     "columns": [
       {
@@ -27,5 +27,5 @@
       null
     ]
   },
-  "hash": "274e03cb72a566c5d181c0ab3aca1baad46127eff43172a4b97ca75432f6f0f6"
+  "hash": "f96cc83ee1e535e660420de0f56e5ae32a1217cf9f16cd16d38506aa712ea722"
 }
