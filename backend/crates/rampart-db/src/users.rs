@@ -232,6 +232,61 @@ pub async fn mark_login(pool: &DbPool, id: UserId) -> DbResult<()> {
     Ok(())
 }
 
+/// When the user's 2FA step is locked out (durable brute-force cap), if at all.
+/// The caller refuses the verify when this is `Some(t)` and `t > now`.
+pub async fn totp_locked_until(pool: &DbPool, id: UserId) -> DbResult<Option<OffsetDateTime>> {
+    let row = sqlx::query!(
+        "SELECT totp_locked_until FROM users WHERE id = $1",
+        id.0,
+    )
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.and_then(|r| r.totp_locked_until))
+}
+
+/// Record one failed 2FA attempt. Increments the durable counter and, once it
+/// reaches `max_attempts`, sets a lockout `lockout_mins` into the future.
+/// Returns `true` when the account is now locked (so the caller can refuse and
+/// withhold a fresh challenge). The counter is reset by [`reset_totp_failures`]
+/// on a successful verify.
+pub async fn record_totp_failure(
+    pool: &DbPool,
+    id: UserId,
+    max_attempts: i32,
+    lockout_mins: i32,
+) -> DbResult<bool> {
+    let row = sqlx::query!(
+        r#"
+        UPDATE users
+        SET totp_failed_attempts = totp_failed_attempts + 1,
+            totp_locked_until = CASE
+                WHEN totp_failed_attempts + 1 >= $2
+                THEN NOW() + make_interval(mins => $3)
+                ELSE totp_locked_until
+            END
+        WHERE id = $1
+        RETURNING (totp_locked_until IS NOT NULL AND totp_locked_until > NOW()) AS "locked!"
+        "#,
+        id.0,
+        max_attempts,
+        lockout_mins,
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(row.locked)
+}
+
+/// Clear the 2FA failure counter + lockout — called after a successful verify.
+pub async fn reset_totp_failures(pool: &DbPool, id: UserId) -> DbResult<()> {
+    sqlx::query!(
+        "UPDATE users SET totp_failed_attempts = 0, totp_locked_until = NULL WHERE id = $1",
+        id.0,
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 pub async fn list(pool: &DbPool) -> DbResult<Vec<User>> {
     let rows = sqlx::query!(
         r#"
