@@ -1,7 +1,7 @@
 {
   "name": "rampart-frontend",
   "private": true,
-  "version": "0.151.0",
+  "version": "0.151.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,6 +12,8 @@
     "screenshots": "SCREENSHOTS_RUN=1 playwright test e2e/screenshots.spec.js --project=chromium"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.2.8",
+    "@fontsource/jetbrains-mono": "^5.2.8",
     "lucide-react": "^1.17.0",
     "qrcode-generator": "^1.4.4",
     "react": "^19.2.7",

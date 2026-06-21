@@ -44,7 +44,6 @@ function PageDetail({ app, url, hours }) {
 }
 
 const css = `
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
   .rampart {
     --bg:#fafaf9; --surface:#ffffff; --surface-2:#f5f5f4; --border:#e7e5e4; --border-2:#d6d3d1;
     --text:#1c1917; --text-2:#57534e; --text-3:#a8a29e; --accent:#14b8a6; --accent-2:#0d9488; --accent-soft:#ccfbf1;
