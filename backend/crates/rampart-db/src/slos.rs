@@ -238,7 +238,9 @@ async fn monitor_ratio(
     let row = sqlx::query!(
         r#"
         SELECT COUNT(*) AS "total!", COUNT(*) FILTER (WHERE status = 'up') AS "ok!"
-        FROM heartbeats WHERE monitor_id = $1 AND ts >= $2
+        -- Exclude planned maintenance from both numerator + denominator so it
+        -- never burns the SLO error budget (it is neither up nor down).
+        FROM heartbeats WHERE monitor_id = $1 AND ts >= $2 AND status <> 'maintenance'
         "#,
         monitor,
         since,
