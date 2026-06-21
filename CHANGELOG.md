@@ -29,6 +29,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.152.0] — 2026-06-21
+
+### Changed
+- **Notification delivery now retries transient failures instead of dropping the
+  page.** A failed channel dispatch previously logged the error, recorded the
+  failure, and stopped — so a momentary network blip, a 429 rate-limit, or an
+  upstream 5xx silently lost the alert. Dispatch is now retried up to 3 times
+  with exponential backoff (0.5s, 1s), but **only** for failures where the prior
+  attempt almost certainly didn't deliver: transport errors and retryable
+  upstream statuses (408 / 429 / any 5xx). Permanent errors — bad config, an
+  SSRF-blocked target, or a 4xx — are terminal (a retry would fail identically
+  and just hammer the sink). Retrying is at-least-once, so a duplicate alert is
+  possible but unlikely; for alerting a rare duplicate beats a dropped page.
+  (Six-persona audit bigger-bet: alert delivery resilience.)
+
+---
+
 ## [0.151.1] — 2026-06-21
 
 ### Security
