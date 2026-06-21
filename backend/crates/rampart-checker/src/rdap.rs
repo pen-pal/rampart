@@ -35,7 +35,7 @@
 use crate::{ms_i32, Probe};
 use async_trait::async_trait;
 use rampart_core::{Heartbeat, Monitor, MonitorStatus};
-use reqwest::{redirect::Policy, Client, ClientBuilder};
+use reqwest::{redirect::Policy, Client};
 use serde::Deserialize;
 use std::time::{Duration, Instant};
 use time::OffsetDateTime;
@@ -71,8 +71,12 @@ impl RdapProbe {
         // `rdap.org` 302s to per-TLD registries; follow up to a few
         // hops so the probe lands on the authoritative server without
         // letting a misconfigured registry chain redirects forever.
+        // Built via the SSRF-guarded resolver: the redirect target is
+        // server-controlled, so a hostile/compromised registry could 302 to
+        // 169.254.169.254 or an internal host — the guard vets each hop's
+        // dialed IP.
         self.client.get_or_init(|| {
-            ClientBuilder::new()
+            crate::ssrf::guarded_client_builder()
                 .redirect(Policy::limited(5))
                 .pool_idle_timeout(Duration::from_secs(60))
                 .tcp_keepalive(Duration::from_secs(30))

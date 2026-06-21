@@ -36,7 +36,7 @@
 use crate::{ms_i32, Probe};
 use async_trait::async_trait;
 use rampart_core::{Heartbeat, Monitor, MonitorStatus};
-use reqwest::{Client, ClientBuilder};
+use reqwest::Client;
 use serde::Deserialize;
 use std::time::{Duration, Instant};
 use time::OffsetDateTime;
@@ -63,8 +63,10 @@ impl DohProbe {
     }
 
     fn client(&self) -> &Client {
+        // SSRF-guarded: a DoH endpoint URL is operator-configured, but vet the
+        // dialed IP anyway so a misconfig can't reach internal/link-local hosts.
         self.client.get_or_init(|| {
-            ClientBuilder::new()
+            crate::ssrf::guarded_client_builder()
                 .pool_idle_timeout(Duration::from_secs(60))
                 .tcp_keepalive(Duration::from_secs(30))
                 .build()
