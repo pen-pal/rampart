@@ -55,11 +55,13 @@ pub async fn create(
 }
 
 /// Markers within the trailing `hours`, newest first. Optionally scoped to a
-/// service (returns service-scoped + global/unscoped markers).
+/// service (returns service-scoped + global/unscoped markers). Org-scoped so
+/// one tenant's deploy timeline never bleeds onto another's charts.
 pub async fn list_window(
     pool: &DbPool,
     hours: i32,
     service: Option<&str>,
+    org_id: rampart_core::ids::OrgId,
 ) -> DbResult<Vec<DeployMarker>> {
     let rows = sqlx::query_as!(
         MarkerRow,
@@ -68,21 +70,31 @@ pub async fn list_window(
         FROM deploy_markers
         WHERE ts > now() - make_interval(hours => $1)
           AND ($2::text IS NULL OR service IS NULL OR service = $2)
+          AND org_id = $3
         ORDER BY ts DESC
         LIMIT 500
         "#,
         hours.clamp(1, 8760),
         service,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
     Ok(rows.into_iter().map(Into::into).collect())
 }
 
-pub async fn delete(pool: &DbPool, id: DeployMarkerId) -> DbResult<()> {
-    let res = sqlx::query!("DELETE FROM deploy_markers WHERE id = $1", id.0)
-        .execute(pool)
-        .await?;
+pub async fn delete(
+    pool: &DbPool,
+    id: DeployMarkerId,
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<()> {
+    let res = sqlx::query!(
+        "DELETE FROM deploy_markers WHERE id = $1 AND org_id = $2",
+        id.0,
+        org_id.0,
+    )
+    .execute(pool)
+    .await?;
     if res.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }

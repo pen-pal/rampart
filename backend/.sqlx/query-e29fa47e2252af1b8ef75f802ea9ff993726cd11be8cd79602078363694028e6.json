@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT status_page_id FROM status_page_subscribers WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "status_page_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "status_page_subscribers",
+            "name": "status_page_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e29fa47e2252af1b8ef75f802ea9ff993726cd11be8cd79602078363694028e6"
+}

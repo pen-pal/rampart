@@ -33,16 +33,22 @@ fn parse_monitor(s: &str) -> Result<MonitorId, ApiError> {
         .map_err(|_| ApiError::BadRequest("invalid monitor id".into()))
 }
 
-async fn list(State(s): State<AppState>) -> Result<Json<Vec<MaintenanceWindow>>, ApiError> {
-    Ok(Json(rampart_db::maintenance::list(s.pool()).await?))
+async fn list(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+) -> Result<Json<Vec<MaintenanceWindow>>, ApiError> {
+    Ok(Json(
+        rampart_db::maintenance::list(s.pool(), org.org_id).await?,
+    ))
 }
 
 async fn get_one(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<MaintenanceWindow>, ApiError> {
     Ok(Json(
-        rampart_db::maintenance::get(s.pool(), parse_id(&id)?).await?,
+        rampart_db::maintenance::get(s.pool(), parse_id(&id)?, org.org_id).await?,
     ))
 }
 
@@ -81,6 +87,7 @@ async fn create(
 async fn update(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path(id): Path<String>,
     Json(input): Json<UpdateMaintenanceWindow>,
@@ -89,7 +96,7 @@ async fn update(
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     let wid = parse_id(&id)?;
-    let w = rampart_db::maintenance::update(s.pool(), wid, input).await?;
+    let w = rampart_db::maintenance::update(s.pool(), wid, input, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -106,11 +113,12 @@ async fn update(
 async fn remove(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let wid = parse_id(&id)?;
-    rampart_db::maintenance::delete(s.pool(), wid).await?;
+    rampart_db::maintenance::delete(s.pool(), wid, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -132,12 +140,13 @@ struct SetActiveBody {
 async fn set_active(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path(id): Path<String>,
     Json(body): Json<SetActiveBody>,
 ) -> Result<StatusCode, ApiError> {
     let wid = parse_id(&id)?;
-    rampart_db::maintenance::set_active(s.pool(), wid, body.active).await?;
+    rampart_db::maintenance::set_active(s.pool(), wid, body.active, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -154,11 +163,17 @@ async fn set_active(
 async fn attach(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path((id, monitor_id)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
     let wid = parse_id(&id)?;
     let mid = parse_monitor(&monitor_id)?;
+    // Org-gate both ends before linking them: each `get` 404s cross-org,
+    // so a caller can't attach another org's monitor or touch another
+    // org's window.
+    rampart_db::maintenance::get(s.pool(), wid, org.org_id).await?;
+    rampart_db::monitors::get(s.pool(), mid, org.org_id).await?;
     rampart_db::maintenance::attach(s.pool(), wid, mid).await?;
     crate::audit::record(
         s.pool(),
@@ -176,11 +191,15 @@ async fn attach(
 async fn detach(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    Extension(org): Extension<OrgContext>,
     headers: HeaderMap,
     Path((id, monitor_id)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
     let wid = parse_id(&id)?;
     let mid = parse_monitor(&monitor_id)?;
+    // Org-gate both ends before unlinking: each `get` 404s cross-org.
+    rampart_db::maintenance::get(s.pool(), wid, org.org_id).await?;
+    rampart_db::monitors::get(s.pool(), mid, org.org_id).await?;
     rampart_db::maintenance::detach(s.pool(), wid, mid).await?;
     crate::audit::record(
         s.pool(),

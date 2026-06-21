@@ -35,11 +35,12 @@ fn default_hours() -> i32 {
 
 async fn list(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Query(p): Query<ListParams>,
 ) -> Result<Json<Vec<DeployMarker>>, ApiError> {
     let service = p.service.as_deref().filter(|s| !s.is_empty());
     Ok(Json(
-        rampart_db::deploy_markers::list_window(s.pool(), p.hours, service).await?,
+        rampart_db::deploy_markers::list_window(s.pool(), p.hours, service, org.org_id).await?,
     ))
 }
 
@@ -55,10 +56,14 @@ async fn create(
     Ok((StatusCode::CREATED, Json(marker)))
 }
 
-async fn remove(State(s): State<AppState>, Path(id): Path<String>) -> Result<StatusCode, ApiError> {
+async fn remove(
+    State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
+    Path(id): Path<String>,
+) -> Result<StatusCode, ApiError> {
     let id = Uuid::from_str(&id)
         .map(DeployMarkerId::from_uuid)
         .map_err(|_| ApiError::BadRequest("invalid deploy-marker id".into()))?;
-    rampart_db::deploy_markers::delete(s.pool(), id).await?;
+    rampart_db::deploy_markers::delete(s.pool(), id, org.org_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
