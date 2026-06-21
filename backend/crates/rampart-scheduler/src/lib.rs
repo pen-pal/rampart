@@ -186,9 +186,17 @@ impl Scheduler {
                     info!("scheduler assumed leadership; reconciling");
                     leading = true;
                 }
-                if let Err(e) = self.reconcile().await {
-                    error!(error = %e, "reconcile failed");
-                }
+                // Bound reconcile like the checks below: it runs first each
+                // leading tick (monitors::list_all + per-monitor hydrate, no
+                // statement timeout), so an unbounded slow reconcile under DB
+                // pressure would stall the whole loop — including the
+                // escalation paging that is deliberately run first.
+                timed("reconcile", async {
+                    if let Err(e) = self.reconcile().await {
+                        error!(error = %e, "reconcile failed");
+                    }
+                })
+                .await;
                 // Best-effort periodic checks, leader-only so they never
                 // duplicate across replicas. Each is timeout-bounded so one slow
                 // scan under DB pressure can't stall the loop; failures are
