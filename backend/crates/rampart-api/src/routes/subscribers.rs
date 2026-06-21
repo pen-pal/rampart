@@ -126,9 +126,9 @@ async fn security_put(
 
 async fn siem_get(State(s): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
     let raw = rampart_db::settings::get(s.pool(), "siem_export").await?;
-    Ok(Json(raw.unwrap_or_else(
-        || serde_json::json!({ "enabled": false, "kind": "webhook", "target": "" }),
-    )))
+    Ok(Json(raw.unwrap_or_else(|| {
+        serde_json::json!({ "enabled": false, "kind": "webhook", "target": "", "format": "json" })
+    })))
 }
 
 #[derive(Deserialize)]
@@ -136,12 +136,25 @@ struct SiemPut {
     enabled: bool,
     kind: String,
     target: String,
+    /// "json" (default), "cef", or "leef". Absent/empty is treated as "json".
+    #[serde(default)]
+    format: String,
 }
 
 async fn siem_put(
     State(s): State<AppState>,
     Json(input): Json<SiemPut>,
 ) -> Result<StatusCode, ApiError> {
+    let format = if input.format.trim().is_empty() {
+        "json"
+    } else {
+        input.format.trim()
+    };
+    if !matches!(format, "json" | "cef" | "leef") {
+        return Err(ApiError::BadRequest(
+            "format must be json, cef, or leef".into(),
+        ));
+    }
     if input.enabled {
         if !matches!(input.kind.as_str(), "webhook" | "syslog" | "syslog_tcp") {
             return Err(ApiError::BadRequest(
@@ -158,6 +171,7 @@ async fn siem_put(
         "enabled": input.enabled,
         "kind": input.kind,
         "target": input.target.trim(),
+        "format": format,
     });
     rampart_db::settings::put(s.pool(), "siem_export", &value).await?;
     Ok(StatusCode::NO_CONTENT)
