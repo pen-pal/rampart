@@ -29,6 +29,25 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.152.3] — 2026-06-21
+
+### Fixed
+- **Scheduler `reconcile()` is now timeout-bounded like the other leader checks.**
+  It runs first on every leading tick (`monitors::list_all` + per-monitor
+  hydrate, no statement timeout); an unbounded slow reconcile under DB pressure
+  stalled the whole loop — including the escalation paging that is deliberately
+  ordered first. Wrapped in the same `timed()` guard as the periodic checks.
+  (Bug hunt.)
+- **OTLP nanosecond timestamps no longer wrap negative; enum fields are clamped.**
+  Span start/end and log timestamps were `u64 as i64` casts — a value past
+  `i64::MAX` wrapped negative, corrupting trace duration/ordering (and silently
+  mis-stamping logs). They now use `i64::try_from(..)` with a 0 fallback. Span
+  kind, status code, and log severity were `as i16` truncations of i32 enums (an
+  out-of-spec `severityNumber` could alias onto a valid level); they are now
+  clamped to their valid OTLP ranges. (Bug hunt.)
+
+---
+
 ## [0.152.2] — 2026-06-21
 
 ### Security
