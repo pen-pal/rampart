@@ -88,7 +88,13 @@ tags:
   - name: Audit
     description: Append-only audit log + CSV export. Admin only.
   - name: Ingest
-    description: Public inbound webhook receivers + admin-managed ingest tokens.
+    description: Public inbound webhook receivers + admin-managed ingest tokens / per-org ingest keys.
+  - name: SLO
+    description: Service-level objectives over monitor or metric SLIs, with live error-budget snapshots. Editor writes; readonly reads.
+  - name: Deploy Markers
+    description: Point-in-time deploy / change annotations overlaid on the metric + response-time charts. Editor writes; readonly reads.
+  - name: Organizations
+    description: Tenant CRUD, membership, and active-org switching. Authorization is per-org (the caller's role in the targeted org).
   - name: Health
     description: Liveness / readiness / Prometheus metrics + the OpenAPI spec. Public.
 
@@ -761,6 +767,19 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Incident' }
+  /v1/incidents/recent:
+    get:
+      tags: [Incidents]
+      summary: Recent incidents
+      description: The most recent incidents across all status pages (up to 10) — the dashboard's incident feed.
+      responses:
+        '200':
+          description: Incidents, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Incident' }
   /v1/incidents/{id}:
     parameters:
       - $ref: '#/components/parameters/IncidentId'
@@ -1748,6 +1767,17 @@ paths:
         - { name: hours, in: query, required: false, schema: { type: integer } }
       responses:
         '200': { description: '`[{service, operation, calls, errors, error_rate, p50_ms, p95_ms, p99_ms, avg_ms, max_ms}]`.' }
+  /v1/traces/operation-trend:
+    get:
+      tags: [Traces]
+      summary: Call-volume trend for one service+operation
+      description: Per-bucket call counts (24 buckets over the window) for a single `(service, operation)` — the sparkline next to an APM rollup row.
+      parameters:
+        - { name: service, in: query, required: true, schema: { type: string } }
+        - { name: operation, in: query, required: true, schema: { type: string } }
+        - { name: hours, in: query, required: false, schema: { type: integer } }
+      responses:
+        '200': { description: '`[count, …]` oldest → newest (one per bucket).' }
   /v1/traces/export.csv:
     get:
       tags: [Traces]
@@ -1811,6 +1841,21 @@ paths:
         - { name: hours, in: query, required: false, schema: { type: integer } }
       responses:
         '200': { description: '`[[level, count], …]` over the window (severity-volume bar).' }
+  /v1/logs/histogram:
+    get:
+      tags: [Logs]
+      summary: Log volume histogram
+      description: >-
+        Log counts bucketed across the window (48 buckets) under the same
+        `service` / `level` / `q` filters as `/v1/logs`. `level` is a minimum
+        severity. Drives the log-volume timeline.
+      parameters:
+        - { name: service, in: query, required: false, schema: { type: string } }
+        - { name: level,   in: query, required: false, schema: { type: string, enum: [trace, debug, info, warn, error, fatal] } }
+        - { name: q,       in: query, required: false, schema: { type: string } }
+        - { name: hours,   in: query, required: false, schema: { type: integer } }
+      responses:
+        '200': { description: '`[{ bucket, count }]` over the window.' }
   /v1/logs/export.csv:
     get:
       tags: [Logs]
@@ -1959,6 +2004,16 @@ paths:
       summary: Issues for a project
       responses:
         '200': { description: Issues, newest activity first (optionally filtered by status). }
+  /v1/error-projects/{id}/histogram:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: hours, in: query, required: false, schema: { type: integer }, description: 'Window length; default 168 (7d).' }
+    get:
+      tags: [Errors]
+      summary: Event volume histogram for a project
+      description: Event counts bucketed across the window (48 buckets) for the project's events-over-time chart.
+      responses:
+        '200': { description: '`[{ bucket, count }]` over the window.' }
   /v1/error-projects/{id}/sourcemaps:
     parameters:
       - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -1987,6 +2042,13 @@ paths:
       responses:
         '204': { description: Deleted. }
         '404': { description: No such map for this project. }
+  /v1/error-issues/recent:
+    get:
+      tags: [Errors]
+      summary: Recent open issues
+      description: The most recent still-open issues across all projects (up to 8) — the dashboard's error feed.
+      responses:
+        '200': { description: 'Open issues, newest activity first.' }
   /v1/error-issues/{id}:
     parameters:
       - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -2012,6 +2074,16 @@ paths:
       summary: Issue statistics
       responses:
         '200': { description: 'Issue stats `{users_affected, by_release[[name,count]], by_environment[[name,count]]}`.' }
+        '404': { description: No such issue. }
+  /v1/error-issues/{id}/users:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Errors]
+      summary: Users affected by an issue
+      description: Up to 50 distinct end-users (from event user context) who hit this issue, most-recent first.
+      responses:
+        '200': { description: 'Affected users `[{ id?, username?, email?, ip?, last_seen, count }]`.' }
         '404': { description: No such issue. }
   /v1/error-issues/{id}/resolve:
     parameters:
@@ -2148,6 +2220,49 @@ paths:
       summary: Distinct app/site names
       responses:
         '200': { description: App names for the filter dropdown. }
+  /v1/rum/browsers:
+    get:
+      tags: [RUM]
+      summary: Web Vitals by browser
+      description: Per-browser view counts + p75 vitals over the window.
+      parameters:
+        - { name: app,   in: query, required: false, schema: { type: string } }
+        - { name: hours, in: query, required: false, schema: { type: integer } }
+      responses:
+        '200': { description: 'Per-browser breakdown `[{browser, views, p75_lcp, p75_inp, p75_cls}]`.' }
+  /v1/rum/users:
+    get:
+      tags: [RUM]
+      summary: Web Vitals by end-user
+      description: Per-user view counts + p75 vitals over the window (from the snippet's `user_id`).
+      parameters:
+        - { name: app,   in: query, required: false, schema: { type: string } }
+        - { name: hours, in: query, required: false, schema: { type: integer } }
+      responses:
+        '200': { description: 'Per-user breakdown `[{user_id, views, p75_lcp, p75_inp, p75_cls}]`.' }
+  /v1/rum/traced:
+    get:
+      tags: [RUM]
+      summary: Recent page-loads with a backend trace id
+      description: >-
+        Up to 50 recent page-views that carried a `trace_id`, for the
+        RUM → distributed-trace correlation pivot.
+      parameters:
+        - { name: app,   in: query, required: false, schema: { type: string } }
+        - { name: hours, in: query, required: false, schema: { type: integer } }
+      responses:
+        '200': { description: 'Recent traced loads `[{ts, url, trace_id, lcp, inp, cls, load}]`.' }
+  /v1/rum/page:
+    get:
+      tags: [RUM]
+      summary: Raw samples for one page URL
+      description: Up to 100 recent per-view samples for a single page `url`, for the per-page drill-down.
+      parameters:
+        - { name: url,   in: query, required: true, schema: { type: string }, description: The exact page URL/path to drill into. }
+        - { name: app,   in: query, required: false, schema: { type: string } }
+        - { name: hours, in: query, required: false, schema: { type: integer } }
+      responses:
+        '200': { description: 'Recent samples `[{ts, lcp, fcp, cls, inp, ttfb, load, ua}]`.' }
   # ─────────────────────────── On-call ───────────────────────────
   /v1/on-call-schedules:
     get:
@@ -3464,6 +3579,313 @@ paths:
       responses:
         '200': { description: Assigned. }
 
+  # ─────────────────────────── SLOs ───────────────────────────
+  /v1/slos:
+    get:
+      tags: [SLO]
+      summary: List SLOs with live budget snapshots
+      description: >-
+        Each row is the SLO plus a freshly computed `snapshot`
+        (`achieved_pct`, `consumed_pct`, `remaining_pct`, `burn_rate_1h`,
+        `breaching`) and an achieved-ratio `trend` sparkline, so the UI renders
+        without a second round-trip.
+      responses:
+        '200':
+          description: SLOs flattened with their snapshot + trend.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  allOf:
+                    - $ref: '#/components/schemas/Slo'
+                    - type: object
+                      properties:
+                        snapshot: { $ref: '#/components/schemas/SloSnapshot' }
+                        trend: { type: array, items: { type: number, format: double } }
+    post:
+      tags: [SLO]
+      summary: Create an SLO
+      description: >-
+        A `monitor` SLI needs `monitor_id`; a `metric` SLI needs `good_metric`
+        and `total_metric`. Editor.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewSlo' }
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Slo' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /v1/slos/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      tags: [SLO]
+      summary: Update an SLO
+      description: Partial update; omitted fields are unchanged. The SLI kind + indicator source are immutable.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateSlo' }
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Slo' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+    delete:
+      tags: [SLO]
+      summary: Delete an SLO
+      responses:
+        '204': { description: Deleted. }
+
+  # ─────────────────────────── Deploy markers ───────────────────────────
+  /v1/deploy-markers:
+    get:
+      tags: [Deploy Markers]
+      summary: List deploy markers in a window
+      parameters:
+        - { name: hours,   in: query, required: false, schema: { type: integer }, description: 'Window length; default 24.' }
+        - { name: service, in: query, required: false, schema: { type: string }, description: Only markers scoped to this service (empty = all). }
+      responses:
+        '200':
+          description: Markers in the window, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DeployMarker' }
+    post:
+      tags: [Deploy Markers]
+      summary: Create a deploy marker
+      description: CI typically POSTs one per release (via an API key). `ts` defaults to now when omitted. Editor.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewDeployMarker' }
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeployMarker' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /v1/deploy-markers/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    delete:
+      tags: [Deploy Markers]
+      summary: Delete a deploy marker
+      responses:
+        '204': { description: Deleted. }
+
+  # ─────────────────────────── Ingest keys (per-org) ───────────────────────────
+  /v1/ingest-keys:
+    get:
+      tags: [Ingest]
+      summary: List the active org's ingest keys
+      description: Admin only. Metadata only — the token is never returned on reads.
+      responses:
+        '200':
+          description: Keys for the caller's active org.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/IngestKey' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Ingest]
+      summary: Mint an ingest key
+      description: >-
+        Admin only. Grants OTLP / Prometheus remote_write / RUM / profiles
+        ingest into the caller's active org. The raw `token` is returned
+        **once**, here.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewIngestKey' }
+      responses:
+        '201':
+          description: Created — includes the one-time plaintext token.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IssuedIngestKey' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /v1/ingest-keys/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    delete:
+      tags: [Ingest]
+      summary: Revoke an ingest key
+      description: Admin only. Org-scoped — a cross-org id is invisible (404).
+      responses:
+        '204': { description: Revoked. }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ─────────────────────────── Organizations ───────────────────────────
+  /v1/orgs:
+    get:
+      tags: [Organizations]
+      summary: List the caller's organizations
+      description: Any authenticated user; returns only the orgs they belong to.
+      responses:
+        '200':
+          description: The caller's orgs.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Org' }
+    post:
+      tags: [Organizations]
+      summary: Create an organization
+      description: >-
+        Any authenticated user; the creator becomes the org's first Admin.
+        `slug` must match `^[a-z0-9-]{2,40}$` and is immutable. A duplicate slug
+        is a 409.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewOrg' }
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Org' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /v1/orgs/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Organizations]
+      summary: Get one organization
+      description: Any member (readonly+). Non-members get 404 (the org's existence is hidden).
+      responses:
+        '200':
+          description: The org.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Org' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Organizations]
+      summary: Rename an organization
+      description: Org Admin only. Only `name` is mutable (`slug` is the stable OIDC-mapping key).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Org' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/orgs/{id}/members:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Organizations]
+      summary: List org members
+      description: Any member (readonly+).
+      responses:
+        '200':
+          description: Members with their per-org role.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/OrgMemberDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Organizations]
+      summary: Add (or re-role) a member by email
+      description: >-
+        Org Admin only. The target user must already exist in the install — an
+        unknown email is a 404. Adds or updates their membership at the given
+        role.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, role]
+              properties:
+                email: { type: string, format: email }
+                role: { $ref: '#/components/schemas/Role' }
+      responses:
+        '204': { description: Member added / re-roled. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/orgs/{id}/members/{user_id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: user_id, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      tags: [Organizations]
+      summary: Change a member's role
+      description: Org Admin only. Demoting the org's last Admin is refused (409).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: { $ref: '#/components/schemas/Role' }
+      responses:
+        '204': { description: Role updated. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      tags: [Organizations]
+      summary: Remove a member
+      description: Org Admin only. Removing the org's last Admin is refused (409).
+      responses:
+        '204': { description: Removed. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /v1/orgs/{id}/switch:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Organizations]
+      summary: Switch the caller's active org
+      description: >-
+        Persists `active_org_id` on the current cookie session — this is a
+        cookie-session action, so bearer/API-key callers (no session cookie)
+        get 401. The caller must be a member of the target org (non-member →
+        404). The change surfaces via `/v1/auth/me`.
+      responses:
+        '204': { description: Active org switched. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
 components:
   securitySchemes:
     sessionCookie:
@@ -4159,6 +4581,152 @@ components:
         ok: { type: boolean }
         error: { type: [string, 'null'], description: Failure detail when ok=false. }
         sent_at: { type: string, format: date-time }
+
+    SliKind:
+      type: string
+      description: Where the SLO's success ratio comes from.
+      enum: [monitor, metric]
+
+    Slo:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        org_id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string }
+        sli_kind: { $ref: '#/components/schemas/SliKind' }
+        monitor_id: { type: [string, 'null'], format: uuid, description: 'Required when sli_kind=monitor.' }
+        good_metric: { type: [string, 'null'], description: 'Required when sli_kind=metric.' }
+        total_metric: { type: [string, 'null'], description: 'Required when sli_kind=metric.' }
+        labels: { type: object, description: 'Metric label matcher (metric SLI).' }
+        objective_pct: { type: number, format: double, description: 'Target success %, 0–100 exclusive.' }
+        window_days: { type: integer }
+        enabled: { type: boolean }
+        channel_ids: { type: array, items: { type: string, format: uuid } }
+        escalation_policy_id: { type: [string, 'null'], format: uuid }
+        breaching_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+      required: [id, org_id, name, sli_kind, objective_pct, window_days, enabled, created_at]
+
+    SloSnapshot:
+      type: object
+      description: Point-in-time read of an SLO's health. Ratio fields are null when the window held no data.
+      properties:
+        achieved_pct: { type: [number, 'null'], format: double }
+        consumed_pct: { type: [number, 'null'], format: double }
+        remaining_pct: { type: [number, 'null'], format: double }
+        burn_rate_1h: { type: [number, 'null'], format: double }
+        breaching: { type: boolean }
+      required: [breaching]
+
+    NewSlo:
+      type: object
+      required: [name, sli_kind, objective_pct]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: string, maxLength: 500 }
+        sli_kind: { $ref: '#/components/schemas/SliKind' }
+        monitor_id: { type: string, format: uuid, description: 'Required when sli_kind=monitor.' }
+        good_metric: { type: string, description: 'Required when sli_kind=metric.' }
+        total_metric: { type: string, description: 'Required when sli_kind=metric.' }
+        labels: { type: object, default: {} }
+        objective_pct: { type: number, format: double, minimum: 0.0001, maximum: 99.9999 }
+        window_days: { type: integer, minimum: 1, maximum: 365, default: 30 }
+        enabled: { type: boolean, default: true }
+        channel_ids: { type: array, items: { type: string, format: uuid } }
+        escalation_policy_id: { type: string, format: uuid }
+
+    UpdateSlo:
+      type: object
+      description: Partial update; omitted fields are unchanged. SLI kind + indicator source are immutable.
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: string, maxLength: 500 }
+        good_metric: { type: string }
+        total_metric: { type: string }
+        labels: { type: object }
+        objective_pct: { type: number, format: double, minimum: 0.0001, maximum: 99.9999 }
+        window_days: { type: integer, minimum: 1, maximum: 365 }
+        enabled: { type: boolean }
+        channel_ids: { type: array, items: { type: string, format: uuid } }
+        escalation_policy_id: { type: string, format: uuid }
+
+    DeployMarker:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        ts: { type: string, format: date-time, description: 'When the event happened.' }
+        title: { type: string }
+        description: { type: [string, 'null'] }
+        service: { type: [string, 'null'], description: 'Scope label; null/empty applies to everything.' }
+        created_at: { type: string, format: date-time }
+      required: [id, ts, title, created_at]
+
+    NewDeployMarker:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: string, maxLength: 2000 }
+        service: { type: string, maxLength: 200 }
+        ts: { type: string, format: date-time, description: 'Defaults to now server-side when omitted.' }
+
+    IngestKey:
+      type: object
+      description: Per-org telemetry ingest credential. The token is never returned on reads.
+      properties:
+        id: { type: string, format: uuid }
+        org_id: { type: string, format: uuid }
+        label: { type: string }
+        kind: { type: string, enum: [all, otlp, prometheus, rum, profiles] }
+        allowed_origins: { type: array, items: { type: string }, description: 'RUM origin-binding allow-list (empty = any).' }
+        created_at: { type: string, format: date-time }
+        last_used_at: { type: [string, 'null'], format: date-time }
+      required: [id, org_id, label, kind, allowed_origins, created_at]
+
+    NewIngestKey:
+      type: object
+      required: [label]
+      properties:
+        label: { type: string, minLength: 1 }
+        kind: { type: string, enum: [all, otlp, prometheus, rum, profiles], default: all }
+        allowed_origins: { type: array, items: { type: string } }
+
+    IssuedIngestKey:
+      type: object
+      description: One-shot creation response. `token` is shown only here.
+      allOf:
+        - $ref: '#/components/schemas/IngestKey'
+        - type: object
+          required: [token]
+          properties:
+            token: { type: string, description: 'Full plaintext ingest token, shown once.' }
+
+    Org:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        slug: { type: string }
+        name: { type: string }
+        created_at: { type: string, format: date-time }
+      required: [id, slug, name, created_at]
+
+    NewOrg:
+      type: object
+      required: [slug, name]
+      properties:
+        slug: { type: string, pattern: '^[a-z0-9-]{2,40}$' }
+        name: { type: string, minLength: 1 }
+
+    OrgMemberDetail:
+      type: object
+      properties:
+        user_id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        name: { type: [string, 'null'] }
+        role: { $ref: '#/components/schemas/Role' }
+        created_at: { type: string, format: date-time }
+      required: [user_id, email, role, created_at]
 
 security:
   - sessionCookie: []
