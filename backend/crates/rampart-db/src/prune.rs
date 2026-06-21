@@ -93,6 +93,47 @@ pub const DEFAULT_RUM_DAYS: i32 = 14;
 pub const DEFAULT_PROFILES_DAYS: i32 = 7;
 pub const DEFAULT_FINDINGS_DAYS: i32 = 90;
 
+/// Rows per chunk when pruning the flat, high-volume tiers. Bounds each DELETE's
+/// lock + WAL footprint so a large retention backlog is cleared in many short,
+/// cancellable statements instead of one multi-minute table-locking DELETE
+/// (which previously could stall writes and balloon WAL on logs/spans/metrics).
+pub(crate) const PRUNE_BATCH: i64 = 10_000;
+
+/// Chunked age-based delete: repeatedly delete up to [`PRUNE_BATCH`] rows older
+/// than `days` (by `ts_col`) until fewer than a full batch remain. `table` and
+/// `ts_col` are crate-internal string literals (no user input → no injection
+/// surface), which is why this uses a runtime query rather than the
+/// compile-checked macro. Returns total rows deleted. Safe to interrupt: each
+/// batch commits independently and a partial run just resumes next sweep — only
+/// valid for tiers with NO rollup coupling (NOT the heartbeat tier).
+pub(crate) async fn batched_delete(
+    pool: &DbPool,
+    table: &str,
+    ts_col: &str,
+    days: i32,
+) -> DbResult<u64> {
+    let sql = format!(
+        "DELETE FROM {table} WHERE ctid IN \
+         (SELECT ctid FROM {table} WHERE {ts_col} < now() - make_interval(days => $1) LIMIT $2)"
+    );
+    let mut total = 0u64;
+    loop {
+        // `AssertSqlSafe`: `table`/`ts_col` are crate-internal literals, not user
+        // input, so the formatted SQL has no injection surface.
+        let n = sqlx::query(sqlx::AssertSqlSafe(sql.clone()))
+            .bind(days)
+            .bind(PRUNE_BATCH)
+            .execute(pool)
+            .await?
+            .rows_affected();
+        total += n;
+        if n < PRUNE_BATCH as u64 {
+            break;
+        }
+    }
+    Ok(total)
+}
+
 /// Default rollup-tier retention when no `retention_days` setting is
 /// present (or the row predates this field).
 pub const DEFAULT_ROLLUP_DAYS: i32 = 365;
@@ -413,13 +454,7 @@ pub async fn run_once(pool: &DbPool) -> DbResult<PruneStats> {
     .fetch_optional(pool)
     .await?;
 
-    stats.audit_deleted = sqlx::query!(
-        "DELETE FROM audit_log WHERE ts < NOW() - make_interval(days => $1)",
-        cfg.audit_log,
-    )
-    .execute(pool)
-    .await?
-    .rows_affected();
+    stats.audit_deleted = batched_delete(pool, "audit_log", "ts", cfg.audit_log).await?;
 
     // Advance the chain watermark only when a hashed row was actually removed.
     if let Some(w) = audit_watermark {
@@ -428,13 +463,7 @@ pub async fn run_once(pool: &DbPool) -> DbResult<PruneStats> {
 
     // External metric samples: flat age-based tier, no rollup — telemetry
     // past its window is just gone, like audit rows.
-    stats.metrics_deleted = sqlx::query!(
-        "DELETE FROM metric_samples WHERE ts < NOW() - make_interval(days => $1)",
-        cfg.metrics_days,
-    )
-    .execute(pool)
-    .await?
-    .rows_affected();
+    stats.metrics_deleted = batched_delete(pool, "metric_samples", "ts", cfg.metrics_days).await?;
 
     // Trace spans: flat age-based tier, like metric samples.
     stats.spans_deleted = crate::traces::prune(pool, cfg.traces_days).await?;
@@ -448,13 +477,8 @@ pub async fn run_once(pool: &DbPool) -> DbResult<PruneStats> {
     // Security detection findings: flat age-based tier (created_at). The
     // findings feed is the security-event record — kept longer than telemetry
     // but bounded so a noisy ruleset can't grow the table without limit.
-    stats.findings_deleted = sqlx::query!(
-        "DELETE FROM detection_findings WHERE created_at < NOW() - make_interval(days => $1)",
-        cfg.findings_days,
-    )
-    .execute(pool)
-    .await?
-    .rows_affected();
+    stats.findings_deleted =
+        batched_delete(pool, "detection_findings", "created_at", cfg.findings_days).await?;
 
     Ok(stats)
 }
