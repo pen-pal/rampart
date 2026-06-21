@@ -29,6 +29,29 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.152.4] — 2026-06-21
+
+### Security
+- **Closed four cross-tenant IDORs in the management API.** A second audit pass
+  found several resources whose handlers/queries were never org-scoped (the
+  `org_id` columns existed and writes stamped them, but reads/mutations didn't
+  filter), so any editor in org A could reach org B's data:
+  - **Maintenance windows** — `list`/`get` returned every org's windows and
+    `update`/`delete`/`set_active`/`attach`/`detach` acted on any window by id.
+    All CRUD is now `org_id`-scoped; attach/detach org-gate both the window and
+    the monitor (cross-org → 404).
+  - **Status-page subscribers** — the admin `list`/`delete` weren't gated by the
+    parent page's org (PII: subscriber emails). Both now resolve the page scoped
+    to the caller's org first.
+  - **Deploy markers** — `delete` (and the `list` chart query) weren't org-scoped;
+    now `AND org_id = $N`, so cross-org delete/read 404s/returns nothing.
+  - **Web-push subscribe** — bound a browser to any `notification_id`; now
+    org-gates the target channel before the upsert.
+  All fixes are migration-free (columns already exist) and reversible. (Bug-hunt
+  round 2; same Phase-3 read-filtering pattern as the rest of the management API.)
+
+---
+
 ## [0.152.3] — 2026-06-21
 
 ### Fixed

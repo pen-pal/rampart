@@ -7,9 +7,10 @@
 //!   against a `webpush` notification channel.
 //! - `DELETE /v1/webpush/subscriptions` — unsubscribe by endpoint.
 
+use crate::auth::OrgContext;
 use crate::error::ApiError;
 use crate::state::AppState;
-use axum::extract::State;
+use axum::extract::{Extension, State};
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -57,12 +58,16 @@ fn parse_notif(s: &str) -> Result<NotificationId, ApiError> {
 
 async fn subscribe(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
     Json(input): Json<SubscribeInput>,
 ) -> Result<StatusCode, ApiError> {
     if input.endpoint.is_empty() || input.keys.p256dh.is_empty() || input.keys.auth.is_empty() {
         return Err(ApiError::BadRequest("endpoint + keys required".into()));
     }
     let nid = parse_notif(&input.notification_id)?;
+    // Org-gate the target channel: binding a browser subscription to
+    // another org's notification row 404s here (cross-org IDOR).
+    rampart_db::notifications::get(s.pool(), nid, org.org_id).await?;
     rampart_db::webpush::upsert(
         s.pool(),
         nid,

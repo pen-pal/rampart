@@ -45,7 +45,10 @@ impl From<WindowRow> for MaintenanceWindow {
     }
 }
 
-pub async fn list(pool: &DbPool) -> DbResult<Vec<MaintenanceWindow>> {
+pub async fn list(
+    pool: &DbPool,
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<Vec<MaintenanceWindow>> {
     // Two queries instead of a single GROUP BY: keeps the join simple
     // and lets us hydrate monitor_ids without pulling every monitor row.
     let rows = sqlx::query_as!(
@@ -53,8 +56,10 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<MaintenanceWindow>> {
         r#"
         SELECT id, name, description, start_at, end_at, active, created_at, recurrence
         FROM maintenance_windows
+        WHERE org_id = $1
         ORDER BY start_at DESC
         "#,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -84,15 +89,20 @@ pub async fn list(pool: &DbPool) -> DbResult<Vec<MaintenanceWindow>> {
     Ok(windows)
 }
 
-pub async fn get(pool: &DbPool, id: MaintenanceId) -> DbResult<MaintenanceWindow> {
+pub async fn get(
+    pool: &DbPool,
+    id: MaintenanceId,
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<MaintenanceWindow> {
     let row = sqlx::query_as!(
         WindowRow,
         r#"
         SELECT id, name, description, start_at, end_at, active, created_at, recurrence
         FROM maintenance_windows
-        WHERE id = $1
+        WHERE id = $1 AND org_id = $2
         "#,
         id.0,
+        org_id.0,
     )
     .fetch_optional(pool)
     .await?
@@ -152,13 +162,14 @@ pub async fn create(
     }
     tx.commit().await?;
 
-    get(pool, id).await
+    get(pool, id, org_id).await
 }
 
 pub async fn update(
     pool: &DbPool,
     id: MaintenanceId,
     patch: UpdateMaintenanceWindow,
+    org_id: rampart_core::ids::OrgId,
 ) -> DbResult<MaintenanceWindow> {
     // Description uses double-Option: outer None = field absent; Some(None)
     // = explicit null (clear); Some(Some(x)) = set. The `description` column
@@ -181,7 +192,7 @@ pub async fn update(
                start_at    = COALESCE($5, start_at),
                end_at      = COALESCE($6, end_at),
                recurrence  = COALESCE($7, recurrence)
-         WHERE id = $1
+         WHERE id = $1 AND org_id = $8
         "#,
         id.0,
         patch.name,
@@ -190,30 +201,45 @@ pub async fn update(
         patch.start_at,
         patch.end_at,
         recurrence_json,
+        org_id.0,
     )
     .execute(pool)
     .await?;
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }
-    get(pool, id).await
+    get(pool, id, org_id).await
 }
 
-pub async fn delete(pool: &DbPool, id: MaintenanceId) -> DbResult<()> {
-    let result = sqlx::query!("DELETE FROM maintenance_windows WHERE id = $1", id.0)
-        .execute(pool)
-        .await?;
+pub async fn delete(
+    pool: &DbPool,
+    id: MaintenanceId,
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<()> {
+    let result = sqlx::query!(
+        "DELETE FROM maintenance_windows WHERE id = $1 AND org_id = $2",
+        id.0,
+        org_id.0,
+    )
+    .execute(pool)
+    .await?;
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }
     Ok(())
 }
 
-pub async fn set_active(pool: &DbPool, id: MaintenanceId, active: bool) -> DbResult<()> {
+pub async fn set_active(
+    pool: &DbPool,
+    id: MaintenanceId,
+    active: bool,
+    org_id: rampart_core::ids::OrgId,
+) -> DbResult<()> {
     let result = sqlx::query!(
-        "UPDATE maintenance_windows SET active = $1 WHERE id = $2",
+        "UPDATE maintenance_windows SET active = $1 WHERE id = $2 AND org_id = $3",
         active,
         id.0,
+        org_id.0,
     )
     .execute(pool)
     .await?;
