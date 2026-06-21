@@ -88,6 +88,33 @@ async fn metrics(State(state): State<AppState>) -> impl IntoResponse {
 
     let pool = state.pool();
 
+    // ── self-observability: DB pool saturation + dropped alerts ────
+    // Operators page on these to catch Rampart itself degrading: a pool with
+    // idle→0 means queries are queuing, and a non-zero dropped counter means the
+    // notifier shed an alert/page under load.
+    let _ = writeln!(
+        body,
+        "# HELP rampart_db_pool_connections Current open connections in the DB pool.",
+    );
+    let _ = writeln!(body, "# TYPE rampart_db_pool_connections gauge");
+    let _ = writeln!(body, "rampart_db_pool_connections {}", pool.size());
+    let _ = writeln!(
+        body,
+        "# HELP rampart_db_pool_idle Idle connections in the DB pool.",
+    );
+    let _ = writeln!(body, "# TYPE rampart_db_pool_idle gauge");
+    let _ = writeln!(body, "rampart_db_pool_idle {}", pool.num_idle());
+    let _ = writeln!(
+        body,
+        "# HELP rampart_notifier_events_dropped_total Alert events dropped (notifier channel full/closed) since boot.",
+    );
+    let _ = writeln!(body, "# TYPE rampart_notifier_events_dropped_total counter");
+    let _ = writeln!(
+        body,
+        "rampart_notifier_events_dropped_total {}",
+        rampart_notifier::dropped_events_total(),
+    );
+
     // ── monitors by status ─────────────────────────────────────────
     let _ = writeln!(
         body,
