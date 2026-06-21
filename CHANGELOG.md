@@ -29,7 +29,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
-## [0.150.3] — 2026-06-21
+## [0.150.4] — 2026-06-21
+
+### Changed
+- **Scheduler leader loop: timeout-bound each periodic check + advance
+  escalations first.** The 8 leader-only checks ran back-to-back every 30s, so a
+  single slow scan under DB pressure delayed everything after it — including
+  escalation paging, which ran last. Each check now runs under a 25s timeout
+  (overrun → skipped this tick, retried next) so one slow scan can't stall the
+  loop, and `check_escalations` runs **first** so open episodes page on time
+  regardless of the rule scans. (six-persona audit rank 18.)
 
 ### Added
 - **Self-observability metrics on `/metrics`.** Operators can now alert on
