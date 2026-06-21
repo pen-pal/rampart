@@ -126,8 +126,11 @@ fn preview_status_line(payload: &[u8]) -> String {
         .position(|b| *b == b'\r' || *b == b'\n')
         .unwrap_or(payload.len());
     let s = String::from_utf8_lossy(&payload[..line_end]);
-    if s.len() > 80 {
-        format!("{}…", &s[..80])
+    // Truncate by CHARS, not bytes — `s` is lossy-decoded from an untrusted UDP
+    // datagram; a byte slice through a multi-byte char (or the 3-byte U+FFFD
+    // marker) would panic the probe task on a crafted reply.
+    if s.chars().count() > 80 {
+        format!("{}…", s.chars().take(80).collect::<String>())
     } else {
         s.into_owned()
     }

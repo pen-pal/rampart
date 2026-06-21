@@ -657,11 +657,18 @@ function SectionsManager({ pageId, monitors, attached, writable }) {
   };
 
   const assign = async (monitorId, sectionId) => {
-    setAssignOverride(prev => ({ ...prev, [monitorId]: sectionId }));
+    // Capture the prior override so a failed save can be rolled back (the
+    // sibling reorder handler reverts the same way); otherwise a failed
+    // assignment shows as saved forever.
+    let prevVal;
+    setAssignOverride(prev => { prevVal = prev[monitorId]; return { ...prev, [monitorId]: sectionId }; });
     setErr(null);
     try {
       await api.statusPages.assignSection(pageId, monitorId, sectionId || null);
-    } catch (e) { setErr(e.message || t('statuspage.sections.err_save')); }
+    } catch (e) {
+      setAssignOverride(prev => ({ ...prev, [monitorId]: prevVal }));
+      setErr(e.message || t('statuspage.sections.err_save'));
+    }
   };
 
   return (

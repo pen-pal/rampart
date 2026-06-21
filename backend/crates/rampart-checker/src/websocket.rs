@@ -119,8 +119,10 @@ impl Probe for WebsocketProbe {
             latency_ms: Some(ms_i32(started.elapsed())),
             status_code: None,
             msg: msg.map(|m| {
-                if m.len() > 120 {
-                    format!("{}…", &m[..120])
+                // Truncate by CHARS, not bytes — `m` comes from an untrusted WS
+                // server frame; a byte slice through a multi-byte char panics.
+                if m.chars().count() > 120 {
+                    format!("{}…", m.chars().take(120).collect::<String>())
                 } else {
                     m
                 }
