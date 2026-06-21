@@ -148,7 +148,13 @@ fn parse_field(field: &str, min: u8, max: u8) -> Option<u64> {
         let mut v = lo;
         while v <= hi {
             bits |= 1 << v;
-            v += step;
+            // `step` can be up to 255; `v += step` overflows u8 (wraps silently
+            // in release since overflow-checks are off → wrong cron bits / silent
+            // mis-scheduling; panics in debug). Stop on overflow instead.
+            v = match v.checked_add(step) {
+                Some(n) => n,
+                None => break,
+            };
         }
     }
     if bits == 0 {
@@ -204,6 +210,20 @@ mod tests {
 
     fn prev(expr: &str, now: OffsetDateTime) -> Option<OffsetDateTime> {
         CronExpr::parse(expr).unwrap().prev_occurrence(now)
+    }
+
+    #[test]
+    fn large_step_does_not_overflow() {
+        // step up to 255 must not overflow the u8 accumulator (silent wrap in
+        // release → wrong cron bits; panic in debug). A start+huge-step yields
+        // just the start bit.
+        let e = CronExpr::parse("59/200 * * * *").expect("should parse, not panic");
+        assert_eq!(
+            e.prev_occurrence(datetime!(2026-06-11 10:30:45 UTC)),
+            Some(datetime!(2026-06-11 09:59:00 UTC))
+        );
+        // Also exercise parse_field directly at the boundary.
+        assert!(parse_field("0/255", 0, 59).is_some());
     }
 
     #[test]
