@@ -15,7 +15,7 @@ use crate::auth::SESSION_COOKIE;
 use crate::error::ApiError;
 use crate::state::AppState;
 use axum::extract::{Extension, Path, State};
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::routing::{get, patch, post};
 use axum::{Json, Router};
 use axum_extra::extract::cookie::CookieJar;
@@ -110,6 +110,7 @@ fn valid_slug(slug: &str) -> bool {
 async fn create(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    headers: HeaderMap,
     Json(input): Json<CreateOrgInput>,
 ) -> Result<(StatusCode, Json<Org>), ApiError> {
     if !valid_slug(&input.slug) {
@@ -123,6 +124,16 @@ async fn create(
     // Atomic: the creator becomes the org's first Admin. Duplicate slug maps
     // to Conflict (409) inside create_with_owner.
     let org = orgs::create_with_owner(s.pool(), &input.slug, &input.name, user.id).await?;
+    crate::audit::record(
+        s.pool(),
+        &user,
+        &headers,
+        "org.create",
+        "org",
+        Some(org.id.0),
+        Some(serde_json::json!({ "slug": input.slug, "name": input.name })),
+    )
+    .await;
     Ok((StatusCode::CREATED, Json(org)))
 }
 
@@ -149,6 +160,7 @@ struct RenameOrgInput {
 async fn rename(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path(id): Path<String>,
     Json(input): Json<RenameOrgInput>,
 ) -> Result<Json<Org>, ApiError> {
@@ -157,7 +169,18 @@ async fn rename(
     if input.name.trim().is_empty() {
         return Err(ApiError::BadRequest("name must not be empty".into()));
     }
-    Ok(Json(orgs::update(s.pool(), org, &input.name).await?))
+    let updated = orgs::update(s.pool(), org, &input.name).await?;
+    crate::audit::record(
+        s.pool(),
+        &user,
+        &headers,
+        "org.rename",
+        "org",
+        Some(org.0),
+        Some(serde_json::json!({ "name": input.name })),
+    )
+    .await;
+    Ok(Json(updated))
 }
 
 // ── GET /v1/orgs/{id}/members — list members (members only) ──────────────────
@@ -186,6 +209,7 @@ struct AddMemberInput {
 async fn add_member(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path(id): Path<String>,
     Json(input): Json<AddMemberInput>,
 ) -> Result<StatusCode, ApiError> {
@@ -195,6 +219,20 @@ async fn add_member(
         .await?
         .ok_or(ApiError::NotFound)?;
     orgs::upsert_member(s.pool(), org, target.id, input.role).await?;
+    crate::audit::record(
+        s.pool(),
+        &user,
+        &headers,
+        "org.member_add",
+        "org_member",
+        Some(org.0),
+        Some(serde_json::json!({
+            "target_user": target.id.0,
+            "email": input.email,
+            "role": format!("{:?}", input.role),
+        })),
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -208,6 +246,7 @@ struct SetMemberRoleInput {
 async fn set_member_role(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path((id, user_id)): Path<(String, String)>,
     Json(input): Json<SetMemberRoleInput>,
 ) -> Result<StatusCode, ApiError> {
@@ -226,6 +265,20 @@ async fn set_member_role(
         ));
     }
     orgs::upsert_member(s.pool(), org, target, input.role).await?;
+    crate::audit::record(
+        s.pool(),
+        &user,
+        &headers,
+        "org.member_role_set",
+        "org_member",
+        Some(org.0),
+        Some(serde_json::json!({
+            "target_user": target.0,
+            "from": format!("{current:?}"),
+            "to": format!("{:?}", input.role),
+        })),
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -278,6 +331,7 @@ async fn switch(
 async fn remove_member(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
+    headers: HeaderMap,
     Path((id, user_id)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
     let org = parse_org(&id)?;
@@ -296,5 +350,15 @@ async fn remove_member(
     if !orgs::remove_member(s.pool(), org, target).await? {
         return Err(ApiError::NotFound);
     }
+    crate::audit::record(
+        s.pool(),
+        &user,
+        &headers,
+        "org.member_remove",
+        "org_member",
+        Some(org.0),
+        Some(serde_json::json!({ "target_user": target.0, "was": format!("{current:?}") })),
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }

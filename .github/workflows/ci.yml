@@ -51,6 +51,10 @@ jobs:
       # or DB needed — it greps the route source and diffs against the spec.
       - name: OpenAPI spec drift check
         run: bash ../scripts/check-openapi.sh
+      # Guard: RBAC/membership mutations must emit an audit record (SOC2
+      # access-review). Fails if an org-mutation handler drops its audit call.
+      - name: Audit-coverage guard (RBAC mutations)
+        run: bash ../scripts/check-audit-coverage.sh
 
   backend-test:
     name: backend · cargo test --workspace
