@@ -1,0 +1,77 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            app AS \"app!\",\n            url AS \"url!\",\n            count(*) AS \"views!\",\n            percentile_cont(0.75) WITHIN GROUP (ORDER BY lcp_ms) AS \"lcp_p75\",\n            percentile_cont(0.75) WITHIN GROUP (ORDER BY inp_ms) AS \"inp_p75\",\n            percentile_cont(0.75) WITHIN GROUP (ORDER BY cls)    AS \"cls_p75\",\n            max(received_at) AS \"last_seen!\"\n        FROM rum_events\n        WHERE ($1::text IS NULL OR app = $1)\n          AND received_at > now() - make_interval(hours => $2)\n          AND org_id = $3\n        GROUP BY app, url\n        ORDER BY count(*) DESC\n        LIMIT 200\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "app!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rum_events",
+            "name": "app"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "url!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rum_events",
+            "name": "url"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "views!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "lcp_p75",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "inp_p75",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "cls_p75",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "last_seen!",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int4",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "a79dba78b803e7913f085d01c0c69a0cb41302e0829252ac33396f4162f64e97"
+}

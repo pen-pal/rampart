@@ -29,6 +29,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.155.0] — 2026-06-22
+
+### Fixed
+- **RUM pages were indistinguishable across apps when "All apps" was selected.**
+  The per-URL pages rollup grouped by `url` only, so the same path on two sites
+  collapsed into one row with no way to tell which app it belonged to, and the
+  drill-down mixed every app's samples. The rollup now groups by `(app, url)`
+  and returns the app; the pages table shows an app badge per row when "All
+  apps" is selected, row identity is `(app, url)` so same-path-different-app
+  rows are independent, and the per-page drill-down scopes to that row's own
+  app. (Reported.)
+
+---
+
 ## [0.154.2] — 2026-06-22
 
 ### Fixed
