@@ -103,7 +103,7 @@ async fn create_project(
     let name = input.name.clone();
     let project = s.store().create_error_project(input, org.org_id).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "error_project.create",
@@ -132,7 +132,7 @@ async fn update_project(
         .update_error_project(pid, input, org.org_id)
         .await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "error_project.update",
@@ -154,7 +154,7 @@ async fn delete_project(
     let pid = project_id(&id)?;
     s.store().delete_error_project(pid, org.org_id).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "error_project.delete",
@@ -338,7 +338,7 @@ async fn upload_sourcemap(
         })
         .await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "error_sourcemap.upload",
@@ -373,7 +373,7 @@ async fn delete_sourcemap(
         return Err(ApiError::NotFound);
     }
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "error_sourcemap.delete",
@@ -397,7 +397,7 @@ async fn set_status(
     s.store().error_issue_in_org(iid, org.org_id).await?;
     let issue = s.store().set_error_issue_status(iid, status).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         user,
         headers,
         "error_issue.status",
@@ -466,7 +466,7 @@ async fn assign(
     };
     let issue = s.store().assign_error_issue(iid, assignee).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "error_issue.assign",

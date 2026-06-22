@@ -65,7 +65,7 @@ async fn create(
     input.validate()?;
     let g = s.store().create_monitor_group(input, org.org_id).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "monitor_group.create",
@@ -92,7 +92,7 @@ async fn update(
         .update_monitor_group(gid, input, org.org_id)
         .await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "monitor_group.update",
@@ -114,7 +114,7 @@ async fn delete_one(
     let gid = parse_group(&id)?;
     s.store().delete_monitor_group(gid, org.org_id).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "monitor_group.delete",
@@ -159,7 +159,7 @@ async fn attach_dep(
     rampart_db::monitors::get(s.pool(), parent, org.org_id).await?;
     s.store().attach_dependency(child, parent).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "monitor.attach_dependency",
@@ -185,7 +185,7 @@ async fn detach_dep(
     rampart_db::monitors::get(s.pool(), parent, org.org_id).await?;
     s.store().detach_dependency(child, parent).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "monitor.detach_dependency",

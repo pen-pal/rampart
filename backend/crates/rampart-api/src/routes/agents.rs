@@ -93,7 +93,7 @@ async fn create(
     let name = input.name.clone();
     let issued = s.store().create_agent(input, org.org_id).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "agent.create",
@@ -119,7 +119,7 @@ async fn update(
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     let agent = s.store().update_agent(agent_id, input, org.org_id).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "agent.update",
@@ -145,7 +145,7 @@ async fn revoke(
     // instead of on the 30s fallback tick.
     s.poke_scheduler();
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "agent.revoke",

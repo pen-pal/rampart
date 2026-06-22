@@ -57,7 +57,7 @@ async fn create(
     let name = input.name.clone();
     let issued = s.store().create_api_key(input, user.id, org.org_id).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "api_key.create",
@@ -79,7 +79,7 @@ async fn revoke(
     let key_id = parse(&id)?;
     s.store().delete_api_key(key_id, org.org_id).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "api_key.revoke",

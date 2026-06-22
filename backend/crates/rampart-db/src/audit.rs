@@ -8,6 +8,7 @@ use crate::{DbPool, DbResult};
 use rampart_core::{ApiKeyId, UserId};
 use serde::Serialize;
 use sqlx::types::ipnetwork::IpNetwork;
+use std::net::IpAddr;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -32,7 +33,10 @@ pub struct NewEntry<'a> {
     pub resource_kind: &'a str,
     pub resource_id: Option<Uuid>,
     pub payload: Option<serde_json::Value>,
-    pub ip_addr: Option<IpNetwork>,
+    /// Backend-neutral source IP (converted to PG `INET` internally). Kept as
+    /// `std::net::IpAddr` rather than `sqlx`'s PG-specific `IpNetwork` so the
+    /// `Store` seam surface stays driver-agnostic (multi-DB P0).
+    pub ip_addr: Option<IpAddr>,
     pub user_agent: Option<&'a str>,
 }
 
@@ -40,6 +44,11 @@ pub struct NewEntry<'a> {
 const AUDIT_CHAIN_LOCK: i64 = 0x4155_4449; // "AUDI"
 
 pub async fn insert(pool: &DbPool, entry: NewEntry<'_>) -> DbResult<()> {
+    // Convert the backend-neutral IpAddr to PG INET once, and use this SAME
+    // value for both the column bind and the hash input — so the hashed string
+    // stays the IpNetwork form (e.g. "1.2.3.4/32"), keeping the tamper-evident
+    // chain byte-identical to rows written before the seam refactor.
+    let ip_net = entry.ip_addr.map(IpNetwork::from);
     let mut tx = pool.begin().await?;
     // Serialize appends — two concurrent inserts must not fork the chain.
     sqlx::query("SELECT pg_advisory_xact_lock($1)")
@@ -69,7 +78,7 @@ pub async fn insert(pool: &DbPool, entry: NewEntry<'_>) -> DbResult<()> {
         entry.resource_kind,
         entry.resource_id,
         entry.payload,
-        entry.ip_addr,
+        ip_net,
         entry.user_agent,
         prev_hash,
     )
@@ -86,7 +95,7 @@ pub async fn insert(pool: &DbPool, entry: NewEntry<'_>) -> DbResult<()> {
         entry.actor_user_id.map(|u| u.0),
         entry.actor_api_key_id.map(|k| k.0),
         entry.payload.as_ref(),
-        entry.ip_addr.map(|i| i.to_string()).as_deref(),
+        ip_net.map(|i| i.to_string()).as_deref(),
         entry.user_agent,
     );
     sqlx::query!("UPDATE audit_log SET hash = $2 WHERE id = $1", row.id, hash)
@@ -531,7 +540,7 @@ mod tests {
     use super::*;
     use sqlx::PgPool;
 
-    fn entry<'a>(action: &'a str, ip: Option<IpNetwork>) -> NewEntry<'a> {
+    fn entry<'a>(action: &'a str, ip: Option<IpAddr>) -> NewEntry<'a> {
         NewEntry {
             actor_user_id: None,
             actor_api_key_id: None,
@@ -546,7 +555,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../migrations")]
     async fn security_insights_aggregates(pool: PgPool) {
-        let ip: IpNetwork = "1.2.3.4".parse().unwrap();
+        let ip: IpAddr = "1.2.3.4".parse().unwrap();
         insert(&pool, entry("auth.login_failed", Some(ip)))
             .await
             .unwrap();

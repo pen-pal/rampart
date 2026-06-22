@@ -149,7 +149,7 @@ async fn login(
         // record anonymously — the source IP + attempted email are the
         // forensic signal for brute-force / credential-stuffing review.
         crate::audit::record_anon(
-            state.pool(),
+            state.store(),
             &headers,
             "auth.login_failed",
             "session",
@@ -177,7 +177,7 @@ async fn login(
     state.store().mark_user_login(user_id).await.ok();
     let user = state.store().get_user(user_id).await?;
     crate::audit::record(
-        state.pool(),
+        state.store(),
         &user,
         &headers,
         "auth.login",

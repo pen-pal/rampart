@@ -209,7 +209,7 @@ async fn verify(
         // failed — identity is known (the password gate passed), so
         // attribute it to the user.
         crate::audit::record(
-            state.pool(),
+            state.store(),
             &raw,
             &headers,
             "auth.totp_failed",
@@ -251,7 +251,7 @@ async fn verify(
     state.store().mark_user_login(user_id).await.ok();
     let user = state.store().get_user(user_id).await?;
     crate::audit::record(
-        state.pool(),
+        state.store(),
         &user,
         &headers,
         "auth.login",

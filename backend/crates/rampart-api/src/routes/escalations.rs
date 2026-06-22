@@ -54,7 +54,7 @@ async fn ack_episode_route(
     s.store().episode_in_org(episode_id, org.org_id).await?;
     let ep = s.store().ack_episode(episode_id, user.id).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "escalation.ack",
@@ -109,7 +109,7 @@ async fn create(
         .create_escalation_policy(input, org.org_id)
         .await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "escalation_policy.create",
@@ -141,7 +141,7 @@ async fn update(
         .update_escalation_policy(policy_id, input, org.org_id)
         .await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "escalation_policy.update",
@@ -165,7 +165,7 @@ async fn delete(
         .delete_escalation_policy(policy_id, org.org_id)
         .await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "escalation_policy.delete",
@@ -206,7 +206,7 @@ async fn ack(
         .ack_episode_for_monitor(monitor_id, user.id)
         .await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "escalation.ack",
