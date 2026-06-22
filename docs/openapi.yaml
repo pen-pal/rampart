@@ -1830,6 +1830,32 @@ paths:
       responses:
         '200': { description: 'Empty ExportLogsServiceResponse `{}` = success.' }
         '400': { $ref: '#/components/responses/BadRequest' }
+  /syslog:
+    post:
+      tags: [Logs]
+      summary: Syslog log ingest (RFC5424 / RFC3164)
+      description: >-
+        Accepts a `text/plain` body of one or more newline-framed syslog lines
+        (RFC 5424 or RFC 3164 — the format rsyslog/syslog-ng emit) and stores
+        them in the log tier. Public ingest surface; org resolved from the
+        ingest credential (Bearer / `X-Rampart-Token` / `?k=`), Default when
+        token-less. Malformed lines are skipped, not fatal. Rows flow into the
+        detection engine like any other log. Gzip bodies are inflated.
+      responses:
+        '200': { description: '`{ "accepted": N }` — number of lines stored.' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /syslog/json:
+    post:
+      tags: [Logs]
+      summary: JSON-lines (NDJSON) log ingest
+      description: >-
+        Accepts NDJSON — one JSON log object per line. Recognises common field
+        aliases (`level`/`severity`, `message`/`msg`/`body`,
+        `service`/`service.name`, `timestamp`/`ts`); the full object is
+        preserved under attributes. Same auth + org resolution as `/syslog`.
+      responses:
+        '200': { description: '`{ "accepted": N }` — number of lines stored.' }
+        '400': { $ref: '#/components/responses/BadRequest' }
   /v1/logs:
     get:
       tags: [Logs]

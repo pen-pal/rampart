@@ -50,6 +50,7 @@ pub mod slos;
 pub mod status_pages;
 pub mod stream;
 pub mod subscribers;
+pub mod syslog;
 pub mod tags;
 pub mod telemetry_rules;
 pub mod templates;

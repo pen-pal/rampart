@@ -29,6 +29,31 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.155.17] — 2026-06-22
+
+### Added
+- **Syslog + JSON-lines log ingest (SIEM epic).** Two new public ingest
+  endpoints land external logs straight into the existing log tier (and, for
+  free, the detection engine — which matches the same fields):
+  - `POST /syslog` — `text/plain`, one or more newline-framed **RFC 5424** or
+    **RFC 3164** lines (what rsyslog / syslog-ng emit). PRI severity maps to the
+    OTLP severity scale; hostname / appname / procid / structured-data are
+    preserved under `attributes`.
+  - `POST /syslog/json` — **NDJSON**, one JSON log object per line; recognises
+    the common field aliases (`level`/`severity`, `message`/`msg`/`body`,
+    `service`/`service.name`, `timestamp`/`ts`) and keeps the full object in
+    `attributes`.
+  Auth + org resolution reuse the shared ingest-credential path (Bearer /
+  `X-Rampart-Token` / `?k=`, Default org when token-less), respect the
+  configured log head-sampling, and inflate gzip bodies — same surface as
+  `/otlp`. Malformed lines are skipped, never fatal to the batch. Parsing lives
+  in `rampart_core::syslog` (RFC5424 / RFC3164 / NDJSON → `ParsedLog`). No
+  schema change — reuses the `logs` table + `insert_logs`. Returns
+  `{ "accepted": N }`. Previously Rampart only *exported* syslog (to an upstream
+  SIEM); it now ingests it too.
+
+---
+
 ## [0.155.16] — 2026-06-22
 
 ### Changed

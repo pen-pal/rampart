@@ -79,6 +79,7 @@ pub fn build_router(state: AppState) -> Router {
             let path = req.uri().path();
             if path.starts_with("/otlp")
                 || path.starts_with("/rum")
+                || path.starts_with("/syslog")
                 || path.starts_with("/api/")
                 || path == "/healthz"
                 || path == "/health"
@@ -218,6 +219,8 @@ pub fn build_router(state: AppState) -> Router {
     let ingest = Router::new()
         // OTLP trace+log ingest — public like /push (operator controls exposure).
         .nest("/otlp", routes::otlp::router())
+        // Syslog (RFC5424/RFC3164) + NDJSON log ingest → logs table.
+        .nest("/syslog", routes::syslog::router())
         // /api/:project_id/{envelope,store} — Sentry-compatible error ingest.
         // The DSN key is the auth. Outside /v1 so SDK DSNs point straight at it.
         .nest("/api", routes::error_ingest::router())
