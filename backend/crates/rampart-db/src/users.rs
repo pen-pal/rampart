@@ -383,6 +383,36 @@ pub async fn delete(pool: &DbPool, id: UserId) -> DbResult<()> {
     Ok(())
 }
 
+/// GDPR right-to-erasure: scrub a user's personal data IN PLACE. The row is
+/// kept (not hard-deleted) so the append-only, tamper-evident audit chain and
+/// every FK reference (audit `actor_user_id`, `created_by`, …) stay intact — a
+/// hard DELETE is impossible anyway because `audit_log.actor_user_id` RESTRICTs.
+/// Email is tombstoned (stays UNIQUE + NOT NULL), display name + 2FA secret
+/// cleared, last-login dropped, and the password set to a non-verifiable
+/// sentinel so the account can never authenticate. The caller separately
+/// revokes the user's sessions + recovery codes. Idempotent (re-runnable).
+pub async fn anonymize(pool: &DbPool, id: UserId) -> DbResult<()> {
+    let result = sqlx::query!(
+        r#"
+        UPDATE users SET
+            email         = ('erased-' || $1::text || '@deleted.invalid')::citext,
+            name          = NULL,
+            password_hash = '!gdpr-erased',
+            totp_secret   = NULL,
+            totp_enabled  = FALSE,
+            last_login_at = NULL
+        WHERE id = $1
+        "#,
+        id.0,
+    )
+    .execute(pool)
+    .await?;
+    if result.rows_affected() == 0 {
+        return Err(DbError::NotFound);
+    }
+    Ok(())
+}
+
 /// Fetch the caller's opaque UI-preferences blob. New users (and rows that
 /// predate the column's default kicking in) read back as an empty object.
 pub async fn get_prefs(pool: &DbPool, id: UserId) -> DbResult<serde_json::Value> {
