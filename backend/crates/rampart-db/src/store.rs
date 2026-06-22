@@ -1490,10 +1490,14 @@ pub trait StoreDeliveryLog: Send + Sync {
 
     async fn get_delivery(&self, id: i64, org_id: OrgId) -> DbResult<Option<DeliveryEntry>>;
 
+    #[allow(clippy::too_many_arguments)]
     async fn list_deliveries(
         &self,
         limit: i64,
         before_ts: Option<OffsetDateTime>,
+        ok: Option<bool>,
+        monitor: Option<Uuid>,
+        channel: Option<&str>,
         org_id: OrgId,
     ) -> DbResult<Vec<DeliveryEntry>>;
 
@@ -3913,9 +3917,12 @@ impl StoreDeliveryLog for PgStore {
         &self,
         limit: i64,
         before_ts: Option<OffsetDateTime>,
+        ok: Option<bool>,
+        monitor: Option<Uuid>,
+        channel: Option<&str>,
         org_id: OrgId,
     ) -> DbResult<Vec<DeliveryEntry>> {
-        crate::delivery_log::list(&self.pool, limit, before_ts, org_id).await
+        crate::delivery_log::list(&self.pool, limit, before_ts, ok, monitor, channel, org_id).await
     }
 
     async fn list_all_deliveries(&self, limit: i64, org_id: OrgId) -> DbResult<Vec<DeliveryEntry>> {
