@@ -45,7 +45,7 @@ async fn list(
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<MonitorTemplate>>, ApiError> {
     Ok(Json(
-        rampart_db::monitor_templates::list(state.pool(), org.org_id).await?,
+        state.store().list_monitor_templates(org.org_id).await?,
     ))
 }
 
@@ -55,7 +55,9 @@ async fn get_one(
     Path(id): Path<String>,
 ) -> Result<Json<MonitorTemplate>, ApiError> {
     Ok(Json(
-        rampart_db::monitor_templates::get(state.pool(), parse_template_id(&id)?, org.org_id)
+        state
+            .store()
+            .get_monitor_template(parse_template_id(&id)?, org.org_id)
             .await?,
     ))
 }
@@ -80,7 +82,10 @@ async fn create(
         .map_err(|e| ApiError::BadRequest(format!("invalid monitor spec: {e}")))?;
     spec.validate()?;
 
-    let template = rampart_db::monitor_templates::create(state.pool(), input, org.org_id).await?;
+    let template = state
+        .store()
+        .create_monitor_template(input, org.org_id)
+        .await?;
     crate::audit::record(
         state.pool(),
         &user,
@@ -102,7 +107,10 @@ async fn delete_one(
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let template_id = parse_template_id(&id)?;
-    rampart_db::monitor_templates::delete(state.pool(), template_id, org.org_id).await?;
+    state
+        .store()
+        .delete_monitor_template(template_id, org.org_id)
+        .await?;
     crate::audit::record(
         state.pool(),
         &user,
@@ -136,8 +144,10 @@ async fn instantiate(
     body: Option<Json<InstantiateRequest>>,
 ) -> Result<(StatusCode, Json<Monitor>), ApiError> {
     let template_id = parse_template_id(&id)?;
-    let template =
-        rampart_db::monitor_templates::get(state.pool(), template_id, org.org_id).await?;
+    let template = state
+        .store()
+        .get_monitor_template(template_id, org.org_id)
+        .await?;
 
     let mut new_monitor: NewMonitor = serde_json::from_value(template.spec)
         .map_err(|e| ApiError::BadRequest(format!("invalid monitor spec: {e}")))?;

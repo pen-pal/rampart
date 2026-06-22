@@ -124,7 +124,9 @@ async fn ingest(
     }
     // Authenticated ingest (require_session / write-scoped key): file under the
     // caller's resolved org, not the Default org.
-    rampart_db::metric_samples::insert_many(s.pool(), &parsed.samples, org.org_id).await?;
+    s.store()
+        .insert_metric_samples(&parsed.samples, org.org_id)
+        .await?;
     Ok(Json(IngestOutcome {
         accepted: parsed.samples.len(),
         skipped: parsed.skipped,
@@ -143,7 +145,7 @@ async fn series(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<SeriesOut>>, ApiError> {
-    let series = rampart_db::metric_samples::list_series(s.pool(), org.org_id).await?;
+    let series = s.store().list_metric_sample_series(org.org_id).await?;
     Ok(Json(
         series
             .into_iter()
@@ -218,16 +220,10 @@ async fn query(
     }
     let step = p.step_seconds.unwrap_or(300).clamp(10, 86_400);
 
-    let points = rampart_db::metric_samples::range_query(
-        s.pool(),
-        &p.name,
-        &labels,
-        from,
-        to,
-        step,
-        org.org_id,
-    )
-    .await?;
+    let points = s
+        .store()
+        .metric_sample_range_query(&p.name, &labels, from, to, step, org.org_id)
+        .await?;
     Ok(Json(
         points
             .into_iter()

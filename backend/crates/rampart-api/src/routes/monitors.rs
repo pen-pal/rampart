@@ -234,7 +234,9 @@ async fn create(
             ));
         }
         // The assigned agent must belong to the caller's org.
-        rampart_db::agents::get(state.pool(), aid, org.org_id)
+        state
+            .store()
+            .get_agent(aid, org.org_id)
             .await
             .map_err(|_| ApiError::BadRequest("unknown agent".into()))?;
     }
@@ -374,7 +376,9 @@ async fn update(
                 "push monitors are inbound-only and cannot be assigned to an agent".into(),
             ));
         }
-        rampart_db::agents::get(state.pool(), aid, org.org_id)
+        state
+            .store()
+            .get_agent(aid, org.org_id)
             .await
             .map_err(|_| ApiError::BadRequest("unknown agent".into()))?;
     }
@@ -1041,9 +1045,7 @@ async fn list_presets(
     State(state): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<rampart_core::MonitorPreset>>, ApiError> {
-    Ok(Json(
-        rampart_db::monitor_presets::list(state.pool(), org.org_id).await?,
-    ))
+    Ok(Json(state.store().list_monitor_presets(org.org_id).await?))
 }
 
 async fn get_preset(
@@ -1052,7 +1054,10 @@ async fn get_preset(
     Path(id): Path<String>,
 ) -> Result<Json<rampart_core::MonitorPreset>, ApiError> {
     Ok(Json(
-        rampart_db::monitor_presets::get(state.pool(), parse_preset_id(&id)?, org.org_id).await?,
+        state
+            .store()
+            .get_monitor_preset(parse_preset_id(&id)?, org.org_id)
+            .await?,
     ))
 }
 
@@ -1066,7 +1071,10 @@ async fn create_preset(
     if input.name.trim().is_empty() {
         return Err(ApiError::BadRequest("name is required".into()));
     }
-    let preset = rampart_db::monitor_presets::create(state.pool(), input, org.org_id).await?;
+    let preset = state
+        .store()
+        .create_monitor_preset(input, org.org_id)
+        .await?;
     crate::audit::record(
         state.pool(),
         &user,
@@ -1088,7 +1096,10 @@ async fn delete_preset(
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let preset_id = parse_preset_id(&id)?;
-    rampart_db::monitor_presets::delete(state.pool(), preset_id, org.org_id).await?;
+    state
+        .store()
+        .delete_monitor_preset(preset_id, org.org_id)
+        .await?;
     crate::audit::record(
         state.pool(),
         &user,

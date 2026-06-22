@@ -2,8 +2,9 @@
 //! ingest-keys + slos + proxies + on-call + recovery-codes + api-keys +
 //! escalations + maintenance + ingest-tokens + tags + templates +
 //! telemetry-rules + metric-rules + monitor-groups + silences + oidc-state +
-//! status-pages + incidents + routing + subscribers + detection + sessions
-//! domains).
+//! status-pages + incidents + routing + subscribers + detection + sessions +
+//! incident-templates + monitor-presets + monitor-templates + delivery-log +
+//! agents + metric-samples + source-maps domains).
 //!
 //! This module proves the `&dyn Store` super-trait shape is object-safe and
 //! that the AppState wiring compiles, ahead of the full ~40-trait extraction.
@@ -18,15 +19,19 @@
 //! several domains that each expose a bare `create`/`delete`/`list` without
 //! collision.
 
+use crate::delivery_log::{DeliveryEntry, NewDelivery};
 use crate::detection::{FindingEvent, PreviewResult};
 use crate::error_tracking::{AffectedUser, ErrorBucket, IssueStats, RecordOutcome, TraceErrorRef};
 use crate::heartbeats::{BurndownPoint, ErrorBudget, MonitorSummary, MonthlyUptime, MtbfMttr};
+use crate::incident_templates::{NewIncidentTemplate, UpdateIncidentTemplate};
 use crate::incidents::{NewIncident, UpdateIncident};
 use crate::ingest_keys::IngestKey;
 use crate::logs::{LogBucket, LogFilter};
 use crate::maintenance::MaintenanceTransition;
 use crate::metric_rules::RuleEvent as MetricRuleEvent;
+use crate::metric_samples::{RangePoint, Series};
 use crate::metrics::{IngestGauges, PipelineGauges, TableSize};
+use crate::monitor_templates::{MonitorTemplate, NewMonitorTemplate};
 use crate::notifications::Notification;
 use crate::notifications::{MonitorChannelCount, NewNotification, UpdateNotification};
 use crate::oidc_state::Consumed;
@@ -36,12 +41,14 @@ use crate::scheduled_reports::{NewScheduledReport, UpdateScheduledReport};
 use crate::sessions::{Session, SessionInfo};
 use crate::silences::{NewSilence, Silence};
 use crate::slos::{SloEvent, SloWithSnapshot};
+use crate::source_maps::{NewSourceMap, SourceMapMeta};
 use crate::subscribers::{ManagedSubscription, Subscriber};
 use crate::tags::TagUsage;
 use crate::telemetry_rules::RuleEvent as TelemetryRuleEvent;
 use crate::templates::{NewTemplate, RenderedTemplate, Template, UpdateTemplate};
 use crate::traces::TraceFilter;
 use crate::{DbPool, DbResult};
+use rampart_core::agent::{Agent, IssuedAgent, NewAgent, UpdateAgent};
 use rampart_core::api_key::{ApiKey, IssuedApiKey, NewApiKey};
 use rampart_core::deploy_marker::{DeployMarker, NewDeployMarker};
 use rampart_core::detection::{
@@ -54,20 +61,23 @@ use rampart_core::escalation::{
     EscalationEpisode, EscalationPolicy, NewEscalationPolicy, UpdateEscalationPolicy,
 };
 use rampart_core::ids::{
-    ApiKeyId, DeployMarkerId, DetectionFindingId, DetectionRuleId, ErrorIssueId, ErrorProjectId,
-    EscalationPolicyId, IncidentId, IngestTokenId, MaintenanceId, MetricRuleId, MonitorGroupId,
+    AgentId, ApiKeyId, DeployMarkerId, DetectionFindingId, DetectionRuleId, ErrorIssueId,
+    ErrorProjectId, EscalationPolicyId, IncidentId, IncidentTemplateId, IngestTokenId,
+    MaintenanceId, MetricRuleId, MonitorGroupId, MonitorPresetId, MonitorTemplateId,
     NotificationId, NotificationTemplateId, OnCallScheduleId, OrgId, ScheduledReportId, SloId,
     StatusPageId, StatusPageSectionId, StatusPageSubscriberId, TagId, TelemetryRuleId,
 };
-use rampart_core::incident::{Incident, IncidentUpdate};
+use rampart_core::incident::{Incident, IncidentTemplate, IncidentUpdate};
 use rampart_core::ingest_token::{IngestToken, NewIngestToken};
 use rampart_core::log::ParsedLog;
 use rampart_core::maintenance::{MaintenanceWindow, NewMaintenanceWindow, UpdateMaintenanceWindow};
 use rampart_core::metric_rule::{MetricRule, NewMetricRule, UpdateMetricRule};
 use rampart_core::monitor_group::{MonitorGroup, NewMonitorGroup, UpdateMonitorGroup};
+use rampart_core::monitor_preset::{MonitorPreset, NewMonitorPreset};
 use rampart_core::on_call::{
     NewOnCallSchedule, OnCallSchedule, OnCallTarget, UpdateOnCallSchedule,
 };
+use rampart_core::promtext::PromSample;
 use rampart_core::proxy::{NewProxy, Proxy};
 use rampart_core::rum::{RumBeacon, RumPage, RumTracedLoad, RumVitals};
 use rampart_core::scheduled_report::ScheduledReport;
@@ -1396,6 +1406,172 @@ pub trait StoreScheduledReports: Send + Sync {
     async fn mark_scheduled_report_sent(&self, id: ScheduledReportId) -> DbResult<()>;
 }
 
+/// One method per public `crate::incident_templates` free function, with an
+/// `_incident_template(s)` suffix on the collision-prone CRUD names.
+#[async_trait::async_trait]
+pub trait StoreIncidentTemplates: Send + Sync {
+    async fn list_incident_templates(&self, org_id: OrgId) -> DbResult<Vec<IncidentTemplate>>;
+
+    async fn get_incident_template(
+        &self,
+        id: IncidentTemplateId,
+        org_id: OrgId,
+    ) -> DbResult<IncidentTemplate>;
+
+    async fn create_incident_template(
+        &self,
+        input: NewIncidentTemplate,
+        org_id: OrgId,
+    ) -> DbResult<IncidentTemplate>;
+
+    async fn update_incident_template(
+        &self,
+        id: IncidentTemplateId,
+        input: UpdateIncidentTemplate,
+        org_id: OrgId,
+    ) -> DbResult<IncidentTemplate>;
+
+    async fn delete_incident_template(&self, id: IncidentTemplateId, org_id: OrgId)
+        -> DbResult<()>;
+}
+
+/// One method per public `crate::monitor_presets` free function, with a
+/// `_monitor_preset(s)` suffix on the collision-prone CRUD names.
+#[async_trait::async_trait]
+pub trait StoreMonitorPresets: Send + Sync {
+    async fn list_monitor_presets(&self, org_id: OrgId) -> DbResult<Vec<MonitorPreset>>;
+
+    async fn get_monitor_preset(
+        &self,
+        id: MonitorPresetId,
+        org_id: OrgId,
+    ) -> DbResult<MonitorPreset>;
+
+    async fn create_monitor_preset(
+        &self,
+        input: NewMonitorPreset,
+        org_id: OrgId,
+    ) -> DbResult<MonitorPreset>;
+
+    async fn delete_monitor_preset(&self, id: MonitorPresetId, org_id: OrgId) -> DbResult<()>;
+}
+
+/// One method per public `crate::monitor_templates` free function, with a
+/// `_monitor_template(s)` suffix on the collision-prone CRUD names. Distinct
+/// from `StoreTemplates` (notification templates → `crate::templates`).
+#[async_trait::async_trait]
+pub trait StoreMonitorTemplates: Send + Sync {
+    async fn list_monitor_templates(&self, org_id: OrgId) -> DbResult<Vec<MonitorTemplate>>;
+
+    async fn get_monitor_template(
+        &self,
+        id: MonitorTemplateId,
+        org_id: OrgId,
+    ) -> DbResult<MonitorTemplate>;
+
+    async fn create_monitor_template(
+        &self,
+        input: NewMonitorTemplate,
+        org_id: OrgId,
+    ) -> DbResult<MonitorTemplate>;
+
+    async fn delete_monitor_template(&self, id: MonitorTemplateId, org_id: OrgId) -> DbResult<()>;
+}
+
+/// One method per public `crate::delivery_log` free function, with a
+/// `_deliver(y|ies)` suffix on the collision-prone names.
+#[async_trait::async_trait]
+pub trait StoreDeliveryLog: Send + Sync {
+    async fn record_delivery(&self, entry: NewDelivery<'_>) -> DbResult<DeliveryEntry>;
+
+    async fn get_delivery(&self, id: i64, org_id: OrgId) -> DbResult<Option<DeliveryEntry>>;
+
+    async fn list_deliveries(
+        &self,
+        limit: i64,
+        before_ts: Option<OffsetDateTime>,
+        org_id: OrgId,
+    ) -> DbResult<Vec<DeliveryEntry>>;
+
+    async fn list_all_deliveries(&self, limit: i64, org_id: OrgId) -> DbResult<Vec<DeliveryEntry>>;
+}
+
+/// One method per public `crate::agents` free function, with an `_agent(s)`
+/// suffix on the collision-prone names (distinct from heartbeats / api_keys).
+#[async_trait::async_trait]
+pub trait StoreAgents: Send + Sync {
+    async fn list_agents(&self, org_id: OrgId) -> DbResult<Vec<Agent>>;
+
+    async fn get_agent(&self, id: AgentId, org_id: OrgId) -> DbResult<Agent>;
+
+    async fn create_agent(&self, input: NewAgent, org_id: OrgId) -> DbResult<IssuedAgent>;
+
+    async fn update_agent(&self, id: AgentId, patch: UpdateAgent, org_id: OrgId)
+        -> DbResult<Agent>;
+
+    async fn delete_agent(&self, id: AgentId, org_id: OrgId) -> DbResult<()>;
+
+    async fn lookup_agent(&self, token: &str) -> DbResult<Agent>;
+
+    async fn touch_agent_seen(&self, id: AgentId, version: Option<&str>) -> DbResult<()>;
+}
+
+/// One method per public `crate::metric_samples` free function, with a
+/// `metric_sample(s)` flavour so it doesn't collide with `StoreMetrics` /
+/// `StoreMetricRules`. These are the externally-pushed samples, not the
+/// `/metrics` exposition aggregates.
+#[async_trait::async_trait]
+pub trait StoreMetricSamples: Send + Sync {
+    async fn insert_metric_samples(&self, samples: &[PromSample], org_id: OrgId) -> DbResult<()>;
+
+    async fn list_metric_sample_series(&self, org_id: OrgId) -> DbResult<Vec<Series>>;
+
+    async fn metric_sample_range_query(
+        &self,
+        name: &str,
+        labels: &serde_json::Value,
+        from: OffsetDateTime,
+        to: OffsetDateTime,
+        step_seconds: i64,
+        org_id: OrgId,
+    ) -> DbResult<Vec<RangePoint>>;
+
+    async fn metric_sample_baseline(
+        &self,
+        name: &str,
+        labels: &serde_json::Value,
+        window_secs: i64,
+        org_id: OrgId,
+    ) -> DbResult<Option<(f64, f64)>>;
+
+    async fn metric_sample_latest(
+        &self,
+        name: &str,
+        labels: &serde_json::Value,
+        org_id: OrgId,
+    ) -> DbResult<Option<(f64, OffsetDateTime)>>;
+
+    async fn prune_metric_samples_older_than(&self, cutoff: OffsetDateTime) -> DbResult<u64>;
+}
+
+/// One method per public `crate::source_maps` free function, with a
+/// `_source_map(s)` suffix on the collision-prone CRUD names.
+#[async_trait::async_trait]
+pub trait StoreSourceMaps: Send + Sync {
+    async fn upsert_source_map(&self, m: NewSourceMap<'_>) -> DbResult<i64>;
+
+    async fn get_source_map(
+        &self,
+        project_id: Uuid,
+        release: &str,
+        filename: &str,
+    ) -> DbResult<Option<serde_json::Value>>;
+
+    async fn list_source_maps(&self, project_id: Uuid) -> DbResult<Vec<SourceMapMeta>>;
+
+    async fn delete_source_map(&self, project_id: Uuid, id: i64) -> DbResult<bool>;
+}
+
 /// Composed store super-trait spanning every extracted domain sub-trait.
 pub trait Store:
     StoreHeartbeats
@@ -1431,6 +1607,13 @@ pub trait Store:
     + StoreMetrics
     + StoreErrorTracking
     + StoreScheduledReports
+    + StoreIncidentTemplates
+    + StoreMonitorPresets
+    + StoreMonitorTemplates
+    + StoreDeliveryLog
+    + StoreAgents
+    + StoreMetricSamples
+    + StoreSourceMaps
     + Send
     + Sync
 {
@@ -3359,6 +3542,231 @@ impl StoreScheduledReports for PgStore {
 
     async fn mark_scheduled_report_sent(&self, id: ScheduledReportId) -> DbResult<()> {
         crate::scheduled_reports::mark_sent(&self.pool, id).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreIncidentTemplates for PgStore {
+    async fn list_incident_templates(&self, org_id: OrgId) -> DbResult<Vec<IncidentTemplate>> {
+        crate::incident_templates::list(&self.pool, org_id).await
+    }
+
+    async fn get_incident_template(
+        &self,
+        id: IncidentTemplateId,
+        org_id: OrgId,
+    ) -> DbResult<IncidentTemplate> {
+        crate::incident_templates::get(&self.pool, id, org_id).await
+    }
+
+    async fn create_incident_template(
+        &self,
+        input: NewIncidentTemplate,
+        org_id: OrgId,
+    ) -> DbResult<IncidentTemplate> {
+        crate::incident_templates::create(&self.pool, input, org_id).await
+    }
+
+    async fn update_incident_template(
+        &self,
+        id: IncidentTemplateId,
+        input: UpdateIncidentTemplate,
+        org_id: OrgId,
+    ) -> DbResult<IncidentTemplate> {
+        crate::incident_templates::update(&self.pool, id, input, org_id).await
+    }
+
+    async fn delete_incident_template(
+        &self,
+        id: IncidentTemplateId,
+        org_id: OrgId,
+    ) -> DbResult<()> {
+        crate::incident_templates::delete(&self.pool, id, org_id).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreMonitorPresets for PgStore {
+    async fn list_monitor_presets(&self, org_id: OrgId) -> DbResult<Vec<MonitorPreset>> {
+        crate::monitor_presets::list(&self.pool, org_id).await
+    }
+
+    async fn get_monitor_preset(
+        &self,
+        id: MonitorPresetId,
+        org_id: OrgId,
+    ) -> DbResult<MonitorPreset> {
+        crate::monitor_presets::get(&self.pool, id, org_id).await
+    }
+
+    async fn create_monitor_preset(
+        &self,
+        input: NewMonitorPreset,
+        org_id: OrgId,
+    ) -> DbResult<MonitorPreset> {
+        crate::monitor_presets::create(&self.pool, input, org_id).await
+    }
+
+    async fn delete_monitor_preset(&self, id: MonitorPresetId, org_id: OrgId) -> DbResult<()> {
+        crate::monitor_presets::delete(&self.pool, id, org_id).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreMonitorTemplates for PgStore {
+    async fn list_monitor_templates(&self, org_id: OrgId) -> DbResult<Vec<MonitorTemplate>> {
+        crate::monitor_templates::list(&self.pool, org_id).await
+    }
+
+    async fn get_monitor_template(
+        &self,
+        id: MonitorTemplateId,
+        org_id: OrgId,
+    ) -> DbResult<MonitorTemplate> {
+        crate::monitor_templates::get(&self.pool, id, org_id).await
+    }
+
+    async fn create_monitor_template(
+        &self,
+        input: NewMonitorTemplate,
+        org_id: OrgId,
+    ) -> DbResult<MonitorTemplate> {
+        crate::monitor_templates::create(&self.pool, input, org_id).await
+    }
+
+    async fn delete_monitor_template(&self, id: MonitorTemplateId, org_id: OrgId) -> DbResult<()> {
+        crate::monitor_templates::delete(&self.pool, id, org_id).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreDeliveryLog for PgStore {
+    async fn record_delivery(&self, entry: NewDelivery<'_>) -> DbResult<DeliveryEntry> {
+        crate::delivery_log::record(&self.pool, entry).await
+    }
+
+    async fn get_delivery(&self, id: i64, org_id: OrgId) -> DbResult<Option<DeliveryEntry>> {
+        crate::delivery_log::get(&self.pool, id, org_id).await
+    }
+
+    async fn list_deliveries(
+        &self,
+        limit: i64,
+        before_ts: Option<OffsetDateTime>,
+        org_id: OrgId,
+    ) -> DbResult<Vec<DeliveryEntry>> {
+        crate::delivery_log::list(&self.pool, limit, before_ts, org_id).await
+    }
+
+    async fn list_all_deliveries(&self, limit: i64, org_id: OrgId) -> DbResult<Vec<DeliveryEntry>> {
+        crate::delivery_log::list_all(&self.pool, limit, org_id).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreAgents for PgStore {
+    async fn list_agents(&self, org_id: OrgId) -> DbResult<Vec<Agent>> {
+        crate::agents::list(&self.pool, org_id).await
+    }
+
+    async fn get_agent(&self, id: AgentId, org_id: OrgId) -> DbResult<Agent> {
+        crate::agents::get(&self.pool, id, org_id).await
+    }
+
+    async fn create_agent(&self, input: NewAgent, org_id: OrgId) -> DbResult<IssuedAgent> {
+        crate::agents::create(&self.pool, input, org_id).await
+    }
+
+    async fn update_agent(
+        &self,
+        id: AgentId,
+        patch: UpdateAgent,
+        org_id: OrgId,
+    ) -> DbResult<Agent> {
+        crate::agents::update(&self.pool, id, patch, org_id).await
+    }
+
+    async fn delete_agent(&self, id: AgentId, org_id: OrgId) -> DbResult<()> {
+        crate::agents::delete(&self.pool, id, org_id).await
+    }
+
+    async fn lookup_agent(&self, token: &str) -> DbResult<Agent> {
+        crate::agents::lookup(&self.pool, token).await
+    }
+
+    async fn touch_agent_seen(&self, id: AgentId, version: Option<&str>) -> DbResult<()> {
+        crate::agents::touch_seen(&self.pool, id, version).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreMetricSamples for PgStore {
+    async fn insert_metric_samples(&self, samples: &[PromSample], org_id: OrgId) -> DbResult<()> {
+        crate::metric_samples::insert_many(&self.pool, samples, org_id).await
+    }
+
+    async fn list_metric_sample_series(&self, org_id: OrgId) -> DbResult<Vec<Series>> {
+        crate::metric_samples::list_series(&self.pool, org_id).await
+    }
+
+    async fn metric_sample_range_query(
+        &self,
+        name: &str,
+        labels: &serde_json::Value,
+        from: OffsetDateTime,
+        to: OffsetDateTime,
+        step_seconds: i64,
+        org_id: OrgId,
+    ) -> DbResult<Vec<RangePoint>> {
+        crate::metric_samples::range_query(&self.pool, name, labels, from, to, step_seconds, org_id)
+            .await
+    }
+
+    async fn metric_sample_baseline(
+        &self,
+        name: &str,
+        labels: &serde_json::Value,
+        window_secs: i64,
+        org_id: OrgId,
+    ) -> DbResult<Option<(f64, f64)>> {
+        crate::metric_samples::baseline(&self.pool, name, labels, window_secs, org_id).await
+    }
+
+    async fn metric_sample_latest(
+        &self,
+        name: &str,
+        labels: &serde_json::Value,
+        org_id: OrgId,
+    ) -> DbResult<Option<(f64, OffsetDateTime)>> {
+        crate::metric_samples::latest(&self.pool, name, labels, org_id).await
+    }
+
+    async fn prune_metric_samples_older_than(&self, cutoff: OffsetDateTime) -> DbResult<u64> {
+        crate::metric_samples::prune_older_than(&self.pool, cutoff).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreSourceMaps for PgStore {
+    async fn upsert_source_map(&self, m: NewSourceMap<'_>) -> DbResult<i64> {
+        crate::source_maps::upsert(&self.pool, m).await
+    }
+
+    async fn get_source_map(
+        &self,
+        project_id: Uuid,
+        release: &str,
+        filename: &str,
+    ) -> DbResult<Option<serde_json::Value>> {
+        crate::source_maps::get(&self.pool, project_id, release, filename).await
+    }
+
+    async fn list_source_maps(&self, project_id: Uuid) -> DbResult<Vec<SourceMapMeta>> {
+        crate::source_maps::list(&self.pool, project_id).await
+    }
+
+    async fn delete_source_map(&self, project_id: Uuid, id: i64) -> DbResult<bool> {
+        crate::source_maps::delete(&self.pool, project_id, id).await
     }
 }
 

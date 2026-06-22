@@ -107,7 +107,7 @@ async fn remote_write(
             }
         }
 
-        rampart_db::metric_samples::insert_many(s.pool(), &samples, org).await?;
+        s.store().insert_metric_samples(&samples, org).await?;
         Ok(StatusCode::NO_CONTENT)
     })
     .await
