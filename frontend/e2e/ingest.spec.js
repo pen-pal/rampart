@@ -22,7 +22,7 @@
 // JSON API; the page is uniq()-suffixed and torn down in a finally so the
 // shared cross-browser DB stays clean.
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { api, ensureLoggedIn, uniq } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });

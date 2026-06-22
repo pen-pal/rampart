@@ -11,7 +11,7 @@
 // shared DB don't collide, and the spec deletes the window at the end
 // to keep the row count from drifting upward across re-runs.
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { api, ensureLoggedIn, gotoView, uniq } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });

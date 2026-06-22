@@ -21,7 +21,7 @@
 // the public endpoints with an explicit content-type. The page is uniq()-
 // suffixed and removed in a finally.
 
-import { test, expect, request as pwRequest } from '@playwright/test';
+import { test, expect, request as pwRequest } from './fixtures.js';
 import { api, ensureLoggedIn, uniq } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });

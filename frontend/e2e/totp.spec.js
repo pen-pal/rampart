@@ -16,7 +16,7 @@
 // `Activate` button gating on a 6-character input, the recovery-
 // codes columned layout, etc.
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { api, ensureLoggedIn, fixtures, gotoView } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });

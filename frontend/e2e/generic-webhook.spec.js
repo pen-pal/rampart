@@ -24,7 +24,7 @@
 // IngestMapping; the receiver coerces scalars to text via pointer_str so a
 // string discriminator works as-is.
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { api, ensureLoggedIn, uniq } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });
