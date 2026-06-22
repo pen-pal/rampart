@@ -185,7 +185,7 @@ async fn episode(
 ) -> Result<Json<Option<EscalationEpisode>>, ApiError> {
     let monitor_id = parse_monitor(&id)?;
     // Gate through the monitor's org — cross-org monitor id is a 404.
-    rampart_db::monitors::get(s.pool(), monitor_id, org.org_id).await?;
+    s.store().get_monitor(monitor_id, org.org_id).await?;
     Ok(Json(s.store().open_episode_for_monitor(monitor_id).await?))
 }
 
@@ -200,7 +200,7 @@ async fn ack(
 ) -> Result<Json<EscalationEpisode>, ApiError> {
     let monitor_id = parse_monitor(&id)?;
     // Gate through the monitor's org — cross-org monitor id is a 404.
-    rampart_db::monitors::get(s.pool(), monitor_id, org.org_id).await?;
+    s.store().get_monitor(monitor_id, org.org_id).await?;
     let episode = s
         .store()
         .ack_episode_for_monitor(monitor_id, user.id)
