@@ -34,7 +34,9 @@ async fn insights(
     Query(q): Query<InsightsQuery>,
 ) -> Result<Json<rampart_db::audit::SecurityInsights>, ApiError> {
     Ok(Json(
-        rampart_db::audit::security_insights(s.pool(), q.hours.unwrap_or(24)).await?,
+        s.store()
+            .audit_security_insights(q.hours.unwrap_or(24))
+            .await?,
     ))
 }
 
@@ -44,7 +46,7 @@ async fn insights(
 async fn verify(
     State(s): State<AppState>,
 ) -> Result<Json<rampart_db::audit::VerifyReport>, ApiError> {
-    Ok(Json(rampart_db::audit::verify_chain(s.pool()).await?))
+    Ok(Json(s.store().verify_audit_chain().await?))
 }
 
 #[derive(Deserialize)]
@@ -88,9 +90,7 @@ async fn list(
         from: q.from,
         to: q.to,
     };
-    Ok(Json(
-        rampart_db::audit::list(s.pool(), q.limit, filter).await?,
-    ))
+    Ok(Json(s.store().list_audit_entries(q.limit, filter).await?))
 }
 
 /// CSV export of audit entries, honouring the same filters as the JSON
@@ -118,7 +118,7 @@ async fn list_csv(
         from: q.from,
         to: q.to,
     };
-    let entries = rampart_db::audit::list(s.pool(), 50_000, filter).await?;
+    let entries = s.store().list_audit_entries(50_000, filter).await?;
     let fmt = time::format_description::well_known::Rfc3339;
     let mut body = String::with_capacity(96 + entries.len() * 160);
     body.push_str("id,ts,actor_user_id,actor_api_key_id,action,resource_kind,resource_id,ip_addr,user_agent,payload\n");
@@ -184,7 +184,7 @@ async fn export_csv(
     State(s): State<AppState>,
     Query(q): Query<ExportQuery>,
 ) -> Result<Response, ApiError> {
-    let pool = s.pool().clone();
+    let store = s.store().clone();
     let filter = ExportFilter {
         from: q.from,
         to: q.to,
@@ -205,14 +205,15 @@ async fn export_csv(
     };
 
     let stream = futures::stream::try_unfold(init, move |mut cur| {
-        let pool = pool.clone();
+        let store = store.clone();
         async move {
             if cur.done {
                 return Ok::<_, ApiError>(None);
             }
 
-            let rows =
-                rampart_db::audit::export_batch(&pool, cur.before_id, EXPORT_BATCH, filter).await?;
+            let rows = store
+                .export_audit_batch(cur.before_id, EXPORT_BATCH, filter)
+                .await?;
 
             let mut chunk = String::new();
             if !cur.header_sent {

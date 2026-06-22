@@ -8,14 +8,15 @@
 use axum::http::HeaderMap;
 use rampart_core::UserId;
 use rampart_db::audit::NewEntry;
+use rampart_db::store::Store;
 use rampart_db::users::User;
-use rampart_db::DbPool;
-use sqlx::types::ipnetwork::IpNetwork;
+use std::net::IpAddr;
 use std::str::FromStr;
+use std::sync::Arc;
 use uuid::Uuid;
 
 pub async fn record(
-    pool: &DbPool,
+    store: &Arc<dyn Store>,
     user: &User,
     headers: &HeaderMap,
     action: &str,
@@ -24,7 +25,7 @@ pub async fn record(
     payload: Option<serde_json::Value>,
 ) {
     emit(
-        pool,
+        store,
         Some(user.id),
         headers,
         action,
@@ -42,18 +43,18 @@ pub async fn record(
 /// forensic value. Bounded by the login rate limiter so a credential
 /// stuffer can't flood the chain.
 pub async fn record_anon(
-    pool: &DbPool,
+    store: &Arc<dyn Store>,
     headers: &HeaderMap,
     action: &str,
     resource_kind: &str,
     payload: Option<serde_json::Value>,
 ) {
-    emit(pool, None, headers, action, resource_kind, None, payload).await;
+    emit(store, None, headers, action, resource_kind, None, payload).await;
 }
 
 #[allow(clippy::too_many_arguments)]
 async fn emit(
-    pool: &DbPool,
+    store: &Arc<dyn Store>,
     actor_user_id: Option<UserId>,
     headers: &HeaderMap,
     action: &str,
@@ -82,7 +83,7 @@ async fn emit(
         ip_addr: ip,
         user_agent: ua,
     };
-    if let Err(e) = rampart_db::audit::insert(pool, entry).await {
+    if let Err(e) = store.record_audit(entry).await {
         tracing::warn!(error = %e, action, "audit insert failed");
     }
 }
@@ -142,13 +143,13 @@ fn redact_secret_keys(value: &mut serde_json::Value) {
 /// resolved client IP (TCP peer, or the real client behind a trusted
 /// proxy) and strips of any inbound forgery. Never reads raw
 /// `X-Forwarded-For` / `X-Real-IP`, which a client can spoof.
-fn client_ip(headers: &HeaderMap) -> Option<IpNetwork> {
+fn client_ip(headers: &HeaderMap) -> Option<IpAddr> {
     let raw = headers
         .get(crate::client_ip::CLIENT_IP_HEADER)?
         .to_str()
         .ok()?
         .trim();
-    IpNetwork::from_str(raw).ok()
+    IpAddr::from_str(raw).ok()
 }
 
 #[cfg(test)]

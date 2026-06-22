@@ -29,6 +29,29 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.155.15] — 2026-06-22
+
+### Changed
+- **Internal: `Store` seam extended to the `audit` domain (multi-DB P0
+  slice 12).** Added `StoreAudit` (7 methods — `record_audit`,
+  `verify_audit_chain`, `audit_security_insights`, `list_audit_entries`,
+  `fetch_audit_since`, `export_audit_batch`, `set_audit_chain_watermark`) into
+  the `Store` super-trait. To keep the seam surface backend-neutral, `NewEntry`
+  now carries `Option<std::net::IpAddr>` instead of the PG-specific
+  `sqlx::IpNetwork`; `audit::insert` converts to `IpNetwork` once and uses that
+  same value for both the column bind and the hash input, so the tamper-evident
+  chain stays **byte-identical** to pre-refactor rows. The rampart-api audit
+  wrapper (`record` / `record_anon` / `emit`) now threads `&Arc<dyn Store>` and
+  routes writes through `store.record_audit` — **92** call sites across 23 route
+  files migrated from `s.pool()` to `s.store()`; `client_ip()` returns
+  `IpAddr`. The 5 audit read routes (insights / verify / list / list_csv /
+  export_csv stream) go through the store. In-crate / non-seam-aware callers
+  (`prune.rs` watermark, notifier `siem.rs` fetch_since, the chain tests) keep
+  the free fns. Zero behavior change; `Store` still object-safe. Only the
+  `monitors` special case remains unseamed.
+
+---
+
 ## [0.155.14] — 2026-06-22
 
 ### Changed

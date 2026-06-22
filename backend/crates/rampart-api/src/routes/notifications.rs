@@ -132,7 +132,7 @@ async fn create(
     }
     let n = state.store().create_notification(input, org.org_id).await?;
     crate::audit::record(
-        state.pool(),
+        state.store(),
         &user,
         &headers,
         "notification.create",
@@ -176,7 +176,7 @@ async fn update(
         .update_notification(id, input, org.org_id)
         .await?;
     crate::audit::record(
-        state.pool(),
+        state.store(),
         &user,
         &headers,
         "notification.update",
@@ -198,7 +198,7 @@ async fn remove(
     let id = parse_notif(&id)?;
     state.store().delete_notification(id, org.org_id).await?;
     crate::audit::record(
-        state.pool(),
+        state.store(),
         &user,
         &headers,
         "notification.delete",
@@ -255,7 +255,7 @@ async fn attach(
     state.store().get_notification(nid, org.org_id).await?;
     state.store().attach_notification(mid, nid).await?;
     crate::audit::record(
-        state.pool(),
+        state.store(),
         &user,
         &headers,
         "notification.attach",
@@ -281,7 +281,7 @@ async fn detach(
     state.store().get_notification(nid, org.org_id).await?;
     state.store().detach_notification(mid, nid).await?;
     crate::audit::record(
-        state.pool(),
+        state.store(),
         &user,
         &headers,
         "notification.detach",
