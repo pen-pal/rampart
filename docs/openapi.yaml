@@ -100,6 +100,22 @@ tags:
 
 paths:
   # ─────────────────────────── Health / ops ───────────────────────────
+  /health:
+    get:
+      tags: [Health]
+      summary: Liveness probe (alias of /healthz)
+      description: Standard `/health` alias for the liveness probe. Always 200 if the process can answer; carries the build version.
+      security: []
+      responses:
+        '200':
+          description: Process is alive.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: alive }
+                  version: { type: string, example: 0.3.0 }
   /healthz:
     get:
       tags: [Health]
