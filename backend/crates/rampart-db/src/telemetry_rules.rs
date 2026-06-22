@@ -321,7 +321,7 @@ async fn observe(pool: &DbPool, rule: &TelemetryRule) -> DbResult<Option<f64>> {
                 r#"
                 SELECT COUNT(*) AS "count!"
                 FROM logs
-                WHERE ts >= now() - make_interval(secs => $1)
+                WHERE received_at >= now() - make_interval(secs => $1)
                   AND severity >= $2
                   AND ($3 = '' OR service_name = $3)
                   AND ($4 = '' OR body ILIKE '%' || $4 || '%')
