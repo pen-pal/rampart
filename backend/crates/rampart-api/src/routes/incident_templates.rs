@@ -33,9 +33,7 @@ async fn list(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<IncidentTemplate>>, ApiError> {
-    Ok(Json(
-        rampart_db::incident_templates::list(s.pool(), org.org_id).await?,
-    ))
+    Ok(Json(s.store().list_incident_templates(org.org_id).await?))
 }
 
 async fn get_one(
@@ -44,7 +42,9 @@ async fn get_one(
     Path(id): Path<String>,
 ) -> Result<Json<IncidentTemplate>, ApiError> {
     Ok(Json(
-        rampart_db::incident_templates::get(s.pool(), parse(&id)?, org.org_id).await?,
+        s.store()
+            .get_incident_template(parse(&id)?, org.org_id)
+            .await?,
     ))
 }
 
@@ -59,7 +59,10 @@ async fn create(
     if input.body.trim().is_empty() {
         return Err(ApiError::BadRequest("body is required".into()));
     }
-    let t = rampart_db::incident_templates::create(s.pool(), input, org.org_id).await?;
+    let t = s
+        .store()
+        .create_incident_template(input, org.org_id)
+        .await?;
     Ok((StatusCode::CREATED, Json(t)))
 }
 
@@ -70,7 +73,9 @@ async fn update(
     Json(input): Json<UpdateIncidentTemplate>,
 ) -> Result<Json<IncidentTemplate>, ApiError> {
     Ok(Json(
-        rampart_db::incident_templates::update(s.pool(), parse(&id)?, input, org.org_id).await?,
+        s.store()
+            .update_incident_template(parse(&id)?, input, org.org_id)
+            .await?,
     ))
 }
 
@@ -79,6 +84,8 @@ async fn remove(
     Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::incident_templates::delete(s.pool(), parse(&id)?, org.org_id).await?;
+    s.store()
+        .delete_incident_template(parse(&id)?, org.org_id)
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }

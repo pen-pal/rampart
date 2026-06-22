@@ -77,7 +77,7 @@ async fn list(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<Agent>>, ApiError> {
-    Ok(Json(rampart_db::agents::list(s.pool(), org.org_id).await?))
+    Ok(Json(s.store().list_agents(org.org_id).await?))
 }
 
 async fn create(
@@ -91,7 +91,7 @@ async fn create(
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     let name = input.name.clone();
-    let issued = rampart_db::agents::create(s.pool(), input, org.org_id).await?;
+    let issued = s.store().create_agent(input, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -117,7 +117,7 @@ async fn update(
     input
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
-    let agent = rampart_db::agents::update(s.pool(), agent_id, input, org.org_id).await?;
+    let agent = s.store().update_agent(agent_id, input, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -139,7 +139,7 @@ async fn revoke(
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let agent_id = parse(&id)?;
-    rampart_db::agents::delete(s.pool(), agent_id, org.org_id).await?;
+    s.store().delete_agent(agent_id, org.org_id).await?;
     // ON DELETE SET NULL just returned this agent's monitors to local
     // probing — poke so the scheduler starts their tasks immediately
     // instead of on the 30s fallback tick.
@@ -167,7 +167,8 @@ async fn authenticate(s: &AppState, headers: &HeaderMap) -> Result<Agent, ApiErr
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
         .ok_or(ApiError::Unauthorized)?;
-    rampart_db::agents::lookup(s.pool(), token)
+    s.store()
+        .lookup_agent(token)
         .await
         .map_err(|_| ApiError::Unauthorized)
 }
@@ -185,7 +186,7 @@ async fn pull_monitors(
         .get("x-rampart-agent-version")
         .and_then(|v| v.to_str().ok());
     // Liveness bump is best-effort; the pull itself matters more.
-    let _ = rampart_db::agents::touch_seen(s.pool(), agent.id, version).await;
+    let _ = s.store().touch_agent_seen(agent.id, version).await;
     Ok(Json(
         rampart_db::monitors::list_for_agent(s.pool(), agent.id).await?,
     ))
@@ -219,7 +220,7 @@ async fn report_heartbeats(
             results.len()
         )));
     }
-    let _ = rampart_db::agents::touch_seen(s.pool(), agent.id, None).await;
+    let _ = s.store().touch_agent_seen(agent.id, None).await;
 
     let mut accepted = 0usize;
     let mut rejected: Vec<RejectedResult> = Vec::new();
@@ -298,7 +299,7 @@ async fn report_metrics(
     body: String,
 ) -> Result<Json<MetricsOutcome>, ApiError> {
     let agent = authenticate(&s, &headers).await?;
-    let _ = rampart_db::agents::touch_seen(s.pool(), agent.id, None).await;
+    let _ = s.store().touch_agent_seen(agent.id, None).await;
 
     let mut parsed = rampart_core::promtext::parse(&body);
     if parsed.samples.is_empty() && parsed.skipped > 0 {
@@ -313,7 +314,9 @@ async fn report_metrics(
     }
     // Phase 5-4: stamp the pushed samples with the AGENT'S org (resolved from
     // the agent token via lookup), not Default.
-    rampart_db::metric_samples::insert_many(s.pool(), &parsed.samples, agent.org_id).await?;
+    s.store()
+        .insert_metric_samples(&parsed.samples, agent.org_id)
+        .await?;
     Ok(Json(MetricsOutcome {
         accepted: parsed.samples.len(),
         skipped: parsed.skipped,

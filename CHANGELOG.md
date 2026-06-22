@@ -29,6 +29,21 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.155.11] — 2026-06-22
+
+### Changed
+- **Internal: `Store` seam extended to 7 more domains (multi-DB P0 slice 8).**
+  Added `StoreIncidentTemplates`, `StoreMonitorPresets`, `StoreMonitorTemplates`,
+  `StoreDeliveryLog`, `StoreAgents`, `StoreMetricSamples`, `StoreSourceMaps`
+  sub-traits (34 methods, per-domain-suffixed, delegating to existing free fns)
+  into the `Store` super-trait, and migrated **32** rampart-api call sites to
+  `state.store()`. **40 of ~40 domains** now reach the DB through the object-safe
+  `&dyn Store` seam. `webpush` deferred (its `get_or_create_vapid` takes a
+  generic closure → not object-safe; joins audit/orgs/monitors/users as the
+  remaining object-safety special cases). Zero behavior change.
+
+---
+
 ## [0.155.10] — 2026-06-22
 
 ### Added

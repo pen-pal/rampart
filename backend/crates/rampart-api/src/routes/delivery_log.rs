@@ -42,7 +42,9 @@ async fn list(
     Query(q): Query<ListQuery>,
 ) -> Result<Json<Vec<DeliveryEntry>>, ApiError> {
     Ok(Json(
-        rampart_db::delivery_log::list(s.pool(), q.limit, q.before, org.org_id).await?,
+        s.store()
+            .list_deliveries(q.limit, q.before, org.org_id)
+            .await?,
     ))
 }
 
@@ -58,7 +60,9 @@ async fn retry(
     Extension(org): Extension<OrgContext>,
     Path(id): Path<i64>,
 ) -> Result<Json<DeliveryEntry>, ApiError> {
-    let entry = rampart_db::delivery_log::get(s.pool(), id, org.org_id)
+    let entry = s
+        .store()
+        .get_delivery(id, org.org_id)
         .await?
         .ok_or(ApiError::NotFound)?;
 
@@ -90,7 +94,10 @@ async fn export_csv(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let rows = rampart_db::delivery_log::list_all(s.pool(), EXPORT_CAP, org.org_id).await?;
+    let rows = s
+        .store()
+        .list_all_deliveries(EXPORT_CAP, org.org_id)
+        .await?;
     if rows.len() as i64 == EXPORT_CAP {
         tracing::warn!(
             cap = EXPORT_CAP,
