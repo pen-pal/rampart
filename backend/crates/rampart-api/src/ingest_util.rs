@@ -266,7 +266,8 @@ fn flag_set(var: &str) -> bool {
 
 /// Length-independent constant-time byte comparison. Mismatched lengths
 /// still walk the longer buffer so timing doesn't reveal the secret length.
-fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+/// `pub(crate)` so the Sentry DSN-key check (error_ingest) shares it.
+pub(crate) fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     let mut diff = (a.len() ^ b.len()) as u8;
     let n = a.len().max(b.len());
     for i in 0..n {

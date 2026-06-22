@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO ingest_tokens (id, status_page_id, token, label, mapping)\n        VALUES ($1, $2, $3, $4, $5)\n        RETURNING id, status_page_id, token, label, mapping, created_at, last_used_at\n        ",
+  "query": "\n        SELECT id, status_page_id, token, label, mapping, created_at, last_used_at\n        FROM ingest_tokens\n        WHERE token_hash = $1 OR token = $2\n        ",
   "describe": {
     "columns": [
       {
@@ -83,11 +83,8 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid",
-        "Uuid",
         "Text",
-        "Text",
-        "Jsonb"
+        "Text"
       ]
     },
     "nullable": [
@@ -100,5 +97,5 @@
       true
     ]
   },
-  "hash": "bb30f057a2563da0ec70da55c65d5f54260b079b78c98e8d6c9e402a9ddace8c"
+  "hash": "e5d5e40d8faf0e4585ba7717e69fd6dae20247f8882b74946e75b7df03f117d4"
 }
