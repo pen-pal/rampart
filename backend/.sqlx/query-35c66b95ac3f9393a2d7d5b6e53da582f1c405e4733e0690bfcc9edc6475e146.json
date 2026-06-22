@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE users SET\n            email         = ('erased-' || $1::text || '@deleted.invalid')::citext,\n            name          = NULL,\n            password_hash = '!gdpr-erased',\n            totp_secret   = NULL,\n            totp_enabled  = FALSE,\n            last_login_at = NULL\n        WHERE id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "35c66b95ac3f9393a2d7d5b6e53da582f1c405e4733e0690bfcc9edc6475e146"
+}

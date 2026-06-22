@@ -2376,6 +2376,50 @@ paths:
       description: Admin only.
       responses:
         '204': { description: Deleted. }
+  /v1/users/{id}/export:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Users]
+      summary: Export a user's personal data (GDPR DSAR)
+      description: >
+        Admin only. Aggregates the account's personal data — profile,
+        UI preferences, active sessions, and org memberships — into one JSON
+        document for a GDPR data-subject access request. The export is audited.
+      responses:
+        '200':
+          description: The user's personal data.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { type: object }
+                  preferences: { type: object }
+                  sessions: { type: array, items: { type: object } }
+                  organizations: { type: array, items: { type: object } }
+  /v1/users/{id}/erase:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Users]
+      summary: Erase a user's personal data (GDPR right-to-erasure)
+      description: >
+        Admin only. Anonymizes the user's PII in place (email tombstoned, name
+        + 2FA cleared, password made non-verifiable) and revokes all sessions +
+        recovery codes. The row is kept as an anonymized tombstone so the
+        append-only tamper-evident audit chain and FK references stay intact
+        (security-log legal-retention exception). Cannot erase your own account.
+        The erasure is audited.
+      responses:
+        '204': { description: Erased (anonymized). }
+        '400': { description: Cannot erase your own account. }
   /v1/users/{id}/role:
     parameters:
       - name: id
