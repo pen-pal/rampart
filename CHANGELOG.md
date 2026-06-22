@@ -29,6 +29,18 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.154.2] — 2026-06-22
+
+### Fixed
+- **Monitor → Config tab white-paged for any monitor with tags attached.** In
+  `TagsCard`, the attached-tags `.map(t => …)` loop variable shadowed the
+  imported i18n function `t`, so the `t('common.detach')` call inside rendered a
+  *tag object* as a function → `TypeError` → the whole Config tab crashed to a
+  blank page. Renamed the loop variable to `tag` (same `t()`-shadow class as the
+  earlier SLO-edit crash). Verified no other `.map(t => …)` body calls `t()`.
+
+---
+
 ## [0.154.1] — 2026-06-22
 
 ### Changed
