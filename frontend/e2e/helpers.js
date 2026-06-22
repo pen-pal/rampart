@@ -6,13 +6,32 @@ const ADMIN_EMAIL    = 'e2e-admin@example.com';
 const ADMIN_NAME     = 'E2E Admin';
 const ADMIN_PASSWORD = 'correct-horse-battery-staple';
 
+// `page.goto` that tolerates the concurrent-navigation aborts WebKit + Firefox
+// raise when the SPA redirects (e.g. the auth gate bouncing to #/login, or a
+// hash change) while a navigation is still settling. Chromium swallows these;
+// the others throw `NS_BINDING_ABORTED` / "interrupted by another navigation".
+// Navigation here is idempotent, so retrying is safe.
+export async function robustGoto(page, url, opts = { waitUntil: 'load' }) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await page.goto(url, opts);
+      return;
+    } catch (e) {
+      const msg = String(e);
+      const racey = /NS_BINDING_ABORTED|interrupted by another navigation|frame was detached|WebKit encountered an internal error|Navigation .* is interrupted/.test(msg);
+      if (racey && attempt < 3) continue;
+      throw e;
+    }
+  }
+}
+
 /**
  * Walk the first-run signup screen if the DB has no users. If an admin
  * already exists (e.g. another spec ran before us in the same suite),
  * returns false without filling anything in — call `login(page)` instead.
  */
 export async function signupAdmin(page) {
-  await page.goto('/');
+  await robustGoto(page, '/');
   await page.waitForURL(/#\/login/);
 
   // Decide first-run vs login AUTHORITATIVELY via the API. The UI button text is
@@ -52,16 +71,17 @@ export async function ensureLoggedIn(page) {
  * and then wait for an element that's unique to the destination view.
  */
 export async function gotoView(page, hash, signalSelector) {
-  // about:blank + then the target URL forces a full document load.
-  await page.goto('about:blank');
-  await page.goto('/' + hash, { waitUntil: 'load' });
+  // about:blank + then the target URL forces a full document load. Use
+  // robustGoto so WebKit/Firefox concurrent-navigation aborts don't flake.
+  await robustGoto(page, 'about:blank');
+  await robustGoto(page, '/' + hash);
   if (signalSelector) {
     await page.waitForSelector(signalSelector, { timeout: 10_000 });
   }
 }
 
 export async function login(page) {
-  await page.goto('/#/login');
+  await robustGoto(page, '/#/login');
   await page.getByRole('button', { name: /sign in/i }).waitFor();
   await page.getByLabel(/email/i).fill(ADMIN_EMAIL);
   await page.getByLabel(/password/i).fill(ADMIN_PASSWORD);
