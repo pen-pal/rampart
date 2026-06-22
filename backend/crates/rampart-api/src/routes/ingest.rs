@@ -88,7 +88,7 @@ async fn list_tokens(
 ) -> Result<Json<Vec<IngestToken>>, ApiError> {
     let page_id = parse_page(&page)?;
     // Org-gate via the owning page; a cross-org page id 404s before listing.
-    rampart_db::status_pages::get(s.pool(), page_id, org.org_id).await?;
+    s.store().get_status_page(page_id, org.org_id).await?;
     Ok(Json(s.store().list_ingest_tokens_for_page(page_id).await?))
 }
 
@@ -99,7 +99,7 @@ async fn create_token(
     Json(input): Json<NewIngestToken>,
 ) -> Result<(StatusCode, Json<IngestToken>), ApiError> {
     let page_id = parse_page(&page)?;
-    rampart_db::status_pages::get(s.pool(), page_id, org.org_id).await?;
+    s.store().get_status_page(page_id, org.org_id).await?;
     let tok = s.store().create_ingest_token(page_id, input).await?;
     Ok((StatusCode::CREATED, Json(tok)))
 }
@@ -195,11 +195,12 @@ async fn apply_alert(
 ) -> Result<(usize, usize), ApiError> {
     match alert.action {
         AlertAction::Resolve => {
-            if let Some(inc) =
-                rampart_db::incidents::find_active_by_dedup_key(s.pool(), page, &alert.dedup_key)
-                    .await?
+            if let Some(inc) = s
+                .store()
+                .find_active_incident_by_dedup_key(page, &alert.dedup_key)
+                .await?
             {
-                rampart_db::incidents::resolve(s.pool(), inc.id, now).await?;
+                s.store().resolve_incident(inc.id, now).await?;
                 return Ok((0, 1));
             }
             Ok((0, 0))
@@ -209,7 +210,8 @@ async fn apply_alert(
             // with the partial unique index on (page, dedup_key) WHERE
             // active. Treat an existing active incident with this key as
             // already-reported and skip rather than erroring the webhook.
-            if rampart_db::incidents::find_active_by_dedup_key(s.pool(), page, &alert.dedup_key)
+            if s.store()
+                .find_active_incident_by_dedup_key(page, &alert.dedup_key)
                 .await?
                 .is_some()
             {
@@ -222,7 +224,7 @@ async fn apply_alert(
                 pinned: true,
                 dedup_key: Some(alert.dedup_key),
             };
-            rampart_db::incidents::create(s.pool(), page, None, new).await?;
+            s.store().create_incident(page, None, new).await?;
             Ok((1, 0))
         }
     }

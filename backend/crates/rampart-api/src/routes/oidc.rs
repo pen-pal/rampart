@@ -636,21 +636,23 @@ async fn callback(
         .await
         .ok();
 
-    let session = rampart_db::sessions::create(
-        app.pool(),
-        user.id,
-        SESSION_TTL_SECS,
-        crate::client_ip::from_headers(&headers),
-        headers
-            .get("user-agent")
-            .and_then(|v| v.to_str().ok())
-            .map(String::from),
-    )
-    .await?;
+    let session = app
+        .store()
+        .create_session(
+            user.id,
+            SESSION_TTL_SECS,
+            crate::client_ip::from_headers(&headers),
+            headers
+                .get("user-agent")
+                .and_then(|v| v.to_str().ok())
+                .map(String::from),
+        )
+        .await?;
 
     // Phase 4f: point the new session at the first mapped org. Best-effort.
     if let Some(org) = mapped_org {
-        rampart_db::sessions::set_active_org(app.pool(), session.id, user.id, org.0)
+        app.store()
+            .set_session_active_org(session.id, user.id, org.0)
             .await
             .ok();
     }

@@ -46,7 +46,7 @@ async fn list(
     jar: CookieJar,
 ) -> Result<Json<Vec<SessionRow>>, ApiError> {
     let cur = current_session(&jar);
-    let rows = rampart_db::sessions::list_for_user(s.pool(), user.id).await?;
+    let rows = s.store().list_sessions_for_user(user.id).await?;
     Ok(Json(
         rows.into_iter()
             .map(|si| SessionRow {
@@ -66,7 +66,7 @@ async fn revoke_one(
     Extension(user): Extension<User>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
-    if !rampart_db::sessions::delete_one_for_user(s.pool(), user.id, id).await? {
+    if !s.store().delete_one_session_for_user(user.id, id).await? {
         return Err(ApiError::NotFound);
     }
     Ok(StatusCode::NO_CONTENT)
@@ -78,6 +78,6 @@ async fn revoke_others(
     jar: CookieJar,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let cur = current_session(&jar).ok_or(ApiError::Unauthorized)?;
-    let revoked = rampart_db::sessions::delete_others(s.pool(), user.id, cur).await?;
+    let revoked = s.store().delete_other_sessions(user.id, cur).await?;
     Ok(Json(serde_json::json!({ "revoked": revoked })))
 }

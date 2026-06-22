@@ -106,7 +106,7 @@ async fn list_group_tags(
 ) -> Result<Json<Vec<Uuid>>, ApiError> {
     let gid = pg(&id)?;
     gate_group(&s, gid, &org).await?;
-    let ids = rampart_db::routing::group_tag_ids(s.pool(), gid).await?;
+    let ids = s.store().group_tag_ids(gid).await?;
     Ok(Json(ids.into_iter().map(|t| t.0).collect()))
 }
 async fn add_group_tag(
@@ -120,7 +120,7 @@ async fn add_group_tag(
     let tid = pt(&tag)?;
     gate_group(&s, gid, &org).await?;
     gate_tag(&s, tid, &org).await?;
-    rampart_db::routing::tag_group(s.pool(), gid, tid).await?;
+    s.store().tag_group(gid, tid).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -144,7 +144,7 @@ async fn del_group_tag(
     let tid = pt(&tag)?;
     gate_group(&s, gid, &org).await?;
     gate_tag(&s, tid, &org).await?;
-    rampart_db::routing::untag_group(s.pool(), gid, tid).await?;
+    s.store().untag_group(gid, tid).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -166,7 +166,7 @@ async fn list_group_channels(
 ) -> Result<Json<Vec<Uuid>>, ApiError> {
     let gid = pg(&id)?;
     gate_group(&s, gid, &org).await?;
-    let ids = rampart_db::routing::group_channel_ids(s.pool(), gid).await?;
+    let ids = s.store().group_channel_ids(gid).await?;
     Ok(Json(ids.into_iter().map(|n| n.0).collect()))
 }
 async fn add_group_channel(
@@ -180,7 +180,7 @@ async fn add_group_channel(
     let nid = pn(&notif)?;
     gate_group(&s, gid, &org).await?;
     gate_channel(&s, nid, &org).await?;
-    rampart_db::routing::attach_group_channel(s.pool(), gid, nid).await?;
+    s.store().attach_group_channel(gid, nid).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -204,7 +204,7 @@ async fn del_group_channel(
     let nid = pn(&notif)?;
     gate_group(&s, gid, &org).await?;
     gate_channel(&s, nid, &org).await?;
-    rampart_db::routing::detach_group_channel(s.pool(), gid, nid).await?;
+    s.store().detach_group_channel(gid, nid).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -226,7 +226,7 @@ async fn list_channel_tags(
 ) -> Result<Json<Vec<Uuid>>, ApiError> {
     let nid = pn(&id)?;
     gate_channel(&s, nid, &org).await?;
-    let ids = rampart_db::routing::channel_tag_ids(s.pool(), nid).await?;
+    let ids = s.store().channel_tag_ids(nid).await?;
     Ok(Json(ids.into_iter().map(|t| t.0).collect()))
 }
 async fn add_channel_tag(
@@ -240,7 +240,7 @@ async fn add_channel_tag(
     let tid = pt(&tag)?;
     gate_channel(&s, nid, &org).await?;
     gate_tag(&s, tid, &org).await?;
-    rampart_db::routing::tag_channel(s.pool(), nid, tid).await?;
+    s.store().tag_channel(nid, tid).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -264,7 +264,7 @@ async fn del_channel_tag(
     let tid = pt(&tag)?;
     gate_channel(&s, nid, &org).await?;
     gate_tag(&s, tid, &org).await?;
-    rampart_db::routing::untag_channel(s.pool(), nid, tid).await?;
+    s.store().untag_channel(nid, tid).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -286,7 +286,7 @@ async fn list_excludes(
 ) -> Result<Json<Vec<Uuid>>, ApiError> {
     let mid = pm(&id)?;
     gate_monitor(&s, mid, &org).await?;
-    let ids = rampart_db::routing::monitor_exclude_ids(s.pool(), mid).await?;
+    let ids = s.store().monitor_exclude_ids(mid).await?;
     Ok(Json(ids.into_iter().map(|n| n.0).collect()))
 }
 async fn add_exclude(
@@ -300,7 +300,7 @@ async fn add_exclude(
     let nid = pn(&notif)?;
     gate_monitor(&s, mid, &org).await?;
     gate_channel(&s, nid, &org).await?;
-    rampart_db::routing::exclude_channel(s.pool(), mid, nid).await?;
+    s.store().exclude_channel(mid, nid).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -324,7 +324,7 @@ async fn del_exclude(
     let nid = pn(&notif)?;
     gate_monitor(&s, mid, &org).await?;
     gate_channel(&s, nid, &org).await?;
-    rampart_db::routing::unexclude_channel(s.pool(), mid, nid).await?;
+    s.store().unexclude_channel(mid, nid).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -348,6 +348,6 @@ async fn effective_channels(
 ) -> Result<Json<Vec<Uuid>>, ApiError> {
     let mid = pm(&id)?;
     gate_monitor(&s, mid, &org).await?;
-    let chans = rampart_db::routing::resolve_channels_for_monitor(s.pool(), mid).await?;
+    let chans = s.store().resolve_channels_for_monitor(mid).await?;
     Ok(Json(chans.into_iter().map(|c| c.id.0).collect()))
 }

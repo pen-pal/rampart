@@ -89,17 +89,18 @@ async fn register(
         .await
         .ok();
 
-    let session = rampart_db::sessions::create(
-        state.pool(),
-        user.id,
-        SESSION_TTL_SECS,
-        crate::client_ip::from_headers(&headers),
-        headers
-            .get("user-agent")
-            .and_then(|v| v.to_str().ok())
-            .map(String::from),
-    )
-    .await?;
+    let session = state
+        .store()
+        .create_session(
+            user.id,
+            SESSION_TTL_SECS,
+            crate::client_ip::from_headers(&headers),
+            headers
+                .get("user-agent")
+                .and_then(|v| v.to_str().ok())
+                .map(String::from),
+        )
+        .await?;
 
     let cookie = build_session_cookie(session.id, is_secure(&headers));
     Ok((
@@ -179,17 +180,18 @@ async fn login(
     )
     .await;
 
-    let session = rampart_db::sessions::create(
-        state.pool(),
-        user_id,
-        SESSION_TTL_SECS,
-        crate::client_ip::from_headers(&headers),
-        headers
-            .get("user-agent")
-            .and_then(|v| v.to_str().ok())
-            .map(String::from),
-    )
-    .await?;
+    let session = state
+        .store()
+        .create_session(
+            user_id,
+            SESSION_TTL_SECS,
+            crate::client_ip::from_headers(&headers),
+            headers
+                .get("user-agent")
+                .and_then(|v| v.to_str().ok())
+                .map(String::from),
+        )
+        .await?;
 
     let cookie = build_session_cookie(session.id, is_secure(&headers));
     Ok((
@@ -208,7 +210,7 @@ async fn logout(
         .get(SESSION_COOKIE)
         .and_then(|c| Uuid::from_str(c.value()).ok())
     {
-        let _ = rampart_db::sessions::delete(state.pool(), token).await;
+        let _ = state.store().delete_session(token).await;
     }
     let cookie = build_clear_cookie(is_secure(&headers));
     (
@@ -230,7 +232,9 @@ async fn me(State(state): State<AppState>, jar: CookieJar) -> Result<impl IntoRe
         .get(SESSION_COOKIE)
         .and_then(|c| Uuid::from_str(c.value()).ok())
         .ok_or(ApiError::Unauthorized)?;
-    let session = rampart_db::sessions::get(state.pool(), token)
+    let session = state
+        .store()
+        .lookup_session(token)
         .await
         .map_err(|_| ApiError::Unauthorized)?;
     let mut user = rampart_db::users::get(state.pool(), session.user_id)
