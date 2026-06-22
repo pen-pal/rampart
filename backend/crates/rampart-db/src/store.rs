@@ -19,13 +19,20 @@
 //! collision.
 
 use crate::detection::{FindingEvent, PreviewResult};
+use crate::error_tracking::{AffectedUser, ErrorBucket, IssueStats, RecordOutcome, TraceErrorRef};
 use crate::heartbeats::{BurndownPoint, ErrorBudget, MonitorSummary, MonthlyUptime, MtbfMttr};
 use crate::incidents::{NewIncident, UpdateIncident};
 use crate::ingest_keys::IngestKey;
+use crate::logs::{LogBucket, LogFilter};
 use crate::maintenance::MaintenanceTransition;
 use crate::metric_rules::RuleEvent as MetricRuleEvent;
+use crate::metrics::{IngestGauges, PipelineGauges, TableSize};
 use crate::notifications::Notification;
+use crate::notifications::{MonitorChannelCount, NewNotification, UpdateNotification};
 use crate::oidc_state::Consumed;
+use crate::profiles::{NewProfile, ProfileMeta};
+use crate::rum::{RumBrowser, RumSample, RumUser};
+use crate::scheduled_reports::{NewScheduledReport, UpdateScheduledReport};
 use crate::sessions::{Session, SessionInfo};
 use crate::silences::{NewSilence, Silence};
 use crate::slos::{SloEvent, SloWithSnapshot};
@@ -33,23 +40,28 @@ use crate::subscribers::{ManagedSubscription, Subscriber};
 use crate::tags::TagUsage;
 use crate::telemetry_rules::RuleEvent as TelemetryRuleEvent;
 use crate::templates::{NewTemplate, RenderedTemplate, Template, UpdateTemplate};
+use crate::traces::TraceFilter;
 use crate::{DbPool, DbResult};
 use rampart_core::api_key::{ApiKey, IssuedApiKey, NewApiKey};
 use rampart_core::deploy_marker::{DeployMarker, NewDeployMarker};
 use rampart_core::detection::{
     DetectionFinding, DetectionRule, NewDetectionRule, UpdateDetectionRule,
 };
+use rampart_core::error_tracking::{
+    ErrorEvent, ErrorIssue, ErrorProject, NewErrorProject, ParsedEvent, UpdateErrorProject,
+};
 use rampart_core::escalation::{
     EscalationEpisode, EscalationPolicy, NewEscalationPolicy, UpdateEscalationPolicy,
 };
 use rampart_core::ids::{
-    ApiKeyId, DeployMarkerId, DetectionFindingId, DetectionRuleId, EscalationPolicyId, IncidentId,
-    IngestTokenId, MaintenanceId, MetricRuleId, MonitorGroupId, NotificationId,
-    NotificationTemplateId, OnCallScheduleId, OrgId, SloId, StatusPageId, StatusPageSectionId,
-    StatusPageSubscriberId, TagId, TelemetryRuleId,
+    ApiKeyId, DeployMarkerId, DetectionFindingId, DetectionRuleId, ErrorIssueId, ErrorProjectId,
+    EscalationPolicyId, IncidentId, IngestTokenId, MaintenanceId, MetricRuleId, MonitorGroupId,
+    NotificationId, NotificationTemplateId, OnCallScheduleId, OrgId, ScheduledReportId, SloId,
+    StatusPageId, StatusPageSectionId, StatusPageSubscriberId, TagId, TelemetryRuleId,
 };
 use rampart_core::incident::{Incident, IncidentUpdate};
 use rampart_core::ingest_token::{IngestToken, NewIngestToken};
+use rampart_core::log::ParsedLog;
 use rampart_core::maintenance::{MaintenanceWindow, NewMaintenanceWindow, UpdateMaintenanceWindow};
 use rampart_core::metric_rule::{MetricRule, NewMetricRule, UpdateMetricRule};
 use rampart_core::monitor_group::{MonitorGroup, NewMonitorGroup, UpdateMonitorGroup};
@@ -57,6 +69,8 @@ use rampart_core::on_call::{
     NewOnCallSchedule, OnCallSchedule, OnCallTarget, UpdateOnCallSchedule,
 };
 use rampart_core::proxy::{NewProxy, Proxy};
+use rampart_core::rum::{RumBeacon, RumPage, RumTracedLoad, RumVitals};
+use rampart_core::scheduled_report::ScheduledReport;
 use rampart_core::slo::{NewSlo, Slo, SloSnapshot, UpdateSlo};
 use rampart_core::status_page::PublicMaintenance;
 use rampart_core::status_page::{
@@ -65,7 +79,9 @@ use rampart_core::status_page::{
 };
 use rampart_core::tag::{NewTag, Tag, TagBrief, UpdateTag};
 use rampart_core::telemetry_rule::{NewTelemetryRule, TelemetryRule, UpdateTelemetryRule};
+use rampart_core::trace::{ParsedSpan, ServiceEdge, Span, TraceSummary};
 use rampart_core::{Heartbeat, MonitorId, ProxyId, UserId};
+use rampart_core::{LogEntry, OperationStat};
 use std::collections::HashMap;
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -1006,6 +1022,380 @@ pub trait StoreSessions: Send + Sync {
     async fn cleanup_expired_sessions(&self) -> DbResult<u64>;
 }
 
+/// One method per public `crate::notifications` free function, with a
+/// `_notification(s)`/`notification_` suffix on the collision-prone CRUD names.
+#[async_trait::async_trait]
+pub trait StoreNotifications: Send + Sync {
+    async fn list_notifications(&self, org_id: OrgId) -> DbResult<Vec<Notification>>;
+
+    async fn list_all_notifications(&self) -> DbResult<Vec<Notification>>;
+
+    async fn get_notification(&self, id: NotificationId, org_id: OrgId) -> DbResult<Notification>;
+
+    async fn get_notification_unscoped(&self, id: NotificationId) -> DbResult<Notification>;
+
+    async fn create_notification(
+        &self,
+        input: NewNotification,
+        org_id: OrgId,
+    ) -> DbResult<Notification>;
+
+    async fn update_notification(
+        &self,
+        id: NotificationId,
+        input: UpdateNotification,
+        org_id: OrgId,
+    ) -> DbResult<Notification>;
+
+    async fn notification_counts_per_monitor(
+        &self,
+        org_id: OrgId,
+    ) -> DbResult<Vec<MonitorChannelCount>>;
+
+    async fn delete_notification(&self, id: NotificationId, org_id: OrgId) -> DbResult<()>;
+
+    async fn attach_notification(&self, monitor: MonitorId, notif: NotificationId) -> DbResult<()>;
+
+    async fn detach_notification(&self, monitor: MonitorId, notif: NotificationId) -> DbResult<()>;
+
+    async fn notifications_for_monitor(&self, monitor: MonitorId) -> DbResult<Vec<Notification>>;
+
+    async fn mark_notification_fired(&self, id: NotificationId) -> DbResult<()>;
+}
+
+/// One method per public `crate::settings` free function, with a `_setting`
+/// suffix on the collision-prone names.
+#[async_trait::async_trait]
+pub trait StoreSettings: Send + Sync {
+    async fn get_setting(&self, key: &str) -> DbResult<Option<serde_json::Value>>;
+
+    async fn put_setting(&self, key: &str, value: &serde_json::Value) -> DbResult<()>;
+
+    async fn delete_setting(&self, key: &str) -> DbResult<()>;
+}
+
+/// One method per public `crate::logs` free function, with a `_log(s)`/`log_`
+/// suffix on the collision-prone names.
+#[async_trait::async_trait]
+pub trait StoreLogs: Send + Sync {
+    async fn insert_logs(&self, logs: &[ParsedLog], org_id: OrgId) -> DbResult<u64>;
+
+    async fn query_logs(&self, f: LogFilter<'_>, org_id: OrgId) -> DbResult<Vec<LogEntry>>;
+
+    async fn log_level_counts(
+        &self,
+        service: Option<&str>,
+        hours: i32,
+        org_id: OrgId,
+    ) -> DbResult<Vec<(String, i64)>>;
+
+    async fn log_histogram(
+        &self,
+        service: Option<&str>,
+        min_severity: Option<i16>,
+        query: Option<&str>,
+        hours: i32,
+        buckets: i64,
+        org_id: OrgId,
+    ) -> DbResult<Vec<LogBucket>>;
+
+    async fn log_services(&self, org_id: OrgId) -> DbResult<Vec<String>>;
+
+    async fn prune_logs(&self, days: i32) -> DbResult<u64>;
+}
+
+/// One method per public `crate::traces` free function, with a `_trace`/`trace_`
+/// suffix on the collision-prone names.
+#[async_trait::async_trait]
+pub trait StoreTraces: Send + Sync {
+    async fn insert_spans(&self, spans: &[ParsedSpan], org_id: OrgId) -> DbResult<u64>;
+
+    async fn list_traces(&self, f: TraceFilter<'_>, org_id: OrgId) -> DbResult<Vec<TraceSummary>>;
+
+    async fn get_trace_spans(&self, trace_id: &str, org_id: OrgId) -> DbResult<Vec<Span>>;
+
+    async fn trace_service_map(
+        &self,
+        window_hours: i64,
+        org_id: OrgId,
+    ) -> DbResult<Vec<ServiceEdge>>;
+
+    async fn trace_operation_stats(
+        &self,
+        service: &str,
+        window_hours: i64,
+        org_id: OrgId,
+    ) -> DbResult<Vec<OperationStat>>;
+
+    async fn trace_operation_trend(
+        &self,
+        service: &str,
+        operation: &str,
+        window_hours: i64,
+        buckets: i64,
+        org_id: OrgId,
+    ) -> DbResult<Vec<f64>>;
+
+    async fn prune_spans(&self, days: i32) -> DbResult<u64>;
+}
+
+/// One method per public `crate::rum` free function, with a `rum_` prefix /
+/// `_rum_event` suffix on the collision-prone names.
+#[async_trait::async_trait]
+pub trait StoreRum: Send + Sync {
+    async fn insert_rum_event(&self, b: &RumBeacon, org_id: OrgId) -> DbResult<()>;
+
+    async fn rum_page_samples(
+        &self,
+        app: Option<&str>,
+        url: &str,
+        hours: i32,
+        limit: i64,
+        org_id: OrgId,
+    ) -> DbResult<Vec<RumSample>>;
+
+    async fn rum_recent_traced(
+        &self,
+        app: Option<&str>,
+        hours: i32,
+        limit: i64,
+        org_id: OrgId,
+    ) -> DbResult<Vec<RumTracedLoad>>;
+
+    async fn rum_summary(
+        &self,
+        app: Option<&str>,
+        hours: i32,
+        org_id: OrgId,
+    ) -> DbResult<RumVitals>;
+
+    async fn rum_pages(
+        &self,
+        app: Option<&str>,
+        hours: i32,
+        org_id: OrgId,
+    ) -> DbResult<Vec<RumPage>>;
+
+    async fn rum_browser_breakdown(
+        &self,
+        app: Option<&str>,
+        hours: i32,
+        org_id: OrgId,
+    ) -> DbResult<Vec<RumBrowser>>;
+
+    async fn rum_user_breakdown(
+        &self,
+        app: Option<&str>,
+        hours: i32,
+        org_id: OrgId,
+    ) -> DbResult<Vec<RumUser>>;
+
+    async fn rum_apps(&self, org_id: OrgId) -> DbResult<Vec<String>>;
+
+    async fn prune_rum(&self, days: i32) -> DbResult<u64>;
+}
+
+/// One method per public `crate::profiles` free function, with a `profile_` /
+/// `_profile(s)` suffix on the collision-prone names.
+#[async_trait::async_trait]
+pub trait StoreProfiles: Send + Sync {
+    async fn insert_profile(&self, p: NewProfile<'_>, org_id: OrgId) -> DbResult<i64>;
+
+    async fn list_profiles(
+        &self,
+        service: Option<&str>,
+        profile_type: Option<&str>,
+        hours: i32,
+        limit: i64,
+        org_id: OrgId,
+    ) -> DbResult<Vec<ProfileMeta>>;
+
+    async fn profile_folded_in_window(
+        &self,
+        service: &str,
+        profile_type: &str,
+        from: OffsetDateTime,
+        to: OffsetDateTime,
+        org_id: OrgId,
+    ) -> DbResult<Vec<Vec<u8>>>;
+
+    async fn profile_fetch_folded(
+        &self,
+        id: i64,
+        org_id: OrgId,
+    ) -> DbResult<Option<(String, Vec<u8>)>>;
+
+    async fn profile_services(&self, org_id: OrgId) -> DbResult<Vec<String>>;
+
+    async fn profile_types(&self, service: Option<&str>, org_id: OrgId) -> DbResult<Vec<String>>;
+
+    async fn prune_profiles(&self, days: i32) -> DbResult<u64>;
+}
+
+/// One method per public `crate::metrics` free function. These are the
+/// parameter-free `/metrics` exposition aggregates; names carry a `metric_`/
+/// `_metrics` flavour where needed to avoid collision with the rule domains.
+#[async_trait::async_trait]
+pub trait StoreMetrics: Send + Sync {
+    async fn monitors_by_status(&self) -> DbResult<Vec<(String, i64)>>;
+
+    async fn monitors_by_kind(&self) -> DbResult<Vec<(String, i64)>>;
+
+    async fn channels_active(&self) -> DbResult<i64>;
+
+    async fn webpush_subscribers(&self) -> DbResult<i64>;
+
+    async fn heartbeats_recent_by_status(
+        &self,
+        window_seconds: i64,
+    ) -> DbResult<Vec<(String, i64)>>;
+
+    async fn incidents_open(&self) -> DbResult<i64>;
+
+    async fn pipeline_gauges(&self) -> DbResult<PipelineGauges>;
+
+    async fn storage_usage(&self) -> DbResult<Vec<TableSize>>;
+
+    async fn ingest_gauges(&self) -> DbResult<IngestGauges>;
+}
+
+/// One method per public `crate::error_tracking` free function, with an
+/// `_error_project`/`_error_issue`/`error_` suffix on the collision-prone names.
+#[async_trait::async_trait]
+pub trait StoreErrorTracking: Send + Sync {
+    async fn list_error_projects(&self, org_id: OrgId) -> DbResult<Vec<ErrorProject>>;
+
+    async fn error_project_in_org(&self, project: ErrorProjectId, org_id: OrgId) -> DbResult<()>;
+
+    async fn error_issue_in_org(&self, issue: ErrorIssueId, org_id: OrgId) -> DbResult<()>;
+
+    async fn get_error_project(&self, id: ErrorProjectId) -> DbResult<ErrorProject>;
+
+    async fn org_for_error_project(&self, id: ErrorProjectId) -> DbResult<OrgId>;
+
+    async fn get_error_project_opt(&self, id: ErrorProjectId) -> DbResult<Option<ErrorProject>>;
+
+    async fn find_or_create_error_project_by_name(
+        &self,
+        name: &str,
+        org_id: OrgId,
+    ) -> DbResult<ErrorProject>;
+
+    async fn create_error_project(
+        &self,
+        input: NewErrorProject,
+        org_id: OrgId,
+    ) -> DbResult<ErrorProject>;
+
+    async fn update_error_project(
+        &self,
+        id: ErrorProjectId,
+        patch: UpdateErrorProject,
+        org_id: OrgId,
+    ) -> DbResult<ErrorProject>;
+
+    async fn delete_error_project(&self, id: ErrorProjectId, org_id: OrgId) -> DbResult<()>;
+
+    async fn record_error_event(
+        &self,
+        project_id: ErrorProjectId,
+        ev: &ParsedEvent,
+    ) -> DbResult<RecordOutcome>;
+
+    async fn error_issues_for_trace(
+        &self,
+        trace_id: &str,
+        org_id: OrgId,
+    ) -> DbResult<Vec<TraceErrorRef>>;
+
+    async fn list_error_issues(
+        &self,
+        project_id: ErrorProjectId,
+        status: Option<&str>,
+        before_id: Option<Uuid>,
+        limit: i64,
+    ) -> DbResult<Vec<ErrorIssue>>;
+
+    async fn recent_open_error_issues(
+        &self,
+        limit: i64,
+        org_id: OrgId,
+    ) -> DbResult<Vec<ErrorIssue>>;
+
+    async fn error_project_event_histogram(
+        &self,
+        project_id: ErrorProjectId,
+        hours: i32,
+        buckets: i64,
+    ) -> DbResult<Vec<ErrorBucket>>;
+
+    async fn get_error_issue(&self, id: ErrorIssueId) -> DbResult<ErrorIssue>;
+
+    async fn error_issue_affected_users(
+        &self,
+        id: ErrorIssueId,
+        limit: i64,
+    ) -> DbResult<Vec<AffectedUser>>;
+
+    async fn error_issue_stats(&self, id: ErrorIssueId) -> DbResult<IssueStats>;
+
+    async fn set_error_issue_status(&self, id: ErrorIssueId, status: &str) -> DbResult<ErrorIssue>;
+
+    async fn assign_error_issue(
+        &self,
+        id: ErrorIssueId,
+        assignee: Option<UserId>,
+    ) -> DbResult<ErrorIssue>;
+
+    async fn error_assignable_users(&self) -> DbResult<Vec<crate::error_tracking::AssignableUser>>;
+
+    async fn list_error_events(
+        &self,
+        issue_id: ErrorIssueId,
+        limit: i64,
+    ) -> DbResult<Vec<ErrorEvent>>;
+
+    async fn prune_error_events(&self) -> DbResult<u64>;
+}
+
+/// One method per public `crate::scheduled_reports` free function, with a
+/// `_scheduled_report` suffix on the collision-prone CRUD names.
+#[async_trait::async_trait]
+pub trait StoreScheduledReports: Send + Sync {
+    async fn list_scheduled_reports(&self, org_id: OrgId) -> DbResult<Vec<ScheduledReport>>;
+
+    async fn get_scheduled_report(
+        &self,
+        id: ScheduledReportId,
+        org_id: OrgId,
+    ) -> DbResult<ScheduledReport>;
+
+    async fn create_scheduled_report(
+        &self,
+        input: NewScheduledReport,
+        org_id: OrgId,
+    ) -> DbResult<ScheduledReport>;
+
+    async fn update_scheduled_report(
+        &self,
+        id: ScheduledReportId,
+        input: UpdateScheduledReport,
+        org_id: OrgId,
+    ) -> DbResult<ScheduledReport>;
+
+    async fn delete_scheduled_report(&self, id: ScheduledReportId, org_id: OrgId) -> DbResult<()>;
+
+    async fn due_scheduled_reports(&self, now: OffsetDateTime) -> DbResult<Vec<ScheduledReport>>;
+
+    async fn render_scheduled_report(
+        &self,
+        report_name: &str,
+        cadence: &str,
+    ) -> DbResult<(String, String)>;
+
+    async fn mark_scheduled_report_sent(&self, id: ScheduledReportId) -> DbResult<()>;
+}
+
 /// Composed store super-trait spanning every extracted domain sub-trait.
 pub trait Store:
     StoreHeartbeats
@@ -1032,6 +1422,15 @@ pub trait Store:
     + StoreSubscribers
     + StoreDetection
     + StoreSessions
+    + StoreNotifications
+    + StoreSettings
+    + StoreLogs
+    + StoreTraces
+    + StoreRum
+    + StoreProfiles
+    + StoreMetrics
+    + StoreErrorTracking
+    + StoreScheduledReports
     + Send
     + Sync
 {
@@ -2420,6 +2819,546 @@ impl StoreSessions for PgStore {
 
     async fn cleanup_expired_sessions(&self) -> DbResult<u64> {
         crate::sessions::cleanup_expired(&self.pool).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreNotifications for PgStore {
+    async fn list_notifications(&self, org_id: OrgId) -> DbResult<Vec<Notification>> {
+        crate::notifications::list(&self.pool, org_id).await
+    }
+
+    async fn list_all_notifications(&self) -> DbResult<Vec<Notification>> {
+        crate::notifications::list_all(&self.pool).await
+    }
+
+    async fn get_notification(&self, id: NotificationId, org_id: OrgId) -> DbResult<Notification> {
+        crate::notifications::get(&self.pool, id, org_id).await
+    }
+
+    async fn get_notification_unscoped(&self, id: NotificationId) -> DbResult<Notification> {
+        crate::notifications::get_unscoped(&self.pool, id).await
+    }
+
+    async fn create_notification(
+        &self,
+        input: NewNotification,
+        org_id: OrgId,
+    ) -> DbResult<Notification> {
+        crate::notifications::create(&self.pool, input, org_id).await
+    }
+
+    async fn update_notification(
+        &self,
+        id: NotificationId,
+        input: UpdateNotification,
+        org_id: OrgId,
+    ) -> DbResult<Notification> {
+        crate::notifications::update(&self.pool, id, input, org_id).await
+    }
+
+    async fn notification_counts_per_monitor(
+        &self,
+        org_id: OrgId,
+    ) -> DbResult<Vec<MonitorChannelCount>> {
+        crate::notifications::counts_per_monitor(&self.pool, org_id).await
+    }
+
+    async fn delete_notification(&self, id: NotificationId, org_id: OrgId) -> DbResult<()> {
+        crate::notifications::delete(&self.pool, id, org_id).await
+    }
+
+    async fn attach_notification(&self, monitor: MonitorId, notif: NotificationId) -> DbResult<()> {
+        crate::notifications::attach(&self.pool, monitor, notif).await
+    }
+
+    async fn detach_notification(&self, monitor: MonitorId, notif: NotificationId) -> DbResult<()> {
+        crate::notifications::detach(&self.pool, monitor, notif).await
+    }
+
+    async fn notifications_for_monitor(&self, monitor: MonitorId) -> DbResult<Vec<Notification>> {
+        crate::notifications::for_monitor(&self.pool, monitor).await
+    }
+
+    async fn mark_notification_fired(&self, id: NotificationId) -> DbResult<()> {
+        crate::notifications::mark_fired(&self.pool, id).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreSettings for PgStore {
+    async fn get_setting(&self, key: &str) -> DbResult<Option<serde_json::Value>> {
+        crate::settings::get(&self.pool, key).await
+    }
+
+    async fn put_setting(&self, key: &str, value: &serde_json::Value) -> DbResult<()> {
+        crate::settings::put(&self.pool, key, value).await
+    }
+
+    async fn delete_setting(&self, key: &str) -> DbResult<()> {
+        crate::settings::delete(&self.pool, key).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreLogs for PgStore {
+    async fn insert_logs(&self, logs: &[ParsedLog], org_id: OrgId) -> DbResult<u64> {
+        crate::logs::insert_logs(&self.pool, logs, org_id).await
+    }
+
+    async fn query_logs(&self, f: LogFilter<'_>, org_id: OrgId) -> DbResult<Vec<LogEntry>> {
+        crate::logs::query_logs(&self.pool, f, org_id).await
+    }
+
+    async fn log_level_counts(
+        &self,
+        service: Option<&str>,
+        hours: i32,
+        org_id: OrgId,
+    ) -> DbResult<Vec<(String, i64)>> {
+        crate::logs::level_counts(&self.pool, service, hours, org_id).await
+    }
+
+    async fn log_histogram(
+        &self,
+        service: Option<&str>,
+        min_severity: Option<i16>,
+        query: Option<&str>,
+        hours: i32,
+        buckets: i64,
+        org_id: OrgId,
+    ) -> DbResult<Vec<LogBucket>> {
+        crate::logs::histogram(
+            &self.pool,
+            service,
+            min_severity,
+            query,
+            hours,
+            buckets,
+            org_id,
+        )
+        .await
+    }
+
+    async fn log_services(&self, org_id: OrgId) -> DbResult<Vec<String>> {
+        crate::logs::list_services(&self.pool, org_id).await
+    }
+
+    async fn prune_logs(&self, days: i32) -> DbResult<u64> {
+        crate::logs::prune(&self.pool, days).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreTraces for PgStore {
+    async fn insert_spans(&self, spans: &[ParsedSpan], org_id: OrgId) -> DbResult<u64> {
+        crate::traces::insert_spans(&self.pool, spans, org_id).await
+    }
+
+    async fn list_traces(&self, f: TraceFilter<'_>, org_id: OrgId) -> DbResult<Vec<TraceSummary>> {
+        crate::traces::list_traces(&self.pool, f, org_id).await
+    }
+
+    async fn get_trace_spans(&self, trace_id: &str, org_id: OrgId) -> DbResult<Vec<Span>> {
+        crate::traces::get_trace_spans(&self.pool, trace_id, org_id).await
+    }
+
+    async fn trace_service_map(
+        &self,
+        window_hours: i64,
+        org_id: OrgId,
+    ) -> DbResult<Vec<ServiceEdge>> {
+        crate::traces::service_map(&self.pool, window_hours, org_id).await
+    }
+
+    async fn trace_operation_stats(
+        &self,
+        service: &str,
+        window_hours: i64,
+        org_id: OrgId,
+    ) -> DbResult<Vec<OperationStat>> {
+        crate::traces::operation_stats(&self.pool, service, window_hours, org_id).await
+    }
+
+    async fn trace_operation_trend(
+        &self,
+        service: &str,
+        operation: &str,
+        window_hours: i64,
+        buckets: i64,
+        org_id: OrgId,
+    ) -> DbResult<Vec<f64>> {
+        crate::traces::operation_trend(
+            &self.pool,
+            service,
+            operation,
+            window_hours,
+            buckets,
+            org_id,
+        )
+        .await
+    }
+
+    async fn prune_spans(&self, days: i32) -> DbResult<u64> {
+        crate::traces::prune(&self.pool, days).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreRum for PgStore {
+    async fn insert_rum_event(&self, b: &RumBeacon, org_id: OrgId) -> DbResult<()> {
+        crate::rum::insert_event(&self.pool, b, org_id).await
+    }
+
+    async fn rum_page_samples(
+        &self,
+        app: Option<&str>,
+        url: &str,
+        hours: i32,
+        limit: i64,
+        org_id: OrgId,
+    ) -> DbResult<Vec<RumSample>> {
+        crate::rum::page_samples(&self.pool, app, url, hours, limit, org_id).await
+    }
+
+    async fn rum_recent_traced(
+        &self,
+        app: Option<&str>,
+        hours: i32,
+        limit: i64,
+        org_id: OrgId,
+    ) -> DbResult<Vec<RumTracedLoad>> {
+        crate::rum::recent_traced(&self.pool, app, hours, limit, org_id).await
+    }
+
+    async fn rum_summary(
+        &self,
+        app: Option<&str>,
+        hours: i32,
+        org_id: OrgId,
+    ) -> DbResult<RumVitals> {
+        crate::rum::summary(&self.pool, app, hours, org_id).await
+    }
+
+    async fn rum_pages(
+        &self,
+        app: Option<&str>,
+        hours: i32,
+        org_id: OrgId,
+    ) -> DbResult<Vec<RumPage>> {
+        crate::rum::pages(&self.pool, app, hours, org_id).await
+    }
+
+    async fn rum_browser_breakdown(
+        &self,
+        app: Option<&str>,
+        hours: i32,
+        org_id: OrgId,
+    ) -> DbResult<Vec<RumBrowser>> {
+        crate::rum::browser_breakdown(&self.pool, app, hours, org_id).await
+    }
+
+    async fn rum_user_breakdown(
+        &self,
+        app: Option<&str>,
+        hours: i32,
+        org_id: OrgId,
+    ) -> DbResult<Vec<RumUser>> {
+        crate::rum::user_breakdown(&self.pool, app, hours, org_id).await
+    }
+
+    async fn rum_apps(&self, org_id: OrgId) -> DbResult<Vec<String>> {
+        crate::rum::apps(&self.pool, org_id).await
+    }
+
+    async fn prune_rum(&self, days: i32) -> DbResult<u64> {
+        crate::rum::prune(&self.pool, days).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreProfiles for PgStore {
+    async fn insert_profile(&self, p: NewProfile<'_>, org_id: OrgId) -> DbResult<i64> {
+        crate::profiles::insert(&self.pool, p, org_id).await
+    }
+
+    async fn list_profiles(
+        &self,
+        service: Option<&str>,
+        profile_type: Option<&str>,
+        hours: i32,
+        limit: i64,
+        org_id: OrgId,
+    ) -> DbResult<Vec<ProfileMeta>> {
+        crate::profiles::list(&self.pool, service, profile_type, hours, limit, org_id).await
+    }
+
+    async fn profile_folded_in_window(
+        &self,
+        service: &str,
+        profile_type: &str,
+        from: OffsetDateTime,
+        to: OffsetDateTime,
+        org_id: OrgId,
+    ) -> DbResult<Vec<Vec<u8>>> {
+        crate::profiles::folded_in_window(&self.pool, service, profile_type, from, to, org_id).await
+    }
+
+    async fn profile_fetch_folded(
+        &self,
+        id: i64,
+        org_id: OrgId,
+    ) -> DbResult<Option<(String, Vec<u8>)>> {
+        crate::profiles::fetch_folded(&self.pool, id, org_id).await
+    }
+
+    async fn profile_services(&self, org_id: OrgId) -> DbResult<Vec<String>> {
+        crate::profiles::services(&self.pool, org_id).await
+    }
+
+    async fn profile_types(&self, service: Option<&str>, org_id: OrgId) -> DbResult<Vec<String>> {
+        crate::profiles::profile_types(&self.pool, service, org_id).await
+    }
+
+    async fn prune_profiles(&self, days: i32) -> DbResult<u64> {
+        crate::profiles::prune(&self.pool, days).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreMetrics for PgStore {
+    async fn monitors_by_status(&self) -> DbResult<Vec<(String, i64)>> {
+        crate::metrics::monitors_by_status(&self.pool).await
+    }
+
+    async fn monitors_by_kind(&self) -> DbResult<Vec<(String, i64)>> {
+        crate::metrics::monitors_by_kind(&self.pool).await
+    }
+
+    async fn channels_active(&self) -> DbResult<i64> {
+        crate::metrics::channels_active(&self.pool).await
+    }
+
+    async fn webpush_subscribers(&self) -> DbResult<i64> {
+        crate::metrics::webpush_subscribers(&self.pool).await
+    }
+
+    async fn heartbeats_recent_by_status(
+        &self,
+        window_seconds: i64,
+    ) -> DbResult<Vec<(String, i64)>> {
+        crate::metrics::heartbeats_recent_by_status(&self.pool, window_seconds).await
+    }
+
+    async fn incidents_open(&self) -> DbResult<i64> {
+        crate::metrics::incidents_open(&self.pool).await
+    }
+
+    async fn pipeline_gauges(&self) -> DbResult<PipelineGauges> {
+        crate::metrics::pipeline_gauges(&self.pool).await
+    }
+
+    async fn storage_usage(&self) -> DbResult<Vec<TableSize>> {
+        crate::metrics::storage_usage(&self.pool).await
+    }
+
+    async fn ingest_gauges(&self) -> DbResult<IngestGauges> {
+        crate::metrics::ingest_gauges(&self.pool).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreErrorTracking for PgStore {
+    async fn list_error_projects(&self, org_id: OrgId) -> DbResult<Vec<ErrorProject>> {
+        crate::error_tracking::list(&self.pool, org_id).await
+    }
+
+    async fn error_project_in_org(&self, project: ErrorProjectId, org_id: OrgId) -> DbResult<()> {
+        crate::error_tracking::project_in_org(&self.pool, project, org_id).await
+    }
+
+    async fn error_issue_in_org(&self, issue: ErrorIssueId, org_id: OrgId) -> DbResult<()> {
+        crate::error_tracking::issue_in_org(&self.pool, issue, org_id).await
+    }
+
+    async fn get_error_project(&self, id: ErrorProjectId) -> DbResult<ErrorProject> {
+        crate::error_tracking::get(&self.pool, id).await
+    }
+
+    async fn org_for_error_project(&self, id: ErrorProjectId) -> DbResult<OrgId> {
+        crate::error_tracking::org_for_project(&self.pool, id).await
+    }
+
+    async fn get_error_project_opt(&self, id: ErrorProjectId) -> DbResult<Option<ErrorProject>> {
+        crate::error_tracking::get_opt(&self.pool, id).await
+    }
+
+    async fn find_or_create_error_project_by_name(
+        &self,
+        name: &str,
+        org_id: OrgId,
+    ) -> DbResult<ErrorProject> {
+        crate::error_tracking::find_or_create_by_name(&self.pool, name, org_id).await
+    }
+
+    async fn create_error_project(
+        &self,
+        input: NewErrorProject,
+        org_id: OrgId,
+    ) -> DbResult<ErrorProject> {
+        crate::error_tracking::create(&self.pool, input, org_id).await
+    }
+
+    async fn update_error_project(
+        &self,
+        id: ErrorProjectId,
+        patch: UpdateErrorProject,
+        org_id: OrgId,
+    ) -> DbResult<ErrorProject> {
+        crate::error_tracking::update(&self.pool, id, patch, org_id).await
+    }
+
+    async fn delete_error_project(&self, id: ErrorProjectId, org_id: OrgId) -> DbResult<()> {
+        crate::error_tracking::delete(&self.pool, id, org_id).await
+    }
+
+    async fn record_error_event(
+        &self,
+        project_id: ErrorProjectId,
+        ev: &ParsedEvent,
+    ) -> DbResult<RecordOutcome> {
+        crate::error_tracking::record_event(&self.pool, project_id, ev).await
+    }
+
+    async fn error_issues_for_trace(
+        &self,
+        trace_id: &str,
+        org_id: OrgId,
+    ) -> DbResult<Vec<TraceErrorRef>> {
+        crate::error_tracking::issues_for_trace(&self.pool, trace_id, org_id).await
+    }
+
+    async fn list_error_issues(
+        &self,
+        project_id: ErrorProjectId,
+        status: Option<&str>,
+        before_id: Option<Uuid>,
+        limit: i64,
+    ) -> DbResult<Vec<ErrorIssue>> {
+        crate::error_tracking::list_issues(&self.pool, project_id, status, before_id, limit).await
+    }
+
+    async fn recent_open_error_issues(
+        &self,
+        limit: i64,
+        org_id: OrgId,
+    ) -> DbResult<Vec<ErrorIssue>> {
+        crate::error_tracking::recent_open_issues(&self.pool, limit, org_id).await
+    }
+
+    async fn error_project_event_histogram(
+        &self,
+        project_id: ErrorProjectId,
+        hours: i32,
+        buckets: i64,
+    ) -> DbResult<Vec<ErrorBucket>> {
+        crate::error_tracking::project_event_histogram(&self.pool, project_id, hours, buckets).await
+    }
+
+    async fn get_error_issue(&self, id: ErrorIssueId) -> DbResult<ErrorIssue> {
+        crate::error_tracking::get_issue(&self.pool, id).await
+    }
+
+    async fn error_issue_affected_users(
+        &self,
+        id: ErrorIssueId,
+        limit: i64,
+    ) -> DbResult<Vec<AffectedUser>> {
+        crate::error_tracking::issue_affected_users(&self.pool, id, limit).await
+    }
+
+    async fn error_issue_stats(&self, id: ErrorIssueId) -> DbResult<IssueStats> {
+        crate::error_tracking::issue_stats(&self.pool, id).await
+    }
+
+    async fn set_error_issue_status(&self, id: ErrorIssueId, status: &str) -> DbResult<ErrorIssue> {
+        crate::error_tracking::set_issue_status(&self.pool, id, status).await
+    }
+
+    async fn assign_error_issue(
+        &self,
+        id: ErrorIssueId,
+        assignee: Option<UserId>,
+    ) -> DbResult<ErrorIssue> {
+        crate::error_tracking::assign_issue(&self.pool, id, assignee).await
+    }
+
+    async fn error_assignable_users(&self) -> DbResult<Vec<crate::error_tracking::AssignableUser>> {
+        crate::error_tracking::assignable_users(&self.pool).await
+    }
+
+    async fn list_error_events(
+        &self,
+        issue_id: ErrorIssueId,
+        limit: i64,
+    ) -> DbResult<Vec<ErrorEvent>> {
+        crate::error_tracking::list_events(&self.pool, issue_id, limit).await
+    }
+
+    async fn prune_error_events(&self) -> DbResult<u64> {
+        crate::error_tracking::prune(&self.pool).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreScheduledReports for PgStore {
+    async fn list_scheduled_reports(&self, org_id: OrgId) -> DbResult<Vec<ScheduledReport>> {
+        crate::scheduled_reports::list(&self.pool, org_id).await
+    }
+
+    async fn get_scheduled_report(
+        &self,
+        id: ScheduledReportId,
+        org_id: OrgId,
+    ) -> DbResult<ScheduledReport> {
+        crate::scheduled_reports::get(&self.pool, id, org_id).await
+    }
+
+    async fn create_scheduled_report(
+        &self,
+        input: NewScheduledReport,
+        org_id: OrgId,
+    ) -> DbResult<ScheduledReport> {
+        crate::scheduled_reports::create(&self.pool, input, org_id).await
+    }
+
+    async fn update_scheduled_report(
+        &self,
+        id: ScheduledReportId,
+        input: UpdateScheduledReport,
+        org_id: OrgId,
+    ) -> DbResult<ScheduledReport> {
+        crate::scheduled_reports::update(&self.pool, id, input, org_id).await
+    }
+
+    async fn delete_scheduled_report(&self, id: ScheduledReportId, org_id: OrgId) -> DbResult<()> {
+        crate::scheduled_reports::delete(&self.pool, id, org_id).await
+    }
+
+    async fn due_scheduled_reports(&self, now: OffsetDateTime) -> DbResult<Vec<ScheduledReport>> {
+        crate::scheduled_reports::due(&self.pool, now).await
+    }
+
+    async fn render_scheduled_report(
+        &self,
+        report_name: &str,
+        cadence: &str,
+    ) -> DbResult<(String, String)> {
+        crate::scheduled_reports::render(&self.pool, report_name, cadence).await
+    }
+
+    async fn mark_scheduled_report_sent(&self, id: ScheduledReportId) -> DbResult<()> {
+        crate::scheduled_reports::mark_sent(&self.pool, id).await
     }
 }
 

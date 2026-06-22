@@ -526,7 +526,7 @@ async fn bulk(
         state.store().get_tag(t, org.org_id).await?;
     }
     if let Some(n) = notif {
-        rampart_db::notifications::get(pool, n, org.org_id).await?;
+        state.store().get_notification(n, org.org_id).await?;
     }
 
     let mut ok = 0usize;
@@ -566,13 +566,13 @@ async fn bulk(
             }
             BulkAction::AttachChannel { .. } => {
                 match rampart_db::monitors::get(pool, mid, org.org_id).await {
-                    Ok(_) => rampart_db::notifications::attach(pool, mid, notif.unwrap()).await,
+                    Ok(_) => state.store().attach_notification(mid, notif.unwrap()).await,
                     Err(e) => Err(e),
                 }
             }
             BulkAction::DetachChannel { .. } => {
                 match rampart_db::monitors::get(pool, mid, org.org_id).await {
-                    Ok(_) => rampart_db::notifications::detach(pool, mid, notif.unwrap()).await,
+                    Ok(_) => state.store().detach_notification(mid, notif.unwrap()).await,
                     Err(e) => Err(e),
                 }
             }

@@ -71,7 +71,9 @@ async fn ingest(
 
     // DSN key auth. A missing project and a bad key both return 404 so ingest
     // doesn't leak which project ids exist.
-    let project = rampart_db::error_tracking::get_opt(s.pool(), pid)
+    let project = s
+        .store()
+        .get_error_project_opt(pid)
         .await?
         .ok_or(ApiError::NotFound)?;
     let key = sentry_key(&headers, &q).ok_or(ApiError::NotFound)?;
@@ -85,7 +87,7 @@ async fn ingest(
     // OrgContext). error_events/issues inherit org from the project, so the
     // record + alert below run under the project's tenant. No-op when
     // RAMPART_RLS is off.
-    let org = rampart_db::error_tracking::org_for_project(s.pool(), pid).await?;
+    let org = s.store().org_for_error_project(pid).await?;
     rampart_db::rls::with_org(org, async move {
         let raw = crate::ingest_util::decompress(&headers, &body)?;
         let event_json = if envelope {
@@ -102,7 +104,7 @@ async fn ingest(
         };
 
         let parsed = ParsedEvent::from_sentry_json(event_json);
-        let outcome = rampart_db::error_tracking::record_event(s.pool(), pid, &parsed).await?;
+        let outcome = s.store().record_error_event(pid, &parsed).await?;
 
         // Alert on new / regressed issues only, off the request path.
         if (outcome.is_new || outcome.regressed) && !project.alert_channel_ids.is_empty() {

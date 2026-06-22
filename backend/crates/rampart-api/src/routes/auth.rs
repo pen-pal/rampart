@@ -255,7 +255,9 @@ async fn me(State(state): State<AppState>, jar: CookieJar) -> Result<impl IntoRe
 
     // 2FA-enforcement policy (settings.require_2fa: off | admins | all). When it
     // applies to this user and they haven't enrolled, the SPA forces enrollment.
-    let policy = rampart_db::settings::get(state.pool(), "require_2fa")
+    let policy = state
+        .store()
+        .get_setting("require_2fa")
         .await
         .ok()
         .flatten()

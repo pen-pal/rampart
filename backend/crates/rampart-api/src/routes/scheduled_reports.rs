@@ -52,9 +52,7 @@ async fn list(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<ScheduledReport>>, ApiError> {
-    Ok(Json(
-        rampart_db::scheduled_reports::list(s.pool(), org.org_id).await?,
-    ))
+    Ok(Json(s.store().list_scheduled_reports(org.org_id).await?))
 }
 
 async fn get_one(
@@ -63,7 +61,9 @@ async fn get_one(
     Path(id): Path<String>,
 ) -> Result<Json<ScheduledReport>, ApiError> {
     Ok(Json(
-        rampart_db::scheduled_reports::get(s.pool(), parse(&id)?, org.org_id).await?,
+        s.store()
+            .get_scheduled_report(parse(&id)?, org.org_id)
+            .await?,
     ))
 }
 
@@ -76,7 +76,7 @@ async fn create(
         return Err(ApiError::BadRequest("name is required".into()));
     }
     validate_cadence(&input.cadence)?;
-    let r = rampart_db::scheduled_reports::create(s.pool(), input, org.org_id).await?;
+    let r = s.store().create_scheduled_report(input, org.org_id).await?;
     Ok((StatusCode::CREATED, Json(r)))
 }
 
@@ -90,7 +90,9 @@ async fn update(
         validate_cadence(cadence)?;
     }
     Ok(Json(
-        rampart_db::scheduled_reports::update(s.pool(), parse(&id)?, input, org.org_id).await?,
+        s.store()
+            .update_scheduled_report(parse(&id)?, input, org.org_id)
+            .await?,
     ))
 }
 
@@ -99,7 +101,9 @@ async fn remove(
     Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::scheduled_reports::delete(s.pool(), parse(&id)?, org.org_id).await?;
+    s.store()
+        .delete_scheduled_report(parse(&id)?, org.org_id)
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -114,7 +118,7 @@ async fn send_now(
     Path(id): Path<String>,
 ) -> Result<Json<ScheduledReport>, ApiError> {
     let id = parse(&id)?;
-    let report = rampart_db::scheduled_reports::get(s.pool(), id, org.org_id).await?;
+    let report = s.store().get_scheduled_report(id, org.org_id).await?;
 
     if report.recipients.is_empty() {
         return Err(ApiError::BadRequest(
@@ -122,16 +126,16 @@ async fn send_now(
         ));
     }
 
-    let (subject, body) =
-        rampart_db::scheduled_reports::render(s.pool(), &report.name, &report.cadence).await?;
+    let (subject, body) = s
+        .store()
+        .render_scheduled_report(&report.name, &report.cadence)
+        .await?;
     rampart_notifier::send_system_email(s.pool(), &report.recipients, &subject, &body).await;
 
     // Stamp regardless of how many recipients SMTP actually reached: a
     // manual send is still a send, and per-recipient failures are logged
     // inside send_system_email. Return the refreshed row so the caller sees
     // the new last_sent_at.
-    rampart_db::scheduled_reports::mark_sent(s.pool(), id).await?;
-    Ok(Json(
-        rampart_db::scheduled_reports::get(s.pool(), id, org.org_id).await?,
-    ))
+    s.store().mark_scheduled_report_sent(id).await?;
+    Ok(Json(s.store().get_scheduled_report(id, org.org_id).await?))
 }

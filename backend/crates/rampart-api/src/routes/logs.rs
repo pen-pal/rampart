@@ -44,13 +44,13 @@ async fn levels(
     Query(q): Query<LevelsQuery>,
 ) -> Result<Json<Vec<(String, i64)>>, ApiError> {
     Ok(Json(
-        rampart_db::logs::level_counts(
-            s.pool(),
-            q.service.as_deref().filter(|s| !s.is_empty()),
-            q.hours.unwrap_or(24),
-            org.org_id,
-        )
-        .await?,
+        s.store()
+            .log_level_counts(
+                q.service.as_deref().filter(|s| !s.is_empty()),
+                q.hours.unwrap_or(24),
+                org.org_id,
+            )
+            .await?,
     ))
 }
 
@@ -88,9 +88,7 @@ async fn list(
             .and_then(|s| uuid::Uuid::parse_str(s).ok()),
         limit: query.limit.unwrap_or(200),
     };
-    Ok(Json(
-        rampart_db::logs::query_logs(s.pool(), filter, org.org_id).await?,
-    ))
+    Ok(Json(s.store().query_logs(filter, org.org_id).await?))
 }
 
 /// The list/export time window: honour the `hours` param (default 24h), but
@@ -111,16 +109,16 @@ async fn histogram(
 ) -> Result<Json<Vec<rampart_db::logs::LogBucket>>, ApiError> {
     let min_severity = query.level.as_deref().and_then(level_min_severity);
     Ok(Json(
-        rampart_db::logs::histogram(
-            s.pool(),
-            query.service.as_deref().filter(|s| !s.is_empty()),
-            min_severity,
-            query.q.as_deref().filter(|s| !s.is_empty()),
-            query.hours.unwrap_or(24),
-            48,
-            org.org_id,
-        )
-        .await?,
+        s.store()
+            .log_histogram(
+                query.service.as_deref().filter(|s| !s.is_empty()),
+                min_severity,
+                query.q.as_deref().filter(|s| !s.is_empty()),
+                query.hours.unwrap_or(24),
+                48,
+                org.org_id,
+            )
+            .await?,
     ))
 }
 
@@ -128,9 +126,7 @@ async fn services(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<String>>, ApiError> {
-    Ok(Json(
-        rampart_db::logs::list_services(s.pool(), org.org_id).await?,
-    ))
+    Ok(Json(s.store().log_services(org.org_id).await?))
 }
 
 /// CSV export of logs honouring the same `service` / `level` / `q` / `trace_id`
@@ -152,7 +148,7 @@ async fn export_csv(
         before_id: None,
         limit,
     };
-    let rows = rampart_db::logs::query_logs(s.pool(), filter, org.org_id).await?;
+    let rows = s.store().query_logs(filter, org.org_id).await?;
     let fmt = time::format_description::well_known::Rfc3339;
     let mut body = String::with_capacity(64 + rows.len() * 160);
     body.push_str("ts,level,severity,service,trace_id,span_id,body,attributes\n");
