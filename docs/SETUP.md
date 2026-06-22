@@ -234,6 +234,32 @@ Before exposing to the internet:
    database before enabling in production; `RAMPART_RLS=0` fully reverts
    enforcement with no schema change.
 
+10. **Trusted proxies (`RAMPART_TRUSTED_PROXIES`).** Rampart derives the client
+    IP — used for per-IP rate-limiting *and* the audit-log source IP — from the
+    **TCP peer**, not from a spoofable `X-Forwarded-For`.
+
+    | Env var | Default | Notes |
+    | --- | --- | --- |
+    | `RAMPART_TRUSTED_PROXIES` | _(unset)_ | Comma-separated IPs/CIDRs of the reverse proxy / load-balancer(s) that front Rampart. |
+
+    - **Default unset = secure.** `X-Forwarded-For` is ignored and the TCP peer
+      IP is used directly. Correct for a direct bind.
+    - **Behind a proxy you MUST set it.** When nginx/caddy/traefik/an LB fronts
+      Rampart, the TCP peer is the *proxy*, so without this set every client
+      collapses into a single rate-limit bucket and every audit row records the
+      proxy's IP. Set it to the proxy's IP(s) and Rampart will then trust that
+      hop and read the real client from `X-Forwarded-For` (walked right-to-left,
+      skipping further trusted hops).
+    - **Use the SPECIFIC proxy IP(s), not a broad range.** e.g.
+      `RAMPART_TRUSTED_PROXIES=203.0.113.10` (or a `/32`). **Never** set it to a
+      broad internal range (e.g. `10.0.0.0/8`) that also contains untrusted
+      hosts/pods/tenants — *any* host inside a trusted CIDR can forge the client
+      IP via `X-Forwarded-For`, defeating the rate limit and poisoning the audit
+      trail.
+    - **Dual-stack tip.** A `[::]` (IPv6 wildcard) bind sees IPv4 clients as
+      `::ffff:x.x.x.x`; the resolver canonicalizes addresses, so an IPv4 trusted
+      CIDR still matches such a peer correctly.
+
 ---
 
 ## SSO (OIDC)

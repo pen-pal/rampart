@@ -27,12 +27,11 @@
 
 use axum::body::Body;
 use axum::extract::Request;
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use std::collections::HashMap;
 use std::net::IpAddr;
-use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -151,17 +150,23 @@ impl IpRateLimiter {
 }
 
 /// Axum middleware: applies the limiter to requests whose client IP
-/// resolved successfully. Requests with no resolvable IP (no
-/// X-Forwarded-For, no X-Real-IP) pass through — refusing them would
-/// break local-host testing + lock out operators behind proxies that
-/// don't forward the original IP. Operators wanting stricter
-/// behaviour should configure their proxy to set X-Forwarded-For.
+/// resolved successfully. The IP comes from the `ResolvedClientIp`
+/// extension stamped by the outermost `client_ip::resolve_client_ip`
+/// middleware — the TCP peer (or, behind a trusted proxy, the real
+/// client from `X-Forwarded-For`), never a spoofable raw XFF read.
+/// Requests with no resolvable IP (e.g. in-process tests with no
+/// `ConnectInfo`) pass through — refusing them would break local-host
+/// testing.
 pub async fn enforce_ip_rate_limit(
     state: axum::extract::State<IpRateLimiter>,
     req: Request<Body>,
     next: Next,
 ) -> Response {
-    if let Some(ip) = client_ip(req.headers()) {
+    let ip = req
+        .extensions()
+        .get::<crate::client_ip::ResolvedClientIp>()
+        .and_then(|r| r.0);
+    if let Some(ip) = ip {
         if !state.0.check(ip) {
             return (
                 StatusCode::TOO_MANY_REQUESTS,
@@ -172,22 +177,6 @@ pub async fn enforce_ip_rate_limit(
         }
     }
     next.run(req).await
-}
-
-/// Pull the client IP from the headers a reverse proxy in front of
-/// Rampart would set. Same precedence as `crate::audit::client_ip` —
-/// X-Forwarded-For first (left-most entry), X-Real-IP fallback. Returns
-/// None when neither is present.
-fn client_ip(headers: &HeaderMap) -> Option<IpAddr> {
-    let raw = headers
-        .get("x-forwarded-for")
-        .or_else(|| headers.get("x-real-ip"))?
-        .to_str()
-        .ok()?
-        .split(',')
-        .next()?
-        .trim();
-    IpAddr::from_str(raw).ok()
 }
 
 #[cfg(test)]

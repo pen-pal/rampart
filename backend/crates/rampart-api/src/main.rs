@@ -16,6 +16,15 @@
 //!                         loopback + link-local are always blocked).
 //!   RAMPART_REQUIRE_INGEST_AUTH "1"/"true" → OTLP/RUM ingest is refused
 //!                         unless a telemetry token is configured + presented.
+//!   RAMPART_TRUSTED_PROXIES comma-separated IPs/CIDRs of the reverse proxy /
+//!                         load-balancer(s) that front Rampart. Default unset =
+//!                         ignore X-Forwarded-For and use the TCP peer IP for
+//!                         rate-limiting + audit (secure). Set it to the
+//!                         SPECIFIC proxy IP(s) (e.g. 203.0.113.10 or a /32) so
+//!                         the real client is read from XFF behind that proxy.
+//!                         NEVER set it to a broad range (e.g. 10.0.0.0/8) that
+//!                         also holds untrusted hosts — any host inside a
+//!                         trusted CIDR can forge the client IP via XFF.
 //!   RAMPART_SECRET_KEY    32-byte key (64 hex / base64). When set, notification
 //!                         channel secrets are AES-256-GCM encrypted at rest.
 //!                         Unset → secrets stored PLAINTEXT (loud startup warn +
@@ -64,6 +73,24 @@ async fn main() -> anyhow::Result<()> {
         .parse()?;
 
     info!(%bind, pool_size, "starting rampart-api");
+
+    // Client-IP trust posture. With RAMPART_TRUSTED_PROXIES unset we use the
+    // raw TCP peer for rate-limiting + audit and IGNORE X-Forwarded-For (the
+    // secure default — XFF is client-spoofable). That's correct for a direct
+    // bind, but if a reverse proxy fronts Rampart on a non-loopback address
+    // the peer is the proxy, so every client collapses to one bucket / source
+    // IP. Make that loud, mirroring the weak-secret startup warn.
+    let trusted_proxies_set = std::env::var("RAMPART_TRUSTED_PROXIES")
+        .map(|v| !v.trim().is_empty())
+        .unwrap_or(false);
+    if !trusted_proxies_set && !bind.ip().is_loopback() {
+        warn!(
+            "RAMPART_TRUSTED_PROXIES unset — X-Forwarded-For is ignored and the TCP peer IP is \
+             used for rate-limiting + audit. If a reverse proxy fronts Rampart, set \
+             RAMPART_TRUSTED_PROXIES to its IP(s) or per-client rate-limits + audit source IPs \
+             collapse to the proxy IP."
+        );
+    }
 
     let pool = rampart_db::connect(&database_url, pool_size).await?;
     rampart_db::migrate(&pool).await?;
@@ -231,9 +258,15 @@ async fn main() -> anyhow::Result<()> {
     let app = build_router(state);
 
     let listener = tokio::net::TcpListener::bind(bind).await?;
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
+    // `into_make_service_with_connect_info::<SocketAddr>` so the outermost
+    // client-IP middleware can read the real TCP peer (ConnectInfo) for
+    // trusted rate-limiting + audit, rather than a spoofable X-Forwarded-For.
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await?;
 
     // Flush the self-telemetry batch exporters before exit.
     if let Some(g) = telemetry_guards {

@@ -262,6 +262,7 @@ All configuration is done via environment variables. Defaults are in `backend/.e
 | `DATABASE_POOL_SIZE` | `16` | Max connections in the database pool. |
 | `BIND_ADDR` | `0.0.0.0:3000` | Use `127.0.0.1:3000` if behind a reverse proxy. |
 | `RUST_LOG` | `info` | e.g., `rampart=debug,tower_http=warn,info` |
+| `RAMPART_TRUSTED_PROXIES` | _(unset)_ | Comma-separated IPs/CIDRs of the proxy/LB that fronts Rampart. Unset (default) = ignore `X-Forwarded-For`, use the TCP peer IP for rate-limiting + audit (secure). Behind a proxy you **must** set it to the proxy's IP or per-client rate-limits + audit IPs collapse to the proxy. Use a **specific** IP/`/32`, never a broad range. |
 
 *Note: SMTP for status-page subscribers is configured inside the app at `/#/settings/smtp`.*
 
