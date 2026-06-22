@@ -1249,7 +1249,7 @@ async fn test_now(
     let hb = if let Some(pid) = monitor.proxy_id {
         // Probe routing (not a user-facing fetch): the monitor was already
         // org-checked above, so resolve its proxy unscoped.
-        match rampart_db::proxies::get_unscoped(state.pool(), pid).await {
+        match state.store().get_proxy_unscoped(pid).await {
             Ok(proxy) => probes.http_with_proxy(&monitor, &proxy).await,
             // Proxy reference dangling — fall back to direct probe so the
             // test still completes; the surfaced status will show the
