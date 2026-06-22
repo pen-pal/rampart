@@ -78,6 +78,14 @@ pub fn v1_public(state: &AppState) -> Router<AppState> {
     let rate_limited_auth = Router::new()
         .nest("/auth", auth::router())
         .nest("/auth/2fa", totp::public_router())
+        // OIDC SSO login flow (config probe + redirect + callback). Public, and
+        // now UNDER the per-IP auth rate-limiter: `/login` performs an
+        // unauthenticated INSERT into `oidc_login_state` per hit (the pre-auth
+        // state stash), so it must be throttled to bound that write surface. The
+        // 10-burst / ~10/min-per-IP shape is ample for a browser redirect dance
+        // (a real user clicks "Sign in" once) while capping a flood. `/callback`
+        // and `/config` ride the same limiter — harmless, both are cheap.
+        .nest("/auth/oidc", oidc::router())
         .route_layer(axum::middleware::from_fn_with_state(
             state.auth_rate_limiter(),
             crate::rate_limit::enforce_ip_rate_limit,
@@ -95,10 +103,6 @@ pub fn v1_public(state: &AppState) -> Router<AppState> {
         // Remote-agent wire protocol. The `Authorization: Bearer rmpa_…`
         // token is the auth — agents are headless, no session.
         .nest("/agent", agents::agent_router())
-        // OIDC SSO login flow (config probe + redirect + callback). Public,
-        // and outside the brute-force auth rate-limiter — it's a browser
-        // redirect dance, not password attempts.
-        .nest("/auth/oidc", oidc::router())
 }
 
 pub fn v1_protected() -> Router<AppState> {
