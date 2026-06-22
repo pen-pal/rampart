@@ -29,6 +29,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.155.1] — 2026-06-22
+
+### Changed
+- **Internal: introduced the object-safe `Store` seam (multi-DB P0 slice 2).** A
+  new `rampart-db::store` module defines a `Store` super-trait composed of an
+  object-safe `StoreHeartbeats` domain sub-trait (one method per public
+  `heartbeats` fn, with the `pool` arg replaced by `&self`), a single Postgres
+  impl `PgStore` that delegates each method straight to the existing
+  `heartbeats::*` free functions, and a compile-time object-safety guard
+  (`const _: fn(&dyn Store) = …`). `AppState` gains an additive
+  `Arc<dyn Store>` field + `store()` accessor. This proves the `&dyn Store`
+  super-trait shape is object-safe and the wiring compiles — de-risking the full
+  ~40-trait extraction — with **zero behavior change**: no SQL, no `.sqlx`
+  change, no caller migrated (`store()` has no callers yet), every existing
+  `.pool()` path untouched. (`docs/design/MULTI_DB.md`.)
+
+---
+
 ## [0.155.0] — 2026-06-22
 
 ### Fixed

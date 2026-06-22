@@ -13,6 +13,7 @@ testing = ["rampart-core/testing"]
 
 [dependencies]
 rampart-core = { path = "../rampart-core" }
+async-trait = { workspace = true }
 sqlx        = { workspace = true }
 tokio       = { workspace = true }
 serde       = { workspace = true }
