@@ -1,7 +1,7 @@
 //! User-account queries.
 
 use crate::{DbError, DbPool, DbResult};
-use rampart_core::ids::UserId;
+use rampart_core::ids::{OrgId, UserId};
 use rampart_core::Role;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
@@ -85,10 +85,10 @@ pub async fn create(pool: &DbPool, input: NewUser) -> DbResult<User> {
         _ => DbError::Sqlx(e),
     })?;
 
-    crate::orgs::upsert_member_tx(
-        &mut tx,
-        rampart_core::org::DEFAULT_ORG_ID,
-        row.id,
+    crate::orgs::upsert_member(
+        &mut *tx,
+        OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID),
+        UserId::from_uuid(row.id),
         row.role,
     )
     .await?;
@@ -334,7 +334,13 @@ pub async fn set_admin(pool: &DbPool, id: UserId, is_admin: bool) -> DbResult<()
     // RBAC sources the active-org role from `org_members`; without this mirror
     // the Default membership goes stale and single-org RBAC would enforce the
     // wrong role after any role change.
-    crate::orgs::upsert_member_tx(&mut tx, rampart_core::org::DEFAULT_ORG_ID, id.0, role).await?;
+    crate::orgs::upsert_member(
+        &mut *tx,
+        OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID),
+        id,
+        role,
+    )
+    .await?;
     tx.commit().await?;
     // Privilege change — revoke the target's sessions so it takes effect now.
     crate::sessions::delete_for_user(pool, id).await?;
@@ -357,7 +363,13 @@ pub async fn set_role(pool: &DbPool, id: UserId, role: Role) -> DbResult<()> {
         return Err(DbError::NotFound);
     }
     // Mirror onto the Default-org membership (see `set_admin`).
-    crate::orgs::upsert_member_tx(&mut tx, rampart_core::org::DEFAULT_ORG_ID, id.0, role).await?;
+    crate::orgs::upsert_member(
+        &mut *tx,
+        OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID),
+        id,
+        role,
+    )
+    .await?;
     tx.commit().await?;
     // Privilege change — revoke the target's sessions so it takes effect now.
     crate::sessions::delete_for_user(pool, id).await?;
