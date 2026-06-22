@@ -45,7 +45,7 @@ async fn list(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<Tag>>, ApiError> {
-    Ok(Json(rampart_db::tags::list(s.pool(), org.org_id).await?))
+    Ok(Json(s.store().list_tags(org.org_id).await?))
 }
 
 async fn create(
@@ -58,7 +58,7 @@ async fn create(
     input
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
-    let t = rampart_db::tags::create(s.pool(), input, org.org_id).await?;
+    let t = s.store().create_tag(input, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -84,7 +84,7 @@ async fn update(
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     let tid = parse_tag(&id)?;
-    let t = rampart_db::tags::update(s.pool(), tid, input, org.org_id).await?;
+    let t = s.store().update_tag(tid, input, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -102,7 +102,7 @@ async fn usage(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<TagUsage>>, ApiError> {
-    Ok(Json(rampart_db::tags::usage(s.pool(), org.org_id).await?))
+    Ok(Json(s.store().tag_usage(org.org_id).await?))
 }
 
 async fn remove(
@@ -113,7 +113,7 @@ async fn remove(
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let tid = parse_tag(&id)?;
-    rampart_db::tags::delete(s.pool(), tid, org.org_id).await?;
+    s.store().delete_tag(tid, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -135,7 +135,7 @@ async fn list_for_monitor(
     let mid = parse_monitor(&id)?;
     // Gate through the owning monitor's org — cross-org monitor id is a 404.
     rampart_db::monitors::get(s.pool(), mid, org.org_id).await?;
-    Ok(Json(rampart_db::tags::list_for_monitor(s.pool(), mid).await?))
+    Ok(Json(s.store().list_tags_for_monitor(mid).await?))
 }
 
 async fn attach(
@@ -149,8 +149,8 @@ async fn attach(
     let tid = parse_tag(&tag_id)?;
     // Both the monitor and the tag must belong to the caller's org.
     rampart_db::monitors::get(s.pool(), mid, org.org_id).await?;
-    rampart_db::tags::get(s.pool(), tid, org.org_id).await?;
-    rampart_db::tags::attach(s.pool(), mid, tid).await?;
+    s.store().get_tag(tid, org.org_id).await?;
+    s.store().attach_tag(mid, tid).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -175,8 +175,8 @@ async fn detach(
     let tid = parse_tag(&tag_id)?;
     // Both the monitor and the tag must belong to the caller's org.
     rampart_db::monitors::get(s.pool(), mid, org.org_id).await?;
-    rampart_db::tags::get(s.pool(), tid, org.org_id).await?;
-    rampart_db::tags::detach(s.pool(), mid, tid).await?;
+    s.store().get_tag(tid, org.org_id).await?;
+    s.store().detach_tag(mid, tid).await?;
     crate::audit::record(
         s.pool(),
         &user,

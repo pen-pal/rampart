@@ -82,7 +82,7 @@ fn pt(s: &str) -> Result<TagId, ApiError> {
 // ── org gates ───────────────────────────────────────────────────────────────
 // Each returns 404 (NotFound) when the entity lives in another org.
 async fn gate_group(s: &AppState, g: MonitorGroupId, org: &OrgContext) -> Result<(), ApiError> {
-    rampart_db::monitor_groups::in_org(s.pool(), g, org.org_id).await?;
+    s.store().monitor_group_in_org(g, org.org_id).await?;
     Ok(())
 }
 async fn gate_channel(s: &AppState, n: NotificationId, org: &OrgContext) -> Result<(), ApiError> {
@@ -90,7 +90,7 @@ async fn gate_channel(s: &AppState, n: NotificationId, org: &OrgContext) -> Resu
     Ok(())
 }
 async fn gate_tag(s: &AppState, t: TagId, org: &OrgContext) -> Result<(), ApiError> {
-    rampart_db::tags::get(s.pool(), t, org.org_id).await?;
+    s.store().get_tag(t, org.org_id).await?;
     Ok(())
 }
 async fn gate_monitor(s: &AppState, m: MonitorId, org: &OrgContext) -> Result<(), ApiError> {

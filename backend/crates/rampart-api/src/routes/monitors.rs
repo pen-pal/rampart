@@ -521,7 +521,7 @@ async fn bulk(
     // the whole request. The per-monitor org check happens inside the junction
     // arms below (the column-scoped set_active/delete/set_group already gate).
     if let Some(t) = tag {
-        rampart_db::tags::get(pool, t, org.org_id).await?;
+        state.store().get_tag(t, org.org_id).await?;
     }
     if let Some(n) = notif {
         rampart_db::notifications::get(pool, n, org.org_id).await?;
@@ -552,12 +552,12 @@ async fn bulk(
             // org first (the tag/channel was org-checked once above).
             BulkAction::AddTag { .. } => match rampart_db::monitors::get(pool, mid, org.org_id).await
             {
-                Ok(_) => rampart_db::tags::attach(pool, mid, tag.unwrap()).await,
+                Ok(_) => state.store().attach_tag(mid, tag.unwrap()).await,
                 Err(e) => Err(e),
             },
             BulkAction::RemoveTag { .. } => {
                 match rampart_db::monitors::get(pool, mid, org.org_id).await {
-                    Ok(_) => rampart_db::tags::detach(pool, mid, tag.unwrap()).await,
+                    Ok(_) => state.store().detach_tag(mid, tag.unwrap()).await,
                     Err(e) => Err(e),
                 }
             }
@@ -1159,7 +1159,7 @@ async fn clone_one(
             let gid = Uuid::from_str(g)
                 .map(MonitorGroupId::from_uuid)
                 .map_err(|_| ApiError::BadRequest("invalid group_id".into()))?;
-            let exists = rampart_db::monitor_groups::list(state.pool(), org.org_id)
+            let exists = state.store().list_monitor_groups(org.org_id)
                 .await?
                 .iter()
                 .any(|grp| grp.id == gid);
