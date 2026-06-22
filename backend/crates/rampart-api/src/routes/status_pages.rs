@@ -185,6 +185,7 @@ async fn create(
         Some(serde_json::json!({ "slug": slug })),
     )
     .await;
+    invalidate_public_view_cache();
     Ok((StatusCode::CREATED, Json(p)))
 }
 
@@ -209,11 +210,12 @@ async fn update(
     if let Some(Some(css)) = input.custom_css.as_ref() {
         validate_custom_css(Some(css))?;
     }
-    Ok(Json(
-        s.store()
-            .update_status_page(parse(&id)?, input, org.org_id)
-            .await?,
-    ))
+    let page = s
+        .store()
+        .update_status_page(parse(&id)?, input, org.org_id)
+        .await?;
+    invalidate_public_view_cache();
+    Ok(Json(page))
 }
 
 async fn remove(
@@ -235,6 +237,7 @@ async fn remove(
         None,
     )
     .await;
+    invalidate_public_view_cache();
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -274,6 +277,7 @@ async fn create_section(
     let page_id = parse(&id)?;
     s.store().get_status_page(page_id, org.org_id).await?;
     let section = s.store().create_status_page_section(page_id, input).await?;
+    invalidate_public_view_cache();
     Ok((StatusCode::CREATED, Json(section)))
 }
 
@@ -288,11 +292,12 @@ async fn update_section(
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     // Gate via the parent page from the path; the section belongs to it.
     s.store().get_status_page(parse(&id)?, org.org_id).await?;
-    Ok(Json(
-        s.store()
-            .update_status_page_section(parse_section(&section_id)?, input)
-            .await?,
-    ))
+    let section = s
+        .store()
+        .update_status_page_section(parse_section(&section_id)?, input)
+        .await?;
+    invalidate_public_view_cache();
+    Ok(Json(section))
 }
 
 async fn delete_section(
@@ -304,6 +309,7 @@ async fn delete_section(
     s.store()
         .delete_status_page_section(parse_section(&section_id)?)
         .await?;
+    invalidate_public_view_cache();
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -318,6 +324,7 @@ async fn assign_monitor_section(
     s.store()
         .assign_status_page_monitor_section(page_id, parse_monitor(&monitor_id)?, req.section_id)
         .await?;
+    invalidate_public_view_cache();
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -340,6 +347,15 @@ fn public_view_cache() -> &'static std::sync::Mutex<
         std::sync::Mutex<std::collections::HashMap<String, (std::time::Instant, PublicStatusPage)>>,
     > = std::sync::OnceLock::new();
     CACHE.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
+}
+
+/// Drop all cached public projections. Called after any write that can change
+/// what a public status page shows (incidents, sections, page settings) so the
+/// next read re-projects fresh instead of serving the 10s-stale cache.
+pub fn invalidate_public_view_cache() {
+    if let Ok(mut cache) = public_view_cache().lock() {
+        cache.clear();
+    }
 }
 
 async fn public_view_guarded(s: &AppState, slug: &str) -> Result<PublicStatusPage, ApiError> {
@@ -419,7 +435,7 @@ async fn public_view_by_domain(
     Path(host): Path<String>,
 ) -> Result<Json<Option<PublicStatusPage>>, ApiError> {
     let Some(page) = s.store().find_status_page_by_custom_domain(&host).await? else {
-        return Ok(Json(None));
+        return Err(ApiError::NotFound);
     };
     Ok(Json(Some(public_view_guarded(&s, &page.slug).await?)))
 }

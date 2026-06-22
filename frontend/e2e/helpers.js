@@ -14,15 +14,24 @@ const ADMIN_PASSWORD = 'correct-horse-battery-staple';
 export async function signupAdmin(page) {
   await page.goto('/');
   await page.waitForURL(/#\/login/);
-  // Wait for the form to render in either mode.
-  await page.getByRole('button').first().waitFor();
 
-  const createBtn = page.getByRole('button', { name: /create admin account/i });
-  if (await createBtn.isVisible().catch(() => false) === false) {
+  // Decide first-run vs login AUTHORITATIVELY via the API. The UI button text is
+  // ambiguous while the async /me needs_setup probe is in flight (it reads
+  // "Sign in" during loading, then flips to "Create admin account"), so probing
+  // the button races the network and can mis-route. /me is unauthenticated-safe:
+  // {needs_setup:true} on a userless DB, 401 once an admin exists.
+  let needsSetup = false;
+  try {
+    const r = await page.request.get('/v1/auth/me');
+    if (r.ok()) needsSetup = (await r.json())?.needs_setup === true;
+  } catch { /* network hiccup → fall through to the login path */ }
+  if (!needsSetup) {
     // Already signed up. Caller should login() instead.
     return false;
   }
 
+  const createBtn = page.getByRole('button', { name: /create admin account/i });
+  await createBtn.waitFor({ state: 'visible', timeout: 10_000 });
   await page.getByLabel(/email/i).fill(ADMIN_EMAIL);
   await page.getByLabel(/name/i).fill(ADMIN_NAME);
   await page.getByLabel(/password/i).fill(ADMIN_PASSWORD);

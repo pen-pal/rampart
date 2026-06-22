@@ -17,7 +17,7 @@
 // codes columned layout, etc.
 
 import { test, expect } from './fixtures.js';
-import { api, ensureLoggedIn, fixtures, gotoView } from './helpers.js';
+import { api, ensureLoggedIn, fixtures, gotoView, login } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -146,10 +146,13 @@ test('TOTP enrol → activate → recovery codes → disable', async ({ page }) 
   await page.locator('input.input.mono').fill(codeAgain);
   await page.getByRole('button', { name: CONFIRM }).click();
 
-  // The disable handler reloads after a 1s success message. Wait for
-  // the load + re-check that the user is no-longer-2FA'd via the API.
+  // The disable handler reloads after a 1s success message. Disabling 2FA is a
+  // security downgrade, so the backend revokes ALL sessions — we're bounced to
+  // login. Re-authenticate (2FA is off now, so a plain login works), then
+  // re-check that the user is no-longer-2FA'd via the API.
   await page.waitForLoadState('load');
   await page.waitForTimeout(1_500);
+  await login(page);
   const meAfter = await api(page, 'GET', '/v1/auth/me');
   // `/v1/auth/me` returns `{ user: {...} }`; unwrap before asserting.
   expect(meAfter.user?.totp_enabled).toBe(false);

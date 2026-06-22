@@ -29,6 +29,36 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.155.7] — 2026-06-22
+
+### Fixed
+- **Public status pages served stale data for up to 10s after a change.** The
+  per-slug public-view cache (10s TTL) was never invalidated on writes, so a
+  resolved incident, posted incident update, or status-page/section edit kept
+  showing the old projection until the TTL lapsed. Every incident + status-page
+  + section mutation (management API *and* the webhook/vendor-ingest incident
+  paths) now drops the cache so the next public read re-projects fresh.
+- **`/v1/auth/me` was rate-limited, bouncing users to login during normal use.**
+  The whole `/auth` router (including the cheap, SPA-polled `me` + `logout`) sat
+  under the per-IP auth brute-force limiter (10 burst), so clicking through views
+  quickly — or any page that fetches `me` a few times — could exhaust the bucket
+  and 429, which the SPA treats as logged-out. The limiter now scopes to the
+  brute-forceable surface only (`login`, `register`, 2FA-verify, OIDC); `me` +
+  `logout` ride free. Burst protection on login/register/2FA is unchanged.
+- **Unknown custom-domain lookups returned `200 null` instead of `404`.**
+  `GET /v1/public/status-pages/by-domain/{host}` for an unconfigured host now
+  returns `404` (matching the documented contract + the frontend host probe).
+
+### Internal
+- **e2e suite green end-to-end (49/49 chromium).** Hardened the Playwright
+  harness: deterministic first-run-vs-login detection via the API (no more
+  racing the `/me` needs-setup probe), a short timeout on the best-effort
+  monitor-detail "remove channel" click so the API fallback runs, and a
+  re-login step in the TOTP spec after disabling 2FA (which correctly revokes
+  all sessions). No product behavior change from these.
+
+---
+
 ## [0.155.6] — 2026-06-22
 
 ### Fixed
