@@ -53,7 +53,7 @@ async fn list(
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<MonitorGroup>>, ApiError> {
     Ok(Json(
-        rampart_db::monitor_groups::list(s.pool(), org.org_id).await?,
+        s.store().list_monitor_groups(org.org_id).await?,
     ))
 }
 
@@ -65,7 +65,7 @@ async fn create(
     Json(input): Json<NewMonitorGroup>,
 ) -> Result<(StatusCode, Json<MonitorGroup>), ApiError> {
     input.validate()?;
-    let g = rampart_db::monitor_groups::create(s.pool(), input, org.org_id).await?;
+    let g = s.store().create_monitor_group(input, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -89,7 +89,7 @@ async fn update(
 ) -> Result<Json<MonitorGroup>, ApiError> {
     input.validate()?;
     let gid = parse_group(&id)?;
-    let g = rampart_db::monitor_groups::update(s.pool(), gid, input, org.org_id).await?;
+    let g = s.store().update_monitor_group(gid, input, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -111,7 +111,7 @@ async fn delete_one(
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let gid = parse_group(&id)?;
-    rampart_db::monitor_groups::delete(s.pool(), gid, org.org_id).await?;
+    s.store().delete_monitor_group(gid, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -139,8 +139,8 @@ async fn list_deps(
     let mid = parse_monitor(&id)?;
     // Gate through the monitor's org — a cross-org monitor id is a 404.
     rampart_db::monitors::get(s.pool(), mid, org.org_id).await?;
-    let parents = rampart_db::monitor_groups::parents_of(s.pool(), mid).await?;
-    let children = rampart_db::monitor_groups::children_of(s.pool(), mid).await?;
+    let parents = s.store().parents_of(mid).await?;
+    let children = s.store().children_of(mid).await?;
     Ok(Json(DepList { parents, children }))
 }
 
@@ -156,7 +156,7 @@ async fn attach_dep(
     // Both ends of the dependency edge must belong to the caller's org.
     rampart_db::monitors::get(s.pool(), child, org.org_id).await?;
     rampart_db::monitors::get(s.pool(), parent, org.org_id).await?;
-    rampart_db::monitor_groups::attach_dependency(s.pool(), child, parent).await?;
+    s.store().attach_dependency(child, parent).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -182,7 +182,7 @@ async fn detach_dep(
     // Both ends of the dependency edge must belong to the caller's org.
     rampart_db::monitors::get(s.pool(), child, org.org_id).await?;
     rampart_db::monitors::get(s.pool(), parent, org.org_id).await?;
-    rampart_db::monitor_groups::detach_dependency(s.pool(), child, parent).await?;
+    s.store().detach_dependency(child, parent).await?;
     crate::audit::record(
         s.pool(),
         &user,

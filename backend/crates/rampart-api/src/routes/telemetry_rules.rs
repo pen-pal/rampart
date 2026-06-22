@@ -35,7 +35,7 @@ async fn list(
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<TelemetryRule>>, ApiError> {
     Ok(Json(
-        rampart_db::telemetry_rules::list(s.pool(), org.org_id).await?,
+        s.store().list_telemetry_rules(org.org_id).await?,
     ))
 }
 
@@ -47,7 +47,7 @@ async fn create(
     input
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
-    let rule = rampart_db::telemetry_rules::create(s.pool(), input, org.org_id).await?;
+    let rule = s.store().create_telemetry_rule(input, org.org_id).await?;
     Ok((StatusCode::CREATED, Json(rule)))
 }
 
@@ -62,7 +62,7 @@ async fn update(
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     Ok(Json(
-        rampart_db::telemetry_rules::update(s.pool(), rule_id, input, org.org_id).await?,
+        s.store().update_telemetry_rule(rule_id, input, org.org_id).await?,
     ))
 }
 
@@ -71,6 +71,6 @@ async fn delete_rule(
     Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::telemetry_rules::delete(s.pool(), parse_id(&id)?, org.org_id).await?;
+    s.store().delete_telemetry_rule(parse_id(&id)?, org.org_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }

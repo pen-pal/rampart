@@ -56,7 +56,7 @@ async fn list_rules(
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<MetricRule>>, ApiError> {
     Ok(Json(
-        rampart_db::metric_rules::list(s.pool(), org.org_id).await?,
+        s.store().list_metric_rules(org.org_id).await?,
     ))
 }
 
@@ -71,7 +71,7 @@ async fn create_rule(
     if !input.labels.is_object() {
         return Err(ApiError::BadRequest("labels must be a JSON object".into()));
     }
-    let rule = rampart_db::metric_rules::create(s.pool(), input, org.org_id).await?;
+    let rule = s.store().create_metric_rule(input, org.org_id).await?;
     Ok((axum::http::StatusCode::CREATED, Json(rule)))
 }
 
@@ -91,7 +91,7 @@ async fn update_rule(
         }
     }
     Ok(Json(
-        rampart_db::metric_rules::update(s.pool(), rule_id, input, org.org_id).await?,
+        s.store().update_metric_rule(rule_id, input, org.org_id).await?,
     ))
 }
 
@@ -101,7 +101,7 @@ async fn delete_rule(
     Path(id): Path<String>,
 ) -> Result<axum::http::StatusCode, ApiError> {
     let rule_id = parse_rule_id(&id)?;
-    rampart_db::metric_rules::delete(s.pool(), rule_id, org.org_id).await?;
+    s.store().delete_metric_rule(rule_id, org.org_id).await?;
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
