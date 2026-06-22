@@ -11,7 +11,6 @@ use rampart_core::org::{Org, OrgMember};
 use rampart_core::Role;
 use serde::Serialize;
 use time::OffsetDateTime;
-use uuid::Uuid;
 
 /// A member of an org enriched with their user identity (email + display
 /// name), for the members-management UI. The JOIN against `users` keeps the
@@ -99,12 +98,20 @@ pub async fn list_for_user(pool: &DbPool, user_id: UserId) -> DbResult<Vec<Org>>
 /// Add (or update the role of) a member. Idempotent on (org_id, user_id):
 /// re-adding updates the role. Used by [`crate::users::create`] to seed the
 /// Default-org membership and (later) by the member-invite flow.
-pub async fn upsert_member(
-    pool: &DbPool,
+pub async fn upsert_member<'e, E>(
+    executor: E,
     org_id: OrgId,
     user_id: UserId,
     role: Role,
-) -> DbResult<()> {
+) -> DbResult<()>
+where
+    E: sqlx::PgExecutor<'e>,
+{
+    // Generic over the executor so it works on a pool (the common case) AND on
+    // `&mut *tx` when a caller needs the membership to commit atomically with a
+    // preceding write (users::create, set_admin/set_role, create_with_owner) —
+    // without naming a `Transaction` in the signature (object-safety prep for a
+    // future driver-agnostic Store trait; multi-DB P0).
     sqlx::query!(
         r#"
         INSERT INTO org_members (org_id, user_id, role)
@@ -115,7 +122,7 @@ pub async fn upsert_member(
         user_id.0,
         role as Role,
     )
-    .execute(pool)
+    .execute(executor)
     .await?;
     Ok(())
 }
@@ -188,29 +195,6 @@ pub async fn list_members_detailed(
             created_at: r.created_at,
         })
         .collect())
-}
-
-/// Add a member within an existing transaction — used by `users::create` so
-/// the user row and the Default-org membership commit atomically.
-pub async fn upsert_member_tx(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    org_id: Uuid,
-    user_id: Uuid,
-    role: Role,
-) -> DbResult<()> {
-    sqlx::query!(
-        r#"
-        INSERT INTO org_members (org_id, user_id, role)
-        VALUES ($1, $2, $3)
-        ON CONFLICT (org_id, user_id) DO UPDATE SET role = EXCLUDED.role
-        "#,
-        org_id,
-        user_id,
-        role as Role,
-    )
-    .execute(&mut **tx)
-    .await?;
-    Ok(())
 }
 
 /// Rename an org. `NotFound` when the id doesn't exist. (Slug is immutable in
@@ -309,7 +293,7 @@ pub async fn create_with_owner(
         }
         _ => DbError::Sqlx(e),
     })?;
-    upsert_member_tx(&mut tx, id.0, owner.0, Role::Admin).await?;
+    upsert_member(&mut *tx, id, owner, Role::Admin).await?;
     tx.commit().await?;
     Ok(Org {
         id: OrgId::from_uuid(row.id),

@@ -29,6 +29,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.154.1] — 2026-06-22
+
+### Changed
+- **Internal: removed the last cross-function transaction threading in
+  rampart-db** (multi-DB groundwork, no behavior change). `orgs::upsert_member`
+  is now generic over `sqlx::PgExecutor` and the redundant `upsert_member_tx`
+  (which took a `&mut Transaction` — the lone function exposing a concrete
+  Postgres transaction across a boundary) is deleted; its 4 callers
+  (`users::create`, `set_admin`, `set_role`, `orgs::create_with_owner`) now pass
+  `&mut *tx` to the unified helper. Atomicity is byte-identical (same statements,
+  same begin/commit points, verified by the existing org-membership
+  `#[sqlx::test]`s). This removes the object-safety wall blocking a future
+  driver-agnostic `Store` trait — the first slice of the multi-DB P0 spike
+  (`docs/design/MULTI_DB.md`). No SQL, schema, or `.sqlx` change.
+
+---
+
 ## [0.154.0] — 2026-06-22
 
 ### Security
