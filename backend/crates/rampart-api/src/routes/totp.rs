@@ -94,7 +94,7 @@ async fn enable(
     }
 
     rampart_db::users::enable_totp(state.pool(), user.0.id).await?;
-    let codes = rampart_db::recovery_codes::issue_batch(state.pool(), user.0.id, 10).await?;
+    let codes = state.store().issue_recovery_codes(user.0.id, 10).await?;
     Ok(Json(EnableResp {
         enabled: true,
         recovery_codes: codes,
@@ -125,13 +125,13 @@ async fn disable(
         .as_deref()
         .map(|s| totp::verify(s, &input.code))
         .unwrap_or(false)
-        || rampart_db::recovery_codes::consume(state.pool(), user.0.id, &input.code).await?;
+        || state.store().consume_recovery_code(user.0.id, &input.code).await?;
 
     if !code_ok {
         return Err(ApiError::BadRequest("invalid code".into()));
     }
     rampart_db::users::disable_totp(state.pool(), user.0.id).await?;
-    rampart_db::recovery_codes::delete_for_user(state.pool(), user.0.id).await?;
+    state.store().delete_recovery_codes_for_user(user.0.id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -186,7 +186,7 @@ async fn verify(
         .as_deref()
         .map(|s| totp::verify(s, &input.code))
         .unwrap_or(false)
-        || rampart_db::recovery_codes::consume(state.pool(), user_id, &input.code).await?;
+        || state.store().consume_recovery_code(user_id, &input.code).await?;
 
     if !code_ok {
         // Security event: password was correct but the second factor

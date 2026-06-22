@@ -1,5 +1,5 @@
 //! Object-safe `Store` seam (multi-DB P0 — heartbeats + deploy-markers +
-//! ingest-keys + slos domains).
+//! ingest-keys + slos + proxies + on-call + recovery-codes + api-keys domains).
 //!
 //! This module proves the `&dyn Store` super-trait shape is object-safe and
 //! that the AppState wiring compiles, ahead of the full ~40-trait extraction.
@@ -18,11 +18,15 @@ use crate::heartbeats::{BurndownPoint, ErrorBudget, MonitorSummary, MonthlyUptim
 use crate::ingest_keys::IngestKey;
 use crate::slos::{SloEvent, SloWithSnapshot};
 use crate::{DbPool, DbResult};
+use rampart_core::api_key::{ApiKey, IssuedApiKey, NewApiKey};
 use rampart_core::deploy_marker::{DeployMarker, NewDeployMarker};
-use rampart_core::ids::{DeployMarkerId, OrgId, SloId};
+use rampart_core::ids::{ApiKeyId, DeployMarkerId, NotificationId, OnCallScheduleId, OrgId, SloId};
+use rampart_core::on_call::{NewOnCallSchedule, OnCallSchedule, OnCallTarget, UpdateOnCallSchedule};
+use rampart_core::proxy::{NewProxy, Proxy};
 use rampart_core::slo::{NewSlo, Slo, SloSnapshot, UpdateSlo};
-use rampart_core::{Heartbeat, MonitorId};
+use rampart_core::{Heartbeat, MonitorId, ProxyId, UserId};
 use std::collections::HashMap;
+use time::OffsetDateTime;
 use uuid::Uuid;
 
 /// One method per public `crate::heartbeats` free function. Signatures are
@@ -204,9 +208,110 @@ pub trait StoreSlos: Send + Sync {
     async fn evaluate_slos_tick(&self) -> DbResult<Vec<SloEvent>>;
 }
 
+/// One method per public `crate::proxies` free function, with a `_prox(y|ies)`
+/// suffix on the collision-prone CRUD names.
+#[async_trait::async_trait]
+pub trait StoreProxies: Send + Sync {
+    async fn list_proxies(&self, org_id: OrgId) -> DbResult<Vec<Proxy>>;
+
+    async fn get_proxy(&self, id: ProxyId, org_id: OrgId) -> DbResult<Proxy>;
+
+    async fn get_proxy_unscoped(&self, id: ProxyId) -> DbResult<Proxy>;
+
+    async fn create_proxy(&self, input: NewProxy, org_id: OrgId) -> DbResult<Proxy>;
+
+    async fn delete_proxy(&self, id: ProxyId, org_id: OrgId) -> DbResult<()>;
+
+    async fn set_active_proxy(&self, id: ProxyId, active: bool, org_id: OrgId) -> DbResult<()>;
+}
+
+/// One method per public `crate::on_call` free function. CRUD names carry an
+/// `_on_call` suffix and the resolvers an `oncall_` prefix to disambiguate.
+#[async_trait::async_trait]
+pub trait StoreOnCall: Send + Sync {
+    async fn list_on_call(&self, org_id: OrgId) -> DbResult<Vec<OnCallSchedule>>;
+
+    async fn get_on_call(
+        &self,
+        id: OnCallScheduleId,
+        org_id: OrgId,
+    ) -> DbResult<OnCallSchedule>;
+
+    async fn get_on_call_unscoped(&self, id: OnCallScheduleId) -> DbResult<OnCallSchedule>;
+
+    async fn create_on_call(
+        &self,
+        input: NewOnCallSchedule,
+        org_id: OrgId,
+    ) -> DbResult<OnCallSchedule>;
+
+    async fn update_on_call(
+        &self,
+        id: OnCallScheduleId,
+        patch: UpdateOnCallSchedule,
+        org_id: OrgId,
+    ) -> DbResult<OnCallSchedule>;
+
+    async fn delete_on_call(&self, id: OnCallScheduleId, org_id: OrgId) -> DbResult<()>;
+
+    async fn oncall_current_channel(
+        &self,
+        id: OnCallScheduleId,
+        at: OffsetDateTime,
+    ) -> DbResult<Option<NotificationId>>;
+
+    async fn oncall_current_target(
+        &self,
+        id: OnCallScheduleId,
+        at: OffsetDateTime,
+    ) -> DbResult<Option<OnCallTarget>>;
+}
+
+/// One method per public `crate::recovery_codes` free function, with a
+/// `_recovery_codes` suffix on the collision-prone names.
+#[async_trait::async_trait]
+pub trait StoreRecoveryCodes: Send + Sync {
+    async fn issue_recovery_codes(&self, user: UserId, count: usize) -> DbResult<Vec<String>>;
+
+    async fn consume_recovery_code(&self, user: UserId, code: &str) -> DbResult<bool>;
+
+    async fn delete_recovery_codes_for_user(&self, user: UserId) -> DbResult<()>;
+
+    async fn remaining_recovery_codes(&self, user: UserId) -> DbResult<i64>;
+}
+
+/// One method per public `crate::api_keys` free function, with an `_api_key(s)`
+/// suffix on the collision-prone CRUD names.
+#[async_trait::async_trait]
+pub trait StoreApiKeys: Send + Sync {
+    async fn list_api_keys(&self, org_id: OrgId) -> DbResult<Vec<ApiKey>>;
+
+    async fn create_api_key(
+        &self,
+        input: NewApiKey,
+        created_by: UserId,
+        org_id: OrgId,
+    ) -> DbResult<IssuedApiKey>;
+
+    async fn delete_api_key(&self, id: ApiKeyId, org_id: OrgId) -> DbResult<()>;
+
+    async fn lookup_api_key(&self, token: &str) -> DbResult<(ApiKey, UserId, OrgId)>;
+
+    async fn touch_api_key_last_used(&self, id: ApiKeyId) -> DbResult<()>;
+}
+
 /// Composed store super-trait spanning every extracted domain sub-trait.
 pub trait Store:
-    StoreHeartbeats + StoreDeployMarkers + StoreIngestKeys + StoreSlos + Send + Sync
+    StoreHeartbeats
+    + StoreDeployMarkers
+    + StoreIngestKeys
+    + StoreSlos
+    + StoreProxies
+    + StoreOnCall
+    + StoreRecoveryCodes
+    + StoreApiKeys
+    + Send
+    + Sync
 {
 }
 
@@ -467,6 +572,136 @@ impl StoreSlos for PgStore {
 
     async fn evaluate_slos_tick(&self) -> DbResult<Vec<SloEvent>> {
         crate::slos::evaluate_tick(&self.pool).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreProxies for PgStore {
+    async fn list_proxies(&self, org_id: OrgId) -> DbResult<Vec<Proxy>> {
+        crate::proxies::list(&self.pool, org_id).await
+    }
+
+    async fn get_proxy(&self, id: ProxyId, org_id: OrgId) -> DbResult<Proxy> {
+        crate::proxies::get(&self.pool, id, org_id).await
+    }
+
+    async fn get_proxy_unscoped(&self, id: ProxyId) -> DbResult<Proxy> {
+        crate::proxies::get_unscoped(&self.pool, id).await
+    }
+
+    async fn create_proxy(&self, input: NewProxy, org_id: OrgId) -> DbResult<Proxy> {
+        crate::proxies::create(&self.pool, input, org_id).await
+    }
+
+    async fn delete_proxy(&self, id: ProxyId, org_id: OrgId) -> DbResult<()> {
+        crate::proxies::delete(&self.pool, id, org_id).await
+    }
+
+    async fn set_active_proxy(&self, id: ProxyId, active: bool, org_id: OrgId) -> DbResult<()> {
+        crate::proxies::set_active(&self.pool, id, active, org_id).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreOnCall for PgStore {
+    async fn list_on_call(&self, org_id: OrgId) -> DbResult<Vec<OnCallSchedule>> {
+        crate::on_call::list(&self.pool, org_id).await
+    }
+
+    async fn get_on_call(
+        &self,
+        id: OnCallScheduleId,
+        org_id: OrgId,
+    ) -> DbResult<OnCallSchedule> {
+        crate::on_call::get(&self.pool, id, org_id).await
+    }
+
+    async fn get_on_call_unscoped(&self, id: OnCallScheduleId) -> DbResult<OnCallSchedule> {
+        crate::on_call::get_unscoped(&self.pool, id).await
+    }
+
+    async fn create_on_call(
+        &self,
+        input: NewOnCallSchedule,
+        org_id: OrgId,
+    ) -> DbResult<OnCallSchedule> {
+        crate::on_call::create(&self.pool, input, org_id).await
+    }
+
+    async fn update_on_call(
+        &self,
+        id: OnCallScheduleId,
+        patch: UpdateOnCallSchedule,
+        org_id: OrgId,
+    ) -> DbResult<OnCallSchedule> {
+        crate::on_call::update(&self.pool, id, patch, org_id).await
+    }
+
+    async fn delete_on_call(&self, id: OnCallScheduleId, org_id: OrgId) -> DbResult<()> {
+        crate::on_call::delete(&self.pool, id, org_id).await
+    }
+
+    async fn oncall_current_channel(
+        &self,
+        id: OnCallScheduleId,
+        at: OffsetDateTime,
+    ) -> DbResult<Option<NotificationId>> {
+        crate::on_call::current_channel(&self.pool, id, at).await
+    }
+
+    async fn oncall_current_target(
+        &self,
+        id: OnCallScheduleId,
+        at: OffsetDateTime,
+    ) -> DbResult<Option<OnCallTarget>> {
+        crate::on_call::current_target(&self.pool, id, at).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreRecoveryCodes for PgStore {
+    async fn issue_recovery_codes(&self, user: UserId, count: usize) -> DbResult<Vec<String>> {
+        crate::recovery_codes::issue_batch(&self.pool, user, count).await
+    }
+
+    async fn consume_recovery_code(&self, user: UserId, code: &str) -> DbResult<bool> {
+        crate::recovery_codes::consume(&self.pool, user, code).await
+    }
+
+    async fn delete_recovery_codes_for_user(&self, user: UserId) -> DbResult<()> {
+        crate::recovery_codes::delete_for_user(&self.pool, user).await
+    }
+
+    async fn remaining_recovery_codes(&self, user: UserId) -> DbResult<i64> {
+        crate::recovery_codes::remaining(&self.pool, user).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreApiKeys for PgStore {
+    async fn list_api_keys(&self, org_id: OrgId) -> DbResult<Vec<ApiKey>> {
+        crate::api_keys::list(&self.pool, org_id).await
+    }
+
+    async fn create_api_key(
+        &self,
+        input: NewApiKey,
+        created_by: UserId,
+        org_id: OrgId,
+    ) -> DbResult<IssuedApiKey> {
+        crate::api_keys::create(&self.pool, input, created_by, org_id).await
+    }
+
+    async fn delete_api_key(&self, id: ApiKeyId, org_id: OrgId) -> DbResult<()> {
+        crate::api_keys::delete(&self.pool, id, org_id).await
+    }
+
+    async fn lookup_api_key(&self, token: &str) -> DbResult<(ApiKey, UserId, OrgId)> {
+        crate::api_keys::lookup(&self.pool, token).await
+    }
+
+    async fn touch_api_key_last_used(&self, id: ApiKeyId) -> DbResult<()> {
+        crate::api_keys::touch_last_used(&self.pool, id).await
     }
 }
 

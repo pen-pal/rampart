@@ -36,7 +36,7 @@ async fn list(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<OnCallSchedule>>, ApiError> {
-    Ok(Json(rampart_db::on_call::list(s.pool(), org.org_id).await?))
+    Ok(Json(s.store().list_on_call(org.org_id).await?))
 }
 
 async fn create(
@@ -55,7 +55,7 @@ async fn create(
     )
     .map_err(ApiError::BadRequest)?;
     let name = input.name.clone();
-    let schedule = rampart_db::on_call::create(s.pool(), input, org.org_id).await?;
+    let schedule = s.store().create_on_call(input, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -87,7 +87,7 @@ async fn update(
         || input.participant_ids.is_some()
         || input.participant_user_ids.is_some()
     {
-        let current = rampart_db::on_call::get(s.pool(), schedule_id, org.org_id).await?;
+        let current = s.store().get_on_call(schedule_id, org.org_id).await?;
         let rotation = input.rotation_seconds.unwrap_or(current.rotation_seconds);
         let chans = input
             .participant_ids
@@ -102,7 +102,7 @@ async fn update(
         rampart_core::on_call::validate_schedule(rotation, chans + users)
             .map_err(ApiError::BadRequest)?;
     }
-    let schedule = rampart_db::on_call::update(s.pool(), schedule_id, input, org.org_id).await?;
+    let schedule = s.store().update_on_call(schedule_id, input, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -124,7 +124,7 @@ async fn delete(
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let schedule_id = parse(&id)?;
-    rampart_db::on_call::delete(s.pool(), schedule_id, org.org_id).await?;
+    s.store().delete_on_call(schedule_id, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -157,9 +157,10 @@ async fn current(
     // Gate through the schedule's org — a cross-org schedule id is a 404.
     // `current_target` stays unscoped (the notifier resolves it at alert
     // time), so the org check lives here.
-    rampart_db::on_call::get(s.pool(), schedule_id, org.org_id).await?;
-    let on_call =
-        rampart_db::on_call::current_target(s.pool(), schedule_id, OffsetDateTime::now_utc())
-            .await?;
+    s.store().get_on_call(schedule_id, org.org_id).await?;
+    let on_call = s
+        .store()
+        .oncall_current_target(schedule_id, OffsetDateTime::now_utc())
+        .await?;
     Ok(Json(CurrentOnCall { on_call }))
 }

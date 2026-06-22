@@ -34,7 +34,7 @@ async fn list(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<Proxy>>, ApiError> {
-    Ok(Json(rampart_db::proxies::list(s.pool(), org.org_id).await?))
+    Ok(Json(s.store().list_proxies(org.org_id).await?))
 }
 
 async fn create(
@@ -54,7 +54,7 @@ async fn create(
             "protocol must be one of http / https / socks / socks5 / socks4".into(),
         ));
     }
-    let p = rampart_db::proxies::create(s.pool(), input, org.org_id).await?;
+    let p = s.store().create_proxy(input, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -76,7 +76,7 @@ async fn remove(
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let pid = parse(&id)?;
-    rampart_db::proxies::delete(s.pool(), pid, org.org_id).await?;
+    s.store().delete_proxy(pid, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -104,7 +104,7 @@ async fn set_active(
     Json(body): Json<SetActiveBody>,
 ) -> Result<StatusCode, ApiError> {
     let pid = parse(&id)?;
-    rampart_db::proxies::set_active(s.pool(), pid, body.active, org.org_id).await?;
+    s.store().set_active_proxy(pid, body.active, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
