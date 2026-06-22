@@ -110,9 +110,11 @@ pub struct RumVitals {
     pub load_p75: Option<f64>,
 }
 
-/// Per-URL rollup for the pages table.
+/// Per-(app, URL) rollup for the pages table. The `app` lets the UI tell rows
+/// apart when "all apps" is selected (the same path on two sites is two rows).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RumPage {
+    pub app: String,
     pub url: String,
     pub views: i64,
     pub lcp_p75: Option<f64>,

@@ -161,21 +161,31 @@ export default function Rum() {
               <div className="row" style={{ fontWeight: 600, color: 'var(--text-3)', fontSize: 11 }}>
                 <span>{t('rum.page')}</span><span>{t('rum.views')}</span><span>LCP</span><span>INP</span><span>CLS</span>
               </div>
-              {pages.map(p => (
-                <React.Fragment key={p.url}>
+              {pages.map(p => {
+                // Rows are per-(app, url): the same path on two sites is two
+                // rows, so identity (key / open-state / drill-down) must include
+                // the app, not just the url. The drill-down also uses the row's
+                // OWN app (p.app), not the filter (which is empty for "all apps").
+                const pageKey = `${p.app} ${p.url}`;
+                const showApp = !app; // app filter empty ⇒ "all apps" ⇒ label each row
+                return (
+                <React.Fragment key={pageKey}>
                   <div className="row" style={{ cursor: 'pointer' }} title={t('rum.drill_hint')}
-                    onClick={() => setOpenPage(openPage === p.url ? null : p.url)}>
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.url}>
-                      <span style={{ color: 'var(--text-3)', fontSize: 9, marginRight: 5 }}>{openPage === p.url ? '▾' : '▸'}</span>{p.url}
+                    onClick={() => setOpenPage(openPage === pageKey ? null : pageKey)}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={showApp ? `${p.app} · ${p.url}` : p.url}>
+                      <span style={{ color: 'var(--text-3)', fontSize: 9, marginRight: 5 }}>{openPage === pageKey ? '▾' : '▸'}</span>
+                      {showApp && <span style={{ display: 'inline-block', background: 'var(--surface-2)', color: 'var(--text-2)', fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 4, marginRight: 6 }}>{p.app}</span>}
+                      {p.url}
                     </span>
                     <span>{p.views}</span>
                     <span style={{ color: `var(--${rating('lcp', p.lcp_p75) === 'none' ? 'text-3' : rating('lcp', p.lcp_p75)})` }}>{fmtVital('lcp', p.lcp_p75)}</span>
                     <span style={{ color: `var(--${rating('inp', p.inp_p75) === 'none' ? 'text-3' : rating('inp', p.inp_p75)})` }}>{fmtVital('inp', p.inp_p75)}</span>
                     <span style={{ color: `var(--${rating('cls', p.cls_p75) === 'none' ? 'text-3' : rating('cls', p.cls_p75)})` }}>{fmtVital('cls', p.cls_p75)}</span>
                   </div>
-                  {openPage === p.url && <PageDetail app={app} url={p.url} hours={hours} />}
+                  {openPage === pageKey && <PageDetail app={p.app} url={p.url} hours={hours} />}
                 </React.Fragment>
-              ))}
+                );
+              })}
             </div>
 
             {users.length > 0 && (

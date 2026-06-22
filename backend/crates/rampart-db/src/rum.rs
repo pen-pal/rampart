@@ -185,6 +185,7 @@ pub async fn pages(
     let rows = sqlx::query!(
         r#"
         SELECT
+            app AS "app!",
             url AS "url!",
             count(*) AS "views!",
             percentile_cont(0.75) WITHIN GROUP (ORDER BY lcp_ms) AS "lcp_p75",
@@ -195,7 +196,7 @@ pub async fn pages(
         WHERE ($1::text IS NULL OR app = $1)
           AND received_at > now() - make_interval(hours => $2)
           AND org_id = $3
-        GROUP BY url
+        GROUP BY app, url
         ORDER BY count(*) DESC
         LIMIT 200
         "#,
@@ -208,6 +209,7 @@ pub async fn pages(
     Ok(rows
         .into_iter()
         .map(|r| RumPage {
+            app: r.app,
             url: r.url,
             views: r.views,
             lcp_p75: r.lcp_p75,
