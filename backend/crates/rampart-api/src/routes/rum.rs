@@ -129,76 +129,76 @@ async fn ingest_error(
     // RLS: bind the resolved org for the writes (project provision + event
     // record) below (no-op when RAMPART_RLS off).
     rampart_db::rls::with_org(org, async move {
-    let raw = match crate::ingest_util::decompress(&headers, &body) {
-        Ok(r) => r,
-        Err(_) => return StatusCode::NO_CONTENT,
-    };
-    let Ok(err) = serde_json::from_slice::<RumError>(&raw) else {
-        return StatusCode::NO_CONTENT;
-    };
-    let message = err.message.unwrap_or_default();
-    if message.trim().is_empty() {
-        return StatusCode::NO_CONTENT;
-    }
-    let app = err
-        .app
-        .as_deref()
-        .map(str::trim)
-        .filter(|a| !a.is_empty())
-        .unwrap_or("web")
-        .to_string();
-
-    // Provision (or reuse) the per-app browser project, then group + store the
-    // error through the same path as SDK ingest.
-    let project = match rampart_db::error_tracking::find_or_create_by_name(s.pool(), &app, org).await
-    {
-        Ok(p) => p,
-        Err(_) => return StatusCode::NO_CONTENT,
-    };
-
-    let kind = err.kind.unwrap_or_else(|| "Error".to_string());
-    let sentry = serde_json::json!({
-        "level": "error",
-        "platform": "javascript",
-        "transaction": err.url,
-        "message": message,
-        "exception": { "values": [ {
-            "type": kind,
-            "value": message,
-        } ] },
-        "contexts": { "browser_error": {
-            "url": err.url,
-            "stack": err.stack,
-        } },
-    });
-    let parsed = rampart_core::error_tracking::ParsedEvent::from_sentry_json(sentry);
-    let outcome =
-        match rampart_db::error_tracking::record_event(s.pool(), project.id, &parsed).await {
-            Ok(o) => o,
+        let raw = match crate::ingest_util::decompress(&headers, &body) {
+            Ok(r) => r,
             Err(_) => return StatusCode::NO_CONTENT,
         };
+        let Ok(err) = serde_json::from_slice::<RumError>(&raw) else {
+            return StatusCode::NO_CONTENT;
+        };
+        let message = err.message.unwrap_or_default();
+        if message.trim().is_empty() {
+            return StatusCode::NO_CONTENT;
+        }
+        let app = err
+            .app
+            .as_deref()
+            .map(str::trim)
+            .filter(|a| !a.is_empty())
+            .unwrap_or("web")
+            .to_string();
 
-    // Alert on new / regressed issues only, off the request path (mirrors the
-    // Sentry ingest route).
-    if (outcome.is_new || outcome.regressed) && !project.alert_channel_ids.is_empty() {
-        let pool = s.pool().clone();
-        let channels = project.alert_channel_ids.clone();
-        let name = project.name.clone();
-        let title = outcome.title.clone();
-        let regressed = outcome.regressed;
-        // RLS: a spawned task does NOT inherit the task-local, so re-enter the
-        // org here. The alert channels belong to the project's org, and the
-        // dispatch reads notifications/silences/templates (org-scoped tables) —
-        // without this the spawn would run as the bypass owner under S7.
-        tokio::spawn(rampart_db::rls::with_org(org, async move {
-            rampart_notifier::service::dispatch_error_alert(
-                &pool, &name, &channels, regressed, &title,
-            )
-            .await;
-        }));
-    }
+        // Provision (or reuse) the per-app browser project, then group + store the
+        // error through the same path as SDK ingest.
+        let project =
+            match rampart_db::error_tracking::find_or_create_by_name(s.pool(), &app, org).await {
+                Ok(p) => p,
+                Err(_) => return StatusCode::NO_CONTENT,
+            };
 
-    StatusCode::NO_CONTENT
+        let kind = err.kind.unwrap_or_else(|| "Error".to_string());
+        let sentry = serde_json::json!({
+            "level": "error",
+            "platform": "javascript",
+            "transaction": err.url,
+            "message": message,
+            "exception": { "values": [ {
+                "type": kind,
+                "value": message,
+            } ] },
+            "contexts": { "browser_error": {
+                "url": err.url,
+                "stack": err.stack,
+            } },
+        });
+        let parsed = rampart_core::error_tracking::ParsedEvent::from_sentry_json(sentry);
+        let outcome =
+            match rampart_db::error_tracking::record_event(s.pool(), project.id, &parsed).await {
+                Ok(o) => o,
+                Err(_) => return StatusCode::NO_CONTENT,
+            };
+
+        // Alert on new / regressed issues only, off the request path (mirrors the
+        // Sentry ingest route).
+        if (outcome.is_new || outcome.regressed) && !project.alert_channel_ids.is_empty() {
+            let pool = s.pool().clone();
+            let channels = project.alert_channel_ids.clone();
+            let name = project.name.clone();
+            let title = outcome.title.clone();
+            let regressed = outcome.regressed;
+            // RLS: a spawned task does NOT inherit the task-local, so re-enter the
+            // org here. The alert channels belong to the project's org, and the
+            // dispatch reads notifications/silences/templates (org-scoped tables) —
+            // without this the spawn would run as the bypass owner under S7.
+            tokio::spawn(rampart_db::rls::with_org(org, async move {
+                rampart_notifier::service::dispatch_error_alert(
+                    &pool, &name, &channels, regressed, &title,
+                )
+                .await;
+            }));
+        }
+
+        StatusCode::NO_CONTENT
     })
     .await
 }
@@ -215,8 +215,13 @@ async fn summary(
     Query(q): Query<RumQuery>,
 ) -> Result<Json<RumVitals>, ApiError> {
     Ok(Json(
-        rampart_db::rum::summary(s.pool(), q.app.as_deref(), q.hours.unwrap_or(24), org.org_id)
-            .await?,
+        rampart_db::rum::summary(
+            s.pool(),
+            q.app.as_deref(),
+            q.hours.unwrap_or(24),
+            org.org_id,
+        )
+        .await?,
     ))
 }
 
@@ -226,8 +231,13 @@ async fn pages(
     Query(q): Query<RumQuery>,
 ) -> Result<Json<Vec<RumPage>>, ApiError> {
     Ok(Json(
-        rampart_db::rum::pages(s.pool(), q.app.as_deref(), q.hours.unwrap_or(24), org.org_id)
-            .await?,
+        rampart_db::rum::pages(
+            s.pool(),
+            q.app.as_deref(),
+            q.hours.unwrap_or(24),
+            org.org_id,
+        )
+        .await?,
     ))
 }
 

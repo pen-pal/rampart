@@ -48,7 +48,13 @@ async fn insert_log(pool: &PgPool, service: &str, severity: i16, body: &str) {
     .unwrap();
 }
 
-async fn insert_log_attrs(pool: &PgPool, service: &str, severity: i16, body: &str, attrs: serde_json::Value) {
+async fn insert_log_attrs(
+    pool: &PgPool,
+    service: &str,
+    severity: i16,
+    body: &str,
+    attrs: serde_json::Value,
+) {
     sqlx::query!(
         r#"INSERT INTO logs (id, ts, severity, severity_text, service_name, body, attributes, received_at, org_id)
            VALUES ($1, now(), $2, NULL, $3, $4, $5, now(), '00000000-0000-0000-0000-000000000001')"#,
@@ -85,7 +91,12 @@ async fn regex_match_threshold_and_watermark(pool: PgPool) {
     assert_eq!(ev.len(), 1);
     assert_eq!(ev[0].finding.match_count, 2);
     assert_eq!(ev[0].finding.severity, DetectionSeverity::High);
-    assert!(ev[0].finding.sample.as_deref().unwrap().contains("failed login"));
+    assert!(ev[0]
+        .finding
+        .sample
+        .as_deref()
+        .unwrap()
+        .contains("failed login"));
 
     // No new logs → watermark means nothing re-fires.
     assert!(detection::evaluate_tick(&pool).await.unwrap().is_empty());
@@ -98,8 +109,20 @@ async fn regex_match_threshold_and_watermark(pool: PgPool) {
     // Acknowledge clears it from the open queue but keeps the record.
     detection::ack_finding(&pool, findings[0].id).await.unwrap();
     assert_eq!(detection::open_count(&pool).await.unwrap(), 0);
-    assert_eq!(detection::list_findings(&pool, 50, true).await.unwrap().len(), 0);
-    assert_eq!(detection::list_findings(&pool, 50, false).await.unwrap().len(), 1);
+    assert_eq!(
+        detection::list_findings(&pool, 50, true)
+            .await
+            .unwrap()
+            .len(),
+        0
+    );
+    assert_eq!(
+        detection::list_findings(&pool, 50, false)
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
     let _ = r;
 }
 
@@ -112,15 +135,22 @@ async fn boolean_condition_tree_matches(pool: PgPool) {
         conditions: vec![
             C::And {
                 conditions: vec![
-                    C::Service { value: "auth".into() },
-                    C::BodyContains { value: "failed".into() },
+                    C::Service {
+                        value: "auth".into(),
+                    },
+                    C::BodyContains {
+                        value: "failed".into(),
+                    },
                 ],
             },
             C::And {
                 conditions: vec![
                     C::MinLevel { value: 17 },
                     C::Not {
-                        condition: Box::new(C::Attr { key: "env".into(), value: "dev".into() }),
+                        condition: Box::new(C::Attr {
+                            key: "env".into(),
+                            value: "dev".into(),
+                        }),
                     },
                 ],
             },
@@ -151,7 +181,14 @@ async fn group_by_raises_per_entity_over_threshold(pool: PgPool) {
     // alice: 3 matches (over threshold). bob: 1 (under). carol: 0. A record with
     // no `user` attribute is ignored.
     for who in ["alice", "alice", "alice", "bob"] {
-        insert_log_attrs(&pool, "auth", 9, "failed login", serde_json::json!({ "user": who })).await;
+        insert_log_attrs(
+            &pool,
+            "auth",
+            9,
+            "failed login",
+            serde_json::json!({ "user": who }),
+        )
+        .await;
     }
     insert_log_attrs(&pool, "auth", 9, "failed login", serde_json::json!({})).await; // no user → ignored
 
@@ -204,7 +241,13 @@ async fn service_scope_and_severity_floor(pool: PgPool) {
     assert_eq!(ev[0].finding.service.as_deref(), Some("auth"));
 }
 
-async fn insert_log_attr(pool: &PgPool, service: &str, severity: i16, body: &str, attrs: serde_json::Value) {
+async fn insert_log_attr(
+    pool: &PgPool,
+    service: &str,
+    severity: i16,
+    body: &str,
+    attrs: serde_json::Value,
+) {
     sqlx::query!(
         r#"INSERT INTO logs (id, ts, severity, severity_text, service_name, body, attributes, received_at, org_id)
            VALUES ($1, now(), $2, NULL, $3, $4, $5, now(), '00000000-0000-0000-0000-000000000001')"#,
@@ -227,12 +270,26 @@ async fn attribute_key_match(pool: PgPool) {
     detection::create(&pool, nr, TEST_ORG).await.unwrap();
 
     // Wrong action, and a log with no attributes → no match.
-    insert_log_attr(&pool, "auth", 9, "a", serde_json::json!({"event.action": "user.login"})).await;
+    insert_log_attr(
+        &pool,
+        "auth",
+        9,
+        "a",
+        serde_json::json!({"event.action": "user.login"}),
+    )
+    .await;
     insert_log_attr(&pool, "auth", 9, "b", serde_json::json!({})).await;
     assert!(detection::evaluate_tick(&pool).await.unwrap().is_empty());
 
     // Matching attribute → fires.
-    insert_log_attr(&pool, "auth", 9, "c", serde_json::json!({"event.action": "user.delete"})).await;
+    insert_log_attr(
+        &pool,
+        "auth",
+        9,
+        "c",
+        serde_json::json!({"event.action": "user.delete"}),
+    )
+    .await;
     let ev = detection::evaluate_tick(&pool).await.unwrap();
     assert_eq!(ev.len(), 1);
     assert_eq!(ev[0].finding.match_count, 1);
@@ -250,7 +307,9 @@ async fn disabled_rule_is_inert(pool: PgPool) {
 #[sqlx::test(migrations = "../../migrations")]
 async fn regex_validation(pool: PgPool) {
     assert!(detection::regex_is_valid(&pool, "").await.unwrap());
-    assert!(detection::regex_is_valid(&pool, "valid.*pattern").await.unwrap());
+    assert!(detection::regex_is_valid(&pool, "valid.*pattern")
+        .await
+        .unwrap());
     // Unbalanced parenthesis is an invalid POSIX regex.
     assert!(!detection::regex_is_valid(&pool, "broken(").await.unwrap());
 }

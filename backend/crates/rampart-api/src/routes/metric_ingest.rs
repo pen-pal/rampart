@@ -55,9 +55,7 @@ async fn list_rules(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<MetricRule>>, ApiError> {
-    Ok(Json(
-        s.store().list_metric_rules(org.org_id).await?,
-    ))
+    Ok(Json(s.store().list_metric_rules(org.org_id).await?))
 }
 
 async fn create_rule(
@@ -91,7 +89,9 @@ async fn update_rule(
         }
     }
     Ok(Json(
-        s.store().update_metric_rule(rule_id, input, org.org_id).await?,
+        s.store()
+            .update_metric_rule(rule_id, input, org.org_id)
+            .await?,
     ))
 }
 

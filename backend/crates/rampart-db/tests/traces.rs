@@ -29,9 +29,9 @@ async fn service_map_edge_has_calls_errors_p95(pool: PgPool) {
     traces::insert_spans(
         &pool,
         &[
-            span("p", None, "web", 300.0, false),      // caller, same service as nothing downstream
+            span("p", None, "web", 300.0, false), // caller, same service as nothing downstream
             span("c1", Some("p"), "api", 100.0, false), // web -> api, ok
-            span("c2", Some("p"), "api", 200.0, true),  // web -> api, error
+            span("c2", Some("p"), "api", 200.0, true), // web -> api, error
         ],
         TEST_ORG,
     )
@@ -68,11 +68,18 @@ async fn operation_trend_returns_p95_series(pool: PgPool) {
     .await
     .unwrap();
 
-    let trend = traces::operation_trend(&pool, "api", "api op", 24, 24, TEST_ORG).await.unwrap();
+    let trend = traces::operation_trend(&pool, "api", "api op", 24, 24, TEST_ORG)
+        .await
+        .unwrap();
     assert!(!trend.is_empty(), "a recent bucket with p95");
     // p95 of {100,150,200} sits in range.
     assert!(trend.iter().all(|&p| (100.0..=200.0).contains(&p)));
 
     // A different operation has no data.
-    assert!(traces::operation_trend(&pool, "api", "missing", 24, 24, TEST_ORG).await.unwrap().is_empty());
+    assert!(
+        traces::operation_trend(&pool, "api", "missing", 24, 24, TEST_ORG)
+            .await
+            .unwrap()
+            .is_empty()
+    );
 }

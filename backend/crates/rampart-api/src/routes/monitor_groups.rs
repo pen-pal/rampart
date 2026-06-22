@@ -52,9 +52,7 @@ async fn list(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<MonitorGroup>>, ApiError> {
-    Ok(Json(
-        s.store().list_monitor_groups(org.org_id).await?,
-    ))
+    Ok(Json(s.store().list_monitor_groups(org.org_id).await?))
 }
 
 async fn create(
@@ -89,7 +87,10 @@ async fn update(
 ) -> Result<Json<MonitorGroup>, ApiError> {
     input.validate()?;
     let gid = parse_group(&id)?;
-    let g = s.store().update_monitor_group(gid, input, org.org_id).await?;
+    let g = s
+        .store()
+        .update_monitor_group(gid, input, org.org_id)
+        .await?;
     crate::audit::record(
         s.pool(),
         &user,

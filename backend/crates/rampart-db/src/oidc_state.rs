@@ -117,9 +117,15 @@ mod tests {
     #[sqlx::test(migrations = "../../migrations")]
     async fn expired_row_consumes_to_none_and_prunes(pool: PgPool) {
         // Stash then force the row into the past so it is expired.
-        stash(&pool, "st-exp", "verifier-exp", Some("nonce-exp"), Some("/back"))
-            .await
-            .unwrap();
+        stash(
+            &pool,
+            "st-exp",
+            "verifier-exp",
+            Some("nonce-exp"),
+            Some("/back"),
+        )
+        .await
+        .unwrap();
         sqlx::query!(
             "UPDATE oidc_login_state SET expires_at = now() - make_interval(secs => 60) WHERE state = $1",
             "st-exp",

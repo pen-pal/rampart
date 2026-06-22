@@ -235,12 +235,9 @@ pub async fn mark_login(pool: &DbPool, id: UserId) -> DbResult<()> {
 /// When the user's 2FA step is locked out (durable brute-force cap), if at all.
 /// The caller refuses the verify when this is `Some(t)` and `t > now`.
 pub async fn totp_locked_until(pool: &DbPool, id: UserId) -> DbResult<Option<OffsetDateTime>> {
-    let row = sqlx::query!(
-        "SELECT totp_locked_until FROM users WHERE id = $1",
-        id.0,
-    )
-    .fetch_optional(pool)
-    .await?;
+    let row = sqlx::query!("SELECT totp_locked_until FROM users WHERE id = $1", id.0,)
+        .fetch_optional(pool)
+        .await?;
     Ok(row.and_then(|r| r.totp_locked_until))
 }
 

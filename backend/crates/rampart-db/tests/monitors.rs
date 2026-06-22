@@ -52,9 +52,13 @@ async fn list_empty_by_default(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn create_round_trips(pool: PgPool) {
-    let m = create(&pool, http_monitor("api", "https://api.example.com"), def_org())
-        .await
-        .unwrap();
+    let m = create(
+        &pool,
+        http_monitor("api", "https://api.example.com"),
+        def_org(),
+    )
+    .await
+    .unwrap();
     assert_eq!(m.name, "api");
     assert_eq!(m.kind, MonitorKind::Http);
     assert!(m.active);
@@ -81,9 +85,13 @@ async fn list_returns_all_in_recency_order(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn set_active_toggles_field(pool: PgPool) {
-    let m = create(&pool, http_monitor("toggle", "https://x.example.com"), def_org())
-        .await
-        .unwrap();
+    let m = create(
+        &pool,
+        http_monitor("toggle", "https://x.example.com"),
+        def_org(),
+    )
+    .await
+    .unwrap();
     assert!(m.active);
 
     set_active(&pool, m.id, false, def_org()).await.unwrap();
@@ -97,9 +105,13 @@ async fn set_active_toggles_field(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn delete_removes_from_list(pool: PgPool) {
-    let m = create(&pool, http_monitor("gone", "https://gone.example.com"), def_org())
-        .await
-        .unwrap();
+    let m = create(
+        &pool,
+        http_monitor("gone", "https://gone.example.com"),
+        def_org(),
+    )
+    .await
+    .unwrap();
     delete(&pool, m.id, def_org()).await.unwrap();
     assert!(get(&pool, m.id, def_org()).await.is_err());
     let ms = list(&pool, def_org()).await.unwrap();
@@ -140,9 +152,13 @@ async fn read_filter_isolates_orgs(pool: PgPool) {
     let other = rampart_db::orgs::create(&pool, "other", "Other")
         .await
         .unwrap();
-    let m = create(&pool, http_monitor("secret", "https://secret.example.com"), def_org())
-        .await
-        .unwrap();
+    let m = create(
+        &pool,
+        http_monitor("secret", "https://secret.example.com"),
+        def_org(),
+    )
+    .await
+    .unwrap();
     sqlx::query("UPDATE monitors SET org_id = $1 WHERE id = $2")
         .bind(other.id.0)
         .bind(m.id.0)

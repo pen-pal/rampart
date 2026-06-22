@@ -37,9 +37,7 @@ async fn list(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<MaintenanceWindow>>, ApiError> {
-    Ok(Json(
-        s.store().list_maintenance_windows(org.org_id).await?,
-    ))
+    Ok(Json(s.store().list_maintenance_windows(org.org_id).await?))
 }
 
 async fn get_one(
@@ -48,7 +46,9 @@ async fn get_one(
     Path(id): Path<String>,
 ) -> Result<Json<MaintenanceWindow>, ApiError> {
     Ok(Json(
-        s.store().get_maintenance_window(parse_id(&id)?, org.org_id).await?,
+        s.store()
+            .get_maintenance_window(parse_id(&id)?, org.org_id)
+            .await?,
     ))
 }
 
@@ -65,7 +65,10 @@ async fn create(
     if input.end_at <= input.start_at {
         return Err(ApiError::BadRequest("end_at must be after start_at".into()));
     }
-    let w = s.store().create_maintenance_window(input, org.org_id).await?;
+    let w = s
+        .store()
+        .create_maintenance_window(input, org.org_id)
+        .await?;
     let rfc3339 = time::format_description::well_known::Rfc3339;
     crate::audit::record(
         s.pool(),
@@ -96,7 +99,10 @@ async fn update(
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     let wid = parse_id(&id)?;
-    let w = s.store().update_maintenance_window(wid, input, org.org_id).await?;
+    let w = s
+        .store()
+        .update_maintenance_window(wid, input, org.org_id)
+        .await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -146,7 +152,9 @@ async fn set_active(
     Json(body): Json<SetActiveBody>,
 ) -> Result<StatusCode, ApiError> {
     let wid = parse_id(&id)?;
-    s.store().set_active_maintenance(wid, body.active, org.org_id).await?;
+    s.store()
+        .set_active_maintenance(wid, body.active, org.org_id)
+        .await?;
     crate::audit::record(
         s.pool(),
         &user,

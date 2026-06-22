@@ -76,10 +76,24 @@ impl Probe for VaultProbe {
         let resp = match timeout(to, self.client().get(&url).timeout(to).send()).await {
             Ok(Ok(r)) => r,
             Ok(Err(e)) => {
-                return hb(monitor, ts, started, MonitorStatus::Down, None, &format!("request: {e}"))
+                return hb(
+                    monitor,
+                    ts,
+                    started,
+                    MonitorStatus::Down,
+                    None,
+                    &format!("request: {e}"),
+                )
             }
             Err(_) => {
-                return hb(monitor, ts, started, MonitorStatus::Down, None, "request timed out")
+                return hb(
+                    monitor,
+                    ts,
+                    started,
+                    MonitorStatus::Down,
+                    None,
+                    "request timed out",
+                )
             }
         };
         let code = resp.status().as_u16() as i32;
