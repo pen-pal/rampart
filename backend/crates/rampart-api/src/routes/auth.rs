@@ -28,12 +28,24 @@ use serde_json::json;
 use std::str::FromStr;
 use uuid::Uuid;
 
-pub fn router() -> Router<AppState> {
-    Router::new()
+/// Auth routes. `login` + `register` are the brute-forceable / write surface
+/// and carry the per-IP rate limiter passed in. `me` + `logout` are cheap
+/// session ops the SPA polls on every navigation (and the Security view fires
+/// several per mount) — they are deliberately NOT rate limited, otherwise quick
+/// navigation exhausts the 10-burst bucket and the resulting 429 bounces the
+/// user back to `#/login` despite a valid session.
+pub fn router(auth_rate_limiter: crate::rate_limit::IpRateLimiter) -> Router<AppState> {
+    let limited = Router::new()
         .route("/register", post(register))
         .route("/login", post(login))
-        .route("/logout", post(logout))
+        .route_layer(axum::middleware::from_fn_with_state(
+            auth_rate_limiter,
+            crate::rate_limit::enforce_ip_rate_limit,
+        ));
+    Router::new()
         .route("/me", get(me))
+        .route("/logout", post(logout))
+        .merge(limited)
 }
 
 #[derive(Debug, Deserialize)]

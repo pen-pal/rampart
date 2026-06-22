@@ -76,7 +76,6 @@ pub fn v1_public(state: &AppState) -> Router<AppState> {
     // 2fa-verify routes; the public status-page reads + subscriber
     // endpoints below are unaffected.
     let rate_limited_auth = Router::new()
-        .nest("/auth", auth::router())
         .nest("/auth/2fa", totp::public_router())
         // OIDC SSO login flow (config probe + redirect + callback). Public, and
         // now UNDER the per-IP auth rate-limiter: `/login` performs an
@@ -92,6 +91,9 @@ pub fn v1_public(state: &AppState) -> Router<AppState> {
         ));
     Router::new()
         .merge(rate_limited_auth)
+        // /auth: login + register carry the per-IP limiter internally; me +
+        // logout (polled by the SPA) ride free so navigation doesn't 429.
+        .nest("/auth", auth::router(state.auth_rate_limiter()))
         // Public status-page reads — embedded under /v1/public so the
         // boundary is explicit and obvious in the routing table.
         .nest("/public/status-pages", status_pages::public_router())

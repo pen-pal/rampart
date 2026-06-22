@@ -201,6 +201,7 @@ async fn apply_alert(
                 .await?
             {
                 s.store().resolve_incident(inc.id, now).await?;
+                crate::routes::status_pages::invalidate_public_view_cache();
                 return Ok((0, 1));
             }
             Ok((0, 0))
@@ -225,6 +226,7 @@ async fn apply_alert(
                 dedup_key: Some(alert.dedup_key),
             };
             s.store().create_incident(page, None, new).await?;
+            crate::routes::status_pages::invalidate_public_view_cache();
             Ok((1, 0))
         }
     }
