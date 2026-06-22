@@ -88,7 +88,10 @@ pub async fn ingest(
         None => {
             rampart_db::heartbeats::insert_many(state.pool(), std::slice::from_ref(&hb)).await?;
             if hb.important {
-                rampart_db::monitors::set_status(state.pool(), monitor.id, hb.status).await?;
+                state
+                    .store()
+                    .set_monitor_status(monitor.id, hb.status)
+                    .await?;
             }
         }
     }

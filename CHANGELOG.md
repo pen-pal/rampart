@@ -29,6 +29,30 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.155.16] — 2026-06-22
+
+### Changed
+- **Internal: `Store` seam extended to the `monitors` domain — the biggest /
+  highest-churn domain — completing the multi-DB P0 seam (slice 13).** Added
+  `StoreMonitors` (27 methods, `_monitor(s)`-suffixed) into the `Store`
+  super-trait and migrated the **17** monitor free fns that have rampart-api
+  call sites (create / get / get_unscoped / list / list_for_agent / update /
+  delete / set_active / set_active_by_tag / set_group / set_status /
+  regenerate_push_token / bulk_edit / bulk_edit_preview / find_by_push_token /
+  mark_run_started / close_run) from `state.pool()` to `state.store()` across
+  the monitors, monitor_groups, push, tags, notifications, monitor_templates,
+  maintenance, escalations, agents, routing route files + external_ingest. The
+  internal write transaction inside `bulk_edit` and the private generic
+  `load_prior` stay encapsulated (object-safe — they're not in any public
+  signature). The remaining 10 trait methods (`list_all`, `set_cert_info`,
+  `slo_state`, etc.) are added for a 1:1 mirror but their only callers are the
+  not-seam-aware scheduler / status_pages / seed / `bin/import`, which keep the
+  free fns. Zero behavior change; `Store` still object-safe. **Every clean
+  rampart-db domain is now behind the `Store` seam** — the P0 seam extraction is
+  complete; next is the per-driver backends (SQLite first).
+
+---
+
 ## [0.155.15] — 2026-06-22
 
 ### Changed

@@ -134,7 +134,7 @@ async fn list_for_monitor(
 ) -> Result<Json<Vec<TagBrief>>, ApiError> {
     let mid = parse_monitor(&id)?;
     // Gate through the owning monitor's org — cross-org monitor id is a 404.
-    rampart_db::monitors::get(s.pool(), mid, org.org_id).await?;
+    s.store().get_monitor(mid, org.org_id).await?;
     Ok(Json(s.store().list_tags_for_monitor(mid).await?))
 }
 
@@ -148,7 +148,7 @@ async fn attach(
     let mid = parse_monitor(&id)?;
     let tid = parse_tag(&tag_id)?;
     // Both the monitor and the tag must belong to the caller's org.
-    rampart_db::monitors::get(s.pool(), mid, org.org_id).await?;
+    s.store().get_monitor(mid, org.org_id).await?;
     s.store().get_tag(tid, org.org_id).await?;
     s.store().attach_tag(mid, tid).await?;
     crate::audit::record(
@@ -174,7 +174,7 @@ async fn detach(
     let mid = parse_monitor(&id)?;
     let tid = parse_tag(&tag_id)?;
     // Both the monitor and the tag must belong to the caller's org.
-    rampart_db::monitors::get(s.pool(), mid, org.org_id).await?;
+    s.store().get_monitor(mid, org.org_id).await?;
     s.store().get_tag(tid, org.org_id).await?;
     s.store().detach_tag(mid, tid).await?;
     crate::audit::record(

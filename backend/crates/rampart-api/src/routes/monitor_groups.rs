@@ -139,7 +139,7 @@ async fn list_deps(
 ) -> Result<Json<DepList>, ApiError> {
     let mid = parse_monitor(&id)?;
     // Gate through the monitor's org — a cross-org monitor id is a 404.
-    rampart_db::monitors::get(s.pool(), mid, org.org_id).await?;
+    s.store().get_monitor(mid, org.org_id).await?;
     let parents = s.store().parents_of(mid).await?;
     let children = s.store().children_of(mid).await?;
     Ok(Json(DepList { parents, children }))
@@ -155,8 +155,8 @@ async fn attach_dep(
     let child = parse_monitor(&id)?;
     let parent = parse_monitor(&parent_id)?;
     // Both ends of the dependency edge must belong to the caller's org.
-    rampart_db::monitors::get(s.pool(), child, org.org_id).await?;
-    rampart_db::monitors::get(s.pool(), parent, org.org_id).await?;
+    s.store().get_monitor(child, org.org_id).await?;
+    s.store().get_monitor(parent, org.org_id).await?;
     s.store().attach_dependency(child, parent).await?;
     crate::audit::record(
         s.store(),
@@ -181,8 +181,8 @@ async fn detach_dep(
     let child = parse_monitor(&id)?;
     let parent = parse_monitor(&parent_id)?;
     // Both ends of the dependency edge must belong to the caller's org.
-    rampart_db::monitors::get(s.pool(), child, org.org_id).await?;
-    rampart_db::monitors::get(s.pool(), parent, org.org_id).await?;
+    s.store().get_monitor(child, org.org_id).await?;
+    s.store().get_monitor(parent, org.org_id).await?;
     s.store().detach_dependency(child, parent).await?;
     crate::audit::record(
         s.store(),
