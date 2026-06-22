@@ -9,6 +9,7 @@
 //! (which resolves the `OrgContext` and passes the org down). See
 //! `docs/MULTITENANCY.md`.
 
+pub mod access_review;
 pub mod agents;
 pub mod api_keys;
 pub mod audit;

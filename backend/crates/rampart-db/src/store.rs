@@ -1820,6 +1820,12 @@ pub trait StoreAudit: Send + Sync {
     ) -> DbResult<Vec<crate::audit::ExportRow>>;
 }
 
+#[async_trait::async_trait]
+pub trait StoreCompliance: Send + Sync {
+    /// Cross-org access-review snapshot (SOC 2 CC6 user-access review).
+    async fn access_review(&self) -> DbResult<Vec<crate::access_review::AccessReviewRow>>;
+}
+
 /// Composed store super-trait spanning every extracted domain sub-trait.
 pub trait Store:
     StoreHeartbeats
@@ -1867,6 +1873,7 @@ pub trait Store:
     + StoreOrgs
     + StoreAudit
     + StoreMonitors
+    + StoreCompliance
     + Send
     + Sync
 {
@@ -4401,6 +4408,13 @@ impl StoreAudit for PgStore {
         filter: crate::audit::ExportFilter,
     ) -> DbResult<Vec<crate::audit::ExportRow>> {
         crate::audit::export_batch(&self.pool, before_id, batch, filter).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreCompliance for PgStore {
+    async fn access_review(&self) -> DbResult<Vec<crate::access_review::AccessReviewRow>> {
+        crate::access_review::list(&self.pool).await
     }
 }
 
