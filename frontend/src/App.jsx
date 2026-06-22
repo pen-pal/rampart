@@ -232,9 +232,14 @@ export default function App() {
     }
   }, []);
 
-  // One-shot auth check on mount, re-run when the route changes back to the
-  // dashboard (so logout → /#/login → /# refreshes the user state).
-  useEffect(() => { refreshAuth(); }, [route.view, refreshAuth]);
+  // One-shot auth check on mount only — NOT per view-navigation. The session +
+  // per-org role don't change as you move between views, so refetching /me on
+  // every nav was pure overhead (one round-trip per click). The cases that DO
+  // change auth drive refreshAuth directly: Login calls `onAuthed={refreshAuth}`
+  // after register/login, logout clears authState inline, and an org switch
+  // does a full reload. Session expiry is caught lazily — any view's own API
+  // call 401s and the request layer redirects to #/login.
+  useEffect(() => { refreshAuth(); }, [refreshAuth]);
 
   // 2FA enrollment gate. When an org policy requires 2FA and this user hasn't
   // enrolled, force them to the Security view until they do — they can't use
