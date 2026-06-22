@@ -1627,6 +1627,32 @@ pub trait StoreUsers: Send + Sync {
     async fn set_user_password(&self, id: UserId, hash: &str) -> DbResult<()>;
 }
 
+#[async_trait::async_trait]
+pub trait StoreWebpush: Send + Sync {
+    async fn list_webpush_subs(
+        &self,
+        notification: NotificationId,
+    ) -> DbResult<Vec<crate::webpush::WebpushSubscription>>;
+
+    async fn upsert_webpush_sub(
+        &self,
+        notification: NotificationId,
+        endpoint: &str,
+        p256dh: &str,
+        auth: &str,
+    ) -> DbResult<()>;
+
+    async fn delete_webpush_sub_by_endpoint(&self, endpoint: &str) -> DbResult<()>;
+
+    async fn delete_webpush_sub(&self, id: Uuid) -> DbResult<()>;
+
+    /// Read the shared VAPID keypair (absent/corrupt → `None`).
+    async fn get_vapid_keys(&self) -> DbResult<Option<crate::webpush::VapidKeys>>;
+
+    /// Persist the shared VAPID keypair.
+    async fn set_vapid_keys(&self, keys: &crate::webpush::VapidKeys) -> DbResult<()>;
+}
+
 /// Composed store super-trait spanning every extracted domain sub-trait.
 pub trait Store:
     StoreHeartbeats
@@ -1670,6 +1696,7 @@ pub trait Store:
     + StoreMetricSamples
     + StoreSourceMaps
     + StoreUsers
+    + StoreWebpush
     + Send
     + Sync
 {
@@ -3911,6 +3938,42 @@ impl StoreUsers for PgStore {
 
     async fn set_user_password(&self, id: UserId, hash: &str) -> DbResult<()> {
         crate::users::set_password(&self.pool, id, hash).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreWebpush for PgStore {
+    async fn list_webpush_subs(
+        &self,
+        notification: NotificationId,
+    ) -> DbResult<Vec<crate::webpush::WebpushSubscription>> {
+        crate::webpush::list_for_notification(&self.pool, notification).await
+    }
+
+    async fn upsert_webpush_sub(
+        &self,
+        notification: NotificationId,
+        endpoint: &str,
+        p256dh: &str,
+        auth: &str,
+    ) -> DbResult<()> {
+        crate::webpush::upsert(&self.pool, notification, endpoint, p256dh, auth).await
+    }
+
+    async fn delete_webpush_sub_by_endpoint(&self, endpoint: &str) -> DbResult<()> {
+        crate::webpush::delete_by_endpoint(&self.pool, endpoint).await
+    }
+
+    async fn delete_webpush_sub(&self, id: Uuid) -> DbResult<()> {
+        crate::webpush::delete(&self.pool, id).await
+    }
+
+    async fn get_vapid_keys(&self) -> DbResult<Option<crate::webpush::VapidKeys>> {
+        crate::webpush::get_vapid(&self.pool).await
+    }
+
+    async fn set_vapid_keys(&self, keys: &crate::webpush::VapidKeys) -> DbResult<()> {
+        crate::webpush::set_vapid(&self.pool, keys).await
     }
 }
 

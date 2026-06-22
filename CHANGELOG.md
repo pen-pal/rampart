@@ -29,6 +29,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.155.13] — 2026-06-22
+
+### Changed
+- **Internal: `Store` seam extended to the `webpush` domain (multi-DB P0
+  slice 10).** Added `StoreWebpush` (6 methods — subscription list / upsert /
+  delete-by-endpoint / delete plus VAPID-key read / write) into the `Store`
+  super-trait. The shared-VAPID get-or-create was the last `impl FnOnce`
+  closure blocking object-safety: refactored `webpush.rs` into two object-safe
+  primitives (`get_vapid` / `set_vapid`), keeping `get_or_create_vapid` as a
+  thin free fn for the not-yet-seamed notifier crate. The rampart-api routes
+  (`/v1/webpush/vapid-key` + subscribe/unsubscribe) now compose the get-or-
+  create from the two store primitives, routing entirely through `state.store()`.
+  Zero behavior change; `Store` still object-safe (compile-time assertion +
+  clippy `--all-targets` green). Only the audit / orgs / monitors object-safety
+  special cases remain unseamed.
+
+---
+
 ## [0.155.12] — 2026-06-22
 
 ### Changed
