@@ -29,6 +29,18 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.155.22] — 2026-06-22
+
+### Added
+- **Delivery-log filter controls (dashboard).** The Delivery Log view gains
+  three dropdowns — outcome (delivered/failed), channel kind, and monitor — that
+  drive the server-side filters added in 0.155.21. Changing a filter resets to
+  the newest page; a "Clear filters" button appears when any is active. Channel
+  options come from the rows on screen (plus the active selection), monitors from
+  the existing monitor list. Completes six-persona audit #22.
+
+---
+
 ## [0.155.21] — 2026-06-22
 
 ### Added

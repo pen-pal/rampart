@@ -64,6 +64,13 @@ export default function DeliveryLog({ user }) {
   // sent_at as the next page's `before`.
   const [cursors, setCursors] = useState([]);
   const [reloadKey, setReloadKey] = useState(0);
+  // Server-side filters. Empty string = unset (omitted from the query). Changing
+  // any filter resets pagination to the first (newest) page.
+  const [filters, setFilters] = useState({ ok: '', channel_kind: '', monitor_id: '' });
+  const setFilter = (key, value) => {
+    setCursors([]);
+    setFilters((f) => ({ ...f, [key]: value }));
+  };
   // Transient per-row retry feedback keyed by delivery id:
   // { [id]: { state: 'sending' | 'ok' | 'gone' | 'err', msg? } }.
   const [retryState, setRetryState] = useState({});
@@ -85,10 +92,17 @@ export default function DeliveryLog({ user }) {
     }
   };
   const before = cursors.length ? cursors[cursors.length - 1] : undefined;
+  // Only send filters that are set; the api client serialises this object into
+  // the query string (?ok=&monitor_id=&channel_kind=), which the backend
+  // null-guards.
+  const activeFilters = {};
+  if (filters.ok !== '') activeFilters.ok = filters.ok;
+  if (filters.channel_kind) activeFilters.channel_kind = filters.channel_kind;
+  if (filters.monitor_id) activeFilters.monitor_id = filters.monitor_id;
   // Fetch one extra row to learn whether a next page exists without a count.
   const state = useApi(
-    () => api.deliveryLog.list({ limit: PAGE_SIZE + 1, before }),
-    [before, reloadKey],
+    () => api.deliveryLog.list({ limit: PAGE_SIZE + 1, before, ...activeFilters }),
+    [before, reloadKey, filters.ok, filters.channel_kind, filters.monitor_id],
     { pollMs: 30_000 },
   );
 
@@ -103,6 +117,11 @@ export default function DeliveryLog({ user }) {
   const hasNext = allRows.length > PAGE_SIZE;
   const rows = hasNext ? allRows.slice(0, PAGE_SIZE) : allRows;
   const page = cursors.length;
+  // Channel kinds offered in the filter: those seen on the current page, plus
+  // whatever is currently selected (so the active choice is never dropped).
+  const channelKinds = [
+    ...new Set([...allRows.map((r) => r.channel_kind), filters.channel_kind].filter(Boolean)),
+  ].sort();
 
   // Forward cursor = sent_at of the last visible row, as RFC3339 for the
   // `before` query param the backend expects.
@@ -133,6 +152,52 @@ export default function DeliveryLog({ user }) {
             <a className="btn" download href="/v1/delivery-log/export.csv" title={t('delivery.export_csv')}>
               <Download size={13}/> {t('delivery.export_csv')}
             </a>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 14 }}>
+          <select
+            className="input"
+            value={filters.ok}
+            onChange={(e) => setFilter('ok', e.target.value)}
+            aria-label={t('delivery.filter.outcome')}
+            style={{ width: 'auto' }}
+          >
+            <option value="">{t('delivery.filter.outcome_all')}</option>
+            <option value="true">{t('delivery.filter.outcome_ok')}</option>
+            <option value="false">{t('delivery.filter.outcome_failed')}</option>
+          </select>
+          <select
+            className="input"
+            value={filters.channel_kind}
+            onChange={(e) => setFilter('channel_kind', e.target.value)}
+            aria-label={t('delivery.filter.channel')}
+            style={{ width: 'auto' }}
+          >
+            <option value="">{t('delivery.filter.channel_all')}</option>
+            {channelKinds.map((k) => (
+              <option key={k} value={k}>{k}</option>
+            ))}
+          </select>
+          <select
+            className="input"
+            value={filters.monitor_id}
+            onChange={(e) => setFilter('monitor_id', e.target.value)}
+            aria-label={t('delivery.filter.monitor')}
+            style={{ width: 'auto' }}
+          >
+            <option value="">{t('delivery.filter.monitor_all')}</option>
+            {(monitorsState.data || []).map((m) => (
+              <option key={m.id} value={m.id}>{m.name}</option>
+            ))}
+          </select>
+          {(filters.ok || filters.channel_kind || filters.monitor_id) && (
+            <button
+              className="btn btn-ghost"
+              onClick={() => { setCursors([]); setFilters({ ok: '', channel_kind: '', monitor_id: '' }); }}
+            >
+              {t('delivery.filter.clear')}
+            </button>
           )}
         </div>
 
