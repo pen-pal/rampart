@@ -32,7 +32,18 @@ struct VapidKeyResp {
 }
 
 async fn vapid_key(State(s): State<AppState>) -> Result<Json<VapidKeyResp>, ApiError> {
-    let keys = rampart_db::webpush::get_or_create_vapid(s.pool(), generate_vapid_keys).await?;
+    // Get-or-create composed from the two object-safe store primitives so the
+    // call routes through the seam (the generic key generator can't live on a
+    // `dyn Store` method). First-call generation persists the new keypair.
+    let keys = match s.store().get_vapid_keys().await? {
+        Some(keys) => keys,
+        None => {
+            let (public, private) = generate_vapid_keys();
+            let keys = rampart_db::webpush::VapidKeys { public, private };
+            s.store().set_vapid_keys(&keys).await?;
+            keys
+        }
+    };
     Ok(Json(VapidKeyResp {
         public_key: keys.public,
     }))
@@ -68,14 +79,9 @@ async fn subscribe(
     // Org-gate the target channel: binding a browser subscription to
     // another org's notification row 404s here (cross-org IDOR).
     s.store().get_notification(nid, org.org_id).await?;
-    rampart_db::webpush::upsert(
-        s.pool(),
-        nid,
-        &input.endpoint,
-        &input.keys.p256dh,
-        &input.keys.auth,
-    )
-    .await?;
+    s.store()
+        .upsert_webpush_sub(nid, &input.endpoint, &input.keys.p256dh, &input.keys.auth)
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -88,6 +94,8 @@ async fn unsubscribe(
     State(s): State<AppState>,
     Json(input): Json<UnsubscribeInput>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::webpush::delete_by_endpoint(s.pool(), &input.endpoint).await?;
+    s.store()
+        .delete_webpush_sub_by_endpoint(&input.endpoint)
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
