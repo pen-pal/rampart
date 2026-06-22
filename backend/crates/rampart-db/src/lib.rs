@@ -53,6 +53,7 @@ pub mod silences;
 pub mod slos;
 pub mod source_maps;
 pub mod status_pages;
+pub mod store;
 pub mod subscribers;
 pub mod tags;
 pub mod telemetry_rules;
