@@ -46,7 +46,7 @@ async fn list(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<SloView>>, ApiError> {
-    let rows = rampart_db::slos::list_with_snapshots(s.pool(), org.org_id).await?;
+    let rows = s.store().list_slos_with_snapshots(org.org_id).await?;
     Ok(Json(
         rows.into_iter()
             .map(|r| SloView {
@@ -67,7 +67,7 @@ async fn create(
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     validate_indicator(&input)?;
-    let slo = rampart_db::slos::create(s.pool(), input, org.org_id).await?;
+    let slo = s.store().create_slo(input, org.org_id).await?;
     Ok((StatusCode::CREATED, Json(slo)))
 }
 
@@ -82,7 +82,7 @@ async fn update(
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     Ok(Json(
-        rampart_db::slos::update(s.pool(), slo_id, input, org.org_id).await?,
+        s.store().update_slo(slo_id, input, org.org_id).await?,
     ))
 }
 
@@ -91,7 +91,7 @@ async fn delete_slo(
     Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::slos::delete(s.pool(), parse_id(&id)?, org.org_id).await?;
+    s.store().delete_slo(parse_id(&id)?, org.org_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 

@@ -40,7 +40,9 @@ async fn list(
 ) -> Result<Json<Vec<DeployMarker>>, ApiError> {
     let service = p.service.as_deref().filter(|s| !s.is_empty());
     Ok(Json(
-        rampart_db::deploy_markers::list_window(s.pool(), p.hours, service, org.org_id).await?,
+        s.store()
+            .list_deploy_markers_window(p.hours, service, org.org_id)
+            .await?,
     ))
 }
 
@@ -52,7 +54,7 @@ async fn create(
     input
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
-    let marker = rampart_db::deploy_markers::create(s.pool(), input, org.org_id).await?;
+    let marker = s.store().create_deploy_marker(input, org.org_id).await?;
     Ok((StatusCode::CREATED, Json(marker)))
 }
 
@@ -64,6 +66,6 @@ async fn remove(
     let id = Uuid::from_str(&id)
         .map(DeployMarkerId::from_uuid)
         .map_err(|_| ApiError::BadRequest("invalid deploy-marker id".into()))?;
-    rampart_db::deploy_markers::delete(s.pool(), id, org.org_id).await?;
+    s.store().delete_deploy_marker(id, org.org_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }

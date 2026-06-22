@@ -29,6 +29,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.155.2] — 2026-06-22
+
+### Changed
+- **Internal: the `Store` seam is now load-bearing (multi-DB P0 slice 3).**
+  Extended `rampart-db::store` with three more object-safe domain sub-traits —
+  `StoreDeployMarkers`, `StoreIngestKeys`, `StoreSlos` (per-domain-suffixed
+  methods, e.g. `create_deploy_marker`/`create_ingest_key`/`create_slo`, each
+  delegating to the existing free fn) — and added them to the `Store`
+  super-trait. Migrated the 10 rampart-api route call sites for those domains
+  from `rampart_db::X::fn(state.pool(), …)` to `state.store().…`, so the seam is
+  actually exercised (slice 2 added it unused). **Zero behavior change:** the
+  trait methods run the same SQL on the same pool (same RLS hooks); bare-pool
+  callers in the scheduler/notifier/seed stay on the free fns and coexist. No
+  SQL/`.sqlx`/migration change. `monitors`/`audit`/`orgs::upsert_member` stay
+  out (object-safety cleanups deferred to a later slice). (`docs/design/MULTI_DB.md`.)
+
+---
+
 ## [0.155.1] — 2026-06-22
 
 ### Changed
