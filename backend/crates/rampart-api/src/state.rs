@@ -18,6 +18,10 @@ pub struct AppState(Arc<Inner>);
 
 struct Inner {
     pool: DbPool,
+    /// Object-safe `Store` seam (multi-DB P0). Additive for now — constructed
+    /// from the same `pool` (no I/O) and has zero callers yet; it exists to
+    /// prove the `Arc<dyn Store>` wiring compiles ahead of caller migration.
+    store: Arc<dyn rampart_db::store::Store>,
     /// Notify handle that triggers the scheduler to reconcile after
     /// monitor mutations (create / delete / pause / resume).
     scheduler_reload: Arc<Notify>,
@@ -56,8 +60,10 @@ pub struct TotpChallenge {
 
 impl AppState {
     pub fn new(pool: DbPool, scheduler_reload: Arc<Notify>) -> Self {
+        let store = Arc::new(rampart_db::store::PgStore::new(pool.clone()));
         Self(Arc::new(Inner {
             pool,
+            store,
             scheduler_reload,
             scheduler: None,
             totp_challenges: Mutex::new(HashMap::new()),
@@ -73,8 +79,10 @@ impl AppState {
         scheduler_reload: Arc<Notify>,
         scheduler: Arc<Scheduler>,
     ) -> Self {
+        let store = Arc::new(rampart_db::store::PgStore::new(pool.clone()));
         Self(Arc::new(Inner {
             pool,
+            store,
             scheduler_reload,
             scheduler: Some(scheduler),
             totp_challenges: Mutex::new(HashMap::new()),
@@ -104,6 +112,12 @@ impl AppState {
 
     pub fn pool(&self) -> &DbPool {
         &self.0.pool
+    }
+
+    /// Object-safe `Store` seam (multi-DB P0). Additive — no callers yet; the
+    /// existing `pool()` path is unchanged. Returns the shared `Arc<dyn Store>`.
+    pub fn store(&self) -> &Arc<dyn rampart_db::store::Store> {
+        &self.0.store
     }
     /// Call after any monitor mutation so the scheduler picks it up
     /// without waiting for the slow 30-second fallback tick.
