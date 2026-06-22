@@ -29,6 +29,25 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.153.1] — 2026-06-22
+
+### Security
+- **Detection windows now key off server `received_at`, not the client event
+  timestamp.** The log-detection engine (`detection.rs`) and the `log_volume`
+  telemetry rule windowed on `logs.ts` — the client-supplied OTLP
+  `timeUnixNano`. An attacker who backdated `time_unix_nano` landed outside the
+  `(last_checked_at, now]` window and **silently evaded detection**; benign
+  client clock-lag also dropped legitimate events. All log-detection time
+  windows (and their sample `ORDER BY`) now filter on the server-stamped
+  `received_at`. Migration `0120` adds a `logs(org_id, received_at DESC)`
+  composite index so org-scoped detection seeks its tenant slice (mirrors the
+  spans/RUM/profiles composites). `trace_latency`/`trace_error_rate`/
+  `profile_samples`/`rum_lcp_p75` already windowed on `received_at`; `error_rate`
+  needed no change (`error_events.ts` is already server-stamped). (Six-persona
+  audit #11.)
+
+---
+
 ## [0.153.0] — 2026-06-22
 
 ### Added
