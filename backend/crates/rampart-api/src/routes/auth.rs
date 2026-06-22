@@ -271,7 +271,9 @@ async fn me(State(state): State<AppState>, jar: CookieJar) -> Result<impl IntoRe
     // SPA can render the org switcher. me() runs outside `require_session`, so it
     // re-resolves the active org from the session itself (Default-org fallback
     // when unset). Best-effort — a list failure mustn't break /me.
-    let orgs = rampart_db::orgs::list_for_user(state.pool(), user.id)
+    let orgs = state
+        .store()
+        .orgs_for_user(user.id)
         .await
         .unwrap_or_default();
     let active_org_id = session
@@ -285,9 +287,11 @@ async fn me(State(state): State<AppState>, jar: CookieJar) -> Result<impl IntoRe
     // GLOBAL flag (the 2FA `must_setup_2fa` logic above already keyed off it).
     let default_org = rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID);
     let want = rampart_core::ids::OrgId::from_uuid(active_org_id);
-    let effective_role = match rampart_db::orgs::member_role(state.pool(), want, user.id).await {
+    let effective_role = match state.store().org_member_role(want, user.id).await {
         Ok(Some(r)) => r,
-        _ => rampart_db::orgs::member_role(state.pool(), default_org, user.id)
+        _ => state
+            .store()
+            .org_member_role(default_org, user.id)
             .await
             .ok()
             .flatten()

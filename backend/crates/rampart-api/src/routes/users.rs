@@ -218,9 +218,7 @@ async fn export_data(
     let sessions = rampart_db::sessions::list_for_user(s.pool(), target)
         .await
         .unwrap_or_default();
-    let organizations = rampart_db::orgs::list_for_user(s.pool(), target)
-        .await
-        .unwrap_or_default();
+    let organizations = s.store().orgs_for_user(target).await.unwrap_or_default();
     crate::audit::record(
         s.pool(),
         &caller,
