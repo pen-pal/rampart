@@ -2,7 +2,7 @@
 // Guards UI shipped without browser verification (selection bar, group
 // buckets).
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { api, ensureLoggedIn, gotoView, uniq } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });

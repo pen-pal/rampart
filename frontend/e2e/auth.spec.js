@@ -3,7 +3,7 @@
 // Runs serially (and depends on globalSetup giving us a fresh DB).
 // We only create one admin per suite — subsequent tests log in.
 
-import { test, expect } from '@playwright/test';
+import { test, expect, isolatedContext } from './fixtures.js';
 import { fixtures, login, signupAdmin } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });
@@ -20,7 +20,7 @@ test('first-run signup (or login when admin already exists) lands on dashboard',
 
 test('protected route bounces unauthenticated visitor to login', async ({ browser }) => {
   // Fresh context = no cookies, so we appear as a logged-out visitor.
-  const ctx  = await browser.newContext();
+  const ctx  = await isolatedContext(browser);
   const page = await ctx.newPage();
   await page.goto('/#/new-monitor');
   await page.waitForURL(/#\/login/);
@@ -30,7 +30,7 @@ test('protected route bounces unauthenticated visitor to login', async ({ browse
 });
 
 test('login with wrong password shows error', async ({ browser }) => {
-  const ctx  = await browser.newContext();
+  const ctx  = await isolatedContext(browser);
   const page = await ctx.newPage();
   await page.goto('/#/login');
   await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
@@ -42,7 +42,7 @@ test('login with wrong password shows error', async ({ browser }) => {
 });
 
 test('login with right password reaches dashboard', async ({ browser }) => {
-  const ctx  = await browser.newContext();
+  const ctx  = await isolatedContext(browser);
   const page = await ctx.newPage();
   await login(page);
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
@@ -50,7 +50,7 @@ test('login with right password reaches dashboard', async ({ browser }) => {
 });
 
 test('logout clears session — protected route now 401s + bounces', async ({ browser }) => {
-  const ctx  = await browser.newContext();
+  const ctx  = await isolatedContext(browser);
   const page = await ctx.newPage();
   await login(page);
   await page.getByRole('button', { name: /sign out/i }).click();

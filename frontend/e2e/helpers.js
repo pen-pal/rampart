@@ -1,6 +1,6 @@
 // Tiny e2e helpers — keep the spec files readable.
 
-import { request as pwRequest } from '@playwright/test';
+import { request as pwRequest, nextClientIp } from './fixtures.js';
 
 const ADMIN_EMAIL    = 'e2e-admin@example.com';
 const ADMIN_NAME     = 'E2E Admin';
@@ -111,7 +111,11 @@ export async function rawApi(pageOrCtx, method, path, body) {
  * Caller is responsible for `await ctx.dispose()` when done.
  */
 export async function loginAs(email, password, baseURL) {
-  const ctx = await pwRequest.newContext({ baseURL });
+  // Own client IP so this login doesn't share the loopback rate-limit bucket.
+  const ctx = await pwRequest.newContext({
+    baseURL,
+    extraHTTPHeaders: { 'x-forwarded-for': nextClientIp() },
+  });
   const res = await ctx.post('/v1/auth/login', { data: { email, password } });
   if (!res.ok()) {
     const text = await res.text();

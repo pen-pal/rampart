@@ -17,7 +17,7 @@
 // GET /v1/monitors and torn down in a finally to keep the shared
 // cross-browser DB clean.
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { api, ensureLoggedIn, gotoView, uniq } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });

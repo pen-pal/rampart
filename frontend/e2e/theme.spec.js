@@ -1,6 +1,6 @@
 // E2E: theme system — dark applies to data-theme + native controls, and
 // light restores bright surfaces. Guards the color-scheme / CSS-var overrides.
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { ensureLoggedIn, gotoView } from './helpers.js';
 
 const surfaceSum = (page) => page.evaluate(() => {

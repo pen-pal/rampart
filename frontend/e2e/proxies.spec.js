@@ -20,7 +20,7 @@
 // API shapes are documented in
 //   backend/crates/rampart-api/src/routes/proxies.rs
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { api, ensureLoggedIn, gotoView, uniq } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });

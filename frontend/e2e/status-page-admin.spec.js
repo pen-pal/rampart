@@ -11,7 +11,7 @@
 // admin lifecycle rather than re-driving the Editor form, which
 // other specs/screenshots already cover.
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { api, ensureLoggedIn, gotoView, uniq } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });

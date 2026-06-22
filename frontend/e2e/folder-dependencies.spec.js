@@ -11,7 +11,7 @@
 //
 // Mirrors the self-contained shape of routing.spec.js.
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { api, ensureLoggedIn, uniq } from './helpers.js';
 
 // Resources (monitors, folders, dependency edges) are created against the

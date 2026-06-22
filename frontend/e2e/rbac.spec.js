@@ -28,7 +28,7 @@
 // Cross-browser projects share one DB, so emails are uniq()-suffixed and all
 // created users are removed in a finally so a mid-spec panic still cleans up.
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { api, rawApi, ensureLoggedIn, loginAs, uniq } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });

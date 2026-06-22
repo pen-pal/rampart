@@ -13,7 +13,7 @@
 // `e2e-<uniq>.example.test`. uniq()-suffixed + torn down in a finally so
 // the unique custom_domain index stays clean for cross-browser re-runs.
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { api, rawApi, ensureLoggedIn, uniq } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });
