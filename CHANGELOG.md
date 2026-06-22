@@ -29,6 +29,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.155.4] — 2026-06-22
+
+### Changed
+- **Internal: `Store` seam extended to 10 more domains (multi-DB P0 slice 5, bigger
+  batch).** Added `StoreEscalations`, `StoreMaintenance`, `StoreIngestTokens`,
+  `StoreTags`, `StoreTemplates`, `StoreTelemetryRules`, `StoreMetricRules`,
+  `StoreMonitorGroups`, `StoreSilences`, `StoreOidcState` sub-traits (91 methods,
+  per-domain-suffixed, delegating to the existing free fns) into the `Store`
+  super-trait, and migrated **70** rampart-api route/handler call sites from
+  `rampart_db::X::fn(state.pool(), …)` to `state.store().…`. **Zero behavior
+  change** (same SQL, same pool + RLS hooks); scheduler/notifier/seed bare-pool
+  callers stay on the free fns and coexist. No SQL/`.sqlx`/migration change.
+  **18 of ~40 domains now flow through the object-safe seam.**
+  `monitors`/`audit`/`orgs::upsert_member` still pending object-safety cleanups.
+  (`docs/design/MULTI_DB.md`.)
+
+---
+
 ## [0.155.3] — 2026-06-22
 
 ### Changed

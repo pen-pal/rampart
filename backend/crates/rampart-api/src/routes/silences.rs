@@ -27,7 +27,7 @@ async fn list(
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<Silence>>, ApiError> {
     Ok(Json(
-        rampart_db::silences::list_active(s.pool(), org.org_id).await?,
+        s.store().list_active_silences(org.org_id).await?,
     ))
 }
 
@@ -52,17 +52,18 @@ async fn create(
         .duration_minutes
         .filter(|m| *m > 0)
         .map(|m| OffsetDateTime::now_utc() + time::Duration::minutes(m));
-    let id = rampart_db::silences::create(
-        s.pool(),
-        NewSilence {
-            monitor_id: input.monitor_id,
-            reason: input.reason.trim(),
-            created_by: Some(user.id.0),
-            expires_at,
-        },
-        org.org_id,
-    )
-    .await?;
+    let id = s
+        .store()
+        .create_silence(
+            NewSilence {
+                monitor_id: input.monitor_id,
+                reason: input.reason.trim(),
+                created_by: Some(user.id.0),
+                expires_at,
+            },
+            org.org_id,
+        )
+        .await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -83,7 +84,7 @@ async fn remove(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
-    if !rampart_db::silences::delete(s.pool(), id, org.org_id).await? {
+    if !s.store().delete_silence(id, org.org_id).await? {
         return Err(ApiError::NotFound);
     }
     crate::audit::record(
