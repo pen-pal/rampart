@@ -47,6 +47,7 @@ use crate::tags::TagUsage;
 use crate::telemetry_rules::RuleEvent as TelemetryRuleEvent;
 use crate::templates::{NewTemplate, RenderedTemplate, Template, UpdateTemplate};
 use crate::traces::TraceFilter;
+use crate::users::{NewUser, User, UserWithHash};
 use crate::{DbPool, DbResult};
 use rampart_core::agent::{Agent, IssuedAgent, NewAgent, UpdateAgent};
 use rampart_core::api_key::{ApiKey, IssuedApiKey, NewApiKey};
@@ -90,6 +91,7 @@ use rampart_core::status_page::{
 use rampart_core::tag::{NewTag, Tag, TagBrief, UpdateTag};
 use rampart_core::telemetry_rule::{NewTelemetryRule, TelemetryRule, UpdateTelemetryRule};
 use rampart_core::trace::{ParsedSpan, ServiceEdge, Span, TraceSummary};
+use rampart_core::Role;
 use rampart_core::{Heartbeat, MonitorId, ProxyId, UserId};
 use rampart_core::{LogEntry, OperationStat};
 use std::collections::HashMap;
@@ -1572,6 +1574,59 @@ pub trait StoreSourceMaps: Send + Sync {
     async fn delete_source_map(&self, project_id: Uuid, id: i64) -> DbResult<bool>;
 }
 
+/// One method per public `crate::users` free function (the auth-critical
+/// account domain: login, session, `/me`, RBAC, org membership, TOTP, GDPR).
+/// Names carry a `_user(s)` suffix so the collision-prone CRUD verbs
+/// (`count`/`create`/`get`/`list`/`delete`/`set_*`) don't clash with the
+/// other ~40 sub-traits.
+#[async_trait::async_trait]
+pub trait StoreUsers: Send + Sync {
+    async fn count_users(&self) -> DbResult<i64>;
+
+    async fn create_user(&self, input: NewUser) -> DbResult<User>;
+
+    async fn get_user_by_email(&self, email: &str) -> DbResult<UserWithHash>;
+
+    async fn user_by_email(&self, email: &str) -> DbResult<Option<User>>;
+
+    async fn get_user(&self, id: UserId) -> DbResult<User>;
+
+    async fn set_user_totp_secret(&self, id: UserId, secret: &str) -> DbResult<()>;
+
+    async fn enable_user_totp(&self, id: UserId) -> DbResult<()>;
+
+    async fn disable_user_totp(&self, id: UserId) -> DbResult<()>;
+
+    async fn mark_user_login(&self, id: UserId) -> DbResult<()>;
+
+    async fn user_totp_locked_until(&self, id: UserId) -> DbResult<Option<OffsetDateTime>>;
+
+    async fn record_user_totp_failure(
+        &self,
+        id: UserId,
+        max_attempts: i32,
+        lockout_mins: i32,
+    ) -> DbResult<bool>;
+
+    async fn reset_user_totp_failures(&self, id: UserId) -> DbResult<()>;
+
+    async fn list_users(&self) -> DbResult<Vec<User>>;
+
+    async fn set_user_admin(&self, id: UserId, is_admin: bool) -> DbResult<()>;
+
+    async fn set_user_role(&self, id: UserId, role: Role) -> DbResult<()>;
+
+    async fn delete_user(&self, id: UserId) -> DbResult<()>;
+
+    async fn anonymize_user(&self, id: UserId) -> DbResult<()>;
+
+    async fn get_user_prefs(&self, id: UserId) -> DbResult<serde_json::Value>;
+
+    async fn set_user_prefs(&self, id: UserId, prefs: &serde_json::Value) -> DbResult<()>;
+
+    async fn set_user_password(&self, id: UserId, hash: &str) -> DbResult<()>;
+}
+
 /// Composed store super-trait spanning every extracted domain sub-trait.
 pub trait Store:
     StoreHeartbeats
@@ -1614,6 +1669,7 @@ pub trait Store:
     + StoreAgents
     + StoreMetricSamples
     + StoreSourceMaps
+    + StoreUsers
     + Send
     + Sync
 {
@@ -3767,6 +3823,94 @@ impl StoreSourceMaps for PgStore {
 
     async fn delete_source_map(&self, project_id: Uuid, id: i64) -> DbResult<bool> {
         crate::source_maps::delete(&self.pool, project_id, id).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreUsers for PgStore {
+    async fn count_users(&self) -> DbResult<i64> {
+        crate::users::count(&self.pool).await
+    }
+
+    async fn create_user(&self, input: NewUser) -> DbResult<User> {
+        crate::users::create(&self.pool, input).await
+    }
+
+    async fn get_user_by_email(&self, email: &str) -> DbResult<UserWithHash> {
+        crate::users::get_by_email(&self.pool, email).await
+    }
+
+    async fn user_by_email(&self, email: &str) -> DbResult<Option<User>> {
+        crate::users::by_email(&self.pool, email).await
+    }
+
+    async fn get_user(&self, id: UserId) -> DbResult<User> {
+        crate::users::get(&self.pool, id).await
+    }
+
+    async fn set_user_totp_secret(&self, id: UserId, secret: &str) -> DbResult<()> {
+        crate::users::set_totp_secret(&self.pool, id, secret).await
+    }
+
+    async fn enable_user_totp(&self, id: UserId) -> DbResult<()> {
+        crate::users::enable_totp(&self.pool, id).await
+    }
+
+    async fn disable_user_totp(&self, id: UserId) -> DbResult<()> {
+        crate::users::disable_totp(&self.pool, id).await
+    }
+
+    async fn mark_user_login(&self, id: UserId) -> DbResult<()> {
+        crate::users::mark_login(&self.pool, id).await
+    }
+
+    async fn user_totp_locked_until(&self, id: UserId) -> DbResult<Option<OffsetDateTime>> {
+        crate::users::totp_locked_until(&self.pool, id).await
+    }
+
+    async fn record_user_totp_failure(
+        &self,
+        id: UserId,
+        max_attempts: i32,
+        lockout_mins: i32,
+    ) -> DbResult<bool> {
+        crate::users::record_totp_failure(&self.pool, id, max_attempts, lockout_mins).await
+    }
+
+    async fn reset_user_totp_failures(&self, id: UserId) -> DbResult<()> {
+        crate::users::reset_totp_failures(&self.pool, id).await
+    }
+
+    async fn list_users(&self) -> DbResult<Vec<User>> {
+        crate::users::list(&self.pool).await
+    }
+
+    async fn set_user_admin(&self, id: UserId, is_admin: bool) -> DbResult<()> {
+        crate::users::set_admin(&self.pool, id, is_admin).await
+    }
+
+    async fn set_user_role(&self, id: UserId, role: Role) -> DbResult<()> {
+        crate::users::set_role(&self.pool, id, role).await
+    }
+
+    async fn delete_user(&self, id: UserId) -> DbResult<()> {
+        crate::users::delete(&self.pool, id).await
+    }
+
+    async fn anonymize_user(&self, id: UserId) -> DbResult<()> {
+        crate::users::anonymize(&self.pool, id).await
+    }
+
+    async fn get_user_prefs(&self, id: UserId) -> DbResult<serde_json::Value> {
+        crate::users::get_prefs(&self.pool, id).await
+    }
+
+    async fn set_user_prefs(&self, id: UserId, prefs: &serde_json::Value) -> DbResult<()> {
+        crate::users::set_prefs(&self.pool, id, prefs).await
+    }
+
+    async fn set_user_password(&self, id: UserId, hash: &str) -> DbResult<()> {
+        crate::users::set_password(&self.pool, id, hash).await
     }
 }
 

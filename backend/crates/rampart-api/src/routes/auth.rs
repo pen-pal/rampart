@@ -79,7 +79,7 @@ async fn register(
 
     // First-run only: once any user exists, registration is locked. Adding
     // additional users will happen through an admin-only flow later.
-    let existing = rampart_db::users::count(state.pool()).await?;
+    let existing = state.store().count_users().await?;
     if existing > 0 {
         return Err(ApiError::Conflict(
             "registration is closed — a user already exists".into(),
@@ -87,19 +87,16 @@ async fn register(
     }
 
     let hash = hash_password(&input.password)?;
-    let user = rampart_db::users::create(
-        state.pool(),
-        NewUser {
+    let user = state
+        .store()
+        .create_user(NewUser {
             email: input.email,
             name: input.name,
             password_hash: hash,
             role: rampart_core::Role::Admin, // the first user becomes admin
-        },
-    )
-    .await?;
-    rampart_db::users::mark_login(state.pool(), user.id)
-        .await
-        .ok();
+        })
+        .await?;
+    state.store().mark_user_login(user.id).await.ok();
 
     let session = state
         .store()
@@ -130,7 +127,7 @@ async fn login(
     // Always do the password verify even if the user isn't found, to keep
     // timing roughly constant against email-enumeration probes. We hash
     // against a placeholder if there's no row.
-    let lookup = rampart_db::users::get_by_email(state.pool(), &input.email).await;
+    let lookup = state.store().get_user_by_email(&input.email).await;
     let (user_id, totp_enabled, ok) = match lookup {
         Ok(u) => (
             Some(u.id),
@@ -177,10 +174,8 @@ async fn login(
             .into_response());
     }
 
-    rampart_db::users::mark_login(state.pool(), user_id)
-        .await
-        .ok();
-    let user = rampart_db::users::get(state.pool(), user_id).await?;
+    state.store().mark_user_login(user_id).await.ok();
+    let user = state.store().get_user(user_id).await?;
     crate::audit::record(
         state.pool(),
         &user,
@@ -234,7 +229,7 @@ async fn logout(
 async fn me(State(state): State<AppState>, jar: CookieJar) -> Result<impl IntoResponse, ApiError> {
     // Special case: no users yet. The frontend uses this to decide whether
     // to show the login screen or the first-run signup screen.
-    let count = rampart_db::users::count(state.pool()).await?;
+    let count = state.store().count_users().await?;
     if count == 0 {
         return Ok(Json(json!({ "needs_setup": true })));
     }
@@ -249,7 +244,9 @@ async fn me(State(state): State<AppState>, jar: CookieJar) -> Result<impl IntoRe
         .lookup_session(token)
         .await
         .map_err(|_| ApiError::Unauthorized)?;
-    let mut user = rampart_db::users::get(state.pool(), session.user_id)
+    let mut user = state
+        .store()
+        .get_user(session.user_id)
         .await
         .map_err(|_| ApiError::Unauthorized)?;
 
