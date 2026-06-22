@@ -2601,6 +2601,27 @@ paths:
         - { name: hours, in: query, required: false, schema: { type: integer } }
       responses:
         '200': { description: '`{ failed_logins, successful_logins, totp_failures, top_ips:[{ip,count}], by_hour:[{hour,count}] }`.' }
+  /v1/compliance/access-review:
+    get:
+      tags: [Audit]
+      summary: Access-review report (SOC 2 CC6)
+      description: >-
+        Admin only. Point-in-time snapshot of every (org, member) access grant
+        — org, email, role, member-since, last login, and MFA status — the
+        standing-access table an auditor requests for a user-access review.
+        Pulling the report is itself an audited event
+        (`compliance.access_review`).
+      responses:
+        '200': { description: 'Array of `{ org_id, org_slug, org_name, user_id, email, name, role, member_since, last_login_at, totp_enabled }`, ordered by org then email.' }
+  /v1/compliance/access-review.csv:
+    get:
+      tags: [Audit]
+      summary: Access-review report as CSV
+      description: >-
+        Admin only. Same snapshot as `/v1/compliance/access-review` as a
+        `text/csv` file attachment for an auditor's evidence binder.
+      responses:
+        '200': { description: 'CSV: org_slug,org_name,email,name,role,member_since,last_login_at,mfa_enabled.' }
 
   # ─────────────────────────── Ingest ───────────────────────────
   /v1/public/ingest/alertmanager/{token}:
