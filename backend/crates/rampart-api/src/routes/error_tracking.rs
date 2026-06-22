@@ -65,7 +65,7 @@ async fn recent_issues(
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<ErrorIssue>>, ApiError> {
     Ok(Json(
-        rampart_db::error_tracking::recent_open_issues(s.pool(), 8, org.org_id).await?,
+        s.store().recent_open_error_issues(8, org.org_id).await?,
     ))
 }
 
@@ -87,9 +87,7 @@ async fn list_projects(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<ErrorProject>>, ApiError> {
-    Ok(Json(
-        rampart_db::error_tracking::list(s.pool(), org.org_id).await?,
-    ))
+    Ok(Json(s.store().list_error_projects(org.org_id).await?))
 }
 
 async fn create_project(
@@ -103,7 +101,7 @@ async fn create_project(
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     let name = input.name.clone();
-    let project = rampart_db::error_tracking::create(s.pool(), input, org.org_id).await?;
+    let project = s.store().create_error_project(input, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -129,7 +127,10 @@ async fn update_project(
     input
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
-    let project = rampart_db::error_tracking::update(s.pool(), pid, input, org.org_id).await?;
+    let project = s
+        .store()
+        .update_error_project(pid, input, org.org_id)
+        .await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -151,7 +152,7 @@ async fn delete_project(
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let pid = project_id(&id)?;
-    rampart_db::error_tracking::delete(s.pool(), pid, org.org_id).await?;
+    s.store().delete_error_project(pid, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -182,20 +183,15 @@ async fn list_issues(
     Query(q): Query<IssueQuery>,
 ) -> Result<Json<Vec<ErrorIssue>>, ApiError> {
     let pid = project_id(&id)?;
-    rampart_db::error_tracking::project_in_org(s.pool(), pid, org.org_id).await?;
+    s.store().error_project_in_org(pid, org.org_id).await?;
     let before_id = q
         .before_id
         .as_deref()
         .and_then(|s| uuid::Uuid::parse_str(s).ok());
     Ok(Json(
-        rampart_db::error_tracking::list_issues(
-            s.pool(),
-            pid,
-            q.status.as_deref(),
-            before_id,
-            q.limit.unwrap_or(100),
-        )
-        .await?,
+        s.store()
+            .list_error_issues(pid, q.status.as_deref(), before_id, q.limit.unwrap_or(100))
+            .await?,
     ))
 }
 
@@ -211,15 +207,11 @@ async fn project_histogram(
     Query(q): Query<HistQuery>,
 ) -> Result<Json<Vec<rampart_db::error_tracking::ErrorBucket>>, ApiError> {
     let pid = project_id(&id)?;
-    rampart_db::error_tracking::project_in_org(s.pool(), pid, org.org_id).await?;
+    s.store().error_project_in_org(pid, org.org_id).await?;
     Ok(Json(
-        rampart_db::error_tracking::project_event_histogram(
-            s.pool(),
-            pid,
-            q.hours.unwrap_or(168),
-            48,
-        )
-        .await?,
+        s.store()
+            .error_project_event_histogram(pid, q.hours.unwrap_or(168), 48)
+            .await?,
     ))
 }
 
@@ -229,10 +221,8 @@ async fn get_issue(
     Path(id): Path<String>,
 ) -> Result<Json<ErrorIssue>, ApiError> {
     let iid = issue_id(&id)?;
-    rampart_db::error_tracking::issue_in_org(s.pool(), iid, org.org_id).await?;
-    Ok(Json(
-        rampart_db::error_tracking::get_issue(s.pool(), iid).await?,
-    ))
+    s.store().error_issue_in_org(iid, org.org_id).await?;
+    Ok(Json(s.store().get_error_issue(iid).await?))
 }
 
 async fn issue_stats(
@@ -241,10 +231,8 @@ async fn issue_stats(
     Path(id): Path<String>,
 ) -> Result<Json<rampart_db::error_tracking::IssueStats>, ApiError> {
     let iid = issue_id(&id)?;
-    rampart_db::error_tracking::issue_in_org(s.pool(), iid, org.org_id).await?;
-    Ok(Json(
-        rampart_db::error_tracking::issue_stats(s.pool(), iid).await?,
-    ))
+    s.store().error_issue_in_org(iid, org.org_id).await?;
+    Ok(Json(s.store().error_issue_stats(iid).await?))
 }
 
 async fn issue_users(
@@ -253,10 +241,8 @@ async fn issue_users(
     Path(id): Path<String>,
 ) -> Result<Json<Vec<rampart_db::error_tracking::AffectedUser>>, ApiError> {
     let iid = issue_id(&id)?;
-    rampart_db::error_tracking::issue_in_org(s.pool(), iid, org.org_id).await?;
-    Ok(Json(
-        rampart_db::error_tracking::issue_affected_users(s.pool(), iid, 50).await?,
-    ))
+    s.store().error_issue_in_org(iid, org.org_id).await?;
+    Ok(Json(s.store().error_issue_affected_users(iid, 50).await?))
 }
 
 async fn list_events(
@@ -265,8 +251,8 @@ async fn list_events(
     Path(id): Path<String>,
 ) -> Result<Json<Vec<ErrorEvent>>, ApiError> {
     let iid = issue_id(&id)?;
-    rampart_db::error_tracking::issue_in_org(s.pool(), iid, org.org_id).await?;
-    let mut events = rampart_db::error_tracking::list_events(s.pool(), iid, 50).await?;
+    s.store().error_issue_in_org(iid, org.org_id).await?;
+    let mut events = s.store().list_error_events(iid, 50).await?;
     symbolicate_events(s.pool(), &mut events).await;
     Ok(Json(events))
 }
@@ -335,7 +321,7 @@ async fn upload_sourcemap(
     Json(input): Json<UploadSourceMap>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let pid = project_id(&id)?;
-    rampart_db::error_tracking::project_in_org(s.pool(), pid, org.org_id).await?;
+    s.store().error_project_in_org(pid, org.org_id).await?;
     if input.release.trim().is_empty() || input.filename.trim().is_empty() {
         return Err(ApiError::BadRequest(
             "release and filename are required".into(),
@@ -371,7 +357,7 @@ async fn list_sourcemaps(
     Path(id): Path<String>,
 ) -> Result<Json<Vec<rampart_db::source_maps::SourceMapMeta>>, ApiError> {
     let pid = project_id(&id)?;
-    rampart_db::error_tracking::project_in_org(s.pool(), pid, org.org_id).await?;
+    s.store().error_project_in_org(pid, org.org_id).await?;
     Ok(Json(rampart_db::source_maps::list(s.pool(), pid.0).await?))
 }
 
@@ -383,7 +369,7 @@ async fn delete_sourcemap(
     Path((id, map_id)): Path<(String, i64)>,
 ) -> Result<StatusCode, ApiError> {
     let pid = project_id(&id)?;
-    rampart_db::error_tracking::project_in_org(s.pool(), pid, org.org_id).await?;
+    s.store().error_project_in_org(pid, org.org_id).await?;
     if !rampart_db::source_maps::delete(s.pool(), pid.0, map_id).await? {
         return Err(ApiError::NotFound);
     }
@@ -409,8 +395,8 @@ async fn set_status(
     status: &str,
 ) -> Result<Json<ErrorIssue>, ApiError> {
     let iid = issue_id(id)?;
-    rampart_db::error_tracking::issue_in_org(s.pool(), iid, org.org_id).await?;
-    let issue = rampart_db::error_tracking::set_issue_status(s.pool(), iid, status).await?;
+    s.store().error_issue_in_org(iid, org.org_id).await?;
+    let issue = s.store().set_error_issue_status(iid, status).await?;
     crate::audit::record(
         s.pool(),
         user,
@@ -470,7 +456,7 @@ async fn assign(
     Json(body): Json<AssignBody>,
 ) -> Result<Json<ErrorIssue>, ApiError> {
     let iid = issue_id(&id)?;
-    rampart_db::error_tracking::issue_in_org(s.pool(), iid, org.org_id).await?;
+    s.store().error_issue_in_org(iid, org.org_id).await?;
     let assignee = match body.assignee.as_deref().filter(|v| !v.is_empty()) {
         Some(u) => Some(
             Uuid::from_str(u)
@@ -479,7 +465,7 @@ async fn assign(
         ),
         None => None,
     };
-    let issue = rampart_db::error_tracking::assign_issue(s.pool(), iid, assignee).await?;
+    let issue = s.store().assign_error_issue(iid, assignee).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -496,9 +482,7 @@ async fn assign(
 async fn assignable_users(
     State(s): State<AppState>,
 ) -> Result<Json<Vec<rampart_db::error_tracking::AssignableUser>>, ApiError> {
-    Ok(Json(
-        rampart_db::error_tracking::assignable_users(s.pool()).await?,
-    ))
+    Ok(Json(s.store().error_assignable_users().await?))
 }
 
 /// Error issues touched by a given trace — the trace → errors correlation link.
@@ -508,6 +492,8 @@ async fn issues_by_trace(
     Path(trace_id): Path<String>,
 ) -> Result<Json<Vec<rampart_db::error_tracking::TraceErrorRef>>, ApiError> {
     Ok(Json(
-        rampart_db::error_tracking::issues_for_trace(s.pool(), &trace_id, org.org_id).await?,
+        s.store()
+            .error_issues_for_trace(&trace_id, org.org_id)
+            .await?,
     ))
 }

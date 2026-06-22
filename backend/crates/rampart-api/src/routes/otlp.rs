@@ -74,7 +74,7 @@ async fn ingest_logs(
             });
         }
 
-        rampart_db::logs::insert_logs(s.pool(), &logs, org).await?;
+        s.store().insert_logs(&logs, org).await?;
         Ok(Json(serde_json::json!({})))
     })
     .await
@@ -115,7 +115,7 @@ async fn ingest_traces(
             spans.retain(|sp| rampart_core::sampling::keep(&sp.trace_id, sc.traces_pct));
         }
 
-        rampart_db::traces::insert_spans(s.pool(), &spans, org).await?;
+        s.store().insert_spans(&spans, org).await?;
 
         // OTLP ExportTraceServiceResponse — an empty object signals full success.
         Ok(Json(serde_json::json!({})))
