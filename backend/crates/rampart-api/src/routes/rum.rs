@@ -80,7 +80,7 @@ async fn ingest(
         };
         if let Ok(beacon) = serde_json::from_slice::<RumBeacon>(&raw) {
             if let Some(clean) = beacon.clean() {
-                let _ = rampart_db::rum::insert_event(s.pool(), &clean, org).await;
+                let _ = s.store().insert_rum_event(&clean, org).await;
             }
         }
         StatusCode::NO_CONTENT
@@ -150,11 +150,14 @@ async fn ingest_error(
 
         // Provision (or reuse) the per-app browser project, then group + store the
         // error through the same path as SDK ingest.
-        let project =
-            match rampart_db::error_tracking::find_or_create_by_name(s.pool(), &app, org).await {
-                Ok(p) => p,
-                Err(_) => return StatusCode::NO_CONTENT,
-            };
+        let project = match s
+            .store()
+            .find_or_create_error_project_by_name(&app, org)
+            .await
+        {
+            Ok(p) => p,
+            Err(_) => return StatusCode::NO_CONTENT,
+        };
 
         let kind = err.kind.unwrap_or_else(|| "Error".to_string());
         let sentry = serde_json::json!({
@@ -172,11 +175,10 @@ async fn ingest_error(
             } },
         });
         let parsed = rampart_core::error_tracking::ParsedEvent::from_sentry_json(sentry);
-        let outcome =
-            match rampart_db::error_tracking::record_event(s.pool(), project.id, &parsed).await {
-                Ok(o) => o,
-                Err(_) => return StatusCode::NO_CONTENT,
-            };
+        let outcome = match s.store().record_error_event(project.id, &parsed).await {
+            Ok(o) => o,
+            Err(_) => return StatusCode::NO_CONTENT,
+        };
 
         // Alert on new / regressed issues only, off the request path (mirrors the
         // Sentry ingest route).
@@ -215,13 +217,9 @@ async fn summary(
     Query(q): Query<RumQuery>,
 ) -> Result<Json<RumVitals>, ApiError> {
     Ok(Json(
-        rampart_db::rum::summary(
-            s.pool(),
-            q.app.as_deref(),
-            q.hours.unwrap_or(24),
-            org.org_id,
-        )
-        .await?,
+        s.store()
+            .rum_summary(q.app.as_deref(), q.hours.unwrap_or(24), org.org_id)
+            .await?,
     ))
 }
 
@@ -231,13 +229,9 @@ async fn pages(
     Query(q): Query<RumQuery>,
 ) -> Result<Json<Vec<RumPage>>, ApiError> {
     Ok(Json(
-        rampart_db::rum::pages(
-            s.pool(),
-            q.app.as_deref(),
-            q.hours.unwrap_or(24),
-            org.org_id,
-        )
-        .await?,
+        s.store()
+            .rum_pages(q.app.as_deref(), q.hours.unwrap_or(24), org.org_id)
+            .await?,
     ))
 }
 
@@ -245,7 +239,7 @@ async fn apps(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<String>>, ApiError> {
-    Ok(Json(rampart_db::rum::apps(s.pool(), org.org_id).await?))
+    Ok(Json(s.store().rum_apps(org.org_id).await?))
 }
 
 async fn traced(
@@ -254,14 +248,9 @@ async fn traced(
     Query(q): Query<RumQuery>,
 ) -> Result<Json<Vec<rampart_core::rum::RumTracedLoad>>, ApiError> {
     Ok(Json(
-        rampart_db::rum::recent_traced(
-            s.pool(),
-            q.app.as_deref(),
-            q.hours.unwrap_or(24),
-            50,
-            org.org_id,
-        )
-        .await?,
+        s.store()
+            .rum_recent_traced(q.app.as_deref(), q.hours.unwrap_or(24), 50, org.org_id)
+            .await?,
     ))
 }
 
@@ -271,13 +260,9 @@ async fn browsers(
     Query(q): Query<RumQuery>,
 ) -> Result<Json<Vec<rampart_db::rum::RumBrowser>>, ApiError> {
     Ok(Json(
-        rampart_db::rum::browser_breakdown(
-            s.pool(),
-            q.app.as_deref(),
-            q.hours.unwrap_or(24),
-            org.org_id,
-        )
-        .await?,
+        s.store()
+            .rum_browser_breakdown(q.app.as_deref(), q.hours.unwrap_or(24), org.org_id)
+            .await?,
     ))
 }
 
@@ -287,13 +272,9 @@ async fn users(
     Query(q): Query<RumQuery>,
 ) -> Result<Json<Vec<rampart_db::rum::RumUser>>, ApiError> {
     Ok(Json(
-        rampart_db::rum::user_breakdown(
-            s.pool(),
-            q.app.as_deref(),
-            q.hours.unwrap_or(24),
-            org.org_id,
-        )
-        .await?,
+        s.store()
+            .rum_user_breakdown(q.app.as_deref(), q.hours.unwrap_or(24), org.org_id)
+            .await?,
     ))
 }
 
@@ -310,15 +291,15 @@ async fn page(
     Query(q): Query<PageQuery>,
 ) -> Result<Json<Vec<rampart_db::rum::RumSample>>, ApiError> {
     Ok(Json(
-        rampart_db::rum::page_samples(
-            s.pool(),
-            q.app.as_deref(),
-            &q.url,
-            q.hours.unwrap_or(24),
-            100,
-            org.org_id,
-        )
-        .await?,
+        s.store()
+            .rum_page_samples(
+                q.app.as_deref(),
+                &q.url,
+                q.hours.unwrap_or(24),
+                100,
+                org.org_id,
+            )
+            .await?,
     ))
 }
 

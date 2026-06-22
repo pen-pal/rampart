@@ -67,7 +67,7 @@ async fn subscribe(
     let nid = parse_notif(&input.notification_id)?;
     // Org-gate the target channel: binding a browser subscription to
     // another org's notification row 404s here (cross-org IDOR).
-    rampart_db::notifications::get(s.pool(), nid, org.org_id).await?;
+    s.store().get_notification(nid, org.org_id).await?;
     rampart_db::webpush::upsert(
         s.pool(),
         nid,

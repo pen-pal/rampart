@@ -83,7 +83,9 @@ async fn sampling_put(
     }
     let value = serde_json::to_value(&input)
         .map_err(|e| ApiError::BadRequest(format!("invalid sampling config: {e}")))?;
-    rampart_db::settings::put(s.pool(), crate::ingest_util::SAMPLING_KEY, &value).await?;
+    s.store()
+        .put_setting(crate::ingest_util::SAMPLING_KEY, &value)
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -91,11 +93,11 @@ async fn sampling_put(
 async fn storage_get(
     State(s): State<AppState>,
 ) -> Result<Json<Vec<rampart_db::metrics::TableSize>>, ApiError> {
-    Ok(Json(rampart_db::metrics::storage_usage(s.pool()).await?))
+    Ok(Json(s.store().storage_usage().await?))
 }
 
 async fn security_get(State(s): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
-    let raw = rampart_db::settings::get(s.pool(), "require_2fa").await?;
+    let raw = s.store().get_setting("require_2fa").await?;
     let require_2fa = raw
         .and_then(|v| v.as_str().map(str::to_string))
         .unwrap_or_else(|| "off".to_string());
@@ -116,17 +118,14 @@ async fn security_put(
             "require_2fa must be one of: off, admins, all".into(),
         ));
     }
-    rampart_db::settings::put(
-        s.pool(),
-        "require_2fa",
-        &serde_json::json!(input.require_2fa),
-    )
-    .await?;
+    s.store()
+        .put_setting("require_2fa", &serde_json::json!(input.require_2fa))
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
 async fn siem_get(State(s): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
-    let raw = rampart_db::settings::get(s.pool(), "siem_export").await?;
+    let raw = s.store().get_setting("siem_export").await?;
     Ok(Json(raw.unwrap_or_else(|| {
         serde_json::json!({ "enabled": false, "kind": "webhook", "target": "", "format": "json" })
     })))
@@ -174,7 +173,7 @@ async fn siem_put(
         "target": input.target.trim(),
         "format": format,
     });
-    rampart_db::settings::put(s.pool(), "siem_export", &value).await?;
+    s.store().put_setting("siem_export", &value).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -321,7 +320,7 @@ async fn delete_one(
 // ── SMTP settings ────────────────────────────────────────────────────────
 
 async fn smtp_get(State(s): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
-    let raw = rampart_db::settings::get(s.pool(), "smtp").await?;
+    let raw = s.store().get_setting("smtp").await?;
     // Redact password if present — the admin can re-enter when editing.
     let value = raw.map(|mut v| {
         if let Some(obj) = v.as_object_mut() {
@@ -354,7 +353,7 @@ async fn smtp_put(
     // the old password instead of overwriting.
     let mut new_value = input.cfg;
     if parsed.password.as_deref() == Some("(redacted)") {
-        if let Some(existing) = rampart_db::settings::get(s.pool(), "smtp").await? {
+        if let Some(existing) = s.store().get_setting("smtp").await? {
             if let (Some(new_obj), Some(old_obj)) =
                 (new_value.as_object_mut(), existing.as_object())
             {
@@ -364,7 +363,7 @@ async fn smtp_put(
             }
         }
     }
-    rampart_db::settings::put(s.pool(), "smtp", &new_value).await?;
+    s.store().put_setting("smtp", &new_value).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -403,7 +402,7 @@ async fn retention_put(
     }
     let value = serde_json::to_value(&input)
         .map_err(|e| ApiError::BadRequest(format!("invalid retention config: {e}")))?;
-    rampart_db::settings::put(s.pool(), "retention_days", &value).await?;
+    s.store().put_setting("retention_days", &value).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -434,14 +433,16 @@ async fn telemetry_token_put(
     let trimmed = input.token.trim();
     if trimmed.is_empty() {
         // Clear => disable auth (re-open the ingest surfaces).
-        rampart_db::settings::delete(s.pool(), crate::ingest_util::TELEMETRY_TOKEN_KEY).await?;
+        s.store()
+            .delete_setting(crate::ingest_util::TELEMETRY_TOKEN_KEY)
+            .await?;
     } else {
-        rampart_db::settings::put(
-            s.pool(),
-            crate::ingest_util::TELEMETRY_TOKEN_KEY,
-            &serde_json::Value::String(trimmed.to_owned()),
-        )
-        .await?;
+        s.store()
+            .put_setting(
+                crate::ingest_util::TELEMETRY_TOKEN_KEY,
+                &serde_json::Value::String(trimmed.to_owned()),
+            )
+            .await?;
     }
     Ok(StatusCode::NO_CONTENT)
 }

@@ -134,7 +134,7 @@ async fn metrics(State(state): State<AppState>) -> impl IntoResponse {
         "# HELP rampart_monitors Number of monitors broken down by current status.",
     );
     let _ = writeln!(body, "# TYPE rampart_monitors gauge");
-    match rampart_db::metrics::monitors_by_status(pool).await {
+    match state.store().monitors_by_status().await {
         Ok(rows) => {
             for (status, count) in rows {
                 let _ = writeln!(
@@ -155,7 +155,7 @@ async fn metrics(State(state): State<AppState>) -> impl IntoResponse {
         "# HELP rampart_monitors_by_kind Number of monitors per probe kind.",
     );
     let _ = writeln!(body, "# TYPE rampart_monitors_by_kind gauge");
-    match rampart_db::metrics::monitors_by_kind(pool).await {
+    match state.store().monitors_by_kind().await {
         Ok(rows) => {
             for (kind, count) in rows {
                 let _ = writeln!(
@@ -176,7 +176,7 @@ async fn metrics(State(state): State<AppState>) -> impl IntoResponse {
         "# HELP rampart_channels_active Number of currently-active notification channels.",
     );
     let _ = writeln!(body, "# TYPE rampart_channels_active gauge");
-    match rampart_db::metrics::channels_active(pool).await {
+    match state.store().channels_active().await {
         Ok(count) => {
             let _ = writeln!(body, "rampart_channels_active {count}");
         }
@@ -191,7 +191,7 @@ async fn metrics(State(state): State<AppState>) -> impl IntoResponse {
         "# HELP rampart_webpush_subscribers Number of registered web-push subscribers.",
     );
     let _ = writeln!(body, "# TYPE rampart_webpush_subscribers gauge");
-    match rampart_db::metrics::webpush_subscribers(pool).await {
+    match state.store().webpush_subscribers().await {
         Ok(count) => {
             let _ = writeln!(body, "rampart_webpush_subscribers {count}");
         }
@@ -208,7 +208,7 @@ async fn metrics(State(state): State<AppState>) -> impl IntoResponse {
         "# HELP rampart_heartbeats_24h Heartbeats persisted in the trailing 24 hours, by status.",
     );
     let _ = writeln!(body, "# TYPE rampart_heartbeats_24h gauge");
-    match rampart_db::metrics::heartbeats_recent_by_status(pool, 86_400).await {
+    match state.store().heartbeats_recent_by_status(86_400).await {
         Ok(rows) => {
             for (status, count) in rows {
                 let _ = writeln!(
@@ -229,7 +229,7 @@ async fn metrics(State(state): State<AppState>) -> impl IntoResponse {
         "# HELP rampart_incidents_open Number of currently-open / unresolved incidents.",
     );
     let _ = writeln!(body, "# TYPE rampart_incidents_open gauge");
-    match rampart_db::metrics::incidents_open(pool).await {
+    match state.store().incidents_open().await {
         Ok(count) => {
             let _ = writeln!(body, "rampart_incidents_open {count}");
         }
@@ -239,7 +239,7 @@ async fn metrics(State(state): State<AppState>) -> impl IntoResponse {
     }
 
     // ── alerting-pipeline gauges (rules / firing / findings / escalations) ─
-    match rampart_db::metrics::pipeline_gauges(pool).await {
+    match state.store().pipeline_gauges().await {
         Ok(g) => {
             let _ = writeln!(
                 body,
@@ -316,7 +316,7 @@ async fn metrics(State(state): State<AppState>) -> impl IntoResponse {
     }
 
     // ── ingest volume (trailing 24h, by tier) ──────────────────────
-    match rampart_db::metrics::ingest_gauges(pool).await {
+    match state.store().ingest_gauges().await {
         Ok(g) => {
             let _ = writeln!(body, "# HELP rampart_ingest_24h Telemetry records ingested in the trailing 24h, by tier.");
             let _ = writeln!(body, "# TYPE rampart_ingest_24h gauge");
@@ -334,7 +334,7 @@ async fn metrics(State(state): State<AppState>) -> impl IntoResponse {
     }
 
     // ── per-tier storage footprint (heap + indexes + TOAST) ────────
-    match rampart_db::metrics::storage_usage(pool).await {
+    match state.store().storage_usage().await {
         Ok(tables) => {
             let _ = writeln!(body, "# HELP rampart_table_bytes On-disk size of a telemetry table (bytes, incl. indexes + TOAST).");
             let _ = writeln!(body, "# TYPE rampart_table_bytes gauge");

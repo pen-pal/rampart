@@ -60,9 +60,7 @@ async fn list(
         before_id: before.as_deref(),
         limit: query.limit.unwrap_or(100),
     };
-    Ok(Json(
-        rampart_db::traces::list_traces(s.pool(), filter, org.org_id).await?,
-    ))
+    Ok(Json(s.store().list_traces(filter, org.org_id).await?))
 }
 
 #[derive(Deserialize)]
@@ -76,7 +74,9 @@ async fn service_map(
     Query(q): Query<MapQuery>,
 ) -> Result<Json<Vec<ServiceEdge>>, ApiError> {
     Ok(Json(
-        rampart_db::traces::service_map(s.pool(), q.hours.unwrap_or(24), org.org_id).await?,
+        s.store()
+            .trace_service_map(q.hours.unwrap_or(24), org.org_id)
+            .await?,
     ))
 }
 
@@ -93,13 +93,13 @@ async fn operations(
     Query(q): Query<OpsQuery>,
 ) -> Result<Json<Vec<OperationStat>>, ApiError> {
     Ok(Json(
-        rampart_db::traces::operation_stats(
-            s.pool(),
-            q.service.as_deref().unwrap_or(""),
-            q.hours.unwrap_or(24),
-            org.org_id,
-        )
-        .await?,
+        s.store()
+            .trace_operation_stats(
+                q.service.as_deref().unwrap_or(""),
+                q.hours.unwrap_or(24),
+                org.org_id,
+            )
+            .await?,
     ))
 }
 
@@ -116,15 +116,15 @@ async fn operation_trend(
     Query(q): Query<OpTrendQuery>,
 ) -> Result<Json<Vec<f64>>, ApiError> {
     Ok(Json(
-        rampart_db::traces::operation_trend(
-            s.pool(),
-            &q.service,
-            &q.operation,
-            q.hours.unwrap_or(24),
-            24,
-            org.org_id,
-        )
-        .await?,
+        s.store()
+            .trace_operation_trend(
+                &q.service,
+                &q.operation,
+                q.hours.unwrap_or(24),
+                24,
+                org.org_id,
+            )
+            .await?,
     ))
 }
 
@@ -148,7 +148,7 @@ async fn export_csv(
         before_id: None,
         limit,
     };
-    let rows = rampart_db::traces::list_traces(s.pool(), filter, org.org_id).await?;
+    let rows = s.store().list_traces(filter, org.org_id).await?;
     let fmt = time::format_description::well_known::Rfc3339;
     let mut body = String::with_capacity(64 + rows.len() * 120);
     body.push_str(
@@ -185,6 +185,6 @@ async fn detail(
     Path(trace_id): Path<String>,
 ) -> Result<Json<Vec<Span>>, ApiError> {
     Ok(Json(
-        rampart_db::traces::get_trace_spans(s.pool(), &trace_id, org.org_id).await?,
+        s.store().get_trace_spans(&trace_id, org.org_id).await?,
     ))
 }
