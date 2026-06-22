@@ -26,6 +26,7 @@ rampart-db        = { path = "../rampart-db" }
 rampart-checker   = { path = "../rampart-checker" }
 rampart-scheduler = { path = "../rampart-scheduler" }
 rampart-notifier  = { path = "../rampart-notifier" }
+rampart-ssrf      = { path = "../rampart-ssrf" }
 
 axum               = { workspace = true }
 axum-extra         = { workspace = true }
@@ -62,6 +63,12 @@ totp-rs            = { workspace = true }
 base32             = { workspace = true }
 base64             = { workspace = true }
 sha2               = { workspace = true }
+# OIDC id_token signature verification (JWKS). `rust_crypto` selects the
+# pure-Rust CryptoProvider backend (RSA/EC/EdDSA) so `DecodingKey::from_jwk` +
+# `decode` actually verify at runtime — the bare `jsonwebtoken = "10"` workspace
+# dep ships no crypto backend and would panic on first verify. Pure-Rust to keep
+# the no-C-linkage stance; the feature is additive across the workspace.
+jsonwebtoken       = { workspace = true, features = ["rust_crypto"] }
 reqwest            = { workspace = true }
 lettre             = { workspace = true }
 futures            = { workspace = true }

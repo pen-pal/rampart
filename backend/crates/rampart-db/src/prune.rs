@@ -179,6 +179,8 @@ pub struct PruneStats {
     pub errors_deleted: u64,
     /// Security detection findings dropped past the findings-retention window.
     pub findings_deleted: u64,
+    /// Expired pre-auth OIDC login-state rows reaped.
+    pub oidc_state_deleted: u64,
 }
 
 impl PruneStats {
@@ -194,6 +196,7 @@ impl PruneStats {
             && self.rum_deleted == 0
             && self.profiles_deleted == 0
             && self.findings_deleted == 0
+            && self.oidc_state_deleted == 0
     }
 }
 
@@ -480,6 +483,10 @@ pub async fn run_once(pool: &DbPool) -> DbResult<PruneStats> {
     stats.findings_deleted =
         batched_delete(pool, "detection_findings", "created_at", cfg.findings_days).await?;
 
+    // Expired pre-auth OIDC login-state rows: short (~10 min) TTL, but reaped
+    // here so abandoned login attempts don't accumulate over time.
+    stats.oidc_state_deleted = crate::oidc_state::prune_expired(pool).await?;
+
     Ok(stats)
 }
 
@@ -508,6 +515,7 @@ pub async fn run_loop(
                     heartbeats_rolled = s.heartbeats_rolled,
                     rollups_deleted = s.rollups_deleted,
                     audit_deleted = s.audit_deleted,
+                    oidc_state_deleted = s.oidc_state_deleted,
                     "retention prune complete"
                 );
             }

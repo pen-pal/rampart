@@ -34,6 +34,7 @@ pub mod monitor_presets;
 pub mod monitor_templates;
 pub mod monitors;
 pub mod notifications;
+pub mod oidc_state;
 pub mod on_call;
 pub mod orgs;
 pub mod profiles;

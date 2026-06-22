@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE oidc_login_state SET expires_at = now() - make_interval(secs => 60) WHERE state = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7ae27a7ff2da1e5b95cdb848574ef7e37dcbaa9d83d1706e4d5e8fa36ee73e86"
+}

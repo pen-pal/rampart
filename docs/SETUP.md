@@ -236,6 +236,56 @@ Before exposing to the internet:
 
 ---
 
+## SSO (OIDC)
+
+Put Rampart behind your identity provider (Google, Okta, Keycloak, Authentik,
+Entra, …) instead of local passwords. Generic OpenID Connect — Rampart reads the
+provider's discovery document and drives the **Authorization Code flow with
+PKCE**. Enabled when all four required vars are set:
+
+| Env var | Required | Notes |
+| --- | --- | --- |
+| `RAMPART_OIDC_ISSUER` | yes | e.g. `https://accounts.google.com` (no trailing slash needed) |
+| `RAMPART_OIDC_CLIENT_ID` | yes | OAuth client id |
+| `RAMPART_OIDC_CLIENT_SECRET` | yes | confidential client secret |
+| `RAMPART_OIDC_REDIRECT_URL` | yes | e.g. `https://rampart.example.com/v1/auth/oidc/callback` |
+| `RAMPART_OIDC_DEFAULT_ROLE` | no | `admin`\|`editor`\|`readonly` (default `readonly`; the **first** user provisioned becomes `admin`) |
+| `RAMPART_OIDC_ORG_CLAIM` | no | a token/userinfo claim (`groups`, a custom `org`, Google's `hd`) mapping the identity to org(s) by slug |
+
+Register `…/v1/auth/oidc/callback` as the redirect URI at your IdP. A login
+button appears on the sign-in page once enabled.
+
+**Security (issue #13 hardening):**
+
+- **`id_token` is signature-verified.** Rampart fetches the issuer's JWKS and
+  cryptographically verifies the `id_token` (signature + `iss`/`aud`/`exp`/`nbf`
+  + a per-login `nonce`). The header algorithm is allow-listed to **asymmetric**
+  algorithms only (RS/PS/ES/EdDSA) and a symmetric (HMAC/`oct`) JWK is rejected,
+  defeating algorithm-confusion attacks. Identity is taken from the verified
+  `id_token` claims, falling back to the userinfo endpoint only for claims the
+  `id_token` omits. An `email_verified=true` assertion is still required before
+  provisioning or linking an account. The JWKS is cached (1h) with a 60-second
+  refetch cooldown so a flood of bogus-`kid` tokens can't amplify JWKS fetches.
+
+- **All OIDC outbound traffic is SSRF-guarded.** Discovery, token, userinfo, and
+  JWKS requests go through the same SSRF guard as probes/webhooks — the cloud
+  metadata endpoint (`169.254.169.254`), loopback, and link-local addresses are
+  always blocked, on every request and redirect hop.
+
+- **`RAMPART_SSRF_BLOCK_PRIVATE` interaction.** If you turn on the private-range
+  block (recommended for internet-exposed multi-user installs), a **private
+  self-hosted IdP** (Keycloak/Authentik on a `10.x` / `192.168.x` / ULA address)
+  is **auto-allowed**: the host parsed from `RAMPART_OIDC_ISSUER` is added to a
+  narrow allow-list that exempts it from the private-range block only. The
+  always-blocked set (metadata/loopback/link-local) stays blocked even for the
+  issuer host, so this never re-opens an SSRF hole.
+
+- **Login is rate-limited.** `/v1/auth/oidc/*` sits under the per-IP auth
+  rate-limiter (10 burst, ~10/min/IP) since `/login` writes a pre-auth state row
+  per hit.
+
+---
+
 ## Common issues
 
 | Symptom                                  | Cause / fix                                         |
