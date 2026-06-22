@@ -94,22 +94,41 @@ pub async fn delete(pool: &DbPool, id: Uuid) -> DbResult<()> {
     Ok(())
 }
 
+/// Read the stored VAPID keypair, if one is persisted and parseable. A
+/// corrupt blob reads as `None` so the caller regenerates. Object-safe
+/// primitive (no closure) — seamed onto the `Store` trait.
+pub async fn get_vapid(pool: &DbPool) -> DbResult<Option<VapidKeys>> {
+    if let Some(v) = crate::settings::get(pool, "webpush_vapid").await? {
+        if let Ok(keys) = serde_json::from_value::<VapidKeys>(v) {
+            return Ok(Some(keys));
+        }
+        // Corrupt blob — treat as absent so the caller regenerates.
+    }
+    Ok(None)
+}
+
+/// Persist the shared VAPID keypair. Object-safe primitive — seamed onto
+/// the `Store` trait.
+pub async fn set_vapid(pool: &DbPool, keys: &VapidKeys) -> DbResult<()> {
+    let value = serde_json::to_value(keys).expect("serialize vapid keys");
+    crate::settings::put(pool, "webpush_vapid", &value).await
+}
+
 /// Fetch the shared VAPID keypair, generating + persisting one on first
 /// call. `gen` lets the caller pass the key generator (lives in the
-/// notifier crate so the crypto stays in one place).
+/// notifier crate so the crypto stays in one place). The generic closure
+/// makes this non-object-safe, so it stays a free fn — `Store`-using
+/// callers compose the two primitives ([`get_vapid`] / [`set_vapid`])
+/// around their own generator instead.
 pub async fn get_or_create_vapid(
     pool: &DbPool,
     gen: impl FnOnce() -> (String, String),
 ) -> DbResult<VapidKeys> {
-    if let Some(v) = crate::settings::get(pool, "webpush_vapid").await? {
-        if let Ok(keys) = serde_json::from_value::<VapidKeys>(v) {
-            return Ok(keys);
-        }
-        // Corrupt blob — fall through and regenerate.
+    if let Some(keys) = get_vapid(pool).await? {
+        return Ok(keys);
     }
     let (public, private) = gen();
     let keys = VapidKeys { public, private };
-    let value = serde_json::to_value(&keys).expect("serialize vapid keys");
-    crate::settings::put(pool, "webpush_vapid", &value).await?;
+    set_vapid(pool, &keys).await?;
     Ok(keys)
 }
