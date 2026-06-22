@@ -48,9 +48,7 @@ async fn list(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<DetectionRule>>, ApiError> {
-    Ok(Json(
-        rampart_db::detection::list(s.pool(), org.org_id).await?,
-    ))
+    Ok(Json(s.store().list_detection_rules(org.org_id).await?))
 }
 
 async fn create(
@@ -61,13 +59,17 @@ async fn create(
     input
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
-    if !rampart_db::detection::regex_is_valid(s.pool(), &input.body_regex).await? {
+    if !s
+        .store()
+        .detection_regex_is_valid(&input.body_regex)
+        .await?
+    {
         return Err(ApiError::BadRequest(
             "body_regex is not a valid regex".into(),
         ));
     }
     validate_condition(&s, input.condition.as_ref()).await?;
-    let rule = rampart_db::detection::create(s.pool(), input, org.org_id).await?;
+    let rule = s.store().create_detection_rule(input, org.org_id).await?;
     Ok((StatusCode::CREATED, Json(rule)))
 }
 
@@ -82,7 +84,7 @@ async fn update(
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     if let Some(rx) = input.body_regex.as_deref() {
-        if !rampart_db::detection::regex_is_valid(s.pool(), rx).await? {
+        if !s.store().detection_regex_is_valid(rx).await? {
             return Err(ApiError::BadRequest(
                 "body_regex is not a valid regex".into(),
             ));
@@ -90,7 +92,9 @@ async fn update(
     }
     validate_condition(&s, input.condition.as_ref()).await?;
     Ok(Json(
-        rampart_db::detection::update(s.pool(), rule_id, input, org.org_id).await?,
+        s.store()
+            .update_detection_rule(rule_id, input, org.org_id)
+            .await?,
     ))
 }
 
@@ -106,7 +110,7 @@ async fn validate_condition(
     let mut regexes = Vec::new();
     cond.body_regexes(&mut regexes);
     for rx in regexes {
-        if !rampart_db::detection::regex_is_valid(s.pool(), rx).await? {
+        if !s.store().detection_regex_is_valid(rx).await? {
             return Err(ApiError::BadRequest(format!(
                 "condition body_regex is not a valid regex: {rx}"
             )));
@@ -120,7 +124,9 @@ async fn delete_rule(
     Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::detection::delete(s.pool(), parse_rule_id(&id)?, org.org_id).await?;
+    s.store()
+        .delete_detection_rule(parse_rule_id(&id)?, org.org_id)
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -138,7 +144,9 @@ async fn list_findings(
 ) -> Result<Json<Vec<DetectionFinding>>, ApiError> {
     let limit = q.limit.unwrap_or(100).clamp(1, 1000);
     Ok(Json(
-        rampart_db::detection::list_findings_for_org(s.pool(), limit, q.open, org.org_id).await?,
+        s.store()
+            .list_detection_findings_for_org(limit, q.open, org.org_id)
+            .await?,
     ))
 }
 
@@ -149,10 +157,8 @@ async fn ack_finding(
 ) -> Result<Json<DetectionFinding>, ApiError> {
     let fid = parse_finding_id(&id)?;
     // Gate through the finding's owning rule's org — cross-org finding = 404.
-    rampart_db::detection::finding_in_org(s.pool(), fid, org.org_id).await?;
-    Ok(Json(
-        rampart_db::detection::ack_finding(s.pool(), fid).await?,
-    ))
+    s.store().detection_finding_in_org(fid, org.org_id).await?;
+    Ok(Json(s.store().ack_detection_finding(fid).await?))
 }
 
 #[derive(Deserialize)]
@@ -181,7 +187,7 @@ async fn preview(
     Extension(org): Extension<OrgContext>,
     Json(b): Json<PreviewBody>,
 ) -> Result<Json<rampart_db::detection::PreviewResult>, ApiError> {
-    if !rampart_db::detection::regex_is_valid(s.pool(), &b.body_regex).await? {
+    if !s.store().detection_regex_is_valid(&b.body_regex).await? {
         return Err(ApiError::BadRequest(
             "body_regex is not a valid regex".into(),
         ));
@@ -189,16 +195,16 @@ async fn preview(
     let window = b.window_seconds.clamp(1, 86_400);
     let min_level = b.min_level.clamp(0, 24);
     Ok(Json(
-        rampart_db::detection::preview(
-            s.pool(),
-            &b.service,
-            min_level,
-            &b.body_regex,
-            &b.attr_key,
-            &b.attr_val,
-            window,
-            org.org_id,
-        )
-        .await?,
+        s.store()
+            .preview_detection(
+                &b.service,
+                min_level,
+                &b.body_regex,
+                &b.attr_key,
+                &b.attr_val,
+                window,
+                org.org_id,
+            )
+            .await?,
     ))
 }

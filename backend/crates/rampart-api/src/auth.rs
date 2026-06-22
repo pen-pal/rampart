@@ -168,7 +168,9 @@ impl FromRequestParts<AppState> for AuthUser {
             .and_then(|c| Uuid::from_str(c.value()).ok())
             .ok_or(ApiError::Unauthorized)?;
 
-        let session = rampart_db::sessions::get(state.pool(), token)
+        let session = state
+            .store()
+            .lookup_session(token)
             .await
             .map_err(|_| ApiError::Unauthorized)?;
         let user = rampart_db::users::get(state.pool(), session.user_id)
@@ -252,7 +254,9 @@ pub async fn require_session(
         .and_then(|c| Uuid::from_str(c.value()).ok())
         .ok_or(ApiError::Unauthorized)?;
 
-    let session = rampart_db::sessions::get(state.pool(), token)
+    let session = state
+        .store()
+        .lookup_session(token)
         .await
         .map_err(|_| ApiError::Unauthorized)?;
     let mut user = rampart_db::users::get(state.pool(), session.user_id)

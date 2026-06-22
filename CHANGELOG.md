@@ -29,6 +29,30 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.155.5] — 2026-06-22
+
+### Changed
+- **Internal: `Store` seam extended to 6 more (heavier) domains (multi-DB P0
+  slice 6, big batch).** Added `StoreStatusPages`, `StoreIncidents`,
+  `StoreRouting`, `StoreSubscribers`, `StoreDetection`, `StoreSessions`
+  sub-traits (78 methods, per-domain-suffixed, delegating to the existing free
+  fns) into the `Store` super-trait, and migrated **103** rampart-api
+  route/handler call sites — including the public status-page routes and the
+  session/auth path — from `rampart_db::X::fn(state.pool(), …)` to
+  `state.store().method(…)`. **24 of ~40 domains** now reach the database
+  through the object-safe `&dyn Store` seam. Zero behavior change (same SQL,
+  same pool, same RLS hooks; bare-pool callers in the scheduler/seed keep the
+  free fns). Part of the multi-DB backing-store groundwork.
+
+### Fixed
+- **CI: backend `clippy + fmt` job restored to green.** Stable `rustfmt`
+  advanced to 1.9.0 (2026-05-25) and changed line-wrapping rules, so the
+  `cargo fmt --all -- --check` step had begun failing on `main`. Reformatted
+  the workspace (pure formatting, zero behavior change) and added `fmt --check`
+  to the local release gate so it can't silently drift again.
+
+---
+
 ## [0.155.4] — 2026-06-22
 
 ### Changed

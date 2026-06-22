@@ -147,9 +147,7 @@ async fn list(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<StatusPage>>, ApiError> {
-    Ok(Json(
-        rampart_db::status_pages::list(s.pool(), org.org_id).await?,
-    ))
+    Ok(Json(s.store().list_status_pages(org.org_id).await?))
 }
 
 async fn get_one(
@@ -158,7 +156,7 @@ async fn get_one(
     Path(id): Path<String>,
 ) -> Result<Json<StatusPage>, ApiError> {
     Ok(Json(
-        rampart_db::status_pages::get(s.pool(), parse(&id)?, org.org_id).await?,
+        s.store().get_status_page(parse(&id)?, org.org_id).await?,
     ))
 }
 
@@ -176,7 +174,7 @@ async fn create(
     validate_logo_url(input.logo_url.as_deref())?;
     validate_custom_css(input.custom_css.as_deref())?;
     let slug = input.slug.clone();
-    let p = rampart_db::status_pages::create(s.pool(), input, org.org_id).await?;
+    let p = s.store().create_status_page(input, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -212,7 +210,9 @@ async fn update(
         validate_custom_css(Some(css))?;
     }
     Ok(Json(
-        rampart_db::status_pages::update(s.pool(), parse(&id)?, input, org.org_id).await?,
+        s.store()
+            .update_status_page(parse(&id)?, input, org.org_id)
+            .await?,
     ))
 }
 
@@ -224,7 +224,7 @@ async fn remove(
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let page_id = parse(&id)?;
-    rampart_db::status_pages::delete(s.pool(), page_id, org.org_id).await?;
+    s.store().delete_status_page(page_id, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -258,10 +258,8 @@ async fn list_sections(
     let page_id = parse(&id)?;
     // Org-gate via the parent page (sections inherit org from it); a cross-org
     // page id 404s here before any section is touched.
-    rampart_db::status_pages::get(s.pool(), page_id, org.org_id).await?;
-    Ok(Json(
-        rampart_db::status_pages::list_sections(s.pool(), page_id).await?,
-    ))
+    s.store().get_status_page(page_id, org.org_id).await?;
+    Ok(Json(s.store().list_status_page_sections(page_id).await?))
 }
 
 async fn create_section(
@@ -274,8 +272,8 @@ async fn create_section(
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     let page_id = parse(&id)?;
-    rampart_db::status_pages::get(s.pool(), page_id, org.org_id).await?;
-    let section = rampart_db::status_pages::create_section(s.pool(), page_id, input).await?;
+    s.store().get_status_page(page_id, org.org_id).await?;
+    let section = s.store().create_status_page_section(page_id, input).await?;
     Ok((StatusCode::CREATED, Json(section)))
 }
 
@@ -289,9 +287,10 @@ async fn update_section(
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     // Gate via the parent page from the path; the section belongs to it.
-    rampart_db::status_pages::get(s.pool(), parse(&id)?, org.org_id).await?;
+    s.store().get_status_page(parse(&id)?, org.org_id).await?;
     Ok(Json(
-        rampart_db::status_pages::update_section(s.pool(), parse_section(&section_id)?, input)
+        s.store()
+            .update_status_page_section(parse_section(&section_id)?, input)
             .await?,
     ))
 }
@@ -301,8 +300,10 @@ async fn delete_section(
     Extension(org): Extension<OrgContext>,
     Path((id, section_id)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::status_pages::get(s.pool(), parse(&id)?, org.org_id).await?;
-    rampart_db::status_pages::delete_section(s.pool(), parse_section(&section_id)?).await?;
+    s.store().get_status_page(parse(&id)?, org.org_id).await?;
+    s.store()
+        .delete_status_page_section(parse_section(&section_id)?)
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -313,14 +314,10 @@ async fn assign_monitor_section(
     Json(req): Json<AssignSectionReq>,
 ) -> Result<StatusCode, ApiError> {
     let page_id = parse(&id)?;
-    rampart_db::status_pages::get(s.pool(), page_id, org.org_id).await?;
-    rampart_db::status_pages::assign_monitor_section(
-        s.pool(),
-        page_id,
-        parse_monitor(&monitor_id)?,
-        req.section_id,
-    )
-    .await?;
+    s.store().get_status_page(page_id, org.org_id).await?;
+    s.store()
+        .assign_status_page_monitor_section(page_id, parse_monitor(&monitor_id)?, req.section_id)
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -346,7 +343,7 @@ fn public_view_cache() -> &'static std::sync::Mutex<
 }
 
 async fn public_view_guarded(s: &AppState, slug: &str) -> Result<PublicStatusPage, ApiError> {
-    let page = rampart_db::status_pages::get_by_slug(s.pool(), slug).await?;
+    let page = s.store().get_status_page_by_slug(slug).await?;
     if page.private {
         // Locked stub is cheap + must reflect the live privacy flag — don't cache.
         return Ok(PublicStatusPage::locked(page.slug, page.title));
@@ -359,7 +356,7 @@ async fn public_view_guarded(s: &AppState, slug: &str) -> Result<PublicStatusPag
             }
         }
     }
-    let view = rampart_db::status_pages::public_view(s.pool(), slug).await?;
+    let view = s.store().status_page_public_view(slug).await?;
     if let Ok(mut cache) = public_view_cache().lock() {
         // Opportunistically evict expired entries so the map can't grow
         // unbounded as slugs come and go.
@@ -394,13 +391,14 @@ async fn public_unlock(
     Path(slug): Path<String>,
     Json(req): Json<UnlockReq>,
 ) -> Result<Json<PublicStatusPage>, ApiError> {
-    let ok = rampart_db::status_pages::verify_page_password(s.pool(), &slug, &req.password).await?;
+    let ok = s
+        .store()
+        .verify_status_page_password(&slug, &req.password)
+        .await?;
     if !ok {
         return Err(ApiError::Unauthorized);
     }
-    Ok(Json(
-        rampart_db::status_pages::public_view(s.pool(), &slug).await?,
-    ))
+    Ok(Json(s.store().status_page_public_view(&slug).await?))
 }
 
 /// Public view resolved by the page's `custom_domain` rather than its slug.
@@ -420,7 +418,7 @@ async fn public_view_by_domain(
     State(s): State<AppState>,
     Path(host): Path<String>,
 ) -> Result<Json<Option<PublicStatusPage>>, ApiError> {
-    let Some(page) = rampart_db::status_pages::find_by_custom_domain(s.pool(), &host).await? else {
+    let Some(page) = s.store().find_status_page_by_custom_domain(&host).await? else {
         return Ok(Json(None));
     };
     Ok(Json(Some(public_view_guarded(&s, &page.slug).await?)))
@@ -481,7 +479,7 @@ async fn public_day_latency(
     // exposing it to the public projection. We re-fetch the StatusPage
     // edge list (one cheap query) rather than calling the full
     // `public_view`, which would do all the per-monitor rollups again.
-    let page = rampart_db::status_pages::get_by_slug(s.pool(), &slug).await?;
+    let page = s.store().get_status_page_by_slug(&slug).await?;
     let monitor_id = page
         .monitor_ids
         .get(q.monitor_idx)
@@ -523,7 +521,7 @@ async fn public_feed_atom(
     State(s): State<AppState>,
     Path(slug): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let page = rampart_db::status_pages::public_view(s.pool(), &slug).await?;
+    let page = s.store().status_page_public_view(&slug).await?;
     let xml = render_atom_feed(&page);
     Ok((
         StatusCode::OK,
@@ -538,7 +536,7 @@ async fn public_feed_rss(
     State(s): State<AppState>,
     Path(slug): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let page = rampart_db::status_pages::public_view(s.pool(), &slug).await?;
+    let page = s.store().status_page_public_view(&slug).await?;
     let xml = render_rss_feed(&page);
     Ok((
         StatusCode::OK,
@@ -559,20 +557,20 @@ async fn resolve_incident(
     slug: &str,
     incident_id: &str,
 ) -> Result<(StatusPage, Incident, Vec<IncidentUpdate>), ApiError> {
-    let page = rampart_db::status_pages::get_by_slug(s.pool(), slug).await?;
+    let page = s.store().get_status_page_by_slug(slug).await?;
     if page.private {
         return Err(ApiError::NotFound);
     }
     let inc_id = Uuid::from_str(incident_id)
         .map(IncidentId::from_uuid)
         .map_err(|_| ApiError::BadRequest("invalid incident id".into()))?;
-    let incident = rampart_db::incidents::get(s.pool(), inc_id).await?;
+    let incident = s.store().get_incident(inc_id).await?;
     // The incident must live on this page — otherwise a caller could read
     // any incident's thread through any page's slug.
     if incident.status_page_id != page.id {
         return Err(ApiError::NotFound);
     }
-    let updates = rampart_db::incidents::list_updates(s.pool(), inc_id).await?;
+    let updates = s.store().list_incident_updates(inc_id).await?;
     Ok((page, incident, updates))
 }
 

@@ -1313,8 +1313,10 @@ async fn test_notifications(
     // 404 if the monitor doesn't exist in this org.
     let _ = rampart_db::monitors::get(state.pool(), monitor_id, org.org_id).await?;
 
-    let channels =
-        rampart_db::routing::resolve_channels_for_monitor(state.pool(), monitor_id).await?;
+    let channels = state
+        .store()
+        .resolve_channels_for_monitor(monitor_id)
+        .await?;
 
     // Synthesize a fixed test payload — same shape as the per-channel
     // test endpoint so users see a recognisable "test" message.
