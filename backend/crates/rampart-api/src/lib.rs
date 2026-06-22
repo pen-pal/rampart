@@ -81,6 +81,7 @@ pub fn build_router(state: AppState) -> Router {
                 || path.starts_with("/rum")
                 || path.starts_with("/api/")
                 || path == "/healthz"
+                || path == "/health"
                 || path == "/metrics"
             {
                 return tracing::Span::none();
