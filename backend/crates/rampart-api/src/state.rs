@@ -1,5 +1,6 @@
 //! Shared application state.
 
+use crate::client_ip::TrustedProxies;
 use crate::http_metrics::HttpMetrics;
 use crate::rate_limit::IpRateLimiter;
 use rampart_core::heartbeat::Heartbeat;
@@ -42,6 +43,10 @@ struct Inner {
     /// Higher burst + refill than the auth limiter — legitimate telemetry is
     /// frequent — but still caps a single source from flooding the tiers.
     ingest_rate_limiter: IpRateLimiter,
+    /// Allow-list of reverse proxies that front Rampart, parsed once at
+    /// construction from `RAMPART_TRUSTED_PROXIES`. Used by the outermost
+    /// client-IP resolver to decide whether to trust `X-Forwarded-For`.
+    trusted_proxies: TrustedProxies,
 }
 
 pub struct TotpChallenge {
@@ -59,6 +64,7 @@ impl AppState {
             http_metrics: Arc::new(HttpMetrics::new()),
             auth_rate_limiter: IpRateLimiter::new(),
             ingest_rate_limiter: IpRateLimiter::with_params(240.0, 4.0),
+            trusted_proxies: TrustedProxies::from_env(),
         }))
     }
 
@@ -75,6 +81,7 @@ impl AppState {
             http_metrics: Arc::new(HttpMetrics::new()),
             auth_rate_limiter: IpRateLimiter::new(),
             ingest_rate_limiter: IpRateLimiter::with_params(240.0, 4.0),
+            trusted_proxies: TrustedProxies::from_env(),
         }))
     }
 
@@ -88,6 +95,11 @@ impl AppState {
 
     pub fn ingest_rate_limiter(&self) -> IpRateLimiter {
         self.0.ingest_rate_limiter.clone()
+    }
+
+    /// The configured trusted-proxy allow-list (Arc-backed clone).
+    pub fn trusted_proxies(&self) -> TrustedProxies {
+        self.0.trusted_proxies.clone()
     }
 
     pub fn pool(&self) -> &DbPool {
