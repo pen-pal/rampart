@@ -13,7 +13,9 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use rampart_db::delivery_log::DeliveryEntry;
 use serde::Deserialize;
+use std::str::FromStr;
 use time::OffsetDateTime;
+use uuid::Uuid;
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -30,6 +32,12 @@ struct ListQuery {
     /// (RFC3339). Omit for the first (newest) page.
     #[serde(default, with = "time::serde::rfc3339::option")]
     before: Option<OffsetDateTime>,
+    /// Filter by delivery outcome: `true` = succeeded, `false` = failed.
+    ok: Option<bool>,
+    /// Filter to deliveries about a specific monitor (UUID).
+    monitor_id: Option<String>,
+    /// Filter by channel kind (e.g. `slack`, `webhook`, `email`).
+    channel_kind: Option<String>,
 }
 
 fn default_limit() -> i64 {
@@ -41,9 +49,16 @@ async fn list(
     Extension(org): Extension<OrgContext>,
     Query(q): Query<ListQuery>,
 ) -> Result<Json<Vec<DeliveryEntry>>, ApiError> {
+    let monitor = match q.monitor_id.as_deref().filter(|s| !s.is_empty()) {
+        Some(m) => {
+            Some(Uuid::from_str(m).map_err(|_| ApiError::BadRequest("invalid monitor_id".into()))?)
+        }
+        None => None,
+    };
+    let channel = q.channel_kind.as_deref().filter(|s| !s.is_empty());
     Ok(Json(
         s.store()
-            .list_deliveries(q.limit, q.before, org.org_id)
+            .list_deliveries(q.limit, q.before, q.ok, monitor, channel, org.org_id)
             .await?,
     ))
 }
@@ -244,7 +259,9 @@ mod tests {
         assert_eq!(attempt.notification_id, Some(channel.id));
 
         // The log now holds two rows for this channel.
-        let all = delivery_log::list(&pool, 500, None, def_org).await.unwrap();
+        let all = delivery_log::list(&pool, 500, None, None, None, None, def_org)
+            .await
+            .unwrap();
         let for_channel = all
             .iter()
             .filter(|r| r.notification_id == Some(channel.id))
