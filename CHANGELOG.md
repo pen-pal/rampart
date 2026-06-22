@@ -29,6 +29,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.155.18] — 2026-06-22
+
+### Added
+- **Access-review report (compliance-evidence epic, slice 2).** New admin-gated
+  endpoints `GET /v1/compliance/access-review` (JSON) and
+  `/v1/compliance/access-review.csv` (auditor evidence download) return a
+  point-in-time snapshot of every `(org, member)` access grant — org, email,
+  role, member-since, last login, and MFA status — joined across
+  `org_members` / `users` / `organizations` in one read. This is the standing
+  user-access table a SOC 2 CC6 (logical access) review asks for; it complements
+  slice 1 (GDPR export/erasure) and the audit log (which records access-change
+  *events*, not current *state*). Pulling a report is itself audited
+  (`compliance.access_review`). Read-only, no schema change; new
+  `rampart_db::access_review` module + `StoreCompliance` seam method. CSV reuses
+  the shared escaper.
+
+---
+
 ## [0.155.17] — 2026-06-22
 
 ### Added
