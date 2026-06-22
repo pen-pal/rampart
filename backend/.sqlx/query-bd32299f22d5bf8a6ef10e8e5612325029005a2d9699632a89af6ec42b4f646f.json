@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, notification_id, channel_kind, event_kind,\n               monitor_id, ok, error, sent_at\n        FROM delivery_log\n        WHERE org_id = $3\n          AND ($1::timestamptz IS NULL OR sent_at < $1)\n        ORDER BY sent_at DESC, id DESC\n        LIMIT $2\n        ",
+  "query": "\n        SELECT id, notification_id, channel_kind, event_kind,\n               monitor_id, ok, error, sent_at\n        FROM delivery_log\n        WHERE org_id = $3\n          AND ($1::timestamptz IS NULL OR sent_at < $1)\n          AND ($4::bool IS NULL OR ok = $4)\n          AND ($5::uuid IS NULL OR monitor_id = $5)\n          AND ($6::text IS NULL OR channel_kind = $6)\n        ORDER BY sent_at DESC, id DESC\n        LIMIT $2\n        ",
   "describe": {
     "columns": [
       {
@@ -96,7 +96,10 @@
       "Left": [
         "Timestamptz",
         "Int8",
-        "Uuid"
+        "Uuid",
+        "Bool",
+        "Uuid",
+        "Text"
       ]
     },
     "nullable": [
@@ -110,5 +113,5 @@
       false
     ]
   },
-  "hash": "c151d8431a3cd596c81f8c07c03dee3ad113ac15403d9527ed297ea99e937c34"
+  "hash": "bd32299f22d5bf8a6ef10e8e5612325029005a2d9699632a89af6ec42b4f646f"
 }

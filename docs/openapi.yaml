@@ -2498,7 +2498,8 @@ paths:
       summary: List notification delivery attempts
       description: >-
         Admin only. Recent per-channel notification send attempts (success and
-        failure), newest first. Paginated with the `before` RFC3339 cursor.
+        failure), newest first. Paginated with the `before` RFC3339 cursor, and
+        filterable by outcome, monitor, and channel kind.
       parameters:
         - in: query
           name: before
@@ -2509,6 +2510,21 @@ paths:
           name: limit
           required: false
           schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+        - in: query
+          name: ok
+          required: false
+          schema: { type: boolean }
+          description: Filter by delivery outcome (true = succeeded, false = failed).
+        - in: query
+          name: monitor_id
+          required: false
+          schema: { type: string, format: uuid }
+          description: Filter to deliveries about a specific monitor.
+        - in: query
+          name: channel_kind
+          required: false
+          schema: { type: string }
+          description: 'Filter by channel kind (e.g. slack, webhook, email).'
       responses:
         '200':
           description: Delivery-log entries, newest first.
