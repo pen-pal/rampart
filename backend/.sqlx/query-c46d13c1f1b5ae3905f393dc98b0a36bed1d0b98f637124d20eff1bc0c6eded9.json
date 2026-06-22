@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, org_id, allowed_origins FROM ingest_keys WHERE token = $1",
+  "query": "SELECT id, org_id, allowed_origins FROM ingest_keys\n           WHERE token_hash = $1 OR token = $2",
   "describe": {
     "columns": [
       {
@@ -39,6 +39,7 @@
     ],
     "parameters": {
       "Left": [
+        "Text",
         "Text"
       ]
     },
@@ -48,5 +49,5 @@
       true
     ]
   },
-  "hash": "5595cbdcc6d229422ef9595b20a27d3425c6bef8335d360f0c5891c2ff29151e"
+  "hash": "c46d13c1f1b5ae3905f393dc98b0a36bed1d0b98f637124d20eff1bc0c6eded9"
 }

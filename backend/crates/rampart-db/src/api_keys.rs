@@ -177,7 +177,10 @@ fn generate_token() -> String {
     format!("{TOKEN_PREFIX}{body}")
 }
 
-fn sha256_hex(s: &str) -> String {
+/// Lowercase-hex SHA-256 of a credential. Shared with the ingest-credential
+/// stores so they all hash identically (and match pgcrypto
+/// `encode(digest(t,'sha256'),'hex')` used by the backfill migration).
+pub(crate) fn sha256_hex(s: &str) -> String {
     let mut h = Sha256::new();
     h.update(s.as_bytes());
     hex::encode(h.finalize())
