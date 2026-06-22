@@ -180,7 +180,7 @@ async fn me_reports_active_org_role_not_global_role(pool: PgPool) {
 #[sqlx::test(migrations = "../../migrations")]
 async fn health_endpoints_are_public(pool: PgPool) {
     let r = common::router(pool);
-    for path in ["/healthz", "/readyz"] {
+    for path in ["/healthz", "/health", "/readyz"] {
         let (status, _, _) = request(&r, Method::GET, path, None, None).await;
         assert_eq!(status, StatusCode::OK, "{path} should be public");
     }

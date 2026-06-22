@@ -72,6 +72,24 @@ sudo systemctl start rampart
 
 Override any of these via a `compose.override.yaml` next to the main file — Docker Compose merges them automatically.
 
+## Health / probe endpoints
+
+Rampart exposes three unauthenticated endpoints for orchestration, cleanly
+separating liveness from readiness:
+
+| Endpoint | Meaning | Use for |
+|----------|---------|---------|
+| `GET /health`, `GET /healthz` | **Liveness** — always 200 once the process can answer (also returns `version` + `secrets_at_rest`). `/health` is an alias of `/healthz` for orchestrators that probe that path by default. | k8s `livenessProbe`, `docker-compose` `healthcheck` |
+| `GET /readyz` | **Readiness** — 200 only when the Postgres pool can serve a query. Lets a DB outage drain the pod from the load balancer without restarting it. | k8s `readinessProbe` |
+| `GET /metrics` | Prometheus text exposition. | scrape |
+
+Kubernetes example:
+
+```yaml
+livenessProbe:  { httpGet: { path: /healthz, port: 3000 }, periodSeconds: 10 }
+readinessProbe: { httpGet: { path: /readyz,  port: 3000 }, periodSeconds: 5  }
+```
+
 ## Reverse proxy
 
 Rampart binds plain HTTP on the configured port. Put a reverse proxy in front for TLS termination + HTTP/2 + (optionally) extra request limits and CORS rules. A minimal nginx fragment:
