@@ -123,20 +123,22 @@ async fn apply(
     msg: Option<String>,
     explicit_ping_ms: Option<i32>,
 ) -> Result<(StatusCode, &'static str), ApiError> {
-    let monitor_id = rampart_db::monitors::find_by_push_token(state.pool(), token)
+    let monitor_id = state
+        .store()
+        .find_monitor_by_push_token(token)
         .await?
         .ok_or(ApiError::NotFound)?;
 
     // A run-start opens the duration clock and records nothing else — a
     // start is not a health sample, and counting it would skew uptime.
     if matches!(ping, Ping::Run) {
-        rampart_db::monitors::mark_run_started(state.pool(), monitor_id).await?;
+        state.store().mark_monitor_run_started(monitor_id).await?;
         return Ok((StatusCode::OK, "ok run"));
     }
 
     // Terminal ping: stamp liveness, close any open run, and get its
     // start back for the duration.
-    let run_started = rampart_db::monitors::close_run(state.pool(), monitor_id).await?;
+    let run_started = state.store().close_monitor_run(monitor_id).await?;
     let duration_ms: Option<i32> = explicit_ping_ms.or_else(|| {
         run_started.map(|t| {
             ((OffsetDateTime::now_utc() - t).whole_milliseconds()).clamp(0, i32::MAX as i128) as i32
@@ -153,7 +155,7 @@ async fn apply(
     // Flip detection needs the full row (current_status). The push token (not
     // a session) authenticated this request and already resolved monitor_id,
     // so fetch unscoped.
-    let monitor = rampart_db::monitors::get_unscoped(state.pool(), monitor_id).await?;
+    let monitor = state.store().get_monitor_unscoped(monitor_id).await?;
     ingest(
         state,
         &monitor,

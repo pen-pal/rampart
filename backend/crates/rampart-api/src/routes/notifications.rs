@@ -236,7 +236,7 @@ async fn list_for_monitor(
     let mid = parse_monitor(&mid)?;
     // Gate through the owning monitor's org — a cross-org monitor id is a 404,
     // so its attached channels can't be enumerated.
-    rampart_db::monitors::get(state.pool(), mid, org.org_id).await?;
+    state.store().get_monitor(mid, org.org_id).await?;
     let chans = state.store().notifications_for_monitor(mid).await?;
     Ok(Json(chans.into_iter().map(redacted).collect()))
 }
@@ -251,7 +251,7 @@ async fn attach(
     let mid = parse_monitor(&mid)?;
     let nid = parse_notif(&nid)?;
     // Both the monitor and the channel must belong to the caller's org.
-    rampart_db::monitors::get(state.pool(), mid, org.org_id).await?;
+    state.store().get_monitor(mid, org.org_id).await?;
     state.store().get_notification(nid, org.org_id).await?;
     state.store().attach_notification(mid, nid).await?;
     crate::audit::record(
@@ -277,7 +277,7 @@ async fn detach(
     let mid = parse_monitor(&mid)?;
     let nid = parse_notif(&nid)?;
     // Both the monitor and the channel must belong to the caller's org.
-    rampart_db::monitors::get(state.pool(), mid, org.org_id).await?;
+    state.store().get_monitor(mid, org.org_id).await?;
     state.store().get_notification(nid, org.org_id).await?;
     state.store().detach_notification(mid, nid).await?;
     crate::audit::record(

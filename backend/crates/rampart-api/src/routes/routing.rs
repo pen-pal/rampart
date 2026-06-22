@@ -94,7 +94,7 @@ async fn gate_tag(s: &AppState, t: TagId, org: &OrgContext) -> Result<(), ApiErr
     Ok(())
 }
 async fn gate_monitor(s: &AppState, m: MonitorId, org: &OrgContext) -> Result<(), ApiError> {
-    rampart_db::monitors::get(s.pool(), m, org.org_id).await?;
+    s.store().get_monitor(m, org.org_id).await?;
     Ok(())
 }
 

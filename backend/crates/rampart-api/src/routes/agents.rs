@@ -187,9 +187,7 @@ async fn pull_monitors(
         .and_then(|v| v.to_str().ok());
     // Liveness bump is best-effort; the pull itself matters more.
     let _ = s.store().touch_agent_seen(agent.id, version).await;
-    Ok(Json(
-        rampart_db::monitors::list_for_agent(s.pool(), agent.id).await?,
-    ))
+    Ok(Json(s.store().list_monitors_for_agent(agent.id).await?))
 }
 
 #[derive(Serialize)]
@@ -228,7 +226,7 @@ async fn report_heartbeats(
     for r in results {
         // Agent reporting heartbeats for monitors it was assigned; the agent
         // credential is the authority, so resolve the monitor unscoped.
-        let monitor = match rampart_db::monitors::get_unscoped(s.pool(), r.monitor_id).await {
+        let monitor = match s.store().get_monitor_unscoped(r.monitor_id).await {
             Ok(m) => m,
             Err(_) => {
                 rejected.push(RejectedResult {

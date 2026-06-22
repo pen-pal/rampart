@@ -181,7 +181,7 @@ async fn attach(
     // so a caller can't attach another org's monitor or touch another
     // org's window.
     s.store().get_maintenance_window(wid, org.org_id).await?;
-    rampart_db::monitors::get(s.pool(), mid, org.org_id).await?;
+    s.store().get_monitor(mid, org.org_id).await?;
     s.store().attach_maintenance_monitor(wid, mid).await?;
     crate::audit::record(
         s.store(),
@@ -207,7 +207,7 @@ async fn detach(
     let mid = parse_monitor(&monitor_id)?;
     // Org-gate both ends before unlinking: each `get` 404s cross-org.
     s.store().get_maintenance_window(wid, org.org_id).await?;
-    rampart_db::monitors::get(s.pool(), mid, org.org_id).await?;
+    s.store().get_monitor(mid, org.org_id).await?;
     s.store().detach_maintenance_monitor(wid, mid).await?;
     crate::audit::record(
         s.store(),
