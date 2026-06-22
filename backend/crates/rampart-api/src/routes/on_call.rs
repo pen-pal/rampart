@@ -57,7 +57,7 @@ async fn create(
     let name = input.name.clone();
     let schedule = s.store().create_on_call(input, org.org_id).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "on_call_schedule.create",
@@ -107,7 +107,7 @@ async fn update(
         .update_on_call(schedule_id, input, org.org_id)
         .await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "on_call_schedule.update",
@@ -129,7 +129,7 @@ async fn delete(
     let schedule_id = parse(&id)?;
     s.store().delete_on_call(schedule_id, org.org_id).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "on_call_schedule.delete",

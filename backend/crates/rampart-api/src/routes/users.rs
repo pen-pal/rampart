@@ -92,7 +92,7 @@ async fn create(
         })
         .await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &caller,
         &headers,
         "user.create",
@@ -124,7 +124,7 @@ async fn set_admin(
     }
     s.store().set_user_admin(target, body.is_admin).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &caller,
         &headers,
         if body.is_admin {
@@ -162,7 +162,7 @@ async fn set_role(
     }
     s.store().set_user_role(target, body.role).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &caller,
         &headers,
         "user.set_role",
@@ -186,7 +186,7 @@ async fn remove(
     }
     s.store().delete_user(target).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &caller,
         &headers,
         "user.delete",
@@ -220,7 +220,7 @@ async fn export_data(
         .unwrap_or_default();
     let organizations = s.store().orgs_for_user(target).await.unwrap_or_default();
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &caller,
         &headers,
         "user.gdpr_export",
@@ -258,7 +258,7 @@ async fn erase(
     let _ = rampart_db::sessions::delete_for_user(s.pool(), target).await;
     let _ = rampart_db::recovery_codes::delete_for_user(s.pool(), target).await;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &caller,
         &headers,
         "user.gdpr_erase",

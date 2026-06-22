@@ -56,7 +56,7 @@ async fn create(
     }
     let p = s.store().create_proxy(input, org.org_id).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "proxy.create",
@@ -78,7 +78,7 @@ async fn remove(
     let pid = parse(&id)?;
     s.store().delete_proxy(pid, org.org_id).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "proxy.delete",
@@ -108,7 +108,7 @@ async fn set_active(
         .set_active_proxy(pid, body.active, org.org_id)
         .await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "proxy.set_active",

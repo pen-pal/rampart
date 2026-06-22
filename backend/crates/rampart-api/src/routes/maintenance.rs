@@ -71,7 +71,7 @@ async fn create(
         .await?;
     let rfc3339 = time::format_description::well_known::Rfc3339;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "maintenance.create",
@@ -104,7 +104,7 @@ async fn update(
         .update_maintenance_window(wid, input, org.org_id)
         .await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "maintenance.update",
@@ -126,7 +126,7 @@ async fn remove(
     let wid = parse_id(&id)?;
     s.store().delete_maintenance_window(wid, org.org_id).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "maintenance.delete",
@@ -156,7 +156,7 @@ async fn set_active(
         .set_active_maintenance(wid, body.active, org.org_id)
         .await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "maintenance.set_active",
@@ -184,7 +184,7 @@ async fn attach(
     rampart_db::monitors::get(s.pool(), mid, org.org_id).await?;
     s.store().attach_maintenance_monitor(wid, mid).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "maintenance.attach",
@@ -210,7 +210,7 @@ async fn detach(
     rampart_db::monitors::get(s.pool(), mid, org.org_id).await?;
     s.store().detach_maintenance_monitor(wid, mid).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "maintenance.detach",

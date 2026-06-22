@@ -63,7 +63,7 @@ async fn create(
         )
         .await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "silence.create",
@@ -86,7 +86,7 @@ async fn remove(
         return Err(ApiError::NotFound);
     }
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "silence.delete",

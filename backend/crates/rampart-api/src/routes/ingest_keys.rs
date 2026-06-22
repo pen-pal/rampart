@@ -76,7 +76,7 @@ async fn create(
         .create_ingest_key(org.org_id, label, kind, &origins)
         .await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "ingest_key.create",
@@ -103,7 +103,7 @@ async fn delete(
         return Err(ApiError::NotFound);
     }
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "ingest_key.delete",

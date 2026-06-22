@@ -128,7 +128,7 @@ async fn create(
         .create_org_with_owner(&input.slug, &input.name, user.id)
         .await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "org.create",
@@ -174,7 +174,7 @@ async fn rename(
     }
     let updated = s.store().update_org(org, &input.name).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "org.rename",
@@ -227,7 +227,7 @@ async fn add_member(
         .upsert_org_member(org, target.id, input.role)
         .await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "org.member_add",
@@ -275,7 +275,7 @@ async fn set_member_role(
     }
     s.store().upsert_org_member(org, target, input.role).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "org.member_role_set",
@@ -366,7 +366,7 @@ async fn remove_member(
         return Err(ApiError::NotFound);
     }
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "org.member_remove",

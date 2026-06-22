@@ -1691,6 +1691,39 @@ pub trait StoreOrgs: Send + Sync {
     ) -> DbResult<rampart_core::org::Org>;
 }
 
+#[async_trait::async_trait]
+pub trait StoreAudit: Send + Sync {
+    /// Append an audit row. Object-safe: `NewEntry` carries `Option<IpAddr>`,
+    /// not the PG-specific `IpNetwork`. Best-effort tamper-evident hash chain.
+    async fn record_audit(&self, entry: crate::audit::NewEntry<'_>) -> DbResult<()>;
+
+    async fn set_audit_chain_watermark(&self, id: i64, hash: &str) -> DbResult<()>;
+
+    async fn verify_audit_chain(&self) -> DbResult<crate::audit::VerifyReport>;
+
+    async fn audit_security_insights(&self, hours: i32)
+        -> DbResult<crate::audit::SecurityInsights>;
+
+    async fn list_audit_entries(
+        &self,
+        limit: i64,
+        filter: crate::audit::AuditFilter<'_>,
+    ) -> DbResult<Vec<crate::audit::AuditEntry>>;
+
+    async fn fetch_audit_since(
+        &self,
+        after_id: i64,
+        limit: i64,
+    ) -> DbResult<Vec<crate::audit::AuditEntry>>;
+
+    async fn export_audit_batch(
+        &self,
+        before_id: Option<i64>,
+        batch: i64,
+        filter: crate::audit::ExportFilter,
+    ) -> DbResult<Vec<crate::audit::ExportRow>>;
+}
+
 /// Composed store super-trait spanning every extracted domain sub-trait.
 pub trait Store:
     StoreHeartbeats
@@ -1736,6 +1769,7 @@ pub trait Store:
     + StoreUsers
     + StoreWebpush
     + StoreOrgs
+    + StoreAudit
     + Send
     + Sync
 {
@@ -4072,6 +4106,53 @@ impl StoreOrgs for PgStore {
         owner: UserId,
     ) -> DbResult<rampart_core::org::Org> {
         crate::orgs::create_with_owner(&self.pool, slug, name, owner).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreAudit for PgStore {
+    async fn record_audit(&self, entry: crate::audit::NewEntry<'_>) -> DbResult<()> {
+        crate::audit::insert(&self.pool, entry).await
+    }
+
+    async fn set_audit_chain_watermark(&self, id: i64, hash: &str) -> DbResult<()> {
+        crate::audit::set_chain_watermark(&self.pool, id, hash).await
+    }
+
+    async fn verify_audit_chain(&self) -> DbResult<crate::audit::VerifyReport> {
+        crate::audit::verify_chain(&self.pool).await
+    }
+
+    async fn audit_security_insights(
+        &self,
+        hours: i32,
+    ) -> DbResult<crate::audit::SecurityInsights> {
+        crate::audit::security_insights(&self.pool, hours).await
+    }
+
+    async fn list_audit_entries(
+        &self,
+        limit: i64,
+        filter: crate::audit::AuditFilter<'_>,
+    ) -> DbResult<Vec<crate::audit::AuditEntry>> {
+        crate::audit::list(&self.pool, limit, filter).await
+    }
+
+    async fn fetch_audit_since(
+        &self,
+        after_id: i64,
+        limit: i64,
+    ) -> DbResult<Vec<crate::audit::AuditEntry>> {
+        crate::audit::fetch_since(&self.pool, after_id, limit).await
+    }
+
+    async fn export_audit_batch(
+        &self,
+        before_id: Option<i64>,
+        batch: i64,
+        filter: crate::audit::ExportFilter,
+    ) -> DbResult<Vec<crate::audit::ExportRow>> {
+        crate::audit::export_batch(&self.pool, before_id, batch, filter).await
     }
 }
 

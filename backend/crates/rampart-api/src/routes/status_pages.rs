@@ -176,7 +176,7 @@ async fn create(
     let slug = input.slug.clone();
     let p = s.store().create_status_page(input, org.org_id).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "status_page.create",
@@ -228,7 +228,7 @@ async fn remove(
     let page_id = parse(&id)?;
     s.store().delete_status_page(page_id, org.org_id).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "status_page.delete",
