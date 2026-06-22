@@ -328,16 +328,15 @@ async fn upload_sourcemap(
         ));
     }
     let base = crate::symbolicate::basename(&input.filename).to_string();
-    let map_id = rampart_db::source_maps::upsert(
-        s.pool(),
-        rampart_db::source_maps::NewSourceMap {
+    let map_id = s
+        .store()
+        .upsert_source_map(rampart_db::source_maps::NewSourceMap {
             project_id: pid.0,
             release: input.release.trim(),
             filename: &base,
             map: input.map,
-        },
-    )
-    .await?;
+        })
+        .await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -358,7 +357,7 @@ async fn list_sourcemaps(
 ) -> Result<Json<Vec<rampart_db::source_maps::SourceMapMeta>>, ApiError> {
     let pid = project_id(&id)?;
     s.store().error_project_in_org(pid, org.org_id).await?;
-    Ok(Json(rampart_db::source_maps::list(s.pool(), pid.0).await?))
+    Ok(Json(s.store().list_source_maps(pid.0).await?))
 }
 
 async fn delete_sourcemap(
@@ -370,7 +369,7 @@ async fn delete_sourcemap(
 ) -> Result<StatusCode, ApiError> {
     let pid = project_id(&id)?;
     s.store().error_project_in_org(pid, org.org_id).await?;
-    if !rampart_db::source_maps::delete(s.pool(), pid.0, map_id).await? {
+    if !s.store().delete_source_map(pid.0, map_id).await? {
         return Err(ApiError::NotFound);
     }
     crate::audit::record(
