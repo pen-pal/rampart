@@ -86,7 +86,7 @@ async fn gate_group(s: &AppState, g: MonitorGroupId, org: &OrgContext) -> Result
     Ok(())
 }
 async fn gate_channel(s: &AppState, n: NotificationId, org: &OrgContext) -> Result<(), ApiError> {
-    rampart_db::notifications::get(s.pool(), n, org.org_id).await?;
+    s.store().get_notification(n, org.org_id).await?;
     Ok(())
 }
 async fn gate_tag(s: &AppState, t: TagId, org: &OrgContext) -> Result<(), ApiError> {

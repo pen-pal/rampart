@@ -182,20 +182,20 @@ async fn store(
     // RLS: bind the resolved org around the insert (the single write point for
     // all three ingest formats). No-op when RAMPART_RLS is off.
     rampart_db::rls::with_org(org, async move {
-        rampart_db::profiles::insert(
-            s.pool(),
-            NewProfile {
-                service_name: service,
-                profile_type,
-                period_ns,
-                duration_ns,
-                sample_count,
-                labels: serde_json::json!({}),
-                folded_gz: &gz,
-            },
-            org,
-        )
-        .await?;
+        s.store()
+            .insert_profile(
+                NewProfile {
+                    service_name: service,
+                    profile_type,
+                    period_ns,
+                    duration_ns,
+                    sample_count,
+                    labels: serde_json::json!({}),
+                    folded_gz: &gz,
+                },
+                org,
+            )
+            .await?;
         Ok(())
     })
     .await
@@ -217,15 +217,15 @@ async fn list(
     Query(q): Query<ListQuery>,
 ) -> Result<Json<Vec<ProfileMeta>>, ApiError> {
     Ok(Json(
-        rampart_db::profiles::list(
-            s.pool(),
-            non_empty(q.service.as_deref()),
-            non_empty(q.profile_type.as_deref()),
-            q.hours.unwrap_or(24),
-            200,
-            org.org_id,
-        )
-        .await?,
+        s.store()
+            .list_profiles(
+                non_empty(q.service.as_deref()),
+                non_empty(q.profile_type.as_deref()),
+                q.hours.unwrap_or(24),
+                200,
+                org.org_id,
+            )
+            .await?,
     ))
 }
 
@@ -233,9 +233,7 @@ async fn services(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<String>>, ApiError> {
-    Ok(Json(
-        rampart_db::profiles::services(s.pool(), org.org_id).await?,
-    ))
+    Ok(Json(s.store().profile_services(org.org_id).await?))
 }
 
 #[derive(Deserialize)]
@@ -249,7 +247,8 @@ async fn types(
     Query(q): Query<TypesQuery>,
 ) -> Result<Json<Vec<String>>, ApiError> {
     Ok(Json(
-        rampart_db::profiles::profile_types(s.pool(), non_empty(q.service.as_deref()), org.org_id)
+        s.store()
+            .profile_types(non_empty(q.service.as_deref()), org.org_id)
             .await?,
     ))
 }
@@ -297,15 +296,10 @@ async fn flamegraph_window(
             (to - time::Duration::hours(hours as i64), to)
         }
     };
-    let blobs = rampart_db::profiles::folded_in_window(
-        s.pool(),
-        &q.service,
-        &q.profile_type,
-        from,
-        to,
-        org.org_id,
-    )
-    .await?;
+    let blobs = s
+        .store()
+        .profile_folded_in_window(&q.service, &q.profile_type, from, to, org.org_id)
+        .await?;
     let merged = merge_blobs(&blobs)?;
     Ok(Json(build_response(&q.service, merged)))
 }
@@ -329,26 +323,20 @@ async fn flamegraph_diff(
     let now = OffsetDateTime::now_utc();
     // after = the most recent window; before = the window immediately preceding.
     let after = merge_blobs(
-        &rampart_db::profiles::folded_in_window(
-            s.pool(),
-            &q.service,
-            &q.profile_type,
-            now - span,
-            now,
-            org.org_id,
-        )
-        .await?,
+        &s.store()
+            .profile_folded_in_window(&q.service, &q.profile_type, now - span, now, org.org_id)
+            .await?,
     )?;
     let before = merge_blobs(
-        &rampart_db::profiles::folded_in_window(
-            s.pool(),
-            &q.service,
-            &q.profile_type,
-            now - span - span,
-            now - span,
-            org.org_id,
-        )
-        .await?,
+        &s.store()
+            .profile_folded_in_window(
+                &q.service,
+                &q.profile_type,
+                now - span - span,
+                now - span,
+                org.org_id,
+            )
+            .await?,
     )?;
     Ok(Json(DiffResponse {
         after_samples: after.values().sum(),
@@ -362,9 +350,7 @@ async fn flamegraph_one(
     Extension(org): Extension<OrgContext>,
     Path(id): Path<i64>,
 ) -> Result<Json<FlameResponse>, ApiError> {
-    let Some((profile_type, gz)) =
-        rampart_db::profiles::fetch_folded(s.pool(), id, org.org_id).await?
-    else {
+    let Some((profile_type, gz)) = s.store().profile_fetch_folded(id, org.org_id).await? else {
         return Err(ApiError::NotFound);
     };
     let map = parse_blob(&gz)?;

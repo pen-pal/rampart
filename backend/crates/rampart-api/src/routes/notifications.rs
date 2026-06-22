@@ -116,7 +116,7 @@ async fn list(
     State(state): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<Notification>>, ApiError> {
-    let chans = rampart_db::notifications::list(state.pool(), org.org_id).await?;
+    let chans = state.store().list_notifications(org.org_id).await?;
     Ok(Json(chans.into_iter().map(redacted).collect()))
 }
 
@@ -130,7 +130,7 @@ async fn create(
     if input.name.trim().is_empty() {
         return Err(ApiError::BadRequest("name is required".into()));
     }
-    let n = rampart_db::notifications::create(state.pool(), input, org.org_id).await?;
+    let n = state.store().create_notification(input, org.org_id).await?;
     crate::audit::record(
         state.pool(),
         &user,
@@ -151,7 +151,7 @@ async fn get_one(
 ) -> Result<Json<Notification>, ApiError> {
     let id = parse_notif(&id)?;
     Ok(Json(redacted(
-        rampart_db::notifications::get(state.pool(), id, org.org_id).await?,
+        state.store().get_notification(id, org.org_id).await?,
     )))
 }
 
@@ -167,11 +167,14 @@ async fn update(
     // If the client sent back redacted secrets unchanged, restore them from the
     // stored config so an edit doesn't clobber tokens the user never saw.
     if let Some(cfg) = input.config.as_mut() {
-        if let Ok(existing) = rampart_db::notifications::get(state.pool(), id, org.org_id).await {
+        if let Ok(existing) = state.store().get_notification(id, org.org_id).await {
             unredact_config(cfg, &existing.config);
         }
     }
-    let n = rampart_db::notifications::update(state.pool(), id, input, org.org_id).await?;
+    let n = state
+        .store()
+        .update_notification(id, input, org.org_id)
+        .await?;
     crate::audit::record(
         state.pool(),
         &user,
@@ -193,7 +196,7 @@ async fn remove(
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let id = parse_notif(&id)?;
-    rampart_db::notifications::delete(state.pool(), id, org.org_id).await?;
+    state.store().delete_notification(id, org.org_id).await?;
     crate::audit::record(
         state.pool(),
         &user,
@@ -212,7 +215,10 @@ async fn counts(
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<MonitorChannelCount>>, ApiError> {
     Ok(Json(
-        rampart_db::notifications::counts_per_monitor(state.pool(), org.org_id).await?,
+        state
+            .store()
+            .notification_counts_per_monitor(org.org_id)
+            .await?,
     ))
 }
 
@@ -231,7 +237,7 @@ async fn list_for_monitor(
     // Gate through the owning monitor's org — a cross-org monitor id is a 404,
     // so its attached channels can't be enumerated.
     rampart_db::monitors::get(state.pool(), mid, org.org_id).await?;
-    let chans = rampart_db::notifications::for_monitor(state.pool(), mid).await?;
+    let chans = state.store().notifications_for_monitor(mid).await?;
     Ok(Json(chans.into_iter().map(redacted).collect()))
 }
 
@@ -246,8 +252,8 @@ async fn attach(
     let nid = parse_notif(&nid)?;
     // Both the monitor and the channel must belong to the caller's org.
     rampart_db::monitors::get(state.pool(), mid, org.org_id).await?;
-    rampart_db::notifications::get(state.pool(), nid, org.org_id).await?;
-    rampart_db::notifications::attach(state.pool(), mid, nid).await?;
+    state.store().get_notification(nid, org.org_id).await?;
+    state.store().attach_notification(mid, nid).await?;
     crate::audit::record(
         state.pool(),
         &user,
@@ -272,8 +278,8 @@ async fn detach(
     let nid = parse_notif(&nid)?;
     // Both the monitor and the channel must belong to the caller's org.
     rampart_db::monitors::get(state.pool(), mid, org.org_id).await?;
-    rampart_db::notifications::get(state.pool(), nid, org.org_id).await?;
-    rampart_db::notifications::detach(state.pool(), mid, nid).await?;
+    state.store().get_notification(nid, org.org_id).await?;
+    state.store().detach_notification(mid, nid).await?;
     crate::audit::record(
         state.pool(),
         &user,
@@ -297,7 +303,7 @@ async fn send_test(
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let id = parse_notif(&id)?;
-    let n = rampart_db::notifications::get(state.pool(), id, org.org_id).await?;
+    let n = state.store().get_notification(id, org.org_id).await?;
 
     // Synthesize a fake monitor + heartbeat for the test payload.
     let now = time::OffsetDateTime::now_utc();
