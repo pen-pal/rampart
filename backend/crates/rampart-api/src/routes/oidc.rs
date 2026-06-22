@@ -596,26 +596,24 @@ async fn callback(
         ))?;
 
     // Find or provision the user.
-    let user = match rampart_db::users::get_by_email(app.pool(), &email).await {
-        Ok(u) => rampart_db::users::get(app.pool(), u.id).await?,
+    let user = match app.store().get_user_by_email(&email).await {
+        Ok(u) => app.store().get_user(u.id).await?,
         Err(_) => {
             // First user bootstraps as admin; otherwise the configured role.
-            let role = if rampart_db::users::count(app.pool()).await? == 0 {
+            let role = if app.store().count_users().await? == 0 {
                 Role::Admin
             } else {
                 cfg.default_role
             };
-            rampart_db::users::create(
-                app.pool(),
-                NewUser {
+            app.store()
+                .create_user(NewUser {
                     email: email.clone(),
                     name: Some(name.unwrap_or_else(|| email.clone())),
                     // No password login for SSO users: store an unusable random hash.
                     password_hash: crate::auth::hash_password(&rand_token())?,
                     role,
-                },
-            )
-            .await?
+                })
+                .await?
         }
     };
 
@@ -632,9 +630,7 @@ async fn callback(
         }
     }
 
-    rampart_db::users::mark_login(app.pool(), user.id)
-        .await
-        .ok();
+    app.store().mark_user_login(user.id).await.ok();
 
     let session = app
         .store()

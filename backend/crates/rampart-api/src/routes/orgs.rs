@@ -215,7 +215,9 @@ async fn add_member(
 ) -> Result<StatusCode, ApiError> {
     let org = parse_org(&id)?;
     require_org_role(s.pool(), org, &user, Role::Admin).await?;
-    let target = rampart_db::users::by_email(s.pool(), &input.email)
+    let target = s
+        .store()
+        .user_by_email(&input.email)
         .await?
         .ok_or(ApiError::NotFound)?;
     orgs::upsert_member(s.pool(), org, target.id, input.role).await?;

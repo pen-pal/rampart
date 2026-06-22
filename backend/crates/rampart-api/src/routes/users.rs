@@ -61,7 +61,7 @@ struct CreateUserInput {
 }
 
 async fn list(State(s): State<AppState>) -> Result<Json<Vec<User>>, ApiError> {
-    Ok(Json(rampart_db::users::list(s.pool()).await?))
+    Ok(Json(s.store().list_users().await?))
 }
 
 async fn create(
@@ -82,16 +82,15 @@ async fn create(
         Role::Editor
     });
     let hash = hash_password(&input.password)?;
-    let u = rampart_db::users::create(
-        s.pool(),
-        NewUser {
+    let u = s
+        .store()
+        .create_user(NewUser {
             email: input.email.clone(),
             name: input.name,
             password_hash: hash,
             role,
-        },
-    )
-    .await?;
+        })
+        .await?;
     crate::audit::record(
         s.pool(),
         &caller,
@@ -123,7 +122,7 @@ async fn set_admin(
         // if you're the only admin left. Force the second admin to do it.
         return Err(ApiError::BadRequest("you can't demote yourself".into()));
     }
-    rampart_db::users::set_admin(s.pool(), target, body.is_admin).await?;
+    s.store().set_user_admin(target, body.is_admin).await?;
     crate::audit::record(
         s.pool(),
         &caller,
@@ -161,7 +160,7 @@ async fn set_role(
             "you can't remove your own admin role".into(),
         ));
     }
-    rampart_db::users::set_role(s.pool(), target, body.role).await?;
+    s.store().set_user_role(target, body.role).await?;
     crate::audit::record(
         s.pool(),
         &caller,
@@ -185,7 +184,7 @@ async fn remove(
     if target == caller.id {
         return Err(ApiError::BadRequest("you can't delete yourself".into()));
     }
-    rampart_db::users::delete(s.pool(), target).await?;
+    s.store().delete_user(target).await?;
     crate::audit::record(
         s.pool(),
         &caller,
@@ -210,8 +209,10 @@ async fn export_data(
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let target = parse(&id)?;
-    let user = rampart_db::users::get(s.pool(), target).await?;
-    let preferences = rampart_db::users::get_prefs(s.pool(), target)
+    let user = s.store().get_user(target).await?;
+    let preferences = s
+        .store()
+        .get_user_prefs(target)
         .await
         .unwrap_or_else(|_| serde_json::json!({}));
     let sessions = rampart_db::sessions::list_for_user(s.pool(), target)
@@ -255,7 +256,7 @@ async fn erase(
             "you can't erase your own account".into(),
         ));
     }
-    rampart_db::users::anonymize(s.pool(), target).await?;
+    s.store().anonymize_user(target).await?;
     let _ = rampart_db::sessions::delete_for_user(s.pool(), target).await;
     let _ = rampart_db::recovery_codes::delete_for_user(s.pool(), target).await;
     crate::audit::record(
@@ -284,7 +285,9 @@ async fn change_password(
     Json(input): Json<ChangePasswordInput>,
 ) -> Result<impl IntoResponse, ApiError> {
     crate::auth::validate_password(&input.new_password, &caller.email)?;
-    let raw = rampart_db::users::get_by_email(s.pool(), &caller.email)
+    let raw = s
+        .store()
+        .get_user_by_email(&caller.email)
         .await
         .map_err(|_| ApiError::Unauthorized)?;
     if !verify_password(&input.current_password, &raw.password_hash) {
@@ -292,7 +295,7 @@ async fn change_password(
     }
     let hash = hash_password(&input.new_password)?;
     // set_password revokes ALL of the user's sessions (including this one).
-    rampart_db::users::set_password(s.pool(), caller.id, &hash).await?;
+    s.store().set_user_password(caller.id, &hash).await?;
     // Re-issue a fresh session for the current device so the user isn't logged
     // out by their own password change — other devices stay revoked.
     let session = s

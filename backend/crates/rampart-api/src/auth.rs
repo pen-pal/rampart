@@ -173,7 +173,9 @@ impl FromRequestParts<AppState> for AuthUser {
             .lookup_session(token)
             .await
             .map_err(|_| ApiError::Unauthorized)?;
-        let user = rampart_db::users::get(state.pool(), session.user_id)
+        let user = state
+            .store()
+            .get_user(session.user_id)
             .await
             .map_err(|_| ApiError::Unauthorized)?;
 
@@ -210,7 +212,9 @@ pub async fn require_session(
             let _ = rampart_db::api_keys::touch_last_used(&pool, key_id).await;
         });
 
-        let mut user = rampart_db::users::get(state.pool(), user_id)
+        let mut user = state
+            .store()
+            .get_user(user_id)
             .await
             .map_err(|_| ApiError::Unauthorized)?;
         // Per-key authorization (migration 0057): the request's effective
@@ -259,7 +263,9 @@ pub async fn require_session(
         .lookup_session(token)
         .await
         .map_err(|_| ApiError::Unauthorized)?;
-    let mut user = rampart_db::users::get(state.pool(), session.user_id)
+    let mut user = state
+        .store()
+        .get_user(session.user_id)
         .await
         .map_err(|_| ApiError::Unauthorized)?;
 

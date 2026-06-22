@@ -58,7 +58,10 @@ async fn setup(State(state): State<AppState>, user: AuthUser) -> Result<Json<Set
     let secret = totp::generate_secret();
     let uri = totp::provisioning_uri(&secret, &user.0.email)
         .map_err(|e| ApiError::BadRequest(format!("totp setup: {e}")))?;
-    rampart_db::users::set_totp_secret(state.pool(), user.0.id, &secret).await?;
+    state
+        .store()
+        .set_user_totp_secret(user.0.id, &secret)
+        .await?;
     Ok(Json(SetupResp {
         secret,
         otpauth_uri: uri,
@@ -82,7 +85,9 @@ async fn enable(
     Json(input): Json<EnableInput>,
 ) -> Result<Json<EnableResp>, ApiError> {
     // Re-fetch the user row to see the not-yet-active secret.
-    let raw = rampart_db::users::get_by_email(state.pool(), &user.0.email)
+    let raw = state
+        .store()
+        .get_user_by_email(&user.0.email)
         .await
         .map_err(|_| ApiError::Unauthorized)?;
     let secret = raw
@@ -93,7 +98,7 @@ async fn enable(
         return Err(ApiError::BadRequest("invalid code".into()));
     }
 
-    rampart_db::users::enable_totp(state.pool(), user.0.id).await?;
+    state.store().enable_user_totp(user.0.id).await?;
     let codes = state.store().issue_recovery_codes(user.0.id, 10).await?;
     Ok(Json(EnableResp {
         enabled: true,
@@ -112,7 +117,9 @@ async fn disable(
     user: AuthUser,
     Json(input): Json<DisableInput>,
 ) -> Result<StatusCode, ApiError> {
-    let raw = rampart_db::users::get_by_email(state.pool(), &user.0.email)
+    let raw = state
+        .store()
+        .get_user_by_email(&user.0.email)
         .await
         .map_err(|_| ApiError::Unauthorized)?;
     if !verify_password(&input.password, &raw.password_hash) {
@@ -133,7 +140,7 @@ async fn disable(
     if !code_ok {
         return Err(ApiError::BadRequest("invalid code".into()));
     }
-    rampart_db::users::disable_totp(state.pool(), user.0.id).await?;
+    state.store().disable_user_totp(user.0.id).await?;
     state
         .store()
         .delete_recovery_codes_for_user(user.0.id)
@@ -163,7 +170,7 @@ async fn verify(
         .await
         .ok_or(ApiError::Unauthorized)?;
 
-    let raw = rampart_db::users::get(state.pool(), user_id).await?;
+    let raw = state.store().get_user(user_id).await?;
 
     // Brute-force gate: the verify step re-issues a fresh challenge on every
     // wrong code, so without a durable cap a caller past the password gate could
@@ -172,7 +179,7 @@ async fn verify(
     // 2FA step for TOTP_LOCKOUT_MINS; refuse immediately and withhold a fresh
     // challenge so the loop can't continue without a new (rate-limited) password
     // round-trip. A successful verify clears the counter.
-    if let Some(until) = rampart_db::users::totp_locked_until(state.pool(), user_id).await? {
+    if let Some(until) = state.store().user_totp_locked_until(user_id).await? {
         if until > time::OffsetDateTime::now_utc() {
             return Ok((
                 StatusCode::TOO_MANY_REQUESTS,
@@ -185,7 +192,7 @@ async fn verify(
     }
 
     // Re-load secret since `get` strips it.
-    let with_hash = rampart_db::users::get_by_email(state.pool(), &raw.email).await?;
+    let with_hash = state.store().get_user_by_email(&raw.email).await?;
 
     let code_ok = with_hash
         .totp_secret
@@ -211,13 +218,10 @@ async fn verify(
             None,
         )
         .await;
-        let locked = rampart_db::users::record_totp_failure(
-            state.pool(),
-            user_id,
-            TOTP_MAX_ATTEMPTS,
-            TOTP_LOCKOUT_MINS,
-        )
-        .await?;
+        let locked = state
+            .store()
+            .record_user_totp_failure(user_id, TOTP_MAX_ATTEMPTS, TOTP_LOCKOUT_MINS)
+            .await?;
         if locked {
             // Hit the cap — refuse and DON'T re-issue a challenge.
             return Ok((
@@ -242,14 +246,10 @@ async fn verify(
     }
 
     // Success — clear the brute-force counter.
-    rampart_db::users::reset_totp_failures(state.pool(), user_id)
-        .await
-        .ok();
+    state.store().reset_user_totp_failures(user_id).await.ok();
 
-    rampart_db::users::mark_login(state.pool(), user_id)
-        .await
-        .ok();
-    let user = rampart_db::users::get(state.pool(), user_id).await?;
+    state.store().mark_user_login(user_id).await.ok();
+    let user = state.store().get_user(user_id).await?;
     crate::audit::record(
         state.pool(),
         &user,

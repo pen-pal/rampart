@@ -29,6 +29,22 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.155.12] — 2026-06-22
+
+### Changed
+- **Internal: `Store` seam extended to the auth-critical `users` domain
+  (multi-DB P0 slice 9).** Added `StoreUsers` (20 methods, `_user(s)`-suffixed,
+  delegating to the existing free fns) into the `Store` super-trait, and
+  migrated **41** rampart-api call sites across the auth surface (register /
+  login / me / logout, RBAC + session middleware, TOTP, OIDC, user management,
+  prefs, GDPR) to `state.store()`. Bare-pool callers in the reset-password CLI
+  + seed keep the free fns. Zero behavior change — verified by the full auth
+  surface: auth 11, rbac 4, gdpr 2, orgs_api 7, multitenancy_isolation 11,
+  rampart-db lib 32 all green. Only `webpush` + the audit/orgs/monitors
+  object-safety special cases remain unseamed.
+
+---
+
 ## [0.155.11] — 2026-06-22
 
 ### Changed
