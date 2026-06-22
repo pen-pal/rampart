@@ -29,6 +29,26 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.155.14] — 2026-06-22
+
+### Changed
+- **Internal: `Store` seam extended to the `orgs` domain (multi-DB P0
+  slice 11).** Added `StoreOrgs` (12 methods — create / get / by-slug / rename /
+  orgs-for-user / member upsert+role+remove / member listing / admin count /
+  atomic create-with-owner) into the `Store` super-trait and migrated **20**
+  rampart-api call sites across the org-management routes, the org-context auth
+  middleware, `/v1/auth/me`, OIDC org-claim mapping, and the GDPR export. The
+  per-org RBAC helpers (`require_org_role` / `last_admin_demotion`) now take
+  `&dyn Store` instead of `&DbPool`. The one object-safety special case —
+  `orgs::upsert_member`, generic over `sqlx::PgExecutor` for tx-atomic callers —
+  stays a free fn; the seam exposes a pool-scoped `upsert_org_member` alongside
+  it. Zero behavior change — verified by orgs_api 7, rbac 4, auth 11,
+  multitenancy_isolation 11, and the rampart-db orgs unit tests (7). `Store`
+  still object-safe. Only the audit (`IpNetwork`→`IpAddr`) + monitors special
+  cases remain unseamed.
+
+---
+
 ## [0.155.13] — 2026-06-22
 
 ### Changed

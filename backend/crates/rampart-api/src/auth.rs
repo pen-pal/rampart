@@ -284,12 +284,14 @@ pub async fn require_session(
         .active_org_id
         .map(rampart_core::ids::OrgId::from_uuid)
         .unwrap_or(default_org);
-    let (org_id, role) = match rampart_db::orgs::member_role(state.pool(), want, user.id).await {
+    let (org_id, role) = match state.store().org_member_role(want, user.id).await {
         Ok(Some(r)) => (want, r),
         _ => {
             // Not a member of the active org (revoked / stale) or lookup failed:
             // fall back to the Default org + the caller's Default-org role.
-            let r = rampart_db::orgs::member_role(state.pool(), default_org, user.id)
+            let r = state
+                .store()
+                .org_member_role(default_org, user.id)
                 .await
                 .ok()
                 .flatten()
