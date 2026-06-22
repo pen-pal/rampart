@@ -34,7 +34,7 @@ async fn list(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<ApiKey>>, ApiError> {
-    Ok(Json(rampart_db::api_keys::list(s.pool(), org.org_id).await?))
+    Ok(Json(s.store().list_api_keys(org.org_id).await?))
 }
 
 async fn create(
@@ -55,7 +55,7 @@ async fn create(
         }
     }
     let name = input.name.clone();
-    let issued = rampart_db::api_keys::create(s.pool(), input, user.id, org.org_id).await?;
+    let issued = s.store().create_api_key(input, user.id, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -77,7 +77,7 @@ async fn revoke(
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let key_id = parse(&id)?;
-    rampart_db::api_keys::delete(s.pool(), key_id, org.org_id).await?;
+    s.store().delete_api_key(key_id, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
