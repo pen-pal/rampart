@@ -29,6 +29,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.155.23] — 2026-06-22
+
+### Changed
+- **Accessibility: focus-trap + ARIA on the secret-reveal + create modals**
+  (Ingest Keys, API Keys, Agents). All six modal dialogs across those views now
+  use the shared `useFocusTrap` hook — Tab cycles within the dialog, focus moves
+  in on open and restores to the opener on close, and Escape closes — and carry
+  `role="dialog"` / `aria-modal="true"` / `aria-label` / `tabIndex={-1}`. Matches
+  the dialog primitive the monitor-edit + dashboard modals already use, so the
+  show-once token reveals are keyboard- and screen-reader-accessible. (six-persona
+  audit #21, modal half.)
+
+---
+
 ## [0.155.22] — 2026-06-22
 
 ### Added

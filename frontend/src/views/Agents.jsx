@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import { useFocusTrap } from '../lib/useFocusTrap.js';
 import {
   ChevronLeft, Plus, Trash2, Radio, Copy, Check, AlertCircle, Loader2, X, Eye, EyeOff,
 } from 'lucide-react';
@@ -202,9 +203,11 @@ function CreateModal({ onCancel, onCreated }) {
     }
   };
 
+  const ref = useRef(null);
+  useFocusTrap(ref, true, onCancel);
   return (
     <div className="modal-backdrop">
-      <div className="modal">
+      <div ref={ref} role="dialog" aria-modal="true" aria-label={t('agents.new')} tabIndex={-1} className="modal">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <h3 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>{t('agents.new')}</h3>
           <button className="btn btn-ghost" onClick={onCancel} disabled={busy} aria-label={t('common.cancel')}><X size={14}/></button>
@@ -245,9 +248,11 @@ function TokenModal({ issued, onClose }) {
     } catch { /* user denied */ }
   };
 
+  const ref = useRef(null);
+  useFocusTrap(ref, true, onClose);
   return (
     <div className="modal-backdrop">
-      <div className="modal">
+      <div ref={ref} role="dialog" aria-modal="true" aria-label={t('agents.created_title')} tabIndex={-1} className="modal">
         <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 6px' }}>{t('agents.created_title')}</h3>
         <p style={{ fontSize: 13, color: 'var(--text-2)', margin: '0 0 16px' }}>
           {t('agents.copy_intro')} <strong>{t('agents.not_shown_again')}</strong>
