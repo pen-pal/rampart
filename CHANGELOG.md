@@ -29,6 +29,21 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.155.19] — 2026-06-22
+
+### Changed
+- **Frontend: stop refetching `/v1/auth/me` on every view navigation.** The
+  mount-time auth check had `route.view` in its effect deps, so every click
+  between views (dashboard → logs → traces → …) fired a redundant `/me`
+  round-trip — the session and per-org role don't change as you navigate. Now a
+  true one-shot on mount. The cases that DO change auth already drive the
+  refresh directly (Login's `onAuthed`, inline logout state-clear, full reload
+  on org switch); session expiry is still caught lazily (any view's API call
+  401s and the request layer redirects to `#/login`). Snappier navigation, less
+  server load. (six-persona audit #27.)
+
+---
+
 ## [0.155.18] — 2026-06-22
 
 ### Added
