@@ -1,7 +1,12 @@
 //! Health endpoints.
 //!
 //! `/healthz` is liveness — always 200 if the process can answer.
-//! `/readyz`  is readiness — 200 only when the DB is reachable.
+//! `/health`  is an alias of `/healthz` — the conventional path many
+//!            orchestrators probe by default (k8s livenessProbe,
+//!            `docker-compose` healthcheck). Same always-200 liveness body.
+//! `/readyz`  is readiness — 200 only when the DB is reachable (use this for
+//!            a k8s readinessProbe so a DB outage drains the pod from the LB
+//!            without killing it).
 //! `/metrics` exposes Prometheus text — gauges and counters covering
 //! monitor status, latency, and domain/cert expiry.
 //!
@@ -28,6 +33,10 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/healthz", get(liveness))
+        // `/health` is the conventional default probe path (k8s / compose);
+        // alias it to the same unauthenticated liveness handler. Readiness
+        // (DB-gated) stays on `/readyz`. (Issue #64.)
+        .route("/health", get(liveness))
         .route("/readyz", get(readiness))
         .route("/metrics", get(metrics))
 }
