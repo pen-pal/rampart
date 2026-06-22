@@ -29,6 +29,26 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.155.8] — 2026-06-22
+
+### Changed
+- **Navigation menu is now an obvious, labelled launcher on every page.** The
+  global nav drawer's launcher was an unlabelled ☰ icon in the corner, easy to
+  miss — so from a sub-view users went back to the dashboard to navigate. It is
+  now a clearly-labelled **"☰ Menu"** pill, present on every authenticated view,
+  opening the same role-filtered drawer.
+
+### Internal
+- **e2e: cross-browser navigation robustness (full 5-browser matrix green).**
+  Firefox + WebKit abort `page.goto` mid-navigation (`NS_BINDING_ABORTED`,
+  "interrupted by another navigation", transient "WebKit encountered an internal
+  error") when the SPA redirects while a goto is settling — chromium tolerates
+  it. Routed all e2e navigations through a `robustGoto` helper that retries on
+  those engine-level aborts. chromium / firefox / webkit all 49/49 locally
+  (chrome + msedge ride the chromium engine). Test-harness only.
+
+---
+
 ## [0.155.7] — 2026-06-22
 
 ### Fixed

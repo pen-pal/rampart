@@ -512,15 +512,18 @@ function NavDrawer({ current, user, orgs, activeOrgId }) {
       {/* launcher */}
       <button
         aria-label="Open navigation"
+        title="Navigation menu"
         onClick={() => setOpen(true)}
         style={{
           position: 'fixed', right: 16, bottom: 16, zIndex: 9998,
-          width: 44, height: 44, borderRadius: 12, cursor: 'pointer',
+          height: 44, padding: '0 16px', borderRadius: 12, cursor: 'pointer',
+          display: 'inline-flex', alignItems: 'center', gap: 8,
           background: 'var(--accent, #14b8a6)', color: '#fff', border: 'none',
-          fontSize: 18, lineHeight: 1, boxShadow: '0 6px 18px rgba(0,0,0,.22)',
+          fontSize: 14, fontWeight: 600, lineHeight: 1,
+          boxShadow: '0 6px 18px rgba(0,0,0,.22)',
           fontFamily: 'Inter, system-ui, sans-serif',
         }}
-      >☰</button>
+      ><span style={{ fontSize: 18, lineHeight: 1 }}>☰</span> Menu</button>
 
       {open && (
         <>
