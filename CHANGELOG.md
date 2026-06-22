@@ -29,6 +29,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.155.3] — 2026-06-22
+
+### Changed
+- **Internal: extended the `Store` seam to 4 more domains (multi-DB P0 slice 4).**
+  Added `StoreProxies`, `StoreOnCall`, `StoreRecoveryCodes`, `StoreApiKeys`
+  sub-traits (per-domain-suffixed methods delegating to the existing free fns)
+  to the `Store` super-trait, and migrated ~18 rampart-api route/handler call
+  sites — including the `lookup_api_key` bearer-auth hot path — from
+  `rampart_db::X::fn(state.pool(), …)` to `state.store().…`. **Zero behavior
+  change** (same SQL, same pool + RLS hooks); bare-pool callers in
+  scheduler/notifier/seed stay on the free fns and coexist. No SQL/`.sqlx`/
+  migration change. Eight of the ~40 domains now flow through the object-safe
+  seam; `monitors`/`audit`/`orgs::upsert_member` still pending their
+  object-safety cleanups. (`docs/design/MULTI_DB.md`.)
+
+---
+
 ## [0.155.2] — 2026-06-22
 
 ### Changed

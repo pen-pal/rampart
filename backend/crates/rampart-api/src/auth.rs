@@ -196,7 +196,9 @@ pub async fn require_session(
 ) -> Result<Response, ApiError> {
     // Try bearer first — cheap header read, no DB hit if absent.
     if let Some(token) = bearer_token(req.headers()) {
-        let (key, user_id, key_org) = rampart_db::api_keys::lookup(state.pool(), &token)
+        let (key, user_id, key_org) = state
+            .store()
+            .lookup_api_key(&token)
             .await
             .map_err(|_| ApiError::Unauthorized)?;
         // Fire-and-forget — don't block the request on the bump.
