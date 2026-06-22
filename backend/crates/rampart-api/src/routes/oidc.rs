@@ -448,7 +448,7 @@ async fn login(State(app): State<AppState>) -> Result<impl IntoResponse, ApiErro
     let challenge = B64URL.encode(Sha256::digest(verifier.as_bytes()));
     let state = rand_token();
     let nonce = rand_token();
-    rampart_db::oidc_state::stash(app.pool(), &state, &verifier, Some(&nonce), None).await?;
+    app.store().stash_oidc_state(&state, &verifier, Some(&nonce), None).await?;
 
     let auth_url = format!(
         "{}?response_type=code&client_id={}&redirect_uri={}&scope={}&state={}&nonce={}&code_challenge={}&code_challenge_method=S256",
@@ -482,7 +482,9 @@ async fn callback(
     let code = q.code.ok_or(ApiError::BadRequest("missing code".into()))?;
     let state = q.state.ok_or(ApiError::BadRequest("missing state".into()))?;
     // Atomic, one-time-use consume of the login state (unknown/expired → 401).
-    let consumed = rampart_db::oidc_state::consume(app.pool(), &state)
+    let consumed = app
+        .store()
+        .consume_oidc_state(&state)
         .await?
         .ok_or(ApiError::Unauthorized)?;
     let verifier = consumed.pkce_verifier;

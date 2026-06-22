@@ -90,7 +90,7 @@ async fn list_tokens(
     // Org-gate via the owning page; a cross-org page id 404s before listing.
     rampart_db::status_pages::get(s.pool(), page_id, org.org_id).await?;
     Ok(Json(
-        rampart_db::ingest_tokens::list_for_page(s.pool(), page_id).await?,
+        s.store().list_ingest_tokens_for_page(page_id).await?,
     ))
 }
 
@@ -102,7 +102,7 @@ async fn create_token(
 ) -> Result<(StatusCode, Json<IngestToken>), ApiError> {
     let page_id = parse_page(&page)?;
     rampart_db::status_pages::get(s.pool(), page_id, org.org_id).await?;
-    let tok = rampart_db::ingest_tokens::create(s.pool(), page_id, input).await?;
+    let tok = s.store().create_ingest_token(page_id, input).await?;
     Ok((StatusCode::CREATED, Json(tok)))
 }
 
@@ -111,7 +111,7 @@ async fn revoke_token(
     Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::ingest_tokens::delete(s.pool(), parse_token_id(&id)?, org.org_id).await?;
+    s.store().delete_ingest_token(parse_token_id(&id)?, org.org_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -136,9 +136,10 @@ async fn set_token_mapping(
         serde_json::from_value::<IngestMapping>(m.clone())
             .map_err(|e| ApiError::BadRequest(format!("invalid mapping: {e}")))?;
     }
-    let tok =
-        rampart_db::ingest_tokens::set_mapping(s.pool(), parse_token_id(&id)?, body.mapping, org.org_id)
-            .await?;
+    let tok = s
+        .store()
+        .set_ingest_token_mapping(parse_token_id(&id)?, body.mapping, org.org_id)
+        .await?;
     Ok(Json(tok))
 }
 
@@ -172,11 +173,13 @@ struct NormalizedAlert {
 /// 404 for anything unknown — possession of a valid token is the entire
 /// auth check.
 async fn page_for_token(s: &AppState, token: &str) -> Result<StatusPageId, ApiError> {
-    let tok = rampart_db::ingest_tokens::find_by_token(s.pool(), token)
+    let tok = s
+        .store()
+        .find_ingest_token_by_token(token)
         .await
         .map_err(|_| ApiError::NotFound)?;
     // Best-effort last-used bump — don't fail the ingest on a touch error.
-    let _ = rampart_db::ingest_tokens::touch_last_used(s.pool(), tok.id).await;
+    let _ = s.store().touch_ingest_token_last_used(tok.id).await;
     Ok(tok.status_page_id)
 }
 
@@ -694,10 +697,12 @@ async fn generic(
     Json(body): Json<serde_json::Value>,
 ) -> Result<(StatusCode, Json<IngestSummary>), ApiError> {
     // Resolve the token to its record (404 on unknown) and require a mapping.
-    let tok = rampart_db::ingest_tokens::find_by_token(s.pool(), &token)
+    let tok = s
+        .store()
+        .find_ingest_token_by_token(&token)
         .await
         .map_err(|_| ApiError::NotFound)?;
-    let _ = rampart_db::ingest_tokens::touch_last_used(s.pool(), tok.id).await;
+    let _ = s.store().touch_ingest_token_last_used(tok.id).await;
     let page = tok.status_page_id;
 
     let raw = tok.mapping.ok_or_else(|| {

@@ -30,7 +30,7 @@ async fn list(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<Template>>, ApiError> {
-    Ok(Json(rampart_db::templates::list(s.pool(), org.org_id).await?))
+    Ok(Json(s.store().list_templates(org.org_id).await?))
 }
 
 async fn get_one(
@@ -39,7 +39,7 @@ async fn get_one(
     Path(id): Path<String>,
 ) -> Result<Json<Template>, ApiError> {
     Ok(Json(
-        rampart_db::templates::get(s.pool(), parse(&id)?, org.org_id).await?,
+        s.store().get_template(parse(&id)?, org.org_id).await?,
     ))
 }
 
@@ -54,7 +54,7 @@ async fn create(
     if input.body_template.trim().is_empty() {
         return Err(ApiError::BadRequest("body_template is required".into()));
     }
-    let t = rampart_db::templates::create(s.pool(), input, org.org_id).await?;
+    let t = s.store().create_template(input, org.org_id).await?;
     Ok((StatusCode::CREATED, Json(t)))
 }
 
@@ -65,7 +65,7 @@ async fn update(
     Json(input): Json<UpdateTemplate>,
 ) -> Result<Json<Template>, ApiError> {
     Ok(Json(
-        rampart_db::templates::update(s.pool(), parse(&id)?, input, org.org_id).await?,
+        s.store().update_template(parse(&id)?, input, org.org_id).await?,
     ))
 }
 
@@ -74,7 +74,7 @@ async fn remove(
     Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    rampart_db::templates::delete(s.pool(), parse(&id)?, org.org_id).await?;
+    s.store().delete_template(parse(&id)?, org.org_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 

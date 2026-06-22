@@ -33,7 +33,9 @@ pub async fn ingest(
     monitor: &Monitor,
     r: ExternalResult,
 ) -> Result<(), ApiError> {
-    let in_maintenance = rampart_db::maintenance::is_in_active_window(state.pool(), monitor.id)
+    let in_maintenance = state
+        .store()
+        .is_in_active_window(monitor.id)
         .await
         .unwrap_or(false);
 

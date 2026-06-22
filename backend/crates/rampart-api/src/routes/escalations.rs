@@ -35,7 +35,7 @@ async fn open_episodes(
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<EscalationEpisode>>, ApiError> {
     Ok(Json(
-        rampart_db::escalations::list_open_for_org(s.pool(), org.org_id).await?,
+        s.store().list_open_episodes_for_org(org.org_id).await?,
     ))
 }
 
@@ -51,8 +51,8 @@ async fn ack_episode_route(
     let episode_id =
         Uuid::from_str(&id).map_err(|_| ApiError::BadRequest("invalid episode id".into()))?;
     // Gate through the episode's owning policy's org — cross-org episode = 404.
-    rampart_db::escalations::episode_in_org(s.pool(), episode_id, org.org_id).await?;
-    let ep = rampart_db::escalations::ack_episode(s.pool(), episode_id, user.id).await?;
+    s.store().episode_in_org(episode_id, org.org_id).await?;
+    let ep = s.store().ack_episode(episode_id, user.id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -89,7 +89,7 @@ async fn list(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<EscalationPolicy>>, ApiError> {
-    Ok(Json(rampart_db::escalations::list(s.pool(), org.org_id).await?))
+    Ok(Json(s.store().list_escalation_policies(org.org_id).await?))
 }
 
 async fn create(
@@ -104,7 +104,7 @@ async fn create(
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     validate_steps(&input.steps).map_err(ApiError::BadRequest)?;
     let name = input.name.clone();
-    let policy = rampart_db::escalations::create(s.pool(), input, org.org_id).await?;
+    let policy = s.store().create_escalation_policy(input, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -133,7 +133,7 @@ async fn update(
     if let Some(steps) = &input.steps {
         validate_steps(steps).map_err(ApiError::BadRequest)?;
     }
-    let policy = rampart_db::escalations::update(s.pool(), policy_id, input, org.org_id).await?;
+    let policy = s.store().update_escalation_policy(policy_id, input, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -155,7 +155,7 @@ async fn delete(
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let policy_id = parse(&id)?;
-    rampart_db::escalations::delete(s.pool(), policy_id, org.org_id).await?;
+    s.store().delete_escalation_policy(policy_id, org.org_id).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -179,7 +179,7 @@ async fn episode(
     // Gate through the monitor's org — cross-org monitor id is a 404.
     rampart_db::monitors::get(s.pool(), monitor_id, org.org_id).await?;
     Ok(Json(
-        rampart_db::escalations::open_for_monitor(s.pool(), monitor_id).await?,
+        s.store().open_episode_for_monitor(monitor_id).await?,
     ))
 }
 
@@ -195,7 +195,7 @@ async fn ack(
     let monitor_id = parse_monitor(&id)?;
     // Gate through the monitor's org — cross-org monitor id is a 404.
     rampart_db::monitors::get(s.pool(), monitor_id, org.org_id).await?;
-    let episode = rampart_db::escalations::ack(s.pool(), monitor_id, user.id).await?;
+    let episode = s.store().ack_episode_for_monitor(monitor_id, user.id).await?;
     crate::audit::record(
         s.pool(),
         &user,
