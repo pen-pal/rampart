@@ -24,7 +24,7 @@ use rampart_core::org::Org;
 use rampart_core::Role;
 use rampart_db::orgs;
 use rampart_db::users::User;
-use rampart_db::{DbPool, DbResult};
+use rampart_db::DbResult;
 use serde::Deserialize;
 use std::str::FromStr;
 use uuid::Uuid;
@@ -66,12 +66,12 @@ fn parse_user(s: &str) -> Result<UserId, ApiError> {
 /// - **member but under-privileged → `Forbidden` (403):** the org is known to
 ///   exist (the caller is in it), but they lack the rank for this action.
 async fn require_org_role(
-    pool: &DbPool,
+    store: &dyn rampart_db::store::Store,
     org: OrgId,
     user: &User,
     min: Role,
 ) -> Result<Role, ApiError> {
-    match orgs::member_role(pool, org, user.id).await? {
+    match store.org_member_role(org, user.id).await? {
         None => Err(ApiError::NotFound),
         Some(role) if role.at_least(min) => Ok(role),
         Some(_) => Err(ApiError::Forbidden),
@@ -85,7 +85,7 @@ async fn list(
     State(s): State<AppState>,
     Extension(user): Extension<User>,
 ) -> Result<Json<Vec<Org>>, ApiError> {
-    Ok(Json(orgs::list_for_user(s.pool(), user.id).await?))
+    Ok(Json(s.store().orgs_for_user(user.id).await?))
 }
 
 // ── POST /v1/orgs — create an org (any authenticated user) ──────────────────
@@ -123,7 +123,10 @@ async fn create(
     }
     // Atomic: the creator becomes the org's first Admin. Duplicate slug maps
     // to Conflict (409) inside create_with_owner.
-    let org = orgs::create_with_owner(s.pool(), &input.slug, &input.name, user.id).await?;
+    let org = s
+        .store()
+        .create_org_with_owner(&input.slug, &input.name, user.id)
+        .await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -146,8 +149,8 @@ async fn get_one(
     Path(id): Path<String>,
 ) -> Result<Json<Org>, ApiError> {
     let org = parse_org(&id)?;
-    require_org_role(s.pool(), org, &user, Role::Readonly).await?;
-    Ok(Json(orgs::get(s.pool(), org).await?))
+    require_org_role(s.store().as_ref(), org, &user, Role::Readonly).await?;
+    Ok(Json(s.store().get_org(org).await?))
 }
 
 // ── PATCH /v1/orgs/{id} — rename (org Admin only) ───────────────────────────
@@ -165,11 +168,11 @@ async fn rename(
     Json(input): Json<RenameOrgInput>,
 ) -> Result<Json<Org>, ApiError> {
     let org = parse_org(&id)?;
-    require_org_role(s.pool(), org, &user, Role::Admin).await?;
+    require_org_role(s.store().as_ref(), org, &user, Role::Admin).await?;
     if input.name.trim().is_empty() {
         return Err(ApiError::BadRequest("name must not be empty".into()));
     }
-    let updated = orgs::update(s.pool(), org, &input.name).await?;
+    let updated = s.store().update_org(org, &input.name).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -191,8 +194,8 @@ async fn list_members(
     Path(id): Path<String>,
 ) -> Result<Json<Vec<orgs::OrgMemberDetail>>, ApiError> {
     let org = parse_org(&id)?;
-    require_org_role(s.pool(), org, &user, Role::Readonly).await?;
-    Ok(Json(orgs::list_members_detailed(s.pool(), org).await?))
+    require_org_role(s.store().as_ref(), org, &user, Role::Readonly).await?;
+    Ok(Json(s.store().list_org_members_detailed(org).await?))
 }
 
 // ── POST /v1/orgs/{id}/members — add a member by email (org Admin only) ──────
@@ -214,13 +217,15 @@ async fn add_member(
     Json(input): Json<AddMemberInput>,
 ) -> Result<StatusCode, ApiError> {
     let org = parse_org(&id)?;
-    require_org_role(s.pool(), org, &user, Role::Admin).await?;
+    require_org_role(s.store().as_ref(), org, &user, Role::Admin).await?;
     let target = s
         .store()
         .user_by_email(&input.email)
         .await?
         .ok_or(ApiError::NotFound)?;
-    orgs::upsert_member(s.pool(), org, target.id, input.role).await?;
+    s.store()
+        .upsert_org_member(org, target.id, input.role)
+        .await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -254,19 +259,21 @@ async fn set_member_role(
 ) -> Result<StatusCode, ApiError> {
     let org = parse_org(&id)?;
     let target = parse_user(&user_id)?;
-    require_org_role(s.pool(), org, &user, Role::Admin).await?;
+    require_org_role(s.store().as_ref(), org, &user, Role::Admin).await?;
 
-    let current = orgs::member_role(s.pool(), org, target)
+    let current = s
+        .store()
+        .org_member_role(org, target)
         .await?
         .ok_or(ApiError::NotFound)?;
     // Last-admin protection: refuse to demote the org's final Admin, which
     // would leave it with nobody who can manage membership (orphaned).
-    if last_admin_demotion(s.pool(), org, current, input.role).await? {
+    if last_admin_demotion(s.store().as_ref(), org, current, input.role).await? {
         return Err(ApiError::Conflict(
             "cannot demote the last admin of the org".into(),
         ));
     }
-    orgs::upsert_member(s.pool(), org, target, input.role).await?;
+    s.store().upsert_org_member(org, target, input.role).await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -288,13 +295,13 @@ async fn set_member_role(
 /// last remaining Admin: the target is currently Admin, the new role isn't
 /// Admin, and there's exactly one Admin in the org.
 async fn last_admin_demotion(
-    pool: &DbPool,
+    store: &dyn rampart_db::store::Store,
     org: OrgId,
     current: Role,
     new: Role,
 ) -> DbResult<bool> {
     if current.is_admin() && !new.is_admin() {
-        Ok(orgs::count_admins(pool, org).await? <= 1)
+        Ok(store.count_org_admins(org).await? <= 1)
     } else {
         Ok(false)
     }
@@ -316,7 +323,7 @@ async fn switch(
 ) -> Result<StatusCode, ApiError> {
     let org = parse_org(&id)?;
     // Membership gate (any role): you can only switch INTO an org you belong to.
-    require_org_role(s.pool(), org, &user, Role::Readonly).await?;
+    require_org_role(s.store().as_ref(), org, &user, Role::Readonly).await?;
     let token = jar
         .get(SESSION_COOKIE)
         .and_then(|c| Uuid::from_str(c.value()).ok())
@@ -342,18 +349,20 @@ async fn remove_member(
 ) -> Result<StatusCode, ApiError> {
     let org = parse_org(&id)?;
     let target = parse_user(&user_id)?;
-    require_org_role(s.pool(), org, &user, Role::Admin).await?;
+    require_org_role(s.store().as_ref(), org, &user, Role::Admin).await?;
 
-    let current = orgs::member_role(s.pool(), org, target)
+    let current = s
+        .store()
+        .org_member_role(org, target)
         .await?
         .ok_or(ApiError::NotFound)?;
     // Last-admin protection: removing the final Admin would orphan the org.
-    if current.is_admin() && orgs::count_admins(s.pool(), org).await? <= 1 {
+    if current.is_admin() && s.store().count_org_admins(org).await? <= 1 {
         return Err(ApiError::Conflict(
             "cannot remove the last admin of the org".into(),
         ));
     }
-    if !orgs::remove_member(s.pool(), org, target).await? {
+    if !s.store().remove_org_member(org, target).await? {
         return Err(ApiError::NotFound);
     }
     crate::audit::record(

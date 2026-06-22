@@ -622,8 +622,10 @@ async fn callback(
     // auto-create, no deny). Idempotent. No-op when org_slugs is empty.
     let mut mapped_org: Option<rampart_core::ids::OrgId> = None;
     for slug in &org_slugs {
-        if let Ok(org) = rampart_db::orgs::get_by_slug(app.pool(), slug).await {
-            rampart_db::orgs::upsert_member(app.pool(), org.id, user.id, cfg.default_role).await?;
+        if let Ok(org) = app.store().org_by_slug(slug).await {
+            app.store()
+                .upsert_org_member(org.id, user.id, cfg.default_role)
+                .await?;
             if mapped_org.is_none() {
                 mapped_org = Some(org.id);
             }

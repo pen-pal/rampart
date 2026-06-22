@@ -1653,6 +1653,44 @@ pub trait StoreWebpush: Send + Sync {
     async fn set_vapid_keys(&self, keys: &crate::webpush::VapidKeys) -> DbResult<()>;
 }
 
+#[async_trait::async_trait]
+pub trait StoreOrgs: Send + Sync {
+    async fn create_org(&self, slug: &str, name: &str) -> DbResult<rampart_core::org::Org>;
+
+    async fn get_org(&self, id: OrgId) -> DbResult<rampart_core::org::Org>;
+
+    async fn orgs_for_user(&self, user_id: UserId) -> DbResult<Vec<rampart_core::org::Org>>;
+
+    /// Add or update a membership (pool-scoped). The generic-executor free fn
+    /// `orgs::upsert_member` stays for tx-atomic callers (it can't sit on a
+    /// `dyn Store` method — generic `PgExecutor` bound isn't object-safe).
+    async fn upsert_org_member(&self, org_id: OrgId, user_id: UserId, role: Role) -> DbResult<()>;
+
+    async fn org_member_role(&self, org_id: OrgId, user_id: UserId) -> DbResult<Option<Role>>;
+
+    async fn list_org_members(&self, org_id: OrgId) -> DbResult<Vec<rampart_core::org::OrgMember>>;
+
+    async fn list_org_members_detailed(
+        &self,
+        org_id: OrgId,
+    ) -> DbResult<Vec<crate::orgs::OrgMemberDetail>>;
+
+    async fn update_org(&self, id: OrgId, name: &str) -> DbResult<rampart_core::org::Org>;
+
+    async fn org_by_slug(&self, slug: &str) -> DbResult<rampart_core::org::Org>;
+
+    async fn remove_org_member(&self, org_id: OrgId, user_id: UserId) -> DbResult<bool>;
+
+    async fn count_org_admins(&self, org_id: OrgId) -> DbResult<i64>;
+
+    async fn create_org_with_owner(
+        &self,
+        slug: &str,
+        name: &str,
+        owner: UserId,
+    ) -> DbResult<rampart_core::org::Org>;
+}
+
 /// Composed store super-trait spanning every extracted domain sub-trait.
 pub trait Store:
     StoreHeartbeats
@@ -1697,6 +1735,7 @@ pub trait Store:
     + StoreSourceMaps
     + StoreUsers
     + StoreWebpush
+    + StoreOrgs
     + Send
     + Sync
 {
@@ -3974,6 +4013,65 @@ impl StoreWebpush for PgStore {
 
     async fn set_vapid_keys(&self, keys: &crate::webpush::VapidKeys) -> DbResult<()> {
         crate::webpush::set_vapid(&self.pool, keys).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreOrgs for PgStore {
+    async fn create_org(&self, slug: &str, name: &str) -> DbResult<rampart_core::org::Org> {
+        crate::orgs::create(&self.pool, slug, name).await
+    }
+
+    async fn get_org(&self, id: OrgId) -> DbResult<rampart_core::org::Org> {
+        crate::orgs::get(&self.pool, id).await
+    }
+
+    async fn orgs_for_user(&self, user_id: UserId) -> DbResult<Vec<rampart_core::org::Org>> {
+        crate::orgs::list_for_user(&self.pool, user_id).await
+    }
+
+    async fn upsert_org_member(&self, org_id: OrgId, user_id: UserId, role: Role) -> DbResult<()> {
+        crate::orgs::upsert_member(&self.pool, org_id, user_id, role).await
+    }
+
+    async fn org_member_role(&self, org_id: OrgId, user_id: UserId) -> DbResult<Option<Role>> {
+        crate::orgs::member_role(&self.pool, org_id, user_id).await
+    }
+
+    async fn list_org_members(&self, org_id: OrgId) -> DbResult<Vec<rampart_core::org::OrgMember>> {
+        crate::orgs::list_members(&self.pool, org_id).await
+    }
+
+    async fn list_org_members_detailed(
+        &self,
+        org_id: OrgId,
+    ) -> DbResult<Vec<crate::orgs::OrgMemberDetail>> {
+        crate::orgs::list_members_detailed(&self.pool, org_id).await
+    }
+
+    async fn update_org(&self, id: OrgId, name: &str) -> DbResult<rampart_core::org::Org> {
+        crate::orgs::update(&self.pool, id, name).await
+    }
+
+    async fn org_by_slug(&self, slug: &str) -> DbResult<rampart_core::org::Org> {
+        crate::orgs::get_by_slug(&self.pool, slug).await
+    }
+
+    async fn remove_org_member(&self, org_id: OrgId, user_id: UserId) -> DbResult<bool> {
+        crate::orgs::remove_member(&self.pool, org_id, user_id).await
+    }
+
+    async fn count_org_admins(&self, org_id: OrgId) -> DbResult<i64> {
+        crate::orgs::count_admins(&self.pool, org_id).await
+    }
+
+    async fn create_org_with_owner(
+        &self,
+        slug: &str,
+        name: &str,
+        owner: UserId,
+    ) -> DbResult<rampart_core::org::Org> {
+        crate::orgs::create_with_owner(&self.pool, slug, name, owner).await
     }
 }
 
