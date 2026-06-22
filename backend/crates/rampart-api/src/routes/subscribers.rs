@@ -191,8 +191,8 @@ async fn subscribe(
     if !input.email.contains('@') {
         return Err(ApiError::BadRequest("email looks invalid".into()));
     }
-    let page = rampart_db::status_pages::get_by_slug(s.pool(), &slug).await?;
-    rampart_db::subscribers::subscribe_email(s.pool(), page.id, &input.email).await?;
+    let page = s.store().get_status_page_by_slug(&slug).await?;
+    s.store().subscribe_email(page.id, &input.email).await?;
     // No confirmation email in v1 (single-opt-in). Future: send a
     // confirm link instead and only flip `confirmed` on click.
     Ok(StatusCode::ACCEPTED)
@@ -203,7 +203,7 @@ async fn unsubscribe(
     Path(token): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     // Idempotent: missing token still returns the same friendly page.
-    let _ = rampart_db::subscribers::unsubscribe_by_token(s.pool(), &token).await;
+    let _ = s.store().unsubscribe_subscriber_by_token(&token).await;
     // Tiny self-contained page — no SPA, no auth, just a confirmation.
     Ok(Html(
         r#"<!doctype html><html><head><meta charset="utf-8">
@@ -228,10 +228,12 @@ async fn manage(
     State(s): State<AppState>,
     Path(token): Path<String>,
 ) -> Result<Json<ManageView>, ApiError> {
-    let email = rampart_db::subscribers::email_for_token(s.pool(), &token)
+    let email = s
+        .store()
+        .subscriber_email_for_token(&token)
         .await?
         .ok_or(ApiError::NotFound)?;
-    let subscriptions = rampart_db::subscribers::subscriptions_for_email(s.pool(), &email).await?;
+    let subscriptions = s.store().subscriptions_for_email(&email).await?;
     Ok(Json(ManageView {
         email,
         subscriptions,
@@ -248,10 +250,12 @@ async fn unsubscribe_all(
     State(s): State<AppState>,
     Path(token): Path<String>,
 ) -> Result<Json<RemovedCount>, ApiError> {
-    let email = rampart_db::subscribers::email_for_token(s.pool(), &token)
+    let email = s
+        .store()
+        .subscriber_email_for_token(&token)
         .await?
         .ok_or(ApiError::NotFound)?;
-    let removed = rampart_db::subscribers::unsubscribe_all_for_email(s.pool(), &email).await?;
+    let removed = s.store().unsubscribe_all_for_email(&email).await?;
     Ok(Json(RemovedCount { removed }))
 }
 
@@ -261,11 +265,15 @@ async fn unsubscribe_page(
     State(s): State<AppState>,
     Path((token, slug)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
-    let email = rampart_db::subscribers::email_for_token(s.pool(), &token)
+    let email = s
+        .store()
+        .subscriber_email_for_token(&token)
         .await?
         .ok_or(ApiError::NotFound)?;
-    let page = rampart_db::status_pages::get_by_slug(s.pool(), &slug).await?;
-    rampart_db::subscribers::unsubscribe_email_from_page(s.pool(), page.id, &email).await?;
+    let page = s.store().get_status_page_by_slug(&slug).await?;
+    s.store()
+        .unsubscribe_email_from_page(page.id, &email)
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -288,10 +296,8 @@ async fn list(
     let page_id = parse_page(&id)?;
     // Org-gate via the parent page: cross-org pages 404 here, so the
     // subscriber list never leaks across tenants.
-    rampart_db::status_pages::get(s.pool(), page_id, org.org_id).await?;
-    Ok(Json(
-        rampart_db::subscribers::list_for_page(s.pool(), page_id).await?,
-    ))
+    s.store().get_status_page(page_id, org.org_id).await?;
+    Ok(Json(s.store().list_subscribers_for_page(page_id).await?))
 }
 
 async fn delete_one(
@@ -302,11 +308,13 @@ async fn delete_one(
     let sub_id = parse_sub(&id)?;
     // Resolve the subscriber's parent page, then org-gate it: a missing
     // subscriber or one on another org's page both 404 (no leak).
-    let page_id = rampart_db::subscribers::page_for(s.pool(), sub_id)
+    let page_id = s
+        .store()
+        .subscriber_page_for(sub_id)
         .await?
         .ok_or(ApiError::NotFound)?;
-    rampart_db::status_pages::get(s.pool(), page_id, org.org_id).await?;
-    rampart_db::subscribers::delete(s.pool(), sub_id).await?;
+    s.store().get_status_page(page_id, org.org_id).await?;
+    s.store().delete_subscriber(sub_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 

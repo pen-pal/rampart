@@ -221,17 +221,18 @@ async fn change_password(
     rampart_db::users::set_password(s.pool(), caller.id, &hash).await?;
     // Re-issue a fresh session for the current device so the user isn't logged
     // out by their own password change — other devices stay revoked.
-    let session = rampart_db::sessions::create(
-        s.pool(),
-        caller.id,
-        SESSION_TTL_SECS,
-        crate::client_ip::from_headers(&headers),
-        headers
-            .get("user-agent")
-            .and_then(|v| v.to_str().ok())
-            .map(String::from),
-    )
-    .await?;
+    let session = s
+        .store()
+        .create_session(
+            caller.id,
+            SESSION_TTL_SECS,
+            crate::client_ip::from_headers(&headers),
+            headers
+                .get("user-agent")
+                .and_then(|v| v.to_str().ok())
+                .map(String::from),
+        )
+        .await?;
     let cookie = build_session_cookie(session.id, is_secure(&headers));
     Ok((
         StatusCode::NO_CONTENT,
