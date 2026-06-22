@@ -105,6 +105,7 @@ async fn create(
         .await?;
     // Best-effort subscriber fan-out — failures are logged, not surfaced.
     fan_out_incident(s.clone(), org.org_id, page_id, i.clone(), None);
+    crate::routes::status_pages::invalidate_public_view_cache();
     Ok((StatusCode::CREATED, Json(i)))
 }
 
@@ -116,7 +117,9 @@ async fn update(
 ) -> Result<Json<Incident>, ApiError> {
     let id = parse_incident(&id)?;
     gate_incident(&s, id, org.org_id).await?;
-    Ok(Json(s.store().update_incident(id, patch).await?))
+    let incident = s.store().update_incident(id, patch).await?;
+    crate::routes::status_pages::invalidate_public_view_cache();
+    Ok(Json(incident))
 }
 
 async fn delete_one(
@@ -127,6 +130,7 @@ async fn delete_one(
     let id = parse_incident(&id)?;
     gate_incident(&s, id, org.org_id).await?;
     s.store().delete_incident(id).await?;
+    crate::routes::status_pages::invalidate_public_view_cache();
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -140,6 +144,7 @@ async fn resolve(
     s.store()
         .resolve_incident(id, OffsetDateTime::now_utc())
         .await?;
+    crate::routes::status_pages::invalidate_public_view_cache();
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -173,6 +178,7 @@ async fn post_update(
     s.store()
         .post_incident_update(incident_id, Some(user.id), body.message.clone())
         .await?;
+    crate::routes::status_pages::invalidate_public_view_cache();
     let inc = s.store().get_incident(incident_id).await?;
     fan_out_incident(
         s.clone(),
