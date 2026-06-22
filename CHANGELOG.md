@@ -29,6 +29,30 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.155.6] — 2026-06-22
+
+### Fixed
+- **Auth: signup/login → dashboard navigation race.** After a successful
+  first-run signup (or login), the SPA navigated to `#/` before its auth state
+  refreshed, so the route gate saw a stale `user: null` and bounced the
+  just-authenticated user back to `#/login` — where a one-shot `needs_setup`
+  check kept them stuck despite a valid session. `Login.jsx` now awaits a
+  shared `refreshAuth()` (exposed by `App.jsx`) before navigating, so the gate
+  sees the live session on the next render. Surfaced by the e2e suite; affects
+  the login→dashboard transition under realistic timing.
+
+### Internal
+- **e2e: per-test client-IP isolation for the auth rate-limiter.** The
+  auth-surface limiter (10-burst per client IP, added with the trusted-peer IP
+  resolution) pooled the whole Playwright suite's logins into one loopback
+  bucket, so the suite starved itself with 429s. The harness now stamps a
+  unique `X-Forwarded-For` per browser/API context (`e2e/fixtures.js`) and the
+  test webServer sets `RAMPART_TRUSTED_PROXIES` to the loopback peer so the
+  server honours it. Test-environment only — production still keys on the real
+  TCP peer, default burst unchanged.
+
+---
+
 ## [0.155.5] — 2026-06-22
 
 ### Changed

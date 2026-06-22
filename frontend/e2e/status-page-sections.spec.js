@@ -21,7 +21,7 @@
 // section_id assignment uses rampart_core::AssignSectionReq { section_id }.
 // Public section monitors are keyed by monitor `name`.
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { api, ensureLoggedIn, uniq } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });

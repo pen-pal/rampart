@@ -83,7 +83,7 @@ const css = `
   }
 `;
 
-export default function Login() {
+export default function Login({ onAuthed } = {}) {
   const meState = useApi(() => api.auth.me(), []);
   const [email,    setEmail]    = useState('');
   const [name,     setName]     = useState('');
@@ -127,6 +127,9 @@ export default function Login() {
           return;
         }
         await api.auth.register(email.trim(), name.trim() || null, password);
+        // Refresh app-level auth state BEFORE navigating so the route gate
+        // sees the new session instead of bouncing us back to #/login.
+        await onAuthed?.();
         window.location.hash = '#/';
       } else {
         const r = await api.auth.login(email.trim(), password);
@@ -137,6 +140,7 @@ export default function Login() {
           setBusy(false);
           return;
         }
+        await onAuthed?.();
         window.location.hash = '#/';
       }
     } catch (e2) {
@@ -156,6 +160,7 @@ export default function Login() {
     setBusy(true);
     try {
       await api.auth.totpVerify(challengeToken, totpCode.trim());
+      await onAuthed?.();
       window.location.hash = '#/';
     } catch (e2) {
       // 401 on bad code: parse the new challenge token if the server

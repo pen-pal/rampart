@@ -1,7 +1,7 @@
 // E2E: create a monitor via the wizard, verify it appears on the
 // dashboard, attach a channel, see the bell badge update.
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { api, ensureLoggedIn, uniq } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });

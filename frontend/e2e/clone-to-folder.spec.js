@@ -18,7 +18,7 @@
 //   4. Clone {group_id: <bogus uuid>} -> 400.
 // All created monitors + the group are torn down in finally.
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { api, rawApi, ensureLoggedIn, uniq } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });

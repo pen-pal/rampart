@@ -13,7 +13,7 @@
 // and confirm a <style> tag carries the sentinel. The page is uniq()-suffixed
 // and torn down in a finally.
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { api, ensureLoggedIn, uniq } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });

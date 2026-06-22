@@ -12,7 +12,7 @@
 // Two monitors created (one with SLO, one without), both uniq()-named and
 // removed in a finally so the shared cross-browser DB stays clean.
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { api, rawApi, ensureLoggedIn, uniq } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });

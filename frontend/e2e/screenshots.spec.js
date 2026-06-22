@@ -10,7 +10,7 @@
 // the CI matrix in `playwright.config.js` because it mutates files on
 // disk under `docs/`. Run it locally and commit the result.
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { api, ensureLoggedIn, fixtures, gotoView, uniq } from './helpers.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
