@@ -46,16 +46,20 @@ pub async fn create(
 ) -> DbResult<IngestToken> {
     let id = IngestTokenId::new();
     let token = generate_token();
+    // Dual-write (Phase A): hash for the new lookup + plaintext for rollback
+    // safety; plaintext is dropped in a later migration (see 0118).
+    let token_hash = crate::api_keys::sha256_hex(&token);
     let row = sqlx::query_as!(
         TokenRow,
         r#"
-        INSERT INTO ingest_tokens (id, status_page_id, token, label, mapping)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO ingest_tokens (id, status_page_id, token, token_hash, label, mapping)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id, status_page_id, token, label, mapping, created_at, last_used_at
         "#,
         id.0,
         page.0,
         token,
+        token_hash,
         input.label,
         input.mapping,
     )
@@ -75,16 +79,18 @@ pub async fn create_with_token(
     token: &str,
 ) -> DbResult<IngestToken> {
     let id = IngestTokenId::new();
+    let token_hash = crate::api_keys::sha256_hex(token);
     let row = sqlx::query_as!(
         TokenRow,
         r#"
-        INSERT INTO ingest_tokens (id, status_page_id, token, label, mapping)
-        VALUES ($1, $2, $3, $4, NULL)
+        INSERT INTO ingest_tokens (id, status_page_id, token, token_hash, label, mapping)
+        VALUES ($1, $2, $3, $4, $5, NULL)
         RETURNING id, status_page_id, token, label, mapping, created_at, last_used_at
         "#,
         id.0,
         page.0,
         token,
+        token_hash,
         label,
     )
     .fetch_one(pool)
@@ -138,13 +144,17 @@ pub async fn list_for_page(pool: &DbPool, page: StatusPageId) -> DbResult<Vec<In
 
 /// Resolve a raw token to its record. Returns NotFound for an unknown token.
 pub async fn find_by_token(pool: &DbPool, token: &str) -> DbResult<IngestToken> {
+    // Hash-primary with plaintext fallback (Phase A) — fallback covers a token
+    // created by an old build mid-rolling-deploy. Both columns are UNIQUE.
+    let hash = crate::api_keys::sha256_hex(token);
     let row = sqlx::query_as!(
         TokenRow,
         r#"
         SELECT id, status_page_id, token, label, mapping, created_at, last_used_at
         FROM ingest_tokens
-        WHERE token = $1
+        WHERE token_hash = $1 OR token = $2
         "#,
+        hash,
         token,
     )
     .fetch_optional(pool)

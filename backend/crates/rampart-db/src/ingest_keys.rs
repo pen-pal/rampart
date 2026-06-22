@@ -74,6 +74,11 @@ pub async fn create(
 ) -> DbResult<(IngestKey, String)> {
     let id = Uuid::now_v7();
     let token = generate_token();
+    // Dual-write (Phase A): store the SHA-256 hash for the new hash-based lookup
+    // AND the plaintext, so a rollback to the previous build (which reads
+    // `WHERE token = $1`) still resolves this key. The plaintext column is
+    // dropped in a later migration once every node reads the hash.
+    let token_hash = crate::api_keys::sha256_hex(&token);
     let origins: Option<&[String]> = if allowed_origins.is_empty() {
         None
     } else {
@@ -82,13 +87,14 @@ pub async fn create(
     let row = sqlx::query_as!(
         KeyRow,
         r#"
-        INSERT INTO ingest_keys (id, org_id, token, label, kind, allowed_origins)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO ingest_keys (id, org_id, token, token_hash, label, kind, allowed_origins)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING id, org_id, label, kind, allowed_origins, created_at, last_used_at
         "#,
         id,
         org_id.0,
         token,
+        token_hash,
         label,
         kind,
         origins as Option<&[String]>,
@@ -105,8 +111,16 @@ pub async fn find_by_token(
     pool: &DbPool,
     token: &str,
 ) -> DbResult<Option<(Uuid, OrgId, Vec<String>)>> {
+    // Hash-primary lookup with a plaintext fallback (Phase A): the fallback
+    // resolves a key created by an OLD build mid-rolling-deploy (it wrote only
+    // `token`, no `token_hash`). Both columns are UNIQUE so this returns at most
+    // one row. The fallback (and the plaintext column) go away in the Phase-D
+    // migration once no old build remains.
+    let hash = crate::api_keys::sha256_hex(token);
     let row = sqlx::query!(
-        r#"SELECT id, org_id, allowed_origins FROM ingest_keys WHERE token = $1"#,
+        r#"SELECT id, org_id, allowed_origins FROM ingest_keys
+           WHERE token_hash = $1 OR token = $2"#,
+        hash,
         token,
     )
     .fetch_optional(pool)

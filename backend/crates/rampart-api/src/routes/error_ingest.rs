@@ -75,7 +75,9 @@ async fn ingest(
         .await?
         .ok_or(ApiError::NotFound)?;
     let key = sentry_key(&headers, &q).ok_or(ApiError::NotFound)?;
-    if key != project.public_key {
+    // Constant-time compare so request timing can't recover the DSN key byte by
+    // byte (a plain `!=` short-circuits on the first differing byte).
+    if !crate::ingest_util::constant_time_eq(key.as_bytes(), project.public_key.as_bytes()) {
         return Err(ApiError::NotFound);
     }
 

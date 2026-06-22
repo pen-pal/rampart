@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO ingest_tokens (id, status_page_id, token, label, mapping)\n        VALUES ($1, $2, $3, $4, NULL)\n        RETURNING id, status_page_id, token, label, mapping, created_at, last_used_at\n        ",
+  "query": "\n        INSERT INTO ingest_tokens (id, status_page_id, token, token_hash, label, mapping)\n        VALUES ($1, $2, $3, $4, $5, NULL)\n        RETURNING id, status_page_id, token, label, mapping, created_at, last_used_at\n        ",
   "describe": {
     "columns": [
       {
@@ -86,6 +86,7 @@
         "Uuid",
         "Uuid",
         "Text",
+        "Text",
         "Text"
       ]
     },
@@ -99,5 +100,5 @@
       true
     ]
   },
-  "hash": "c82063bbd93b28dbb79c69d5dfaf43d89d85306b9234e2204fb9723cb960a5f4"
+  "hash": "77cd3d2fda8f4565522e6ba87aa79953077b06352b2ff281f4cc82f7c59f5b2b"
 }

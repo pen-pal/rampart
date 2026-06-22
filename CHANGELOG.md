@@ -29,6 +29,29 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.152.6] — 2026-06-22
+
+### Security
+- **Ingest credentials are now hashed at rest (SHA-256), Phase A.** `ingest_keys`
+  (per-org OTLP/Prom/RUM/profiles keys) and `ingest_tokens` (per-status-page
+  webhook tokens) were stored verbatim and resolved by `WHERE token = $1`,
+  unlike their already-hashed peers `api_keys.key_hash` / `agents.token_hash`.
+  Migration `0118` adds a `token_hash` column, backfills it from the existing
+  plaintext (pgcrypto `digest()`, byte-identical to the Rust `sha256_hex`), and
+  builds a UNIQUE index; the app now mints with the hash and resolves by it.
+  **Non-breaking:** the credential value clients present is unchanged, every
+  already-minted key/token keeps working (backfilled), and the plaintext column
+  is intentionally KEPT this release so a rollback stays safe — lookups use a
+  `token_hash OR token` fallback so a key minted by an old node mid-rolling-deploy
+  still resolves. A follow-up migration (Phase D) drops the plaintext column
+  (the point at-rest exposure is fully eliminated) and makes webhook tokens
+  show-once. (Six-persona audit #19.)
+- **Sentry DSN-key check is now constant-time.** The error-ingest auth compared
+  the presented key with `!=` (short-circuits on the first differing byte — a
+  timing oracle); it now uses the shared constant-time comparison. (#19.)
+
+---
+
 ## [0.152.5] — 2026-06-21
 
 ### Security
