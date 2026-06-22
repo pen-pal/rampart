@@ -81,9 +81,7 @@ async fn update(
     input
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
-    Ok(Json(
-        s.store().update_slo(slo_id, input, org.org_id).await?,
-    ))
+    Ok(Json(s.store().update_slo(slo_id, input, org.org_id).await?))
 }
 
 async fn delete_slo(

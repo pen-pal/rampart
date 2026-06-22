@@ -57,7 +57,11 @@ pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<IncidentTemplate
         .collect())
 }
 
-pub async fn get(pool: &DbPool, id: IncidentTemplateId, org_id: OrgId) -> DbResult<IncidentTemplate> {
+pub async fn get(
+    pool: &DbPool,
+    id: IncidentTemplateId,
+    org_id: OrgId,
+) -> DbResult<IncidentTemplate> {
     let r = sqlx::query!(
         r#"
         SELECT id, name, body, style AS "style: IncidentStyle", created_at

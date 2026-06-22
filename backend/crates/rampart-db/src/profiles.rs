@@ -217,12 +217,22 @@ mod tests {
 
     #[sqlx::test(migrations = "../../migrations")]
     async fn insert_list_window_pickers_prune(pool: PgPool) {
-        let id1 = insert(&pool, np("api", b"a;b 3\n"), TEST_ORG).await.unwrap();
-        insert(&pool, np("api", b"a;c 2\n"), TEST_ORG).await.unwrap();
+        let id1 = insert(&pool, np("api", b"a;b 3\n"), TEST_ORG)
+            .await
+            .unwrap();
+        insert(&pool, np("api", b"a;c 2\n"), TEST_ORG)
+            .await
+            .unwrap();
         assert!(id1 > 0);
 
         // list — unscoped + scoped + miss
-        assert_eq!(list(&pool, None, None, 24, 100, TEST_ORG).await.unwrap().len(), 2);
+        assert_eq!(
+            list(&pool, None, None, 24, 100, TEST_ORG)
+                .await
+                .unwrap()
+                .len(),
+            2
+        );
         assert_eq!(
             list(&pool, Some("api"), Some("cpu"), 24, 100, TEST_ORG)
                 .await
@@ -250,14 +260,20 @@ mod tests {
         assert_eq!(blobs.len(), 2);
 
         // pickers
-        assert_eq!(services(&pool, TEST_ORG).await.unwrap(), vec!["api".to_string()]);
+        assert_eq!(
+            services(&pool, TEST_ORG).await.unwrap(),
+            vec!["api".to_string()]
+        );
         assert_eq!(
             profile_types(&pool, Some("api"), TEST_ORG).await.unwrap(),
             vec!["cpu".to_string()]
         );
 
         // single fetch carries the type
-        assert_eq!(fetch_folded(&pool, id1, TEST_ORG).await.unwrap().unwrap().0, "cpu");
+        assert_eq!(
+            fetch_folded(&pool, id1, TEST_ORG).await.unwrap().unwrap().0,
+            "cpu"
+        );
 
         // prune: fresh rows survive; an aged row is dropped
         assert_eq!(prune(&pool, 7).await.unwrap(), 0);

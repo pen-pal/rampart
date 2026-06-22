@@ -151,7 +151,9 @@ async fn export_csv(
     let rows = rampart_db::traces::list_traces(s.pool(), filter, org.org_id).await?;
     let fmt = time::format_description::well_known::Rfc3339;
     let mut body = String::with_capacity(64 + rows.len() * 120);
-    body.push_str("started_at,trace_id,root_service,root_name,duration_ms,span_count,error_count,services\n");
+    body.push_str(
+        "started_at,trace_id,root_service,root_name,duration_ms,span_count,error_count,services\n",
+    );
     for r in &rows {
         body.push_str(&format!(
             "{},{},{},{},{},{},{},{}\n",

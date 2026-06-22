@@ -211,7 +211,8 @@ async fn resolve_ingest(
     enforce_origin: Option<Option<&str>>,
 ) -> Result<rampart_core::ids::OrgId, ApiError> {
     if let Some(tok) = presented_token(headers, query_k) {
-        if let Some((id, org_id, allowed)) = rampart_db::ingest_keys::find_by_token(pool, tok).await?
+        if let Some((id, org_id, allowed)) =
+            rampart_db::ingest_keys::find_by_token(pool, tok).await?
         {
             if let Some(origin) = enforce_origin {
                 if !allowed.is_empty() {

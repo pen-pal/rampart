@@ -211,8 +211,10 @@ pub async fn create(
     let id = DetectionRuleId::new();
     let channel_ids: Vec<Uuid> = input.channel_ids.iter().map(|c| c.0).collect();
     // Serializing our own enum can't fail; `None` stores SQL NULL (legacy match).
-    let condition_json: Option<serde_json::Value> =
-        input.condition.as_ref().and_then(|c| serde_json::to_value(c).ok());
+    let condition_json: Option<serde_json::Value> = input
+        .condition
+        .as_ref()
+        .and_then(|c| serde_json::to_value(c).ok());
     sqlx::query!(
         r#"
         INSERT INTO detection_rules
@@ -252,8 +254,10 @@ pub async fn update(
     org_id: OrgId,
 ) -> DbResult<DetectionRule> {
     let channel_ids: Option<Vec<Uuid>> = patch.channel_ids.map(|v| v.iter().map(|c| c.0).collect());
-    let condition_json: Option<serde_json::Value> =
-        patch.condition.as_ref().and_then(|c| serde_json::to_value(c).ok());
+    let condition_json: Option<serde_json::Value> = patch
+        .condition
+        .as_ref()
+        .and_then(|c| serde_json::to_value(c).ok());
     let result = sqlx::query!(
         r#"
         UPDATE detection_rules SET
@@ -591,8 +595,7 @@ async fn tree_window(
     rule: &DetectionRule,
     cond: &DetectionCondition,
 ) -> DbResult<(OffsetDateTime, OffsetDateTime, i64)> {
-    let mut qb: QueryBuilder<Postgres> =
-        QueryBuilder::new("WITH bounds AS (SELECT COALESCE(");
+    let mut qb: QueryBuilder<Postgres> = QueryBuilder::new("WITH bounds AS (SELECT COALESCE(");
     qb.push_bind(rule.last_checked_at);
     qb.push("::timestamptz, now() - make_interval(secs => ");
     qb.push_bind(rule.window_seconds as f64);
@@ -602,7 +605,11 @@ async fn tree_window(
     push_condition(&mut qb, cond);
     qb.push(") GROUP BY b.wfrom, b.wto");
     let row = qb.build().fetch_one(pool).await?;
-    Ok((row.try_get("wfrom")?, row.try_get("wto")?, row.try_get("cnt")?))
+    Ok((
+        row.try_get("wfrom")?,
+        row.try_get("wto")?,
+        row.try_get("cnt")?,
+    ))
 }
 
 /// Boolean-tree newest sample (Detection v2).
@@ -672,7 +679,8 @@ async fn grouped_eval(
     rows.into_iter()
         .map(|r| {
             Ok((
-                r.try_get::<Option<String>, _>("entity")?.unwrap_or_default(),
+                r.try_get::<Option<String>, _>("entity")?
+                    .unwrap_or_default(),
                 r.try_get::<i64, _>("cnt")?,
                 r.try_get::<Option<String>, _>("sample")?,
             ))
@@ -714,7 +722,9 @@ fn push_flat(qb: &mut QueryBuilder<Postgres>, rule: &DetectionRule) {
 /// Escape LIKE wildcards in a user substring so `BodyContains` matches it
 /// literally (the default `\` escape char applies).
 fn like_escape(s: &str) -> String {
-    s.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+    s.replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
 }
 
 /// Compile a condition node into the running `QueryBuilder`, binding every leaf

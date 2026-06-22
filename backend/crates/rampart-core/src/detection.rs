@@ -11,9 +11,7 @@
 //! which is what a SOC analyst triages. The IO (matching + finding writes)
 //! lives in `rampart_db::detection`; this module is the shared vocabulary.
 
-use crate::ids::{
-    DetectionFindingId, DetectionRuleId, EscalationPolicyId, NotificationId, OrgId,
-};
+use crate::ids::{DetectionFindingId, DetectionRuleId, EscalationPolicyId, NotificationId, OrgId};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use validator::Validate;
@@ -354,7 +352,10 @@ mod tests {
         ] {
             assert_eq!(DetectionSeverity::from_db(s.as_str()), s);
         }
-        assert_eq!(DetectionSeverity::from_db("bogus"), DetectionSeverity::Medium);
+        assert_eq!(
+            DetectionSeverity::from_db("bogus"),
+            DetectionSeverity::Medium
+        );
     }
 
     use DetectionCondition as C;
@@ -364,12 +365,19 @@ mod tests {
             conditions: vec![
                 C::And {
                     conditions: vec![
-                        C::Service { value: "auth".into() },
-                        C::BodyRegex { value: "fail".into() },
+                        C::Service {
+                            value: "auth".into(),
+                        },
+                        C::BodyRegex {
+                            value: "fail".into(),
+                        },
                     ],
                 },
                 C::Not {
-                    condition: Box::new(C::Attr { key: "env".into(), value: "dev".into() }),
+                    condition: Box::new(C::Attr {
+                        key: "env".into(),
+                        value: "dev".into(),
+                    }),
                 },
             ],
         }
@@ -397,9 +405,18 @@ mod tests {
     fn condition_validate_rejects_empty_leaf_and_oversize() {
         assert!(sample_tree().validate_tree().is_ok());
         // Empty leaf value.
-        assert!(C::Service { value: String::new() }.validate_tree().is_err());
+        assert!(C::Service {
+            value: String::new()
+        }
+        .validate_tree()
+        .is_err());
         // Attr missing a side.
-        assert!(C::Attr { key: "k".into(), value: String::new() }.validate_tree().is_err());
+        assert!(C::Attr {
+            key: "k".into(),
+            value: String::new()
+        }
+        .validate_tree()
+        .is_err());
         // Too many nodes.
         let big = C::And {
             conditions: (0..70).map(|_| C::MinLevel { value: 1 }).collect(),

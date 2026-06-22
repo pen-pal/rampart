@@ -136,7 +136,8 @@ async fn instantiate(
     body: Option<Json<InstantiateRequest>>,
 ) -> Result<(StatusCode, Json<Monitor>), ApiError> {
     let template_id = parse_template_id(&id)?;
-    let template = rampart_db::monitor_templates::get(state.pool(), template_id, org.org_id).await?;
+    let template =
+        rampart_db::monitor_templates::get(state.pool(), template_id, org.org_id).await?;
 
     let mut new_monitor: NewMonitor = serde_json::from_value(template.spec)
         .map_err(|e| ApiError::BadRequest(format!("invalid monitor spec: {e}")))?;

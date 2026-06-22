@@ -34,9 +34,7 @@ async fn list(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<TelemetryRule>>, ApiError> {
-    Ok(Json(
-        s.store().list_telemetry_rules(org.org_id).await?,
-    ))
+    Ok(Json(s.store().list_telemetry_rules(org.org_id).await?))
 }
 
 async fn create(
@@ -62,7 +60,9 @@ async fn update(
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     Ok(Json(
-        s.store().update_telemetry_rule(rule_id, input, org.org_id).await?,
+        s.store()
+            .update_telemetry_rule(rule_id, input, org.org_id)
+            .await?,
     ))
 }
 
@@ -71,6 +71,8 @@ async fn delete_rule(
     Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    s.store().delete_telemetry_rule(parse_id(&id)?, org.org_id).await?;
+    s.store()
+        .delete_telemetry_rule(parse_id(&id)?, org.org_id)
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }

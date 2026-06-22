@@ -416,8 +416,7 @@ async fn validate_id_token(
     v.validate_nbf = true;
     // validate_exp / validate_aud default true; leeway 60 by default.
 
-    let data =
-        decode::<IdClaims>(id_token, &key, &v).map_err(|_| ApiError::Unauthorized)?;
+    let data = decode::<IdClaims>(id_token, &key, &v).map_err(|_| ApiError::Unauthorized)?;
 
     // Manual, constant-time nonce check (replay / token-injection defence).
     let claim_nonce = data.claims.nonce.as_deref().ok_or(ApiError::Unauthorized)?;
@@ -448,7 +447,9 @@ async fn login(State(app): State<AppState>) -> Result<impl IntoResponse, ApiErro
     let challenge = B64URL.encode(Sha256::digest(verifier.as_bytes()));
     let state = rand_token();
     let nonce = rand_token();
-    app.store().stash_oidc_state(&state, &verifier, Some(&nonce), None).await?;
+    app.store()
+        .stash_oidc_state(&state, &verifier, Some(&nonce), None)
+        .await?;
 
     let auth_url = format!(
         "{}?response_type=code&client_id={}&redirect_uri={}&scope={}&state={}&nonce={}&code_challenge={}&code_challenge_method=S256",
@@ -480,7 +481,9 @@ async fn callback(
     }
     let cfg = config().ok_or(ApiError::NotFound)?;
     let code = q.code.ok_or(ApiError::BadRequest("missing code".into()))?;
-    let state = q.state.ok_or(ApiError::BadRequest("missing state".into()))?;
+    let state = q
+        .state
+        .ok_or(ApiError::BadRequest("missing state".into()))?;
     // Atomic, one-time-use consume of the login state (unknown/expired → 401).
     let consumed = app
         .store()
@@ -522,8 +525,15 @@ async fn callback(
 
     // Verify the id_token signature + claims + nonce. This is the trust anchor:
     // identity is taken from these verified claims, with userinfo as a fallback.
-    let claims =
-        validate_id_token(&client, &disco.jwks_uri, &allow_hosts, &id_token, &cfg, &nonce).await?;
+    let claims = validate_id_token(
+        &client,
+        &disco.jwks_uri,
+        &allow_hosts,
+        &id_token,
+        &cfg,
+        &nonce,
+    )
+    .await?;
 
     // ── Identity: id_token-primary, userinfo fallback ───────────────────────
     let mut email = claims.email.clone();
@@ -538,10 +548,8 @@ async fn callback(
         .as_deref()
         .map(|c| org_extra.contains_key(c))
         .unwrap_or(true);
-    let need_userinfo = email.is_none()
-        || name.is_none()
-        || email_verified.is_none()
-        || !org_claim_present;
+    let need_userinfo =
+        email.is_none() || name.is_none() || email_verified.is_none() || !org_claim_present;
     if need_userinfo {
         let info: UserInfo = client
             .get(&disco.userinfo_endpoint)
@@ -583,7 +591,9 @@ async fn callback(
     let email = email
         .map(|e| e.to_lowercase())
         .filter(|e| e.contains('@'))
-        .ok_or(ApiError::BadRequest("oidc: no email in id_token/userinfo".into()))?;
+        .ok_or(ApiError::BadRequest(
+            "oidc: no email in id_token/userinfo".into(),
+        ))?;
 
     // Find or provision the user.
     let user = match rampart_db::users::get_by_email(app.pool(), &email).await {
@@ -622,7 +632,9 @@ async fn callback(
         }
     }
 
-    rampart_db::users::mark_login(app.pool(), user.id).await.ok();
+    rampart_db::users::mark_login(app.pool(), user.id)
+        .await
+        .ok();
 
     let session = rampart_db::sessions::create(
         app.pool(),
@@ -765,8 +777,6 @@ mod tests {
             vec!["acme-corp", "beta"]
         );
         assert!(claim_org_slugs(&obj(serde_json::json!({"groups": []})), "nope").is_empty());
-        assert!(
-            claim_org_slugs(&obj(serde_json::json!({"org": {"k": true}})), "org").is_empty()
-        );
+        assert!(claim_org_slugs(&obj(serde_json::json!({"org": {"k": true}})), "org").is_empty());
     }
 }

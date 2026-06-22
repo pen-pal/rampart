@@ -26,9 +26,7 @@ async fn list(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<Silence>>, ApiError> {
-    Ok(Json(
-        s.store().list_active_silences(org.org_id).await?,
-    ))
+    Ok(Json(s.store().list_active_silences(org.org_id).await?))
 }
 
 #[derive(Deserialize)]

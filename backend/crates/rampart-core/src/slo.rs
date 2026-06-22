@@ -250,7 +250,7 @@ mod tests {
         // Fast burn breaches even with budget left over the full window.
         let s = snapshot(Some(99.95), Some(95.0), 99.9);
         assert!(s.breaching); // 1h burn ~50x ≫ 14.4
-        // No data → not breaching, all None.
+                              // No data → not breaching, all None.
         let s = snapshot(None, None, 99.9);
         assert!(!s.breaching);
         assert!(s.achieved_pct.is_none());
@@ -259,8 +259,14 @@ mod tests {
     #[test]
     fn transitions() {
         assert_eq!(slo_transition(None, true), SloTransition::Fire);
-        assert_eq!(slo_transition(Some(OffsetDateTime::now_utc()), false), SloTransition::Resolve);
+        assert_eq!(
+            slo_transition(Some(OffsetDateTime::now_utc()), false),
+            SloTransition::Resolve
+        );
         assert_eq!(slo_transition(None, false), SloTransition::None);
-        assert_eq!(slo_transition(Some(OffsetDateTime::now_utc()), true), SloTransition::None);
+        assert_eq!(
+            slo_transition(Some(OffsetDateTime::now_utc()), true),
+            SloTransition::None
+        );
     }
 }

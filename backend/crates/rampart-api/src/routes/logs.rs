@@ -82,7 +82,10 @@ async fn list(
         trace_id: query.trace_id.as_deref(),
         span_id: query.span_id.as_deref().filter(|s| !s.is_empty()),
         hours: window_hours(&query),
-        before_id: query.before_id.as_deref().and_then(|s| uuid::Uuid::parse_str(s).ok()),
+        before_id: query
+            .before_id
+            .as_deref()
+            .and_then(|s| uuid::Uuid::parse_str(s).ok()),
         limit: query.limit.unwrap_or(200),
     };
     Ok(Json(

@@ -185,7 +185,10 @@ mod tests {
         let gz = enc.finish().unwrap();
         assert!(gz.len() < 1024 * 1024, "bomb input should be tiny");
         let err = maybe_gunzip(&gz).unwrap_err();
-        assert!(err.contains("too large"), "expected size rejection, got: {err}");
+        assert!(
+            err.contains("too large"),
+            "expected size rejection, got: {err}"
+        );
 
         // A small, legitimate gzip still round-trips.
         let mut enc = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());

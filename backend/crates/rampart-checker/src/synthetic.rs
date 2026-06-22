@@ -128,10 +128,22 @@ impl Probe for SyntheticProbe {
                 Ok(r) => r,
                 Err(SendErr::Blocked(b)) => return down(monitor, ts, started, last_status, &b),
                 Err(SendErr::Timeout) => {
-                    return down(monitor, ts, started, last_status, &format!("{label}: request timed out"))
+                    return down(
+                        monitor,
+                        ts,
+                        started,
+                        last_status,
+                        &format!("{label}: request timed out"),
+                    )
                 }
                 Err(SendErr::Failed(e)) => {
-                    return down(monitor, ts, started, last_status, &format!("{label}: request failed: {e}"))
+                    return down(
+                        monitor,
+                        ts,
+                        started,
+                        last_status,
+                        &format!("{label}: request failed: {e}"),
+                    )
                 }
             };
 
@@ -310,7 +322,9 @@ async fn send_guarded(
         // Per RFC 7231: 303 (and 301/302 from an unsafe method) downgrade to GET
         // and drop the body; 307/308 preserve method + body.
         let code = resp.status().as_u16();
-        if code == 303 || ((code == 301 || code == 302) && method != Method::GET && method != Method::HEAD) {
+        if code == 303
+            || ((code == 301 || code == 302) && method != Method::GET && method != Method::HEAD)
+        {
             method = Method::GET;
             body = None;
         }

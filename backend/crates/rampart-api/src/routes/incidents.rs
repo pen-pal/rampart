@@ -117,7 +117,9 @@ async fn update(
 ) -> Result<Json<Incident>, ApiError> {
     let id = parse_incident(&id)?;
     gate_incident(&s, id, org.org_id).await?;
-    Ok(Json(rampart_db::incidents::update(s.pool(), id, patch).await?))
+    Ok(Json(
+        rampart_db::incidents::update(s.pool(), id, patch).await?,
+    ))
 }
 
 async fn delete_one(
@@ -149,7 +151,9 @@ async fn list_updates(
 ) -> Result<Json<Vec<IncidentUpdate>>, ApiError> {
     let id = parse_incident(&id)?;
     gate_incident(&s, id, org.org_id).await?;
-    Ok(Json(rampart_db::incidents::list_updates(s.pool(), id).await?))
+    Ok(Json(
+        rampart_db::incidents::list_updates(s.pool(), id).await?,
+    ))
 }
 
 #[derive(Deserialize)]
@@ -172,7 +176,13 @@ async fn post_update(
     rampart_db::incidents::post_update(s.pool(), incident_id, Some(user.id), body.message.clone())
         .await?;
     let inc = rampart_db::incidents::get(s.pool(), incident_id).await?;
-    fan_out_incident(s.clone(), org.org_id, inc.status_page_id, inc, Some(body.message));
+    fan_out_incident(
+        s.clone(),
+        org.org_id,
+        inc.status_page_id,
+        inc,
+        Some(body.message),
+    );
     Ok(StatusCode::CREATED)
 }
 

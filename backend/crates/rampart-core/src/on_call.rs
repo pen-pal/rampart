@@ -140,7 +140,11 @@ pub fn on_call_target(schedule: &OnCallSchedule, at: OffsetDateTime) -> Option<O
     let total = chan + schedule.participant_user_ids.len();
     let idx = on_call_index(schedule.anchor, schedule.rotation_seconds, total, at)?;
     if idx < chan {
-        schedule.participant_ids.get(idx).copied().map(OnCallTarget::Channel)
+        schedule
+            .participant_ids
+            .get(idx)
+            .copied()
+            .map(OnCallTarget::Channel)
     } else {
         schedule
             .participant_user_ids
@@ -174,7 +178,10 @@ mod tests {
         let u = UserId::new();
         s.participant_user_ids = vec![u];
         // 3 in ring: idx 0,1 channels, idx 2 user. At anchor → idx 0 = channel.
-        assert!(matches!(on_call_target(&s, OffsetDateTime::UNIX_EPOCH), Some(OnCallTarget::Channel(_))));
+        assert!(matches!(
+            on_call_target(&s, OffsetDateTime::UNIX_EPOCH),
+            Some(OnCallTarget::Channel(_))
+        ));
         // +2 rotations → idx 2 → the user.
         let at = OffsetDateTime::UNIX_EPOCH + Duration::seconds(600);
         assert_eq!(on_call_target(&s, at), Some(OnCallTarget::User(u)));

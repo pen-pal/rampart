@@ -258,7 +258,8 @@ impl reqwest::dns::Resolve for GuardedResolver {
                 return Err(Box::new(SsrfBlocked {
                     host: host.clone(),
                     reason: "DNS resolution empty",
-                }) as Box<dyn std::error::Error + Send + Sync>);
+                })
+                    as Box<dyn std::error::Error + Send + Sync>);
             }
             // Reject if ANY resolved address is blocked, so a host answering with
             // [public, 169.254.169.254] can't trick the connector into the bad one.
@@ -288,8 +289,9 @@ pub fn guarded_client_builder() -> reqwest::ClientBuilder {
 /// private self-hosted OIDC IdP whose issuer host must stay reachable under
 /// block-private while metadata/loopback remain blocked.
 pub fn guarded_client_builder_allowing(allow_private_hosts: Vec<String>) -> reqwest::ClientBuilder {
-    reqwest::Client::builder()
-        .dns_resolver(Arc::new(GuardedResolver::from_env_allowing(allow_private_hosts)))
+    reqwest::Client::builder().dns_resolver(Arc::new(GuardedResolver::from_env_allowing(
+        allow_private_hosts,
+    )))
 }
 
 #[cfg(test)]
@@ -312,7 +314,12 @@ mod tests {
 
     #[test]
     fn public_ips_allowed() {
-        for s in ["1.1.1.1", "8.8.8.8", "93.184.216.34", "2606:4700:4700::1111"] {
+        for s in [
+            "1.1.1.1",
+            "8.8.8.8",
+            "93.184.216.34",
+            "2606:4700:4700::1111",
+        ] {
             assert!(!is_always_blocked(&ip(s)), "{s} should be allowed");
             assert!(!is_private(&ip(s)), "{s} not private");
         }
@@ -320,7 +327,13 @@ mod tests {
 
     #[test]
     fn private_ranges_detected() {
-        for s in ["10.0.0.5", "192.168.1.1", "172.16.0.1", "100.64.0.1", "fc00::1"] {
+        for s in [
+            "10.0.0.5",
+            "192.168.1.1",
+            "172.16.0.1",
+            "100.64.0.1",
+            "fc00::1",
+        ] {
             assert!(is_private(&ip(s)), "{s} should be private");
             assert!(!is_always_blocked(&ip(s)), "{s} private != always-blocked");
         }
@@ -341,7 +354,9 @@ mod tests {
     #[tokio::test]
     async fn guard_url_blocks_loopback_and_metadata_literals() {
         assert!(guard_url("http://127.0.0.1:9201/").await.is_err());
-        assert!(guard_url("http://169.254.169.254/latest/meta-data/").await.is_err());
+        assert!(guard_url("http://169.254.169.254/latest/meta-data/")
+            .await
+            .is_err());
         assert!(guard_url("http://[::1]:8080/").await.is_err());
     }
 

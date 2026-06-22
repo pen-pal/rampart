@@ -11,7 +11,12 @@ use crate::{DbPool, DbResult};
 /// rest (same AES-GCM envelope as notification channel configs — see
 /// [`crate::secrets`]). Sealed transparently on `put`, opened on `get`, so
 /// callers (the SMTP loader, the ingest-token check) are unaffected.
-const SECRET_KEYS: &[&str] = &["smtp", "telemetry_token", "siem_export", "audit_chain_watermark"];
+const SECRET_KEYS: &[&str] = &[
+    "smtp",
+    "telemetry_token",
+    "siem_export",
+    "audit_chain_watermark",
+];
 
 fn is_secret(key: &str) -> bool {
     SECRET_KEYS.contains(&key)
