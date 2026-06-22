@@ -29,6 +29,37 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.154.0] — 2026-06-22
+
+### Security
+- **Client IP for rate-limiting + audit now derives from the real TCP peer, not
+  the spoofable `X-Forwarded-For`.** Both the per-IP rate limiters (auth
+  brute-force + ingest) and the audit/session source IP read the leftmost
+  `X-Forwarded-For`/`X-Real-IP` — fully forgeable by any direct client, so an
+  attacker could rotate XFF to evade the auth brute-force cap, burn a victim's
+  bucket, or frame an arbitrary source IP in the SIEM-exported audit log. The
+  client IP is now resolved from the axum `ConnectInfo` TCP peer, honoring
+  `X-Forwarded-For` **only** when the peer is a configured trusted proxy
+  (new `RAMPART_TRUSTED_PROXIES` allow-list of IPs/CIDRs), taking the
+  rightmost non-trusted XFF entry across all header lines. A single outermost
+  middleware resolves the IP once; rate-limit, audit, and session-create all
+  consume the trusted value. IPs are canonicalized (IPv4-mapped-IPv6 safe). As
+  a bonus, session rows — which previously recorded **no** client IP — now
+  record the resolved IP. See [`docs/SETUP.md`](docs/SETUP.md).
+
+  **BREAKING for reverse-proxied deployments:** the default (unset
+  `RAMPART_TRUSTED_PROXIES`) ignores `X-Forwarded-For` and uses the direct TCP
+  peer — secure on a fresh/direct install, but a deployment behind a reverse
+  proxy/LB **must set `RAMPART_TRUSTED_PROXIES` to the proxy's exact IP(s)** or
+  every request's per-IP rate-limit bucket + audit source IP collapses to the
+  proxy IP (shared-bucket auth false-lockout risk). Set it to the *specific*
+  proxy IP(s) — never a broad internal range (e.g. `10.0.0.0/8`) that also
+  contains untrusted hosts, since any host inside a trusted CIDR can forge the
+  client IP. A loud startup warning fires when the var is unset and the bind
+  address is non-loopback. (Six-persona audit / track-4.)
+
+---
+
 ## [0.153.1] — 2026-06-22
 
 ### Security

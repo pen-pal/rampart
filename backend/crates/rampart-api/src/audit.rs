@@ -136,16 +136,17 @@ fn redact_secret_keys(value: &mut serde_json::Value) {
     }
 }
 
-/// Honor X-Forwarded-For if present (one trusted proxy hop). Otherwise
-/// give up — axum doesn't expose ConnectInfo at this layer cheaply.
+/// The source IP for the audit row. Reads ONLY the internal
+/// `x-rampart-client-ip` header, which the outermost
+/// `client_ip::resolve_client_ip` middleware populates with the trusted,
+/// resolved client IP (TCP peer, or the real client behind a trusted
+/// proxy) and strips of any inbound forgery. Never reads raw
+/// `X-Forwarded-For` / `X-Real-IP`, which a client can spoof.
 fn client_ip(headers: &HeaderMap) -> Option<IpNetwork> {
     let raw = headers
-        .get("x-forwarded-for")
-        .or_else(|| headers.get("x-real-ip"))?
+        .get(crate::client_ip::CLIENT_IP_HEADER)?
         .to_str()
         .ok()?
-        .split(',')
-        .next()?
         .trim();
     IpNetwork::from_str(raw).ok()
 }

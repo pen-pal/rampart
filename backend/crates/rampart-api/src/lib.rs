@@ -6,6 +6,7 @@
 
 pub mod audit;
 pub mod auth;
+pub mod client_ip;
 pub mod csv;
 pub mod error;
 pub mod external_ingest;
@@ -204,6 +205,10 @@ pub fn build_router(state: AppState) -> Router {
     // AppState — keeps the middleware allocation-free per request.
     let metrics_handle = state.http_metrics().clone();
 
+    // Allow-list of reverse proxies, for the outermost client-IP resolver.
+    // Captured before `with_state` consumes `state`; Arc-backed clone.
+    let trusted_proxies = state.trusted_proxies();
+
     // Public telemetry-ingest surfaces, grouped so one per-IP rate-limit layer
     // covers all of them (anti-DoS — these are unauthenticated by default and
     // accept arbitrary volumes of errors/traces/logs/beacons). The limiter is
@@ -244,6 +249,20 @@ pub fn build_router(state: AppState) -> Router {
             http_metrics::record_http_metrics,
         ))
         .layer(middleware)
+        // Trusted client-IP resolution. Layered OUTERMOST so it runs FIRST on
+        // the inbound path — before the route-scoped rate-limit layers (the
+        // auth route_layer in routes/mod.rs and the ingest layer above) and
+        // before any handler. It stamps the `ResolvedClientIp` extension (read
+        // by `enforce_ip_rate_limit`) and the trusted `x-rampart-client-ip`
+        // header (read by the audit + session paths), and strips any inbound
+        // forgery of that header. Derives the peer from `ConnectInfo`, so the
+        // listener must be served with `into_make_service_with_connect_info`
+        // (main.rs); in-process tests without connect info resolve to None and
+        // pass through unchanged.
+        .layer(axum::middleware::from_fn_with_state(
+            trusted_proxies,
+            client_ip::resolve_client_ip,
+        ))
 }
 
 /// Convenience for tests: build a router around a pre-existing DB pool.
