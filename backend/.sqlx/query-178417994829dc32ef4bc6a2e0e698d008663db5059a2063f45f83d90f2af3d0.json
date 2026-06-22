@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO oidc_login_state (state, pkce_verifier, nonce, return_to, expires_at)\n        VALUES ($1, $2, $3, $4, now() + make_interval(secs => $5))\n        ON CONFLICT (state) DO NOTHING\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "178417994829dc32ef4bc6a2e0e698d008663db5059a2063f45f83d90f2af3d0"
+}

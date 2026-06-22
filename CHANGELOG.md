@@ -29,6 +29,41 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.153.0] — 2026-06-22
+
+### Added
+- **OIDC id_token signature + claims validation (JWKS).** SSO previously
+  established identity from the unauthenticated `userinfo` response and never
+  validated an id_token. The callback now requires an id_token (scope `openid`),
+  verifies its signature against the IdP's JWKS (matched by `kid`, fetched via
+  the SSRF-guarded client, cached 1h with throttled rotation-refetch), pins
+  validation to the token's single asymmetric algorithm (allow-list rejects
+  `alg=none`/HMAC and a symmetric `oct` JWK — the classic alg-confusion attacks),
+  and enforces `iss`/`aud`/`exp`/`nbf` + a one-time `nonce` (constant-time
+  compared, bound to the consumed login state). Identity is taken from the
+  verified id_token with userinfo as a fallback; the `email_verified` gate and
+  org-claim mapping are unchanged. (Six-persona audit #13.)
+
+### Changed / Security
+- **OIDC login state is now stored in Postgres (HA-correct).** The
+  `state → PKCE-verifier (+ nonce)` map was a process-local `Mutex<HashMap>`, so
+  under HA the `/login` and `/callback` could hit different replicas → 401, and
+  it was wiped on every restart. Migration `0119` adds an `oidc_login_state`
+  table (pre-auth, not org-scoped); consume is an atomic `DELETE … RETURNING`
+  (one-time-use, replay-safe across replicas), rows carry a 10-min TTL and are
+  reaped by the existing leader-gated prune sweep.
+- **OIDC outbound is SSRF-guarded.** Discovery/token/userinfo/JWKS calls used a
+  bare `reqwest::Client` with no guard or timeout; they now use the guarded
+  client (vets every dialed IP incl. redirects) + a literal-IP `guard_url`
+  preflight + 30s/10s timeouts. A new narrow rampart-ssrf allow-list lets a
+  private self-hosted IdP (Keycloak/Authentik on 10.x/192.168.x) resolve under
+  `RAMPART_SSRF_BLOCK_PRIVATE` via the configured issuer host **only** —
+  metadata/loopback/link-local stay blocked unconditionally. `/auth/oidc` is now
+  under the per-IP auth rate-limiter (bounds the unauthenticated state INSERT).
+  See [`docs/SETUP.md`](docs/SETUP.md).
+
+---
+
 ## [0.152.6] — 2026-06-22
 
 ### Security
