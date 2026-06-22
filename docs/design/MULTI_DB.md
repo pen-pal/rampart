@@ -180,3 +180,30 @@ parity*, and realistically as a multi-quarter program. The single highest-levera
 independently-valuable, low-regret step is the narrowed P0 spike (tx de-threading
 + secrets/leader lift + 2-3-domain seam proof) on Postgres alone — and even that
 should wait until MT Phase 6 settles to avoid a quarter-long merge-conflict war.
+
+---
+
+## STATUS UPDATE — P0 COMPLETE (2026-06-22)
+
+The "narrowed P0 spike" above (recommendation §1.1–1.4) is **done and exceeded** — not a 2-3-domain proof but the full seam:
+
+- **§1.1 tx de-threading** — shipped v0.154.1: `orgs::upsert_member` unified over `sqlx::PgExecutor`, `upsert_member_tx` deleted; tx-owning methods own their whole transaction internally. Zero behavior change.
+- **§1.2 engine-agnostic lift** — secrets crypto already standalone; `LeaderElector` + RLS/`TenantGuard` are PG-impl-behind-a-seam (RLS flag-gated).
+- **§1.3 + §1.4 the seam** — `rampart-db/src/store.rs`: `#[async_trait] pub trait Store: <~44 sub-traits>`, one `PgStore { pool }` delegating to the existing free fns, compile-time object-safety guard `const _: fn(&dyn Store)`. **All clean domains extracted** (v0.155.1→v0.155.16): heartbeats, deploy_markers, ingest_keys, slos, proxies, on_call, recovery_codes, api_keys, escalations, maintenance, ingest_tokens, tags, templates, telemetry_rules, metric_rules, monitor_groups, silences, oidc_state, status_pages, incidents, routing, subscribers, detection, sessions, notifications, settings, logs, traces, rum, profiles, metrics, error_tracking, scheduled_reports, incident_templates, monitor_presets, monitor_templates, delivery_log, agents, metric_samples, source_maps, **users, webpush, orgs, audit, monitors**, + access_review/compliance. The object-safety special cases were all resolved: webpush `impl FnOnce` → split primitives; audit `IpNetwork` → `std::net::IpAddr` at the seam (PG conversion internal, hash chain byte-identical); orgs generic `PgExecutor` → pool-scoped seam method + free fn retained; monitors internal `bulk_edit` tx + private generic `load_prior` left encapsulated (not in any public signature).
+- **AppState** holds `Arc<dyn Store>` via `state.store()`; `state.pool()` coexists for the not-yet-seam-aware crates (notifier/scheduler/seed/bin take `&DbPool` directly).
+
+**Net: the seam is proven object-safe end-to-end across the whole surface with zero behavior change. The thing the doc said to gate everything else on is satisfied.**
+
+## P1 — SQLite backend execution plan (the real next step)
+
+Goal: a second `impl Store` (`SqliteStore`) so Rampart runs single-binary/homelab on SQLite (the tier promised: PG=full, SQLite=single-binary). Sequence (each slice independently gated; do AFTER MT Phase-6 settles to avoid merge wars):
+
+1. **Test-fixture framework first (the dominant cost, risk #1).** `#[sqlx::test]`'s per-test template-DB machinery is PG-only. Build a SQLite test harness (fresh `:memory:` or temp-file DB per test + run migrations) BEFORE any backend code, or the backend is untestable. Spike this on ~5 representative tests; if the fixture cost explodes, stop and reassess.
+2. **Migrations fork.** The 118 PG migrations use PG-specific DDL (citext, inet, jsonb, enums, partial/expression indexes, `gen_random_uuid`, RLS policies). Author a parallel `migrations-sqlite/` set (or a dialect-translation layer). citext→`COLLATE NOCASE`; inet→TEXT; jsonb→TEXT+json1; enums→TEXT+CHECK; RLS→omit (enforce in-app, see risk #5). This is the silent-drift risk — needs a CI check that the two migration sets stay schema-equivalent.
+3. **The 480 compile-checked macros.** `sqlx::query!` is per-driver; one `.sqlx` cache won't cover SQLite. Options, in preference order: (a) cfg-gated dual query bodies for the ~50 dialect-divergent queries only (make_interval, percentile_cont, tsvector, ON CONFLICT nuances, RETURNING, ctid), keeping the ~430 portable ones single-source against a SQLite `.sqlx` cache regenerated in CI; (b) hand-written `SqliteStore` methods bypassing the macros for the divergent ones. NOT `sqlx::Any` (can't drive the macros).
+4. **Dialect-divergent SQL** (per the inventory table above): make_interval→`datetime('now', ±? )`; percentile_cont→app-side compute (already partially); tsvector FTS (logs)→FTS5; `detection.rs` QueryBuilder→per-dialect boolean-tree→SQL compiler (risk #4, a real subproject); `ON CONFLICT`/`RETURNING`→SQLite 3.35+ supports both natively.
+5. **PG-only runtime features** → SQLite equivalents: `pg_advisory_lock` leader election → single-process/no-op `LeaderElector` (SQLite is single-writer anyway); RLS → in-app org filtering only (risk #3/#5 — audit-chain linearity + tenant isolation downgrade need explicit owner sign-off before SQLite ships as multi-tenant).
+6. **Wire-up:** `RAMPART_DB_URL=sqlite://…` → construct `SqliteStore` instead of `PgStore` at boot (AppState already abstracts via `Arc<dyn Store>` — this is the payoff of P0). Gate behind a cargo feature + runtime detect.
+7. **CI matrix:** add a SQLite lane (regenerate its `.sqlx`, run the SQLite fixture suite). Without committed CI + a real user the backend rots (risk #2).
+
+**Owner sign-offs still required before P1 starts** (unchanged from risks above): audit-chain linearity downgrade (#3), RLS-off tenant model on SQLite (#5), the ~2× test cost (#1), and a concrete user/demand signal (§2). P0 being done does NOT auto-authorize P1 — it just makes P1 a clean, well-scoped build instead of a re-architecture.
