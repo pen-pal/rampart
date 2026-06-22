@@ -256,7 +256,7 @@ async fn verify(
         state.pool(),
         user_id,
         SESSION_TTL_SECS,
-        None,
+        crate::client_ip::from_headers(&headers),
         headers
             .get("user-agent")
             .and_then(|v| v.to_str().ok())
