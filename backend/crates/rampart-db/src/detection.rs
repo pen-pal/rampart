@@ -346,7 +346,7 @@ pub async fn preview(
         r#"
         SELECT COUNT(*) AS "count!"
         FROM logs
-        WHERE ts >= now() - make_interval(secs => $1)
+        WHERE received_at >= now() - make_interval(secs => $1)
           AND ($2 = '' OR service_name = $2)
           AND severity >= $3
           AND ($4 = '' OR body ~* $4)
@@ -368,13 +368,13 @@ pub async fn preview(
         r#"
         SELECT LEFT(body, 300) AS "body!"
         FROM logs
-        WHERE ts >= now() - make_interval(secs => $1)
+        WHERE received_at >= now() - make_interval(secs => $1)
           AND ($2 = '' OR service_name = $2)
           AND severity >= $3
           AND ($4 = '' OR body ~* $4)
           AND ($5 = '' OR attributes->>$5 = $6)
           AND org_id = $7
-        ORDER BY ts DESC
+        ORDER BY received_at DESC
         LIMIT 5
         "#,
         window,
@@ -399,8 +399,10 @@ pub struct FindingEvent {
 }
 
 /// Evaluate every enabled rule once. For each, count log records matching the
-/// rule spec with `ts` in `(last_checked_at, now]` (or the rule's lookback
-/// window on first run); when the count reaches `threshold`, insert a finding
+/// rule spec with `received_at` in `(last_checked_at, now]` (or the rule's
+/// lookback window on first run) — the server ingest clock, so a client that
+/// backdates its event `ts` can't slip records out of the detection window;
+/// when the count reaches `threshold`, insert a finding
 /// and queue a notification. The watermark advances to `now` on every rule
 /// regardless of outcome, so matches are never counted twice.
 pub async fn evaluate_tick(pool: &DbPool) -> DbResult<Vec<FindingEvent>> {
@@ -527,7 +529,7 @@ async fn legacy_window(
         SELECT b.wfrom AS "wfrom!", b.wto AS "wto!", COUNT(l.id) AS "cnt!"
         FROM bounds b
         LEFT JOIN logs l
-          ON l.ts > b.wfrom AND l.ts <= b.wto
+          ON l.received_at > b.wfrom AND l.received_at <= b.wto
          AND ($3 = '' OR l.service_name = $3)
          AND l.severity >= $4
          AND ($5 = '' OR l.body ~* $5)
@@ -560,13 +562,13 @@ async fn legacy_sample(
         r#"
         SELECT LEFT(body, 500)
         FROM logs
-        WHERE ts > $1 AND ts <= $2
+        WHERE received_at > $1 AND received_at <= $2
           AND ($3 = '' OR service_name = $3)
           AND severity >= $4
           AND ($5 = '' OR body ~* $5)
           AND ($6 = '' OR attributes->>$6 = $7)
           AND org_id = $8
-        ORDER BY ts DESC
+        ORDER BY received_at DESC
         LIMIT 1
         "#,
         wfrom,
@@ -594,7 +596,7 @@ async fn tree_window(
     qb.push_bind(rule.last_checked_at);
     qb.push("::timestamptz, now() - make_interval(secs => ");
     qb.push_bind(rule.window_seconds as f64);
-    qb.push(")) AS wfrom, now() AS wto) SELECT b.wfrom AS wfrom, b.wto AS wto, COUNT(l.id) AS cnt FROM bounds b LEFT JOIN logs l ON l.ts > b.wfrom AND l.ts <= b.wto AND l.org_id = ");
+    qb.push(")) AS wfrom, now() AS wto) SELECT b.wfrom AS wfrom, b.wto AS wto, COUNT(l.id) AS cnt FROM bounds b LEFT JOIN logs l ON l.received_at > b.wfrom AND l.received_at <= b.wto AND l.org_id = ");
     qb.push_bind(rule.org_id.0);
     qb.push(" AND (");
     push_condition(&mut qb, cond);
@@ -612,15 +614,15 @@ async fn tree_sample(
     cond: &DetectionCondition,
 ) -> DbResult<Option<String>> {
     let mut qb: QueryBuilder<Postgres> =
-        QueryBuilder::new("SELECT LEFT(l.body, 500) AS sample FROM logs l WHERE l.ts > ");
+        QueryBuilder::new("SELECT LEFT(l.body, 500) AS sample FROM logs l WHERE l.received_at > ");
     qb.push_bind(wfrom);
-    qb.push(" AND l.ts <= ");
+    qb.push(" AND l.received_at <= ");
     qb.push_bind(wto);
     qb.push(" AND l.org_id = ");
     qb.push_bind(org_id.0);
     qb.push(" AND (");
     push_condition(&mut qb, cond);
-    qb.push(") ORDER BY l.ts DESC LIMIT 1");
+    qb.push(") ORDER BY l.received_at DESC LIMIT 1");
     let row = qb.build().fetch_optional(pool).await?;
     Ok(row.and_then(|r| r.try_get::<Option<String>, _>("sample").ok().flatten()))
 }
@@ -654,9 +656,9 @@ async fn grouped_eval(
 ) -> DbResult<Vec<(String, i64, Option<String>)>> {
     let mut qb: QueryBuilder<Postgres> = QueryBuilder::new("SELECT l.attributes->>");
     qb.push_bind(rule.group_by.clone());
-    qb.push(" AS entity, COUNT(*) AS cnt, (array_agg(LEFT(l.body, 500) ORDER BY l.ts DESC))[1] AS sample FROM logs l WHERE l.ts > ");
+    qb.push(" AS entity, COUNT(*) AS cnt, (array_agg(LEFT(l.body, 500) ORDER BY l.received_at DESC))[1] AS sample FROM logs l WHERE l.received_at > ");
     qb.push_bind(wfrom);
-    qb.push(" AND l.ts <= ");
+    qb.push(" AND l.received_at <= ");
     qb.push_bind(wto);
     qb.push(" AND l.org_id = ");
     qb.push_bind(rule.org_id.0);

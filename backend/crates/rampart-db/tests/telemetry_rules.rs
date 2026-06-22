@@ -109,7 +109,7 @@ async fn log_volume_fires_and_resolves(pool: PgPool) {
         .is_empty());
 
     // Age every log out of the window → count falls to 0 → resolve.
-    sqlx::query!("UPDATE logs SET ts = now() - interval '20 minutes'")
+    sqlx::query!("UPDATE logs SET received_at = now() - interval '20 minutes'")
         .execute(&pool)
         .await
         .unwrap();
