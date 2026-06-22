@@ -1,7 +1,8 @@
 //! Object-safe `Store` seam (multi-DB P0 — heartbeats + deploy-markers +
 //! ingest-keys + slos + proxies + on-call + recovery-codes + api-keys +
 //! escalations + maintenance + ingest-tokens + tags + templates +
-//! telemetry-rules + metric-rules + monitor-groups + silences + oidc-state
+//! telemetry-rules + metric-rules + monitor-groups + silences + oidc-state +
+//! status-pages + incidents + routing + subscribers + detection + sessions
 //! domains).
 //!
 //! This module proves the `&dyn Store` super-trait shape is object-safe and
@@ -17,27 +18,37 @@
 //! several domains that each expose a bare `create`/`delete`/`list` without
 //! collision.
 
+use crate::detection::{FindingEvent, PreviewResult};
 use crate::heartbeats::{BurndownPoint, ErrorBudget, MonitorSummary, MonthlyUptime, MtbfMttr};
+use crate::incidents::{NewIncident, UpdateIncident};
 use crate::ingest_keys::IngestKey;
 use crate::maintenance::MaintenanceTransition;
 use crate::metric_rules::RuleEvent as MetricRuleEvent;
+use crate::notifications::Notification;
 use crate::oidc_state::Consumed;
+use crate::sessions::{Session, SessionInfo};
 use crate::silences::{NewSilence, Silence};
 use crate::slos::{SloEvent, SloWithSnapshot};
+use crate::subscribers::{ManagedSubscription, Subscriber};
 use crate::tags::TagUsage;
 use crate::telemetry_rules::RuleEvent as TelemetryRuleEvent;
 use crate::templates::{NewTemplate, RenderedTemplate, Template, UpdateTemplate};
 use crate::{DbPool, DbResult};
 use rampart_core::api_key::{ApiKey, IssuedApiKey, NewApiKey};
 use rampart_core::deploy_marker::{DeployMarker, NewDeployMarker};
+use rampart_core::detection::{
+    DetectionFinding, DetectionRule, NewDetectionRule, UpdateDetectionRule,
+};
 use rampart_core::escalation::{
     EscalationEpisode, EscalationPolicy, NewEscalationPolicy, UpdateEscalationPolicy,
 };
 use rampart_core::ids::{
-    ApiKeyId, DeployMarkerId, EscalationPolicyId, IngestTokenId, MaintenanceId, MetricRuleId,
-    MonitorGroupId, NotificationId, NotificationTemplateId, OnCallScheduleId, OrgId, SloId,
-    StatusPageId, TagId, TelemetryRuleId,
+    ApiKeyId, DeployMarkerId, DetectionFindingId, DetectionRuleId, EscalationPolicyId, IncidentId,
+    IngestTokenId, MaintenanceId, MetricRuleId, MonitorGroupId, NotificationId,
+    NotificationTemplateId, OnCallScheduleId, OrgId, SloId, StatusPageId, StatusPageSectionId,
+    StatusPageSubscriberId, TagId, TelemetryRuleId,
 };
+use rampart_core::incident::{Incident, IncidentUpdate};
 use rampart_core::ingest_token::{IngestToken, NewIngestToken};
 use rampart_core::maintenance::{MaintenanceWindow, NewMaintenanceWindow, UpdateMaintenanceWindow};
 use rampart_core::metric_rule::{MetricRule, NewMetricRule, UpdateMetricRule};
@@ -48,6 +59,10 @@ use rampart_core::on_call::{
 use rampart_core::proxy::{NewProxy, Proxy};
 use rampart_core::slo::{NewSlo, Slo, SloSnapshot, UpdateSlo};
 use rampart_core::status_page::PublicMaintenance;
+use rampart_core::status_page::{
+    NewStatusPage, NewStatusPageSection, PublicStatusPage, StatusPage, StatusPageSection,
+    UpdateStatusPage, UpdateStatusPageSection,
+};
 use rampart_core::tag::{NewTag, Tag, TagBrief, UpdateTag};
 use rampart_core::telemetry_rule::{NewTelemetryRule, TelemetryRule, UpdateTelemetryRule};
 use rampart_core::{Heartbeat, MonitorId, ProxyId, UserId};
@@ -688,6 +703,309 @@ pub trait StoreOidcState: Send + Sync {
     async fn prune_oidc_state(&self) -> DbResult<u64>;
 }
 
+/// One method per public `crate::status_pages` free function, with a
+/// `_status_page(s)`/`_section` suffix on the collision-prone CRUD names.
+#[async_trait::async_trait]
+pub trait StoreStatusPages: Send + Sync {
+    async fn list_status_pages(&self, org_id: OrgId) -> DbResult<Vec<StatusPage>>;
+
+    async fn list_all_status_pages(&self) -> DbResult<Vec<StatusPage>>;
+
+    async fn get_status_page(&self, id: StatusPageId, org_id: OrgId) -> DbResult<StatusPage>;
+
+    async fn get_status_page_by_slug(&self, slug: &str) -> DbResult<StatusPage>;
+
+    async fn get_status_page_unscoped(&self, id: StatusPageId) -> DbResult<StatusPage>;
+
+    async fn find_status_page_by_custom_domain(&self, host: &str) -> DbResult<Option<StatusPage>>;
+
+    async fn create_status_page(&self, input: NewStatusPage, org_id: OrgId)
+        -> DbResult<StatusPage>;
+
+    async fn update_status_page(
+        &self,
+        id: StatusPageId,
+        patch: UpdateStatusPage,
+        org_id: OrgId,
+    ) -> DbResult<StatusPage>;
+
+    async fn delete_status_page(&self, id: StatusPageId, org_id: OrgId) -> DbResult<()>;
+
+    async fn status_page_public_view(&self, slug: &str) -> DbResult<PublicStatusPage>;
+
+    async fn verify_status_page_password(&self, slug: &str, candidate: &str) -> DbResult<bool>;
+
+    async fn list_status_page_sections(
+        &self,
+        page_id: StatusPageId,
+    ) -> DbResult<Vec<StatusPageSection>>;
+
+    async fn create_status_page_section(
+        &self,
+        page_id: StatusPageId,
+        input: NewStatusPageSection,
+    ) -> DbResult<StatusPageSection>;
+
+    async fn update_status_page_section(
+        &self,
+        id: StatusPageSectionId,
+        patch: UpdateStatusPageSection,
+    ) -> DbResult<StatusPageSection>;
+
+    async fn delete_status_page_section(&self, id: StatusPageSectionId) -> DbResult<()>;
+
+    async fn assign_status_page_monitor_section(
+        &self,
+        page_id: StatusPageId,
+        monitor_id: MonitorId,
+        section_id: Option<StatusPageSectionId>,
+    ) -> DbResult<()>;
+}
+
+/// One method per public `crate::incidents` free function, with an
+/// `_incident(s)` suffix on the collision-prone CRUD names.
+#[async_trait::async_trait]
+pub trait StoreIncidents: Send + Sync {
+    async fn create_incident(
+        &self,
+        page: StatusPageId,
+        author: Option<UserId>,
+        input: NewIncident,
+    ) -> DbResult<Incident>;
+
+    async fn find_active_incident_by_dedup_key(
+        &self,
+        page: StatusPageId,
+        key: &str,
+    ) -> DbResult<Option<Incident>>;
+
+    async fn list_active_incidents(&self, page: StatusPageId) -> DbResult<Vec<Incident>>;
+
+    async fn recent_incidents(&self, limit: i64, org_id: OrgId) -> DbResult<Vec<Incident>>;
+
+    async fn list_resolved_incident_history(
+        &self,
+        page: StatusPageId,
+        limit: i64,
+    ) -> DbResult<Vec<Incident>>;
+
+    async fn resolve_incident(&self, id: IncidentId, now: OffsetDateTime) -> DbResult<()>;
+
+    async fn list_all_incidents(&self, page: StatusPageId, limit: i64) -> DbResult<Vec<Incident>>;
+
+    async fn delete_incident(&self, id: IncidentId) -> DbResult<()>;
+
+    async fn update_incident(&self, id: IncidentId, patch: UpdateIncident) -> DbResult<Incident>;
+
+    async fn get_incident(&self, id: IncidentId) -> DbResult<Incident>;
+
+    async fn list_incident_updates(&self, incident: IncidentId) -> DbResult<Vec<IncidentUpdate>>;
+
+    async fn post_incident_update(
+        &self,
+        incident: IncidentId,
+        author: Option<UserId>,
+        message: String,
+    ) -> DbResult<Uuid>;
+}
+
+/// One method per public `crate::routing` free function. These names are
+/// already collision-free across the other domains, so they are mirrored
+/// verbatim.
+#[async_trait::async_trait]
+pub trait StoreRouting: Send + Sync {
+    async fn resolve_channels_for_monitor(&self, monitor: MonitorId)
+        -> DbResult<Vec<Notification>>;
+
+    async fn group_tag_ids(&self, group: MonitorGroupId) -> DbResult<Vec<TagId>>;
+
+    async fn channel_tag_ids(&self, notif: NotificationId) -> DbResult<Vec<TagId>>;
+
+    async fn group_channel_ids(&self, group: MonitorGroupId) -> DbResult<Vec<NotificationId>>;
+
+    async fn monitor_exclude_ids(&self, monitor: MonitorId) -> DbResult<Vec<NotificationId>>;
+
+    async fn tag_group(&self, group: MonitorGroupId, tag: TagId) -> DbResult<()>;
+
+    async fn untag_group(&self, group: MonitorGroupId, tag: TagId) -> DbResult<()>;
+
+    async fn tag_channel(&self, notif: NotificationId, tag: TagId) -> DbResult<()>;
+
+    async fn untag_channel(&self, notif: NotificationId, tag: TagId) -> DbResult<()>;
+
+    async fn attach_group_channel(
+        &self,
+        group: MonitorGroupId,
+        notif: NotificationId,
+    ) -> DbResult<()>;
+
+    async fn detach_group_channel(
+        &self,
+        group: MonitorGroupId,
+        notif: NotificationId,
+    ) -> DbResult<()>;
+
+    async fn exclude_channel(&self, monitor: MonitorId, notif: NotificationId) -> DbResult<()>;
+
+    async fn unexclude_channel(&self, monitor: MonitorId, notif: NotificationId) -> DbResult<()>;
+}
+
+/// One method per public `crate::subscribers` free function, with a
+/// `_subscriber(s)`/`subscriber_` suffix on the collision-prone names.
+#[async_trait::async_trait]
+pub trait StoreSubscribers: Send + Sync {
+    async fn subscribe_email(
+        &self,
+        page: StatusPageId,
+        email: &str,
+    ) -> DbResult<(Subscriber, String)>;
+
+    async fn list_subscribers_for_page(&self, page: StatusPageId) -> DbResult<Vec<Subscriber>>;
+
+    async fn confirmed_subscriber_emails_for_page(
+        &self,
+        page: StatusPageId,
+    ) -> DbResult<Vec<String>>;
+
+    async fn delete_subscriber(&self, id: StatusPageSubscriberId) -> DbResult<()>;
+
+    async fn unsubscribe_subscriber_by_token(&self, token: &str) -> DbResult<()>;
+
+    async fn subscriber_email_for_token(&self, token: &str) -> DbResult<Option<String>>;
+
+    async fn subscriptions_for_email(&self, email: &str) -> DbResult<Vec<ManagedSubscription>>;
+
+    async fn unsubscribe_all_for_email(&self, email: &str) -> DbResult<u64>;
+
+    async fn unsubscribe_email_from_page(&self, page: StatusPageId, email: &str) -> DbResult<()>;
+
+    async fn subscriber_page_for(
+        &self,
+        id: StatusPageSubscriberId,
+    ) -> DbResult<Option<StatusPageId>>;
+
+    async fn subscriber_token_for(&self, id: Uuid) -> DbResult<Option<String>>;
+}
+
+/// One method per public `crate::detection` free function, with a
+/// `_detection_rule(s)`/`detection_`/`_detection_finding(s)` suffix on the
+/// collision-prone names.
+#[async_trait::async_trait]
+pub trait StoreDetection: Send + Sync {
+    async fn detection_regex_is_valid(&self, pattern: &str) -> DbResult<bool>;
+
+    async fn list_detection_rules(&self, org_id: OrgId) -> DbResult<Vec<DetectionRule>>;
+
+    async fn list_all_detection_rules(&self) -> DbResult<Vec<DetectionRule>>;
+
+    async fn get_detection_rule(
+        &self,
+        id: DetectionRuleId,
+        org_id: OrgId,
+    ) -> DbResult<DetectionRule>;
+
+    async fn get_detection_rule_unscoped(&self, id: DetectionRuleId) -> DbResult<DetectionRule>;
+
+    async fn create_detection_rule(
+        &self,
+        input: NewDetectionRule,
+        org_id: OrgId,
+    ) -> DbResult<DetectionRule>;
+
+    async fn update_detection_rule(
+        &self,
+        id: DetectionRuleId,
+        patch: UpdateDetectionRule,
+        org_id: OrgId,
+    ) -> DbResult<DetectionRule>;
+
+    async fn delete_detection_rule(&self, id: DetectionRuleId, org_id: OrgId) -> DbResult<()>;
+
+    #[allow(clippy::too_many_arguments)]
+    async fn preview_detection(
+        &self,
+        service: &str,
+        min_level: i16,
+        body_regex: &str,
+        attr_key: &str,
+        attr_val: &str,
+        window_seconds: i32,
+        org_id: OrgId,
+    ) -> DbResult<PreviewResult>;
+
+    async fn has_recent_detection_finding(
+        &self,
+        rule_id: DetectionRuleId,
+        secs: i64,
+        entity: Option<&str>,
+    ) -> DbResult<bool>;
+
+    async fn list_detection_findings(
+        &self,
+        limit: i64,
+        open_only: bool,
+    ) -> DbResult<Vec<DetectionFinding>>;
+
+    async fn list_detection_findings_for_org(
+        &self,
+        limit: i64,
+        open_only: bool,
+        org_id: OrgId,
+    ) -> DbResult<Vec<DetectionFinding>>;
+
+    async fn detection_finding_in_org(
+        &self,
+        finding: DetectionFindingId,
+        org_id: OrgId,
+    ) -> DbResult<()>;
+
+    async fn open_detection_findings_count(&self) -> DbResult<i64>;
+
+    async fn fetch_detection_findings_since(
+        &self,
+        after: Option<OffsetDateTime>,
+        limit: i64,
+    ) -> DbResult<Vec<DetectionFinding>>;
+
+    async fn ack_detection_finding(&self, id: DetectionFindingId) -> DbResult<DetectionFinding>;
+
+    async fn evaluate_detection_tick(&self) -> DbResult<Vec<FindingEvent>>;
+}
+
+/// One method per public `crate::sessions` free function (the login/session
+/// path), with a `_session(s)` suffix on the collision-prone names.
+#[async_trait::async_trait]
+pub trait StoreSessions: Send + Sync {
+    async fn create_session(
+        &self,
+        user_id: UserId,
+        ttl_seconds: i64,
+        ip: Option<std::net::IpAddr>,
+        user_agent: Option<String>,
+    ) -> DbResult<Session>;
+
+    async fn lookup_session(&self, id: Uuid) -> DbResult<Session>;
+
+    async fn set_session_active_org(
+        &self,
+        session_id: Uuid,
+        user_id: UserId,
+        org_id: Uuid,
+    ) -> DbResult<bool>;
+
+    async fn delete_session(&self, id: Uuid) -> DbResult<()>;
+
+    async fn delete_sessions_for_user(&self, user_id: UserId) -> DbResult<u64>;
+
+    async fn list_sessions_for_user(&self, user_id: UserId) -> DbResult<Vec<SessionInfo>>;
+
+    async fn delete_one_session_for_user(&self, user_id: UserId, id: Uuid) -> DbResult<bool>;
+
+    async fn delete_other_sessions(&self, user_id: UserId, keep: Uuid) -> DbResult<u64>;
+
+    async fn cleanup_expired_sessions(&self) -> DbResult<u64>;
+}
+
 /// Composed store super-trait spanning every extracted domain sub-trait.
 pub trait Store:
     StoreHeartbeats
@@ -708,6 +1026,12 @@ pub trait Store:
     + StoreMonitorGroups
     + StoreSilences
     + StoreOidcState
+    + StoreStatusPages
+    + StoreIncidents
+    + StoreRouting
+    + StoreSubscribers
+    + StoreDetection
+    + StoreSessions
     + Send
     + Sync
 {
@@ -1636,6 +1960,466 @@ impl StoreOidcState for PgStore {
 
     async fn prune_oidc_state(&self) -> DbResult<u64> {
         crate::oidc_state::prune_expired(&self.pool).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreStatusPages for PgStore {
+    async fn list_status_pages(&self, org_id: OrgId) -> DbResult<Vec<StatusPage>> {
+        crate::status_pages::list(&self.pool, org_id).await
+    }
+
+    async fn list_all_status_pages(&self) -> DbResult<Vec<StatusPage>> {
+        crate::status_pages::list_all(&self.pool).await
+    }
+
+    async fn get_status_page(&self, id: StatusPageId, org_id: OrgId) -> DbResult<StatusPage> {
+        crate::status_pages::get(&self.pool, id, org_id).await
+    }
+
+    async fn get_status_page_by_slug(&self, slug: &str) -> DbResult<StatusPage> {
+        crate::status_pages::get_by_slug(&self.pool, slug).await
+    }
+
+    async fn get_status_page_unscoped(&self, id: StatusPageId) -> DbResult<StatusPage> {
+        crate::status_pages::get_unscoped(&self.pool, id).await
+    }
+
+    async fn find_status_page_by_custom_domain(&self, host: &str) -> DbResult<Option<StatusPage>> {
+        crate::status_pages::find_by_custom_domain(&self.pool, host).await
+    }
+
+    async fn create_status_page(
+        &self,
+        input: NewStatusPage,
+        org_id: OrgId,
+    ) -> DbResult<StatusPage> {
+        crate::status_pages::create(&self.pool, input, org_id).await
+    }
+
+    async fn update_status_page(
+        &self,
+        id: StatusPageId,
+        patch: UpdateStatusPage,
+        org_id: OrgId,
+    ) -> DbResult<StatusPage> {
+        crate::status_pages::update(&self.pool, id, patch, org_id).await
+    }
+
+    async fn delete_status_page(&self, id: StatusPageId, org_id: OrgId) -> DbResult<()> {
+        crate::status_pages::delete(&self.pool, id, org_id).await
+    }
+
+    async fn status_page_public_view(&self, slug: &str) -> DbResult<PublicStatusPage> {
+        crate::status_pages::public_view(&self.pool, slug).await
+    }
+
+    async fn verify_status_page_password(&self, slug: &str, candidate: &str) -> DbResult<bool> {
+        crate::status_pages::verify_page_password(&self.pool, slug, candidate).await
+    }
+
+    async fn list_status_page_sections(
+        &self,
+        page_id: StatusPageId,
+    ) -> DbResult<Vec<StatusPageSection>> {
+        crate::status_pages::list_sections(&self.pool, page_id).await
+    }
+
+    async fn create_status_page_section(
+        &self,
+        page_id: StatusPageId,
+        input: NewStatusPageSection,
+    ) -> DbResult<StatusPageSection> {
+        crate::status_pages::create_section(&self.pool, page_id, input).await
+    }
+
+    async fn update_status_page_section(
+        &self,
+        id: StatusPageSectionId,
+        patch: UpdateStatusPageSection,
+    ) -> DbResult<StatusPageSection> {
+        crate::status_pages::update_section(&self.pool, id, patch).await
+    }
+
+    async fn delete_status_page_section(&self, id: StatusPageSectionId) -> DbResult<()> {
+        crate::status_pages::delete_section(&self.pool, id).await
+    }
+
+    async fn assign_status_page_monitor_section(
+        &self,
+        page_id: StatusPageId,
+        monitor_id: MonitorId,
+        section_id: Option<StatusPageSectionId>,
+    ) -> DbResult<()> {
+        crate::status_pages::assign_monitor_section(&self.pool, page_id, monitor_id, section_id)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreIncidents for PgStore {
+    async fn create_incident(
+        &self,
+        page: StatusPageId,
+        author: Option<UserId>,
+        input: NewIncident,
+    ) -> DbResult<Incident> {
+        crate::incidents::create(&self.pool, page, author, input).await
+    }
+
+    async fn find_active_incident_by_dedup_key(
+        &self,
+        page: StatusPageId,
+        key: &str,
+    ) -> DbResult<Option<Incident>> {
+        crate::incidents::find_active_by_dedup_key(&self.pool, page, key).await
+    }
+
+    async fn list_active_incidents(&self, page: StatusPageId) -> DbResult<Vec<Incident>> {
+        crate::incidents::list_active(&self.pool, page).await
+    }
+
+    async fn recent_incidents(&self, limit: i64, org_id: OrgId) -> DbResult<Vec<Incident>> {
+        crate::incidents::recent(&self.pool, limit, org_id).await
+    }
+
+    async fn list_resolved_incident_history(
+        &self,
+        page: StatusPageId,
+        limit: i64,
+    ) -> DbResult<Vec<Incident>> {
+        crate::incidents::list_resolved_history(&self.pool, page, limit).await
+    }
+
+    async fn resolve_incident(&self, id: IncidentId, now: OffsetDateTime) -> DbResult<()> {
+        crate::incidents::resolve(&self.pool, id, now).await
+    }
+
+    async fn list_all_incidents(&self, page: StatusPageId, limit: i64) -> DbResult<Vec<Incident>> {
+        crate::incidents::list_all(&self.pool, page, limit).await
+    }
+
+    async fn delete_incident(&self, id: IncidentId) -> DbResult<()> {
+        crate::incidents::delete(&self.pool, id).await
+    }
+
+    async fn update_incident(&self, id: IncidentId, patch: UpdateIncident) -> DbResult<Incident> {
+        crate::incidents::update(&self.pool, id, patch).await
+    }
+
+    async fn get_incident(&self, id: IncidentId) -> DbResult<Incident> {
+        crate::incidents::get(&self.pool, id).await
+    }
+
+    async fn list_incident_updates(&self, incident: IncidentId) -> DbResult<Vec<IncidentUpdate>> {
+        crate::incidents::list_updates(&self.pool, incident).await
+    }
+
+    async fn post_incident_update(
+        &self,
+        incident: IncidentId,
+        author: Option<UserId>,
+        message: String,
+    ) -> DbResult<Uuid> {
+        crate::incidents::post_update(&self.pool, incident, author, message).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreRouting for PgStore {
+    async fn resolve_channels_for_monitor(
+        &self,
+        monitor: MonitorId,
+    ) -> DbResult<Vec<Notification>> {
+        crate::routing::resolve_channels_for_monitor(&self.pool, monitor).await
+    }
+
+    async fn group_tag_ids(&self, group: MonitorGroupId) -> DbResult<Vec<TagId>> {
+        crate::routing::group_tag_ids(&self.pool, group).await
+    }
+
+    async fn channel_tag_ids(&self, notif: NotificationId) -> DbResult<Vec<TagId>> {
+        crate::routing::channel_tag_ids(&self.pool, notif).await
+    }
+
+    async fn group_channel_ids(&self, group: MonitorGroupId) -> DbResult<Vec<NotificationId>> {
+        crate::routing::group_channel_ids(&self.pool, group).await
+    }
+
+    async fn monitor_exclude_ids(&self, monitor: MonitorId) -> DbResult<Vec<NotificationId>> {
+        crate::routing::monitor_exclude_ids(&self.pool, monitor).await
+    }
+
+    async fn tag_group(&self, group: MonitorGroupId, tag: TagId) -> DbResult<()> {
+        crate::routing::tag_group(&self.pool, group, tag).await
+    }
+
+    async fn untag_group(&self, group: MonitorGroupId, tag: TagId) -> DbResult<()> {
+        crate::routing::untag_group(&self.pool, group, tag).await
+    }
+
+    async fn tag_channel(&self, notif: NotificationId, tag: TagId) -> DbResult<()> {
+        crate::routing::tag_channel(&self.pool, notif, tag).await
+    }
+
+    async fn untag_channel(&self, notif: NotificationId, tag: TagId) -> DbResult<()> {
+        crate::routing::untag_channel(&self.pool, notif, tag).await
+    }
+
+    async fn attach_group_channel(
+        &self,
+        group: MonitorGroupId,
+        notif: NotificationId,
+    ) -> DbResult<()> {
+        crate::routing::attach_group_channel(&self.pool, group, notif).await
+    }
+
+    async fn detach_group_channel(
+        &self,
+        group: MonitorGroupId,
+        notif: NotificationId,
+    ) -> DbResult<()> {
+        crate::routing::detach_group_channel(&self.pool, group, notif).await
+    }
+
+    async fn exclude_channel(&self, monitor: MonitorId, notif: NotificationId) -> DbResult<()> {
+        crate::routing::exclude_channel(&self.pool, monitor, notif).await
+    }
+
+    async fn unexclude_channel(&self, monitor: MonitorId, notif: NotificationId) -> DbResult<()> {
+        crate::routing::unexclude_channel(&self.pool, monitor, notif).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreSubscribers for PgStore {
+    async fn subscribe_email(
+        &self,
+        page: StatusPageId,
+        email: &str,
+    ) -> DbResult<(Subscriber, String)> {
+        crate::subscribers::subscribe_email(&self.pool, page, email).await
+    }
+
+    async fn list_subscribers_for_page(&self, page: StatusPageId) -> DbResult<Vec<Subscriber>> {
+        crate::subscribers::list_for_page(&self.pool, page).await
+    }
+
+    async fn confirmed_subscriber_emails_for_page(
+        &self,
+        page: StatusPageId,
+    ) -> DbResult<Vec<String>> {
+        crate::subscribers::confirmed_emails_for_page(&self.pool, page).await
+    }
+
+    async fn delete_subscriber(&self, id: StatusPageSubscriberId) -> DbResult<()> {
+        crate::subscribers::delete(&self.pool, id).await
+    }
+
+    async fn unsubscribe_subscriber_by_token(&self, token: &str) -> DbResult<()> {
+        crate::subscribers::unsubscribe_by_token(&self.pool, token).await
+    }
+
+    async fn subscriber_email_for_token(&self, token: &str) -> DbResult<Option<String>> {
+        crate::subscribers::email_for_token(&self.pool, token).await
+    }
+
+    async fn subscriptions_for_email(&self, email: &str) -> DbResult<Vec<ManagedSubscription>> {
+        crate::subscribers::subscriptions_for_email(&self.pool, email).await
+    }
+
+    async fn unsubscribe_all_for_email(&self, email: &str) -> DbResult<u64> {
+        crate::subscribers::unsubscribe_all_for_email(&self.pool, email).await
+    }
+
+    async fn unsubscribe_email_from_page(&self, page: StatusPageId, email: &str) -> DbResult<()> {
+        crate::subscribers::unsubscribe_email_from_page(&self.pool, page, email).await
+    }
+
+    async fn subscriber_page_for(
+        &self,
+        id: StatusPageSubscriberId,
+    ) -> DbResult<Option<StatusPageId>> {
+        crate::subscribers::page_for(&self.pool, id).await
+    }
+
+    async fn subscriber_token_for(&self, id: Uuid) -> DbResult<Option<String>> {
+        crate::subscribers::token_for(&self.pool, id).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreDetection for PgStore {
+    async fn detection_regex_is_valid(&self, pattern: &str) -> DbResult<bool> {
+        crate::detection::regex_is_valid(&self.pool, pattern).await
+    }
+
+    async fn list_detection_rules(&self, org_id: OrgId) -> DbResult<Vec<DetectionRule>> {
+        crate::detection::list(&self.pool, org_id).await
+    }
+
+    async fn list_all_detection_rules(&self) -> DbResult<Vec<DetectionRule>> {
+        crate::detection::list_all(&self.pool).await
+    }
+
+    async fn get_detection_rule(
+        &self,
+        id: DetectionRuleId,
+        org_id: OrgId,
+    ) -> DbResult<DetectionRule> {
+        crate::detection::get(&self.pool, id, org_id).await
+    }
+
+    async fn get_detection_rule_unscoped(&self, id: DetectionRuleId) -> DbResult<DetectionRule> {
+        crate::detection::get_unscoped(&self.pool, id).await
+    }
+
+    async fn create_detection_rule(
+        &self,
+        input: NewDetectionRule,
+        org_id: OrgId,
+    ) -> DbResult<DetectionRule> {
+        crate::detection::create(&self.pool, input, org_id).await
+    }
+
+    async fn update_detection_rule(
+        &self,
+        id: DetectionRuleId,
+        patch: UpdateDetectionRule,
+        org_id: OrgId,
+    ) -> DbResult<DetectionRule> {
+        crate::detection::update(&self.pool, id, patch, org_id).await
+    }
+
+    async fn delete_detection_rule(&self, id: DetectionRuleId, org_id: OrgId) -> DbResult<()> {
+        crate::detection::delete(&self.pool, id, org_id).await
+    }
+
+    async fn preview_detection(
+        &self,
+        service: &str,
+        min_level: i16,
+        body_regex: &str,
+        attr_key: &str,
+        attr_val: &str,
+        window_seconds: i32,
+        org_id: OrgId,
+    ) -> DbResult<PreviewResult> {
+        crate::detection::preview(
+            &self.pool,
+            service,
+            min_level,
+            body_regex,
+            attr_key,
+            attr_val,
+            window_seconds,
+            org_id,
+        )
+        .await
+    }
+
+    async fn has_recent_detection_finding(
+        &self,
+        rule_id: DetectionRuleId,
+        secs: i64,
+        entity: Option<&str>,
+    ) -> DbResult<bool> {
+        crate::detection::has_recent_finding(&self.pool, rule_id, secs, entity).await
+    }
+
+    async fn list_detection_findings(
+        &self,
+        limit: i64,
+        open_only: bool,
+    ) -> DbResult<Vec<DetectionFinding>> {
+        crate::detection::list_findings(&self.pool, limit, open_only).await
+    }
+
+    async fn list_detection_findings_for_org(
+        &self,
+        limit: i64,
+        open_only: bool,
+        org_id: OrgId,
+    ) -> DbResult<Vec<DetectionFinding>> {
+        crate::detection::list_findings_for_org(&self.pool, limit, open_only, org_id).await
+    }
+
+    async fn detection_finding_in_org(
+        &self,
+        finding: DetectionFindingId,
+        org_id: OrgId,
+    ) -> DbResult<()> {
+        crate::detection::finding_in_org(&self.pool, finding, org_id).await
+    }
+
+    async fn open_detection_findings_count(&self) -> DbResult<i64> {
+        crate::detection::open_count(&self.pool).await
+    }
+
+    async fn fetch_detection_findings_since(
+        &self,
+        after: Option<OffsetDateTime>,
+        limit: i64,
+    ) -> DbResult<Vec<DetectionFinding>> {
+        crate::detection::fetch_since(&self.pool, after, limit).await
+    }
+
+    async fn ack_detection_finding(&self, id: DetectionFindingId) -> DbResult<DetectionFinding> {
+        crate::detection::ack_finding(&self.pool, id).await
+    }
+
+    async fn evaluate_detection_tick(&self) -> DbResult<Vec<FindingEvent>> {
+        crate::detection::evaluate_tick(&self.pool).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreSessions for PgStore {
+    async fn create_session(
+        &self,
+        user_id: UserId,
+        ttl_seconds: i64,
+        ip: Option<std::net::IpAddr>,
+        user_agent: Option<String>,
+    ) -> DbResult<Session> {
+        crate::sessions::create(&self.pool, user_id, ttl_seconds, ip, user_agent).await
+    }
+
+    async fn lookup_session(&self, id: Uuid) -> DbResult<Session> {
+        crate::sessions::get(&self.pool, id).await
+    }
+
+    async fn set_session_active_org(
+        &self,
+        session_id: Uuid,
+        user_id: UserId,
+        org_id: Uuid,
+    ) -> DbResult<bool> {
+        crate::sessions::set_active_org(&self.pool, session_id, user_id, org_id).await
+    }
+
+    async fn delete_session(&self, id: Uuid) -> DbResult<()> {
+        crate::sessions::delete(&self.pool, id).await
+    }
+
+    async fn delete_sessions_for_user(&self, user_id: UserId) -> DbResult<u64> {
+        crate::sessions::delete_for_user(&self.pool, user_id).await
+    }
+
+    async fn list_sessions_for_user(&self, user_id: UserId) -> DbResult<Vec<SessionInfo>> {
+        crate::sessions::list_for_user(&self.pool, user_id).await
+    }
+
+    async fn delete_one_session_for_user(&self, user_id: UserId, id: Uuid) -> DbResult<bool> {
+        crate::sessions::delete_one_for_user(&self.pool, user_id, id).await
+    }
+
+    async fn delete_other_sessions(&self, user_id: UserId, keep: Uuid) -> DbResult<u64> {
+        crate::sessions::delete_others(&self.pool, user_id, keep).await
+    }
+
+    async fn cleanup_expired_sessions(&self) -> DbResult<u64> {
+        crate::sessions::cleanup_expired(&self.pool).await
     }
 }
 

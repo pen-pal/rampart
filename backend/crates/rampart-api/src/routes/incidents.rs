@@ -44,9 +44,7 @@ async fn recent(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<rampart_core::incident::Incident>>, ApiError> {
-    Ok(Json(
-        rampart_db::incidents::recent(s.pool(), 10, org.org_id).await?,
-    ))
+    Ok(Json(s.store().recent_incidents(10, org.org_id).await?))
 }
 
 fn parse_page(s: &str) -> Result<StatusPageId, ApiError> {
@@ -66,7 +64,7 @@ fn parse_incident(s: &str) -> Result<IncidentId, ApiError> {
 /// of their own; they inherit it from the owning page, so every authenticated
 /// incident operation gates through this.
 async fn gate_page(s: &AppState, page: StatusPageId, org: OrgId) -> Result<(), ApiError> {
-    rampart_db::status_pages::get(s.pool(), page, org).await?;
+    s.store().get_status_page(page, org).await?;
     Ok(())
 }
 
@@ -74,7 +72,7 @@ async fn gate_page(s: &AppState, page: StatusPageId, org: OrgId) -> Result<(), A
 /// org — 404 otherwise. Used by the top-level `/v1/incidents/:id` operations,
 /// which carry no page in the path.
 async fn gate_incident(s: &AppState, id: IncidentId, org: OrgId) -> Result<Incident, ApiError> {
-    let inc = rampart_db::incidents::get(s.pool(), id).await?;
+    let inc = s.store().get_incident(id).await?;
     gate_page(s, inc.status_page_id, org).await?;
     Ok(inc)
 }
@@ -86,9 +84,7 @@ async fn list_for_page(
 ) -> Result<Json<Vec<Incident>>, ApiError> {
     let page_id = parse_page(&page)?;
     gate_page(&s, page_id, org.org_id).await?;
-    Ok(Json(
-        rampart_db::incidents::list_all(s.pool(), page_id, 500).await?,
-    ))
+    Ok(Json(s.store().list_all_incidents(page_id, 500).await?))
 }
 
 async fn create(
@@ -103,7 +99,10 @@ async fn create(
     }
     let page_id = parse_page(&page)?;
     gate_page(&s, page_id, org.org_id).await?;
-    let i = rampart_db::incidents::create(s.pool(), page_id, Some(user.id), input).await?;
+    let i = s
+        .store()
+        .create_incident(page_id, Some(user.id), input)
+        .await?;
     // Best-effort subscriber fan-out — failures are logged, not surfaced.
     fan_out_incident(s.clone(), org.org_id, page_id, i.clone(), None);
     Ok((StatusCode::CREATED, Json(i)))
@@ -117,9 +116,7 @@ async fn update(
 ) -> Result<Json<Incident>, ApiError> {
     let id = parse_incident(&id)?;
     gate_incident(&s, id, org.org_id).await?;
-    Ok(Json(
-        rampart_db::incidents::update(s.pool(), id, patch).await?,
-    ))
+    Ok(Json(s.store().update_incident(id, patch).await?))
 }
 
 async fn delete_one(
@@ -129,7 +126,7 @@ async fn delete_one(
 ) -> Result<StatusCode, ApiError> {
     let id = parse_incident(&id)?;
     gate_incident(&s, id, org.org_id).await?;
-    rampart_db::incidents::delete(s.pool(), id).await?;
+    s.store().delete_incident(id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -140,7 +137,9 @@ async fn resolve(
 ) -> Result<StatusCode, ApiError> {
     let id = parse_incident(&id)?;
     gate_incident(&s, id, org.org_id).await?;
-    rampart_db::incidents::resolve(s.pool(), id, OffsetDateTime::now_utc()).await?;
+    s.store()
+        .resolve_incident(id, OffsetDateTime::now_utc())
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -151,9 +150,7 @@ async fn list_updates(
 ) -> Result<Json<Vec<IncidentUpdate>>, ApiError> {
     let id = parse_incident(&id)?;
     gate_incident(&s, id, org.org_id).await?;
-    Ok(Json(
-        rampart_db::incidents::list_updates(s.pool(), id).await?,
-    ))
+    Ok(Json(s.store().list_incident_updates(id).await?))
 }
 
 #[derive(Deserialize)]
@@ -173,9 +170,10 @@ async fn post_update(
     }
     let incident_id = parse_incident(&id)?;
     gate_incident(&s, incident_id, org.org_id).await?;
-    rampart_db::incidents::post_update(s.pool(), incident_id, Some(user.id), body.message.clone())
+    s.store()
+        .post_incident_update(incident_id, Some(user.id), body.message.clone())
         .await?;
-    let inc = rampart_db::incidents::get(s.pool(), incident_id).await?;
+    let inc = s.store().get_incident(incident_id).await?;
     fan_out_incident(
         s.clone(),
         org.org_id,
@@ -212,21 +210,24 @@ fn fan_out_incident(
         };
         // Background fan-out (spawned, no request context); the page was
         // org-checked when the incident was created, so fetch unscoped.
-        let page_row = match rampart_db::status_pages::get_unscoped(state.pool(), page).await {
+        let page_row = match state.store().get_status_page_unscoped(page).await {
             Ok(p) => p,
             Err(e) => {
                 tracing::warn!("status page lookup: {e}");
                 return;
             }
         };
-        let emails =
-            match rampart_db::subscribers::confirmed_emails_for_page(state.pool(), page).await {
-                Ok(e) => e,
-                Err(e) => {
-                    tracing::warn!("subscriber lookup: {e}");
-                    return;
-                }
-            };
+        let emails = match state
+            .store()
+            .confirmed_subscriber_emails_for_page(page)
+            .await
+        {
+            Ok(e) => e,
+            Err(e) => {
+                tracing::warn!("subscriber lookup: {e}");
+                return;
+            }
+        };
         if emails.is_empty() {
             return;
         }

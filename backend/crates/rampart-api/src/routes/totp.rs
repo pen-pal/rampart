@@ -261,17 +261,18 @@ async fn verify(
     )
     .await;
 
-    let session = rampart_db::sessions::create(
-        state.pool(),
-        user_id,
-        SESSION_TTL_SECS,
-        crate::client_ip::from_headers(&headers),
-        headers
-            .get("user-agent")
-            .and_then(|v| v.to_str().ok())
-            .map(String::from),
-    )
-    .await?;
+    let session = state
+        .store()
+        .create_session(
+            user_id,
+            SESSION_TTL_SECS,
+            crate::client_ip::from_headers(&headers),
+            headers
+                .get("user-agent")
+                .and_then(|v| v.to_str().ok())
+                .map(String::from),
+        )
+        .await?;
     let cookie = build_session_cookie(session.id, is_secure(&headers));
     Ok((
         AppendHeaders([(axum::http::header::SET_COOKIE, cookie.to_string())]),

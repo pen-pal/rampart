@@ -320,7 +320,11 @@ async fn switch(
         .and_then(|c| Uuid::from_str(c.value()).ok())
         .ok_or(ApiError::Unauthorized)?;
     // Scoped to (session, user); a mismatched/expired session affects 0 rows.
-    if !rampart_db::sessions::set_active_org(s.pool(), token, user.id, org.0).await? {
+    if !s
+        .store()
+        .set_session_active_org(token, user.id, org.0)
+        .await?
+    {
         return Err(ApiError::NotFound);
     }
     Ok(StatusCode::NO_CONTENT)
