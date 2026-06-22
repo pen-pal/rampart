@@ -1,6 +1,6 @@
 // E2E: notifications + templates UI flow.
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { api, ensureLoggedIn, gotoView, uniq } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });

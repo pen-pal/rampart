@@ -55,6 +55,11 @@ export default defineConfig({
       BIND_ADDR:          '0.0.0.0:3001',
       RUST_LOG:           'rampart=warn,tower_http=warn',
       SQLX_OFFLINE:       'true',
+      // Trust the loopback test client so the server honours the per-context
+      // X-Forwarded-For that fixtures.js stamps — gives each test its own
+      // auth rate-limit bucket. Production keys on the real TCP peer; this is
+      // test-env only.
+      RAMPART_TRUSTED_PROXIES: '127.0.0.1,::1',
     },
   },
 

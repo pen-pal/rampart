@@ -21,7 +21,7 @@
 // and the response struct lives in
 //   backend/crates/rampart-core/src/api_key.rs (IssuedApiKey { key, token }).
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { api, ensureLoggedIn, gotoView, uniq } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });

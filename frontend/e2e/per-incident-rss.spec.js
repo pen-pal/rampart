@@ -17,9 +17,9 @@
 //
 // Feeds are public/unauthed, so they go through a fresh APIRequestContext.
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { api, ensureLoggedIn, uniq } from './helpers.js';
-import { request as pwRequest } from '@playwright/test';
+import { request as pwRequest } from './fixtures.js';
 
 test.describe.configure({ mode: 'serial' });
 

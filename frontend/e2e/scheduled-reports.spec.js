@@ -14,7 +14,7 @@
 // {name, recipients[], cadence} and UpdateScheduledReport (all optional).
 // The row carries last_sent_at (null until first send) + created_at.
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { api, ensureLoggedIn, uniq } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });

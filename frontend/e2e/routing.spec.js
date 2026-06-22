@@ -2,7 +2,7 @@
 // Covers the surfaces built without browser verification, so the
 // blind-UI regression class (e.g. the add-form render bug) gets caught.
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { api, ensureLoggedIn, gotoView, uniq } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });

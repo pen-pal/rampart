@@ -10,7 +10,7 @@
 // IncidentStyle enum (info|warning|danger|primary|success). RBAC/no-auth
 // gating is covered by rbac.spec.js — this spec is the CRUD round-trip.
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { api, ensureLoggedIn, uniq } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });

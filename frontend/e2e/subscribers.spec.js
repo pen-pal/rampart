@@ -11,7 +11,7 @@
 // without any session setup beyond admin login for the page-
 // creation step.
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { api, ensureLoggedIn, gotoView, uniq } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });

@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect, useState } from 'react';
+import React, { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 
 // A dynamic import() can fail after a redeploy: the previous build's
 // content-hashed chunk filenames (e.g. `Maintenance-ABC123.js`) no longer exist
@@ -212,24 +212,29 @@ export default function App() {
 
   // One-shot auth check on mount. Re-run when the route changes back to
   // the dashboard (so logout → /#/login → /# refreshes the user state).
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await api.auth.me();
-        if (cancelled) return;
-        if (r?.needs_setup)      setAuthState({ loading: false, user: null, needsSetup: true });
-        else if (r?.user)        setAuthState({ loading: false, user: r.user, needsSetup: false, mustSetup2fa: !!r.must_setup_2fa, orgs: r.orgs || [], activeOrgId: r.active_org_id || null });
-        else                     setAuthState({ loading: false, user: null, needsSetup: false });
-      } catch (e) {
-        if (cancelled) return;
-        // 401 means not logged in; the request layer already redirected to
-        // #/login. We still update local state so the switcher hides views.
-        setAuthState({ loading: false, user: null, needsSetup: false });
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [route.view]);
+  // Fetch /me and reduce it into authState. Returned so callers (e.g. the
+  // Login view after a successful register/login) can `await` it and have the
+  // auth gate see the fresh session on the very next render — otherwise the
+  // gate below renders with a stale `user: null` and bounces a just-signed-in
+  // user back to #/login before this resolves.
+  const refreshAuth = useCallback(async () => {
+    try {
+      const r = await api.auth.me();
+      if (r?.needs_setup)      setAuthState({ loading: false, user: null, needsSetup: true });
+      else if (r?.user)        setAuthState({ loading: false, user: r.user, needsSetup: false, mustSetup2fa: !!r.must_setup_2fa, orgs: r.orgs || [], activeOrgId: r.active_org_id || null });
+      else                     setAuthState({ loading: false, user: null, needsSetup: false });
+      return r;
+    } catch (e) {
+      // 401 means not logged in; the request layer already redirected to
+      // #/login. We still update local state so the switcher hides views.
+      setAuthState({ loading: false, user: null, needsSetup: false });
+      return null;
+    }
+  }, []);
+
+  // One-shot auth check on mount, re-run when the route changes back to the
+  // dashboard (so logout → /#/login → /# refreshes the user state).
+  useEffect(() => { refreshAuth(); }, [route.view, refreshAuth]);
 
   // 2FA enrollment gate. When an org policy requires 2FA and this user hasn't
   // enrolled, force them to the Security view until they do — they can't use
@@ -312,7 +317,7 @@ export default function App() {
 
   let view = null;
   switch (route.view) {
-    case 'login':         view = <Login />; break;
+    case 'login':         view = <Login onAuthed={refreshAuth} />; break;
     case 'monitor':       view = <MonitorDetail monitorId={route.id} user={user} />; break;
     case 'new-monitor':   view = <NewMonitorWizard />; break;
     case 'import':        view = <ImportMonitors user={user} />; break;

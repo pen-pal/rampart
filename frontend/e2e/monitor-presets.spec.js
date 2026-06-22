@@ -18,7 +18,7 @@
 // Tags attach via /v1/monitors/{id}/tags/{tag_id} (POST). Monitor `active`
 // is read back off the monitor row.
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { api, ensureLoggedIn, uniq } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });
