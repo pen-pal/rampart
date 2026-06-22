@@ -60,7 +60,7 @@ async fn create(
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     let t = s.store().create_tag(input, org.org_id).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "tag.create",
@@ -86,7 +86,7 @@ async fn update(
     let tid = parse_tag(&id)?;
     let t = s.store().update_tag(tid, input, org.org_id).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "tag.update",
@@ -115,7 +115,7 @@ async fn remove(
     let tid = parse_tag(&id)?;
     s.store().delete_tag(tid, org.org_id).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "tag.delete",
@@ -152,7 +152,7 @@ async fn attach(
     s.store().get_tag(tid, org.org_id).await?;
     s.store().attach_tag(mid, tid).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "tag.attach",
@@ -178,7 +178,7 @@ async fn detach(
     s.store().get_tag(tid, org.org_id).await?;
     s.store().detach_tag(mid, tid).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "tag.detach",

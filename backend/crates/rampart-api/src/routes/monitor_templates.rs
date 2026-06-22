@@ -87,7 +87,7 @@ async fn create(
         .create_monitor_template(input, org.org_id)
         .await?;
     crate::audit::record(
-        state.pool(),
+        state.store(),
         &user,
         &headers,
         "monitor_template.create",
@@ -112,7 +112,7 @@ async fn delete_one(
         .delete_monitor_template(template_id, org.org_id)
         .await?;
     crate::audit::record(
-        state.pool(),
+        state.store(),
         &user,
         &headers,
         "monitor_template.delete",
@@ -163,7 +163,7 @@ async fn instantiate(
     let monitor = rampart_db::monitors::create(state.pool(), new_monitor, org.org_id).await?;
     state.poke_scheduler();
     crate::audit::record(
-        state.pool(),
+        state.store(),
         &user,
         &headers,
         "monitor_template.instantiate",

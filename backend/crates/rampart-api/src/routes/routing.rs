@@ -122,7 +122,7 @@ async fn add_group_tag(
     gate_tag(&s, tid, &org).await?;
     s.store().tag_group(gid, tid).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "routing.tag_group",
@@ -146,7 +146,7 @@ async fn del_group_tag(
     gate_tag(&s, tid, &org).await?;
     s.store().untag_group(gid, tid).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "routing.untag_group",
@@ -182,7 +182,7 @@ async fn add_group_channel(
     gate_channel(&s, nid, &org).await?;
     s.store().attach_group_channel(gid, nid).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "routing.attach_group_channel",
@@ -206,7 +206,7 @@ async fn del_group_channel(
     gate_channel(&s, nid, &org).await?;
     s.store().detach_group_channel(gid, nid).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "routing.detach_group_channel",
@@ -242,7 +242,7 @@ async fn add_channel_tag(
     gate_tag(&s, tid, &org).await?;
     s.store().tag_channel(nid, tid).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "routing.tag_channel",
@@ -266,7 +266,7 @@ async fn del_channel_tag(
     gate_tag(&s, tid, &org).await?;
     s.store().untag_channel(nid, tid).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "routing.untag_channel",
@@ -302,7 +302,7 @@ async fn add_exclude(
     gate_channel(&s, nid, &org).await?;
     s.store().exclude_channel(mid, nid).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "routing.exclude_channel",
@@ -326,7 +326,7 @@ async fn del_exclude(
     gate_channel(&s, nid, &org).await?;
     s.store().unexclude_channel(mid, nid).await?;
     crate::audit::record(
-        s.pool(),
+        s.store(),
         &user,
         &headers,
         "routing.unexclude_channel",

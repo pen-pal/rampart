@@ -204,7 +204,7 @@ async fn apply_monitors(
     }
 
     crate::audit::record(
-        state.pool(),
+        state.store(),
         &user,
         &headers,
         "monitors.apply",
@@ -243,7 +243,7 @@ async fn create(
     let monitor = rampart_db::monitors::create(state.pool(), input, org.org_id).await?;
     state.poke_scheduler();
     crate::audit::record(
-        state.pool(),
+        state.store(),
         &user,
         &headers,
         "monitor.create",
@@ -313,7 +313,7 @@ async fn import_csv(
         state.poke_scheduler();
     }
     crate::audit::record(
-        pool,
+        state.store(),
         &user,
         &headers,
         "monitor.import_csv",
@@ -347,7 +347,7 @@ async fn delete_one(
     rampart_db::monitors::delete(state.pool(), monitor_id, org.org_id).await?;
     state.poke_scheduler();
     crate::audit::record(
-        state.pool(),
+        state.store(),
         &user,
         &headers,
         "monitor.delete",
@@ -387,7 +387,7 @@ async fn update(
     // pick up the new config — poke triggers a reload diff.
     state.poke_scheduler();
     crate::audit::record(
-        state.pool(),
+        state.store(),
         &user,
         &headers,
         "monitor.update",
@@ -410,7 +410,7 @@ async fn pause(
     rampart_db::monitors::set_active(state.pool(), monitor_id, false, org.org_id).await?;
     state.poke_scheduler();
     crate::audit::record(
-        state.pool(),
+        state.store(),
         &user,
         &headers,
         "monitor.pause",
@@ -433,7 +433,7 @@ async fn resume(
     rampart_db::monitors::set_active(state.pool(), monitor_id, true, org.org_id).await?;
     state.poke_scheduler();
     crate::audit::record(
-        state.pool(),
+        state.store(),
         &user,
         &headers,
         "monitor.resume",
@@ -599,7 +599,7 @@ async fn bulk(
         BulkAction::DetachChannel { .. } => "detach_channel",
     };
     crate::audit::record(
-        pool,
+        state.store(),
         &user,
         &headers,
         "monitor.bulk",
@@ -941,7 +941,7 @@ async fn bulk_edit(
 
     state.poke_scheduler();
     crate::audit::record(
-        state.pool(),
+        state.store(),
         &user,
         &headers,
         "monitor.bulk_edit",
@@ -1015,7 +1015,7 @@ async fn bulk_by_tag(
 
     let action_name = if active { "resume" } else { "pause" };
     crate::audit::record(
-        state.pool(),
+        state.store(),
         &user,
         &headers,
         "monitor.bulk_by_tag",
@@ -1076,7 +1076,7 @@ async fn create_preset(
         .create_monitor_preset(input, org.org_id)
         .await?;
     crate::audit::record(
-        state.pool(),
+        state.store(),
         &user,
         &headers,
         "monitor_preset.create",
@@ -1101,7 +1101,7 @@ async fn delete_preset(
         .delete_monitor_preset(preset_id, org.org_id)
         .await?;
     crate::audit::record(
-        state.pool(),
+        state.store(),
         &user,
         &headers,
         "monitor_preset.delete",
@@ -1222,7 +1222,7 @@ async fn clone_one(
     let cloned = rampart_db::monitors::create(state.pool(), copy, org.org_id).await?;
     state.poke_scheduler();
     crate::audit::record(
-        state.pool(),
+        state.store(),
         &user,
         &headers,
         "monitor.clone",
@@ -1283,7 +1283,7 @@ async fn test_now(
         rampart_db::monitors::set_status(state.pool(), monitor_id, hb.status).await?;
     }
     crate::audit::record(
-        state.pool(),
+        state.store(),
         &user,
         &headers,
         "monitor.test_now",
@@ -1419,7 +1419,7 @@ async fn test_notifications(
     }
 
     crate::audit::record(
-        state.pool(),
+        state.store(),
         &user,
         &headers,
         "monitor.test_notifications",
@@ -1445,7 +1445,7 @@ async fn regenerate_push_token(
     let token =
         rampart_db::monitors::regenerate_push_token(state.pool(), monitor_id, org.org_id).await?;
     crate::audit::record(
-        state.pool(),
+        state.store(),
         &user,
         &headers,
         "monitor.regenerate_push_token",
