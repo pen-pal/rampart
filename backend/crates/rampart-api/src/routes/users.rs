@@ -29,6 +29,8 @@ pub fn admin_router() -> Router<AppState> {
         .route("/{id}", axum::routing::delete(remove))
         .route("/{id}/admin", post(set_admin))
         .route("/{id}/role", axum::routing::patch(set_role))
+        .route("/{id}/export", get(export_data))
+        .route("/{id}/erase", post(erase))
 }
 
 pub fn self_router() -> Router<AppState> {
@@ -189,6 +191,78 @@ async fn remove(
         &caller,
         &headers,
         "user.delete",
+        "user",
+        Some(target.0),
+        None,
+    )
+    .await;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// GDPR data-subject access request: aggregate a user's personal data across
+/// tables into one JSON document (admin-gated; the export itself is audited).
+/// Covers the account profile, UI preferences, active sessions (IP/UA/time),
+/// and org memberships — the personal data Rampart holds about the account.
+async fn export_data(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+    Extension(caller): Extension<User>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let target = parse(&id)?;
+    let user = rampart_db::users::get(s.pool(), target).await?;
+    let preferences = rampart_db::users::get_prefs(s.pool(), target)
+        .await
+        .unwrap_or_else(|_| serde_json::json!({}));
+    let sessions = rampart_db::sessions::list_for_user(s.pool(), target)
+        .await
+        .unwrap_or_default();
+    let organizations = rampart_db::orgs::list_for_user(s.pool(), target)
+        .await
+        .unwrap_or_default();
+    crate::audit::record(
+        s.pool(),
+        &caller,
+        &headers,
+        "user.gdpr_export",
+        "user",
+        Some(target.0),
+        None,
+    )
+    .await;
+    Ok(Json(serde_json::json!({
+        "user": user,
+        "preferences": preferences,
+        "sessions": sessions,
+        "organizations": organizations,
+    })))
+}
+
+/// GDPR right-to-erasure: scrub the user's PII in place (anonymize — NOT a hard
+/// delete, which would break the tamper-evident audit chain + FK refs) and
+/// revoke all access (sessions + recovery codes). The erasure action is itself
+/// audited. The user row survives as an anonymized tombstone preserving audit
+/// integrity (security-log legal-retention exception).
+async fn erase(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+    Extension(caller): Extension<User>,
+    headers: HeaderMap,
+) -> Result<StatusCode, ApiError> {
+    let target = parse(&id)?;
+    if target == caller.id {
+        return Err(ApiError::BadRequest(
+            "you can't erase your own account".into(),
+        ));
+    }
+    rampart_db::users::anonymize(s.pool(), target).await?;
+    let _ = rampart_db::sessions::delete_for_user(s.pool(), target).await;
+    let _ = rampart_db::recovery_codes::delete_for_user(s.pool(), target).await;
+    crate::audit::record(
+        s.pool(),
+        &caller,
+        &headers,
+        "user.gdpr_erase",
         "user",
         Some(target.0),
         None,
