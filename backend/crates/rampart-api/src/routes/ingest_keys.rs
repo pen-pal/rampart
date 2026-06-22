@@ -53,9 +53,7 @@ async fn list(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<IngestKey>>, ApiError> {
-    Ok(Json(
-        rampart_db::ingest_keys::list_for_org(s.pool(), org.org_id).await?,
-    ))
+    Ok(Json(s.store().list_ingest_keys_for_org(org.org_id).await?))
 }
 
 async fn create(
@@ -73,8 +71,10 @@ async fn create(
     let kind = if kind.is_empty() { "all" } else { kind };
     let origins = input.allowed_origins.unwrap_or_default();
 
-    let (key, token) =
-        rampart_db::ingest_keys::create(s.pool(), org.org_id, label, kind, &origins).await?;
+    let (key, token) = s
+        .store()
+        .create_ingest_key(org.org_id, label, kind, &origins)
+        .await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -97,7 +97,7 @@ async fn delete(
 ) -> Result<StatusCode, ApiError> {
     let id = Uuid::from_str(&id).map_err(|_| ApiError::BadRequest("invalid ingest key id".into()))?;
     // Org-scoped delete: a cross-org id is invisible, so 404 (not 403).
-    let removed = rampart_db::ingest_keys::delete(s.pool(), id, org.org_id).await?;
+    let removed = s.store().delete_ingest_key(id, org.org_id).await?;
     if !removed {
         return Err(ApiError::NotFound);
     }
