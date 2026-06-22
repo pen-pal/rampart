@@ -214,6 +214,7 @@ impl Scheduler {
                 timed("telemetry_rules", self.check_telemetry_rules()).await;
                 timed("detection_rules", self.check_detection_rules()).await;
                 timed("slos", self.check_slos()).await;
+                timed("audit_chain", self.check_audit_chain()).await;
             }
 
             tokio::select! {
@@ -868,6 +869,73 @@ impl Scheduler {
     /// maintenance-subscriber fan-out uses), then stamp `last_sent_at`.
     /// De-dup lives in that column, so re-running every slow tick is safe.
     /// Failures are logged and never stall the reconcile loop.
+    /// Continuously re-verify the tamper-evident audit hash chain
+    /// (SIEM/compliance: integrity monitoring). Throttled to ~hourly via a
+    /// `settings` watermark so the full re-walk doesn't run on every 30s slow
+    /// tick. A broken chain — a row edited, deleted, or reordered — is surfaced
+    /// two ways: a high-severity log (captured by Rampart's own self-telemetry,
+    /// so operators can alert on it with a telemetry/detection rule) AND an
+    /// `audit.chain_verify_failed` event (the forward append continues the
+    /// chain). Leader-only (called from the leading slow tick).
+    async fn check_audit_chain(&self) {
+        const KEY: &str = "audit_chain_verify";
+        const INTERVAL_SECS: i64 = 3600;
+        let now = time::OffsetDateTime::now_utc();
+
+        // Throttle: skip unless an hour has elapsed since the last verify.
+        if let Ok(Some(v)) = rampart_db::settings::get(&self.pool, KEY).await {
+            if let Some(last) = v.get("last_check_ts").and_then(|t| t.as_i64()) {
+                if now.unix_timestamp() - last < INTERVAL_SECS {
+                    return;
+                }
+            }
+        }
+
+        let report = match rampart_db::audit::verify_chain(&self.pool).await {
+            Ok(r) => r,
+            Err(e) => {
+                warn!(error = %e, "audit chain verify scan failed");
+                return;
+            }
+        };
+
+        if !report.ok {
+            error!(
+                first_bad_id = report.first_bad_id,
+                checked = report.checked,
+                "AUDIT CHAIN INTEGRITY FAILURE — an audit_log row was edited, deleted, or reordered (possible tampering)"
+            );
+            let entry = rampart_db::audit::NewEntry {
+                actor_user_id: None,
+                actor_api_key_id: None,
+                action: "audit.chain_verify_failed",
+                resource_kind: "audit_log",
+                resource_id: None,
+                payload: Some(serde_json::json!({
+                    "first_bad_id": report.first_bad_id,
+                    "checked": report.checked,
+                })),
+                ip_addr: None,
+                user_agent: None,
+            };
+            if let Err(e) = rampart_db::audit::insert(&self.pool, entry).await {
+                warn!(error = %e, "failed to record audit.chain_verify_failed event");
+            }
+        }
+
+        // Stamp the watermark regardless of outcome (also powers a "last
+        // verified" surface + throttles the next run).
+        let value = serde_json::json!({
+            "last_check_ts": now.unix_timestamp(),
+            "ok": report.ok,
+            "checked": report.checked,
+            "first_bad_id": report.first_bad_id,
+        });
+        if let Err(e) = rampart_db::settings::put(&self.pool, KEY, &value).await {
+            warn!(error = %e, "failed to stamp audit_chain_verify watermark");
+        }
+    }
+
     async fn check_scheduled_reports(&self) {
         let now = time::OffsetDateTime::now_utc();
         let due = match rampart_db::scheduled_reports::due(&self.pool, now).await {
