@@ -2756,8 +2756,8 @@ function TagsCard({ monitor, onChanged }) {
     if (!newName.trim()) return;
     setBusy(true);
     try {
-      const t = await api.tags.create(newName.trim(), newColor);
-      await api.tags.attach(monitor.id, t.id);
+      const tag = await api.tags.create(newName.trim(), newColor);
+      await api.tags.attach(monitor.id, tag.id);
       onChanged?.();
     } finally { setBusy(false); }
   };
@@ -2769,15 +2769,19 @@ function TagsCard({ monitor, onChanged }) {
       </div>
       <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
         {attached.length === 0 && <span style={{ fontSize: 12, color: 'var(--text-3)' }}>No tags attached.</span>}
-        {attached.map(t => (
-          <span key={t.id} style={{
+        {/* Loop var is `tag`, NOT `t` — `t` is the imported i18n function, and a
+            `t` loop var shadows it so the `t('common.detach')` call below would
+            invoke a tag object as a function → TypeError → white-page whenever
+            a monitor has tags. (Same t()-shadow class as the SLO-edit crash.) */}
+        {attached.map(tag => (
+          <span key={tag.id} style={{
             display: 'inline-flex', alignItems: 'center', gap: 5,
-            background: t.color, color: '#fff',
+            background: tag.color, color: '#fff',
             fontSize: 11, fontWeight: 500,
             padding: '3px 4px 3px 9px', borderRadius: 999,
           }}>
-            {t.name}
-            <button disabled={busy} onClick={() => detach(t.id)} title={t('common.detach')} style={{
+            {tag.name}
+            <button disabled={busy} onClick={() => detach(tag.id)} title={t('common.detach')} style={{
               background: 'rgba(255,255,255,.2)', border: 'none', color: '#fff',
               borderRadius: '50%', width: 16, height: 16, cursor: 'pointer',
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -2790,7 +2794,7 @@ function TagsCard({ monitor, onChanged }) {
           <select disabled={busy} className="select" style={{ fontSize: 12, padding: '4px 8px', width: 'auto' }}
             value="" onChange={e => e.target.value && attach(e.target.value)}>
             <option value="">+ Attach existing…</option>
-            {candidates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            {candidates.map(tag => <option key={tag.id} value={tag.id}>{tag.name}</option>)}
           </select>
         )}
         {!creating ? (
