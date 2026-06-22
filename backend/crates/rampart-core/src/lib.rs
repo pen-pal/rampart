@@ -40,6 +40,7 @@ pub mod scheduled_report;
 pub mod slo;
 pub mod status_page;
 pub mod synthetic;
+pub mod syslog;
 pub mod tag;
 pub mod telemetry_rule;
 pub mod trace;
