@@ -87,46 +87,45 @@ async fn ingest(
     // RAMPART_RLS is off.
     let org = rampart_db::error_tracking::org_for_project(s.pool(), pid).await?;
     rampart_db::rls::with_org(org, async move {
+        let raw = crate::ingest_util::decompress(&headers, &body)?;
+        let event_json = if envelope {
+            extract_envelope_event(&raw)
+        } else {
+            serde_json::from_slice::<Value>(&raw).ok()
+        };
+        let Some(event_json) = event_json else {
+            // No event item (e.g. a session-only envelope) — accept silently so
+            // the SDK doesn't retry, but record nothing.
+            return Ok(Json(
+                serde_json::json!({ "id": Uuid::nil().simple().to_string() }),
+            ));
+        };
 
-    let raw = crate::ingest_util::decompress(&headers, &body)?;
-    let event_json = if envelope {
-        extract_envelope_event(&raw)
-    } else {
-        serde_json::from_slice::<Value>(&raw).ok()
-    };
-    let Some(event_json) = event_json else {
-        // No event item (e.g. a session-only envelope) — accept silently so
-        // the SDK doesn't retry, but record nothing.
-        return Ok(Json(
-            serde_json::json!({ "id": Uuid::nil().simple().to_string() }),
-        ));
-    };
+        let parsed = ParsedEvent::from_sentry_json(event_json);
+        let outcome = rampart_db::error_tracking::record_event(s.pool(), pid, &parsed).await?;
 
-    let parsed = ParsedEvent::from_sentry_json(event_json);
-    let outcome = rampart_db::error_tracking::record_event(s.pool(), pid, &parsed).await?;
+        // Alert on new / regressed issues only, off the request path.
+        if (outcome.is_new || outcome.regressed) && !project.alert_channel_ids.is_empty() {
+            let pool = s.pool().clone();
+            let channels = project.alert_channel_ids.clone();
+            let name = project.name.clone();
+            let title = outcome.title.clone();
+            let regressed = outcome.regressed;
+            // RLS: spawned tasks don't inherit the task-local, so re-enter the
+            // project's org. The alert channels are in the project's org and the
+            // dispatch reads org-scoped tables (notifications/silences/templates) —
+            // without this the spawn would run as the bypass owner under S7.
+            tokio::spawn(rampart_db::rls::with_org(org, async move {
+                rampart_notifier::service::dispatch_error_alert(
+                    &pool, &name, &channels, regressed, &title,
+                )
+                .await;
+            }));
+        }
 
-    // Alert on new / regressed issues only, off the request path.
-    if (outcome.is_new || outcome.regressed) && !project.alert_channel_ids.is_empty() {
-        let pool = s.pool().clone();
-        let channels = project.alert_channel_ids.clone();
-        let name = project.name.clone();
-        let title = outcome.title.clone();
-        let regressed = outcome.regressed;
-        // RLS: spawned tasks don't inherit the task-local, so re-enter the
-        // project's org. The alert channels are in the project's org and the
-        // dispatch reads org-scoped tables (notifications/silences/templates) —
-        // without this the spawn would run as the bypass owner under S7.
-        tokio::spawn(rampart_db::rls::with_org(org, async move {
-            rampart_notifier::service::dispatch_error_alert(
-                &pool, &name, &channels, regressed, &title,
-            )
-            .await;
-        }));
-    }
-
-    Ok(Json(
-        serde_json::json!({ "id": outcome.event_id.simple().to_string() }),
-    ))
+        Ok(Json(
+            serde_json::json!({ "id": outcome.event_id.simple().to_string() }),
+        ))
     })
     .await
 }

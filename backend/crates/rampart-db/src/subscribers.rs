@@ -245,10 +245,7 @@ fn generate_token() -> String {
 
 /// Resolve the status page a subscriber belongs to, for org-gating the
 /// admin delete path. `None` when the subscriber id matches no row.
-pub async fn page_for(
-    pool: &DbPool,
-    id: StatusPageSubscriberId,
-) -> DbResult<Option<StatusPageId>> {
+pub async fn page_for(pool: &DbPool, id: StatusPageSubscriberId) -> DbResult<Option<StatusPageId>> {
     let row = sqlx::query!(
         "SELECT status_page_id FROM status_page_subscribers WHERE id = $1",
         id.0,

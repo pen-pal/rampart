@@ -58,7 +58,11 @@ pub async fn list(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<EscalationPolicy
 }
 
 /// Fetch one policy scoped to an org (cross-org id → NotFound). Request path.
-pub async fn get(pool: &DbPool, id: EscalationPolicyId, org_id: OrgId) -> DbResult<EscalationPolicy> {
+pub async fn get(
+    pool: &DbPool,
+    id: EscalationPolicyId,
+    org_id: OrgId,
+) -> DbResult<EscalationPolicy> {
     let row = sqlx::query_as!(
         PolicyRow,
         r#"
@@ -280,7 +284,11 @@ pub async fn resolve_subject(
 }
 
 /// Acknowledge an episode by id (subject-agnostic) — stops the ladder.
-pub async fn ack_episode(pool: &DbPool, episode_id: Uuid, by: UserId) -> DbResult<EscalationEpisode> {
+pub async fn ack_episode(
+    pool: &DbPool,
+    episode_id: Uuid,
+    by: UserId,
+) -> DbResult<EscalationEpisode> {
     let row = sqlx::query_as!(
         EpisodeRow,
         r#"

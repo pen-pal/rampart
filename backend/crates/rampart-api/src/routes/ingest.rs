@@ -89,9 +89,7 @@ async fn list_tokens(
     let page_id = parse_page(&page)?;
     // Org-gate via the owning page; a cross-org page id 404s before listing.
     rampart_db::status_pages::get(s.pool(), page_id, org.org_id).await?;
-    Ok(Json(
-        s.store().list_ingest_tokens_for_page(page_id).await?,
-    ))
+    Ok(Json(s.store().list_ingest_tokens_for_page(page_id).await?))
 }
 
 async fn create_token(
@@ -111,7 +109,9 @@ async fn revoke_token(
     Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    s.store().delete_ingest_token(parse_token_id(&id)?, org.org_id).await?;
+    s.store()
+        .delete_ingest_token(parse_token_id(&id)?, org.org_id)
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 

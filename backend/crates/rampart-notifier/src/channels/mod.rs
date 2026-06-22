@@ -142,9 +142,7 @@ use rampart_db::DbPool;
 /// Recursively collect every `http(s)://` string value in a config blob.
 fn collect_urls(v: &serde_json::Value, out: &mut Vec<String>) {
     match v {
-        serde_json::Value::String(s)
-            if s.starts_with("http://") || s.starts_with("https://") =>
-        {
+        serde_json::Value::String(s) if s.starts_with("http://") || s.starts_with("https://") => {
             out.push(s.clone());
         }
         serde_json::Value::Array(a) => a.iter().for_each(|x| collect_urls(x, out)),

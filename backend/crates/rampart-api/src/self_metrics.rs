@@ -63,8 +63,16 @@ pub async fn run(metrics: Arc<HttpMetrics>, pool: DbPool) {
 fn derive(prev: (u64, u64), cur: (u64, u64), interval_secs: u64) -> (f64, f64) {
     let dcount = cur.0.saturating_sub(prev.0);
     let dsum = cur.1.saturating_sub(prev.1);
-    let rps = if interval_secs > 0 { dcount as f64 / interval_secs as f64 } else { 0.0 };
-    let avg_ms = if dcount > 0 { (dsum as f64 / dcount as f64) / 1000.0 } else { 0.0 };
+    let rps = if interval_secs > 0 {
+        dcount as f64 / interval_secs as f64
+    } else {
+        0.0
+    };
+    let avg_ms = if dcount > 0 {
+        (dsum as f64 / dcount as f64) / 1000.0
+    } else {
+        0.0
+    };
     (rps, avg_ms)
 }
 

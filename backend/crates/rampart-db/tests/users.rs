@@ -6,8 +6,8 @@
 
 use rampart_core::Role;
 use rampart_db::users::{
-    count, create, get, get_by_email, mark_login, record_totp_failure, reset_totp_failures, set_role,
-    totp_locked_until, NewUser,
+    count, create, get, get_by_email, mark_login, record_totp_failure, reset_totp_failures,
+    set_role, totp_locked_until, NewUser,
 };
 use sqlx::PgPool;
 

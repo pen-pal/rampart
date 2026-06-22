@@ -183,7 +183,10 @@ async fn list_issues(
 ) -> Result<Json<Vec<ErrorIssue>>, ApiError> {
     let pid = project_id(&id)?;
     rampart_db::error_tracking::project_in_org(s.pool(), pid, org.org_id).await?;
-    let before_id = q.before_id.as_deref().and_then(|s| uuid::Uuid::parse_str(s).ok());
+    let before_id = q
+        .before_id
+        .as_deref()
+        .and_then(|s| uuid::Uuid::parse_str(s).ok());
     Ok(Json(
         rampart_db::error_tracking::list_issues(
             s.pool(),
@@ -210,8 +213,13 @@ async fn project_histogram(
     let pid = project_id(&id)?;
     rampart_db::error_tracking::project_in_org(s.pool(), pid, org.org_id).await?;
     Ok(Json(
-        rampart_db::error_tracking::project_event_histogram(s.pool(), pid, q.hours.unwrap_or(168), 48)
-            .await?,
+        rampart_db::error_tracking::project_event_histogram(
+            s.pool(),
+            pid,
+            q.hours.unwrap_or(168),
+            48,
+        )
+        .await?,
     ))
 }
 

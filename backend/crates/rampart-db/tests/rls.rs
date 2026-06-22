@@ -29,11 +29,9 @@ async fn setup(pool: &PgPool) -> (Uuid, Uuid) {
 
     // The migration already granted rampart_app to current_user, but re-grant
     // defensively (idempotent) so SET ROLE below is guaranteed to work.
-    pool.execute(
-        "DO $$ BEGIN EXECUTE format('GRANT rampart_app TO %I', current_user); END $$;",
-    )
-    .await
-    .unwrap();
+    pool.execute("DO $$ BEGIN EXECUTE format('GRANT rampart_app TO %I', current_user); END $$;")
+        .await
+        .unwrap();
 
     for (i, org) in [org_a, org_b].into_iter().enumerate() {
         // Slug must be unique AND match ^[a-z0-9-]{2,40}$, so derive a short
@@ -102,20 +100,21 @@ async fn rls_role_migration_is_idempotent(pool: PgPool) {
         THEN CREATE ROLE rampart_app NOLOGIN; END IF; END $$;";
     pool.execute(role_ddl).await.expect("first re-run ok");
     pool.execute(role_ddl).await.expect("second re-run ok");
-    pool.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO rampart_app")
-        .await
-        .expect("re-grant tables ok");
+    pool.execute(
+        "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO rampart_app",
+    )
+    .await
+    .expect("re-grant tables ok");
     pool.execute("GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO rampart_app")
         .await
         .expect("re-grant sequences ok");
 
     // The role exists, is NOLOGIN, and is NOT a bypass role.
-    let row = sqlx::query(
-        "SELECT rolcanlogin, rolbypassrls FROM pg_roles WHERE rolname = 'rampart_app'",
-    )
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let row =
+        sqlx::query("SELECT rolcanlogin, rolbypassrls FROM pg_roles WHERE rolname = 'rampart_app'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     let can_login: bool = row.get(0);
     let bypass: bool = row.get(1);
     assert!(!can_login, "rampart_app must be NOLOGIN");
@@ -132,19 +131,27 @@ async fn policies_enabled_not_forced(pool: PgPool) {
         .fetch_one(&pool)
         .await
         .unwrap();
-    let forced: i64 =
-        sqlx::query_scalar("SELECT count(*) FROM pg_class WHERE relforcerowsecurity")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let forced: i64 = sqlx::query_scalar("SELECT count(*) FROM pg_class WHERE relforcerowsecurity")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     let policies: i64 =
         sqlx::query_scalar("SELECT count(*) FROM pg_policies WHERE policyname = 'org_isolation'")
             .fetch_one(&pool)
             .await
             .unwrap();
-    assert_eq!(enabled, 34, "all 34 policied tables must have RLS ENABLED after S7");
-    assert_eq!(forced, 0, "no table may be FORCED — the owner login role must stay exempt");
-    assert_eq!(policies, 34, "30 root + 4 child org_isolation policies expected");
+    assert_eq!(
+        enabled, 34,
+        "all 34 policied tables must have RLS ENABLED after S7"
+    );
+    assert_eq!(
+        forced, 0,
+        "no table may be FORCED — the owner login role must stay exempt"
+    );
+    assert_eq!(
+        policies, 34,
+        "30 root + 4 child org_isolation policies expected"
+    );
 }
 
 #[sqlx::test(migrations = "../../migrations")]
@@ -152,8 +159,16 @@ async fn rampart_app_sees_only_its_org(pool: PgPool) {
     let (_a, _b) = setup(&pool).await;
 
     // (a) org A sees exactly its 1 monitor; org B likewise.
-    assert_eq!(count_as_app(&pool, Some(ORG_A)).await, 1, "org A sees only A");
-    assert_eq!(count_as_app(&pool, Some(ORG_B)).await, 1, "org B sees only B");
+    assert_eq!(
+        count_as_app(&pool, Some(ORG_A)).await,
+        1,
+        "org A sees only A"
+    );
+    assert_eq!(
+        count_as_app(&pool, Some(ORG_B)).await,
+        1,
+        "org B sees only B"
+    );
 }
 
 #[sqlx::test(migrations = "../../migrations")]

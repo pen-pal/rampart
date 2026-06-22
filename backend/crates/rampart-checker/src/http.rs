@@ -279,8 +279,7 @@ impl HttpProbe {
                 // → Down; near-expiry → Warn (Up only). A hard HTTP failure
                 // already-Down stays Down. When check_cert is false this is
                 // a no-op and behaviour is identical to today.
-                let (status, msg) =
-                    apply_cert_check(monitor, &url, http_status, http_msg).await;
+                let (status, msg) = apply_cert_check(monitor, &url, http_status, http_msg).await;
 
                 Heartbeat {
                     monitor_id: monitor.id,

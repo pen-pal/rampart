@@ -104,7 +104,9 @@ async fn set_active(
     Json(body): Json<SetActiveBody>,
 ) -> Result<StatusCode, ApiError> {
     let pid = parse(&id)?;
-    s.store().set_active_proxy(pid, body.active, org.org_id).await?;
+    s.store()
+        .set_active_proxy(pid, body.active, org.org_id)
+        .await?;
     crate::audit::record(
         s.pool(),
         &user,

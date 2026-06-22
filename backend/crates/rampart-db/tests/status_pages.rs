@@ -93,10 +93,10 @@ async fn public_view_batch_parity(pool: PgPool) {
     heartbeats::insert_many(
         &pool,
         &[
-            hb(a.id, MonitorStatus::Up, 100, 60),       // today
-            hb(a.id, MonitorStatus::Up, 200, 120),      // today
-            hb(a.id, MonitorStatus::Down, 0, 180),      // today
-            hb(a.id, MonitorStatus::Up, 999, DAY + 60), // 1d ago (outside 24h avg window)
+            hb(a.id, MonitorStatus::Up, 100, 60),           // today
+            hb(a.id, MonitorStatus::Up, 200, 120),          // today
+            hb(a.id, MonitorStatus::Down, 0, 180),          // today
+            hb(a.id, MonitorStatus::Up, 999, DAY + 60),     // 1d ago (outside 24h avg window)
             hb(a.id, MonitorStatus::Warn, 0, 2 * DAY + 60), // 2d ago
         ],
     )
@@ -202,7 +202,9 @@ async fn public_view_batch_parity(pool: PgPool) {
     }
     // C has no heartbeats → every monthly chip is None.
     assert!(
-        mc.monthly_uptime_12mo.iter().all(|p| p.uptime_pct.is_none()),
+        mc.monthly_uptime_12mo
+            .iter()
+            .all(|p| p.uptime_pct.is_none()),
         "C monthly all None"
     );
 
@@ -225,15 +227,11 @@ async fn public_view_batch_parity(pool: PgPool) {
             .map(|v| v as f32);
         assert_approx(pm.avg_latency_ms_24h, want_avg, "avg latency parity");
 
-        let want_daily = String::from_utf8(
-            heartbeats::daily_status(&pool, *mid, 90).await.unwrap(),
-        )
-        .unwrap();
+        let want_daily =
+            String::from_utf8(heartbeats::daily_status(&pool, *mid, 90).await.unwrap()).unwrap();
         assert_eq!(pm.daily_status_90d, want_daily, "daily strip parity");
 
-        let want_monthly = heartbeats::monthly_uptime(&pool, *mid, 12)
-            .await
-            .unwrap();
+        let want_monthly = heartbeats::monthly_uptime(&pool, *mid, 12).await.unwrap();
         assert_eq!(
             pm.monthly_uptime_12mo.len(),
             want_monthly.len(),
@@ -254,10 +252,7 @@ fn last_char(s: &str) -> char {
 /// Assert two `Option<f32>` percentages match within float tolerance.
 fn assert_approx(got: Option<f32>, want: Option<f32>, label: &str) {
     match (got, want) {
-        (Some(g), Some(w)) => assert!(
-            (g - w).abs() < 1e-4,
-            "{label}: got {g}, expected {w}"
-        ),
+        (Some(g), Some(w)) => assert!((g - w).abs() < 1e-4, "{label}: got {g}, expected {w}"),
         (None, None) => {}
         _ => panic!("{label}: got {got:?}, expected {want:?}"),
     }

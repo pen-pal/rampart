@@ -708,8 +708,7 @@ mod tests {
         // Anchor to 06:00 UTC (not `now`'s time-of-day) so the +1h/+2h bucket
         // offsets never cross midnight into a third calendar day — otherwise the
         // test flakes when run within ~2h of UTC midnight.
-        let anchor =
-            OffsetDateTime::now_utc().replace_time(time::Time::from_hms(6, 0, 0).unwrap());
+        let anchor = OffsetDateTime::now_utc().replace_time(time::Time::from_hms(6, 0, 0).unwrap());
         let day100 = anchor - time::Duration::days(100);
         let day101 = anchor - time::Duration::days(101);
         let seed = |ts: OffsetDateTime, up: i32, samples: i32| {

@@ -147,7 +147,9 @@ async fn list(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<StatusPage>>, ApiError> {
-    Ok(Json(rampart_db::status_pages::list(s.pool(), org.org_id).await?))
+    Ok(Json(
+        rampart_db::status_pages::list(s.pool(), org.org_id).await?,
+    ))
 }
 
 async fn get_one(
@@ -334,9 +336,9 @@ async fn assign_monitor_section(
 // TTL, well within a status page's expectations.
 const PUBLIC_VIEW_TTL: std::time::Duration = std::time::Duration::from_secs(10);
 
-fn public_view_cache(
-) -> &'static std::sync::Mutex<std::collections::HashMap<String, (std::time::Instant, PublicStatusPage)>>
-{
+fn public_view_cache() -> &'static std::sync::Mutex<
+    std::collections::HashMap<String, (std::time::Instant, PublicStatusPage)>,
+> {
     static CACHE: std::sync::OnceLock<
         std::sync::Mutex<std::collections::HashMap<String, (std::time::Instant, PublicStatusPage)>>,
     > = std::sync::OnceLock::new();

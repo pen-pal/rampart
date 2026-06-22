@@ -48,7 +48,10 @@ async fn admin_create_list_delete(pool: PgPool) {
     assert!(token.starts_with("ingk_"), "token has the ingest prefix");
     assert_eq!(created["label"], "prod collector");
     assert_eq!(created["kind"], "otlp");
-    let id = created["id"].as_str().expect("id in create response").to_string();
+    let id = created["id"]
+        .as_str()
+        .expect("id in create response")
+        .to_string();
 
     // List shows the key — but NEVER the token.
     let (status, _, body) = request(&app, Method::GET, "/v1/ingest-keys", None, Some(&admin)).await;
@@ -132,8 +135,7 @@ async fn editor_is_forbidden(pool: PgPool) {
     let editor = user_with_role(&pool, "editor@example.com", Role::Editor).await;
 
     // GET — admin-only, editor 403.
-    let (status, _, _) =
-        request(&app, Method::GET, "/v1/ingest-keys", None, Some(&editor)).await;
+    let (status, _, _) = request(&app, Method::GET, "/v1/ingest-keys", None, Some(&editor)).await;
     assert_eq!(status, StatusCode::FORBIDDEN, "editor GET 403");
 
     // POST — 403.

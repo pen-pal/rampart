@@ -128,11 +128,7 @@ where
 }
 
 /// The user's role in an org, or `None` if they are not a member.
-pub async fn member_role(
-    pool: &DbPool,
-    org_id: OrgId,
-    user_id: UserId,
-) -> DbResult<Option<Role>> {
+pub async fn member_role(pool: &DbPool, org_id: OrgId, user_id: UserId) -> DbResult<Option<Role>> {
     let row = sqlx::query!(
         r#"SELECT role AS "role: Role" FROM org_members WHERE org_id = $1 AND user_id = $2"#,
         org_id.0,
@@ -168,10 +164,7 @@ pub async fn list_members(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<OrgMembe
 /// Every member of an org enriched with their email + display name, oldest
 /// first. Backs `GET /v1/orgs/{id}/members`. The JOIN guarantees only rows
 /// with a live user are returned (FK from `org_members.user_id`).
-pub async fn list_members_detailed(
-    pool: &DbPool,
-    org_id: OrgId,
-) -> DbResult<Vec<OrgMemberDetail>> {
+pub async fn list_members_detailed(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<OrgMemberDetail>> {
     let rows = sqlx::query!(
         r#"
         SELECT m.user_id, u.email::text AS "email!", u.name,
@@ -355,8 +348,13 @@ mod tests {
         .await
         .unwrap();
         let org = OrgId::from_uuid(DEFAULT_ORG_ID);
-        upsert_member(&pool, org, u.id, Role::Readonly).await.unwrap();
-        assert_eq!(member_role(&pool, org, u.id).await.unwrap(), Some(Role::Readonly));
+        upsert_member(&pool, org, u.id, Role::Readonly)
+            .await
+            .unwrap();
+        assert_eq!(
+            member_role(&pool, org, u.id).await.unwrap(),
+            Some(Role::Readonly)
+        );
         // still exactly one membership row
         assert_eq!(list_for_user(&pool, u.id).await.unwrap().len(), 1);
     }
@@ -382,10 +380,34 @@ mod tests {
     #[sqlx::test(migrations = "../../migrations")]
     async fn remove_member_and_count_admins(pool: PgPool) {
         let org = create(&pool, "team", "Team").await.unwrap();
-        let admin = create_user(&pool, NewUser { email: "a@e.com".into(), name: None, password_hash: "h".into(), role: Role::Admin }).await.unwrap();
-        let ed = create_user(&pool, NewUser { email: "b@e.com".into(), name: None, password_hash: "h".into(), role: Role::Editor }).await.unwrap();
-        upsert_member(&pool, org.id, admin.id, Role::Admin).await.unwrap();
-        upsert_member(&pool, org.id, ed.id, Role::Editor).await.unwrap();
+        let admin = create_user(
+            &pool,
+            NewUser {
+                email: "a@e.com".into(),
+                name: None,
+                password_hash: "h".into(),
+                role: Role::Admin,
+            },
+        )
+        .await
+        .unwrap();
+        let ed = create_user(
+            &pool,
+            NewUser {
+                email: "b@e.com".into(),
+                name: None,
+                password_hash: "h".into(),
+                role: Role::Editor,
+            },
+        )
+        .await
+        .unwrap();
+        upsert_member(&pool, org.id, admin.id, Role::Admin)
+            .await
+            .unwrap();
+        upsert_member(&pool, org.id, ed.id, Role::Editor)
+            .await
+            .unwrap();
         assert_eq!(count_admins(&pool, org.id).await.unwrap(), 1);
         assert!(remove_member(&pool, org.id, ed.id).await.unwrap());
         assert!(!remove_member(&pool, org.id, ed.id).await.unwrap()); // already gone
@@ -394,9 +416,24 @@ mod tests {
 
     #[sqlx::test(migrations = "../../migrations")]
     async fn create_with_owner_makes_creator_admin(pool: PgPool) {
-        let u = create_user(&pool, NewUser { email: "o@e.com".into(), name: None, password_hash: "h".into(), role: Role::Editor }).await.unwrap();
-        let org = create_with_owner(&pool, "owned", "Owned", u.id).await.unwrap();
-        assert_eq!(member_role(&pool, org.id, u.id).await.unwrap(), Some(Role::Admin));
+        let u = create_user(
+            &pool,
+            NewUser {
+                email: "o@e.com".into(),
+                name: None,
+                password_hash: "h".into(),
+                role: Role::Editor,
+            },
+        )
+        .await
+        .unwrap();
+        let org = create_with_owner(&pool, "owned", "Owned", u.id)
+            .await
+            .unwrap();
+        assert_eq!(
+            member_role(&pool, org.id, u.id).await.unwrap(),
+            Some(Role::Admin)
+        );
         assert_eq!(count_admins(&pool, org.id).await.unwrap(), 1);
         // duplicate slug -> Conflict
         assert!(matches!(
@@ -407,15 +444,36 @@ mod tests {
 
     #[sqlx::test(migrations = "../../migrations")]
     async fn set_role_mirrors_default_membership(pool: PgPool) {
-        let u = create_user(&pool, NewUser { email: "r@e.com".into(), name: None, password_hash: "h".into(), role: Role::Admin }).await.unwrap();
+        let u = create_user(
+            &pool,
+            NewUser {
+                email: "r@e.com".into(),
+                name: None,
+                password_hash: "h".into(),
+                role: Role::Admin,
+            },
+        )
+        .await
+        .unwrap();
         let def = OrgId::from_uuid(DEFAULT_ORG_ID);
         // post-creation role change must keep the Default membership in sync
-        crate::users::set_role(&pool, u.id, Role::Readonly).await.unwrap();
-        assert_eq!(member_role(&pool, def, u.id).await.unwrap(), Some(Role::Readonly));
+        crate::users::set_role(&pool, u.id, Role::Readonly)
+            .await
+            .unwrap();
+        assert_eq!(
+            member_role(&pool, def, u.id).await.unwrap(),
+            Some(Role::Readonly)
+        );
         // set_admin(false) -> Editor, mirrored; set_admin(true) -> Admin, mirrored
         crate::users::set_admin(&pool, u.id, false).await.unwrap();
-        assert_eq!(member_role(&pool, def, u.id).await.unwrap(), Some(Role::Editor));
+        assert_eq!(
+            member_role(&pool, def, u.id).await.unwrap(),
+            Some(Role::Editor)
+        );
         crate::users::set_admin(&pool, u.id, true).await.unwrap();
-        assert_eq!(member_role(&pool, def, u.id).await.unwrap(), Some(Role::Admin));
+        assert_eq!(
+            member_role(&pool, def, u.id).await.unwrap(),
+            Some(Role::Admin)
+        );
     }
 }

@@ -43,39 +43,41 @@ async fn ingest_logs(
     // this tenant (no-op when RAMPART_RLS off). Ingest handlers carry no
     // session, so the chokepoint is here rather than the auth middleware.
     rampart_db::rls::with_org(org, async move {
-    let content_type = headers
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
+        let content_type = headers
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
 
-    // OTel SDKs/Collectors gzip OTLP/HTTP exports by default — inflate first.
-    let body = crate::ingest_util::decompress(&headers, &body)?;
+        // OTel SDKs/Collectors gzip OTLP/HTTP exports by default — inflate first.
+        let body = crate::ingest_util::decompress(&headers, &body)?;
 
-    let mut logs: Vec<ParsedLog> = if content_type.contains("protobuf") {
-        crate::otlp_proto::parse_otlp_logs_protobuf(&body)
-            .map_err(|e| ApiError::BadRequest(format!("invalid OTLP protobuf: {e}")))?
-    } else {
-        let v: Value = serde_json::from_slice(&body)
-            .map_err(|_| ApiError::BadRequest("invalid OTLP JSON body".into()))?;
-        rampart_core::log::parse_otlp_logs_json(&v)
-    };
+        let mut logs: Vec<ParsedLog> = if content_type.contains("protobuf") {
+            crate::otlp_proto::parse_otlp_logs_protobuf(&body)
+                .map_err(|e| ApiError::BadRequest(format!("invalid OTLP protobuf: {e}")))?
+        } else {
+            let v: Value = serde_json::from_slice(&body)
+                .map_err(|_| ApiError::BadRequest("invalid OTLP JSON body".into()))?;
+            rampart_core::log::parse_otlp_logs_json(&v)
+        };
 
-    // Head sampling. A log carrying a trace_id is sampled on that id (so it
-    // follows its trace when both rates match); a trace-less log falls back to
-    // a per-record key (service + time + body) for a uniform spread.
-    let sc = crate::ingest_util::sampling_config(s.pool()).await?;
-    if sc.logs_pct < 100 {
-        logs.retain(|l| {
-            let key = l.trace_id.clone().unwrap_or_else(|| {
-                format!("{}:{}:{}", l.service_name, l.time_ns, l.body)
+        // Head sampling. A log carrying a trace_id is sampled on that id (so it
+        // follows its trace when both rates match); a trace-less log falls back to
+        // a per-record key (service + time + body) for a uniform spread.
+        let sc = crate::ingest_util::sampling_config(s.pool()).await?;
+        if sc.logs_pct < 100 {
+            logs.retain(|l| {
+                let key = l
+                    .trace_id
+                    .clone()
+                    .unwrap_or_else(|| format!("{}:{}:{}", l.service_name, l.time_ns, l.body));
+                rampart_core::sampling::keep(&key, sc.logs_pct)
             });
-            rampart_core::sampling::keep(&key, sc.logs_pct)
-        });
-    }
+        }
 
-    rampart_db::logs::insert_logs(s.pool(), &logs, org).await?;
-    Ok(Json(serde_json::json!({})))
-    }).await
+        rampart_db::logs::insert_logs(s.pool(), &logs, org).await?;
+        Ok(Json(serde_json::json!({})))
+    })
+    .await
 }
 
 async fn ingest_traces(
@@ -89,33 +91,34 @@ async fn ingest_traces(
     // RLS: bind the resolved org so the writes below are tenant-scoped under
     // the pool hook (no-op when RAMPART_RLS off).
     rampart_db::rls::with_org(org, async move {
-    let content_type = headers
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
+        let content_type = headers
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
 
-    // OTel SDKs/Collectors gzip OTLP/HTTP exports by default — inflate first.
-    let body = crate::ingest_util::decompress(&headers, &body)?;
+        // OTel SDKs/Collectors gzip OTLP/HTTP exports by default — inflate first.
+        let body = crate::ingest_util::decompress(&headers, &body)?;
 
-    let mut spans: Vec<ParsedSpan> = if content_type.contains("protobuf") {
-        crate::otlp_proto::parse_otlp_traces_protobuf(&body)
-            .map_err(|e| ApiError::BadRequest(format!("invalid OTLP protobuf: {e}")))?
-    } else {
-        let v: Value = serde_json::from_slice(&body)
-            .map_err(|_| ApiError::BadRequest("invalid OTLP JSON body".into()))?;
-        rampart_core::trace::parse_otlp_traces_json(&v)
-    };
+        let mut spans: Vec<ParsedSpan> = if content_type.contains("protobuf") {
+            crate::otlp_proto::parse_otlp_traces_protobuf(&body)
+                .map_err(|e| ApiError::BadRequest(format!("invalid OTLP protobuf: {e}")))?
+        } else {
+            let v: Value = serde_json::from_slice(&body)
+                .map_err(|_| ApiError::BadRequest("invalid OTLP JSON body".into()))?;
+            rampart_core::trace::parse_otlp_traces_json(&v)
+        };
 
-    // Head sampling, keyed on trace_id so every span of a kept trace survives
-    // and a dropped trace leaves no orphans (consistent across batches/replicas).
-    let sc = crate::ingest_util::sampling_config(s.pool()).await?;
-    if sc.traces_pct < 100 {
-        spans.retain(|sp| rampart_core::sampling::keep(&sp.trace_id, sc.traces_pct));
-    }
+        // Head sampling, keyed on trace_id so every span of a kept trace survives
+        // and a dropped trace leaves no orphans (consistent across batches/replicas).
+        let sc = crate::ingest_util::sampling_config(s.pool()).await?;
+        if sc.traces_pct < 100 {
+            spans.retain(|sp| rampart_core::sampling::keep(&sp.trace_id, sc.traces_pct));
+        }
 
-    rampart_db::traces::insert_spans(s.pool(), &spans, org).await?;
+        rampart_db::traces::insert_spans(s.pool(), &spans, org).await?;
 
-    // OTLP ExportTraceServiceResponse — an empty object signals full success.
-    Ok(Json(serde_json::json!({})))
-    }).await
+        // OTLP ExportTraceServiceResponse — an empty object signals full success.
+        Ok(Json(serde_json::json!({})))
+    })
+    .await
 }
