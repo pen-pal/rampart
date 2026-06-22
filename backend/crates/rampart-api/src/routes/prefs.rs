@@ -24,7 +24,7 @@ async fn get_prefs(
     State(s): State<AppState>,
     Extension(caller): Extension<User>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let prefs = rampart_db::users::get_prefs(s.pool(), caller.id).await?;
+    let prefs = s.store().get_user_prefs(caller.id).await?;
     Ok(Json(prefs))
 }
 
@@ -44,6 +44,6 @@ async fn set_prefs(
     if input.prefs.to_string().len() > 64 * 1024 {
         return Err(ApiError::BadRequest("preferences blob too large".into()));
     }
-    rampart_db::users::set_prefs(s.pool(), caller.id, &input.prefs).await?;
+    s.store().set_user_prefs(caller.id, &input.prefs).await?;
     Ok(Json(input.prefs))
 }
