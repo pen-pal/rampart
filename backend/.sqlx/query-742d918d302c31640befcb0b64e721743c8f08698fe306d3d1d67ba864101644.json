@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        WITH bounds AS (\n            SELECT COALESCE($1::timestamptz, now() - make_interval(secs => $2)) AS wfrom,\n                   now() AS wto\n        )\n        SELECT b.wfrom AS \"wfrom!\", b.wto AS \"wto!\", COUNT(l.id) AS \"cnt!\"\n        FROM bounds b\n        LEFT JOIN logs l\n          ON l.ts > b.wfrom AND l.ts <= b.wto\n         AND ($3 = '' OR l.service_name = $3)\n         AND l.severity >= $4\n         AND ($5 = '' OR l.body ~* $5)\n         AND ($6 = '' OR l.attributes->>$6 = $7)\n         AND l.org_id = $8\n        GROUP BY b.wfrom, b.wto\n        ",
+  "query": "\n        WITH bounds AS (\n            SELECT COALESCE($1::timestamptz, now() - make_interval(secs => $2)) AS wfrom,\n                   now() AS wto\n        )\n        SELECT b.wfrom AS \"wfrom!\", b.wto AS \"wto!\", COUNT(l.id) AS \"cnt!\"\n        FROM bounds b\n        LEFT JOIN logs l\n          ON l.received_at > b.wfrom AND l.received_at <= b.wto\n         AND ($3 = '' OR l.service_name = $3)\n         AND l.severity >= $4\n         AND ($5 = '' OR l.body ~* $5)\n         AND ($6 = '' OR l.attributes->>$6 = $7)\n         AND l.org_id = $8\n        GROUP BY b.wfrom, b.wto\n        ",
   "describe": {
     "columns": [
       {
@@ -40,5 +40,5 @@
       null
     ]
   },
-  "hash": "8b0ad4ccd860b649c35a867773c0cdd1435c3a58c814a7e9bf6a962ed4040db0"
+  "hash": "742d918d302c31640befcb0b64e721743c8f08698fe306d3d1d67ba864101644"
 }
