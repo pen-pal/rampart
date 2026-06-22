@@ -29,6 +29,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.155.20] — 2026-06-22
+
+### Added
+- **Continuous audit-chain integrity monitoring (SIEM/compliance).** The
+  scheduler now re-verifies the tamper-evident audit hash chain on a leader-only
+  slow-tick, throttled to ~hourly via a `settings` watermark (so the full
+  re-walk doesn't run every 30s). A broken chain — an `audit_log` row edited,
+  deleted, or reordered — is surfaced two ways: a high-severity `error!` log
+  (captured by Rampart's own self-telemetry, so operators can alert on it with a
+  telemetry/detection rule) **and** an `audit.chain_verify_failed` audit event
+  (the forward append continues the chain). The watermark records the last
+  verify time + outcome. Previously chain verification was only manual (the
+  admin `/v1/audit-log/verify` endpoint); tampering is now caught proactively.
+  (six-persona audit #6.)
+
+---
+
 ## [0.155.19] — 2026-06-22
 
 ### Changed
