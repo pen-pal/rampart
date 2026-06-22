@@ -29,6 +29,19 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.155.21] — 2026-06-22
+
+### Added
+- **Delivery-log server-side filters.** `GET /v1/delivery-log` now accepts `ok`
+  (true/false outcome), `monitor_id` (UUID), and `channel_kind` query params, on
+  top of the existing `before`/`limit` keyset pagination — so an operator can
+  pull "all failed Slack deliveries for monitor X" directly instead of scanning
+  pages client-side. Filters compose and are org-scoped + null-guarded in one
+  query. (six-persona audit #22, backend half; the dashboard filter controls
+  are a follow-up — the JSON list API honours the params today.)
+
+---
+
 ## [0.155.20] — 2026-06-22
 
 ### Added

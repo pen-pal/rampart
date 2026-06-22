@@ -115,10 +115,14 @@ pub async fn get(pool: &DbPool, id: i64, org_id: OrgId) -> DbResult<Option<Deliv
 /// the previous page. `limit` is clamped to a sane window. Ordered by
 /// `(sent_at DESC, id DESC)` so the secondary id keeps the order total when
 /// several rows share a timestamp.
+#[allow(clippy::too_many_arguments)]
 pub async fn list(
     pool: &DbPool,
     limit: i64,
     before_ts: Option<OffsetDateTime>,
+    ok: Option<bool>,
+    monitor: Option<Uuid>,
+    channel: Option<&str>,
     org_id: OrgId,
 ) -> DbResult<Vec<DeliveryEntry>> {
     let limit = limit.clamp(1, 500);
@@ -129,12 +133,18 @@ pub async fn list(
         FROM delivery_log
         WHERE org_id = $3
           AND ($1::timestamptz IS NULL OR sent_at < $1)
+          AND ($4::bool IS NULL OR ok = $4)
+          AND ($5::uuid IS NULL OR monitor_id = $5)
+          AND ($6::text IS NULL OR channel_kind = $6)
         ORDER BY sent_at DESC, id DESC
         LIMIT $2
         "#,
         before_ts,
         limit,
         org_id.0,
+        ok,
+        monitor,
+        channel,
     )
     .fetch_all(pool)
     .await?;
@@ -189,4 +199,57 @@ pub async fn list_all(pool: &DbPool, limit: i64, org_id: OrgId) -> DbResult<Vec<
             sent_at: r.sent_at,
         })
         .collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rampart_core::org::DEFAULT_ORG_ID;
+    use sqlx::PgPool;
+
+    fn entry<'a>(channel: &'a str, monitor: Option<Uuid>, ok: bool) -> NewDelivery<'a> {
+        NewDelivery {
+            notification_id: None, // → Default org (record's COALESCE fallback)
+            channel_kind: channel,
+            event_kind: "down",
+            monitor_id: monitor,
+            ok,
+            error: if ok { None } else { Some("boom") },
+        }
+    }
+
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn list_filters_by_ok_monitor_and_channel(pool: PgPool) {
+        let def = OrgId::from_uuid(DEFAULT_ORG_ID);
+        let mon = Uuid::now_v7();
+        let other = Uuid::now_v7();
+        record(&pool, entry("slack", Some(mon), true))
+            .await
+            .unwrap();
+        record(&pool, entry("webhook", Some(mon), false))
+            .await
+            .unwrap();
+        record(&pool, entry("slack", Some(other), true))
+            .await
+            .unwrap();
+
+        let count = |o, m, c| {
+            let pool = pool.clone();
+            async move { list(&pool, 100, None, o, m, c, def).await.unwrap().len() }
+        };
+
+        assert_eq!(count(None, None, None).await, 3, "no filter → all");
+        assert_eq!(
+            count(Some(false), None, None).await,
+            1,
+            "ok=false → failures"
+        );
+        assert_eq!(count(None, None, Some("slack")).await, 2, "channel=slack");
+        assert_eq!(count(None, Some(mon), None).await, 2, "monitor=mon");
+        assert_eq!(
+            count(Some(true), Some(mon), Some("slack")).await,
+            1,
+            "combined filters"
+        );
+    }
 }
