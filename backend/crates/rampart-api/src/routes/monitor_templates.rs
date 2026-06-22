@@ -160,7 +160,10 @@ async fn instantiate(
     }
 
     new_monitor.validate()?;
-    let monitor = rampart_db::monitors::create(state.pool(), new_monitor, org.org_id).await?;
+    let monitor = state
+        .store()
+        .create_monitor(new_monitor, org.org_id)
+        .await?;
     state.poke_scheduler();
     crate::audit::record(
         state.store(),

@@ -32,6 +32,7 @@ use crate::metric_rules::RuleEvent as MetricRuleEvent;
 use crate::metric_samples::{RangePoint, Series};
 use crate::metrics::{IngestGauges, PipelineGauges, TableSize};
 use crate::monitor_templates::{MonitorTemplate, NewMonitorTemplate};
+use crate::monitors::{BulkEditOutcome, BulkEditPatch, MonitorPrior, SloState};
 use crate::notifications::Notification;
 use crate::notifications::{MonitorChannelCount, NewNotification, UpdateNotification};
 use crate::oidc_state::Consumed;
@@ -73,6 +74,7 @@ use rampart_core::ingest_token::{IngestToken, NewIngestToken};
 use rampart_core::log::ParsedLog;
 use rampart_core::maintenance::{MaintenanceWindow, NewMaintenanceWindow, UpdateMaintenanceWindow};
 use rampart_core::metric_rule::{MetricRule, NewMetricRule, UpdateMetricRule};
+use rampart_core::monitor::{Monitor, MonitorStatus, NewMonitor, UpdateMonitor};
 use rampart_core::monitor_group::{MonitorGroup, NewMonitorGroup, UpdateMonitorGroup};
 use rampart_core::monitor_preset::{MonitorPreset, NewMonitorPreset};
 use rampart_core::on_call::{
@@ -1692,6 +1694,100 @@ pub trait StoreOrgs: Send + Sync {
 }
 
 #[async_trait::async_trait]
+pub trait StoreMonitors: Send + Sync {
+    async fn create_monitor(&self, input: NewMonitor, org_id: OrgId) -> DbResult<Monitor>;
+
+    async fn regenerate_monitor_push_token(&self, id: MonitorId, org_id: OrgId)
+        -> DbResult<String>;
+
+    async fn find_monitor_by_push_token(&self, token: &str) -> DbResult<Option<MonitorId>>;
+
+    async fn fetch_monitor_last_push_at(&self, id: MonitorId) -> DbResult<Option<OffsetDateTime>>;
+
+    async fn set_monitor_cert_info(
+        &self,
+        id: MonitorId,
+        days_left: i32,
+        subject: &str,
+    ) -> DbResult<()>;
+
+    async fn mark_monitor_run_started(&self, id: MonitorId) -> DbResult<()>;
+
+    async fn close_monitor_run(&self, id: MonitorId) -> DbResult<Option<OffsetDateTime>>;
+
+    async fn monitor_push_state(
+        &self,
+        id: MonitorId,
+    ) -> DbResult<(Option<OffsetDateTime>, Option<OffsetDateTime>)>;
+
+    async fn bump_monitor_push_at(&self, id: MonitorId) -> DbResult<()>;
+
+    async fn list_monitors(&self, org_id: OrgId) -> DbResult<Vec<Monitor>>;
+
+    async fn list_all_monitors(&self) -> DbResult<Vec<Monitor>>;
+
+    async fn list_monitors_for_agent(&self, agent: AgentId) -> DbResult<Vec<Monitor>>;
+
+    async fn list_stale_agent_monitors(&self) -> DbResult<Vec<(Monitor, String)>>;
+
+    async fn get_monitor(&self, id: MonitorId, org_id: OrgId) -> DbResult<Monitor>;
+
+    async fn get_monitor_unscoped(&self, id: MonitorId) -> DbResult<Monitor>;
+
+    async fn monitor_public_fields_batch(
+        &self,
+        ids: &[Uuid],
+    ) -> DbResult<HashMap<Uuid, (String, MonitorStatus)>>;
+
+    async fn update_monitor(
+        &self,
+        id: MonitorId,
+        patch: UpdateMonitor,
+        org_id: OrgId,
+    ) -> DbResult<Monitor>;
+
+    async fn delete_monitor(&self, id: MonitorId, org_id: OrgId) -> DbResult<()>;
+
+    async fn set_monitor_active(&self, id: MonitorId, active: bool, org_id: OrgId) -> DbResult<()>;
+
+    async fn set_monitors_active_by_tag(
+        &self,
+        tag: TagId,
+        active: bool,
+        org_id: OrgId,
+    ) -> DbResult<u64>;
+
+    async fn set_monitor_group(
+        &self,
+        id: MonitorId,
+        group: Option<MonitorGroupId>,
+        org_id: OrgId,
+    ) -> DbResult<()>;
+
+    async fn bulk_edit_monitors_preview(
+        &self,
+        ids: &[MonitorId],
+        want_tags: bool,
+        org_id: OrgId,
+    ) -> DbResult<(Vec<MonitorPrior>, usize)>;
+
+    async fn bulk_edit_monitors(
+        &self,
+        ids: &[MonitorId],
+        patch: &BulkEditPatch,
+        org_id: OrgId,
+    ) -> DbResult<BulkEditOutcome>;
+
+    async fn set_monitor_status(&self, id: MonitorId, status: MonitorStatus) -> DbResult<()>;
+
+    async fn monitor_slo_state(&self, id: MonitorId) -> DbResult<Option<SloState>>;
+
+    async fn mark_monitor_slo_breached(&self, id: MonitorId) -> DbResult<()>;
+
+    async fn clear_monitor_slo_breached(&self, id: MonitorId) -> DbResult<()>;
+}
+
+#[async_trait::async_trait]
 pub trait StoreAudit: Send + Sync {
     /// Append an audit row. Object-safe: `NewEntry` carries `Option<IpAddr>`,
     /// not the PG-specific `IpNetwork`. Best-effort tamper-evident hash chain.
@@ -1770,6 +1866,7 @@ pub trait Store:
     + StoreWebpush
     + StoreOrgs
     + StoreAudit
+    + StoreMonitors
     + Send
     + Sync
 {
@@ -4106,6 +4203,157 @@ impl StoreOrgs for PgStore {
         owner: UserId,
     ) -> DbResult<rampart_core::org::Org> {
         crate::orgs::create_with_owner(&self.pool, slug, name, owner).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreMonitors for PgStore {
+    async fn create_monitor(&self, input: NewMonitor, org_id: OrgId) -> DbResult<Monitor> {
+        crate::monitors::create(&self.pool, input, org_id).await
+    }
+
+    async fn regenerate_monitor_push_token(
+        &self,
+        id: MonitorId,
+        org_id: OrgId,
+    ) -> DbResult<String> {
+        crate::monitors::regenerate_push_token(&self.pool, id, org_id).await
+    }
+
+    async fn find_monitor_by_push_token(&self, token: &str) -> DbResult<Option<MonitorId>> {
+        crate::monitors::find_by_push_token(&self.pool, token).await
+    }
+
+    async fn fetch_monitor_last_push_at(&self, id: MonitorId) -> DbResult<Option<OffsetDateTime>> {
+        crate::monitors::fetch_last_push_at(&self.pool, id).await
+    }
+
+    async fn set_monitor_cert_info(
+        &self,
+        id: MonitorId,
+        days_left: i32,
+        subject: &str,
+    ) -> DbResult<()> {
+        crate::monitors::set_cert_info(&self.pool, id, days_left, subject).await
+    }
+
+    async fn mark_monitor_run_started(&self, id: MonitorId) -> DbResult<()> {
+        crate::monitors::mark_run_started(&self.pool, id).await
+    }
+
+    async fn close_monitor_run(&self, id: MonitorId) -> DbResult<Option<OffsetDateTime>> {
+        crate::monitors::close_run(&self.pool, id).await
+    }
+
+    async fn monitor_push_state(
+        &self,
+        id: MonitorId,
+    ) -> DbResult<(Option<OffsetDateTime>, Option<OffsetDateTime>)> {
+        crate::monitors::push_state(&self.pool, id).await
+    }
+
+    async fn bump_monitor_push_at(&self, id: MonitorId) -> DbResult<()> {
+        crate::monitors::bump_push_at(&self.pool, id).await
+    }
+
+    async fn list_monitors(&self, org_id: OrgId) -> DbResult<Vec<Monitor>> {
+        crate::monitors::list(&self.pool, org_id).await
+    }
+
+    async fn list_all_monitors(&self) -> DbResult<Vec<Monitor>> {
+        crate::monitors::list_all(&self.pool).await
+    }
+
+    async fn list_monitors_for_agent(&self, agent: AgentId) -> DbResult<Vec<Monitor>> {
+        crate::monitors::list_for_agent(&self.pool, agent).await
+    }
+
+    async fn list_stale_agent_monitors(&self) -> DbResult<Vec<(Monitor, String)>> {
+        crate::monitors::list_stale_agent_monitors(&self.pool).await
+    }
+
+    async fn get_monitor(&self, id: MonitorId, org_id: OrgId) -> DbResult<Monitor> {
+        crate::monitors::get(&self.pool, id, org_id).await
+    }
+
+    async fn get_monitor_unscoped(&self, id: MonitorId) -> DbResult<Monitor> {
+        crate::monitors::get_unscoped(&self.pool, id).await
+    }
+
+    async fn monitor_public_fields_batch(
+        &self,
+        ids: &[Uuid],
+    ) -> DbResult<HashMap<Uuid, (String, MonitorStatus)>> {
+        crate::monitors::public_fields_batch(&self.pool, ids).await
+    }
+
+    async fn update_monitor(
+        &self,
+        id: MonitorId,
+        patch: UpdateMonitor,
+        org_id: OrgId,
+    ) -> DbResult<Monitor> {
+        crate::monitors::update(&self.pool, id, patch, org_id).await
+    }
+
+    async fn delete_monitor(&self, id: MonitorId, org_id: OrgId) -> DbResult<()> {
+        crate::monitors::delete(&self.pool, id, org_id).await
+    }
+
+    async fn set_monitor_active(&self, id: MonitorId, active: bool, org_id: OrgId) -> DbResult<()> {
+        crate::monitors::set_active(&self.pool, id, active, org_id).await
+    }
+
+    async fn set_monitors_active_by_tag(
+        &self,
+        tag: TagId,
+        active: bool,
+        org_id: OrgId,
+    ) -> DbResult<u64> {
+        crate::monitors::set_active_by_tag(&self.pool, tag, active, org_id).await
+    }
+
+    async fn set_monitor_group(
+        &self,
+        id: MonitorId,
+        group: Option<MonitorGroupId>,
+        org_id: OrgId,
+    ) -> DbResult<()> {
+        crate::monitors::set_group(&self.pool, id, group, org_id).await
+    }
+
+    async fn bulk_edit_monitors_preview(
+        &self,
+        ids: &[MonitorId],
+        want_tags: bool,
+        org_id: OrgId,
+    ) -> DbResult<(Vec<MonitorPrior>, usize)> {
+        crate::monitors::bulk_edit_preview(&self.pool, ids, want_tags, org_id).await
+    }
+
+    async fn bulk_edit_monitors(
+        &self,
+        ids: &[MonitorId],
+        patch: &BulkEditPatch,
+        org_id: OrgId,
+    ) -> DbResult<BulkEditOutcome> {
+        crate::monitors::bulk_edit(&self.pool, ids, patch, org_id).await
+    }
+
+    async fn set_monitor_status(&self, id: MonitorId, status: MonitorStatus) -> DbResult<()> {
+        crate::monitors::set_status(&self.pool, id, status).await
+    }
+
+    async fn monitor_slo_state(&self, id: MonitorId) -> DbResult<Option<SloState>> {
+        crate::monitors::slo_state(&self.pool, id).await
+    }
+
+    async fn mark_monitor_slo_breached(&self, id: MonitorId) -> DbResult<()> {
+        crate::monitors::mark_slo_breached(&self.pool, id).await
+    }
+
+    async fn clear_monitor_slo_breached(&self, id: MonitorId) -> DbResult<()> {
+        crate::monitors::clear_slo_breached(&self.pool, id).await
     }
 }
 
