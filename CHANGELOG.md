@@ -29,6 +29,26 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.155.10] — 2026-06-22
+
+### Added
+- **GDPR data export + right-to-erasure (compliance epic, slice 1).** Two new
+  admin-only, audited endpoints on the user resource:
+  - `GET /v1/users/{id}/export` — aggregates a user's personal data (profile,
+    UI preferences, active sessions, org memberships) into one JSON document
+    for a data-subject access request.
+  - `POST /v1/users/{id}/erase` — right-to-erasure by **anonymizing in place**
+    (email tombstoned, name + 2FA cleared, password made non-verifiable) and
+    revoking all sessions + recovery codes. The row is kept as an anonymized
+    tombstone so the append-only tamper-evident audit chain and FK references
+    stay intact (security-log legal-retention exception) — a hard delete is
+    impossible anyway because `audit_log.actor_user_id` RESTRICTs. Cannot erase
+    your own account; the erasure action is itself audited.
+  Integration-tested (export→erase→login-fails + self-erase guard). First slice
+  of the SOC2/ISO/GDPR compliance-evidence epic.
+
+---
+
 ## [0.155.9] — 2026-06-22
 
 ### Changed
