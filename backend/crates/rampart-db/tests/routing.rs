@@ -82,7 +82,9 @@ fn names(chans: &[notifications::Notification]) -> Vec<String> {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn explicit_attach_resolves(pool: PgPool) {
-    let m = monitors::create(&pool, http_monitor("m1"), TEST_ORG).await.unwrap();
+    let m = monitors::create(&pool, http_monitor("m1"), TEST_ORG)
+        .await
+        .unwrap();
     let c = notifications::create(&pool, channel("explicit"), TEST_ORG)
         .await
         .unwrap();
@@ -96,7 +98,9 @@ async fn explicit_attach_resolves(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn monitor_tag_match_resolves(pool: PgPool) {
-    let m = monitors::create(&pool, http_monitor("m1"), TEST_ORG).await.unwrap();
+    let m = monitors::create(&pool, http_monitor("m1"), TEST_ORG)
+        .await
+        .unwrap();
     let c = notifications::create(&pool, channel("prod-pager"), TEST_ORG)
         .await
         .unwrap();
@@ -219,7 +223,9 @@ async fn exclusion_wins_over_every_inclusion(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn dedupes_across_paths_and_skips_inactive(pool: PgPool) {
-    let m = monitors::create(&pool, http_monitor("m1"), TEST_ORG).await.unwrap();
+    let m = monitors::create(&pool, http_monitor("m1"), TEST_ORG)
+        .await
+        .unwrap();
     let c = notifications::create(&pool, channel("dup"), TEST_ORG)
         .await
         .unwrap();
@@ -360,7 +366,9 @@ async fn nested_folder_attached_channel_propagates_to_child_monitor(pool: PgPool
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn no_tags_no_attach_yields_nothing(pool: PgPool) {
-    let m = monitors::create(&pool, http_monitor("m1"), TEST_ORG).await.unwrap();
+    let m = monitors::create(&pool, http_monitor("m1"), TEST_ORG)
+        .await
+        .unwrap();
     let _c = notifications::create(&pool, channel("orphan"), TEST_ORG)
         .await
         .unwrap();

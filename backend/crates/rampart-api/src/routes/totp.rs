@@ -125,13 +125,19 @@ async fn disable(
         .as_deref()
         .map(|s| totp::verify(s, &input.code))
         .unwrap_or(false)
-        || state.store().consume_recovery_code(user.0.id, &input.code).await?;
+        || state
+            .store()
+            .consume_recovery_code(user.0.id, &input.code)
+            .await?;
 
     if !code_ok {
         return Err(ApiError::BadRequest("invalid code".into()));
     }
     rampart_db::users::disable_totp(state.pool(), user.0.id).await?;
-    state.store().delete_recovery_codes_for_user(user.0.id).await?;
+    state
+        .store()
+        .delete_recovery_codes_for_user(user.0.id)
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -186,7 +192,10 @@ async fn verify(
         .as_deref()
         .map(|s| totp::verify(s, &input.code))
         .unwrap_or(false)
-        || state.store().consume_recovery_code(user_id, &input.code).await?;
+        || state
+            .store()
+            .consume_recovery_code(user_id, &input.code)
+            .await?;
 
     if !code_ok {
         // Security event: password was correct but the second factor

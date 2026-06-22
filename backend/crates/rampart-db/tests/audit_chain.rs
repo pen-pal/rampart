@@ -65,7 +65,9 @@ async fn head_truncation_with_watermark_verifies(pool: PgPool) {
             .unwrap();
     // Prune the first two rows; the 2nd is the newest deleted → the watermark.
     let cut = &rows[1];
-    audit::set_chain_watermark(&pool, cut.0, &cut.1).await.unwrap();
+    audit::set_chain_watermark(&pool, cut.0, &cut.1)
+        .await
+        .unwrap();
     sqlx::query("DELETE FROM audit_log WHERE id <= $1")
         .bind(cut.0)
         .execute(&pool)

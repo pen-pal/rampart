@@ -52,7 +52,10 @@ const CHECK_TIMEOUT: Duration = Duration::from_secs(25);
 /// leader loop; checks are best-effort and retried next tick.
 async fn timed(name: &str, fut: impl std::future::Future<Output = ()>) {
     if tokio::time::timeout(CHECK_TIMEOUT, fut).await.is_err() {
-        tracing::warn!(check = name, "periodic leader check timed out; skipped this tick");
+        tracing::warn!(
+            check = name,
+            "periodic leader check timed out; skipped this tick"
+        );
     }
 }
 
@@ -243,7 +246,9 @@ impl Scheduler {
             }
         };
         for episode in due {
-            let policy = match rampart_db::escalations::get_unscoped(&self.pool, episode.policy_id).await {
+            let policy = match rampart_db::escalations::get_unscoped(&self.pool, episode.policy_id)
+                .await
+            {
                 Ok(p) => p,
                 Err(e) => {
                     warn!(policy = %episode.policy_id.0, error = %e, "escalation policy load failed");
@@ -254,7 +259,9 @@ impl Scheduler {
             // episode if the subject recovered. Returns None to skip/close.
             let event = match episode.subject_kind.as_str() {
                 "monitor" => {
-                    let Some(mid) = episode.monitor_id else { continue };
+                    let Some(mid) = episode.monitor_id else {
+                        continue;
+                    };
                     let monitor = match rampart_db::monitors::get_unscoped(&self.pool, mid).await {
                         Ok(m) => m,
                         Err(_) => continue, // monitor deleted; episode cascades away
@@ -263,8 +270,12 @@ impl Scheduler {
                         let _ = rampart_db::escalations::resolve(&self.pool, mid).await;
                         continue;
                     }
-                    let down_for = (time::OffsetDateTime::now_utc() - episode.started_at).whole_seconds();
-                    monitor_escalation_event(monitor, format!("still down, unacknowledged for {down_for}s"))
+                    let down_for =
+                        (time::OffsetDateTime::now_utc() - episode.started_at).whole_seconds();
+                    monitor_escalation_event(
+                        monitor,
+                        format!("still down, unacknowledged for {down_for}s"),
+                    )
                 }
                 "telemetry_rule" => {
                     let rule_id = match uuid::Uuid::parse_str(&episode.subject_ref) {
@@ -274,13 +285,20 @@ impl Scheduler {
                     match rampart_db::telemetry_rules::get_unscoped(&self.pool, rule_id).await {
                         // Still firing → keep climbing. Recovered/deleted → close.
                         Ok(rule) if rule.firing_at.is_some() => {
-                            let down_for = (time::OffsetDateTime::now_utc() - episode.started_at).whole_seconds();
-                            alert_escalation_event(&rule.name, format!("still firing, unacknowledged for {down_for}s"))
+                            let down_for = (time::OffsetDateTime::now_utc() - episode.started_at)
+                                .whole_seconds();
+                            alert_escalation_event(
+                                &rule.name,
+                                format!("still firing, unacknowledged for {down_for}s"),
+                            )
                         }
                         _ => {
                             let _ = rampart_db::escalations::resolve_subject(
-                                &self.pool, "telemetry_rule", &episode.subject_ref,
-                            ).await;
+                                &self.pool,
+                                "telemetry_rule",
+                                &episode.subject_ref,
+                            )
+                            .await;
                             continue;
                         }
                     }
@@ -292,13 +310,20 @@ impl Scheduler {
                     };
                     match rampart_db::metric_rules::get_unscoped(&self.pool, rule_id).await {
                         Ok(rule) if rule.firing_at.is_some() => {
-                            let down_for = (time::OffsetDateTime::now_utc() - episode.started_at).whole_seconds();
-                            alert_escalation_event(&rule.name, format!("still firing, unacknowledged for {down_for}s"))
+                            let down_for = (time::OffsetDateTime::now_utc() - episode.started_at)
+                                .whole_seconds();
+                            alert_escalation_event(
+                                &rule.name,
+                                format!("still firing, unacknowledged for {down_for}s"),
+                            )
                         }
                         _ => {
                             let _ = rampart_db::escalations::resolve_subject(
-                                &self.pool, "metric_rule", &episode.subject_ref,
-                            ).await;
+                                &self.pool,
+                                "metric_rule",
+                                &episode.subject_ref,
+                            )
+                            .await;
                             continue;
                         }
                     }
@@ -313,13 +338,20 @@ impl Scheduler {
                     // deleted → close.
                     match rampart_db::slos::get_unscoped(&self.pool, slo_id).await {
                         Ok(slo) if slo.breaching_at.is_some() => {
-                            let down_for = (time::OffsetDateTime::now_utc() - episode.started_at).whole_seconds();
-                            alert_escalation_event(&slo.name, format!("budget still breaching, unacknowledged for {down_for}s"))
+                            let down_for = (time::OffsetDateTime::now_utc() - episode.started_at)
+                                .whole_seconds();
+                            alert_escalation_event(
+                                &slo.name,
+                                format!("budget still breaching, unacknowledged for {down_for}s"),
+                            )
                         }
                         _ => {
                             let _ = rampart_db::escalations::resolve_subject(
-                                &self.pool, "slo", &episode.subject_ref,
-                            ).await;
+                                &self.pool,
+                                "slo",
+                                &episode.subject_ref,
+                            )
+                            .await;
                             continue;
                         }
                     }
@@ -334,22 +366,33 @@ impl Scheduler {
                     match rampart_db::detection::get_unscoped(&self.pool, rule_id).await {
                         Ok(rule) => {
                             let grace = ((rule.window_seconds as i64) * 2).max(600);
-                            let active = rampart_db::detection::has_recent_finding(&self.pool, rule_id, grace, None)
-                                .await
-                                .unwrap_or(false);
+                            let active = rampart_db::detection::has_recent_finding(
+                                &self.pool, rule_id, grace, None,
+                            )
+                            .await
+                            .unwrap_or(false);
                             if active {
-                                alert_escalation_event(&rule.name, "active findings, unacknowledged".to_string())
+                                alert_escalation_event(
+                                    &rule.name,
+                                    "active findings, unacknowledged".to_string(),
+                                )
                             } else {
                                 let _ = rampart_db::escalations::resolve_subject(
-                                    &self.pool, "detection_rule", &episode.subject_ref,
-                                ).await;
+                                    &self.pool,
+                                    "detection_rule",
+                                    &episode.subject_ref,
+                                )
+                                .await;
                                 continue;
                             }
                         }
                         Err(_) => {
                             let _ = rampart_db::escalations::resolve_subject(
-                                &self.pool, "detection_rule", &episode.subject_ref,
-                            ).await;
+                                &self.pool,
+                                "detection_rule",
+                                &episode.subject_ref,
+                            )
+                            .await;
                             continue;
                         }
                     }
@@ -448,8 +491,14 @@ impl Scheduler {
             // Escalation ladder (same lifecycle as telemetry rules: firing
             // opens + climbs; resolved closes).
             if let Some(policy_id) = ev.rule.escalation_policy_id {
-                self.rule_escalation_transition(policy_id, "metric_rule", &ev.rule.id.0.to_string(), fired, &event)
-                    .await;
+                self.rule_escalation_transition(
+                    policy_id,
+                    "metric_rule",
+                    &ev.rule.id.0.to_string(),
+                    fired,
+                    &event,
+                )
+                .await;
             }
         }
     }
@@ -469,9 +518,18 @@ impl Scheduler {
         for ev in events {
             let fired = ev.transition == rampart_core::slo::SloTransition::Fire;
             let snap = &ev.snapshot;
-            let achieved = snap.achieved_pct.map(|a| format!("{a:.3}%")).unwrap_or_else(|| "n/a".into());
-            let burn = snap.burn_rate_1h.map(|b| format!("{b:.1}x")).unwrap_or_else(|| "n/a".into());
-            let remaining = snap.remaining_pct.map(|r| format!("{r:.0}%")).unwrap_or_else(|| "n/a".into());
+            let achieved = snap
+                .achieved_pct
+                .map(|a| format!("{a:.3}%"))
+                .unwrap_or_else(|| "n/a".into());
+            let burn = snap
+                .burn_rate_1h
+                .map(|b| format!("{b:.1}x"))
+                .unwrap_or_else(|| "n/a".into());
+            let remaining = snap
+                .remaining_pct
+                .map(|r| format!("{r:.0}%"))
+                .unwrap_or_else(|| "n/a".into());
             let msg = if fired {
                 format!(
                     "SLO '{}' breaching: {achieved} achieved vs {:.3}% objective ({} budget left, 1h burn {burn})",
@@ -495,7 +553,11 @@ impl Scheduler {
                 heartbeat: Heartbeat {
                     monitor_id: rampart_core::MonitorId::new(),
                     ts: time::OffsetDateTime::now_utc(),
-                    status: if fired { MonitorStatus::Down } else { MonitorStatus::Up },
+                    status: if fired {
+                        MonitorStatus::Down
+                    } else {
+                        MonitorStatus::Up
+                    },
                     latency_ms: None,
                     status_code: None,
                     msg: Some(msg),
@@ -514,8 +576,14 @@ impl Scheduler {
                 }
             }
             if let Some(policy_id) = ev.slo.escalation_policy_id {
-                self.rule_escalation_transition(policy_id, "slo", &ev.slo.id.0.to_string(), fired, &event)
-                    .await;
+                self.rule_escalation_transition(
+                    policy_id,
+                    "slo",
+                    &ev.slo.id.0.to_string(),
+                    fired,
+                    &event,
+                )
+                .await;
             }
         }
     }
@@ -602,8 +670,14 @@ impl Scheduler {
             // Escalation ladder: firing opens an episode + pages step 0, later
             // steps climb via the due scan, recovery closes it.
             if let Some(policy_id) = ev.rule.escalation_policy_id {
-                self.rule_escalation_transition(policy_id, "telemetry_rule", &ev.rule.id.0.to_string(), fired, &event)
-                    .await;
+                self.rule_escalation_transition(
+                    policy_id,
+                    "telemetry_rule",
+                    &ev.rule.id.0.to_string(),
+                    fired,
+                    &event,
+                )
+                .await;
             }
         }
     }
@@ -627,9 +701,17 @@ impl Scheduler {
             }
         };
         if fired {
-            match rampart_db::escalations::open_episode_for_subject(&self.pool, kind, subject_ref, &policy).await {
+            match rampart_db::escalations::open_episode_for_subject(
+                &self.pool,
+                kind,
+                subject_ref,
+                &policy,
+            )
+            .await
+            {
                 Ok(Some(_)) => {
-                    rampart_notifier::service::fire_escalation_step(&self.pool, event, &policy, 0).await;
+                    rampart_notifier::service::fire_escalation_step(&self.pool, event, &policy, 0)
+                        .await;
                 }
                 Ok(None) => {} // already climbing
                 Err(e) => warn!(subject = subject_ref, error = %e, "escalation open failed"),
@@ -696,17 +778,27 @@ impl Scheduler {
             // when the rule goes quiet (check_escalations detection branch).
             if let Some(policy_id) = ev.escalation_policy_id {
                 let subj = f.rule_id.0.to_string();
-                if let Ok(policy) = rampart_db::escalations::get_unscoped(&self.pool, policy_id).await {
+                if let Ok(policy) =
+                    rampart_db::escalations::get_unscoped(&self.pool, policy_id).await
+                {
                     match rampart_db::escalations::open_episode_for_subject(
-                        &self.pool, "detection_rule", &subj, &policy,
+                        &self.pool,
+                        "detection_rule",
+                        &subj,
+                        &policy,
                     )
                     .await
                     {
                         Ok(Some(_)) => {
-                            rampart_notifier::service::fire_escalation_step(&self.pool, &event, &policy, 0).await;
+                            rampart_notifier::service::fire_escalation_step(
+                                &self.pool, &event, &policy, 0,
+                            )
+                            .await;
                         }
                         Ok(None) => {} // already climbing
-                        Err(e) => warn!(rule = %f.rule_name, error = %e, "detection escalation open failed"),
+                        Err(e) => {
+                            warn!(rule = %f.rule_name, error = %e, "detection escalation open failed")
+                        }
                     }
                 }
             }

@@ -95,7 +95,8 @@ async fn delete(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    let id = Uuid::from_str(&id).map_err(|_| ApiError::BadRequest("invalid ingest key id".into()))?;
+    let id =
+        Uuid::from_str(&id).map_err(|_| ApiError::BadRequest("invalid ingest key id".into()))?;
     // Org-scoped delete: a cross-org id is invisible, so 404 (not 403).
     let removed = s.store().delete_ingest_key(id, org.org_id).await?;
     if !removed {

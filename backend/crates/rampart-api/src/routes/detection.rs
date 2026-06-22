@@ -48,7 +48,9 @@ async fn list(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<DetectionRule>>, ApiError> {
-    Ok(Json(rampart_db::detection::list(s.pool(), org.org_id).await?))
+    Ok(Json(
+        rampart_db::detection::list(s.pool(), org.org_id).await?,
+    ))
 }
 
 async fn create(
@@ -60,7 +62,9 @@ async fn create(
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     if !rampart_db::detection::regex_is_valid(s.pool(), &input.body_regex).await? {
-        return Err(ApiError::BadRequest("body_regex is not a valid regex".into()));
+        return Err(ApiError::BadRequest(
+            "body_regex is not a valid regex".into(),
+        ));
     }
     validate_condition(&s, input.condition.as_ref()).await?;
     let rule = rampart_db::detection::create(s.pool(), input, org.org_id).await?;
@@ -79,7 +83,9 @@ async fn update(
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     if let Some(rx) = input.body_regex.as_deref() {
         if !rampart_db::detection::regex_is_valid(s.pool(), rx).await? {
-            return Err(ApiError::BadRequest("body_regex is not a valid regex".into()));
+            return Err(ApiError::BadRequest(
+                "body_regex is not a valid regex".into(),
+            ));
         }
     }
     validate_condition(&s, input.condition.as_ref()).await?;
@@ -144,7 +150,9 @@ async fn ack_finding(
     let fid = parse_finding_id(&id)?;
     // Gate through the finding's owning rule's org — cross-org finding = 404.
     rampart_db::detection::finding_in_org(s.pool(), fid, org.org_id).await?;
-    Ok(Json(rampart_db::detection::ack_finding(s.pool(), fid).await?))
+    Ok(Json(
+        rampart_db::detection::ack_finding(s.pool(), fid).await?,
+    ))
 }
 
 #[derive(Deserialize)]
@@ -174,7 +182,9 @@ async fn preview(
     Json(b): Json<PreviewBody>,
 ) -> Result<Json<rampart_db::detection::PreviewResult>, ApiError> {
     if !rampart_db::detection::regex_is_valid(s.pool(), &b.body_regex).await? {
-        return Err(ApiError::BadRequest("body_regex is not a valid regex".into()));
+        return Err(ApiError::BadRequest(
+            "body_regex is not a valid regex".into(),
+        ));
     }
     let window = b.window_seconds.clamp(1, 86_400);
     let min_level = b.min_level.clamp(0, 24);

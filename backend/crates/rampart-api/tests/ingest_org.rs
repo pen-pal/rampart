@@ -58,13 +58,25 @@ async fn otlp_logs_stamp_org_from_ingest_key(pool: PgPool) {
     // OTLP logs bearing the org key → the log lands in that org.
     assert_eq!(post_logs(&app, Some(&token)).await, StatusCode::OK);
     assert_eq!(count_logs(&pool, OTHER).await, 1, "ingest-key org stamped");
-    assert_eq!(count_logs(&pool, DEFAULT_ORG).await, 0, "nothing misfiled to Default");
+    assert_eq!(
+        count_logs(&pool, DEFAULT_ORG).await,
+        0,
+        "nothing misfiled to Default"
+    );
 
     // Token-less (no key, no global telemetry_token configured) → open ingest,
     // falls back to the Default org (single-org behaviour preserved).
     assert_eq!(post_logs(&app, None).await, StatusCode::OK);
-    assert_eq!(count_logs(&pool, DEFAULT_ORG).await, 1, "tokenless → Default");
-    assert_eq!(count_logs(&pool, OTHER).await, 1, "Default ingest didn't touch the other org");
+    assert_eq!(
+        count_logs(&pool, DEFAULT_ORG).await,
+        1,
+        "tokenless → Default"
+    );
+    assert_eq!(
+        count_logs(&pool, OTHER).await,
+        1,
+        "Default ingest didn't touch the other org"
+    );
 }
 
 async fn post_rum(app: &axum::Router, token: &str, origin: &str) -> StatusCode {

@@ -113,7 +113,11 @@ async fn flip_path_resolve_decrypts_channel_config(pool: PgPool) {
     let resolved = rampart_db::routing::resolve_channels_for_monitor(&pool, mon.id)
         .await
         .unwrap();
-    assert_eq!(resolved.len(), 1, "the attached channel resolves on the flip path");
+    assert_eq!(
+        resolved.len(),
+        1,
+        "the attached channel resolves on the flip path"
+    );
     assert_eq!(
         resolved[0].config["url"], "https://hooks.example.com/x",
         "flip path must expose the decrypted url"

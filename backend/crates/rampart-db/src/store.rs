@@ -39,12 +39,12 @@ use rampart_core::ids::{
     StatusPageId, TagId, TelemetryRuleId,
 };
 use rampart_core::ingest_token::{IngestToken, NewIngestToken};
-use rampart_core::maintenance::{
-    MaintenanceWindow, NewMaintenanceWindow, UpdateMaintenanceWindow,
-};
+use rampart_core::maintenance::{MaintenanceWindow, NewMaintenanceWindow, UpdateMaintenanceWindow};
 use rampart_core::metric_rule::{MetricRule, NewMetricRule, UpdateMetricRule};
 use rampart_core::monitor_group::{MonitorGroup, NewMonitorGroup, UpdateMonitorGroup};
-use rampart_core::on_call::{NewOnCallSchedule, OnCallSchedule, OnCallTarget, UpdateOnCallSchedule};
+use rampart_core::on_call::{
+    NewOnCallSchedule, OnCallSchedule, OnCallTarget, UpdateOnCallSchedule,
+};
 use rampart_core::proxy::{NewProxy, Proxy};
 use rampart_core::slo::{NewSlo, Slo, SloSnapshot, UpdateSlo};
 use rampart_core::status_page::PublicMaintenance;
@@ -61,11 +61,7 @@ use uuid::Uuid;
 pub trait StoreHeartbeats: Send + Sync {
     async fn insert_many(&self, hbs: &[Heartbeat]) -> DbResult<()>;
 
-    async fn recent_for_monitor(
-        &self,
-        monitor: MonitorId,
-        limit: i64,
-    ) -> DbResult<Vec<Heartbeat>>;
+    async fn recent_for_monitor(&self, monitor: MonitorId, limit: i64) -> DbResult<Vec<Heartbeat>>;
 
     async fn recent_for_monitor_before(
         &self,
@@ -104,11 +100,8 @@ pub trait StoreHeartbeats: Send + Sync {
         day: time::Date,
     ) -> DbResult<Vec<(i32, Option<f32>, i32)>>;
 
-    async fn monthly_uptime(
-        &self,
-        monitor: MonitorId,
-        months: i32,
-    ) -> DbResult<Vec<MonthlyUptime>>;
+    async fn monthly_uptime(&self, monitor: MonitorId, months: i32)
+        -> DbResult<Vec<MonthlyUptime>>;
 
     async fn uptime_pct_batch(
         &self,
@@ -156,11 +149,8 @@ pub trait StoreHeartbeats: Send + Sync {
         target_pct: f64,
     ) -> DbResult<Vec<BurndownPoint>>;
 
-    async fn recent_per_monitor(
-        &self,
-        per_monitor: i64,
-        org_id: OrgId,
-    ) -> DbResult<Vec<Heartbeat>>;
+    async fn recent_per_monitor(&self, per_monitor: i64, org_id: OrgId)
+        -> DbResult<Vec<Heartbeat>>;
 }
 
 /// One method per public `crate::deploy_markers` free function. Names carry a
@@ -257,11 +247,7 @@ pub trait StoreProxies: Send + Sync {
 pub trait StoreOnCall: Send + Sync {
     async fn list_on_call(&self, org_id: OrgId) -> DbResult<Vec<OnCallSchedule>>;
 
-    async fn get_on_call(
-        &self,
-        id: OnCallScheduleId,
-        org_id: OrgId,
-    ) -> DbResult<OnCallSchedule>;
+    async fn get_on_call(&self, id: OnCallScheduleId, org_id: OrgId) -> DbResult<OnCallSchedule>;
 
     async fn get_on_call_unscoped(&self, id: OnCallScheduleId) -> DbResult<OnCallSchedule>;
 
@@ -356,11 +342,8 @@ pub trait StoreEscalations: Send + Sync {
         org_id: OrgId,
     ) -> DbResult<EscalationPolicy>;
 
-    async fn delete_escalation_policy(
-        &self,
-        id: EscalationPolicyId,
-        org_id: OrgId,
-    ) -> DbResult<()>;
+    async fn delete_escalation_policy(&self, id: EscalationPolicyId, org_id: OrgId)
+        -> DbResult<()>;
 
     async fn open_episode(
         &self,
@@ -385,10 +368,7 @@ pub trait StoreEscalations: Send + Sync {
 
     async fn list_open_episodes(&self) -> DbResult<Vec<EscalationEpisode>>;
 
-    async fn list_open_episodes_for_org(
-        &self,
-        org_id: OrgId,
-    ) -> DbResult<Vec<EscalationEpisode>>;
+    async fn list_open_episodes_for_org(&self, org_id: OrgId) -> DbResult<Vec<EscalationEpisode>>;
 
     async fn episode_in_org(&self, episode: Uuid, org_id: OrgId) -> DbResult<()>;
 
@@ -508,10 +488,7 @@ pub trait StoreIngestTokens: Send + Sync {
         org_id: OrgId,
     ) -> DbResult<IngestToken>;
 
-    async fn list_ingest_tokens_for_page(
-        &self,
-        page: StatusPageId,
-    ) -> DbResult<Vec<IngestToken>>;
+    async fn list_ingest_tokens_for_page(&self, page: StatusPageId) -> DbResult<Vec<IngestToken>>;
 
     async fn find_ingest_token_by_token(&self, token: &str) -> DbResult<IngestToken>;
 
@@ -559,11 +536,7 @@ pub trait StoreTags: Send + Sync {
 pub trait StoreTemplates: Send + Sync {
     async fn list_templates(&self, org_id: OrgId) -> DbResult<Vec<Template>>;
 
-    async fn get_template(
-        &self,
-        id: NotificationTemplateId,
-        org_id: OrgId,
-    ) -> DbResult<Template>;
+    async fn get_template(&self, id: NotificationTemplateId, org_id: OrgId) -> DbResult<Template>;
 
     async fn create_template(&self, input: NewTemplate, org_id: OrgId) -> DbResult<Template>;
 
@@ -596,10 +569,7 @@ pub trait StoreTelemetryRules: Send + Sync {
         org_id: OrgId,
     ) -> DbResult<TelemetryRule>;
 
-    async fn get_telemetry_rule_unscoped(
-        &self,
-        id: TelemetryRuleId,
-    ) -> DbResult<TelemetryRule>;
+    async fn get_telemetry_rule_unscoped(&self, id: TelemetryRuleId) -> DbResult<TelemetryRule>;
 
     async fn create_telemetry_rule(
         &self,
@@ -631,11 +601,8 @@ pub trait StoreMetricRules: Send + Sync {
 
     async fn get_metric_rule_unscoped(&self, id: MetricRuleId) -> DbResult<MetricRule>;
 
-    async fn create_metric_rule(
-        &self,
-        input: NewMetricRule,
-        org_id: OrgId,
-    ) -> DbResult<MetricRule>;
+    async fn create_metric_rule(&self, input: NewMetricRule, org_id: OrgId)
+        -> DbResult<MetricRule>;
 
     async fn update_metric_rule(
         &self,
@@ -765,11 +732,7 @@ impl StoreHeartbeats for PgStore {
         crate::heartbeats::insert_many(&self.pool, hbs).await
     }
 
-    async fn recent_for_monitor(
-        &self,
-        monitor: MonitorId,
-        limit: i64,
-    ) -> DbResult<Vec<Heartbeat>> {
+    async fn recent_for_monitor(&self, monitor: MonitorId, limit: i64) -> DbResult<Vec<Heartbeat>> {
         crate::heartbeats::recent_for_monitor(&self.pool, monitor, limit).await
     }
 
@@ -1039,11 +1002,7 @@ impl StoreOnCall for PgStore {
         crate::on_call::list(&self.pool, org_id).await
     }
 
-    async fn get_on_call(
-        &self,
-        id: OnCallScheduleId,
-        org_id: OrgId,
-    ) -> DbResult<OnCallSchedule> {
+    async fn get_on_call(&self, id: OnCallScheduleId, org_id: OrgId) -> DbResult<OnCallSchedule> {
         crate::on_call::get(&self.pool, id, org_id).await
     }
 
@@ -1215,10 +1174,7 @@ impl StoreEscalations for PgStore {
         crate::escalations::list_open(&self.pool).await
     }
 
-    async fn list_open_episodes_for_org(
-        &self,
-        org_id: OrgId,
-    ) -> DbResult<Vec<EscalationEpisode>> {
+    async fn list_open_episodes_for_org(&self, org_id: OrgId) -> DbResult<Vec<EscalationEpisode>> {
         crate::escalations::list_open_for_org(&self.pool, org_id).await
     }
 
@@ -1382,10 +1338,7 @@ impl StoreIngestTokens for PgStore {
         crate::ingest_tokens::set_mapping(&self.pool, id, mapping, org_id).await
     }
 
-    async fn list_ingest_tokens_for_page(
-        &self,
-        page: StatusPageId,
-    ) -> DbResult<Vec<IngestToken>> {
+    async fn list_ingest_tokens_for_page(&self, page: StatusPageId) -> DbResult<Vec<IngestToken>> {
         crate::ingest_tokens::list_for_page(&self.pool, page).await
     }
 
@@ -1461,11 +1414,7 @@ impl StoreTemplates for PgStore {
         crate::templates::list(&self.pool, org_id).await
     }
 
-    async fn get_template(
-        &self,
-        id: NotificationTemplateId,
-        org_id: OrgId,
-    ) -> DbResult<Template> {
+    async fn get_template(&self, id: NotificationTemplateId, org_id: OrgId) -> DbResult<Template> {
         crate::templates::get(&self.pool, id, org_id).await
     }
 
@@ -1512,10 +1461,7 @@ impl StoreTelemetryRules for PgStore {
         crate::telemetry_rules::get(&self.pool, id, org_id).await
     }
 
-    async fn get_telemetry_rule_unscoped(
-        &self,
-        id: TelemetryRuleId,
-    ) -> DbResult<TelemetryRule> {
+    async fn get_telemetry_rule_unscoped(&self, id: TelemetryRuleId) -> DbResult<TelemetryRule> {
         crate::telemetry_rules::get_unscoped(&self.pool, id).await
     }
 

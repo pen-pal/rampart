@@ -38,9 +38,7 @@ async fn get_one(
     Extension(org): Extension<OrgContext>,
     Path(id): Path<String>,
 ) -> Result<Json<Template>, ApiError> {
-    Ok(Json(
-        s.store().get_template(parse(&id)?, org.org_id).await?,
-    ))
+    Ok(Json(s.store().get_template(parse(&id)?, org.org_id).await?))
 }
 
 async fn create(
@@ -65,7 +63,9 @@ async fn update(
     Json(input): Json<UpdateTemplate>,
 ) -> Result<Json<Template>, ApiError> {
     Ok(Json(
-        s.store().update_template(parse(&id)?, input, org.org_id).await?,
+        s.store()
+            .update_template(parse(&id)?, input, org.org_id)
+            .await?,
     ))
 }
 

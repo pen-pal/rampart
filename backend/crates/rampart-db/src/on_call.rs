@@ -34,7 +34,8 @@ impl From<ScheduleRow> for OnCallSchedule {
             // degrades to an empty ring rather than a panic — an empty
             // ring just resolves to "no one on call" and gets skipped.
             participant_ids: serde_json::from_value(r.participant_ids).unwrap_or_default(),
-            participant_user_ids: serde_json::from_value(r.participant_user_ids).unwrap_or_default(),
+            participant_user_ids: serde_json::from_value(r.participant_user_ids)
+                .unwrap_or_default(),
             created_at: r.created_at,
         }
     }

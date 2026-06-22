@@ -6,13 +6,13 @@
 //! persisted row is asserted to carry exactly that org_id.
 
 use rampart_core::ids::OrgId;
+use rampart_core::log::ParsedLog;
+use rampart_core::monitor::NewMonitor;
 use rampart_core::status_page::NewStatusPage;
 use rampart_core::ChannelKind;
 use rampart_db::delivery_log::{self, NewDelivery};
 use rampart_db::notifications::{self, NewNotification};
 use rampart_db::{logs, monitors, status_pages};
-use rampart_core::log::ParsedLog;
-use rampart_core::monitor::NewMonitor;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -93,7 +93,12 @@ async fn status_page_create_stamps_passed_org(pool: PgPool) {
     let page: NewStatusPage =
         serde_json::from_value(serde_json::json!({ "slug": "sp", "title": "SP" })).unwrap();
     let sp = status_pages::create(&pool, page, other).await.unwrap();
-    let stamped = org_of(&pool, "SELECT org_id FROM status_pages WHERE id = $1", sp.id.0).await;
+    let stamped = org_of(
+        &pool,
+        "SELECT org_id FROM status_pages WHERE id = $1",
+        sp.id.0,
+    )
+    .await;
     assert_eq!(stamped, OTHER_ORG_UUID);
 }
 
@@ -106,19 +111,20 @@ async fn logs_insert_stamps_passed_org_on_every_row(pool: PgPool) {
         .unwrap();
     assert_eq!(n, 3);
     // All three rows are stamped with the passed org; none defaulted.
-    let other_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM logs WHERE org_id = $1")
-            .bind(OTHER_ORG_UUID)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-    assert_eq!(other_count, 3, "every bulk-inserted log row carries the org");
-    let default_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM logs WHERE org_id <> $1")
-            .bind(OTHER_ORG_UUID)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let other_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM logs WHERE org_id = $1")
+        .bind(OTHER_ORG_UUID)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        other_count, 3,
+        "every bulk-inserted log row carries the org"
+    );
+    let default_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM logs WHERE org_id <> $1")
+        .bind(OTHER_ORG_UUID)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(default_count, 0, "no row fell back to the column DEFAULT");
 }
 

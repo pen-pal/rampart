@@ -102,7 +102,10 @@ async fn update(
         rampart_core::on_call::validate_schedule(rotation, chans + users)
             .map_err(ApiError::BadRequest)?;
     }
-    let schedule = s.store().update_on_call(schedule_id, input, org.org_id).await?;
+    let schedule = s
+        .store()
+        .update_on_call(schedule_id, input, org.org_id)
+        .await?;
     crate::audit::record(
         s.pool(),
         &user,

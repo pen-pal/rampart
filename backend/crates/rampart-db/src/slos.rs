@@ -174,8 +174,7 @@ pub async fn create(
 }
 
 pub async fn update(pool: &DbPool, id: SloId, patch: UpdateSlo, org_id: OrgId) -> DbResult<Slo> {
-    let channel_ids: Option<Vec<Uuid>> =
-        patch.channel_ids.map(|v| v.iter().map(|c| c.0).collect());
+    let channel_ids: Option<Vec<Uuid>> = patch.channel_ids.map(|v| v.iter().map(|c| c.0).collect());
     let result = sqlx::query!(
         r#"
         UPDATE slos SET
@@ -317,7 +316,9 @@ pub async fn trend(pool: &DbPool, slo: &Slo, buckets: i64) -> DbResult<Vec<f64>>
     let step = (window / buckets).max(1);
     match slo.sli_kind {
         SliKind::Monitor => {
-            let Some(m) = slo.monitor_id else { return Ok(vec![]) };
+            let Some(m) = slo.monitor_id else {
+                return Ok(vec![]);
+            };
             let rows = sqlx::query!(
                 r#"
                 SELECT date_bin(make_interval(secs => $2), ts, $3) AS bucket,
@@ -378,7 +379,11 @@ pub async fn list_with_snapshots(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<S
     for slo in list(pool, org_id).await? {
         let snapshot = compute(pool, &slo).await?;
         let trend = trend(pool, &slo, 24).await?;
-        out.push(SloWithSnapshot { slo, snapshot, trend });
+        out.push(SloWithSnapshot {
+            slo,
+            snapshot,
+            trend,
+        });
     }
     Ok(out)
 }
@@ -402,9 +407,13 @@ pub async fn evaluate_tick(pool: &DbPool) -> DbResult<Vec<SloEvent>> {
         match transition {
             SloTransition::None => {}
             SloTransition::Fire => {
-                sqlx::query!("UPDATE slos SET breaching_at = $2 WHERE id = $1", slo.id.0, now)
-                    .execute(pool)
-                    .await?;
+                sqlx::query!(
+                    "UPDATE slos SET breaching_at = $2 WHERE id = $1",
+                    slo.id.0,
+                    now
+                )
+                .execute(pool)
+                .await?;
                 out.push(SloEvent {
                     slo,
                     transition,
@@ -412,9 +421,12 @@ pub async fn evaluate_tick(pool: &DbPool) -> DbResult<Vec<SloEvent>> {
                 });
             }
             SloTransition::Resolve => {
-                sqlx::query!("UPDATE slos SET breaching_at = NULL WHERE id = $1", slo.id.0)
-                    .execute(pool)
-                    .await?;
+                sqlx::query!(
+                    "UPDATE slos SET breaching_at = NULL WHERE id = $1",
+                    slo.id.0
+                )
+                .execute(pool)
+                .await?;
                 out.push(SloEvent {
                     slo,
                     transition,

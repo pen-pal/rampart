@@ -104,7 +104,10 @@ async fn create(
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     validate_steps(&input.steps).map_err(ApiError::BadRequest)?;
     let name = input.name.clone();
-    let policy = s.store().create_escalation_policy(input, org.org_id).await?;
+    let policy = s
+        .store()
+        .create_escalation_policy(input, org.org_id)
+        .await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -133,7 +136,10 @@ async fn update(
     if let Some(steps) = &input.steps {
         validate_steps(steps).map_err(ApiError::BadRequest)?;
     }
-    let policy = s.store().update_escalation_policy(policy_id, input, org.org_id).await?;
+    let policy = s
+        .store()
+        .update_escalation_policy(policy_id, input, org.org_id)
+        .await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -155,7 +161,9 @@ async fn delete(
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let policy_id = parse(&id)?;
-    s.store().delete_escalation_policy(policy_id, org.org_id).await?;
+    s.store()
+        .delete_escalation_policy(policy_id, org.org_id)
+        .await?;
     crate::audit::record(
         s.pool(),
         &user,
@@ -178,9 +186,7 @@ async fn episode(
     let monitor_id = parse_monitor(&id)?;
     // Gate through the monitor's org — cross-org monitor id is a 404.
     rampart_db::monitors::get(s.pool(), monitor_id, org.org_id).await?;
-    Ok(Json(
-        s.store().open_episode_for_monitor(monitor_id).await?,
-    ))
+    Ok(Json(s.store().open_episode_for_monitor(monitor_id).await?))
 }
 
 /// Acknowledge: stops further escalation steps. 404 when nothing is
@@ -195,7 +201,10 @@ async fn ack(
     let monitor_id = parse_monitor(&id)?;
     // Gate through the monitor's org — cross-org monitor id is a 404.
     rampart_db::monitors::get(s.pool(), monitor_id, org.org_id).await?;
-    let episode = s.store().ack_episode_for_monitor(monitor_id, user.id).await?;
+    let episode = s
+        .store()
+        .ack_episode_for_monitor(monitor_id, user.id)
+        .await?;
     crate::audit::record(
         s.pool(),
         &user,

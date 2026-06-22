@@ -77,8 +77,7 @@ async fn findings_cursor(pool: &DbPool) -> Option<OffsetDateTime> {
 
 async fn set_findings_cursor(pool: &DbPool, ts: OffsetDateTime) {
     if let Ok(s) = ts.format(&time::format_description::well_known::Rfc3339) {
-        let _ =
-            rampart_db::settings::put(pool, FINDINGS_CURSOR_KEY, &serde_json::json!(s)).await;
+        let _ = rampart_db::settings::put(pool, FINDINGS_CURSOR_KEY, &serde_json::json!(s)).await;
     }
 }
 

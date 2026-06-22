@@ -168,10 +168,12 @@ async fn apply_monitors(
                 .map_err(|e| e.to_string())
                 .and_then(|p| p.validate().map(|_| p).map_err(|e| e.to_string()))
             {
-                Ok(patch) => match rampart_db::monitors::update(state.pool(), id, patch, org.org_id).await {
-                    Ok(_) => res.updated += 1,
-                    Err(e) => res.errors.push(format!("{name}: {e}")),
-                },
+                Ok(patch) => {
+                    match rampart_db::monitors::update(state.pool(), id, patch, org.org_id).await {
+                        Ok(_) => res.updated += 1,
+                        Err(e) => res.errors.push(format!("{name}: {e}")),
+                    }
+                }
                 Err(e) => res.errors.push(format!("{name}: {e}")),
             }
         } else {
@@ -550,11 +552,12 @@ async fn bulk(
             }
             // Junction arms key only on the monitor id, so gate the monitor's
             // org first (the tag/channel was org-checked once above).
-            BulkAction::AddTag { .. } => match rampart_db::monitors::get(pool, mid, org.org_id).await
-            {
-                Ok(_) => state.store().attach_tag(mid, tag.unwrap()).await,
-                Err(e) => Err(e),
-            },
+            BulkAction::AddTag { .. } => {
+                match rampart_db::monitors::get(pool, mid, org.org_id).await {
+                    Ok(_) => state.store().attach_tag(mid, tag.unwrap()).await,
+                    Err(e) => Err(e),
+                }
+            }
             BulkAction::RemoveTag { .. } => {
                 match rampart_db::monitors::get(pool, mid, org.org_id).await {
                     Ok(_) => state.store().detach_tag(mid, tag.unwrap()).await,
@@ -1002,8 +1005,8 @@ async fn bulk_by_tag(
         BulkByTagAction::Resume => true,
     };
 
-    let affected =
-        rampart_db::monitors::set_active_by_tag(state.pool(), tag, active, org.org_id).await? as usize;
+    let affected = rampart_db::monitors::set_active_by_tag(state.pool(), tag, active, org.org_id)
+        .await? as usize;
     state.poke_scheduler();
 
     let action_name = if active { "resume" } else { "pause" };
@@ -1159,7 +1162,9 @@ async fn clone_one(
             let gid = Uuid::from_str(g)
                 .map(MonitorGroupId::from_uuid)
                 .map_err(|_| ApiError::BadRequest("invalid group_id".into()))?;
-            let exists = state.store().list_monitor_groups(org.org_id)
+            let exists = state
+                .store()
+                .list_monitor_groups(org.org_id)
                 .await?
                 .iter()
                 .any(|grp| grp.id == gid);

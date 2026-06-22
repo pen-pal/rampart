@@ -29,8 +29,20 @@ const REDACTED: &str = "••••••";
 fn is_secret_key(k: &str) -> bool {
     let k = k.to_ascii_lowercase();
     [
-        "token", "secret", "password", "passwd", "psw", "key", "dsn", "webhook",
-        "url", "sas", "auth", "credential", "signature", "bearer",
+        "token",
+        "secret",
+        "password",
+        "passwd",
+        "psw",
+        "key",
+        "dsn",
+        "webhook",
+        "url",
+        "sas",
+        "auth",
+        "credential",
+        "signature",
+        "bearer",
     ]
     .iter()
     .any(|p| k.contains(p))

@@ -136,9 +136,12 @@ pub async fn find_by_token(
 
 /// Fire-and-forget last-used bump on every accepted ingest POST.
 pub async fn touch_last_used(pool: &DbPool, id: Uuid) -> DbResult<()> {
-    sqlx::query!("UPDATE ingest_keys SET last_used_at = NOW() WHERE id = $1", id)
-        .execute(pool)
-        .await?;
+    sqlx::query!(
+        "UPDATE ingest_keys SET last_used_at = NOW() WHERE id = $1",
+        id
+    )
+    .execute(pool)
+    .await?;
     Ok(())
 }
 

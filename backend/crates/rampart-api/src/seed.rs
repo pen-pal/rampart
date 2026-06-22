@@ -190,16 +190,20 @@ pub async fn run(pool: &DbPool) -> Result<SeedStats> {
 const DEMO_GROUP: &str = "[demo] Sample services";
 
 async fn seed_admin_from_env(pool: &DbPool) -> Result<()> {
-    let email = std::env::var("RAMPART_ADMIN_EMAIL").ok().filter(|s| !s.is_empty());
-    let password = std::env::var("RAMPART_ADMIN_PASSWORD").ok().filter(|s| !s.is_empty());
+    let email = std::env::var("RAMPART_ADMIN_EMAIL")
+        .ok()
+        .filter(|s| !s.is_empty());
+    let password = std::env::var("RAMPART_ADMIN_PASSWORD")
+        .ok()
+        .filter(|s| !s.is_empty());
     let (Some(email), Some(password)) = (email, password) else {
         return Ok(());
     };
     if rampart_db::users::count(pool).await? > 0 {
         return Ok(()); // someone already exists — don't clobber
     }
-    let hash = crate::auth::hash_password(&password)
-        .map_err(|e| anyhow::anyhow!("hash failed: {e:?}"))?;
+    let hash =
+        crate::auth::hash_password(&password).map_err(|e| anyhow::anyhow!("hash failed: {e:?}"))?;
     rampart_db::users::create(
         pool,
         rampart_db::users::NewUser {
@@ -234,10 +238,18 @@ async fn seed_monitors(pool: &DbPool, group_id: uuid::Uuid, stats: &mut SeedStat
             hbs.push(Heartbeat {
                 monitor_id: MonitorId::from_uuid(mon.id.0),
                 ts: now - Duration::hours(h),
-                status: if down { MonitorStatus::Down } else { MonitorStatus::Up },
+                status: if down {
+                    MonitorStatus::Down
+                } else {
+                    MonitorStatus::Up
+                },
                 latency_ms: Some(if down { 0 } else { 40 + (h as i32 * 7) % 120 }),
                 status_code: Some(if down { 503 } else { 200 }),
-                msg: if down { Some("connection refused".into()) } else { None },
+                msg: if down {
+                    Some("connection refused".into())
+                } else {
+                    None
+                },
                 retries: 0,
                 important: h == 3 || h == 6, // the flip into/out of the outage
             });
@@ -297,10 +309,30 @@ async fn seed_errors(pool: &DbPool, stats: &mut SeedStats) -> Result<()> {
     // Two distinct issues; the first recurs several times across releases/users
     // so issue stats (users-affected, by-release) have something to show.
     for (n, (typ, msg, release, user)) in [
-        ("TypeError", "Cannot read properties of undefined (reading 'id')", "1.4.2", "u-101"),
-        ("TypeError", "Cannot read properties of undefined (reading 'id')", "1.4.3", "u-102"),
-        ("TypeError", "Cannot read properties of undefined (reading 'id')", "1.4.3", "u-103"),
-        ("TimeoutError", "Request to /api/checkout timed out after 30s", "1.4.3", "u-104"),
+        (
+            "TypeError",
+            "Cannot read properties of undefined (reading 'id')",
+            "1.4.2",
+            "u-101",
+        ),
+        (
+            "TypeError",
+            "Cannot read properties of undefined (reading 'id')",
+            "1.4.3",
+            "u-102",
+        ),
+        (
+            "TypeError",
+            "Cannot read properties of undefined (reading 'id')",
+            "1.4.3",
+            "u-103",
+        ),
+        (
+            "TimeoutError",
+            "Request to /api/checkout timed out after 30s",
+            "1.4.3",
+            "u-104",
+        ),
     ]
     .into_iter()
     .enumerate()
@@ -339,21 +371,41 @@ async fn seed_traces(pool: &DbPool, stats: &mut SeedStats) -> Result<()> {
     let leaf = hex16("leafspan01");
     let spans = vec![
         ParsedSpan {
-            trace_id: trace.clone(), span_id: root.clone(), parent_span_id: None,
-            service_name: "[demo] api".to_string(), name: "GET /checkout".into(), kind: 2,
-            start_ns: base, end_ns: base + 420_000_000, status_code: 0,
-            status_message: None, attributes: json!({ "http.method": "GET", "http.route": "/checkout" }),
+            trace_id: trace.clone(),
+            span_id: root.clone(),
+            parent_span_id: None,
+            service_name: "[demo] api".to_string(),
+            name: "GET /checkout".into(),
+            kind: 2,
+            start_ns: base,
+            end_ns: base + 420_000_000,
+            status_code: 0,
+            status_message: None,
+            attributes: json!({ "http.method": "GET", "http.route": "/checkout" }),
         },
         ParsedSpan {
-            trace_id: trace.clone(), span_id: child.clone(), parent_span_id: Some(root.clone()),
-            service_name: "[demo] api".to_string(), name: "SELECT carts".into(), kind: 3,
-            start_ns: base + 30_000_000, end_ns: base + 250_000_000, status_code: 0,
-            status_message: None, attributes: json!({ "db.system": "postgresql" }),
+            trace_id: trace.clone(),
+            span_id: child.clone(),
+            parent_span_id: Some(root.clone()),
+            service_name: "[demo] api".to_string(),
+            name: "SELECT carts".into(),
+            kind: 3,
+            start_ns: base + 30_000_000,
+            end_ns: base + 250_000_000,
+            status_code: 0,
+            status_message: None,
+            attributes: json!({ "db.system": "postgresql" }),
         },
         ParsedSpan {
-            trace_id: trace, span_id: leaf, parent_span_id: Some(child),
-            service_name: "[demo] payments".to_string(), name: "POST /charge".into(), kind: 3,
-            start_ns: base + 260_000_000, end_ns: base + 410_000_000, status_code: 2,
+            trace_id: trace,
+            span_id: leaf,
+            parent_span_id: Some(child),
+            service_name: "[demo] payments".to_string(),
+            name: "POST /charge".into(),
+            kind: 3,
+            start_ns: base + 260_000_000,
+            end_ns: base + 410_000_000,
+            status_code: 2,
             status_message: Some("upstream timeout".into()),
             attributes: json!({ "http.method": "POST", "error": true }),
         },
@@ -367,14 +419,39 @@ async fn seed_logs(pool: &DbPool, stats: &mut SeedStats) -> Result<()> {
     let now_ns = OffsetDateTime::now_utc().unix_timestamp_nanos() as i64;
     let mut logs = Vec::new();
     let lines = [
-        (9, "info", "[demo] api", "request completed status=200 path=/checkout"),
+        (
+            9,
+            "info",
+            "[demo] api",
+            "request completed status=200 path=/checkout",
+        ),
         (13, "warn", "[demo] api", "slow query 820ms on carts"),
-        (17, "error", "[demo] payments", "charge failed: upstream timeout"),
+        (
+            17,
+            "error",
+            "[demo] payments",
+            "charge failed: upstream timeout",
+        ),
         (9, "info", "[demo] web", "user signed in"),
         // a few that the demo detection rule matches
-        (17, "error", "[demo] auth", "failed login for user bob from 10.0.0.5"),
-        (17, "error", "[demo] auth", "failed login for user alice from 10.0.0.6"),
-        (17, "error", "[demo] auth", "failed login for user bob from 10.0.0.5"),
+        (
+            17,
+            "error",
+            "[demo] auth",
+            "failed login for user bob from 10.0.0.5",
+        ),
+        (
+            17,
+            "error",
+            "[demo] auth",
+            "failed login for user alice from 10.0.0.6",
+        ),
+        (
+            17,
+            "error",
+            "[demo] auth",
+            "failed login for user bob from 10.0.0.5",
+        ),
     ];
     // The first three lines are the checkout request path — tag them with the
     // seeded trace id so the log↔trace correlation is populated in the demo.
@@ -394,7 +471,12 @@ async fn seed_logs(pool: &DbPool, stats: &mut SeedStats) -> Result<()> {
     // Background traffic: a time-spread set so the demo Logs view, level
     // counts, and histogram look populated rather than showing only 7 rows.
     // Deterministic (index-hashed) so repeated seeds stay stable.
-    let services = ["[demo] api", "[demo] web", "[demo] payments", "[demo] worker"];
+    let services = [
+        "[demo] api",
+        "[demo] web",
+        "[demo] payments",
+        "[demo] worker",
+    ];
     let info_bodies = [
         "request completed status=200 path=/api/orders",
         "cache hit key=session:abc duration=2ms",
@@ -461,7 +543,10 @@ main;tokio::runtime::worker;background::flush_metrics 50
 main;tokio::runtime::worker;background::reap_idle 20";
     let sample_count: i32 = folded
         .lines()
-        .filter_map(|l| l.rsplit_once(' ').and_then(|(_, n)| n.trim().parse::<i32>().ok()))
+        .filter_map(|l| {
+            l.rsplit_once(' ')
+                .and_then(|(_, n)| n.trim().parse::<i32>().ok())
+        })
         .sum();
 
     let mut e = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
@@ -592,7 +677,10 @@ async fn seed_detection(pool: &DbPool, stats: &mut SeedStats) -> Result<()> {
         "window_seconds": 3600,
     });
     if let Ok(input) = serde_json::from_value(spec) {
-        if rampart_db::detection::create(pool, input, SEED_ORG_ID).await.is_ok() {
+        if rampart_db::detection::create(pool, input, SEED_ORG_ID)
+            .await
+            .is_ok()
+        {
             // Evaluate once so the seeded auth logs raise a finding the triage
             // queue can show.
             if let Ok(events) = rampart_db::detection::evaluate_tick(pool).await {
@@ -610,7 +698,8 @@ async fn seed_detection(pool: &DbPool, stats: &mut SeedStats) -> Result<()> {
 // goal is that a fresh `seed-demo` lights up *every* feature in the product.
 
 fn rfc3339(t: OffsetDateTime) -> String {
-    t.format(&time::format_description::well_known::Rfc3339).unwrap_or_default()
+    t.format(&time::format_description::well_known::Rfc3339)
+        .unwrap_or_default()
 }
 
 /// 48 hourly up heartbeats for a freshly-created monitor so its status/uptime
@@ -636,7 +725,12 @@ async fn push_hbs(pool: &DbPool, mon_uuid: uuid::Uuid, stats: &mut SeedStats) {
 
 /// First notification channel id (the seeded Slack webhook), if any.
 async fn demo_channel(pool: &DbPool) -> Option<rampart_core::ids::NotificationId> {
-    rampart_db::notifications::list_all(pool).await.ok()?.into_iter().next().map(|n| n.id)
+    rampart_db::notifications::list_all(pool)
+        .await
+        .ok()?
+        .into_iter()
+        .next()
+        .map(|n| n.id)
 }
 
 /// More app monitors across more probe kinds, a multi-step synthetic
@@ -690,7 +784,10 @@ async fn seed_advanced_monitors(pool: &DbPool, gid: uuid::Uuid, stats: &mut Seed
         "config": { "cron": "0 3 * * *", "cron_grace_seconds": 600, "max_run_seconds": 1800 }
     });
     if let Ok(nm) = serde_json::from_value::<NewMonitor>(cron) {
-        if rampart_db::monitors::create(pool, nm, SEED_ORG_ID).await.is_ok() {
+        if rampart_db::monitors::create(pool, nm, SEED_ORG_ID)
+            .await
+            .is_ok()
+        {
             stats.cron_jobs += 1;
         }
     }
@@ -698,8 +795,13 @@ async fn seed_advanced_monitors(pool: &DbPool, gid: uuid::Uuid, stats: &mut Seed
 
 /// A weekly on-call rotation over the admin user.
 async fn seed_on_call(pool: &DbPool, stats: &mut SeedStats) {
-    let Some(admin) = rampart_db::users::list(pool).await.ok().and_then(|u| u.into_iter().next())
-    else { return };
+    let Some(admin) = rampart_db::users::list(pool)
+        .await
+        .ok()
+        .and_then(|u| u.into_iter().next())
+    else {
+        return;
+    };
     let spec = json!({
         "name": "[demo] Primary on-call",
         "rotation_seconds": 604_800,
@@ -707,7 +809,10 @@ async fn seed_on_call(pool: &DbPool, stats: &mut SeedStats) {
         "participant_user_ids": [admin.id],
     });
     if let Ok(input) = serde_json::from_value::<rampart_core::on_call::NewOnCallSchedule>(spec) {
-        if rampart_db::on_call::create(pool, input, SEED_ORG_ID).await.is_ok() {
+        if rampart_db::on_call::create(pool, input, SEED_ORG_ID)
+            .await
+            .is_ok()
+        {
             stats.on_call += 1;
         }
     }
@@ -716,7 +821,9 @@ async fn seed_on_call(pool: &DbPool, stats: &mut SeedStats) {
 /// A two-step escalation ladder paging the demo channel immediately, then again
 /// after 5 minutes.
 async fn seed_escalation(pool: &DbPool, stats: &mut SeedStats) {
-    let Some(ch) = demo_channel(pool).await else { return };
+    let Some(ch) = demo_channel(pool).await else {
+        return;
+    };
     let spec = json!({
         "name": "[demo] Sev-1 ladder",
         "steps": [
@@ -724,8 +831,12 @@ async fn seed_escalation(pool: &DbPool, stats: &mut SeedStats) {
             { "wait_seconds": 300, "channel_ids": [ch] }
         ]
     });
-    if let Ok(input) = serde_json::from_value::<rampart_core::escalation::NewEscalationPolicy>(spec) {
-        if rampart_db::escalations::create(pool, input, SEED_ORG_ID).await.is_ok() {
+    if let Ok(input) = serde_json::from_value::<rampart_core::escalation::NewEscalationPolicy>(spec)
+    {
+        if rampart_db::escalations::create(pool, input, SEED_ORG_ID)
+            .await
+            .is_ok()
+        {
             stats.escalations += 1;
         }
     }
@@ -741,12 +852,19 @@ async fn seed_maintenance(pool: &DbPool, stats: &mut SeedStats) {
         "end_at":   rfc3339(now + Duration::days(1) + Duration::hours(2)),
     });
     let Ok(input) = serde_json::from_value::<rampart_core::maintenance::NewMaintenanceWindow>(spec)
-    else { return };
-    let Ok(win) = rampart_db::maintenance::create(pool, input, SEED_ORG_ID).await else { return };
+    else {
+        return;
+    };
+    let Ok(win) = rampart_db::maintenance::create(pool, input, SEED_ORG_ID).await else {
+        return;
+    };
     stats.maintenance += 1;
     // Attach the database + cache monitors so the window names something.
     if let Ok(mons) = rampart_db::monitors::list_all(pool).await {
-        for m in mons.iter().filter(|m| m.name.contains("Database") || m.name.contains("Cache")) {
+        for m in mons
+            .iter()
+            .filter(|m| m.name.contains("Database") || m.name.contains("Cache"))
+        {
             let _ = rampart_db::maintenance::attach(pool, win.id, m.id).await;
         }
     }
@@ -754,8 +872,14 @@ async fn seed_maintenance(pool: &DbPool, stats: &mut SeedStats) {
 
 /// A scoped, time-boxed silence on the cache monitor.
 async fn seed_silences(pool: &DbPool, stats: &mut SeedStats) {
-    let mon_uuid = rampart_db::monitors::list_all(pool).await.ok()
-        .and_then(|m| m.into_iter().find(|m| m.name.contains("Cache")).map(|m| m.id.0));
+    let mon_uuid = rampart_db::monitors::list_all(pool)
+        .await
+        .ok()
+        .and_then(|m| {
+            m.into_iter()
+                .find(|m| m.name.contains("Cache"))
+                .map(|m| m.id.0)
+        });
     let now = OffsetDateTime::now_utc();
     let s = rampart_db::silences::NewSilence {
         monitor_id: mon_uuid,
@@ -763,7 +887,10 @@ async fn seed_silences(pool: &DbPool, stats: &mut SeedStats) {
         created_by: None,
         expires_at: Some(now + Duration::hours(8)),
     };
-    if rampart_db::silences::create(pool, s, SEED_ORG_ID).await.is_ok() {
+    if rampart_db::silences::create(pool, s, SEED_ORG_ID)
+        .await
+        .is_ok()
+    {
         stats.silences += 1;
     }
 }
@@ -777,7 +904,10 @@ async fn seed_metric_rules(pool: &DbPool, stats: &mut SeedStats) {
         "op": "gt", "threshold": 150.0, "for_seconds": 300, "enabled": true
     });
     if let Ok(input) = serde_json::from_value::<rampart_core::metric_rule::NewMetricRule>(spec) {
-        if rampart_db::metric_rules::create(pool, input, SEED_ORG_ID).await.is_ok() {
+        if rampart_db::metric_rules::create(pool, input, SEED_ORG_ID)
+            .await
+            .is_ok()
+        {
             stats.metric_rules += 1;
             let _ = rampart_db::metric_rules::evaluate_tick(pool).await;
         }
@@ -794,8 +924,13 @@ async fn seed_more_telemetry_rules(pool: &DbPool, stats: &mut SeedStats) {
         json!({ "name": "[demo] Error event rate", "kind": "error_rate", "target": "[demo] web", "op": "gt", "threshold": 10.0, "window_seconds": 300 }),
     ];
     for spec in specs {
-        if let Ok(input) = serde_json::from_value::<rampart_core::telemetry_rule::NewTelemetryRule>(spec) {
-            if rampart_db::telemetry_rules::create(pool, input, SEED_ORG_ID).await.is_ok() {
+        if let Ok(input) =
+            serde_json::from_value::<rampart_core::telemetry_rule::NewTelemetryRule>(spec)
+        {
+            if rampart_db::telemetry_rules::create(pool, input, SEED_ORG_ID)
+                .await
+                .is_ok()
+            {
                 stats.telemetry_rules += 1;
             }
         }
@@ -811,8 +946,12 @@ async fn seed_more_detection(pool: &DbPool, stats: &mut SeedStats) {
     ];
     let mut created = false;
     for spec in specs {
-        if let Ok(input) = serde_json::from_value::<rampart_core::detection::NewDetectionRule>(spec) {
-            if rampart_db::detection::create(pool, input, SEED_ORG_ID).await.is_ok() {
+        if let Ok(input) = serde_json::from_value::<rampart_core::detection::NewDetectionRule>(spec)
+        {
+            if rampart_db::detection::create(pool, input, SEED_ORG_ID)
+                .await
+                .is_ok()
+            {
                 created = true;
             }
         }
@@ -827,16 +966,23 @@ async fn seed_more_detection(pool: &DbPool, stats: &mut SeedStats) {
 /// A couple of status-page incidents so the dashboard "recent incidents" widget
 /// and the public page have history.
 async fn seed_incidents(pool: &DbPool, stats: &mut SeedStats) {
-    let Some(page) = rampart_db::status_pages::list_all(pool).await.ok()
+    let Some(page) = rampart_db::status_pages::list_all(pool)
+        .await
+        .ok()
         .and_then(|p| p.into_iter().find(|p| p.slug == "demo"))
-    else { return };
+    else {
+        return;
+    };
     let specs = [
         json!({ "title": "Elevated checkout latency", "content": "We are investigating slow responses on the checkout API. Payments are unaffected.", "style": "warning", "pinned": true }),
         json!({ "title": "Scheduled cache failover completed", "content": "The Redis cache failover finished successfully; all services nominal.", "style": "success", "pinned": false }),
     ];
     for spec in specs {
         if let Ok(input) = serde_json::from_value::<rampart_db::incidents::NewIncident>(spec) {
-            if rampart_db::incidents::create(pool, page.id, None, input).await.is_ok() {
+            if rampart_db::incidents::create(pool, page.id, None, input)
+                .await
+                .is_ok()
+            {
                 stats.incidents += 1;
             }
         }
@@ -845,21 +991,37 @@ async fn seed_incidents(pool: &DbPool, stats: &mut SeedStats) {
 
 /// A status-page email subscriber.
 async fn seed_subscribers(pool: &DbPool, stats: &mut SeedStats) {
-    let Some(page) = rampart_db::status_pages::list_all(pool).await.ok()
+    let Some(page) = rampart_db::status_pages::list_all(pool)
+        .await
+        .ok()
         .and_then(|p| p.into_iter().find(|p| p.slug == "demo"))
-    else { return };
-    if rampart_db::subscribers::subscribe_email(pool, page.id, "ops@demo.example").await.is_ok() {
+    else {
+        return;
+    };
+    if rampart_db::subscribers::subscribe_email(pool, page.id, "ops@demo.example")
+        .await
+        .is_ok()
+    {
         stats.subscribers += 1;
     }
 }
 
 /// A read-only API key for the demo admin.
 async fn seed_api_keys(pool: &DbPool, stats: &mut SeedStats) {
-    let Some(admin) = rampart_db::users::list(pool).await.ok().and_then(|u| u.into_iter().next())
-    else { return };
-    let spec = json!({ "name": "[demo] CI read-only", "scope": "read", "rate_limit_per_hour": 1000 });
+    let Some(admin) = rampart_db::users::list(pool)
+        .await
+        .ok()
+        .and_then(|u| u.into_iter().next())
+    else {
+        return;
+    };
+    let spec =
+        json!({ "name": "[demo] CI read-only", "scope": "read", "rate_limit_per_hour": 1000 });
     if let Ok(input) = serde_json::from_value::<rampart_core::api_key::NewApiKey>(spec) {
-        if rampart_db::api_keys::create(pool, input, admin.id, SEED_ORG_ID).await.is_ok() {
+        if rampart_db::api_keys::create(pool, input, admin.id, SEED_ORG_ID)
+            .await
+            .is_ok()
+        {
             stats.api_keys += 1;
         }
     }
@@ -869,7 +1031,10 @@ async fn seed_api_keys(pool: &DbPool, stats: &mut SeedStats) {
 async fn seed_agents(pool: &DbPool, stats: &mut SeedStats) {
     let spec = json!({ "name": "[demo] eu-west probe", "location": "Frankfurt, DE" });
     if let Ok(input) = serde_json::from_value::<rampart_core::agent::NewAgent>(spec) {
-        if rampart_db::agents::create(pool, input, SEED_ORG_ID).await.is_ok() {
+        if rampart_db::agents::create(pool, input, SEED_ORG_ID)
+            .await
+            .is_ok()
+        {
             stats.agents += 1;
         }
     }
@@ -879,7 +1044,10 @@ async fn seed_agents(pool: &DbPool, stats: &mut SeedStats) {
 async fn seed_proxies(pool: &DbPool, stats: &mut SeedStats) {
     let spec = json!({ "protocol": "http", "host": "proxy.demo.rampart.local", "port": 3128, "active": true });
     if let Ok(input) = serde_json::from_value::<rampart_core::proxy::NewProxy>(spec) {
-        if rampart_db::proxies::create(pool, input, SEED_ORG_ID).await.is_ok() {
+        if rampart_db::proxies::create(pool, input, SEED_ORG_ID)
+            .await
+            .is_ok()
+        {
             stats.proxies += 1;
         }
     }
@@ -892,7 +1060,9 @@ async fn seed_tags(pool: &DbPool, stats: &mut SeedStats) {
         json!({ "name": "tier-1", "color": "#ef4444" }),
         json!({ "name": "team-payments", "color": "#6366f1" }),
     ];
-    let mons = rampart_db::monitors::list_all(pool).await.unwrap_or_default();
+    let mons = rampart_db::monitors::list_all(pool)
+        .await
+        .unwrap_or_default();
     for spec in specs {
         if let Ok(input) = serde_json::from_value::<rampart_core::tag::NewTag>(spec) {
             if let Ok(tag) = rampart_db::tags::create(pool, input, SEED_ORG_ID).await {
@@ -909,8 +1079,13 @@ async fn seed_tags(pool: &DbPool, stats: &mut SeedStats) {
 /// A weekly scheduled uptime digest.
 async fn seed_scheduled_reports(pool: &DbPool, stats: &mut SeedStats) {
     let spec = json!({ "name": "[demo] Weekly uptime digest", "recipients": ["ops@demo.example"], "cadence": "weekly" });
-    if let Ok(input) = serde_json::from_value::<rampart_db::scheduled_reports::NewScheduledReport>(spec) {
-        if rampart_db::scheduled_reports::create(pool, input, SEED_ORG_ID).await.is_ok() {
+    if let Ok(input) =
+        serde_json::from_value::<rampart_db::scheduled_reports::NewScheduledReport>(spec)
+    {
+        if rampart_db::scheduled_reports::create(pool, input, SEED_ORG_ID)
+            .await
+            .is_ok()
+        {
             stats.scheduled_reports += 1;
         }
     }
@@ -951,10 +1126,16 @@ async fn seed_more_traces(pool: &DbPool, stats: &mut SeedStats) {
         });
         // a downstream DB/dependency child span
         spans.push(ParsedSpan {
-            trace_id: trace, span_id: child, parent_span_id: Some(root),
-            service_name: svc.to_string(), name: "SELECT".into(), kind: 3,
-            start_ns: base + 8_000_000, end_ns: base + dur - 8_000_000,
-            status_code: 0, status_message: None,
+            trace_id: trace,
+            span_id: child,
+            parent_span_id: Some(root),
+            service_name: svc.to_string(),
+            name: "SELECT".into(),
+            kind: 3,
+            start_ns: base + 8_000_000,
+            end_ns: base + dur - 8_000_000,
+            status_code: 0,
+            status_message: None,
             attributes: json!({ "db.system": "postgresql" }),
         });
     }
@@ -995,7 +1176,10 @@ async fn seed_more_rum(pool: &DbPool, stats: &mut SeedStats) {
                              "inp": inp + j * 0.3, "ttfb": 200.0 + j * 0.2, "load": lcp + 300.0 + j }
             }));
             if let Ok(b) = beacon {
-                if rampart_db::rum::insert_event(pool, &b, SEED_ORG_ID).await.is_ok() {
+                if rampart_db::rum::insert_event(pool, &b, SEED_ORG_ID)
+                    .await
+                    .is_ok()
+                {
                     stats.rum += 1;
                 }
             }
@@ -1013,19 +1197,31 @@ async fn seed_more_profiles(pool: &DbPool, stats: &mut SeedStats) {
         ("[demo] worker", "main;tokio::runtime::worker;job::dispatch;reindex::run;es::bulk_index 380\nmain;tokio::runtime::worker;job::dispatch;email::send;smtp::write 120\nmain;tokio::runtime::worker;job::dispatch;thumbnail::resize;image::decode 210\nmain;tokio::runtime::worker;background::reap_idle 30"),
     ];
     for (svc, folded) in extra {
-        let count: i32 = folded.lines()
-            .filter_map(|l| l.rsplit_once(' ').and_then(|(_, n)| n.trim().parse::<i32>().ok()))
+        let count: i32 = folded
+            .lines()
+            .filter_map(|l| {
+                l.rsplit_once(' ')
+                    .and_then(|(_, n)| n.trim().parse::<i32>().ok())
+            })
             .sum();
         let mut e = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
-        if e.write_all(folded.as_bytes()).is_err() { continue; }
+        if e.write_all(folded.as_bytes()).is_err() {
+            continue;
+        }
         let Ok(gz) = e.finish() else { continue };
         let p = rampart_db::profiles::NewProfile {
-            service_name: svc, profile_type: "cpu",
-            period_ns: 10_000_000, duration_ns: 30 * 1_000_000_000,
-            sample_count: count, labels: json!({ "host": "demo-2", "env": "production" }),
+            service_name: svc,
+            profile_type: "cpu",
+            period_ns: 10_000_000,
+            duration_ns: 30 * 1_000_000_000,
+            sample_count: count,
+            labels: json!({ "host": "demo-2", "env": "production" }),
             folded_gz: &gz,
         };
-        if rampart_db::profiles::insert(pool, p, SEED_ORG_ID).await.is_ok() {
+        if rampart_db::profiles::insert(pool, p, SEED_ORG_ID)
+            .await
+            .is_ok()
+        {
             stats.profiles += 1;
         }
     }
@@ -1034,7 +1230,11 @@ async fn seed_more_profiles(pool: &DbPool, stats: &mut SeedStats) {
 /// More metric series so the explorer has variety beyond the SLO counters.
 async fn seed_more_metrics(pool: &DbPool, stats: &mut SeedStats) {
     let mut samples = Vec::new();
-    for (name, base) in [("demo_queue_depth", 12.0), ("demo_error_rate", 0.8), ("demo_cpu_pct", 47.0)] {
+    for (name, base) in [
+        ("demo_queue_depth", 12.0),
+        ("demo_error_rate", 0.8),
+        ("demo_cpu_pct", 47.0),
+    ] {
         for inst in ["api-1", "api-2", "worker-1"] {
             let mut labels = BTreeMap::new();
             labels.insert("service".to_string(), "[demo] api".to_string());
@@ -1049,10 +1249,17 @@ async fn seed_more_metrics(pool: &DbPool, stats: &mut SeedStats) {
     // Rampart's own runtime metrics (service=rampart) — seeded so the Metrics
     // view shows app self-metrics out of the box; live values are then pushed
     // by the self-metrics task (crate::self_metrics) once traffic flows.
-    for (name, value) in [("rampart_http_requests_per_sec", 8.0), ("rampart_http_latency_ms_avg", 24.0)] {
+    for (name, value) in [
+        ("rampart_http_requests_per_sec", 8.0),
+        ("rampart_http_latency_ms_avg", 24.0),
+    ] {
         let mut labels = BTreeMap::new();
         labels.insert("service".to_string(), "rampart".to_string());
-        samples.push(PromSample { name: name.to_string(), labels, value });
+        samples.push(PromSample {
+            name: name.to_string(),
+            labels,
+            value,
+        });
     }
     stats.metrics += samples.len();
     let _ = rampart_db::metric_samples::insert_many(pool, &samples, SEED_ORG_ID).await;

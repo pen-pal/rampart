@@ -168,7 +168,9 @@ async fn main() -> anyhow::Result<()> {
         );
     }
     if rampart_db::secrets::is_enabled() {
-        info!("secrets-at-rest: channel credentials encrypted (AES-256-GCM via RAMPART_SECRET_KEY)");
+        info!(
+            "secrets-at-rest: channel credentials encrypted (AES-256-GCM via RAMPART_SECRET_KEY)"
+        );
     } else if require_secret_key() {
         anyhow::bail!(
             "RAMPART_REQUIRE_SECRET_KEY is set but RAMPART_SECRET_KEY is missing or invalid — \
