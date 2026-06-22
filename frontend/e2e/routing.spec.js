@@ -96,9 +96,12 @@ test('tag routing resolves + per-monitor exclude removes the channel', async ({ 
   await gotoView(page, `#/monitor/${mon.id}`, `text=${monName}`);
   await expect(page.getByText('auto', { exact: false }).first()).toBeVisible({ timeout: 10_000 });
 
-  // Remove (exclude) it from this monitor → resolver drops it.
+  // Remove (exclude) it from this monitor → resolver drops it. Best-effort UI
+  // click on the icon-only button; short timeout so a miss fails fast instead
+  // of auto-waiting the whole test timeout, then fall back to the API exclude.
   await page.locator('.card', { hasText: /Notifications/ })
-    .getByRole('button', { name: /Remove from this monitor|^$/ }).first().click().catch(() => {});
+    .getByRole('button', { name: /Remove from this monitor|^$/ }).first()
+    .click({ timeout: 2_000 }).catch(() => {});
   // Fall back to API exclude if the icon button wasn't matched (icon-only).
   eff = await api(page, 'GET', `/v1/monitors/${mon.id}/effective-channels`);
   if (eff.includes(chan.id)) {
