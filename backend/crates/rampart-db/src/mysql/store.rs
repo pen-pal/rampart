@@ -1221,7 +1221,7 @@ impl StoreIncidents for MysqlStore {
         author: Option<UserId>,
         input: NewIncident,
     ) -> DbResult<Incident> {
-        unimplemented!("MysqlStore::create_incident: incidents domain not yet ported (multi-DB P1)")
+        crate::mysql::incidents::create(&self.pool, page, author, input).await
     }
 
     async fn find_active_incident_by_dedup_key(
@@ -1229,19 +1229,15 @@ impl StoreIncidents for MysqlStore {
         page: StatusPageId,
         key: &str,
     ) -> DbResult<Option<Incident>> {
-        unimplemented!("MysqlStore::find_active_incident_by_dedup_key: incidents domain not yet ported (multi-DB P1)")
+        crate::mysql::incidents::find_active_by_dedup_key(&self.pool, page, key).await
     }
 
     async fn list_active_incidents(&self, page: StatusPageId) -> DbResult<Vec<Incident>> {
-        unimplemented!(
-            "MysqlStore::list_active_incidents: incidents domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::incidents::list_active(&self.pool, page).await
     }
 
     async fn recent_incidents(&self, limit: i64, org_id: OrgId) -> DbResult<Vec<Incident>> {
-        unimplemented!(
-            "MysqlStore::recent_incidents: incidents domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::incidents::recent(&self.pool, limit, org_id).await
     }
 
     async fn list_resolved_incident_history(
@@ -1249,37 +1245,31 @@ impl StoreIncidents for MysqlStore {
         page: StatusPageId,
         limit: i64,
     ) -> DbResult<Vec<Incident>> {
-        unimplemented!("MysqlStore::list_resolved_incident_history: incidents domain not yet ported (multi-DB P1)")
+        crate::mysql::incidents::list_resolved_history(&self.pool, page, limit).await
     }
 
     async fn resolve_incident(&self, id: IncidentId, now: OffsetDateTime) -> DbResult<()> {
-        unimplemented!(
-            "MysqlStore::resolve_incident: incidents domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::incidents::resolve(&self.pool, id, now).await
     }
 
     async fn list_all_incidents(&self, page: StatusPageId, limit: i64) -> DbResult<Vec<Incident>> {
-        unimplemented!(
-            "MysqlStore::list_all_incidents: incidents domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::incidents::list_all(&self.pool, page, limit).await
     }
 
     async fn delete_incident(&self, id: IncidentId) -> DbResult<()> {
-        unimplemented!("MysqlStore::delete_incident: incidents domain not yet ported (multi-DB P1)")
+        crate::mysql::incidents::delete(&self.pool, id).await
     }
 
     async fn update_incident(&self, id: IncidentId, patch: UpdateIncident) -> DbResult<Incident> {
-        unimplemented!("MysqlStore::update_incident: incidents domain not yet ported (multi-DB P1)")
+        crate::mysql::incidents::update(&self.pool, id, patch).await
     }
 
     async fn get_incident(&self, id: IncidentId) -> DbResult<Incident> {
-        unimplemented!("MysqlStore::get_incident: incidents domain not yet ported (multi-DB P1)")
+        crate::mysql::incidents::get(&self.pool, id).await
     }
 
     async fn list_incident_updates(&self, incident: IncidentId) -> DbResult<Vec<IncidentUpdate>> {
-        unimplemented!(
-            "MysqlStore::list_incident_updates: incidents domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::incidents::list_updates(&self.pool, incident).await
     }
 
     async fn post_incident_update(
@@ -1288,9 +1278,7 @@ impl StoreIncidents for MysqlStore {
         author: Option<UserId>,
         message: String,
     ) -> DbResult<Uuid> {
-        unimplemented!(
-            "MysqlStore::post_incident_update: incidents domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::incidents::post_update(&self.pool, incident, author, message).await
     }
 }
 
