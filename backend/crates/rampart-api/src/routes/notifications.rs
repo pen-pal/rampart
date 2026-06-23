@@ -373,7 +373,7 @@ async fn send_test(
         &subject,
         &body,
         &event,
-        state.pool(),
+        state.store().as_ref(),
         n.id,
     )
     .await
