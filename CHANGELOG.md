@@ -29,6 +29,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.43] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `metric_rules` domain** (threshold/anomaly alert rules
+  over ingested metrics): list / list_all / get / get_unscoped / create / update
+  / delete / evaluate_tick + `migrations-mysql/0013_metric_rules.sql`.
+  `evaluate_tick` reuses the pure `rampart_core::metric_rule::rule_transition`
+  state machine + the ported `mysql::metric_samples::latest`/`baseline` reads —
+  the first MySQL domain to compose another telemetry domain. uuid→CHAR(36),
+  jsonb labels + UUID[] channel_ids→LONGTEXT(JSON), double→DOUBLE, ts→BIGINT,
+  op→VARCHAR(CHECK), enabled→TINYINT. **`update` does NOT gate on
+  `rows_affected()`** — MySQL counts *changed* not *matched* rows, so a no-op
+  patch over an existing row reports 0 and the PG/SQLite code would falsely 404;
+  the final `get()` surfaces NotFound only when the row is genuinely absent
+  (identical result on both engines). +1 `#[sqlx::test]` (CRUD + fire/resolve
+  tick + a no-op-update-must-not-404 assertion + cross-org isolation) green on
+  MariaDB. PG + SQLite untouched.
+
 ## [0.156.42] — 2026-06-23
 
 ### Added
