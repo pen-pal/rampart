@@ -29,6 +29,27 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.66] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `error_tracking` domain** (Sentry-lite projects /
+  issues / events; the biggest tail domain). `migrations-mysql/0032_error_tracking.sql`
+  (error_projects + error_issues + error_events, native JSON context/stacktrace,
+  the `(project_id, fingerprint)` grouping UNIQUE) + `mysql/error_tracking.rs`
+  un-stubs all 23 `StoreErrorTracking` methods. Key dialect work: the ingest
+  upsert `ON CONFLICT (project_id,fingerprint) DO NOTHING RETURNING id` →
+  app-side UUID + `INSERT IGNORE` (rows_affected==1 ⇒ new issue claimed, else
+  read-status-and-bump with resolved→unresolved regression); JSONB→native JSON
+  with `JSON_UNQUOTE(JSON_EXTRACT(context,'$.user.…'))` for affected-users /
+  stats (portable across MySQL + MariaDB, not the `->>'` operator); `release`
+  backticked (reserved word); `date_bin` histogram → integer `DIV` bucketing;
+  the retention prune → a multi-table `DELETE e FROM error_events e JOIN
+  error_projects p …`; no FK cascade → `delete` drops events + issues in a tx.
+  +1 `#[sqlx::test]` (project CRUD + slug, find-or-create idempotency,
+  fingerprint grouping + times_seen, resolve→regression, affected-users /
+  release / env stats, trace cross-link, histogram, cross-org gate, delete
+  cascade, prune) green on MariaDB. PG + SQLite untouched.
+
 ## [0.156.65] — 2026-06-23
 
 ### Added
