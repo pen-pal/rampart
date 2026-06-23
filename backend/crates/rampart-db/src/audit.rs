@@ -109,7 +109,7 @@ pub async fn insert(pool: &DbPool, entry: NewEntry<'_>) -> DbResult<()> {
 /// previous hash + this row's immutable content; SHA-256 fallback when no key
 /// is configured. Hex-encoded. Same inputs on insert + verify.
 #[allow(clippy::too_many_arguments)]
-fn chain_hash(
+pub(crate) fn chain_hash(
     prev: Option<&str>,
     id: i64,
     ts: OffsetDateTime,
@@ -180,7 +180,7 @@ pub struct VerifyReport {
 /// `RAMPART_SECRET_KEY` is set the value is sealed (AES-GCM) at rest — a
 /// DB-level attacker can't forge a watermark to mask a malicious head deletion
 /// without the key.
-const CHAIN_WATERMARK_KEY: &str = "audit_chain_watermark";
+pub(crate) const CHAIN_WATERMARK_KEY: &str = "audit_chain_watermark";
 
 /// Record the prune watermark so [`verify_chain`] knows the legitimate
 /// pre-prune chain head. Called by the retention prune right after it deletes
