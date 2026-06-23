@@ -29,6 +29,25 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.0] — 2026-06-23
+
+### Added
+- **Multi-DB P1-0: SQLite backend foundation (spike).** First step of the SQLite
+  tier (single-binary / homelab) now that the P0 `Store` seam is complete.
+  Behind an off-by-default `sqlite` cargo feature so the Postgres reference build
+  + its `.sqlx` cache are completely untouched. Lands: the `sqlx` SQLite driver,
+  a parallel `migrations-sqlite/` set (the `settings` table to start), a
+  `rampart_db::sqlite` module, and a `#[sqlx::test]`-backed test proving the
+  SQLite per-test-DB fixture framework (the plan's #1 risk) works end-to-end.
+  Surfaced + recorded the core mechanical blocker for the full backend — a crate
+  can't hold both PG and SQLite `query!` macros validated against one DB, and the
+  offline `.sqlx` cache can't hold both without each `sqlx prepare` run pruning
+  the other — so the SQLite layer uses runtime-checked `sqlx::query` (covered by
+  the `#[sqlx::test]` suite) until the PG query layer is `cfg`-gated in a later
+  slice. See `docs/design/MULTI_DB.md` (P1 plan). No effect on the default build.
+
+---
+
 ## [0.155.23] — 2026-06-22
 
 ### Changed

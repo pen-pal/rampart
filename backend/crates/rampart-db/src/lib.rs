@@ -50,6 +50,8 @@ pub mod scheduled_reports;
 pub mod secrets;
 pub mod sessions;
 pub mod settings;
+#[cfg(feature = "sqlite")]
+pub mod sqlite;
 pub mod silences;
 pub mod slos;
 pub mod source_maps;
