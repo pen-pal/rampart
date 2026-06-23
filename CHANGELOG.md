@@ -29,6 +29,31 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.7] — 2026-06-23
+
+### Added
+- **Multi-DB P1: SQLite `agents` domain + stale-agent watchdog.** New
+  `migrations-sqlite/0006_agents.sql` (`agents` table: TEXT uuids, INTEGER
+  unix-second timestamps, the `token_hash` UNIQUE index that backs the lookup
+  hot path, org-scoped). New `sqlite::agents` mirrors the PG free-fn surface —
+  list / get (both with the `LEFT JOIN monitors … COUNT` for `monitor_count`),
+  create (issues an `rmpa_<40>` token, stores only its SHA-256), update
+  (empty-string location clears, `None` leaves), delete (one tx: drop the agent
+  then `agent_id = NULL` its monitors, standing in for PG's `ON DELETE SET
+  NULL`), `lookup` (token resolver), and `touch_seen`. `online` is derived from
+  `last_seen_at` against `ONLINE_GRACE_SECONDS` at read time, as in PG. Closes
+  the last tag-independent deferred `sqlite::monitors` item:
+  `list_stale_agent_monitors` (agent-assigned + active + non-paused monitors
+  whose newest heartbeat — or `updated_at` — predates `interval*2 + 30s`,
+  paired with the agent name). +3 `#[sqlx::test]` (create/lookup/touch/count,
+  update-clear/delete-unassigns, and the watchdog incl. heartbeat-clears-stale).
+  **SQLite domains now 8: settings, orgs, users, sessions, monitors,
+  heartbeats, tags, agents (21 tests).** Remaining deferred: `bulk_edit` /
+  `bulk_edit_preview` and the heartbeat analytic aggregations. Off-by-default
+  `sqlite` feature; PG build untouched.
+
+---
+
 ## [0.156.6] — 2026-06-23
 
 ### Added
