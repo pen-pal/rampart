@@ -92,14 +92,47 @@ async fn main() -> anyhow::Result<()> {
         );
     }
 
-    let pool = rampart_db::connect(&database_url, pool_size).await?;
-    rampart_db::migrate(&pool).await?;
-    info!("migrations applied");
+    // Multi-DB backend select (P1). The DATABASE_URL scheme picks the store:
+    // `postgres://…` → PgStore (+ a concrete pool for the Postgres-only paths);
+    // `sqlite:…` → SqliteStore (single-binary/homelab tier; requires this binary
+    // to be built with the `sqlite` feature). The scheduler / notifier / SIEM
+    // loops are backend-agnostic (they take `Arc<dyn Store>`); only the residual
+    // telemetry-ingest / prune / self-metrics paths still need the raw pool.
+    let is_sqlite = database_url.starts_with("sqlite:");
+    let (store, pg_pool): (
+        std::sync::Arc<dyn rampart_db::store::Store>,
+        Option<rampart_db::DbPool>,
+    ) = if is_sqlite {
+        #[cfg(feature = "sqlite")]
+        {
+            let s = rampart_db::sqlite::store::SqliteStore::connect(&database_url).await?;
+            info!("sqlite backend: migrations applied");
+            (std::sync::Arc::new(s), None)
+        }
+        #[cfg(not(feature = "sqlite"))]
+        {
+            anyhow::bail!(
+                "DATABASE_URL is a sqlite URL but this binary was built without the `sqlite` \
+                 feature. Rebuild with `--features sqlite`, or use a postgres:// DATABASE_URL."
+            );
+        }
+    } else {
+        let pool = rampart_db::connect(&database_url, pool_size).await?;
+        rampart_db::migrate(&pool).await?;
+        info!("migrations applied");
+        (
+            std::sync::Arc::new(rampart_db::store::PgStore::new(pool.clone())),
+            Some(pool),
+        )
+    };
 
     // Subcommand: `rampart-api seed-demo` populates a representative dataset
     // across every tier and exits (no server) — for demos + first-run.
     if std::env::args().nth(1).as_deref() == Some("seed-demo") {
-        let stats = rampart_api::seed::run(&pool).await?;
+        let Some(pool) = pg_pool.as_ref() else {
+            anyhow::bail!("seed-demo currently requires the postgres backend");
+        };
+        let stats = rampart_api::seed::run(pool).await?;
         info!(%stats, "seed-demo complete");
         println!("{stats}");
         return Ok(());
@@ -111,6 +144,9 @@ async fn main() -> anyhow::Result<()> {
     // choice); enforces only a minimum length. Exits without starting the
     // server.
     if std::env::args().nth(1).as_deref() == Some("reset-password") {
+        let Some(pool) = pg_pool.as_ref() else {
+            anyhow::bail!("reset-password currently requires the postgres backend");
+        };
         let email = std::env::args().nth(2);
         let password = std::env::args().nth(3);
         let (Some(email), Some(password)) = (email, password) else {
@@ -121,14 +157,14 @@ async fn main() -> anyhow::Result<()> {
         }
         let hash = rampart_api::auth::hash_password(&password)
             .map_err(|e| anyhow::anyhow!("hash failed: {e:?}"))?;
-        match rampart_db::users::get_by_email(&pool, &email).await {
+        match rampart_db::users::get_by_email(pool, &email).await {
             Ok(u) => {
-                rampart_db::users::set_password(&pool, u.id, &hash).await?;
+                rampart_db::users::set_password(pool, u.id, &hash).await?;
                 println!("password reset for existing user {email}");
             }
             Err(rampart_db::DbError::NotFound) => {
                 rampart_db::users::create(
-                    &pool,
+                    pool,
                     rampart_db::users::NewUser {
                         email: email.clone(),
                         name: None,
@@ -144,7 +180,7 @@ async fn main() -> anyhow::Result<()> {
         // Self-check: re-read the row and verify the hash in-process, so a green
         // line proves the credential is good in THIS database — isolating a
         // login failure to a typo or a different server/DB instance.
-        match rampart_db::users::get_by_email(&pool, &email).await {
+        match rampart_db::users::get_by_email(pool, &email).await {
             Ok(u) if rampart_api::auth::verify_password(&password, &u.password_hash) => {
                 println!("verified: '{email}' logs in with this password against {database_url}");
             }
@@ -190,14 +226,13 @@ async fn main() -> anyhow::Result<()> {
     // runs the scheduler / notifier digest flush / retention prune, so a
     // multi-replica deployment never double-probes or double-pages. On a
     // single replica the lock is acquired immediately (no behaviour change).
-    // The HTTP API below runs on every replica regardless.
-    let leadership = rampart_db::leader::spawn(database_url.clone());
-
-    // Object-safe `Store` seam (multi-DB P1 seam-plumbing). Built once from the
-    // pool (no I/O) and shared by the notifier, scheduler, and SIEM loops so
-    // they run against the seam rather than the concrete pool.
-    let store: std::sync::Arc<dyn rampart_db::store::Store> =
-        std::sync::Arc::new(rampart_db::store::PgStore::new(pool.clone()));
+    // The HTTP API below runs on every replica regardless. The advisory-lock
+    // election is Postgres-only; the single-binary SQLite tier is always leader.
+    let leadership = if is_sqlite {
+        rampart_db::leader::Leadership::always()
+    } else {
+        rampart_db::leader::spawn(database_url.clone())
+    };
 
     // Bring up the notifier service first so the scheduler can hand
     // events to it as soon as a monitor flips status.
@@ -228,17 +263,20 @@ async fn main() -> anyhow::Result<()> {
     // audit_log. Reads thresholds from settings.retention_days (90 / 365
     // days by default). Best-effort; failures log but don't kill the
     // task.
-    let prune_pool = pool.clone();
-    let prune_leadership = leadership.clone();
-    tokio::spawn(async move {
-        rampart_db::prune::run_loop(
-            prune_pool,
-            std::time::Duration::from_secs(3600),
-            prune_leadership,
-        )
-        .await;
-    });
-    info!("retention prune loop started");
+    // Postgres-only: the prune loop runs ~19 backend-specific raw queries with
+    // no SQLite variant yet. SQLite retention is a later slice.
+    if let Some(prune_pool) = pg_pool.clone() {
+        let prune_leadership = leadership.clone();
+        tokio::spawn(async move {
+            rampart_db::prune::run_loop(
+                prune_pool,
+                std::time::Duration::from_secs(3600),
+                prune_leadership,
+            )
+            .await;
+        });
+        info!("retention prune loop started");
+    }
 
     // SIEM / syslog export — leader-gated forward tail of the audit log to an
     // external sink (configured in settings; disabled by default).
@@ -256,14 +294,19 @@ async fn main() -> anyhow::Result<()> {
     info!("siem export loop started");
 
     static_assets::log_state();
-    let state = AppState::with_scheduler(pool, reload_handle, scheduler.clone());
+    let state = match &pg_pool {
+        Some(pool) => AppState::with_scheduler(pool.clone(), reload_handle, scheduler.clone()),
+        None => AppState::with_scheduler_store(store.clone(), reload_handle, scheduler.clone()),
+    };
     // Self-metrics: snapshot our own HTTP counters into the metric tier every
     // minute so the in-app Metrics view shows Rampart's live request rate +
-    // latency (not just externally-pushed series).
-    tokio::spawn(rampart_api::self_metrics::run(
-        state.http_metrics().clone(),
-        state.pool().clone(),
-    ));
+    // latency. Postgres-only for now (writes via the metric free-fns on a pool).
+    if let Some(pool) = pg_pool.as_ref() {
+        tokio::spawn(rampart_api::self_metrics::run(
+            state.http_metrics().clone(),
+            pool.clone(),
+        ));
+    }
     let app = build_router(state);
 
     let listener = tokio::net::TcpListener::bind(bind).await?;

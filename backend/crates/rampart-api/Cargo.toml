@@ -20,6 +20,12 @@ path = "src/main.rs"
 name = "rampart-import"
 path = "src/bin/import.rs"
 
+[features]
+# Multi-DB P1: enable the SQLite backend so `DATABASE_URL=sqlite:...` selects it
+# at boot. Off by default — Postgres stays the reference build with zero SQLite
+# code/deps compiled in.
+sqlite = ["rampart-db/sqlite"]
+
 [dependencies]
 rampart-core      = { path = "../rampart-core" }
 rampart-db        = { path = "../rampart-db" }
