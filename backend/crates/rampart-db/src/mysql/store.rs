@@ -758,9 +758,7 @@ impl StoreIngestTokens for MysqlStore {
         page: StatusPageId,
         input: NewIngestToken,
     ) -> DbResult<IngestToken> {
-        unimplemented!(
-            "MysqlStore::create_ingest_token: ingest_tokens domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::ingest_tokens::create(&self.pool, page, input).await
     }
 
     async fn create_ingest_token_with_token(
@@ -769,7 +767,7 @@ impl StoreIngestTokens for MysqlStore {
         label: &str,
         token: &str,
     ) -> DbResult<IngestToken> {
-        unimplemented!("MysqlStore::create_ingest_token_with_token: ingest_tokens domain not yet ported (multi-DB P1)")
+        crate::mysql::ingest_tokens::create_with_token(&self.pool, page, label, token).await
     }
 
     async fn set_ingest_token_mapping(
@@ -778,25 +776,23 @@ impl StoreIngestTokens for MysqlStore {
         mapping: Option<serde_json::Value>,
         org_id: OrgId,
     ) -> DbResult<IngestToken> {
-        unimplemented!("MysqlStore::set_ingest_token_mapping: ingest_tokens domain not yet ported (multi-DB P1)")
+        crate::mysql::ingest_tokens::set_mapping(&self.pool, id, mapping, org_id).await
     }
 
     async fn list_ingest_tokens_for_page(&self, page: StatusPageId) -> DbResult<Vec<IngestToken>> {
-        unimplemented!("MysqlStore::list_ingest_tokens_for_page: ingest_tokens domain not yet ported (multi-DB P1)")
+        crate::mysql::ingest_tokens::list_for_page(&self.pool, page).await
     }
 
     async fn find_ingest_token_by_token(&self, token: &str) -> DbResult<IngestToken> {
-        unimplemented!("MysqlStore::find_ingest_token_by_token: ingest_tokens domain not yet ported (multi-DB P1)")
+        crate::mysql::ingest_tokens::find_by_token(&self.pool, token).await
     }
 
     async fn delete_ingest_token(&self, id: IngestTokenId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!(
-            "MysqlStore::delete_ingest_token: ingest_tokens domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::ingest_tokens::delete(&self.pool, id, org_id).await
     }
 
     async fn touch_ingest_token_last_used(&self, id: IngestTokenId) -> DbResult<()> {
-        unimplemented!("MysqlStore::touch_ingest_token_last_used: ingest_tokens domain not yet ported (multi-DB P1)")
+        crate::mysql::ingest_tokens::touch_last_used(&self.pool, id).await
     }
 }
 

@@ -29,6 +29,22 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.65] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `ingest_tokens` domain** (page-scoped inbound webhook
+  credentials). `migrations-mysql/0031_ingest_tokens.sql` + `mysql/ingest_tokens.rs`
+  un-stubs the 7 `StoreIngestTokens` methods (create / create_with_token /
+  set_mapping / list_for_page / find_by_token / delete / touch_last_used).
+  Dual-write token + token_hash; `find_by_token` is hash-primary with a
+  plaintext fallback (reuses `api_keys::sha256_hex` so hashes match PG); mapping
+  jsonb→LONGTEXT; org tenanting flows through the owning status page via an
+  `IN (SELECT … org_id)` gate. `set_mapping` re-selects through the gate so a
+  same-value no-op UPDATE doesn't false-404 (MySQL counts CHANGED rows). +1
+  `#[sqlx::test]` (create + hash-primary lookup, mapping set + idempotent re-set,
+  deterministic create_with_token + duplicate conflict, last-used bump, cross-org
+  gate, delete) green on MariaDB. PG + SQLite untouched.
+
 ## [0.156.64] — 2026-06-23
 
 ### Added
