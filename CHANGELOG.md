@@ -29,6 +29,33 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.47] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `detection` domain** (SIEM detection rules over the
+  `logs` tier + the evaluation tick raising `detection_findings` + the findings
+  feed) + `migrations-mysql/0017_detection.sql`. **Completes the MySQL telemetry
+  tier** (7/7 domains). The match compiler builds both paths — the flat matcher
+  and the Detection-v2 boolean tree (And/Or/Not/Service/MinLevel/BodyRegex/
+  BodyContains/Attr) — via `QueryBuilder<MySql>`, binding every leaf (no
+  interpolation). MySQL deltas: `body ~* regex` → case-insensitive `LIKE
+  CONCAT('%',?,'%')` substring (homelab degrade, same as SQLite); `attributes->>k`
+  → `JSON_UNQUOTE(JSON_EXTRACT(attributes,?))` with `COLLATE utf8mb4_bin` on
+  attribute equality (case-sensitive, matching SQLite `=`) while body stays
+  case-insensitive (matching `~*`); no `RETURNING` → INSERT/UPDATE-then-SELECT
+  for insert_finding/ack_finding; `condition` (reserved word) backticked; the
+  findings→rules link is a **real `ON DELETE CASCADE` FK** (cascading finding
+  cleanup matters for a SIEM) — verified by a cascade-delete test. An adversarial
+  multi-agent review (match-compilation / detection-evasion / cross-org-isolation
+  lenses, validated live against MariaDB) returned **no blockers**: cross-org
+  isolation, the findings lifecycle, ack idempotency, and watermark advancement
+  all hold; the known over-match divergences (JSON-null reads as `'null'`,
+  accent-insensitive body match, regex→substring) are documented in the module
+  note. +2 `#[sqlx::test]` (whole-set fire + threshold gating + feed/ack/cascade/
+  cross-org; group_by per-entity + condition tree) green on MariaDB. PG + SQLite
+  untouched. **All 7 telemetry domains + the relational subset are now ported;
+  next is the `impl Store for MysqlStore` capstone + the `mysql:` boot branch.**
+
 ## [0.156.46] — 2026-06-23
 
 ### Added
