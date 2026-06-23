@@ -342,6 +342,35 @@ pub async fn mark_notified_end(pool: &MySqlPool, id: MaintenanceId) -> DbResult<
     Ok(())
 }
 
+/// Confirmed status-page email subscribers reachable from any of the given
+/// monitors (a monitor reaches a subscriber when both sit on the same page).
+/// DISTINCT so a subscriber on a page hosting several of the monitors is emailed
+/// once. Empty input short-circuits. `= ANY($1)` → bound `IN (?,…)`.
+pub async fn confirmed_subscriber_emails_for_monitors(
+    pool: &MySqlPool,
+    monitors: &[MonitorId],
+) -> DbResult<Vec<String>> {
+    if monitors.is_empty() {
+        return Ok(Vec::new());
+    }
+    let sql = format!(
+        "SELECT DISTINCT s.destination
+         FROM status_page_subscribers s
+         JOIN status_page_monitors spm ON spm.page_id = s.status_page_id
+         WHERE spm.monitor_id IN ({}) AND s.channel = 'email' AND s.confirmed = 1",
+        in_placeholders(monitors.len())
+    );
+    let mut q = sqlx::query(sqlx::AssertSqlSafe(sql));
+    for m in monitors {
+        q = q.bind(m.0.to_string());
+    }
+    let rows = q.fetch_all(pool).await?;
+    Ok(rows
+        .iter()
+        .map(|r| r.get::<String, _>("destination"))
+        .collect())
+}
+
 /// Active + upcoming(≤7d) windows whose monitor set intersects the page's — the
 /// public status-page banner. DISTINCT so a window on several of the page's
 /// monitors surfaces once. Recurrence is evaluated in Rust (small row count),
