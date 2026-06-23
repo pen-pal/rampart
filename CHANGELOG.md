@@ -29,6 +29,29 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.62] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `incidents` domain** (status-page announcements) +
+  the status-page subsystem schema. `migrations-mysql/0029_status_pages.sql`
+  provisions the whole subsystem (status_pages, status_page_sections,
+  status_page_monitors, incidents, incident_updates) in one migration because
+  the domains are mutually coupled — `incidents.recent` JOINs `status_pages`,
+  `status_pages.public_view` reads incidents; the status_pages domain module
+  follows in the next slice. `mysql/incidents.rs` un-stubs `StoreIncidents` (12
+  methods: create / find_active_by_dedup_key / list_active / recent /
+  list_resolved_history / resolve / list_all / delete / update / get /
+  list_updates / post_update). bool→TINYINT(1), `incident_style` enum→VARCHAR
+  (serde round-trip), no RETURNING → INSERT-then-re-select, `COALESCE` partial
+  update ports verbatim. `resolve` swaps the rows_affected-NotFound gate for an
+  existence probe (MySQL counts CHANGED rows, so re-resolve is a 0-change no-op
+  that must stay idempotent). The PG partial UNIQUE `(status_page_id, dedup_key)
+  WHERE active` has no MySQL equivalent — documented as a non-correctness
+  integrity guard (the dedup lookup already LIMIT-1s). +1 `#[sqlx::test]`
+  (CRUD, dedup hit/miss, running updates, partial edit, idempotent re-resolve,
+  ghost-id NotFound, cross-org recent isolation) green on MariaDB. PG + SQLite
+  untouched.
+
 ## [0.156.61] — 2026-06-23
 
 ### Added
