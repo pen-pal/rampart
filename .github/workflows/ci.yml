@@ -80,6 +80,38 @@ jobs:
       - name: build api (sqlite feature — the RAMPART_DB_URL=sqlite flip)
         run: cargo clippy -p rampart-api --features sqlite --bin rampart-api -- -D warnings
 
+  backend-mysql:
+    name: backend · mysql backend (multi-DB P2)
+    runs-on: ubuntu-latest
+    defaults:
+      run: { working-directory: backend }
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: rampart
+          MYSQL_DATABASE: rampart_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -prampart"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      SQLX_OFFLINE: "1"
+      # sqlx::test creates a fresh per-test database off this server (root has
+      # CREATE/DROP DATABASE), so the MySQL backend is exercised for real.
+      DATABASE_URL: "mysql://root:rampart@127.0.0.1:3306/rampart_test"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: clippy }
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: backend }
+      - name: clippy (mysql feature)
+        run: cargo clippy -p rampart-db --features mysql --all-targets -- -D warnings
+      - name: test (mysql backend)
+        run: cargo test -p rampart-db --features mysql --lib mysql::
+
   backend-test:
     name: backend · cargo test --workspace
     runs-on: ubuntu-latest
