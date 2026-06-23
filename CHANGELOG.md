@@ -29,6 +29,30 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.52] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — notifier dispatch-path domains** (scheduler/notifier-tail
+  slice 3/N): the 4 per-event dispatch reads + their tables, un-stubbing
+  `StoreRouting::resolve_channels_for_monitor`, `StoreSilences::is_silenced`,
+  `StoreMonitorGroups::any_parent_down`, and `StoreTemplates::
+  get_template_render_strings` on `MysqlStore`. `migrations-mysql/
+  0020_dispatch_path.sql` forks the 3 missing tables (monitor_groups[+parent_id],
+  monitor_dependencies, silences — notification_templates +
+  monitor/group_notifications already existed). Routing runs the same
+  `WITH RECURSIVE` folder-ancestor walk as PG/SQLite (MariaDB 10.2+/MySQL 8).
+  CRUD for these domains stays stubbed (cold paths) — only the hot dispatch reads
+  are wired, mirroring the SQLite dispatch-path slice. **This removes the
+  notifier-dispatch panics on a monitor flip**, so a `mysql://` boot with
+  monitors + channels now dispatches alerts (resolve channels, suppress silenced
+  / dependency-down) without hitting an `unimplemented!()`. +1 `#[sqlx::test]`
+  exercising all four reads green on MariaDB. PG + SQLite untouched.
+
+### Known limitation
+- The last unported scheduler/notifier-tail domain is **`agents`** (agent
+  registration + the watchdog `touch_seen`/`lookup`); an agent-backed monitor's
+  ingest on a `mysql://` boot would still hit a stub. Final tail slice.
+
 ## [0.156.51] — 2026-06-23
 
 ### Added

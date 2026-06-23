@@ -15,7 +15,8 @@ use rampart_core::ChannelKind;
 use sqlx::{MySqlPool, Row};
 use uuid::Uuid;
 
-const COLS: &str = "id, kind, name, config, active, template_id, created_at, cooldown_seconds, \
+pub(crate) const COLS: &str =
+    "id, kind, name, config, active, template_id, created_at, cooldown_seconds, \
      digest_window_secs, quiet_hours_start, quiet_hours_end, rate_limit_per_hour, last_fired_at";
 
 fn channel_kind_str(k: ChannelKind) -> String {
@@ -28,7 +29,7 @@ fn channel_kind_from(s: &str) -> ChannelKind {
     serde_json::from_value(serde_json::Value::String(s.to_string())).unwrap_or(ChannelKind::Custom)
 }
 
-fn notification_from(r: &sqlx::mysql::MySqlRow) -> Notification {
+pub(crate) fn notification_from(r: &sqlx::mysql::MySqlRow) -> Notification {
     let cfg: serde_json::Value =
         serde_json::from_str(&r.get::<String, _>("config")).unwrap_or_default();
     Notification {
