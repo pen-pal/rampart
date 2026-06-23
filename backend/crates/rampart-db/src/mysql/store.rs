@@ -748,7 +748,7 @@ impl StoreMaintenance for MysqlStore {
         &self,
         page: StatusPageId,
     ) -> DbResult<Vec<PublicMaintenance>> {
-        unimplemented!("MysqlStore::public_maintenance_for_status_page: status_pages domain not yet ported (multi-DB P1)")
+        crate::mysql::maintenance::public_for_status_page(&self.pool, page).await
     }
 }
 
@@ -1108,35 +1108,27 @@ impl StoreOidcState for MysqlStore {
 #[async_trait::async_trait]
 impl StoreStatusPages for MysqlStore {
     async fn list_status_pages(&self, org_id: OrgId) -> DbResult<Vec<StatusPage>> {
-        unimplemented!(
-            "MysqlStore::list_status_pages: status_pages domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::status_pages::list(&self.pool, org_id).await
     }
 
     async fn list_all_status_pages(&self) -> DbResult<Vec<StatusPage>> {
-        unimplemented!(
-            "MysqlStore::list_all_status_pages: status_pages domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::status_pages::list_all(&self.pool).await
     }
 
     async fn get_status_page(&self, id: StatusPageId, org_id: OrgId) -> DbResult<StatusPage> {
-        unimplemented!(
-            "MysqlStore::get_status_page: status_pages domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::status_pages::get(&self.pool, id, org_id).await
     }
 
     async fn get_status_page_by_slug(&self, slug: &str) -> DbResult<StatusPage> {
-        unimplemented!(
-            "MysqlStore::get_status_page_by_slug: status_pages domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::status_pages::get_by_slug(&self.pool, slug).await
     }
 
     async fn get_status_page_unscoped(&self, id: StatusPageId) -> DbResult<StatusPage> {
-        unimplemented!("MysqlStore::get_status_page_unscoped: status_pages domain not yet ported (multi-DB P1)")
+        crate::mysql::status_pages::get_unscoped(&self.pool, id).await
     }
 
     async fn find_status_page_by_custom_domain(&self, host: &str) -> DbResult<Option<StatusPage>> {
-        unimplemented!("MysqlStore::find_status_page_by_custom_domain: status_pages domain not yet ported (multi-DB P1)")
+        crate::mysql::status_pages::find_by_custom_domain(&self.pool, host).await
     }
 
     async fn create_status_page(
@@ -1144,9 +1136,7 @@ impl StoreStatusPages for MysqlStore {
         input: NewStatusPage,
         org_id: OrgId,
     ) -> DbResult<StatusPage> {
-        unimplemented!(
-            "MysqlStore::create_status_page: status_pages domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::status_pages::create(&self.pool, input, org_id).await
     }
 
     async fn update_status_page(
@@ -1155,32 +1145,26 @@ impl StoreStatusPages for MysqlStore {
         patch: UpdateStatusPage,
         org_id: OrgId,
     ) -> DbResult<StatusPage> {
-        unimplemented!(
-            "MysqlStore::update_status_page: status_pages domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::status_pages::update(&self.pool, id, patch, org_id).await
     }
 
     async fn delete_status_page(&self, id: StatusPageId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!(
-            "MysqlStore::delete_status_page: status_pages domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::status_pages::delete(&self.pool, id, org_id).await
     }
 
     async fn status_page_public_view(&self, slug: &str) -> DbResult<PublicStatusPage> {
-        unimplemented!(
-            "MysqlStore::status_page_public_view: status_pages domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::status_pages::public_view(&self.pool, slug).await
     }
 
     async fn verify_status_page_password(&self, slug: &str, candidate: &str) -> DbResult<bool> {
-        unimplemented!("MysqlStore::verify_status_page_password: status_pages domain not yet ported (multi-DB P1)")
+        crate::mysql::status_pages::verify_page_password(&self.pool, slug, candidate).await
     }
 
     async fn list_status_page_sections(
         &self,
         page_id: StatusPageId,
     ) -> DbResult<Vec<StatusPageSection>> {
-        unimplemented!("MysqlStore::list_status_page_sections: status_pages domain not yet ported (multi-DB P1)")
+        crate::mysql::status_pages::list_sections(&self.pool, page_id).await
     }
 
     async fn create_status_page_section(
@@ -1188,7 +1172,7 @@ impl StoreStatusPages for MysqlStore {
         page_id: StatusPageId,
         input: NewStatusPageSection,
     ) -> DbResult<StatusPageSection> {
-        unimplemented!("MysqlStore::create_status_page_section: status_pages domain not yet ported (multi-DB P1)")
+        crate::mysql::status_pages::create_section(&self.pool, page_id, input).await
     }
 
     async fn update_status_page_section(
@@ -1196,11 +1180,11 @@ impl StoreStatusPages for MysqlStore {
         id: StatusPageSectionId,
         patch: UpdateStatusPageSection,
     ) -> DbResult<StatusPageSection> {
-        unimplemented!("MysqlStore::update_status_page_section: status_pages domain not yet ported (multi-DB P1)")
+        crate::mysql::status_pages::update_section(&self.pool, id, patch).await
     }
 
     async fn delete_status_page_section(&self, id: StatusPageSectionId) -> DbResult<()> {
-        unimplemented!("MysqlStore::delete_status_page_section: status_pages domain not yet ported (multi-DB P1)")
+        crate::mysql::status_pages::delete_section(&self.pool, id).await
     }
 
     async fn assign_status_page_monitor_section(
@@ -1209,7 +1193,10 @@ impl StoreStatusPages for MysqlStore {
         monitor_id: MonitorId,
         section_id: Option<StatusPageSectionId>,
     ) -> DbResult<()> {
-        unimplemented!("MysqlStore::assign_status_page_monitor_section: status_pages domain not yet ported (multi-DB P1)")
+        crate::mysql::status_pages::assign_monitor_section(
+            &self.pool, page_id, monitor_id, section_id,
+        )
+        .await
     }
 }
 
