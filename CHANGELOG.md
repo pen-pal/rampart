@@ -29,7 +29,17 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
-## [0.156.37] — 2026-06-23
+## [0.156.38] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `scheduled_reports` domain** (periodic uptime digests:
+  list/get/create/update/delete/due/render/mark_sent) +
+  `migrations-mysql/0009_scheduled_reports.sql`. MySQL deltas: insert/update-then-
+  get (no RETURNING); the cadence `due` CASE uses
+  `DATE_FORMAT(FROM_UNIXTIME(last_sent_at), '%Y-%m')` for the monthly bucket;
+  `render` reuses the ported `mysql::monitors::list_all` +
+  `mysql::heartbeats::uptime_pct`. +1 `#[sqlx::test]` (crud + cadence due-windows
+  + render) green on MariaDB. 12th MySQL domain; PG + SQLite untouched.
 
 ### Added
 - **Multi-DB P2 (MySQL) — `escalations` domain** (policies + the episode state
