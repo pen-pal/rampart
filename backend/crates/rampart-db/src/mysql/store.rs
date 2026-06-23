@@ -1930,39 +1930,27 @@ impl StoreMetrics for MysqlStore {
 #[async_trait::async_trait]
 impl StoreErrorTracking for MysqlStore {
     async fn list_error_projects(&self, org_id: OrgId) -> DbResult<Vec<ErrorProject>> {
-        unimplemented!(
-            "MysqlStore::list_error_projects: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::error_tracking::list(&self.pool, org_id).await
     }
 
     async fn error_project_in_org(&self, project: ErrorProjectId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!(
-            "MysqlStore::error_project_in_org: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::error_tracking::project_in_org(&self.pool, project, org_id).await
     }
 
     async fn error_issue_in_org(&self, issue: ErrorIssueId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!(
-            "MysqlStore::error_issue_in_org: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::error_tracking::issue_in_org(&self.pool, issue, org_id).await
     }
 
     async fn get_error_project(&self, id: ErrorProjectId) -> DbResult<ErrorProject> {
-        unimplemented!(
-            "MysqlStore::get_error_project: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::error_tracking::get(&self.pool, id).await
     }
 
     async fn org_for_error_project(&self, id: ErrorProjectId) -> DbResult<OrgId> {
-        unimplemented!(
-            "MysqlStore::org_for_error_project: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::error_tracking::org_for_project(&self.pool, id).await
     }
 
     async fn get_error_project_opt(&self, id: ErrorProjectId) -> DbResult<Option<ErrorProject>> {
-        unimplemented!(
-            "MysqlStore::get_error_project_opt: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::error_tracking::get_opt(&self.pool, id).await
     }
 
     async fn find_or_create_error_project_by_name(
@@ -1970,7 +1958,7 @@ impl StoreErrorTracking for MysqlStore {
         name: &str,
         org_id: OrgId,
     ) -> DbResult<ErrorProject> {
-        unimplemented!("MysqlStore::find_or_create_error_project_by_name: error_tracking domain not yet ported (multi-DB P1)")
+        crate::mysql::error_tracking::find_or_create_by_name(&self.pool, name, org_id).await
     }
 
     async fn create_error_project(
@@ -1978,9 +1966,7 @@ impl StoreErrorTracking for MysqlStore {
         input: NewErrorProject,
         org_id: OrgId,
     ) -> DbResult<ErrorProject> {
-        unimplemented!(
-            "MysqlStore::create_error_project: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::error_tracking::create(&self.pool, input, org_id).await
     }
 
     async fn update_error_project(
@@ -1989,15 +1975,11 @@ impl StoreErrorTracking for MysqlStore {
         patch: UpdateErrorProject,
         org_id: OrgId,
     ) -> DbResult<ErrorProject> {
-        unimplemented!(
-            "MysqlStore::update_error_project: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::error_tracking::update(&self.pool, id, patch, org_id).await
     }
 
     async fn delete_error_project(&self, id: ErrorProjectId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!(
-            "MysqlStore::delete_error_project: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::error_tracking::delete(&self.pool, id, org_id).await
     }
 
     async fn record_error_event(
@@ -2005,9 +1987,7 @@ impl StoreErrorTracking for MysqlStore {
         project_id: ErrorProjectId,
         ev: &ParsedEvent,
     ) -> DbResult<RecordOutcome> {
-        unimplemented!(
-            "MysqlStore::record_error_event: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::error_tracking::record_event(&self.pool, project_id, ev).await
     }
 
     async fn error_issues_for_trace(
@@ -2015,7 +1995,7 @@ impl StoreErrorTracking for MysqlStore {
         trace_id: &str,
         org_id: OrgId,
     ) -> DbResult<Vec<TraceErrorRef>> {
-        unimplemented!("MysqlStore::error_issues_for_trace: error_tracking domain not yet ported (multi-DB P1)")
+        crate::mysql::error_tracking::issues_for_trace(&self.pool, trace_id, org_id).await
     }
 
     async fn list_error_issues(
@@ -2025,9 +2005,8 @@ impl StoreErrorTracking for MysqlStore {
         before_id: Option<Uuid>,
         limit: i64,
     ) -> DbResult<Vec<ErrorIssue>> {
-        unimplemented!(
-            "MysqlStore::list_error_issues: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::error_tracking::list_issues(&self.pool, project_id, status, before_id, limit)
+            .await
     }
 
     async fn recent_open_error_issues(
@@ -2035,7 +2014,7 @@ impl StoreErrorTracking for MysqlStore {
         limit: i64,
         org_id: OrgId,
     ) -> DbResult<Vec<ErrorIssue>> {
-        unimplemented!("MysqlStore::recent_open_error_issues: error_tracking domain not yet ported (multi-DB P1)")
+        crate::mysql::error_tracking::recent_open_issues(&self.pool, limit, org_id).await
     }
 
     async fn error_project_event_histogram(
@@ -2044,13 +2023,14 @@ impl StoreErrorTracking for MysqlStore {
         hours: i32,
         buckets: i64,
     ) -> DbResult<Vec<ErrorBucket>> {
-        unimplemented!("MysqlStore::error_project_event_histogram: error_tracking domain not yet ported (multi-DB P1)")
+        crate::mysql::error_tracking::project_event_histogram(
+            &self.pool, project_id, hours, buckets,
+        )
+        .await
     }
 
     async fn get_error_issue(&self, id: ErrorIssueId) -> DbResult<ErrorIssue> {
-        unimplemented!(
-            "MysqlStore::get_error_issue: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::error_tracking::get_issue(&self.pool, id).await
     }
 
     async fn error_issue_affected_users(
@@ -2058,17 +2038,15 @@ impl StoreErrorTracking for MysqlStore {
         id: ErrorIssueId,
         limit: i64,
     ) -> DbResult<Vec<AffectedUser>> {
-        unimplemented!("MysqlStore::error_issue_affected_users: error_tracking domain not yet ported (multi-DB P1)")
+        crate::mysql::error_tracking::issue_affected_users(&self.pool, id, limit).await
     }
 
     async fn error_issue_stats(&self, id: ErrorIssueId) -> DbResult<IssueStats> {
-        unimplemented!(
-            "MysqlStore::error_issue_stats: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::error_tracking::issue_stats(&self.pool, id).await
     }
 
     async fn set_error_issue_status(&self, id: ErrorIssueId, status: &str) -> DbResult<ErrorIssue> {
-        unimplemented!("MysqlStore::set_error_issue_status: error_tracking domain not yet ported (multi-DB P1)")
+        crate::mysql::error_tracking::set_issue_status(&self.pool, id, status).await
     }
 
     async fn assign_error_issue(
@@ -2076,13 +2054,11 @@ impl StoreErrorTracking for MysqlStore {
         id: ErrorIssueId,
         assignee: Option<UserId>,
     ) -> DbResult<ErrorIssue> {
-        unimplemented!(
-            "MysqlStore::assign_error_issue: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::error_tracking::assign_issue(&self.pool, id, assignee).await
     }
 
     async fn error_assignable_users(&self) -> DbResult<Vec<crate::error_tracking::AssignableUser>> {
-        unimplemented!("MysqlStore::error_assignable_users: error_tracking domain not yet ported (multi-DB P1)")
+        crate::mysql::error_tracking::assignable_users(&self.pool).await
     }
 
     async fn list_error_events(
@@ -2090,15 +2066,11 @@ impl StoreErrorTracking for MysqlStore {
         issue_id: ErrorIssueId,
         limit: i64,
     ) -> DbResult<Vec<ErrorEvent>> {
-        unimplemented!(
-            "MysqlStore::list_error_events: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::error_tracking::list_events(&self.pool, issue_id, limit).await
     }
 
     async fn prune_error_events(&self) -> DbResult<u64> {
-        unimplemented!(
-            "MysqlStore::prune_error_events: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::error_tracking::prune(&self.pool).await
     }
 }
 
