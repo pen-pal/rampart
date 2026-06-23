@@ -77,6 +77,8 @@ jobs:
         run: cargo clippy -p rampart-db --features sqlite --all-targets -- -D warnings
       - name: test (sqlite backend)
         run: cargo test -p rampart-db --features sqlite --lib sqlite::
+      - name: build api (sqlite feature — the RAMPART_DB_URL=sqlite flip)
+        run: cargo clippy -p rampart-api --features sqlite --bin rampart-api -- -D warnings
 
   backend-test:
     name: backend · cargo test --workspace
