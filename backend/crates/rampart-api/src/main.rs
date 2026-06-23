@@ -213,7 +213,6 @@ async fn main() -> anyhow::Result<()> {
     // emit events. The reload handle lets API routes poke it after
     // monitor mutations.
     let scheduler = std::sync::Arc::new(rampart_scheduler::Scheduler::with_notifier(
-        pool.clone(),
         store.clone(),
         Some(notifier_handle.clone()),
     ));
