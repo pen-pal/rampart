@@ -29,6 +29,34 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.22] — 2026-06-23
+
+### Added
+- **Multi-DB P1 boot-wiring: SQLite `detection` domain (un-stubs
+  `StoreDetection`) — the LAST scheduler-dependency domain.**
+  `migrations-sqlite/0019_detection.sql` (forks PG 0090/0091/0103/0104/0105 +
+  org_id: `detection_rules` + `detection_findings`, uuid→TEXT, bool→0/1,
+  UUID[] channel_ids→JSON, jsonb condition→TEXT, ts→INTEGER) +
+  `sqlite::detection`: the full free-fn surface — regex_is_valid / list /
+  list_all / get / get_unscoped / create / update / delete / preview /
+  evaluate_tick / has_recent_finding / list_findings(_for_org) /
+  finding_in_org / open_count / fetch_since / ack_finding. The match layer
+  ports both paths via `QueryBuilder<Sqlite>`: the legacy flat-field match and
+  the Detection v2 boolean condition tree, binding every leaf (no
+  interpolation). Dialect degrades: `body ~* regex` → case-insensitive `LIKE`
+  substring (no SQLite regex; `regex_is_valid` always accepts), `attributes->>k`
+  → `json_extract`, the per-entity ordered `array_agg(...)[1]` newest-sample is
+  aggregated app-side, watermarks are whole-second `unixepoch()` (documented
+  homelab edge; strict `>` kept so matches never double-count). +2
+  `#[sqlx::test]` (whole-set fire + threshold gating + findings feed/ack/
+  cross-org; group_by per-entity + boolean condition tree). **All 9
+  scheduler-dependency domains are now ported** — the next phase is
+  seam-plumbing (scheduler/notifier/seed/import onto `&dyn Store`) + the main.rs
+  `RAMPART_DB_URL=sqlite` flip (the bootable milestone). Off-by-default
+  `sqlite`; PG untouched.
+
+---
+
 ## [0.156.21] — 2026-06-23
 
 ### Added

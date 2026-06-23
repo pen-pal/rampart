@@ -1459,21 +1459,15 @@ impl StoreSubscribers for SqliteStore {
 #[async_trait::async_trait]
 impl StoreDetection for SqliteStore {
     async fn detection_regex_is_valid(&self, pattern: &str) -> DbResult<bool> {
-        unimplemented!(
-            "SqliteStore::detection_regex_is_valid: detection domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::detection::regex_is_valid(&self.pool, pattern).await
     }
 
     async fn list_detection_rules(&self, org_id: OrgId) -> DbResult<Vec<DetectionRule>> {
-        unimplemented!(
-            "SqliteStore::list_detection_rules: detection domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::detection::list(&self.pool, org_id).await
     }
 
     async fn list_all_detection_rules(&self) -> DbResult<Vec<DetectionRule>> {
-        unimplemented!(
-            "SqliteStore::list_all_detection_rules: detection domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::detection::list_all(&self.pool).await
     }
 
     async fn get_detection_rule(
@@ -1481,13 +1475,11 @@ impl StoreDetection for SqliteStore {
         id: DetectionRuleId,
         org_id: OrgId,
     ) -> DbResult<DetectionRule> {
-        unimplemented!(
-            "SqliteStore::get_detection_rule: detection domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::detection::get(&self.pool, id, org_id).await
     }
 
     async fn get_detection_rule_unscoped(&self, id: DetectionRuleId) -> DbResult<DetectionRule> {
-        unimplemented!("SqliteStore::get_detection_rule_unscoped: detection domain not yet ported (multi-DB P1)")
+        crate::sqlite::detection::get_unscoped(&self.pool, id).await
     }
 
     async fn create_detection_rule(
@@ -1495,9 +1487,7 @@ impl StoreDetection for SqliteStore {
         input: NewDetectionRule,
         org_id: OrgId,
     ) -> DbResult<DetectionRule> {
-        unimplemented!(
-            "SqliteStore::create_detection_rule: detection domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::detection::create(&self.pool, input, org_id).await
     }
 
     async fn update_detection_rule(
@@ -1506,15 +1496,11 @@ impl StoreDetection for SqliteStore {
         patch: UpdateDetectionRule,
         org_id: OrgId,
     ) -> DbResult<DetectionRule> {
-        unimplemented!(
-            "SqliteStore::update_detection_rule: detection domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::detection::update(&self.pool, id, patch, org_id).await
     }
 
     async fn delete_detection_rule(&self, id: DetectionRuleId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!(
-            "SqliteStore::delete_detection_rule: detection domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::detection::delete(&self.pool, id, org_id).await
     }
 
     async fn preview_detection(
@@ -1527,9 +1513,17 @@ impl StoreDetection for SqliteStore {
         window_seconds: i32,
         org_id: OrgId,
     ) -> DbResult<PreviewResult> {
-        unimplemented!(
-            "SqliteStore::preview_detection: detection domain not yet ported (multi-DB P1)"
+        crate::sqlite::detection::preview(
+            &self.pool,
+            service,
+            min_level,
+            body_regex,
+            attr_key,
+            attr_val,
+            window_seconds,
+            org_id,
         )
+        .await
     }
 
     async fn has_recent_detection_finding(
@@ -1538,7 +1532,7 @@ impl StoreDetection for SqliteStore {
         secs: i64,
         entity: Option<&str>,
     ) -> DbResult<bool> {
-        unimplemented!("SqliteStore::has_recent_detection_finding: detection domain not yet ported (multi-DB P1)")
+        crate::sqlite::detection::has_recent_finding(&self.pool, rule_id, secs, entity).await
     }
 
     async fn list_detection_findings(
@@ -1546,9 +1540,7 @@ impl StoreDetection for SqliteStore {
         limit: i64,
         open_only: bool,
     ) -> DbResult<Vec<DetectionFinding>> {
-        unimplemented!(
-            "SqliteStore::list_detection_findings: detection domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::detection::list_findings(&self.pool, limit, open_only).await
     }
 
     async fn list_detection_findings_for_org(
@@ -1557,7 +1549,7 @@ impl StoreDetection for SqliteStore {
         open_only: bool,
         org_id: OrgId,
     ) -> DbResult<Vec<DetectionFinding>> {
-        unimplemented!("SqliteStore::list_detection_findings_for_org: detection domain not yet ported (multi-DB P1)")
+        crate::sqlite::detection::list_findings_for_org(&self.pool, limit, open_only, org_id).await
     }
 
     async fn detection_finding_in_org(
@@ -1565,13 +1557,11 @@ impl StoreDetection for SqliteStore {
         finding: DetectionFindingId,
         org_id: OrgId,
     ) -> DbResult<()> {
-        unimplemented!(
-            "SqliteStore::detection_finding_in_org: detection domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::detection::finding_in_org(&self.pool, finding, org_id).await
     }
 
     async fn open_detection_findings_count(&self) -> DbResult<i64> {
-        unimplemented!("SqliteStore::open_detection_findings_count: detection domain not yet ported (multi-DB P1)")
+        crate::sqlite::detection::open_count(&self.pool).await
     }
 
     async fn fetch_detection_findings_since(
@@ -1579,19 +1569,15 @@ impl StoreDetection for SqliteStore {
         after: Option<OffsetDateTime>,
         limit: i64,
     ) -> DbResult<Vec<DetectionFinding>> {
-        unimplemented!("SqliteStore::fetch_detection_findings_since: detection domain not yet ported (multi-DB P1)")
+        crate::sqlite::detection::fetch_since(&self.pool, after, limit).await
     }
 
     async fn ack_detection_finding(&self, id: DetectionFindingId) -> DbResult<DetectionFinding> {
-        unimplemented!(
-            "SqliteStore::ack_detection_finding: detection domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::detection::ack_finding(&self.pool, id).await
     }
 
     async fn evaluate_detection_tick(&self) -> DbResult<Vec<FindingEvent>> {
-        unimplemented!(
-            "SqliteStore::evaluate_detection_tick: detection domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::detection::evaluate_tick(&self.pool).await
     }
 }
 
