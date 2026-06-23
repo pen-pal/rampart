@@ -29,6 +29,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.11] — 2026-06-23
+
+### Added
+- **Multi-DB P1 boot-wiring: SQLite `proxies` domain (un-stubs `StoreProxies`).**
+  First of the boot-wiring slices — the scheduler/probe path calls 13 domains,
+  9 of which were `unimplemented!()` stubs in `SqliteStore` (so a sqlite boot
+  would panic on the first tick). This forks `proxies` to SQLite
+  (`migrations-sqlite/0008_proxies.sql` + `sqlite::proxies`: list / get /
+  get_unscoped / create / delete / set_active — protocol+port CHECKs ported,
+  `auth` derived from username/password, password stored verbatim as in PG) and
+  swaps the `StoreProxies` stub for real delegation. +1 `#[sqlx::test]`. **8
+  domains still stubbed for full scheduler boot** (audit, detection, escalations,
+  maintenance, metric_rules, scheduled_reports, slos, telemetry_rules) — each a
+  following slice. Off-by-default `sqlite` feature; PG build untouched.
+
+---
+
 ## [0.156.10] — 2026-06-23
 
 ### Added
