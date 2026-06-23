@@ -40,6 +40,7 @@ pub mod monitor_templates;
 pub mod monitors;
 pub mod notifications;
 pub mod oidc_state;
+pub mod on_call;
 pub mod orgs;
 pub mod proxies;
 pub mod recovery_codes;
@@ -56,6 +57,7 @@ pub mod telemetry_rules;
 pub mod templates;
 pub mod traces;
 pub mod users;
+pub mod webpush;
 
 use rampart_core::ids::{OrgId, UserId};
 use rampart_core::Role;

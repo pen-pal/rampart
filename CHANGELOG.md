@@ -29,6 +29,21 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.57] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `on_call` + `webpush` domains** (management-API tail,
+  slice 4; batched). `migrations-mysql/0024_oncall_webpush.sql` + 2 modules,
+  un-stubbing `StoreOnCall` (8 fns — on-call schedules + the "who's on call now"
+  resolver; rotation math reuses pure `rampart_core::on_call`) and `StoreWebpush`
+  (6 fns — web-push subscriptions keyed on a UNIQUE endpoint + the shared VAPID
+  keypair stored in `settings`). **This closes the last two feature-conditional
+  notifier-dispatch gaps** — a `mysql://` boot with on-call-targeted escalation
+  steps or web-push channels no longer hits an `unimplemented!()`. Ported from PG:
+  JSONB→LONGTEXT; anchor/ts→BIGINT; `ON CONFLICT(endpoint)` → `ON DUPLICATE KEY`;
+  VAPID via `mysql::settings`. +2 `#[sqlx::test]` green on MariaDB. PG + SQLite
+  untouched.
+
 ## [0.156.56] — 2026-06-23
 
 ### Added
