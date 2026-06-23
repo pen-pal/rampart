@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm ci && npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/v1/:path*", "destination": "https://api.YOURDOMAIN/v1/:path*" },
+    { "source": "/healthz", "destination": "https://api.YOURDOMAIN/healthz" },
+    { "source": "/readyz", "destination": "https://api.YOURDOMAIN/readyz" },
+    { "source": "/push/:path*", "destination": "https://api.YOURDOMAIN/push/:path*" }
+  ]
+}
