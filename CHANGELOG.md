@@ -29,6 +29,26 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.12] — 2026-06-23
+
+### Added
+- **Multi-DB P1 boot-wiring: SQLite `scheduled_reports` domain (un-stubs
+  `StoreScheduledReports`).** Second boot-wiring slice. `migrations-sqlite/
+  0009_scheduled_reports.sql` (TEXT[] recipients → JSON array TEXT, timestamps
+  → INTEGER unix-seconds) + `sqlite::scheduled_reports` mirroring the PG surface
+  — list / get / create / update / delete / due / render / mark_sent. The PG
+  `due` cadence CASE (`interval` + `date_trunc('month')`) becomes unix-second
+  arithmetic + `strftime('%Y-%m', …, 'unixepoch')`; `render` reuses the
+  already-ported `sqlite::monitors::list_all` + `sqlite::heartbeats::uptime_pct`
+  and the dialect-neutral `cadence_window_seconds` from the PG module so the
+  windows can't drift. `StoreScheduledReports` now delegates (was stub). +1
+  `#[sqlx::test]`. **7 scheduler-dep domains still stubbed** (audit, detection,
+  escalations, maintenance, metric_rules+metric_samples, slos, telemetry_rules)
+  — note `metric_rules.evaluate_tick` couples to `metric_samples`, so those port
+  together. Off-by-default `sqlite` feature; PG build untouched.
+
+---
+
 ## [0.156.11] — 2026-06-23
 
 ### Added
