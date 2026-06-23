@@ -29,6 +29,30 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.63] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `status_pages` domain** (branded public status pages
+  + component sections + the public projection). `mysql/status_pages.rs`
+  un-stubs `StoreStatusPages` (16 methods: list / list_all / get / get_by_slug /
+  get_unscoped / find_by_custom_domain / create / update / delete / public_view
+  / verify_password / list_sections / create_section / update_section /
+  delete_section / assign_monitor_section) and adds
+  `maintenance::public_for_status_page` (un-stubbing
+  `public_maintenance_for_status_page`). `password_hash IS NOT NULL` → the
+  derived `private` boolean (Argon2 hash never leaves the db on a read path);
+  the create/update password paths hash with Argon2id, same as PG.
+  `public_view` keeps the set-based batch rollup (five queries regardless of
+  monitor count) over `monitors`/`heartbeats` MySQL batch helpers + incidents +
+  maintenance. No FK cascade on the MySQL tier → `delete` cascades child rows
+  (incident_updates → incidents → page monitors → sections → page) in a tx by
+  hand; `delete_section` detaches its monitors to ungrouped first. Duplicate-key
+  → friendly `Conflict`, slug-vs-custom_domain disambiguated by the error
+  message. +1 `#[sqlx::test]` (CRUD, slug conflict, password set/verify/clear →
+  private toggle, sections append/rename/delete, monitor attach + section
+  assignment + public_view bucketing, delete cascade, cross-org isolation) green
+  on MariaDB. PG + SQLite untouched.
+
 ## [0.156.62] — 2026-06-23
 
 ### Added

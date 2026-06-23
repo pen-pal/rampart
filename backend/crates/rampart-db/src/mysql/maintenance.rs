@@ -21,7 +21,8 @@ use rampart_core::ids::OrgId;
 use rampart_core::maintenance::{
     MaintenanceWindow, NewMaintenanceWindow, Recurrence, UpdateMaintenanceWindow,
 };
-use rampart_core::{MaintenanceId, MonitorId};
+use rampart_core::status_page::PublicMaintenance;
+use rampart_core::{MaintenanceId, MonitorId, StatusPageId};
 use sqlx::{MySqlPool, Row};
 use time::OffsetDateTime;
 
@@ -339,6 +340,57 @@ pub async fn mark_notified_end(pool: &MySqlPool, id: MaintenanceId) -> DbResult<
         .execute(pool)
         .await?;
     Ok(())
+}
+
+/// Active + upcoming(≤7d) windows whose monitor set intersects the page's — the
+/// public status-page banner. DISTINCT so a window on several of the page's
+/// monitors surfaces once. Recurrence is evaluated in Rust (small row count),
+/// mirroring PG: active first, then soonest start; recurring windows pin no end.
+pub async fn public_for_status_page(
+    pool: &MySqlPool,
+    page: StatusPageId,
+) -> DbResult<Vec<PublicMaintenance>> {
+    let rows = sqlx::query(
+        "SELECT DISTINCT w.id, w.name, w.description, w.start_at, w.end_at, w.recurrence
+         FROM maintenance_windows w
+         JOIN maintenance_window_monitors mwm ON mwm.window_id = w.id
+         JOIN status_page_monitors spm ON spm.monitor_id = mwm.monitor_id
+         WHERE spm.page_id = ? AND w.active = 1",
+    )
+    .bind(page.0.to_string())
+    .fetch_all(pool)
+    .await?;
+
+    let now = OffsetDateTime::now_utc();
+    let horizon = now.saturating_add(time::Duration::days(7));
+    let mut out: Vec<(bool, OffsetDateTime, PublicMaintenance)> = Vec::new();
+    for r in &rows {
+        let start_at = ts(r.get::<i64, _>("start_at"));
+        let end_at = ts(r.get::<i64, _>("end_at"));
+        let rec = recurrence_from(&r.get::<String, _>("recurrence"));
+        let active = rec.contains(start_at, end_at, now);
+        let starts_at = match rec.next_start(start_at, end_at, now) {
+            Some(s) => s,
+            None => continue,
+        };
+        if !active && starts_at > horizon {
+            continue;
+        }
+        let ends_at = matches!(rec, Recurrence::None).then_some(end_at);
+        out.push((
+            active,
+            starts_at,
+            PublicMaintenance {
+                title: r.get("name"),
+                description: r.get("description"),
+                starts_at,
+                ends_at,
+                active,
+            },
+        ));
+    }
+    out.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
+    Ok(out.into_iter().map(|(_, _, m)| m).collect())
 }
 
 #[cfg(test)]
