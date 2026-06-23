@@ -25,6 +25,9 @@ path = "src/bin/import.rs"
 # at boot. Off by default — Postgres stays the reference build with zero SQLite
 # code/deps compiled in.
 sqlite = ["rampart-db/sqlite"]
+# Multi-DB P2: enable the MySQL backend so `DATABASE_URL=mysql://...` selects it
+# at boot. Off by default, like sqlite — Postgres stays the zero-extra-deps build.
+mysql = ["rampart-db/mysql"]
 
 [dependencies]
 rampart-core      = { path = "../rampart-core" }
