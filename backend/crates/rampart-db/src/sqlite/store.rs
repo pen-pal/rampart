@@ -1728,11 +1728,11 @@ impl StoreSettings for SqliteStore {
 #[async_trait::async_trait]
 impl StoreLogs for SqliteStore {
     async fn insert_logs(&self, logs: &[ParsedLog], org_id: OrgId) -> DbResult<u64> {
-        unimplemented!("SqliteStore::insert_logs: logs domain not yet ported (multi-DB P1)")
+        crate::sqlite::logs::insert_logs(&self.pool, logs, org_id).await
     }
 
     async fn query_logs(&self, f: LogFilter<'_>, org_id: OrgId) -> DbResult<Vec<LogEntry>> {
-        unimplemented!("SqliteStore::query_logs: logs domain not yet ported (multi-DB P1)")
+        crate::sqlite::logs::query_logs(&self.pool, f, org_id).await
     }
 
     async fn log_level_counts(
@@ -1741,7 +1741,7 @@ impl StoreLogs for SqliteStore {
         hours: i32,
         org_id: OrgId,
     ) -> DbResult<Vec<(String, i64)>> {
-        unimplemented!("SqliteStore::log_level_counts: logs domain not yet ported (multi-DB P1)")
+        crate::sqlite::logs::level_counts(&self.pool, service, hours, org_id).await
     }
 
     async fn log_histogram(
@@ -1753,15 +1753,24 @@ impl StoreLogs for SqliteStore {
         buckets: i64,
         org_id: OrgId,
     ) -> DbResult<Vec<LogBucket>> {
-        unimplemented!("SqliteStore::log_histogram: logs domain not yet ported (multi-DB P1)")
+        crate::sqlite::logs::histogram(
+            &self.pool,
+            service,
+            min_severity,
+            query,
+            hours,
+            buckets,
+            org_id,
+        )
+        .await
     }
 
     async fn log_services(&self, org_id: OrgId) -> DbResult<Vec<String>> {
-        unimplemented!("SqliteStore::log_services: logs domain not yet ported (multi-DB P1)")
+        crate::sqlite::logs::list_services(&self.pool, org_id).await
     }
 
     async fn prune_logs(&self, days: i32) -> DbResult<u64> {
-        unimplemented!("SqliteStore::prune_logs: logs domain not yet ported (multi-DB P1)")
+        crate::sqlite::logs::prune(&self.pool, days).await
     }
 }
 
