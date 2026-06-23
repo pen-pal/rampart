@@ -29,7 +29,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
-## [0.156.35] — 2026-06-23
+## [0.156.36] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `delivery_log` domain.** Append-only channel-send log
+  (record / get / list / list_all) + `migrations-mysql/0007_delivery_log.sql`.
+  MySQL deltas: BIGSERIAL PK → `BIGINT AUTO_INCREMENT` read back via
+  `LAST_INSERT_ID()` (no RETURNING); `record` floors org to the channel's org
+  (or Default) in-SQL via a `COALESCE` subquery so system/orphaned rows are
+  never NULL. +2 `#[sqlx::test]` (org-floor + get; filter matrix + limit) green
+  on MariaDB. 10th MySQL domain. Off by default; PG + SQLite untouched.
 
 ### Added
 - **Multi-DB P2 (MySQL) — `notifications` (channels) domain.** Full channel CRUD

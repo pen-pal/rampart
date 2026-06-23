@@ -22,6 +22,7 @@
 //!   no `RETURNING` (app-side UUID PK + INSERT-then-SELECT); no array binds
 //!   (bound `IN (?,…)` lists, as in the SQLite layer).
 
+pub mod delivery_log;
 pub mod heartbeats;
 pub mod monitors;
 pub mod notifications;
