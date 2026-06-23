@@ -29,6 +29,29 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.16] — 2026-06-23
+
+### Added
+- **Multi-DB P1 boot-wiring: SQLite `metric_rules` domain (un-stubs
+  `StoreMetricRules`).** Sixth boot-wiring slice; unblocked by metric_samples.
+  `migrations-sqlite/0013_metric_rules.sql` (op CHECK incl `anomaly`, jsonb
+  labels→TEXT, `UUID[]` channel_ids→JSON, escalation FK, ts→INTEGER) +
+  `sqlite::metric_rules`: list / list_all / get / get_unscoped / create / update
+  / delete / evaluate_tick. `evaluate_tick` reuses the pure
+  `rule_transition` state machine + `RuleOp::breached`/`anomaly_breached` and
+  delegates sample reads to the ported `sqlite::metric_samples`. +1
+  `#[sqlx::test]` (CRUD + a full fire→resolve evaluation cycle). **Boot-wiring
+  6/9**; 3 left (slos, telemetry_rules+logs/traces, detection, audit).
+
+### Fixed
+- **SQLite `metric_samples::latest` tie-breaks by `rowid DESC`.** SQLite `ts` is
+  second-granular (PG was microsecond), so same-second samples made
+  `ORDER BY ts DESC LIMIT 1` ambiguous — it could return a stale value and wedge
+  a metric rule firing. Newest-insert now wins. (Off-by-default `sqlite`
+  feature; PG path unaffected.)
+
+---
+
 ## [0.156.15] — 2026-06-23
 
 ### Added

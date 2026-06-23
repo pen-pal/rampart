@@ -151,9 +151,11 @@ pub async fn latest(
     labels: &serde_json::Value,
     org_id: OrgId,
 ) -> DbResult<Option<(f64, OffsetDateTime)>> {
+    // Tie-break by rowid: SQLite `ts` is second-granular (PG was microsecond),
+    // so same-second samples need the newest INSERT to win to stay "latest".
     let row = sqlx::query(
         "SELECT value, ts FROM metric_samples
-         WHERE name = ? AND labels = ? AND org_id = ? ORDER BY ts DESC LIMIT 1",
+         WHERE name = ? AND labels = ? AND org_id = ? ORDER BY ts DESC, rowid DESC LIMIT 1",
     )
     .bind(name)
     .bind(labels_text(labels))
