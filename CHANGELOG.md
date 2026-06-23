@@ -29,6 +29,36 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.53] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `agents` domain** (final scheduler/notifier-tail slice):
+  remote probe workers (list / get / create / update / delete / lookup [token
+  resolver] / touch_seen), un-stubbing the 7 `StoreAgents` methods on
+  `MysqlStore`. Reuses the existing `agents` table (migrations-mysql/0004). No
+  `RETURNING` → INSERT-then-re-select; `monitor_count` via `LEFT JOIN monitors …
+  GROUP BY` (MySQL 8 functional-dependency); `update` drops the `rows_affected()`
+  gate (changed-vs-matched); `delete` clears `monitors.agent_id` in-tx (no
+  enforced FK). +2 `#[sqlx::test]` (create/lookup/touch/monitor-count;
+  update-clear-location/delete-unassigns) green on MariaDB.
+- **MySQL scheduler/notifier dependency tail COMPLETE.** With agents + the prior
+  tail slices (digest_buffer .50, maintenance .51, dispatch-path .52), every
+  domain the scheduler tick + notifier dispatch touch on the **core monitoring +
+  alerting path** is ported. A `mysql://` boot now runs the full loop — probes,
+  heartbeat/SLO/detection/telemetry-rule ticks, maintenance windows, monitor-flip
+  alert dispatch (resolve channels, silence/dependency suppression, digests) to
+  webhook/Slack/email/etc. channels, and agent registration/watchdog — without
+  hitting an `unimplemented!()`.
+
+### Known limitation
+- Two **feature-conditional** dispatch paths still reach unported cold domains:
+  on-call-**targeted** escalation steps (`on_call`) and **web-push** channel
+  delivery (`webpush` vapid). They only fire when those features are configured;
+  the common alerting path is unaffected. The remaining MySQL stubs are the cold
+  management-API domains (status_pages, incidents, error_tracking, profiles, rum,
+  api_keys, ingest_keys, on_call, webpush, …) — same shape as the SQLite tier's
+  remaining stubs; port on demand. PG + SQLite untouched.
+
 ## [0.156.52] — 2026-06-23
 
 ### Added
