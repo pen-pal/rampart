@@ -338,34 +338,26 @@ impl StoreIngestKeys for MysqlStore {
         kind: &str,
         allowed_origins: &[String],
     ) -> DbResult<(IngestKey, String)> {
-        unimplemented!(
-            "MysqlStore::create_ingest_key: ingest_keys domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::ingest_keys::create(&self.pool, org_id, label, kind, allowed_origins).await
     }
 
     async fn find_ingest_key_by_token(
         &self,
         token: &str,
     ) -> DbResult<Option<(Uuid, OrgId, Vec<String>)>> {
-        unimplemented!(
-            "MysqlStore::find_ingest_key_by_token: ingest_keys domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::ingest_keys::find_by_token(&self.pool, token).await
     }
 
     async fn touch_ingest_key_last_used(&self, id: Uuid) -> DbResult<()> {
-        unimplemented!("MysqlStore::touch_ingest_key_last_used: ingest_keys domain not yet ported (multi-DB P1)")
+        crate::mysql::ingest_keys::touch_last_used(&self.pool, id).await
     }
 
     async fn list_ingest_keys_for_org(&self, org_id: OrgId) -> DbResult<Vec<IngestKey>> {
-        unimplemented!(
-            "MysqlStore::list_ingest_keys_for_org: ingest_keys domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::ingest_keys::list_for_org(&self.pool, org_id).await
     }
 
     async fn delete_ingest_key(&self, id: Uuid, org_id: OrgId) -> DbResult<bool> {
-        unimplemented!(
-            "MysqlStore::delete_ingest_key: ingest_keys domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::ingest_keys::delete(&self.pool, id, org_id).await
     }
 }
 
@@ -517,7 +509,7 @@ impl StoreRecoveryCodes for MysqlStore {
 #[async_trait::async_trait]
 impl StoreApiKeys for MysqlStore {
     async fn list_api_keys(&self, org_id: OrgId) -> DbResult<Vec<ApiKey>> {
-        unimplemented!("MysqlStore::list_api_keys: api_keys domain not yet ported (multi-DB P1)")
+        crate::mysql::api_keys::list(&self.pool, org_id).await
     }
 
     async fn create_api_key(
@@ -526,21 +518,19 @@ impl StoreApiKeys for MysqlStore {
         created_by: UserId,
         org_id: OrgId,
     ) -> DbResult<IssuedApiKey> {
-        unimplemented!("MysqlStore::create_api_key: api_keys domain not yet ported (multi-DB P1)")
+        crate::mysql::api_keys::create(&self.pool, input, created_by, org_id).await
     }
 
     async fn delete_api_key(&self, id: ApiKeyId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!("MysqlStore::delete_api_key: api_keys domain not yet ported (multi-DB P1)")
+        crate::mysql::api_keys::delete(&self.pool, id, org_id).await
     }
 
     async fn lookup_api_key(&self, token: &str) -> DbResult<(ApiKey, UserId, OrgId)> {
-        unimplemented!("MysqlStore::lookup_api_key: api_keys domain not yet ported (multi-DB P1)")
+        crate::mysql::api_keys::lookup(&self.pool, token).await
     }
 
     async fn touch_api_key_last_used(&self, id: ApiKeyId) -> DbResult<()> {
-        unimplemented!(
-            "MysqlStore::touch_api_key_last_used: api_keys domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::api_keys::touch_last_used(&self.pool, id).await
     }
 }
 
