@@ -67,10 +67,9 @@ const HEARTBEAT_CHANNEL_BUFFER: usize = 4096;
 const HEARTBEAT_BROADCAST_DEPTH: usize = 256;
 
 pub struct Scheduler {
-    pool: DbPool,
-    /// Object-safe `Store` seam — used for the cross-crate notifier calls
-    /// (multi-DB P1 seam-plumbing slice B2). The scheduler's OWN domain reads
-    /// still go through `pool` directly until slice C migrates them.
+    /// Object-safe multi-DB `Store` seam — every DB touch (own domain reads +
+    /// cross-crate notifier calls) goes through this (multi-DB P1 seam-plumbing
+    /// slice C). No concrete pool remains.
     store: Arc<dyn Store>,
     probes: Arc<Probes>,
     /// Map from MonitorId → handle of its probe task.
@@ -103,26 +102,21 @@ impl Scheduler {
     /// Construct and immediately spawn the writer task. Call
     /// [`Scheduler::run`] afterward to kick off the reload loop.
     pub fn new(pool: DbPool) -> Self {
-        let store: Arc<dyn Store> = Arc::new(rampart_db::store::PgStore::new(pool.clone()));
-        Self::with_notifier(pool, store, None)
+        let store: Arc<dyn Store> = Arc::new(rampart_db::store::PgStore::new(pool));
+        Self::with_notifier(store, None)
     }
 
-    pub fn with_notifier(
-        pool: DbPool,
-        store: Arc<dyn Store>,
-        notifier: Option<NotifierHandle>,
-    ) -> Self {
+    pub fn with_notifier(store: Arc<dyn Store>, notifier: Option<NotifierHandle>) -> Self {
         let (hb_tx, hb_rx) = mpsc::channel::<Heartbeat>(HEARTBEAT_CHANNEL_BUFFER);
         let (hb_broadcast, _) = broadcast::channel::<Heartbeat>(HEARTBEAT_BROADCAST_DEPTH);
-        let writer_pool = pool.clone();
+        let writer_store = store.clone();
         let writer_broadcast = hb_broadcast.clone();
         let writer_notifier = notifier.clone();
         tokio::spawn(async move {
-            writer_loop(writer_pool, hb_rx, writer_broadcast, writer_notifier).await;
+            writer_loop(writer_store, hb_rx, writer_broadcast, writer_notifier).await;
         });
 
         Self {
-            pool,
             store,
             probes: Arc::new(Probes::new()),
             tasks: Arc::new(RwLock::new(HashMap::new())),
@@ -250,7 +244,7 @@ impl Scheduler {
     /// recovered (resolve missed, e.g. the process restarted between
     /// the flip and the notifier) is closed instead of paged.
     async fn check_escalations(&self) {
-        let due = match rampart_db::escalations::due(&self.pool).await {
+        let due = match self.store.due_episodes().await {
             Ok(d) => d,
             Err(e) => {
                 warn!(error = %e, "escalation due scan failed");
@@ -258,7 +252,9 @@ impl Scheduler {
             }
         };
         for episode in due {
-            let policy = match rampart_db::escalations::get_unscoped(&self.pool, episode.policy_id)
+            let policy = match self
+                .store
+                .get_escalation_policy_unscoped(episode.policy_id)
                 .await
             {
                 Ok(p) => p,
@@ -274,12 +270,12 @@ impl Scheduler {
                     let Some(mid) = episode.monitor_id else {
                         continue;
                     };
-                    let monitor = match rampart_db::monitors::get_unscoped(&self.pool, mid).await {
+                    let monitor = match self.store.get_monitor_unscoped(mid).await {
                         Ok(m) => m,
                         Err(_) => continue, // monitor deleted; episode cascades away
                     };
                     if !monitor.current_status.is_down() {
-                        let _ = rampart_db::escalations::resolve(&self.pool, mid).await;
+                        let _ = self.store.resolve_episode_for_monitor(mid).await;
                         continue;
                     }
                     let down_for =
@@ -294,7 +290,7 @@ impl Scheduler {
                         Ok(u) => rampart_core::ids::TelemetryRuleId::from_uuid(u),
                         Err(_) => continue,
                     };
-                    match rampart_db::telemetry_rules::get_unscoped(&self.pool, rule_id).await {
+                    match self.store.get_telemetry_rule_unscoped(rule_id).await {
                         // Still firing → keep climbing. Recovered/deleted → close.
                         Ok(rule) if rule.firing_at.is_some() => {
                             let down_for = (time::OffsetDateTime::now_utc() - episode.started_at)
@@ -305,12 +301,10 @@ impl Scheduler {
                             )
                         }
                         _ => {
-                            let _ = rampart_db::escalations::resolve_subject(
-                                &self.pool,
-                                "telemetry_rule",
-                                &episode.subject_ref,
-                            )
-                            .await;
+                            let _ = self
+                                .store
+                                .resolve_subject("telemetry_rule", &episode.subject_ref)
+                                .await;
                             continue;
                         }
                     }
@@ -320,7 +314,7 @@ impl Scheduler {
                         Ok(u) => rampart_core::ids::MetricRuleId::from_uuid(u),
                         Err(_) => continue,
                     };
-                    match rampart_db::metric_rules::get_unscoped(&self.pool, rule_id).await {
+                    match self.store.get_metric_rule_unscoped(rule_id).await {
                         Ok(rule) if rule.firing_at.is_some() => {
                             let down_for = (time::OffsetDateTime::now_utc() - episode.started_at)
                                 .whole_seconds();
@@ -330,12 +324,10 @@ impl Scheduler {
                             )
                         }
                         _ => {
-                            let _ = rampart_db::escalations::resolve_subject(
-                                &self.pool,
-                                "metric_rule",
-                                &episode.subject_ref,
-                            )
-                            .await;
+                            let _ = self
+                                .store
+                                .resolve_subject("metric_rule", &episode.subject_ref)
+                                .await;
                             continue;
                         }
                     }
@@ -348,7 +340,7 @@ impl Scheduler {
                     // Keep climbing while the budget is still breaching
                     // (evaluate_tick keeps `breaching_at` set); recovered or
                     // deleted → close.
-                    match rampart_db::slos::get_unscoped(&self.pool, slo_id).await {
+                    match self.store.get_slo_unscoped(slo_id).await {
                         Ok(slo) if slo.breaching_at.is_some() => {
                             let down_for = (time::OffsetDateTime::now_utc() - episode.started_at)
                                 .whole_seconds();
@@ -358,12 +350,10 @@ impl Scheduler {
                             )
                         }
                         _ => {
-                            let _ = rampart_db::escalations::resolve_subject(
-                                &self.pool,
-                                "slo",
-                                &episode.subject_ref,
-                            )
-                            .await;
+                            let _ = self
+                                .store
+                                .resolve_subject("slo", &episode.subject_ref)
+                                .await;
                             continue;
                         }
                     }
@@ -375,45 +365,39 @@ impl Scheduler {
                     };
                     // Detection has no sustained firing state — it auto-resolves
                     // when the rule goes quiet (no finding within ~2× its window).
-                    match rampart_db::detection::get_unscoped(&self.pool, rule_id).await {
+                    match self.store.get_detection_rule_unscoped(rule_id).await {
                         Ok(rule) => {
                             let grace = ((rule.window_seconds as i64) * 2).max(600);
-                            let active = rampart_db::detection::has_recent_finding(
-                                &self.pool, rule_id, grace, None,
-                            )
-                            .await
-                            .unwrap_or(false);
+                            let active = self
+                                .store
+                                .has_recent_detection_finding(rule_id, grace, None)
+                                .await
+                                .unwrap_or(false);
                             if active {
                                 alert_escalation_event(
                                     &rule.name,
                                     "active findings, unacknowledged".to_string(),
                                 )
                             } else {
-                                let _ = rampart_db::escalations::resolve_subject(
-                                    &self.pool,
-                                    "detection_rule",
-                                    &episode.subject_ref,
-                                )
-                                .await;
+                                let _ = self
+                                    .store
+                                    .resolve_subject("detection_rule", &episode.subject_ref)
+                                    .await;
                                 continue;
                             }
                         }
                         Err(_) => {
-                            let _ = rampart_db::escalations::resolve_subject(
-                                &self.pool,
-                                "detection_rule",
-                                &episode.subject_ref,
-                            )
-                            .await;
+                            let _ = self
+                                .store
+                                .resolve_subject("detection_rule", &episode.subject_ref)
+                                .await;
                             continue;
                         }
                     }
                 }
                 _ => continue,
             };
-            let Ok(Some(advanced)) =
-                rampart_db::escalations::advance(&self.pool, episode.id, &policy).await
-            else {
+            let Ok(Some(advanced)) = self.store.advance_episode(episode.id, &policy).await else {
                 continue;
             };
             rampart_notifier::service::fire_escalation_step(
@@ -431,7 +415,7 @@ impl Scheduler {
     /// is restart-safe and never double-pages; this method only owns the
     /// notification fan-out.
     async fn check_metric_rules(&self) {
-        let events = match rampart_db::metric_rules::evaluate_tick(&self.pool).await {
+        let events = match self.store.evaluate_metric_rules_tick().await {
             Ok(ev) => ev,
             Err(e) => {
                 warn!(error = %e, "metric rule evaluation failed");
@@ -524,7 +508,7 @@ impl Scheduler {
     /// (`rampart_db::slos`), so this is restart-safe and never double-pages;
     /// this method only owns the notification fan-out and escalation climb.
     async fn check_slos(&self) {
-        let events = match rampart_db::slos::evaluate_tick(&self.pool).await {
+        let events = match self.store.evaluate_slos_tick().await {
             Ok(ev) => ev,
             Err(e) => {
                 warn!(error = %e, "SLO evaluation failed");
@@ -613,7 +597,7 @@ impl Scheduler {
     /// lives on the rule rows (`rampart_db::telemetry_rules`), so this is
     /// restart-safe and never double-pages — like `check_metric_rules`.
     async fn check_telemetry_rules(&self) {
-        let events = match rampart_db::telemetry_rules::evaluate_tick(&self.pool).await {
+        let events = match self.store.evaluate_telemetry_rules_tick().await {
             Ok(ev) => ev,
             Err(e) => {
                 warn!(error = %e, "telemetry rule evaluation failed");
@@ -717,7 +701,7 @@ impl Scheduler {
         fired: bool,
         event: &rampart_notifier::Event,
     ) {
-        let policy = match rampart_db::escalations::get_unscoped(&self.pool, policy_id).await {
+        let policy = match self.store.get_escalation_policy_unscoped(policy_id).await {
             Ok(p) => p,
             Err(e) => {
                 warn!(policy = %policy_id.0, error = %e, "escalation policy load failed");
@@ -725,13 +709,10 @@ impl Scheduler {
             }
         };
         if fired {
-            match rampart_db::escalations::open_episode_for_subject(
-                &self.pool,
-                kind,
-                subject_ref,
-                &policy,
-            )
-            .await
+            match self
+                .store
+                .open_episode_for_subject(kind, subject_ref, &policy)
+                .await
             {
                 Ok(Some(_)) => {
                     rampart_notifier::service::fire_escalation_step(
@@ -746,7 +727,7 @@ impl Scheduler {
                 Err(e) => warn!(subject = subject_ref, error = %e, "escalation open failed"),
             }
         } else {
-            let _ = rampart_db::escalations::resolve_subject(&self.pool, kind, subject_ref).await;
+            let _ = self.store.resolve_subject(kind, subject_ref).await;
         }
     }
 
@@ -756,7 +737,7 @@ impl Scheduler {
     /// event — the watermark in `detection::evaluate_tick` makes it
     /// restart-safe and prevents double-counting.
     async fn check_detection_rules(&self) {
-        let events = match rampart_db::detection::evaluate_tick(&self.pool).await {
+        let events = match self.store.evaluate_detection_tick().await {
             Ok(ev) => ev,
             Err(e) => {
                 warn!(error = %e, "detection rule evaluation failed");
@@ -811,16 +792,11 @@ impl Scheduler {
             // when the rule goes quiet (check_escalations detection branch).
             if let Some(policy_id) = ev.escalation_policy_id {
                 let subj = f.rule_id.0.to_string();
-                if let Ok(policy) =
-                    rampart_db::escalations::get_unscoped(&self.pool, policy_id).await
-                {
-                    match rampart_db::escalations::open_episode_for_subject(
-                        &self.pool,
-                        "detection_rule",
-                        &subj,
-                        &policy,
-                    )
-                    .await
+                if let Ok(policy) = self.store.get_escalation_policy_unscoped(policy_id).await {
+                    match self
+                        .store
+                        .open_episode_for_subject("detection_rule", &subj, &policy)
+                        .await
                     {
                         Ok(Some(_)) => {
                             rampart_notifier::service::fire_escalation_step(
@@ -850,7 +826,7 @@ impl Scheduler {
     /// clock, so a continuously-dark agent re-emits one Down heartbeat
     /// per staleness window rather than one per tick.
     async fn check_stale_agents(&self) {
-        let stale = match rampart_db::monitors::list_stale_agent_monitors(&self.pool).await {
+        let stale = match self.store.list_stale_agent_monitors().await {
             Ok(v) => v,
             Err(e) => {
                 warn!(error = %e, "stale-agent scan failed");
@@ -859,10 +835,11 @@ impl Scheduler {
         };
         for (monitor, agent_name) in stale {
             // Same maintenance suppression as a local probe tick.
-            let in_maintenance =
-                rampart_db::maintenance::is_in_active_window(&self.pool, monitor.id)
-                    .await
-                    .unwrap_or(false);
+            let in_maintenance = self
+                .store
+                .is_in_active_window(monitor.id)
+                .await
+                .unwrap_or(false);
             if in_maintenance {
                 continue;
             }
@@ -918,7 +895,7 @@ impl Scheduler {
         let now = time::OffsetDateTime::now_utc();
 
         // Throttle: skip unless an hour has elapsed since the last verify.
-        if let Ok(Some(v)) = rampart_db::settings::get(&self.pool, KEY).await {
+        if let Ok(Some(v)) = self.store.get_setting(KEY).await {
             if let Some(last) = v.get("last_check_ts").and_then(|t| t.as_i64()) {
                 if now.unix_timestamp() - last < INTERVAL_SECS {
                     return;
@@ -926,7 +903,7 @@ impl Scheduler {
             }
         }
 
-        let report = match rampart_db::audit::verify_chain(&self.pool).await {
+        let report = match self.store.verify_audit_chain().await {
             Ok(r) => r,
             Err(e) => {
                 warn!(error = %e, "audit chain verify scan failed");
@@ -953,7 +930,7 @@ impl Scheduler {
                 ip_addr: None,
                 user_agent: None,
             };
-            if let Err(e) = rampart_db::audit::insert(&self.pool, entry).await {
+            if let Err(e) = self.store.record_audit(entry).await {
                 warn!(error = %e, "failed to record audit.chain_verify_failed event");
             }
         }
@@ -966,14 +943,14 @@ impl Scheduler {
             "checked": report.checked,
             "first_bad_id": report.first_bad_id,
         });
-        if let Err(e) = rampart_db::settings::put(&self.pool, KEY, &value).await {
+        if let Err(e) = self.store.put_setting(KEY, &value).await {
             warn!(error = %e, "failed to stamp audit_chain_verify watermark");
         }
     }
 
     async fn check_scheduled_reports(&self) {
         let now = time::OffsetDateTime::now_utc();
-        let due = match rampart_db::scheduled_reports::due(&self.pool, now).await {
+        let due = match self.store.due_scheduled_reports(now).await {
             Ok(d) => d,
             Err(e) => {
                 warn!(error = %e, "scheduled report due scan failed");
@@ -988,20 +965,16 @@ impl Scheduler {
             if report.recipients.is_empty() {
                 // Nothing to send — stamp it so we don't rescan it every
                 // tick, and so it shows a sensible last_sent_at in the UI.
-                if let Err(e) =
-                    rampart_db::scheduled_reports::mark_sent(&self.pool, report.id).await
-                {
+                if let Err(e) = self.store.mark_scheduled_report_sent(report.id).await {
                     warn!(report = %report.id, error = %e, "scheduled report stamp failed");
                 }
                 continue;
             }
 
-            let (subject, body) = match rampart_db::scheduled_reports::render(
-                &self.pool,
-                &report.name,
-                &report.cadence,
-            )
-            .await
+            let (subject, body) = match self
+                .store
+                .render_scheduled_report(&report.name, &report.cadence)
+                .await
             {
                 Ok(v) => v,
                 Err(e) => {
@@ -1023,7 +996,7 @@ impl Scheduler {
             // Stamp regardless of how many recipients succeeded: SMTP may be
             // unconfigured (sent == 0) and we don't want to retry every tick
             // forever. Per-recipient failures are already logged.
-            if let Err(e) = rampart_db::scheduled_reports::mark_sent(&self.pool, report.id).await {
+            if let Err(e) = self.store.mark_scheduled_report_sent(report.id).await {
                 warn!(report = %report.id, error = %e, "scheduled report stamp failed");
             }
         }
@@ -1039,14 +1012,17 @@ impl Scheduler {
         let Some(notifier) = self.notifier.as_ref() else {
             return;
         };
-        let windows =
-            match rampart_db::maintenance::transitions_needing_notification(&self.pool).await {
-                Ok(w) => w,
-                Err(e) => {
-                    warn!(error = %e, "maintenance transition scan failed");
-                    return;
-                }
-            };
+        let windows = match self
+            .store
+            .maintenance_transitions_needing_notification()
+            .await
+        {
+            Ok(w) => w,
+            Err(e) => {
+                warn!(error = %e, "maintenance transition scan failed");
+                return;
+            }
+        };
 
         for w in windows {
             // started: active now, start not yet notified.
@@ -1067,9 +1043,9 @@ impl Scheduler {
             // logged; we still fire (better a possible dup than silence).
             let stamp = match kind {
                 EventKind::MaintenanceStarted => {
-                    rampart_db::maintenance::mark_notified_start(&self.pool, w.id).await
+                    self.store.mark_maintenance_notified_start(w.id).await
                 }
-                _ => rampart_db::maintenance::mark_notified_end(&self.pool, w.id).await,
+                _ => self.store.mark_maintenance_notified_end(w.id).await,
             };
             if let Err(e) = stamp {
                 warn!(window = %w.id, error = %e, "maintenance de-dup stamp failed");
@@ -1083,7 +1059,7 @@ impl Scheduler {
             // subscriber fan-out (in the notifier) work unchanged. The
             // notifier de-dups subscriber emails across the page.
             for mid in &w.monitor_ids {
-                let monitor = match rampart_db::monitors::get_unscoped(&self.pool, *mid).await {
+                let monitor = match self.store.get_monitor_unscoped(*mid).await {
                     Ok(m) => m,
                     Err(e) => {
                         warn!(monitor = %mid, error = %e, "monitor hydrate for maintenance event failed");
@@ -1106,7 +1082,7 @@ impl Scheduler {
     /// for monitors that should be running but aren't; cancel tasks for
     /// monitors that have been deleted or deactivated.
     async fn reconcile(&self) -> Result<(), rampart_db::DbError> {
-        let live = rampart_db::monitors::list_all(&self.pool).await?;
+        let live = self.store.list_all_monitors().await?;
         // Agent-assigned monitors are probed remotely — the agent reports
         // heartbeats through the API ingest path. Running a local probe
         // task too would double-probe (and double-alert), so they're
@@ -1154,7 +1130,7 @@ impl Scheduler {
         let last_status_in_task = last_status.clone();
         let last_alert_in_task = last_alert.clone();
         let notifier = self.notifier.clone();
-        let pool_in_task = self.pool.clone();
+        let store_in_task = self.store.clone();
         let monitor_id = monitor.id;
         let monitor_name = monitor.name.clone();
         let initial_interval = monitor.interval_seconds;
@@ -1171,7 +1147,7 @@ impl Scheduler {
                 &last_alert_in_task,
                 &hb_tx,
                 notifier.as_ref(),
-                &pool_in_task,
+                &store_in_task,
             )
             .await;
 
@@ -1215,7 +1191,7 @@ impl Scheduler {
                         // effect on the very next probe rather than only
                         // after a delete + recreate. Single PK lookup;
                         // cheap even at thousands of monitors.
-                        match rampart_db::monitors::get_unscoped(&pool_in_task, monitor_id).await {
+                        match store_in_task.get_monitor_unscoped(monitor_id).await {
                             Ok(fresh) => {
                                 if !fresh.active {
                                     // Reconcile will tear us down — exit
@@ -1225,7 +1201,7 @@ impl Scheduler {
                                     return;
                                 }
                                 run_once(&probes, &fresh, &last_status_in_task,
-                                         &last_alert_in_task, &hb_tx, notifier.as_ref(), &pool_in_task).await;
+                                         &last_alert_in_task, &hb_tx, notifier.as_ref(), &store_in_task).await;
                                 interval = Duration::from_secs(fresh.interval_seconds as u64);
                             }
                             Err(rampart_db::DbError::NotFound) => {
@@ -1238,7 +1214,7 @@ impl Scheduler {
                                 // killing the loop.
                                 warn!(monitor = %monitor_id, error = %e, "monitor refresh failed; reusing prior snapshot");
                                 run_once(&probes, &monitor, &last_status_in_task,
-                                         &last_alert_in_task, &hb_tx, notifier.as_ref(), &pool_in_task).await;
+                                         &last_alert_in_task, &hb_tx, notifier.as_ref(), &store_in_task).await;
                             }
                         }
                     }
@@ -1279,7 +1255,7 @@ async fn run_once(
     last_alert: &Arc<RwLock<Option<Instant>>>,
     hb_tx: &mpsc::Sender<Heartbeat>,
     notifier: Option<&NotifierHandle>,
-    pool: &DbPool,
+    store: &Arc<dyn Store>,
 ) {
     // Maintenance suppression. If the monitor is inside an active
     // window we skip the probe entirely and emit a synthetic
@@ -1287,9 +1263,7 @@ async fn run_once(
     // dashboard but doesn't fire notifications. We swallow DB errors
     // here so a transient blip doesn't take down the probe loop;
     // worst case we run an unneeded probe.
-    let in_maintenance = rampart_db::maintenance::is_in_active_window(pool, monitor.id)
-        .await
-        .unwrap_or(false);
+    let in_maintenance = store.is_in_active_window(monitor.id).await.unwrap_or(false);
 
     let mut hb = if in_maintenance {
         maintenance_heartbeat(monitor)
@@ -1301,13 +1275,13 @@ async fn run_once(
         // ticks that find nothing wrong record nothing — the timeline
         // belongs to the job's own pings. Probe crate doesn't touch
         // the DB (layer rule), so we synthesize the heartbeat here.
-        match push_heartbeat(monitor, pool).await {
+        match push_heartbeat(monitor, store).await {
             Some(h) => h,
             None => return,
         }
     } else {
         // Real probe path, with an optional retry-with-backoff curve.
-        probe_with_retries(probes, monitor, pool).await
+        probe_with_retries(probes, monitor, store).await
     };
 
     // Mark this heartbeat as important if it flipped the status. Don't
@@ -1399,7 +1373,7 @@ async fn run_once(
                     .map(|t| (time::OffsetDateTime::now_utc() - t).whole_seconds() >= 3600)
                     .unwrap_or(true);
                 if stale {
-                    let pool = pool.clone();
+                    let store = store.clone();
                     let id = monitor.id;
                     let url_owned = url.to_string();
                     let to = Duration::from_secs(monitor.timeout_seconds.max(10) as u64);
@@ -1408,13 +1382,9 @@ async fn run_once(
                             if let Ok(snap) =
                                 rampart_checker::tls::fetch_cert(&host, port, to).await
                             {
-                                let _ = rampart_db::monitors::set_cert_info(
-                                    &pool,
-                                    id,
-                                    snap.days_left,
-                                    &snap.subject,
-                                )
-                                .await;
+                                let _ = store
+                                    .set_monitor_cert_info(id, snap.days_left, &snap.subject)
+                                    .await;
                             }
                         }
                     });
@@ -1441,18 +1411,14 @@ async fn run_once(
                 .map(|t| (time::OffsetDateTime::now_utc() - t).whole_seconds() >= 3600)
                 .unwrap_or(true);
             if stale {
-                let pool = pool.clone();
+                let store = store.clone();
                 let id = monitor.id;
                 let to = Duration::from_secs(monitor.timeout_seconds.max(10) as u64);
                 tokio::spawn(async move {
                     if let Ok(snap) = rampart_checker::tls::fetch_cert(&host, port, to).await {
-                        let _ = rampart_db::monitors::set_cert_info(
-                            &pool,
-                            id,
-                            snap.days_left,
-                            &snap.subject,
-                        )
-                        .await;
+                        let _ = store
+                            .set_monitor_cert_info(id, snap.days_left, &snap.subject)
+                            .await;
                     }
                 });
             }
@@ -1462,12 +1428,12 @@ async fn run_once(
 
 /// Dispatch a single real probe, routing HTTP-family + active-proxy
 /// monitors through the dedicated proxy path.
-async fn probe_once(probes: &Probes, monitor: &Monitor, pool: &DbPool) -> Heartbeat {
+async fn probe_once(probes: &Probes, monitor: &Monitor, store: &Arc<dyn Store>) -> Heartbeat {
     if let Some(pid) = monitor.proxy_id {
         // HTTP-family kinds + a configured proxy route through the
         // dedicated HttpProbe::run_with_proxy path. Other kinds with a
         // dangling proxy_id (e.g. a TCP probe) silently ignore it.
-        match rampart_db::proxies::get_unscoped(pool, pid).await {
+        match store.get_proxy_unscoped(pid).await {
             Ok(proxy)
                 if proxy.active
                     && matches!(
@@ -1491,8 +1457,12 @@ async fn probe_once(probes: &Probes, monitor: &Monitor, pool: &DbPool) -> Heartb
 /// The delay curve comes from `config.retry_backoff` when present; otherwise it
 /// defaults to a **fixed** `retry_interval_sec` wait (0 = retry immediately).
 /// Each delay is still capped to the monitor interval.
-async fn probe_with_retries(probes: &Probes, monitor: &Monitor, pool: &DbPool) -> Heartbeat {
-    let mut hb = probe_once(probes, monitor, pool).await;
+async fn probe_with_retries(
+    probes: &Probes,
+    monitor: &Monitor,
+    store: &Arc<dyn Store>,
+) -> Heartbeat {
+    let mut hb = probe_once(probes, monitor, store).await;
 
     // Fast path: success or no retries configured → a single probe.
     if !hb.status.is_down() || monitor.max_retries <= 0 {
@@ -1515,7 +1485,7 @@ async fn probe_with_retries(probes: &Probes, monitor: &Monitor, pool: &DbPool) -
         if delay > 0 {
             tokio::time::sleep(Duration::from_secs(delay as u64)).await;
         }
-        hb = probe_once(probes, monitor, pool).await;
+        hb = probe_once(probes, monitor, store).await;
         hb.retries = attempt as i32;
         if !hb.status.is_down() {
             // Recovered within the retry budget — report the success and
@@ -1542,7 +1512,7 @@ fn parse_https(url: &str) -> Option<(String, u16)> {
 /// subscribers via `broadcast` — never before the flush so the API can
 /// safely assume any streamed row is queryable.
 async fn writer_loop(
-    pool: DbPool,
+    store: Arc<dyn Store>,
     mut rx: mpsc::Receiver<Heartbeat>,
     bcast: broadcast::Sender<Heartbeat>,
     notifier: Option<NotifierHandle>,
@@ -1565,7 +1535,7 @@ async fn writer_loop(
             Some(h) => h,
             None => {
                 if !buffer.is_empty() {
-                    flush(&pool, &buffer).await;
+                    flush(&store, &buffer).await;
                 }
                 info!("heartbeat writer shutting down");
                 return;
@@ -1586,7 +1556,7 @@ async fn writer_loop(
             }
         }
 
-        if flush(&pool, &buffer).await {
+        if flush(&store, &buffer).await {
             for hb in &buffer {
                 // send() returns Err when there are zero subscribers —
                 // that is normal (nobody watching) so ignore.
@@ -1601,9 +1571,7 @@ async fn writer_loop(
                 // reflect reality (previously current_status never moved
                 // off Pending). Last flip in the batch wins per monitor.
                 if hb.important {
-                    if let Err(e) =
-                        rampart_db::monitors::set_status(&pool, hb.monitor_id, hb.status).await
-                    {
+                    if let Err(e) = store.set_monitor_status(hb.monitor_id, hb.status).await {
                         error!(monitor = %hb.monitor_id, error = %e, "set_status failed");
                     }
                 }
@@ -1614,14 +1582,14 @@ async fn writer_loop(
             // We pick one representative heartbeat per monitor (the latest
             // one in the batch) to pass to the event; a single breach
             // pages once thanks to `slo_breached_at`.
-            check_slo_breaches(&pool, &buffer, notifier.as_ref()).await;
+            check_slo_breaches(&store, &buffer, notifier.as_ref()).await;
 
             // Outbound per-monitor result webhooks. Fires on EVERY
             // heartbeat (not just alerts) for monitors that configure
             // `config.result_webhook`. Fire-and-forget on a detached task
             // so a slow sink never blocks the writer.
             if let Some(client) = result_webhook_client.as_ref() {
-                fire_result_webhooks(&pool, client, &buffer).await;
+                fire_result_webhooks(&store, client, &buffer).await;
             }
         }
         buffer.clear();
@@ -1637,7 +1605,11 @@ async fn writer_loop(
 /// Failures here are logged + swallowed — the heartbeat itself is
 /// already persisted and we'd rather not stall the writer because of a
 /// transient DB blip on the SLO read path.
-async fn check_slo_breaches(pool: &DbPool, batch: &[Heartbeat], notifier: Option<&NotifierHandle>) {
+async fn check_slo_breaches(
+    store: &Arc<dyn Store>,
+    batch: &[Heartbeat],
+    notifier: Option<&NotifierHandle>,
+) {
     let Some(notifier) = notifier else { return };
     if batch.is_empty() {
         return;
@@ -1656,7 +1628,7 @@ async fn check_slo_breaches(pool: &DbPool, batch: &[Heartbeat], notifier: Option
     }
 
     for (mid, hb) in latest {
-        let slo = match rampart_db::monitors::slo_state(pool, mid).await {
+        let slo = match store.monitor_slo_state(mid).await {
             Ok(Some(s)) => s,
             // Monitor row gone (deleted) — nothing to do.
             Ok(None) => continue,
@@ -1671,8 +1643,7 @@ async fn check_slo_breaches(pool: &DbPool, batch: &[Heartbeat], notifier: Option
             continue;
         };
 
-        let current = match rampart_db::heartbeats::current_slo_uptime_pct(pool, mid, window).await
-        {
+        let current = match store.current_slo_uptime_pct(mid, window).await {
             Ok(Some(v)) => v,
             // No heartbeats in the window yet — can't say "breached"
             // off zero data. Skip without touching the de-dup column.
@@ -1695,7 +1666,7 @@ async fn check_slo_breaches(pool: &DbPool, batch: &[Heartbeat], notifier: Option
 
         // Hydrate the full monitor so the template engine + per-channel
         // adapters have the same shape they get for status flips.
-        let monitor = match rampart_db::monitors::get_unscoped(pool, mid).await {
+        let monitor = match store.get_monitor_unscoped(mid).await {
             Ok(m) => m,
             Err(e) => {
                 warn!(monitor = %mid, error = %e, "monitor hydrate for SLO event failed");
@@ -1704,8 +1675,8 @@ async fn check_slo_breaches(pool: &DbPool, batch: &[Heartbeat], notifier: Option
         };
 
         let stamp_result = match kind {
-            EventKind::SloBreached => rampart_db::monitors::mark_slo_breached(pool, mid).await,
-            EventKind::SloRecovered => rampart_db::monitors::clear_slo_breached(pool, mid).await,
+            EventKind::SloBreached => store.mark_monitor_slo_breached(mid).await,
+            EventKind::SloRecovered => store.clear_monitor_slo_breached(mid).await,
             _ => Ok(()),
         };
         if let Err(e) = stamp_result {
@@ -1744,7 +1715,11 @@ async fn check_slo_breaches(pool: &DbPool, batch: &[Heartbeat], notifier: Option
 /// per distinct monitor in the batch — at most a handful of PK lookups per
 /// flush. Monitors without the config key short-circuit with no I/O beyond
 /// that single fetch.
-async fn fire_result_webhooks(pool: &DbPool, client: &reqwest::Client, batch: &[Heartbeat]) {
+async fn fire_result_webhooks(
+    store: &Arc<dyn Store>,
+    client: &reqwest::Client,
+    batch: &[Heartbeat],
+) {
     use std::collections::HashMap;
 
     // Resolve each distinct monitor's webhook URL + optional signing secret
@@ -1754,7 +1729,7 @@ async fn fire_result_webhooks(pool: &DbPool, client: &reqwest::Client, batch: &[
     let mut target_for: HashMap<MonitorId, Option<Target>> = HashMap::new();
     for hb in batch {
         if let std::collections::hash_map::Entry::Vacant(e) = target_for.entry(hb.monitor_id) {
-            let target = match rampart_db::monitors::get_unscoped(pool, hb.monitor_id).await {
+            let target = match store.get_monitor_unscoped(hb.monitor_id).await {
                 Ok(m) => result_webhook_url(&m).map(|url| (url, result_webhook_secret(&m), m.name)),
                 Err(e2) => {
                     warn!(monitor = %hb.monitor_id, error = %e2, "result webhook monitor fetch failed");
@@ -1797,7 +1772,7 @@ async fn fire_result_webhooks(pool: &DbPool, client: &reqwest::Client, batch: &[
         let client = client.clone();
         let url = url.clone();
         let mid = hb.monitor_id;
-        let pool = pool.clone();
+        let store = store.clone();
         tokio::spawn(async move {
             let mut req = client
                 .post(&url)
@@ -1822,18 +1797,16 @@ async fn fire_result_webhooks(pool: &DbPool, client: &reqwest::Client, batch: &[
             // Best-effort delivery-log row for every attempt, success or
             // failure — swallow logging errors so the webhook path never
             // depends on the audit write.
-            if let Err(e) = rampart_db::delivery_log::record(
-                &pool,
-                rampart_db::delivery_log::NewDelivery {
+            if let Err(e) = store
+                .record_delivery(rampart_db::delivery_log::NewDelivery {
                     notification_id: None,
                     channel_kind: "result_webhook",
                     event_kind: "probe_result",
                     monitor_id: Some(mid.0),
                     ok,
                     error: err.as_deref(),
-                },
-            )
-            .await
+                })
+                .await
             {
                 warn!(monitor = %mid, error = %e, "result webhook delivery-log record failed");
             }
@@ -1889,8 +1862,8 @@ fn result_webhook_secret(monitor: &Monitor) -> Option<String> {
 
 /// Returns `true` if the batch persisted — callers gate the live-stream
 /// fan-out on this so subscribers never receive rows that aren't on disk.
-async fn flush(pool: &DbPool, batch: &[Heartbeat]) -> bool {
-    if let Err(e) = rampart_db::heartbeats::insert_many(pool, batch).await {
+async fn flush(store: &Arc<dyn Store>, batch: &[Heartbeat]) -> bool {
+    if let Err(e) = store.insert_many(batch).await {
         // Don't crash the writer on a DB blip — log loudly, keep going.
         // The probe loop will produce more heartbeats on the next tick.
         error!(error = %e, batch = batch.len(), "heartbeat flush failed");
@@ -1921,7 +1894,7 @@ fn maintenance_heartbeat(monitor: &Monitor) -> Heartbeat {
 /// seconds (with a small grace), Down otherwise. The grace covers the
 /// case where the external job is on its own cron and lands a moment
 /// after our tick — without it, perfectly-on-time pushes would flap.
-async fn push_heartbeat(monitor: &Monitor, pool: &DbPool) -> Option<Heartbeat> {
+async fn push_heartbeat(monitor: &Monitor, store: &Arc<dyn Store>) -> Option<Heartbeat> {
     use time::OffsetDateTime;
 
     let now = OffsetDateTime::now_utc();
@@ -1933,9 +1906,7 @@ async fn push_heartbeat(monitor: &Monitor, pool: &DbPool) -> Option<Heartbeat> {
     // uptime stats and stomp a fail ping's Down, which is exactly the
     // legacy-interval-mode quirk cron mode exists to fix.
     if let Some(schedule) = rampart_core::CronSchedule::from_config(&monitor.config) {
-        let (last_push, run_started) = rampart_db::monitors::push_state(pool, monitor.id)
-            .await
-            .ok()?;
+        let (last_push, run_started) = store.monitor_push_state(monitor.id).await.ok()?;
 
         // Overrun: a /run ping opened a run that's been in flight longer
         // than config.max_run_seconds allows.
@@ -1979,7 +1950,8 @@ async fn push_heartbeat(monitor: &Monitor, pool: &DbPool) -> Option<Heartbeat> {
     }
 
     // Interval mode — the original dead-man's-switch contract, unchanged.
-    let last = rampart_db::monitors::fetch_last_push_at(pool, monitor.id)
+    let last = store
+        .fetch_monitor_last_push_at(monitor.id)
         .await
         .ok()
         .flatten();
