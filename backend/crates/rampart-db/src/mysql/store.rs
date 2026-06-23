@@ -735,13 +735,12 @@ impl StoreMaintenance for MysqlStore {
         crate::mysql::maintenance::mark_notified_end(&self.pool, id).await
     }
 
-    // DEFERRED: both couple to the not-yet-ported status_pages tables
-    // (status_page_subscribers / status_page_monitors).
     async fn confirmed_subscriber_emails_for_monitors(
         &self,
         monitors: &[MonitorId],
     ) -> DbResult<Vec<String>> {
-        unimplemented!("MysqlStore::confirmed_subscriber_emails_for_monitors: status_pages domain not yet ported (multi-DB P1)")
+        crate::mysql::maintenance::confirmed_subscriber_emails_for_monitors(&self.pool, monitors)
+            .await
     }
 
     async fn public_maintenance_for_status_page(
@@ -1348,63 +1347,53 @@ impl StoreSubscribers for MysqlStore {
         page: StatusPageId,
         email: &str,
     ) -> DbResult<(Subscriber, String)> {
-        unimplemented!(
-            "MysqlStore::subscribe_email: subscribers domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::subscribers::subscribe_email(&self.pool, page, email).await
     }
 
     async fn list_subscribers_for_page(&self, page: StatusPageId) -> DbResult<Vec<Subscriber>> {
-        unimplemented!("MysqlStore::list_subscribers_for_page: subscribers domain not yet ported (multi-DB P1)")
+        crate::mysql::subscribers::list_for_page(&self.pool, page).await
     }
 
     async fn confirmed_subscriber_emails_for_page(
         &self,
         page: StatusPageId,
     ) -> DbResult<Vec<String>> {
-        unimplemented!("MysqlStore::confirmed_subscriber_emails_for_page: subscribers domain not yet ported (multi-DB P1)")
+        crate::mysql::subscribers::confirmed_emails_for_page(&self.pool, page).await
     }
 
     async fn delete_subscriber(&self, id: StatusPageSubscriberId) -> DbResult<()> {
-        unimplemented!(
-            "MysqlStore::delete_subscriber: subscribers domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::subscribers::delete(&self.pool, id).await
     }
 
     async fn unsubscribe_subscriber_by_token(&self, token: &str) -> DbResult<()> {
-        unimplemented!("MysqlStore::unsubscribe_subscriber_by_token: subscribers domain not yet ported (multi-DB P1)")
+        crate::mysql::subscribers::unsubscribe_by_token(&self.pool, token).await
     }
 
     async fn subscriber_email_for_token(&self, token: &str) -> DbResult<Option<String>> {
-        unimplemented!("MysqlStore::subscriber_email_for_token: subscribers domain not yet ported (multi-DB P1)")
+        crate::mysql::subscribers::email_for_token(&self.pool, token).await
     }
 
     async fn subscriptions_for_email(&self, email: &str) -> DbResult<Vec<ManagedSubscription>> {
-        unimplemented!(
-            "MysqlStore::subscriptions_for_email: subscribers domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::subscribers::subscriptions_for_email(&self.pool, email).await
     }
 
     async fn unsubscribe_all_for_email(&self, email: &str) -> DbResult<u64> {
-        unimplemented!("MysqlStore::unsubscribe_all_for_email: subscribers domain not yet ported (multi-DB P1)")
+        crate::mysql::subscribers::unsubscribe_all_for_email(&self.pool, email).await
     }
 
     async fn unsubscribe_email_from_page(&self, page: StatusPageId, email: &str) -> DbResult<()> {
-        unimplemented!("MysqlStore::unsubscribe_email_from_page: subscribers domain not yet ported (multi-DB P1)")
+        crate::mysql::subscribers::unsubscribe_email_from_page(&self.pool, page, email).await
     }
 
     async fn subscriber_page_for(
         &self,
         id: StatusPageSubscriberId,
     ) -> DbResult<Option<StatusPageId>> {
-        unimplemented!(
-            "MysqlStore::subscriber_page_for: subscribers domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::subscribers::page_for(&self.pool, id).await
     }
 
     async fn subscriber_token_for(&self, id: Uuid) -> DbResult<Option<String>> {
-        unimplemented!(
-            "MysqlStore::subscriber_token_for: subscribers domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::subscribers::token_for(&self.pool, id).await
     }
 }
 

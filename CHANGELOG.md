@@ -29,6 +29,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.64] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `subscribers` domain** (status-page email
+  subscribers). `migrations-mysql/0030_subscribers.sql` (status_page_subscribers
+  table) + `mysql/subscribers.rs` un-stubs `StoreSubscribers` (11 methods:
+  subscribe_email / list_for_page / confirmed_emails_for_page / delete /
+  unsubscribe_by_token / email_for_token / subscriptions_for_email /
+  unsubscribe_all_for_email / unsubscribe_email_from_page / page_for /
+  token_for) and adds `maintenance::confirmed_subscriber_emails_for_monitors`
+  (un-stubbing `StoreMaintenance::confirmed_subscriber_emails_for_monitors`,
+  which joins subscribers↔page-monitors). Single-opt-in (rows land confirmed),
+  page-scoped tenanting; subscribe is idempotent SELECT-then-INSERT;
+  `lower(x)=lower(?)` ports verbatim. +1 `#[sqlx::test]` (idempotent
+  case-insensitive subscribe, multi-page manage view, token round-trips,
+  per-page + all unsubscribe, NotFound paths, monitor→subscriber reach) green
+  on MariaDB. PG + SQLite untouched.
+
 ## [0.156.63] — 2026-06-23
 
 ### Added
