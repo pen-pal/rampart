@@ -29,6 +29,25 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.46] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `slos` domain** (service level objectives + budget
+  evaluation): list / list_all / get / get_unscoped / create / update / delete /
+  compute / trend / list_with_snapshots / evaluate_tick +
+  `migrations-mysql/0016_slos.sql`. The budget state machine (`snapshot`,
+  `slo_transition`) is pure rampart_core reused verbatim; Monitor-SLI ratios run
+  over the ported heartbeats, Metric-SLI ratios over the ported metric_samples.
+  MySQL deltas: jsonb `labels @> matcher` containment → one bound
+  `JSON_UNQUOTE(JSON_EXTRACT(labels, ?)) = ? COLLATE utf8mb4_bin` per key
+  (JSON_EXTRACT returns a quoted scalar → unquote; bin collation = exact match
+  like SQLite); `CAST(… AS REAL)` (invalid in MySQL) → `* 1e0` to force DOUBLE;
+  `date_bin` → `(ts - since) DIV step`; `SUM(CASE…)` → `CAST(… AS SIGNED)` where
+  decoded i64. `update` drops the `rows_affected()` gate (changed-vs-matched).
+  +2 `#[sqlx::test]` (monitor SLO compute+fire+no-op-update + metric SLO
+  containment with a decoy-label row excluded → exact 90%) green on MariaDB.
+  PG + SQLite untouched.
+
 ## [0.156.45] — 2026-06-23
 
 ### Added
