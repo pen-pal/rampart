@@ -124,7 +124,6 @@ nav:
       - Dependencies: DEPENDENCIES.md
       - SIEM / syslog export: design/SIEM.md
       - Security debt: SECURITY-DEBT.md
-      - Security-review agent: SECURITY-REVIEW-AGENT.md
       - Releasing: RELEASING.md
       - Maintainers: MAINTAINERS.md
   - Project:
