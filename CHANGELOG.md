@@ -29,6 +29,25 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.44] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `traces` domain** (span storage + trace assembly;
+  telemetry foundation 2/2): insert_spans / list_traces / get_trace_spans /
+  service_map / operation_stats / operation_trend / prune +
+  `migrations-mysql/0014_traces.sql`. MySQL has no `percentile_cont`/`LATERAL`/
+  `ARRAY_AGG`, so the four analytic reads fetch span rows and aggregate in Rust
+  — incl. a continuous percentile (`p_cont`) matching PG's `percentile_cont`,
+  per-trace assembly replacing LATERAL+ARRAY_AGG, list_traces caps the fetch at
+  100k spans (identical to SQLite). **`ON CONFLICT(span_id) DO NOTHING` → `INSERT
+  IGNORE`** (not `ON DUPLICATE KEY UPDATE col=col`): a duplicate span_id
+  contributes 0 to `rows_affected` so the inserted-count stays exact — the
+  no-op-UPDATE form returns 1/matched on MariaDB and over-counts retransmits.
+  `(received_at-origin)/step` bucket → `DIV`; SMALLINT kind/status decoded
+  directly as i16. +1 `#[sqlx::test]` (insert+dedup, waterfall, list/errors/q
+  filters, service map p95, operation stats, trend, prune) green on MariaDB.
+  PG + SQLite untouched.
+
 ## [0.156.43] — 2026-06-23
 
 ### Added

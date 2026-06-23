@@ -37,6 +37,7 @@ pub mod scheduled_reports;
 pub mod sessions;
 pub mod settings;
 pub mod tags;
+pub mod traces;
 pub mod users;
 
 use rampart_core::ids::{OrgId, UserId};
