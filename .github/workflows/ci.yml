@@ -56,6 +56,28 @@ jobs:
       - name: Audit-coverage guard (RBAC mutations)
         run: bash ../scripts/check-audit-coverage.sh
 
+  # Multi-DB P1: the off-by-default `sqlite` backend (runtime-checked queries +
+  # a parallel migration set). No DB service — `#[sqlx::test]` spins a fresh
+  # per-test SQLite database. SQLX_OFFLINE so the PG `query!` cache is used for
+  # the rest of the crate without a live Postgres.
+  backend-sqlite:
+    name: backend · sqlite backend (multi-DB P1)
+    runs-on: ubuntu-latest
+    defaults:
+      run: { working-directory: backend }
+    env:
+      SQLX_OFFLINE: "1"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: clippy }
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: backend }
+      - name: clippy (sqlite feature)
+        run: cargo clippy -p rampart-db --features sqlite --all-targets -- -D warnings
+      - name: test (sqlite backend)
+        run: cargo test -p rampart-db --features sqlite --lib sqlite::
+
   backend-test:
     name: backend · cargo test --workspace
     runs-on: ubuntu-latest

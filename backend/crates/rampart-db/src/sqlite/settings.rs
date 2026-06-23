@@ -30,6 +30,15 @@ pub async fn put_setting(pool: &SqlitePool, key: &str, value: &serde_json::Value
     Ok(())
 }
 
+/// Delete a settings row (no-op if absent). Mirrors PG `settings::delete`.
+pub async fn delete_setting(pool: &SqlitePool, key: &str) -> DbResult<()> {
+    sqlx::query("DELETE FROM settings WHERE key = ?")
+        .bind(key)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
