@@ -29,6 +29,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.60] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `profiles` domain** (continuous-profiling tier).
+  `migrations-mysql/0027_profiles.sql` + 1 module, un-stubbing `StoreProfiles`
+  (insert / list / folded_in_window / fetch_folded / services / profile_types /
+  prune, all org-scoped). PG `BIGSERIAL` → `BIGINT AUTO_INCREMENT` (no RETURNING
+  → `LAST_INSERT_ID()`); `BYTEA folded` → `LONGBLOB`; `JSONB labels` → `LONGTEXT`
+  (serde round-trip); `now() - make_interval(hours=>?)` → Rust-computed cutoff;
+  optional service/type filters via the `(? IS NULL OR col = ?)` bind-twice form.
+  +1 `#[sqlx::test]` (insert/list scoped+miss, window-blob merge set, pickers,
+  single-fetch bytes, cross-org isolation, age-based prune) green on MariaDB.
+  PG + SQLite untouched.
+
 ## [0.156.59] — 2026-06-23
 
 ### Added
