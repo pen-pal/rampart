@@ -29,7 +29,25 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
-## [0.156.25] — 2026-06-23
+## [0.156.26] — 2026-06-23
+
+### Changed
+- **Multi-DB P1 seam-plumbing slice C: rampart-scheduler fully off `&DbPool`
+  onto the `Store` seam.** All 55 of the scheduler's own domain calls
+  (`rampart_db::<domain>::fn(&self.pool, …)` across the escalation tick, the
+  metric-rule / SLO / telemetry-rule / detection evaluation ticks, the
+  maintenance + scheduled-report + audit-chain periodic checks, the probe path
+  run_once / probe_once / probe_with_retries / push_heartbeat, and the writer
+  path flush / check_slo_breaches / fire_result_webhooks) now go through
+  `Arc<dyn Store>`. The `Scheduler` struct drops its `pool: DbPool` field
+  entirely — `store: Arc<dyn Store>` is the only DB handle; `new(pool)` builds a
+  PgStore from it, `with_notifier(store, notifier)` takes the store directly.
+  Probe tasks + the writer task + the per-heartbeat cert/webhook spawns own
+  `Arc<dyn Store>` clones. `with_notifier` lost its `pool` arg (main.rs updated).
+  Full-workspace `clippy --all-targets -D warnings` + fmt green; scheduler +
+  notifier unit tests pass. PG behavior identical. With this, scheduler +
+  notifier + siem all run on the seam — only seed/import + the residual api
+  pool() sites + the main.rs backend-select flip remain.
 
 ### Changed
 - **Multi-DB P1 seam-plumbing slice B2: rampart-notifier core off `&DbPool`
