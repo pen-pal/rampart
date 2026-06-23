@@ -29,6 +29,29 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.18] — 2026-06-23
+
+### Added
+- **Multi-DB P1 boot-wiring: SQLite `audit` domain (un-stubs `StoreAudit`).**
+  Eighth boot-wiring slice — the tamper-evident audit log.
+  `migrations-sqlite/0015_audit.sql` (global, no org_id; BIGSERIAL→INTEGER PK,
+  INET→TEXT, jsonb payload→TEXT, ts→INTEGER) + `sqlite::audit`: insert /
+  set_chain_watermark / verify_chain / security_insights / list / fetch_since /
+  export_batch. **The hash chain reuses `crate::audit::chain_hash` verbatim**
+  (promoted to `pub(crate)`) so insert and verify feed byte-identical inputs —
+  the chain is self-consistent within SQLite; IP is stored+hashed+displayed as
+  the plain address. PG-isms translated: `pg_advisory_xact_lock` dropped (a
+  SQLite write tx already serializes appends), `COUNT(*) FILTER`→`SUM(CASE …)`,
+  `make_interval(hours=>?)`→`unixepoch() - hours*3600`,
+  `date_trunc('hour')`→`(ts/3600)*3600`, `host(ip_addr)`/INET→TEXT. +1
+  `#[sqlx::test]` proving a clean 4-row chain verifies, security-insights
+  aggregates, list/fetch_since, **and tamper detection** (editing row 2 →
+  `first_bad_id = 2`). **Boot-wiring 8/9**; only the telemetry pair left
+  (detection + telemetry_rules, both needing logs+traces forked first).
+  Off-by-default `sqlite`; PG untouched.
+
+---
+
 ## [0.156.17] — 2026-06-23
 
 ### Added
