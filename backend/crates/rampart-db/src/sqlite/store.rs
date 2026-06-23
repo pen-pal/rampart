@@ -951,25 +951,19 @@ impl StoreTelemetryRules for SqliteStore {
 #[async_trait::async_trait]
 impl StoreMetricRules for SqliteStore {
     async fn list_metric_rules(&self, org_id: OrgId) -> DbResult<Vec<MetricRule>> {
-        unimplemented!(
-            "SqliteStore::list_metric_rules: metric_rules domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::metric_rules::list(&self.pool, org_id).await
     }
 
     async fn list_all_metric_rules(&self) -> DbResult<Vec<MetricRule>> {
-        unimplemented!(
-            "SqliteStore::list_all_metric_rules: metric_rules domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::metric_rules::list_all(&self.pool).await
     }
 
     async fn get_metric_rule(&self, id: MetricRuleId, org_id: OrgId) -> DbResult<MetricRule> {
-        unimplemented!(
-            "SqliteStore::get_metric_rule: metric_rules domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::metric_rules::get(&self.pool, id, org_id).await
     }
 
     async fn get_metric_rule_unscoped(&self, id: MetricRuleId) -> DbResult<MetricRule> {
-        unimplemented!("SqliteStore::get_metric_rule_unscoped: metric_rules domain not yet ported (multi-DB P1)")
+        crate::sqlite::metric_rules::get_unscoped(&self.pool, id).await
     }
 
     async fn create_metric_rule(
@@ -977,9 +971,7 @@ impl StoreMetricRules for SqliteStore {
         input: NewMetricRule,
         org_id: OrgId,
     ) -> DbResult<MetricRule> {
-        unimplemented!(
-            "SqliteStore::create_metric_rule: metric_rules domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::metric_rules::create(&self.pool, input, org_id).await
     }
 
     async fn update_metric_rule(
@@ -988,19 +980,15 @@ impl StoreMetricRules for SqliteStore {
         patch: UpdateMetricRule,
         org_id: OrgId,
     ) -> DbResult<MetricRule> {
-        unimplemented!(
-            "SqliteStore::update_metric_rule: metric_rules domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::metric_rules::update(&self.pool, id, patch, org_id).await
     }
 
     async fn delete_metric_rule(&self, id: MetricRuleId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!(
-            "SqliteStore::delete_metric_rule: metric_rules domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::metric_rules::delete(&self.pool, id, org_id).await
     }
 
     async fn evaluate_metric_rules_tick(&self) -> DbResult<Vec<MetricRuleEvent>> {
-        unimplemented!("SqliteStore::evaluate_metric_rules_tick: metric_rules domain not yet ported (multi-DB P1)")
+        crate::sqlite::metric_rules::evaluate_tick(&self.pool).await
     }
 }
 
