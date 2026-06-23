@@ -188,19 +188,7 @@ pub async fn list_for_monitor(pool: &SqlitePool, monitor: MonitorId) -> DbResult
     Ok(rows.iter().map(brief_from).collect())
 }
 
-/// `IN (?,?,…)` placeholder list for a slice of length `n` (n >= 1). The count
-/// comes from the slice, the values are bound — no value is ever interpolated,
-/// so this is injection-safe despite building the SQL string.
-fn in_placeholders(n: usize) -> String {
-    let mut s = String::with_capacity(n * 2);
-    for i in 0..n {
-        if i > 0 {
-            s.push(',');
-        }
-        s.push('?');
-    }
-    s
-}
+use super::in_placeholders;
 
 pub async fn hydrate_for_channels(
     pool: &SqlitePool,

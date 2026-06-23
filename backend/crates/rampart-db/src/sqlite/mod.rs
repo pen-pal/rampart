@@ -40,6 +40,21 @@ pub mod settings;
 pub mod tags;
 pub mod users;
 
+/// `IN (?,?,…)` placeholder list of length `n` (n >= 1). The count comes from
+/// the slice; values are always `.bind()`-ed, never interpolated — so the
+/// `AssertSqlSafe`-wrapped SQL it feeds stays injection-safe. Shared by the
+/// batch helpers in `tags`/`heartbeats`.
+pub(crate) fn in_placeholders(n: usize) -> String {
+    let mut s = String::with_capacity(n * 2);
+    for i in 0..n {
+        if i > 0 {
+            s.push(',');
+        }
+        s.push('?');
+    }
+    s
+}
+
 /// The Default org's id (seeded by `migrations-sqlite/0002_identity.sql`), as a
 /// string for binding. Mirrors `rampart_core::org::DEFAULT_ORG_ID`.
 pub(crate) fn default_org_id_str() -> String {

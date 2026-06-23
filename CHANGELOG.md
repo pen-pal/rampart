@@ -29,6 +29,33 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.9] — 2026-06-23
+
+### Added
+- **Multi-DB P1: SQLite monitor `bulk_edit` + the full heartbeat analytic
+  surface.** Closes the last deferred items inside the built SQLite domains.
+  `sqlite::monitors`: `bulk_edit` / `bulk_edit_preview` (one transaction,
+  all-or-nothing; unknown/cross-org ids skipped+counted; scalar columns COALESCE,
+  group/tags only on explicit supply; pre-edit `priors` returned for an inverse
+  undo — SQLite has no `FOR UPDATE` but a write tx serializes the DB).
+  `sqlite::heartbeats`: the history feeds (`recent_for_monitor_before`,
+  `range_for_monitor`, `recent_per_monitor`) and every analytic —
+  `current_slo_uptime_pct`, `avg_latency_ms`, `daily_status`, `day_hourly_latency`,
+  `monthly_uptime`, `summary_window`, `mtbf_mttr`, `error_budget`,
+  `error_budget_burndown`, and the four batch rollups (`uptime_pct_batch`,
+  `avg_latency_ms_batch`, `daily_status_batch`, `monthly_uptime_batch`).
+  PG-isms are translated for SQLite: `COUNT(*) FILTER`→`SUM(CASE)`,
+  `BOOL_OR`→`MAX(CASE)`, `date_trunc('day')`→the `ts/86400` whole-day bucket,
+  `date_trunc('month')`/`EXTRACT(HOUR)`→`strftime`, `ARRAY_AGG(…ORDER BY)[1]`→a
+  `ROW_NUMBER()` window merged in Rust, `= ANY`→a bound `IN(?,…)`. The MTBF/MTTR
+  + error-budget timeline walks reuse PG's exact ascending-ts Rust logic. +2
+  `#[sqlx::test]` (analytics walk/aggregate math + batch mirrors; bulk_edit apply/
+  preview/undo-priors/cross-org). **SQLite monitors + heartbeats now feature-
+  complete vs PG; 28 sqlite tests.** Off-by-default `sqlite` feature; PG build
+  untouched.
+
+---
+
 ## [0.156.8] — 2026-06-23
 
 ### Added
