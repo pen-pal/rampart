@@ -2395,11 +2395,11 @@ impl StoreAgents for SqliteStore {
 #[async_trait::async_trait]
 impl StoreMetricSamples for SqliteStore {
     async fn insert_metric_samples(&self, samples: &[PromSample], org_id: OrgId) -> DbResult<()> {
-        unimplemented!("SqliteStore::insert_metric_samples: metric_samples domain not yet ported (multi-DB P1)")
+        crate::sqlite::metric_samples::insert_many(&self.pool, samples, org_id).await
     }
 
     async fn list_metric_sample_series(&self, org_id: OrgId) -> DbResult<Vec<Series>> {
-        unimplemented!("SqliteStore::list_metric_sample_series: metric_samples domain not yet ported (multi-DB P1)")
+        crate::sqlite::metric_samples::list_series(&self.pool, org_id).await
     }
 
     async fn metric_sample_range_query(
@@ -2411,7 +2411,16 @@ impl StoreMetricSamples for SqliteStore {
         step_seconds: i64,
         org_id: OrgId,
     ) -> DbResult<Vec<RangePoint>> {
-        unimplemented!("SqliteStore::metric_sample_range_query: metric_samples domain not yet ported (multi-DB P1)")
+        crate::sqlite::metric_samples::range_query(
+            &self.pool,
+            name,
+            labels,
+            from,
+            to,
+            step_seconds,
+            org_id,
+        )
+        .await
     }
 
     async fn metric_sample_baseline(
@@ -2421,7 +2430,7 @@ impl StoreMetricSamples for SqliteStore {
         window_secs: i64,
         org_id: OrgId,
     ) -> DbResult<Option<(f64, f64)>> {
-        unimplemented!("SqliteStore::metric_sample_baseline: metric_samples domain not yet ported (multi-DB P1)")
+        crate::sqlite::metric_samples::baseline(&self.pool, name, labels, window_secs, org_id).await
     }
 
     async fn metric_sample_latest(
@@ -2430,13 +2439,11 @@ impl StoreMetricSamples for SqliteStore {
         labels: &serde_json::Value,
         org_id: OrgId,
     ) -> DbResult<Option<(f64, OffsetDateTime)>> {
-        unimplemented!(
-            "SqliteStore::metric_sample_latest: metric_samples domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::metric_samples::latest(&self.pool, name, labels, org_id).await
     }
 
     async fn prune_metric_samples_older_than(&self, cutoff: OffsetDateTime) -> DbResult<u64> {
-        unimplemented!("SqliteStore::prune_metric_samples_older_than: metric_samples domain not yet ported (multi-DB P1)")
+        crate::sqlite::metric_samples::prune_older_than(&self.pool, cutoff).await
     }
 }
 
