@@ -193,9 +193,15 @@ async fn main() -> anyhow::Result<()> {
     // The HTTP API below runs on every replica regardless.
     let leadership = rampart_db::leader::spawn(database_url.clone());
 
+    // Object-safe `Store` seam (multi-DB P1 seam-plumbing). Built once from the
+    // pool (no I/O) and shared by the notifier, scheduler, and SIEM loops so
+    // they run against the seam rather than the concrete pool.
+    let store: std::sync::Arc<dyn rampart_db::store::Store> =
+        std::sync::Arc::new(rampart_db::store::PgStore::new(pool.clone()));
+
     // Bring up the notifier service first so the scheduler can hand
     // events to it as soon as a monitor flips status.
-    let (notifier_service, notifier_handle) = rampart_notifier::NotifierService::new(pool.clone());
+    let (notifier_service, notifier_handle) = rampart_notifier::NotifierService::new(store.clone());
     let notifier_leadership = leadership.clone();
     tokio::spawn(async move {
         notifier_service.run(notifier_leadership).await;
@@ -208,6 +214,7 @@ async fn main() -> anyhow::Result<()> {
     // monitor mutations.
     let scheduler = std::sync::Arc::new(rampart_scheduler::Scheduler::with_notifier(
         pool.clone(),
+        store.clone(),
         Some(notifier_handle.clone()),
     ));
     let reload_handle = scheduler.reload_handle();
@@ -236,11 +243,8 @@ async fn main() -> anyhow::Result<()> {
 
     // SIEM / syslog export — leader-gated forward tail of the audit log to an
     // external sink (configured in settings; disabled by default).
-    // The SIEM loop runs entirely through the object-safe `Store` seam (multi-DB
-    // P1 seam-plumbing), so it works against any backend; build the store from
-    // the same pool (no I/O).
-    let siem_store: std::sync::Arc<dyn rampart_db::store::Store> =
-        std::sync::Arc::new(rampart_db::store::PgStore::new(pool.clone()));
+    // The SIEM loop runs entirely through the object-safe `Store` seam.
+    let siem_store = store.clone();
     let siem_leadership = leadership.clone();
     tokio::spawn(async move {
         rampart_notifier::siem::run_loop(

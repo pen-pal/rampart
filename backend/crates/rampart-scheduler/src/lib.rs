@@ -27,6 +27,7 @@
 use rampart_checker::Probes;
 use rampart_core::monitor::BackoffStrategy;
 use rampart_core::{Heartbeat, Monitor, MonitorId, MonitorKind, MonitorStatus, RetryBackoff};
+use rampart_db::store::Store;
 use rampart_db::DbPool;
 use rampart_notifier::{Event, EventKind, NotifierHandle};
 use std::collections::HashMap;
@@ -67,6 +68,10 @@ const HEARTBEAT_BROADCAST_DEPTH: usize = 256;
 
 pub struct Scheduler {
     pool: DbPool,
+    /// Object-safe `Store` seam — used for the cross-crate notifier calls
+    /// (multi-DB P1 seam-plumbing slice B2). The scheduler's OWN domain reads
+    /// still go through `pool` directly until slice C migrates them.
+    store: Arc<dyn Store>,
     probes: Arc<Probes>,
     /// Map from MonitorId → handle of its probe task.
     tasks: Arc<RwLock<HashMap<MonitorId, MonitorTask>>>,
@@ -98,10 +103,15 @@ impl Scheduler {
     /// Construct and immediately spawn the writer task. Call
     /// [`Scheduler::run`] afterward to kick off the reload loop.
     pub fn new(pool: DbPool) -> Self {
-        Self::with_notifier(pool, None)
+        let store: Arc<dyn Store> = Arc::new(rampart_db::store::PgStore::new(pool.clone()));
+        Self::with_notifier(pool, store, None)
     }
 
-    pub fn with_notifier(pool: DbPool, notifier: Option<NotifierHandle>) -> Self {
+    pub fn with_notifier(
+        pool: DbPool,
+        store: Arc<dyn Store>,
+        notifier: Option<NotifierHandle>,
+    ) -> Self {
         let (hb_tx, hb_rx) = mpsc::channel::<Heartbeat>(HEARTBEAT_CHANNEL_BUFFER);
         let (hb_broadcast, _) = broadcast::channel::<Heartbeat>(HEARTBEAT_BROADCAST_DEPTH);
         let writer_pool = pool.clone();
@@ -113,6 +123,7 @@ impl Scheduler {
 
         Self {
             pool,
+            store,
             probes: Arc::new(Probes::new()),
             tasks: Arc::new(RwLock::new(HashMap::new())),
             hb_tx,
@@ -406,7 +417,7 @@ impl Scheduler {
                 continue;
             };
             rampart_notifier::service::fire_escalation_step(
-                &self.pool,
+                self.store.as_ref(),
                 &event,
                 &policy,
                 advanced.last_step as usize,
@@ -482,8 +493,12 @@ impl Scheduler {
                 slo_current_pct: None,
             };
             for ch in &ev.rule.channel_ids {
-                if let Err(e) =
-                    rampart_notifier::service::send_event_to_channel(&self.pool, *ch, &event).await
+                if let Err(e) = rampart_notifier::service::send_event_to_channel(
+                    self.store.as_ref(),
+                    *ch,
+                    &event,
+                )
+                .await
                 {
                     warn!(rule = %ev.rule.name, channel = %ch.0, error = %e,
                           "metric rule channel send failed (channel deleted?)");
@@ -569,8 +584,12 @@ impl Scheduler {
                 slo_current_pct: snap.achieved_pct,
             };
             for ch in &ev.slo.channel_ids {
-                if let Err(e) =
-                    rampart_notifier::service::send_event_to_channel(&self.pool, *ch, &event).await
+                if let Err(e) = rampart_notifier::service::send_event_to_channel(
+                    self.store.as_ref(),
+                    *ch,
+                    &event,
+                )
+                .await
                 {
                     warn!(slo = %ev.slo.name, channel = %ch.0, error = %e,
                           "SLO channel send failed (channel deleted?)");
@@ -661,8 +680,12 @@ impl Scheduler {
                 slo_current_pct: None,
             };
             for ch in &ev.rule.channel_ids {
-                if let Err(e) =
-                    rampart_notifier::service::send_event_to_channel(&self.pool, *ch, &event).await
+                if let Err(e) = rampart_notifier::service::send_event_to_channel(
+                    self.store.as_ref(),
+                    *ch,
+                    &event,
+                )
+                .await
                 {
                     warn!(rule = %ev.rule.name, channel = %ch.0, error = %e,
                           "telemetry rule channel send failed (channel deleted?)");
@@ -711,8 +734,13 @@ impl Scheduler {
             .await
             {
                 Ok(Some(_)) => {
-                    rampart_notifier::service::fire_escalation_step(&self.pool, event, &policy, 0)
-                        .await;
+                    rampart_notifier::service::fire_escalation_step(
+                        self.store.as_ref(),
+                        event,
+                        &policy,
+                        0,
+                    )
+                    .await;
                 }
                 Ok(None) => {} // already climbing
                 Err(e) => warn!(subject = subject_ref, error = %e, "escalation open failed"),
@@ -767,8 +795,12 @@ impl Scheduler {
                 slo_current_pct: None,
             };
             for ch in &ev.channel_ids {
-                if let Err(e) =
-                    rampart_notifier::service::send_event_to_channel(&self.pool, *ch, &event).await
+                if let Err(e) = rampart_notifier::service::send_event_to_channel(
+                    self.store.as_ref(),
+                    *ch,
+                    &event,
+                )
+                .await
                 {
                     warn!(rule = %f.rule_name, channel = %ch.0, error = %e,
                           "detection rule channel send failed (channel deleted?)");
@@ -792,7 +824,10 @@ impl Scheduler {
                     {
                         Ok(Some(_)) => {
                             rampart_notifier::service::fire_escalation_step(
-                                &self.pool, &event, &policy, 0,
+                                self.store.as_ref(),
+                                &event,
+                                &policy,
+                                0,
                             )
                             .await;
                         }
@@ -976,7 +1011,7 @@ impl Scheduler {
             };
 
             let sent = rampart_notifier::send_system_email(
-                &self.pool,
+                self.store.as_ref(),
                 &report.recipients,
                 &subject,
                 &body,
