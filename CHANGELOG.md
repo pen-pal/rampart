@@ -29,6 +29,22 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.71] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `metrics` domain** (the parameter-free `/metrics`
+  Prometheus exposition gauges). `mysql/metrics.rs` un-stubs all 9
+  `StoreMetrics` methods (monitors_by_status / monitors_by_kind /
+  channels_active / webpush_subscribers / heartbeats_recent_by_status /
+  incidents_open / pipeline_gauges / storage_usage / ingest_gauges) — no
+  migration (read-only over existing tables). `make_interval`→Rust cutoff; the
+  8-/3-subquery pipeline/ingest gauges port verbatim; `storage_usage` swaps PG's
+  `pg_total_relation_size`/`reltuples` for `information_schema.TABLES`
+  (`DATA_LENGTH+INDEX_LENGTH`, `TABLE_ROWS`) scoped to the connection's database.
+  +1 `#[sqlx::test]` (empty-DB zero/empty gauges incl. pipeline + ingest +
+  storage listing, then monitor/channel counts move) green on MariaDB. PG +
+  SQLite untouched.
+
 ## [0.156.70] — 2026-06-23
 
 ### Added

@@ -1856,48 +1856,42 @@ impl StoreProfiles for MysqlStore {
 #[async_trait::async_trait]
 impl StoreMetrics for MysqlStore {
     async fn monitors_by_status(&self) -> DbResult<Vec<(String, i64)>> {
-        unimplemented!(
-            "MysqlStore::monitors_by_status: metrics domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::metrics::monitors_by_status(&self.pool).await
     }
 
     async fn monitors_by_kind(&self) -> DbResult<Vec<(String, i64)>> {
-        unimplemented!("MysqlStore::monitors_by_kind: metrics domain not yet ported (multi-DB P1)")
+        crate::mysql::metrics::monitors_by_kind(&self.pool).await
     }
 
     async fn channels_active(&self) -> DbResult<i64> {
-        unimplemented!("MysqlStore::channels_active: metrics domain not yet ported (multi-DB P1)")
+        crate::mysql::metrics::channels_active(&self.pool).await
     }
 
     async fn webpush_subscribers(&self) -> DbResult<i64> {
-        unimplemented!(
-            "MysqlStore::webpush_subscribers: metrics domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::metrics::webpush_subscribers(&self.pool).await
     }
 
     async fn heartbeats_recent_by_status(
         &self,
         window_seconds: i64,
     ) -> DbResult<Vec<(String, i64)>> {
-        unimplemented!(
-            "MysqlStore::heartbeats_recent_by_status: metrics domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::metrics::heartbeats_recent_by_status(&self.pool, window_seconds).await
     }
 
     async fn incidents_open(&self) -> DbResult<i64> {
-        unimplemented!("MysqlStore::incidents_open: metrics domain not yet ported (multi-DB P1)")
+        crate::mysql::metrics::incidents_open(&self.pool).await
     }
 
     async fn pipeline_gauges(&self) -> DbResult<PipelineGauges> {
-        unimplemented!("MysqlStore::pipeline_gauges: metrics domain not yet ported (multi-DB P1)")
+        crate::mysql::metrics::pipeline_gauges(&self.pool).await
     }
 
     async fn storage_usage(&self) -> DbResult<Vec<TableSize>> {
-        unimplemented!("MysqlStore::storage_usage: metrics domain not yet ported (multi-DB P1)")
+        crate::mysql::metrics::storage_usage(&self.pool).await
     }
 
     async fn ingest_gauges(&self) -> DbResult<IngestGauges> {
-        unimplemented!("MysqlStore::ingest_gauges: metrics domain not yet ported (multi-DB P1)")
+        crate::mysql::metrics::ingest_gauges(&self.pool).await
     }
 }
 
