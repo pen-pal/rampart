@@ -29,6 +29,7 @@
 //! - `?` placeholders; JSON as TEXT; `ON CONFLICT … DO UPDATE SET col =
 //!   excluded.col`; the `user_role` enum as a CHECK'd TEXT column.
 
+pub mod agents;
 pub mod heartbeats;
 pub mod monitors;
 pub mod orgs;
