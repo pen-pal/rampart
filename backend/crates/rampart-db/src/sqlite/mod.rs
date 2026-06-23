@@ -37,6 +37,7 @@ pub mod notifications;
 pub mod orgs;
 pub mod sessions;
 pub mod settings;
+pub mod store;
 pub mod tags;
 pub mod users;
 
