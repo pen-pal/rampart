@@ -29,6 +29,28 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.4] — 2026-06-23
+
+### Added
+- **Multi-DB P1: SQLite `monitors` + `heartbeats` (core monitoring entity).**
+  `migrations-sqlite/0004_monitors.sql` (the wide monitors table + heartbeats
+  time-series, forked from PG: 40+ cols, `monitor_kind`/`monitor_status` enums →
+  TEXT, `int[] accepted_statuses` → JSON TEXT, jsonb → TEXT, `numeric
+  slo_target_pct` → REAL, timestamps → INTEGER `unixepoch`). `sqlite::monitors`
+  core CRUD — create / get / get_unscoped / list / list_all / delete /
+  set_active / set_status (wide row read via the `sqlx::Row` get-by-name API;
+  enums round-tripped through serde, not a 40-arm match). `sqlite::heartbeats` —
+  `insert_many` (per-row in a tx; no UNNEST), `recent_for_monitor`, and
+  `uptime_pct` (COUNT-ratio). 2 `#[sqlx::test]` pass incl cross-org isolation +
+  uptime math + `(monitor_id, ts)` idempotency. DEFERRED (heavier /
+  dialect-divergent): monitor update/bulk_edit/push/SLO/cert/agent/tag-ops + tag
+  hydration, and the heartbeat analytic aggregations (percentile/window/
+  error-budget — need app-side compute). Off-by-default `sqlite` feature; PG
+  build untouched. **6 SQLite domains now: settings, orgs, users, sessions,
+  monitors, heartbeats (14 tests).**
+
+---
+
 ## [0.156.3] — 2026-06-23
 
 ### Added

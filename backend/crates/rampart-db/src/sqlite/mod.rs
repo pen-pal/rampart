@@ -29,6 +29,8 @@
 //! - `?` placeholders; JSON as TEXT; `ON CONFLICT … DO UPDATE SET col =
 //!   excluded.col`; the `user_role` enum as a CHECK'd TEXT column.
 
+pub mod heartbeats;
+pub mod monitors;
 pub mod orgs;
 pub mod sessions;
 pub mod settings;
@@ -85,4 +87,33 @@ pub(crate) fn uid(s: &str) -> UserId {
 /// Parse a TEXT uuid column into a raw `Uuid` (session ids, active_org_id).
 pub(crate) fn raw_uuid(s: &str) -> Uuid {
     Uuid::parse_str(s).unwrap_or(Uuid::nil())
+}
+
+/// Parse a TEXT uuid column into a `MonitorId`.
+pub(crate) fn mid(s: &str) -> rampart_core::ids::MonitorId {
+    rampart_core::ids::MonitorId::from_uuid(raw_uuid(s))
+}
+
+/// `MonitorKind`/`MonitorStatus` ↔ their TEXT form. The enums carry serde
+/// `rename_all` (snake_case / lowercase) matching the PG enum labels, so we
+/// round-trip through serde instead of hand-writing a 40-arm match.
+pub(crate) fn kind_str(k: rampart_core::monitor::MonitorKind) -> String {
+    serde_json::to_value(k)
+        .ok()
+        .and_then(|v| v.as_str().map(String::from))
+        .unwrap_or_else(|| "http".into())
+}
+pub(crate) fn kind_from(s: &str) -> rampart_core::monitor::MonitorKind {
+    serde_json::from_value(serde_json::Value::String(s.to_string()))
+        .unwrap_or(rampart_core::monitor::MonitorKind::Http)
+}
+pub(crate) fn mstatus_str(s: rampart_core::monitor::MonitorStatus) -> String {
+    serde_json::to_value(s)
+        .ok()
+        .and_then(|v| v.as_str().map(String::from))
+        .unwrap_or_else(|| "pending".into())
+}
+pub(crate) fn mstatus_from(s: &str) -> rampart_core::monitor::MonitorStatus {
+    serde_json::from_value(serde_json::Value::String(s.to_string()))
+        .unwrap_or(rampart_core::monitor::MonitorStatus::Pending)
 }
