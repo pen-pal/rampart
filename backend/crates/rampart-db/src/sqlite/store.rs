@@ -355,49 +355,47 @@ impl StoreIngestKeys for SqliteStore {
 #[async_trait::async_trait]
 impl StoreSlos for SqliteStore {
     async fn list_slos(&self, org_id: OrgId) -> DbResult<Vec<Slo>> {
-        unimplemented!("SqliteStore::list_slos: slos domain not yet ported (multi-DB P1)")
+        crate::sqlite::slos::list(&self.pool, org_id).await
     }
 
     async fn list_all_slos(&self) -> DbResult<Vec<Slo>> {
-        unimplemented!("SqliteStore::list_all_slos: slos domain not yet ported (multi-DB P1)")
+        crate::sqlite::slos::list_all(&self.pool).await
     }
 
     async fn get_slo(&self, id: SloId, org_id: OrgId) -> DbResult<Slo> {
-        unimplemented!("SqliteStore::get_slo: slos domain not yet ported (multi-DB P1)")
+        crate::sqlite::slos::get(&self.pool, id, org_id).await
     }
 
     async fn get_slo_unscoped(&self, id: SloId) -> DbResult<Slo> {
-        unimplemented!("SqliteStore::get_slo_unscoped: slos domain not yet ported (multi-DB P1)")
+        crate::sqlite::slos::get_unscoped(&self.pool, id).await
     }
 
     async fn create_slo(&self, input: NewSlo, org_id: OrgId) -> DbResult<Slo> {
-        unimplemented!("SqliteStore::create_slo: slos domain not yet ported (multi-DB P1)")
+        crate::sqlite::slos::create(&self.pool, input, org_id).await
     }
 
     async fn update_slo(&self, id: SloId, patch: UpdateSlo, org_id: OrgId) -> DbResult<Slo> {
-        unimplemented!("SqliteStore::update_slo: slos domain not yet ported (multi-DB P1)")
+        crate::sqlite::slos::update(&self.pool, id, patch, org_id).await
     }
 
     async fn delete_slo(&self, id: SloId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!("SqliteStore::delete_slo: slos domain not yet ported (multi-DB P1)")
+        crate::sqlite::slos::delete(&self.pool, id, org_id).await
     }
 
     async fn compute_slo(&self, slo: &Slo) -> DbResult<SloSnapshot> {
-        unimplemented!("SqliteStore::compute_slo: slos domain not yet ported (multi-DB P1)")
+        crate::sqlite::slos::compute(&self.pool, slo).await
     }
 
     async fn slo_trend(&self, slo: &Slo, buckets: i64) -> DbResult<Vec<f64>> {
-        unimplemented!("SqliteStore::slo_trend: slos domain not yet ported (multi-DB P1)")
+        crate::sqlite::slos::trend(&self.pool, slo, buckets).await
     }
 
     async fn list_slos_with_snapshots(&self, org_id: OrgId) -> DbResult<Vec<SloWithSnapshot>> {
-        unimplemented!(
-            "SqliteStore::list_slos_with_snapshots: slos domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::slos::list_with_snapshots(&self.pool, org_id).await
     }
 
     async fn evaluate_slos_tick(&self) -> DbResult<Vec<SloEvent>> {
-        unimplemented!("SqliteStore::evaluate_slos_tick: slos domain not yet ported (multi-DB P1)")
+        crate::sqlite::slos::evaluate_tick(&self.pool).await
     }
 }
 
