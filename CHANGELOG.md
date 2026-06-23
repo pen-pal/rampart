@@ -29,6 +29,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.30] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — identity domain: `orgs` + the identity migration.**
+  `migrations-mysql/0002_identity.sql` forks the users / organizations /
+  org_members tenancy core (CHAR(36) uuids, BIGINT unix timestamps with
+  `DEFAULT (UNIX_TIMESTAMP())`, TINYINT bools, utf8mb4 case-insensitive UNIQUE
+  email, REGEXP slug CHECK, seeded Default org). `mysql::orgs` ports the full
+  free-fn surface (create / get / get_by_slug / update / list_for_user /
+  upsert_member / member_role / list_members(_detailed) / remove_member /
+  count_admins / create_with_owner). MySQL deltas vs SQLite: no `RETURNING` →
+  app-side UUID PK + INSERT-then-SELECT; `update` gates existence on a SELECT
+  first (MySQL UPDATE reports *changed* not *matched* rows, so a no-op rename
+  isn't a false NotFound); upsert is `ON DUPLICATE KEY UPDATE role = VALUES(role)`.
+  Shared dialect helpers (oid/uid/ts/role) added to `mysql::mod`. +5
+  `#[sqlx::test]` (run by the `backend-mysql` CI service). `users` domain next.
+  Off by default; PG + SQLite untouched.
+
 ## [0.156.29] — 2026-06-23
 
 ### Added
