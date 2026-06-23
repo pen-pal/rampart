@@ -1830,6 +1830,30 @@ pub trait StoreCompliance: Send + Sync {
     async fn access_review(&self) -> DbResult<Vec<crate::access_review::AccessReviewRow>>;
 }
 
+/// One method per `crate::digest_buffer` free fn — the notifier's durable
+/// per-channel digest buffer (coalesce events into one windowed message). The
+/// `_digest(s)` suffix avoids collisions with the generic verb names.
+#[async_trait::async_trait]
+pub trait StoreDigestBuffer: Send + Sync {
+    async fn enqueue_digest(
+        &self,
+        notification_id: NotificationId,
+        event_json: &serde_json::Value,
+    ) -> DbResult<()>;
+
+    async fn drain_due_digests(
+        &self,
+        now: OffsetDateTime,
+    ) -> DbResult<Vec<crate::digest_buffer::DueChannel>>;
+
+    async fn take_digest_for_channel(
+        &self,
+        notification_id: NotificationId,
+    ) -> DbResult<Vec<crate::digest_buffer::BufferedEvent>>;
+
+    async fn delete_digest_by_ids(&self, ids: &[Uuid]) -> DbResult<()>;
+}
+
 /// Composed store super-trait spanning every extracted domain sub-trait.
 pub trait Store:
     StoreHeartbeats
@@ -1878,6 +1902,7 @@ pub trait Store:
     + StoreAudit
     + StoreMonitors
     + StoreCompliance
+    + StoreDigestBuffer
     + Send
     + Sync
 {
@@ -4422,6 +4447,35 @@ impl StoreAudit for PgStore {
 impl StoreCompliance for PgStore {
     async fn access_review(&self) -> DbResult<Vec<crate::access_review::AccessReviewRow>> {
         crate::access_review::list(&self.pool).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreDigestBuffer for PgStore {
+    async fn enqueue_digest(
+        &self,
+        notification_id: NotificationId,
+        event_json: &serde_json::Value,
+    ) -> DbResult<()> {
+        crate::digest_buffer::enqueue(&self.pool, notification_id, event_json).await
+    }
+
+    async fn drain_due_digests(
+        &self,
+        now: OffsetDateTime,
+    ) -> DbResult<Vec<crate::digest_buffer::DueChannel>> {
+        crate::digest_buffer::drain_due(&self.pool, now).await
+    }
+
+    async fn take_digest_for_channel(
+        &self,
+        notification_id: NotificationId,
+    ) -> DbResult<Vec<crate::digest_buffer::BufferedEvent>> {
+        crate::digest_buffer::take_for_channel(&self.pool, notification_id).await
+    }
+
+    async fn delete_digest_by_ids(&self, ids: &[Uuid]) -> DbResult<()> {
+        crate::digest_buffer::delete_by_ids(&self.pool, ids).await
     }
 }
 
