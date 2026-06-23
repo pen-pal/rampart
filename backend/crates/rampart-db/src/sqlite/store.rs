@@ -2196,7 +2196,7 @@ impl StoreErrorTracking for SqliteStore {
 #[async_trait::async_trait]
 impl StoreScheduledReports for SqliteStore {
     async fn list_scheduled_reports(&self, org_id: OrgId) -> DbResult<Vec<ScheduledReport>> {
-        unimplemented!("SqliteStore::list_scheduled_reports: scheduled_reports domain not yet ported (multi-DB P1)")
+        crate::sqlite::scheduled_reports::list(&self.pool, org_id).await
     }
 
     async fn get_scheduled_report(
@@ -2204,7 +2204,7 @@ impl StoreScheduledReports for SqliteStore {
         id: ScheduledReportId,
         org_id: OrgId,
     ) -> DbResult<ScheduledReport> {
-        unimplemented!("SqliteStore::get_scheduled_report: scheduled_reports domain not yet ported (multi-DB P1)")
+        crate::sqlite::scheduled_reports::get(&self.pool, id, org_id).await
     }
 
     async fn create_scheduled_report(
@@ -2212,7 +2212,7 @@ impl StoreScheduledReports for SqliteStore {
         input: NewScheduledReport,
         org_id: OrgId,
     ) -> DbResult<ScheduledReport> {
-        unimplemented!("SqliteStore::create_scheduled_report: scheduled_reports domain not yet ported (multi-DB P1)")
+        crate::sqlite::scheduled_reports::create(&self.pool, input, org_id).await
     }
 
     async fn update_scheduled_report(
@@ -2221,15 +2221,15 @@ impl StoreScheduledReports for SqliteStore {
         input: UpdateScheduledReport,
         org_id: OrgId,
     ) -> DbResult<ScheduledReport> {
-        unimplemented!("SqliteStore::update_scheduled_report: scheduled_reports domain not yet ported (multi-DB P1)")
+        crate::sqlite::scheduled_reports::update(&self.pool, id, input, org_id).await
     }
 
     async fn delete_scheduled_report(&self, id: ScheduledReportId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!("SqliteStore::delete_scheduled_report: scheduled_reports domain not yet ported (multi-DB P1)")
+        crate::sqlite::scheduled_reports::delete(&self.pool, id, org_id).await
     }
 
     async fn due_scheduled_reports(&self, now: OffsetDateTime) -> DbResult<Vec<ScheduledReport>> {
-        unimplemented!("SqliteStore::due_scheduled_reports: scheduled_reports domain not yet ported (multi-DB P1)")
+        crate::sqlite::scheduled_reports::due(&self.pool, now).await
     }
 
     async fn render_scheduled_report(
@@ -2237,11 +2237,11 @@ impl StoreScheduledReports for SqliteStore {
         report_name: &str,
         cadence: &str,
     ) -> DbResult<(String, String)> {
-        unimplemented!("SqliteStore::render_scheduled_report: scheduled_reports domain not yet ported (multi-DB P1)")
+        crate::sqlite::scheduled_reports::render(&self.pool, report_name, cadence).await
     }
 
     async fn mark_scheduled_report_sent(&self, id: ScheduledReportId) -> DbResult<()> {
-        unimplemented!("SqliteStore::mark_scheduled_report_sent: scheduled_reports domain not yet ported (multi-DB P1)")
+        crate::sqlite::scheduled_reports::mark_sent(&self.pool, id).await
     }
 }
 
