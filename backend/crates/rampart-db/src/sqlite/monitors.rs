@@ -1,20 +1,30 @@
-//! SQLite `monitors` domain — the core monitoring entity. Mirrors a CORE subset
-//! of the Postgres `crate::monitors` surface against SQLite:
-//! create / get / get_unscoped / list / list_all / delete / set_active /
-//! set_status. DEFERRED to later slices (heavier / dialect-divergent): update
-//! (wide COALESCE), bulk_edit (+tx), push-token + run lifecycle, SLO + cert
-//! info, agent assignment, tag-scoped ops, tag hydration (tags read back empty
-//! for now). The wide row is read via the `sqlx::Row` get-by-name API rather
-//! than a 40-field tuple.
+//! SQLite `monitors` domain — the core monitoring entity. Mirrors the Postgres
+//! `crate::monitors` surface against SQLite: CRUD (create / get / get_unscoped /
+//! list / list_all / delete / set_active / set_status), `update` (partial,
+//! COALESCE + per-field clears for the double-Option fields), `set_group`, the
+//! push-token + run lifecycle (regenerate_push_token / find_by_push_token /
+//! fetch_last_push_at / mark_run_started / close_run / push_state /
+//! bump_push_at), `set_cert_info`, the SLO state trio (slo_state /
+//! mark_slo_breached / clear_slo_breached), `list_for_agent`, and
+//! `public_fields_batch`. The wide row is read via the `sqlx::Row` get-by-name
+//! API rather than a 40-field tuple.
+//!
+//! STILL DEFERRED (need tables not yet on SQLite): `list_stale_agent_monitors`
+//! (agents), `set_active_by_tag` + `bulk_edit`/`bulk_edit_preview` + tag
+//! hydration on reads (tags/monitor_tags — `Monitor.tags` reads back empty).
 //!
 //! Dialect: enums → TEXT (serde round-trip), `int[] accepted_statuses` → JSON
 //! TEXT, jsonb → TEXT, timestamps → INTEGER unix-seconds, bools → INTEGER 0/1.
 
 use super::{kind_from, kind_str, mid, mstatus_from, mstatus_str, raw_uuid, ts};
+use crate::monitors::SloState;
 use crate::{DbError, DbResult};
 use rampart_core::ids::{AgentId, EscalationPolicyId, MonitorGroupId, MonitorId, OrgId, ProxyId};
-use rampart_core::monitor::{Monitor, MonitorStatus, NewMonitor};
+use rampart_core::monitor::{Monitor, MonitorStatus, NewMonitor, UpdateMonitor};
 use sqlx::{Row, SqlitePool};
+use std::collections::HashMap;
+use time::OffsetDateTime;
+use uuid::Uuid;
 
 fn monitor_from(r: &sqlx::sqlite::SqliteRow) -> Monitor {
     let opt_id = |col: &str| r.get::<Option<String>, _>(col);
@@ -182,6 +192,327 @@ pub async fn set_status(pool: &SqlitePool, id: MonitorId, status: MonitorStatus)
     Ok(())
 }
 
+/// Partial update — COALESCE for simple Options (omit → unchanged), plus a
+/// per-field UPDATE for the double-Option fields (`Some(None)` clears,
+/// `Some(Some)` sets, `None` leaves) so callers can distinguish unset from
+/// explicit-null. Mirrors the Postgres `update`. `kind` is not editable.
+pub async fn update(
+    pool: &SqlitePool,
+    id: MonitorId,
+    patch: UpdateMonitor,
+    org_id: OrgId,
+) -> DbResult<Monitor> {
+    let r = sqlx::query(
+        "UPDATE monitors SET
+            name                = COALESCE(?, name),
+            url                 = COALESCE(?, url),
+            hostname            = COALESCE(?, hostname),
+            port                = COALESCE(?, port),
+            config              = COALESCE(?, config),
+            interval_seconds    = COALESCE(?, interval_seconds),
+            timeout_seconds     = COALESCE(?, timeout_seconds),
+            max_retries         = COALESCE(?, max_retries),
+            retry_interval_sec  = COALESCE(?, retry_interval_sec),
+            resend_interval_sec = COALESCE(?, resend_interval_sec),
+            upside_down         = COALESCE(?, upside_down),
+            http_method         = COALESCE(?, http_method),
+            http_body           = COALESCE(?, http_body),
+            http_headers        = COALESCE(?, http_headers),
+            accepted_statuses   = COALESCE(?, accepted_statuses),
+            follow_redirect     = COALESCE(?, follow_redirect),
+            ignore_tls          = COALESCE(?, ignore_tls),
+            proxy_id            = COALESCE(?, proxy_id),
+            check_cert          = COALESCE(?, check_cert),
+            cert_expiry_days    = COALESCE(?, cert_expiry_days),
+            updated_at          = unixepoch()
+         WHERE id = ? AND org_id = ?",
+    )
+    .bind(patch.name)
+    .bind(patch.url)
+    .bind(patch.hostname)
+    .bind(patch.port)
+    .bind(patch.config.as_ref().map(|v| v.to_string()))
+    .bind(patch.interval_seconds)
+    .bind(patch.timeout_seconds)
+    .bind(patch.max_retries)
+    .bind(patch.retry_interval_sec)
+    .bind(patch.resend_interval_sec)
+    .bind(patch.upside_down.map(|b| b as i64))
+    .bind(patch.http_method)
+    .bind(patch.http_body)
+    .bind(patch.http_headers.as_ref().map(|v| v.to_string()))
+    .bind(
+        patch
+            .accepted_statuses
+            .as_ref()
+            .map(|v| serde_json::to_string(v).unwrap_or_else(|_| "[]".into())),
+    )
+    .bind(patch.follow_redirect.map(|b| b as i64))
+    .bind(patch.ignore_tls.map(|b| b as i64))
+    .bind(patch.proxy_id.map(|p| p.0.to_string()))
+    .bind(patch.check_cert.map(|b| b as i64))
+    .bind(patch.cert_expiry_days)
+    .bind(id.0.to_string())
+    .bind(org_id.0.to_string())
+    .execute(pool)
+    .await?;
+    if r.rows_affected() == 0 {
+        return Err(DbError::NotFound);
+    }
+
+    // Double-Option fields: only touch when the caller sent the key.
+    if let Some(g) = patch.group_id {
+        set_col_opt(pool, id, "group_id", g.map(|x| x.0.to_string())).await?;
+    }
+    if let Some(t) = patch.slo_target_pct {
+        sqlx::query("UPDATE monitors SET slo_target_pct = ? WHERE id = ?")
+            .bind(t)
+            .bind(id.0.to_string())
+            .execute(pool)
+            .await?;
+    }
+    if let Some(w) = patch.slo_window_days {
+        sqlx::query("UPDATE monitors SET slo_window_days = ? WHERE id = ?")
+            .bind(w)
+            .bind(id.0.to_string())
+            .execute(pool)
+            .await?;
+    }
+    if let Some(a) = patch.agent_id {
+        set_col_opt(pool, id, "agent_id", a.map(|x| x.0.to_string())).await?;
+    }
+    if let Some(e) = patch.escalation_policy_id {
+        set_col_opt(pool, id, "escalation_policy_id", e.map(|x| x.0.to_string())).await?;
+    }
+
+    get(pool, id, org_id).await
+}
+
+/// Set one of the FK-id TEXT columns to a value or NULL. `col` is a fixed
+/// internal literal (never user input), so the small dynamic SQL is safe.
+async fn set_col_opt(
+    pool: &SqlitePool,
+    id: MonitorId,
+    col: &'static str,
+    val: Option<String>,
+) -> DbResult<()> {
+    let sql = match col {
+        "group_id" => "UPDATE monitors SET group_id = ? WHERE id = ?",
+        "agent_id" => "UPDATE monitors SET agent_id = ? WHERE id = ?",
+        "escalation_policy_id" => "UPDATE monitors SET escalation_policy_id = ? WHERE id = ?",
+        _ => unreachable!("set_col_opt: unknown column {col}"),
+    };
+    sqlx::query(sql)
+        .bind(val)
+        .bind(id.0.to_string())
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn set_group(
+    pool: &SqlitePool,
+    id: MonitorId,
+    group: Option<MonitorGroupId>,
+    org_id: OrgId,
+) -> DbResult<()> {
+    let r = sqlx::query("UPDATE monitors SET group_id = ? WHERE id = ? AND org_id = ?")
+        .bind(group.map(|g| g.0.to_string()))
+        .bind(id.0.to_string())
+        .bind(org_id.0.to_string())
+        .execute(pool)
+        .await?;
+    if r.rows_affected() == 0 {
+        return Err(DbError::NotFound);
+    }
+    Ok(())
+}
+
+// ── push-token + run lifecycle ───────────────────────────────────────────────
+
+/// 24 url-safe chars of OS entropy (matches the Postgres token shape).
+fn generate_push_token() -> String {
+    use rand::Rng;
+    const ALPHA: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let mut rng = rand::thread_rng();
+    (0..24)
+        .map(|_| ALPHA[rng.gen_range(0..ALPHA.len())] as char)
+        .collect()
+}
+
+pub async fn regenerate_push_token(
+    pool: &SqlitePool,
+    id: MonitorId,
+    org_id: OrgId,
+) -> DbResult<String> {
+    let token = generate_push_token();
+    let r = sqlx::query(
+        "UPDATE monitors SET push_token = ?, updated_at = unixepoch()
+         WHERE id = ? AND kind = 'push' AND org_id = ?",
+    )
+    .bind(&token)
+    .bind(id.0.to_string())
+    .bind(org_id.0.to_string())
+    .execute(pool)
+    .await?;
+    if r.rows_affected() == 0 {
+        return Err(DbError::NotFound);
+    }
+    Ok(token)
+}
+
+pub async fn find_by_push_token(pool: &SqlitePool, token: &str) -> DbResult<Option<MonitorId>> {
+    let row: Option<(String,)> =
+        sqlx::query_as("SELECT id FROM monitors WHERE push_token = ? AND active = 1")
+            .bind(token)
+            .fetch_optional(pool)
+            .await?;
+    Ok(row.map(|(id,)| mid(&id)))
+}
+
+pub async fn fetch_last_push_at(
+    pool: &SqlitePool,
+    id: MonitorId,
+) -> DbResult<Option<OffsetDateTime>> {
+    let row: Option<(Option<i64>,)> =
+        sqlx::query_as("SELECT last_push_at FROM monitors WHERE id = ?")
+            .bind(id.0.to_string())
+            .fetch_optional(pool)
+            .await?;
+    Ok(row.and_then(|(t,)| t).map(ts))
+}
+
+pub async fn mark_run_started(pool: &SqlitePool, id: MonitorId) -> DbResult<()> {
+    sqlx::query("UPDATE monitors SET last_run_started_at = unixepoch() WHERE id = ?")
+        .bind(id.0.to_string())
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+/// Terminal push ping: stamp last_push_at, close any open run, and hand back
+/// when that run started (for duration). SQLite is single-writer, so a small
+/// read-then-write tx replaces the PG `FOR UPDATE` + `RETURNING prior`.
+pub async fn close_run(pool: &SqlitePool, id: MonitorId) -> DbResult<Option<OffsetDateTime>> {
+    let mut tx = pool.begin().await?;
+    let prior: Option<(Option<i64>,)> =
+        sqlx::query_as("SELECT last_run_started_at FROM monitors WHERE id = ?")
+            .bind(id.0.to_string())
+            .fetch_optional(&mut *tx)
+            .await?;
+    let prior = prior.ok_or(DbError::NotFound)?.0;
+    sqlx::query(
+        "UPDATE monitors SET last_push_at = unixepoch(), last_run_started_at = NULL WHERE id = ?",
+    )
+    .bind(id.0.to_string())
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(prior.map(ts))
+}
+
+pub async fn push_state(
+    pool: &SqlitePool,
+    id: MonitorId,
+) -> DbResult<(Option<OffsetDateTime>, Option<OffsetDateTime>)> {
+    let row: Option<(Option<i64>, Option<i64>)> =
+        sqlx::query_as("SELECT last_push_at, last_run_started_at FROM monitors WHERE id = ?")
+            .bind(id.0.to_string())
+            .fetch_optional(pool)
+            .await?;
+    let (push, run) = row.ok_or(DbError::NotFound)?;
+    Ok((push.map(ts), run.map(ts)))
+}
+
+pub async fn bump_push_at(pool: &SqlitePool, id: MonitorId) -> DbResult<()> {
+    sqlx::query("UPDATE monitors SET last_push_at = unixepoch() WHERE id = ?")
+        .bind(id.0.to_string())
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+// ── cert + SLO + agent + batch reads ─────────────────────────────────────────
+
+pub async fn set_cert_info(
+    pool: &SqlitePool,
+    id: MonitorId,
+    days_left: i32,
+    subject: &str,
+) -> DbResult<()> {
+    sqlx::query(
+        "UPDATE monitors SET cert_days_left = ?, cert_subject = ?, cert_checked_at = unixepoch()
+         WHERE id = ?",
+    )
+    .bind(days_left)
+    .bind(subject)
+    .bind(id.0.to_string())
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn slo_state(pool: &SqlitePool, id: MonitorId) -> DbResult<Option<SloState>> {
+    let row: Option<(Option<f64>, Option<i64>, Option<i64>)> = sqlx::query_as(
+        "SELECT slo_target_pct, slo_window_days, slo_breached_at FROM monitors WHERE id = ?",
+    )
+    .bind(id.0.to_string())
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.map(|(target_pct, window_days, breached_at)| SloState {
+        target_pct,
+        window_days: window_days.map(|w| w as i32),
+        breached_at: breached_at.map(ts),
+    }))
+}
+
+pub async fn mark_slo_breached(pool: &SqlitePool, id: MonitorId) -> DbResult<()> {
+    sqlx::query("UPDATE monitors SET slo_breached_at = unixepoch() WHERE id = ?")
+        .bind(id.0.to_string())
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn clear_slo_breached(pool: &SqlitePool, id: MonitorId) -> DbResult<()> {
+    sqlx::query("UPDATE monitors SET slo_breached_at = NULL WHERE id = ?")
+        .bind(id.0.to_string())
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn list_for_agent(pool: &SqlitePool, agent: AgentId) -> DbResult<Vec<Monitor>> {
+    let rows = sqlx::query(
+        "SELECT * FROM monitors WHERE agent_id = ? AND active = 1 ORDER BY created_at ASC",
+    )
+    .bind(agent.0.to_string())
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.iter().map(monitor_from).collect())
+}
+
+/// Public (id → name + status) for a set of monitor ids. Per-id lookups (the
+/// id set is small — a status page's monitors); a batched `IN (...)` would need
+/// dynamic SQL, which sqlx 0.9 only allows via `AssertSqlSafe`.
+pub async fn public_fields_batch(
+    pool: &SqlitePool,
+    ids: &[Uuid],
+) -> DbResult<HashMap<Uuid, (String, MonitorStatus)>> {
+    let mut out = HashMap::with_capacity(ids.len());
+    for id in ids {
+        let row: Option<(String, String)> =
+            sqlx::query_as("SELECT name, current_status FROM monitors WHERE id = ?")
+                .bind(id.to_string())
+                .fetch_optional(pool)
+                .await?;
+        if let Some((name, status)) = row {
+            out.insert(*id, (name, mstatus_from(&status)));
+        }
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -268,5 +599,89 @@ mod tests {
             get_unscoped(&pool, m.id).await,
             Err(DbError::NotFound)
         ));
+    }
+
+    #[sqlx::test(migrations = "../../migrations-sqlite")]
+    async fn update_group_slo_and_agent(pool: SqlitePool) {
+        let org = super::super::oid(DEF);
+        let m = create(&pool, new_http("u"), org).await.unwrap();
+
+        // COALESCE update: rename + change interval, leave the rest.
+        let patch: UpdateMonitor = serde_json::from_value(
+            serde_json::json!({ "name": "renamed", "interval_seconds": 120 }),
+        )
+        .unwrap();
+        let upd = update(&pool, m.id, patch, org).await.unwrap();
+        assert_eq!(upd.name, "renamed");
+        assert_eq!(upd.interval_seconds, 120);
+        assert_eq!(upd.url.as_deref(), Some("https://example.com")); // untouched
+
+        // Double-Option: explicit null clears slo_target_pct (created with 99.9).
+        let clear: UpdateMonitor =
+            serde_json::from_value(serde_json::json!({ "slo_target_pct": null })).unwrap();
+        update(&pool, m.id, clear, org).await.unwrap();
+        assert!(get(&pool, m.id, org)
+            .await
+            .unwrap()
+            .slo_target_pct
+            .is_none());
+
+        // set_group + agent reassign (via update Some(Some)) → list_for_agent.
+        let g = MonitorGroupId::new();
+        set_group(&pool, m.id, Some(g), org).await.unwrap();
+        assert_eq!(get(&pool, m.id, org).await.unwrap().group_id, Some(g));
+        let agent = AgentId::new();
+        let setagent: UpdateMonitor =
+            serde_json::from_value(serde_json::json!({ "agent_id": agent.0.to_string() })).unwrap();
+        update(&pool, m.id, setagent, org).await.unwrap();
+        assert_eq!(list_for_agent(&pool, agent).await.unwrap().len(), 1);
+
+        // public_fields_batch.
+        let pf = public_fields_batch(&pool, &[m.id.0]).await.unwrap();
+        assert_eq!(pf.get(&m.id.0).unwrap().0, "renamed");
+
+        // cert + SLO breach lifecycle.
+        set_cert_info(&pool, m.id, 7, "CN=example").await.unwrap();
+        assert_eq!(get(&pool, m.id, org).await.unwrap().cert_days_left, Some(7));
+        mark_slo_breached(&pool, m.id).await.unwrap();
+        assert!(slo_state(&pool, m.id)
+            .await
+            .unwrap()
+            .unwrap()
+            .breached_at
+            .is_some());
+        clear_slo_breached(&pool, m.id).await.unwrap();
+        assert!(slo_state(&pool, m.id)
+            .await
+            .unwrap()
+            .unwrap()
+            .breached_at
+            .is_none());
+    }
+
+    #[sqlx::test(migrations = "../../migrations-sqlite")]
+    async fn push_token_and_run_lifecycle(pool: SqlitePool) {
+        let org = super::super::oid(DEF);
+        let mut nm = new_http("push");
+        nm.kind = MonitorKind::Push;
+        let m = create(&pool, nm, org).await.unwrap();
+
+        // Token regen (push-kind + org gated) → resolvable by token.
+        let token = regenerate_push_token(&pool, m.id, org).await.unwrap();
+        assert_eq!(find_by_push_token(&pool, &token).await.unwrap(), Some(m.id));
+        assert!(find_by_push_token(&pool, "nope").await.unwrap().is_none());
+
+        // Run lifecycle: start → push_state shows open run → close returns it.
+        mark_run_started(&pool, m.id).await.unwrap();
+        let (_, run) = push_state(&pool, m.id).await.unwrap();
+        assert!(run.is_some(), "run open after mark_run_started");
+        let prior = close_run(&pool, m.id).await.unwrap();
+        assert!(prior.is_some(), "close_run returns the run start");
+        let (push, run) = push_state(&pool, m.id).await.unwrap();
+        assert!(run.is_none(), "run closed");
+        assert!(push.is_some(), "last_push stamped by close_run");
+
+        bump_push_at(&pool, m.id).await.unwrap();
+        assert!(fetch_last_push_at(&pool, m.id).await.unwrap().is_some());
     }
 }
