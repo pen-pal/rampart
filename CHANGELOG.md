@@ -29,6 +29,32 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.10] — 2026-06-23
+
+### Added
+- **Multi-DB P1 CAPSTONE: `impl Store for SqliteStore`.** The object-safe
+  `Store` super-trait (46 sub-traits, ~421 methods) is now satisfied by a
+  SQLite backend, so `AppState` could hold `Arc<dyn Store>` over Postgres OR
+  SQLite. New `rampart-db/src/sqlite/store.rs`: `SqliteStore { pool: SqlitePool }`
+  with `new(pool)` and `connect(url)` (sets per-connection `foreign_keys(true)`
+  — off by default on SQLite — and runs the `migrations-sqlite` set). The 10
+  domains ported in P1 (settings, orgs, users, sessions, monitors, heartbeats,
+  tags, agents, notifications, delivery_log) **delegate** to their
+  `crate::sqlite::*` free functions; the remaining 37 are `unimplemented!()`
+  stubs that panic if hit — they light up as each domain is forked. 2
+  `#[sqlx::test]`/`#[tokio::test]` prove `Arc<dyn Store>` round-trips a delegated
+  domain and that `connect` migrates a fresh DB. Added `delete_setting` to
+  `sqlite::settings` to complete `StoreSettings`. New CI lane **`backend ·
+  sqlite backend`** runs the `sqlite`-feature clippy (`-D warnings`) + the
+  `sqlite::` test suite (no DB service — `#[sqlx::test]` spins per-test SQLite
+  DBs). **32 sqlite tests.**
+- **NOT YET wired into boot:** `AppState` still holds a `PgPool` that the
+  not-yet-seamed callers (scheduler / notifier / seed) use directly, so a true
+  `RAMPART_DB_URL=sqlite` end-to-end boot needs that pool abstracted first (a
+  follow-on slice). `SqliteStore` + `connect` exist, compile, and are tested now.
+
+---
+
 ## [0.156.9] — 2026-06-23
 
 ### Added

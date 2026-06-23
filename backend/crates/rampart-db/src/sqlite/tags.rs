@@ -112,14 +112,10 @@ pub async fn update(
     get(pool, id, org_id).await
 }
 
-/// Per-tag usage counts (monitors / channels / groups). Mirrors PG `usage`.
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct TagUsage {
-    pub tag_id: TagId,
-    pub monitors: i64,
-    pub channels: i64,
-    pub groups: i64,
-}
+// Per-tag usage counts reuse the PG-side `crate::tags::TagUsage` (dialect-neutral
+// serde type) so the `StoreTags::usage` trait signature is satisfied by both
+// backends.
+use crate::tags::TagUsage;
 
 pub async fn usage(pool: &SqlitePool, org_id: OrgId) -> DbResult<Vec<TagUsage>> {
     let rows = sqlx::query(
