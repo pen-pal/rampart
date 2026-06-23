@@ -29,6 +29,27 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.15] — 2026-06-23
+
+### Added
+- **Multi-DB P1 boot-wiring: SQLite `metric_samples` domain (un-stubs
+  `StoreMetricSamples`).** Fifth boot-wiring slice + the telemetry-read
+  foundation that unblocks metric_rules + slos. `migrations-sqlite/
+  0012_metric_samples.sql` (jsonb labels → canonical-JSON TEXT, double→REAL,
+  ts→INTEGER) + `sqlite::metric_samples`: insert_many / list_series /
+  range_query / baseline / latest / prune_older_than. PG-isms translated:
+  `UNNEST` insert → per-row tx with one stamped `now`; bucket
+  `TO_TIMESTAMP(FLOOR(EXTRACT(EPOCH …)/step)*step)` → `(ts/step)*step` integer
+  math; **`STDDEV_SAMP` (absent on SQLite) → sample stddev computed app-side**
+  from `SUM(value)`/`SUM(value*value)`/`COUNT`; jsonb `labels =` → canonical
+  TEXT equality (serde_json sorts keys by default, so it matches PG's semantic
+  equality). +1 `#[sqlx::test]` (insert/series/latest/baseline-math/range/prune
+  + label-mismatch). **Boot-wiring 5/9**; 4 left (metric_rules + slos now
+  unblocked, then telemetry_rules+logs/traces, detection, audit). Off-by-default
+  `sqlite`; PG untouched.
+
+---
+
 ## [0.156.14] — 2026-06-23
 
 ### Added
