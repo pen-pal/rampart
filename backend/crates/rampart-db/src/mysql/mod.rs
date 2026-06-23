@@ -45,6 +45,7 @@ pub mod notifications;
 pub mod oidc_state;
 pub mod on_call;
 pub mod orgs;
+pub mod profiles;
 pub mod proxies;
 pub mod recovery_codes;
 pub mod routing;

@@ -1865,7 +1865,7 @@ impl StoreRum for MysqlStore {
 #[async_trait::async_trait]
 impl StoreProfiles for MysqlStore {
     async fn insert_profile(&self, p: NewProfile<'_>, org_id: OrgId) -> DbResult<i64> {
-        unimplemented!("MysqlStore::insert_profile: profiles domain not yet ported (multi-DB P1)")
+        crate::mysql::profiles::insert(&self.pool, p, org_id).await
     }
 
     async fn list_profiles(
@@ -1876,7 +1876,7 @@ impl StoreProfiles for MysqlStore {
         limit: i64,
         org_id: OrgId,
     ) -> DbResult<Vec<ProfileMeta>> {
-        unimplemented!("MysqlStore::list_profiles: profiles domain not yet ported (multi-DB P1)")
+        crate::mysql::profiles::list(&self.pool, service, profile_type, hours, limit, org_id).await
     }
 
     async fn profile_folded_in_window(
@@ -1887,9 +1887,15 @@ impl StoreProfiles for MysqlStore {
         to: OffsetDateTime,
         org_id: OrgId,
     ) -> DbResult<Vec<Vec<u8>>> {
-        unimplemented!(
-            "MysqlStore::profile_folded_in_window: profiles domain not yet ported (multi-DB P1)"
+        crate::mysql::profiles::folded_in_window(
+            &self.pool,
+            service,
+            profile_type,
+            from,
+            to,
+            org_id,
         )
+        .await
     }
 
     async fn profile_fetch_folded(
@@ -1897,21 +1903,19 @@ impl StoreProfiles for MysqlStore {
         id: i64,
         org_id: OrgId,
     ) -> DbResult<Option<(String, Vec<u8>)>> {
-        unimplemented!(
-            "MysqlStore::profile_fetch_folded: profiles domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::profiles::fetch_folded(&self.pool, id, org_id).await
     }
 
     async fn profile_services(&self, org_id: OrgId) -> DbResult<Vec<String>> {
-        unimplemented!("MysqlStore::profile_services: profiles domain not yet ported (multi-DB P1)")
+        crate::mysql::profiles::services(&self.pool, org_id).await
     }
 
     async fn profile_types(&self, service: Option<&str>, org_id: OrgId) -> DbResult<Vec<String>> {
-        unimplemented!("MysqlStore::profile_types: profiles domain not yet ported (multi-DB P1)")
+        crate::mysql::profiles::profile_types(&self.pool, service, org_id).await
     }
 
     async fn prune_profiles(&self, days: i32) -> DbResult<u64> {
-        unimplemented!("MysqlStore::prune_profiles: profiles domain not yet ported (multi-DB P1)")
+        crate::mysql::profiles::prune(&self.pool, days).await
     }
 }
 
