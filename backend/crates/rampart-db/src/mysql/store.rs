@@ -909,7 +909,7 @@ impl StoreTemplates for MysqlStore {
         &self,
         id: NotificationTemplateId,
     ) -> DbResult<RenderedTemplate> {
-        unimplemented!("MySQL store: templates domain not yet ported")
+        crate::mysql::templates::get_render_strings(&self.pool, id).await
     }
 }
 
@@ -1065,7 +1065,7 @@ impl StoreMonitorGroups for MysqlStore {
     }
 
     async fn any_parent_down(&self, child: MonitorId) -> DbResult<bool> {
-        unimplemented!("MySQL store: monitor_groups domain not yet ported")
+        crate::mysql::monitor_groups::any_parent_down(&self.pool, child).await
     }
 
     async fn attach_dependency(&self, child: MonitorId, parent: MonitorId) -> DbResult<()> {
@@ -1090,7 +1090,7 @@ impl StoreMonitorGroups for MysqlStore {
 #[async_trait::async_trait]
 impl StoreSilences for MysqlStore {
     async fn is_silenced(&self, monitor: Option<Uuid>) -> DbResult<bool> {
-        unimplemented!("MySQL store: silences domain not yet ported")
+        crate::mysql::silences::is_silenced(&self.pool, monitor).await
     }
 
     async fn create_silence(&self, s: NewSilence<'_>, org_id: OrgId) -> DbResult<Uuid> {
@@ -1330,7 +1330,7 @@ impl StoreRouting for MysqlStore {
         &self,
         monitor: MonitorId,
     ) -> DbResult<Vec<Notification>> {
-        unimplemented!("MySQL store: routing domain not yet ported")
+        crate::mysql::routing::resolve_channels_for_monitor(&self.pool, monitor).await
     }
 
     async fn group_tag_ids(&self, group: MonitorGroupId) -> DbResult<Vec<TagId>> {
