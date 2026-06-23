@@ -29,6 +29,27 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.17] — 2026-06-23
+
+### Added
+- **Multi-DB P1 boot-wiring: SQLite `slos` domain (un-stubs `StoreSlos`).**
+  Seventh boot-wiring slice. `migrations-sqlite/0014_slos.sql` (sli_kind /
+  objective / window CHECKs ported; jsonb labels→TEXT, UUID[]→JSON, ts→INTEGER)
+  + `sqlite::slos`: list / list_all / get / get_unscoped / create / update /
+  delete / compute / trend / list_with_snapshots / evaluate_tick. The budget
+  state machine (`snapshot` / `slo_transition`) is reused from rampart_core;
+  Monitor-SLI ratios run over the ported heartbeats, Metric-SLI over the ported
+  metric_samples. PG-isms translated: `COUNT/SUM(...) FILTER` → `SUM(CASE …)`;
+  `date_bin(make_interval, ts, origin)` → integer bucket `(ts - since)/step`;
+  and — the hard one — **jsonb `labels @> matcher` containment → one bound
+  `json_extract(labels, ?) = ?` per matcher key** (Prometheus labels are
+  string→string). +2 `#[sqlx::test]` (Monitor SLO compute/fire + Metric SLO
+  containment with a decoy-label row correctly excluded). **Boot-wiring 7/9**;
+  3 left (telemetry_rules+logs/traces, detection, audit). Off-by-default
+  `sqlite`; PG untouched.
+
+---
+
 ## [0.156.16] — 2026-06-23
 
 ### Added
