@@ -399,7 +399,7 @@ pub struct MonthlyUptime {
 ///
 /// Single GROUP BY query + a dense-pivot pass mirroring `daily_status`.
 /// Powers the "Jun 99.97% · Jul 100% · …" summary row every modern
-/// status page (Stripe, GitHub, Cloudflare, Anthropic) ships under
+/// status page (Stripe, GitHub, Cloudflare, Datadog) ships under
 /// the daily strip.
 pub async fn monthly_uptime(
     pool: &DbPool,
