@@ -9,15 +9,16 @@
 //! `public_fields_batch`. The wide row is read via the `sqlx::Row` get-by-name
 //! API rather than a 40-field tuple.
 //!
-//! STILL DEFERRED (need tables not yet on SQLite): `list_stale_agent_monitors`
-//! (agents), `set_active_by_tag` + `bulk_edit`/`bulk_edit_preview` + tag
-//! hydration on reads (tags/monitor_tags — `Monitor.tags` reads back empty).
+//! Also: tag hydration on reads, `set_active_by_tag`,
+//! `list_stale_agent_monitors`, and `bulk_edit` / `bulk_edit_preview` (one tx;
+//! SQLite has no `FOR UPDATE` but a write tx serializes the whole DB).
 //!
 //! Dialect: enums → TEXT (serde round-trip), `int[] accepted_statuses` → JSON
 //! TEXT, jsonb → TEXT, timestamps → INTEGER unix-seconds, bools → INTEGER 0/1.
 
 use super::{kind_from, kind_str, mid, mstatus_from, mstatus_str, raw_uuid, ts};
 use crate::monitors::SloState;
+use crate::monitors::{BulkEditOutcome, BulkEditPatch, MonitorPrior};
 use crate::{DbError, DbResult};
 use rampart_core::ids::{
     AgentId, EscalationPolicyId, MonitorGroupId, MonitorId, OrgId, ProxyId, TagId,
@@ -348,6 +349,186 @@ pub async fn set_group(
         return Err(DbError::NotFound);
     }
     Ok(())
+}
+
+/// Editable-field snapshot for one monitor, scoped to `org_id` (cross-org/
+/// unknown → `None`, reported as skipped). `with_tags` skips the tag read for
+/// the common no-tag patch. Mirrors PG `load_prior`.
+async fn load_prior(
+    pool: &SqlitePool,
+    id: MonitorId,
+    with_tags: bool,
+    org_id: OrgId,
+) -> DbResult<Option<MonitorPrior>> {
+    let row = sqlx::query(
+        "SELECT name, interval_seconds, timeout_seconds, active, group_id
+         FROM monitors WHERE id = ? AND org_id = ?",
+    )
+    .bind(id.0.to_string())
+    .bind(org_id.0.to_string())
+    .fetch_optional(pool)
+    .await?;
+    let Some(row) = row else {
+        return Ok(None);
+    };
+    let tags = if with_tags {
+        prior_tags(pool, id).await?
+    } else {
+        Vec::new()
+    };
+    Ok(Some(MonitorPrior {
+        id,
+        name: row.get("name"),
+        interval_seconds: row.get::<i64, _>("interval_seconds") as i32,
+        timeout_seconds: row.get::<i64, _>("timeout_seconds") as i32,
+        active: row.get::<i64, _>("active") != 0,
+        group_id: row
+            .get::<Option<String>, _>("group_id")
+            .map(|s| MonitorGroupId::from_uuid(raw_uuid(&s))),
+        tags,
+    }))
+}
+
+async fn prior_tags(pool: &SqlitePool, id: MonitorId) -> DbResult<Vec<TagId>> {
+    let rows = sqlx::query("SELECT tag_id FROM monitor_tags WHERE monitor_id = ? ORDER BY tag_id")
+        .bind(id.0.to_string())
+        .fetch_all(pool)
+        .await?;
+    Ok(rows
+        .iter()
+        .map(|r| TagId::from_uuid(raw_uuid(&r.get::<String, _>("tag_id"))))
+        .collect())
+}
+
+/// Read-only twin of [`bulk_edit`] — resolve which ids exist + snapshot their
+/// pre-edit fields without mutating anything (the undo/preview source). Mirrors
+/// PG `bulk_edit_preview`.
+pub async fn bulk_edit_preview(
+    pool: &SqlitePool,
+    ids: &[MonitorId],
+    want_tags: bool,
+    org_id: OrgId,
+) -> DbResult<(Vec<MonitorPrior>, usize)> {
+    let mut priors = Vec::new();
+    let mut skipped_unknown = 0usize;
+    for id in ids {
+        match load_prior(pool, *id, want_tags, org_id).await? {
+            Some(p) => priors.push(p),
+            None => skipped_unknown += 1,
+        }
+    }
+    Ok((priors, skipped_unknown))
+}
+
+/// Apply `patch` to every monitor in `ids` in ONE transaction (all-or-nothing).
+/// Unknown/cross-org ids are skipped (counted), not aborting the batch. Scalar
+/// columns COALESCE; group/tags only mutate when explicitly supplied. Returns
+/// the pre-edit priors (request order) for an inverse undo. Mirrors PG — SQLite
+/// has no `FOR UPDATE`, but a write tx already serializes the whole DB.
+pub async fn bulk_edit(
+    pool: &SqlitePool,
+    ids: &[MonitorId],
+    patch: &BulkEditPatch,
+    org_id: OrgId,
+) -> DbResult<BulkEditOutcome> {
+    let touches_columns = patch.interval_seconds.is_some()
+        || patch.timeout_seconds.is_some()
+        || patch.active.is_some()
+        || patch.group_id.is_some();
+    let set_group = patch.group_id.is_some();
+    let group_str: Option<String> = patch.group_id.flatten().map(|g| g.0.to_string());
+    let capture_tags = patch.tags.is_some();
+
+    let mut tx = pool.begin().await?;
+    let mut updated = 0usize;
+    let mut skipped_unknown = 0usize;
+    let mut priors: Vec<MonitorPrior> = Vec::new();
+
+    for id in ids {
+        let prior_row = sqlx::query(
+            "SELECT name, interval_seconds, timeout_seconds, active, group_id
+             FROM monitors WHERE id = ? AND org_id = ?",
+        )
+        .bind(id.0.to_string())
+        .bind(org_id.0.to_string())
+        .fetch_optional(&mut *tx)
+        .await?;
+        let Some(prior_row) = prior_row else {
+            skipped_unknown += 1;
+            continue;
+        };
+
+        let prior_tag_set: Vec<TagId> = if capture_tags {
+            let rows =
+                sqlx::query("SELECT tag_id FROM monitor_tags WHERE monitor_id = ? ORDER BY tag_id")
+                    .bind(id.0.to_string())
+                    .fetch_all(&mut *tx)
+                    .await?;
+            rows.iter()
+                .map(|r| TagId::from_uuid(raw_uuid(&r.get::<String, _>("tag_id"))))
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        priors.push(MonitorPrior {
+            id: *id,
+            name: prior_row.get("name"),
+            interval_seconds: prior_row.get::<i64, _>("interval_seconds") as i32,
+            timeout_seconds: prior_row.get::<i64, _>("timeout_seconds") as i32,
+            active: prior_row.get::<i64, _>("active") != 0,
+            group_id: prior_row
+                .get::<Option<String>, _>("group_id")
+                .map(|s| MonitorGroupId::from_uuid(raw_uuid(&s))),
+            tags: prior_tag_set,
+        });
+
+        if touches_columns {
+            sqlx::query(
+                "UPDATE monitors SET
+                    interval_seconds = COALESCE(?, interval_seconds),
+                    timeout_seconds  = COALESCE(?, timeout_seconds),
+                    active           = COALESCE(?, active),
+                    group_id         = CASE WHEN ? THEN ? ELSE group_id END,
+                    updated_at       = unixepoch()
+                 WHERE id = ?",
+            )
+            .bind(patch.interval_seconds)
+            .bind(patch.timeout_seconds)
+            .bind(patch.active.map(|b| b as i64))
+            .bind(set_group as i64)
+            .bind(group_str.clone())
+            .bind(id.0.to_string())
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        if let Some(tags) = &patch.tags {
+            sqlx::query("DELETE FROM monitor_tags WHERE monitor_id = ?")
+                .bind(id.0.to_string())
+                .execute(&mut *tx)
+                .await?;
+            for tag in tags {
+                sqlx::query(
+                    "INSERT INTO monitor_tags (monitor_id, tag_id) VALUES (?, ?)
+                     ON CONFLICT DO NOTHING",
+                )
+                .bind(id.0.to_string())
+                .bind(tag.0.to_string())
+                .execute(&mut *tx)
+                .await?;
+            }
+        }
+
+        updated += 1;
+    }
+
+    tx.commit().await?;
+    Ok(BulkEditOutcome {
+        updated,
+        skipped_unknown,
+        priors,
+    })
 }
 
 /// Bulk active/paused flip across every monitor carrying `tag` (org-scoped).
@@ -819,5 +1000,67 @@ mod tests {
         .await
         .unwrap();
         assert!(list_stale_agent_monitors(&pool).await.unwrap().is_empty());
+    }
+
+    #[sqlx::test(migrations = "../../migrations-sqlite")]
+    async fn bulk_edit_and_preview(pool: SqlitePool) {
+        use crate::monitors::BulkEditPatch;
+        use crate::sqlite::tags;
+        let org = super::super::oid(DEF);
+        let a = create(&pool, new_http("a"), org).await.unwrap();
+        let b = create(&pool, new_http("b"), org).await.unwrap();
+        let unknown = MonitorId::new();
+        let tag = tags::create(
+            &pool,
+            rampart_core::tag::NewTag {
+                name: "prod".into(),
+                color: "#f00".into(),
+            },
+            org,
+        )
+        .await
+        .unwrap();
+
+        let patch = BulkEditPatch {
+            interval_seconds: Some(300),
+            timeout_seconds: None,
+            active: Some(false),
+            group_id: None,
+            tags: Some(vec![tag.id]),
+        };
+
+        // preview: resolves a + b, counts the unknown id, no mutation.
+        let (priors, skipped) = bulk_edit_preview(&pool, &[a.id, b.id, unknown], true, org)
+            .await
+            .unwrap();
+        assert_eq!(priors.len(), 2);
+        assert_eq!(skipped, 1);
+        assert_eq!(priors[0].interval_seconds, 60); // still original
+        assert!(get(&pool, a.id, org).await.unwrap().active); // untouched
+
+        // apply.
+        let out = bulk_edit(&pool, &[a.id, b.id, unknown], &patch, org)
+            .await
+            .unwrap();
+        assert_eq!(out.updated, 2);
+        assert_eq!(out.skipped_unknown, 1);
+        assert_eq!(out.priors.len(), 2);
+        assert_eq!(out.priors[0].interval_seconds, 60); // pre-edit snapshot
+
+        let a2 = get(&pool, a.id, org).await.unwrap();
+        assert_eq!(a2.interval_seconds, 300);
+        assert!(!a2.active);
+        assert_eq!(a2.timeout_seconds, 10); // omitted → unchanged
+        assert_eq!(a2.tags.len(), 1); // tag replacement applied
+
+        // cross-org id is treated as unknown (never mutated).
+        let other = super::super::orgs::create(&pool, "other", "Other")
+            .await
+            .unwrap();
+        let (p2, sk2) = bulk_edit_preview(&pool, &[a.id], false, other.id)
+            .await
+            .unwrap();
+        assert!(p2.is_empty());
+        assert_eq!(sk2, 1);
     }
 }
