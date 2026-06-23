@@ -29,6 +29,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.67] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `templates` CRUD** (notification subject/body
+  templates). The dispatch-path `get_render_strings` was already wired; this
+  adds list/get/create/update/delete to `mysql/templates.rs` and un-stubs the 5
+  `StoreTemplates` CRUD methods. `migrations-mysql/0033_template_uniqueness.sql`
+  adds the per-org `(org_id, name)` UNIQUE index (matching PG 0113) so a
+  duplicate name surfaces a friendly `Conflict`. `channel_kinds` TEXT[]→LONGTEXT
+  (serde JSON array), `is_default`→TINYINT, no RETURNING → re-select, `update`
+  is get-cur-then-set-all. +1 `#[sqlx::test]` (create, per-org name conflict,
+  partial update incl. subject clear + default flip, render-strings read,
+  cross-org isolation, delete) green on MariaDB. PG + SQLite untouched.
+
 ## [0.156.66] — 2026-06-23
 
 ### Added

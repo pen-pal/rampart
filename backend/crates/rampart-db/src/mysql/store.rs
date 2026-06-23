@@ -852,15 +852,15 @@ impl StoreTags for MysqlStore {
 #[async_trait::async_trait]
 impl StoreTemplates for MysqlStore {
     async fn list_templates(&self, org_id: OrgId) -> DbResult<Vec<Template>> {
-        unimplemented!("MysqlStore::list_templates: templates domain not yet ported (multi-DB P1)")
+        crate::mysql::templates::list(&self.pool, org_id).await
     }
 
     async fn get_template(&self, id: NotificationTemplateId, org_id: OrgId) -> DbResult<Template> {
-        unimplemented!("MysqlStore::get_template: templates domain not yet ported (multi-DB P1)")
+        crate::mysql::templates::get(&self.pool, id, org_id).await
     }
 
     async fn create_template(&self, input: NewTemplate, org_id: OrgId) -> DbResult<Template> {
-        unimplemented!("MysqlStore::create_template: templates domain not yet ported (multi-DB P1)")
+        crate::mysql::templates::create(&self.pool, input, org_id).await
     }
 
     async fn update_template(
@@ -869,11 +869,11 @@ impl StoreTemplates for MysqlStore {
         input: UpdateTemplate,
         org_id: OrgId,
     ) -> DbResult<Template> {
-        unimplemented!("MysqlStore::update_template: templates domain not yet ported (multi-DB P1)")
+        crate::mysql::templates::update(&self.pool, id, input, org_id).await
     }
 
     async fn delete_template(&self, id: NotificationTemplateId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!("MysqlStore::delete_template: templates domain not yet ported (multi-DB P1)")
+        crate::mysql::templates::delete(&self.pool, id, org_id).await
     }
 
     async fn get_template_render_strings(
