@@ -2808,26 +2808,22 @@ impl StoreMonitors for SqliteStore {
 #[async_trait::async_trait]
 impl StoreAudit for SqliteStore {
     async fn record_audit(&self, entry: crate::audit::NewEntry<'_>) -> DbResult<()> {
-        unimplemented!("SqliteStore::record_audit: audit domain not yet ported (multi-DB P1)")
+        crate::sqlite::audit::insert(&self.pool, entry).await
     }
 
     async fn set_audit_chain_watermark(&self, id: i64, hash: &str) -> DbResult<()> {
-        unimplemented!(
-            "SqliteStore::set_audit_chain_watermark: audit domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::audit::set_chain_watermark(&self.pool, id, hash).await
     }
 
     async fn verify_audit_chain(&self) -> DbResult<crate::audit::VerifyReport> {
-        unimplemented!("SqliteStore::verify_audit_chain: audit domain not yet ported (multi-DB P1)")
+        crate::sqlite::audit::verify_chain(&self.pool).await
     }
 
     async fn audit_security_insights(
         &self,
         hours: i32,
     ) -> DbResult<crate::audit::SecurityInsights> {
-        unimplemented!(
-            "SqliteStore::audit_security_insights: audit domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::audit::security_insights(&self.pool, hours).await
     }
 
     async fn list_audit_entries(
@@ -2835,7 +2831,7 @@ impl StoreAudit for SqliteStore {
         limit: i64,
         filter: crate::audit::AuditFilter<'_>,
     ) -> DbResult<Vec<crate::audit::AuditEntry>> {
-        unimplemented!("SqliteStore::list_audit_entries: audit domain not yet ported (multi-DB P1)")
+        crate::sqlite::audit::list(&self.pool, limit, filter).await
     }
 
     async fn fetch_audit_since(
@@ -2843,7 +2839,7 @@ impl StoreAudit for SqliteStore {
         after_id: i64,
         limit: i64,
     ) -> DbResult<Vec<crate::audit::AuditEntry>> {
-        unimplemented!("SqliteStore::fetch_audit_since: audit domain not yet ported (multi-DB P1)")
+        crate::sqlite::audit::fetch_since(&self.pool, after_id, limit).await
     }
 
     async fn export_audit_batch(
@@ -2852,7 +2848,7 @@ impl StoreAudit for SqliteStore {
         batch: i64,
         filter: crate::audit::ExportFilter,
     ) -> DbResult<Vec<crate::audit::ExportRow>> {
-        unimplemented!("SqliteStore::export_audit_batch: audit domain not yet ported (multi-DB P1)")
+        crate::sqlite::audit::export_batch(&self.pool, before_id, batch, filter).await
     }
 }
 
