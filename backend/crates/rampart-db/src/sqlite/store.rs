@@ -101,14 +101,14 @@ use uuid::Uuid;
 
 use crate::store::{
     Store, StoreAgents, StoreApiKeys, StoreAudit, StoreCompliance, StoreDeliveryLog,
-    StoreDeployMarkers, StoreDetection, StoreErrorTracking, StoreEscalations, StoreHeartbeats,
-    StoreIncidentTemplates, StoreIncidents, StoreIngestKeys, StoreIngestTokens, StoreLogs,
-    StoreMaintenance, StoreMetricRules, StoreMetricSamples, StoreMetrics, StoreMonitorGroups,
-    StoreMonitorPresets, StoreMonitorTemplates, StoreMonitors, StoreNotifications, StoreOidcState,
-    StoreOnCall, StoreOrgs, StoreProfiles, StoreProxies, StoreRecoveryCodes, StoreRouting,
-    StoreRum, StoreScheduledReports, StoreSessions, StoreSettings, StoreSilences, StoreSlos,
-    StoreSourceMaps, StoreStatusPages, StoreSubscribers, StoreTags, StoreTelemetryRules,
-    StoreTemplates, StoreTraces, StoreUsers, StoreWebpush,
+    StoreDeployMarkers, StoreDetection, StoreDigestBuffer, StoreErrorTracking, StoreEscalations,
+    StoreHeartbeats, StoreIncidentTemplates, StoreIncidents, StoreIngestKeys, StoreIngestTokens,
+    StoreLogs, StoreMaintenance, StoreMetricRules, StoreMetricSamples, StoreMetrics,
+    StoreMonitorGroups, StoreMonitorPresets, StoreMonitorTemplates, StoreMonitors,
+    StoreNotifications, StoreOidcState, StoreOnCall, StoreOrgs, StoreProfiles, StoreProxies,
+    StoreRecoveryCodes, StoreRouting, StoreRum, StoreScheduledReports, StoreSessions,
+    StoreSettings, StoreSilences, StoreSlos, StoreSourceMaps, StoreStatusPages, StoreSubscribers,
+    StoreTags, StoreTelemetryRules, StoreTemplates, StoreTraces, StoreUsers, StoreWebpush,
 };
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::SqlitePool;
@@ -2853,6 +2853,35 @@ impl StoreAudit for SqliteStore {
 impl StoreCompliance for SqliteStore {
     async fn access_review(&self) -> DbResult<Vec<crate::access_review::AccessReviewRow>> {
         unimplemented!("SqliteStore::access_review: compliance domain not yet ported (multi-DB P1)")
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreDigestBuffer for SqliteStore {
+    async fn enqueue_digest(
+        &self,
+        notification_id: NotificationId,
+        event_json: &serde_json::Value,
+    ) -> DbResult<()> {
+        crate::sqlite::digest_buffer::enqueue(&self.pool, notification_id, event_json).await
+    }
+
+    async fn drain_due_digests(
+        &self,
+        now: OffsetDateTime,
+    ) -> DbResult<Vec<crate::digest_buffer::DueChannel>> {
+        crate::sqlite::digest_buffer::drain_due(&self.pool, now).await
+    }
+
+    async fn take_digest_for_channel(
+        &self,
+        notification_id: NotificationId,
+    ) -> DbResult<Vec<crate::digest_buffer::BufferedEvent>> {
+        crate::sqlite::digest_buffer::take_for_channel(&self.pool, notification_id).await
+    }
+
+    async fn delete_digest_by_ids(&self, ids: &[Uuid]) -> DbResult<()> {
+        crate::sqlite::digest_buffer::delete_by_ids(&self.pool, ids).await
     }
 }
 
