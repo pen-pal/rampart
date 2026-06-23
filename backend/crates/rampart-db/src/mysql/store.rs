@@ -1793,7 +1793,7 @@ impl StoreTraces for MysqlStore {
 #[async_trait::async_trait]
 impl StoreRum for MysqlStore {
     async fn insert_rum_event(&self, b: &RumBeacon, org_id: OrgId) -> DbResult<()> {
-        unimplemented!("MysqlStore::insert_rum_event: rum domain not yet ported (multi-DB P1)")
+        crate::mysql::rum::insert_event(&self.pool, b, org_id).await
     }
 
     async fn rum_page_samples(
@@ -1804,7 +1804,7 @@ impl StoreRum for MysqlStore {
         limit: i64,
         org_id: OrgId,
     ) -> DbResult<Vec<RumSample>> {
-        unimplemented!("MysqlStore::rum_page_samples: rum domain not yet ported (multi-DB P1)")
+        crate::mysql::rum::page_samples(&self.pool, app, url, hours, limit, org_id).await
     }
 
     async fn rum_recent_traced(
@@ -1814,7 +1814,7 @@ impl StoreRum for MysqlStore {
         limit: i64,
         org_id: OrgId,
     ) -> DbResult<Vec<RumTracedLoad>> {
-        unimplemented!("MysqlStore::rum_recent_traced: rum domain not yet ported (multi-DB P1)")
+        crate::mysql::rum::recent_traced(&self.pool, app, hours, limit, org_id).await
     }
 
     async fn rum_summary(
@@ -1823,7 +1823,7 @@ impl StoreRum for MysqlStore {
         hours: i32,
         org_id: OrgId,
     ) -> DbResult<RumVitals> {
-        unimplemented!("MysqlStore::rum_summary: rum domain not yet ported (multi-DB P1)")
+        crate::mysql::rum::summary(&self.pool, app, hours, org_id).await
     }
 
     async fn rum_pages(
@@ -1832,7 +1832,7 @@ impl StoreRum for MysqlStore {
         hours: i32,
         org_id: OrgId,
     ) -> DbResult<Vec<RumPage>> {
-        unimplemented!("MysqlStore::rum_pages: rum domain not yet ported (multi-DB P1)")
+        crate::mysql::rum::pages(&self.pool, app, hours, org_id).await
     }
 
     async fn rum_browser_breakdown(
@@ -1841,7 +1841,7 @@ impl StoreRum for MysqlStore {
         hours: i32,
         org_id: OrgId,
     ) -> DbResult<Vec<RumBrowser>> {
-        unimplemented!("MysqlStore::rum_browser_breakdown: rum domain not yet ported (multi-DB P1)")
+        crate::mysql::rum::browser_breakdown(&self.pool, app, hours, org_id).await
     }
 
     async fn rum_user_breakdown(
@@ -1850,15 +1850,15 @@ impl StoreRum for MysqlStore {
         hours: i32,
         org_id: OrgId,
     ) -> DbResult<Vec<RumUser>> {
-        unimplemented!("MysqlStore::rum_user_breakdown: rum domain not yet ported (multi-DB P1)")
+        crate::mysql::rum::user_breakdown(&self.pool, app, hours, org_id).await
     }
 
     async fn rum_apps(&self, org_id: OrgId) -> DbResult<Vec<String>> {
-        unimplemented!("MysqlStore::rum_apps: rum domain not yet ported (multi-DB P1)")
+        crate::mysql::rum::apps(&self.pool, org_id).await
     }
 
     async fn prune_rum(&self, days: i32) -> DbResult<u64> {
-        unimplemented!("MysqlStore::prune_rum: rum domain not yet ported (multi-DB P1)")
+        crate::mysql::rum::prune(&self.pool, days).await
     }
 }
 

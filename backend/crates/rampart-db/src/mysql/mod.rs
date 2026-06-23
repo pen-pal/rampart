@@ -49,6 +49,7 @@ pub mod profiles;
 pub mod proxies;
 pub mod recovery_codes;
 pub mod routing;
+pub mod rum;
 pub mod scheduled_reports;
 pub mod sessions;
 pub mod settings;
