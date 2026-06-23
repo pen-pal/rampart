@@ -540,7 +540,7 @@ impl StoreApiKeys for SqliteStore {
 #[async_trait::async_trait]
 impl StoreEscalations for SqliteStore {
     async fn list_escalation_policies(&self, org_id: OrgId) -> DbResult<Vec<EscalationPolicy>> {
-        unimplemented!("SqliteStore::list_escalation_policies: escalations domain not yet ported (multi-DB P1)")
+        crate::sqlite::escalations::list(&self.pool, org_id).await
     }
 
     async fn get_escalation_policy(
@@ -548,16 +548,14 @@ impl StoreEscalations for SqliteStore {
         id: EscalationPolicyId,
         org_id: OrgId,
     ) -> DbResult<EscalationPolicy> {
-        unimplemented!(
-            "SqliteStore::get_escalation_policy: escalations domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::escalations::get(&self.pool, id, org_id).await
     }
 
     async fn get_escalation_policy_unscoped(
         &self,
         id: EscalationPolicyId,
     ) -> DbResult<EscalationPolicy> {
-        unimplemented!("SqliteStore::get_escalation_policy_unscoped: escalations domain not yet ported (multi-DB P1)")
+        crate::sqlite::escalations::get_unscoped(&self.pool, id).await
     }
 
     async fn create_escalation_policy(
@@ -565,7 +563,7 @@ impl StoreEscalations for SqliteStore {
         input: NewEscalationPolicy,
         org_id: OrgId,
     ) -> DbResult<EscalationPolicy> {
-        unimplemented!("SqliteStore::create_escalation_policy: escalations domain not yet ported (multi-DB P1)")
+        crate::sqlite::escalations::create(&self.pool, input, org_id).await
     }
 
     async fn update_escalation_policy(
@@ -574,7 +572,7 @@ impl StoreEscalations for SqliteStore {
         patch: UpdateEscalationPolicy,
         org_id: OrgId,
     ) -> DbResult<EscalationPolicy> {
-        unimplemented!("SqliteStore::update_escalation_policy: escalations domain not yet ported (multi-DB P1)")
+        crate::sqlite::escalations::update(&self.pool, id, patch, org_id).await
     }
 
     async fn delete_escalation_policy(
@@ -582,7 +580,7 @@ impl StoreEscalations for SqliteStore {
         id: EscalationPolicyId,
         org_id: OrgId,
     ) -> DbResult<()> {
-        unimplemented!("SqliteStore::delete_escalation_policy: escalations domain not yet ported (multi-DB P1)")
+        crate::sqlite::escalations::delete(&self.pool, id, org_id).await
     }
 
     async fn open_episode(
@@ -590,7 +588,7 @@ impl StoreEscalations for SqliteStore {
         monitor_id: MonitorId,
         policy: &EscalationPolicy,
     ) -> DbResult<Option<EscalationEpisode>> {
-        unimplemented!("SqliteStore::open_episode: escalations domain not yet ported (multi-DB P1)")
+        crate::sqlite::escalations::open_episode(&self.pool, monitor_id, policy).await
     }
 
     async fn open_episode_for_subject(
@@ -599,7 +597,8 @@ impl StoreEscalations for SqliteStore {
         subject_ref: &str,
         policy: &EscalationPolicy,
     ) -> DbResult<Option<EscalationEpisode>> {
-        unimplemented!("SqliteStore::open_episode_for_subject: escalations domain not yet ported (multi-DB P1)")
+        crate::sqlite::escalations::open_episode_for_subject(&self.pool, kind, subject_ref, policy)
+            .await
     }
 
     async fn resolve_subject(
@@ -607,36 +606,30 @@ impl StoreEscalations for SqliteStore {
         kind: &str,
         subject_ref: &str,
     ) -> DbResult<Option<EscalationEpisode>> {
-        unimplemented!(
-            "SqliteStore::resolve_subject: escalations domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::escalations::resolve_subject(&self.pool, kind, subject_ref).await
     }
 
     async fn ack_episode(&self, episode_id: Uuid, by: UserId) -> DbResult<EscalationEpisode> {
-        unimplemented!("SqliteStore::ack_episode: escalations domain not yet ported (multi-DB P1)")
+        crate::sqlite::escalations::ack_episode(&self.pool, episode_id, by).await
     }
 
     async fn list_open_episodes(&self) -> DbResult<Vec<EscalationEpisode>> {
-        unimplemented!(
-            "SqliteStore::list_open_episodes: escalations domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::escalations::list_open(&self.pool).await
     }
 
     async fn list_open_episodes_for_org(&self, org_id: OrgId) -> DbResult<Vec<EscalationEpisode>> {
-        unimplemented!("SqliteStore::list_open_episodes_for_org: escalations domain not yet ported (multi-DB P1)")
+        crate::sqlite::escalations::list_open_for_org(&self.pool, org_id).await
     }
 
     async fn episode_in_org(&self, episode: Uuid, org_id: OrgId) -> DbResult<()> {
-        unimplemented!(
-            "SqliteStore::episode_in_org: escalations domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::escalations::episode_in_org(&self.pool, episode, org_id).await
     }
 
     async fn open_episode_for_monitor(
         &self,
         monitor_id: MonitorId,
     ) -> DbResult<Option<EscalationEpisode>> {
-        unimplemented!("SqliteStore::open_episode_for_monitor: escalations domain not yet ported (multi-DB P1)")
+        crate::sqlite::escalations::open_for_monitor(&self.pool, monitor_id).await
     }
 
     async fn ack_episode_for_monitor(
@@ -644,16 +637,14 @@ impl StoreEscalations for SqliteStore {
         monitor_id: MonitorId,
         by: UserId,
     ) -> DbResult<EscalationEpisode> {
-        unimplemented!(
-            "SqliteStore::ack_episode_for_monitor: escalations domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::escalations::ack(&self.pool, monitor_id, by).await
     }
 
     async fn resolve_episode_for_monitor(
         &self,
         monitor_id: MonitorId,
     ) -> DbResult<Option<EscalationEpisode>> {
-        unimplemented!("SqliteStore::resolve_episode_for_monitor: escalations domain not yet ported (multi-DB P1)")
+        crate::sqlite::escalations::resolve(&self.pool, monitor_id).await
     }
 
     async fn advance_episode(
@@ -661,13 +652,11 @@ impl StoreEscalations for SqliteStore {
         episode_id: Uuid,
         policy: &EscalationPolicy,
     ) -> DbResult<Option<EscalationEpisode>> {
-        unimplemented!(
-            "SqliteStore::advance_episode: escalations domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::escalations::advance(&self.pool, episode_id, policy).await
     }
 
     async fn due_episodes(&self) -> DbResult<Vec<EscalationEpisode>> {
-        unimplemented!("SqliteStore::due_episodes: escalations domain not yet ported (multi-DB P1)")
+        crate::sqlite::escalations::due(&self.pool).await
     }
 }
 
