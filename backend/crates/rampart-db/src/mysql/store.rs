@@ -504,23 +504,19 @@ impl StoreOnCall for MysqlStore {
 #[async_trait::async_trait]
 impl StoreRecoveryCodes for MysqlStore {
     async fn issue_recovery_codes(&self, user: UserId, count: usize) -> DbResult<Vec<String>> {
-        unimplemented!(
-            "MysqlStore::issue_recovery_codes: recovery_codes domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::recovery_codes::issue_batch(&self.pool, user, count).await
     }
 
     async fn consume_recovery_code(&self, user: UserId, code: &str) -> DbResult<bool> {
-        unimplemented!(
-            "MysqlStore::consume_recovery_code: recovery_codes domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::recovery_codes::consume(&self.pool, user, code).await
     }
 
     async fn delete_recovery_codes_for_user(&self, user: UserId) -> DbResult<()> {
-        unimplemented!("MysqlStore::delete_recovery_codes_for_user: recovery_codes domain not yet ported (multi-DB P1)")
+        crate::mysql::recovery_codes::delete_for_user(&self.pool, user).await
     }
 
     async fn remaining_recovery_codes(&self, user: UserId) -> DbResult<i64> {
-        unimplemented!("MysqlStore::remaining_recovery_codes: recovery_codes domain not yet ported (multi-DB P1)")
+        crate::mysql::recovery_codes::remaining(&self.pool, user).await
     }
 }
 
@@ -2436,9 +2432,7 @@ impl StoreMetricSamples for MysqlStore {
 #[async_trait::async_trait]
 impl StoreSourceMaps for MysqlStore {
     async fn upsert_source_map(&self, m: NewSourceMap<'_>) -> DbResult<i64> {
-        unimplemented!(
-            "MysqlStore::upsert_source_map: source_maps domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::source_maps::upsert(&self.pool, m).await
     }
 
     async fn get_source_map(
@@ -2447,21 +2441,15 @@ impl StoreSourceMaps for MysqlStore {
         release: &str,
         filename: &str,
     ) -> DbResult<Option<serde_json::Value>> {
-        unimplemented!(
-            "MysqlStore::get_source_map: source_maps domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::source_maps::get(&self.pool, project_id, release, filename).await
     }
 
     async fn list_source_maps(&self, project_id: Uuid) -> DbResult<Vec<SourceMapMeta>> {
-        unimplemented!(
-            "MysqlStore::list_source_maps: source_maps domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::source_maps::list(&self.pool, project_id).await
     }
 
     async fn delete_source_map(&self, project_id: Uuid, id: i64) -> DbResult<bool> {
-        unimplemented!(
-            "MysqlStore::delete_source_map: source_maps domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::source_maps::delete(&self.pool, project_id, id).await
     }
 }
 

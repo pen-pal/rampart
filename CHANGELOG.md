@@ -29,6 +29,19 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.55] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `recovery_codes` + `source_maps` domains** (management-
+  API tail, slice 2; batched into one migration + one release to cut rebuild
+  churn). `migrations-mysql/0022_recovery_codes_source_maps.sql` + both modules,
+  un-stubbing `StoreRecoveryCodes` (issue/consume/delete/remaining — hashed
+  one-shot TOTP codes) and `StoreSourceMaps` (upsert/get/list/delete — error-tier
+  symbolication maps). Ported from PG: `release` is a MySQL reserved word →
+  backticked; BIGSERIAL→`BIGINT AUTO_INCREMENT`; `ON CONFLICT … RETURNING id` →
+  `ON DUPLICATE KEY UPDATE` + re-select id by the unique key. +2 `#[sqlx::test]`
+  green on MariaDB. PG + SQLite untouched.
+
 ## [0.156.54] — 2026-06-23
 
 ### Added
