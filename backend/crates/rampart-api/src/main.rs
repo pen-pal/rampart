@@ -236,11 +236,15 @@ async fn main() -> anyhow::Result<()> {
 
     // SIEM / syslog export — leader-gated forward tail of the audit log to an
     // external sink (configured in settings; disabled by default).
-    let siem_pool = pool.clone();
+    // The SIEM loop runs entirely through the object-safe `Store` seam (multi-DB
+    // P1 seam-plumbing), so it works against any backend; build the store from
+    // the same pool (no I/O).
+    let siem_store: std::sync::Arc<dyn rampart_db::store::Store> =
+        std::sync::Arc::new(rampart_db::store::PgStore::new(pool.clone()));
     let siem_leadership = leadership.clone();
     tokio::spawn(async move {
         rampart_notifier::siem::run_loop(
-            siem_pool,
+            siem_store,
             siem_leadership,
             std::time::Duration::from_secs(15),
         )

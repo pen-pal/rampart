@@ -8,7 +8,7 @@
 //! **syslog** (UDP, one RFC5424 line per event). See `docs/design/SIEM.md`.
 
 use rampart_db::leader::Leadership;
-use rampart_db::DbPool;
+use rampart_db::store::Store;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
@@ -41,8 +41,9 @@ fn default_format() -> String {
     "json".into()
 }
 
-pub async fn load_config(pool: &DbPool) -> SiemConfig {
-    rampart_db::settings::get(pool, CONFIG_KEY)
+pub async fn load_config(store: &dyn Store) -> SiemConfig {
+    store
+        .get_setting(CONFIG_KEY)
         .await
         .ok()
         .flatten()
@@ -50,8 +51,9 @@ pub async fn load_config(pool: &DbPool) -> SiemConfig {
         .unwrap_or_default()
 }
 
-async fn cursor(pool: &DbPool) -> i64 {
-    rampart_db::settings::get(pool, CURSOR_KEY)
+async fn cursor(store: &dyn Store) -> i64 {
+    store
+        .get_setting(CURSOR_KEY)
         .await
         .ok()
         .flatten()
@@ -59,15 +61,16 @@ async fn cursor(pool: &DbPool) -> i64 {
         .unwrap_or(0)
 }
 
-async fn set_cursor(pool: &DbPool, id: i64) {
-    let _ = rampart_db::settings::put(pool, CURSOR_KEY, &serde_json::json!(id)).await;
+async fn set_cursor(store: &dyn Store, id: i64) {
+    let _ = store.put_setting(CURSOR_KEY, &serde_json::json!(id)).await;
 }
 
 /// Findings cursor is the `created_at` of the last forwarded finding, stored as
 /// an RFC3339 string (the findings PK is a UUID, so we can't reuse the i64
 /// cursor). `None` = forward from the beginning.
-async fn findings_cursor(pool: &DbPool) -> Option<OffsetDateTime> {
-    let raw = rampart_db::settings::get(pool, FINDINGS_CURSOR_KEY)
+async fn findings_cursor(store: &dyn Store) -> Option<OffsetDateTime> {
+    let raw = store
+        .get_setting(FINDINGS_CURSOR_KEY)
         .await
         .ok()
         .flatten()?;
@@ -75,26 +78,28 @@ async fn findings_cursor(pool: &DbPool) -> Option<OffsetDateTime> {
     OffsetDateTime::parse(s, &time::format_description::well_known::Rfc3339).ok()
 }
 
-async fn set_findings_cursor(pool: &DbPool, ts: OffsetDateTime) {
+async fn set_findings_cursor(store: &dyn Store, ts: OffsetDateTime) {
     if let Ok(s) = ts.format(&time::format_description::well_known::Rfc3339) {
-        let _ = rampart_db::settings::put(pool, FINDINGS_CURSOR_KEY, &serde_json::json!(s)).await;
+        let _ = store
+            .put_setting(FINDINGS_CURSOR_KEY, &serde_json::json!(s))
+            .await;
     }
 }
 
 /// Spawnable loop. Polls every `interval`; when enabled + leader, forwards new
 /// audit rows to the sink and advances the cursor only after a successful send.
-pub async fn run_loop(pool: DbPool, leadership: Arc<Leadership>, interval: Duration) {
+pub async fn run_loop(store: Arc<dyn Store>, leadership: Arc<Leadership>, interval: Duration) {
     let client = crate::http::client();
     loop {
         tokio::time::sleep(interval).await;
         if !leadership.is_leader() {
             continue;
         }
-        let cfg = load_config(&pool).await;
+        let cfg = load_config(store.as_ref()).await;
         if !cfg.enabled || cfg.target.is_empty() {
             continue;
         }
-        if let Err(e) = tick(&pool, &cfg, &client).await {
+        if let Err(e) = tick(store.as_ref(), &cfg, &client).await {
             tracing::warn!(error = %e, "siem export tick failed; will retry");
         }
     }
@@ -103,17 +108,17 @@ pub async fn run_loop(pool: DbPool, leadership: Arc<Leadership>, interval: Durat
 /// Drain every pending batch this tick (a backlog catches up in one pass).
 /// Two independent forward tails share the one sink: the audit log (cursored by
 /// the monotonic row id) and detection findings (cursored by `created_at`).
-async fn tick(pool: &DbPool, cfg: &SiemConfig, client: &reqwest::Client) -> anyhow::Result<()> {
+async fn tick(store: &dyn Store, cfg: &SiemConfig, client: &reqwest::Client) -> anyhow::Result<()> {
     // ── audit log ──────────────────────────────────────────────────
     loop {
-        let after = cursor(pool).await;
-        let rows = rampart_db::audit::fetch_since(pool, after, BATCH).await?;
+        let after = cursor(store).await;
+        let rows = store.fetch_audit_since(after, BATCH).await?;
         if rows.is_empty() {
             break;
         }
         let last = rows.last().map(|r| r.id).unwrap_or(after);
         send_rows(cfg, client, &rows, "audit").await?;
-        set_cursor(pool, last).await;
+        set_cursor(store, last).await;
         if (rows.len() as i64) < BATCH {
             break;
         }
@@ -121,15 +126,15 @@ async fn tick(pool: &DbPool, cfg: &SiemConfig, client: &reqwest::Client) -> anyh
 
     // ── detection findings ─────────────────────────────────────────
     loop {
-        let after = findings_cursor(pool).await;
-        let rows = rampart_db::detection::fetch_since(pool, after, BATCH).await?;
+        let after = findings_cursor(store).await;
+        let rows = store.fetch_detection_findings_since(after, BATCH).await?;
         if rows.is_empty() {
             break;
         }
         let last = rows.last().map(|r| r.created_at);
         send_rows(cfg, client, &rows, "detection").await?;
         if let Some(ts) = last {
-            set_findings_cursor(pool, ts).await;
+            set_findings_cursor(store, ts).await;
         }
         if (rows.len() as i64) < BATCH {
             break;
