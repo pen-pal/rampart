@@ -29,7 +29,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
-## [0.156.32] — 2026-06-23
+## [0.156.33] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `heartbeats` core domain.** The probe time-series
+  writer (`insert_many`, `ON DUPLICATE KEY` idempotent on (monitor_id, ts)) +
+  the history feeds (`recent_for_monitor` / `_before` / `range_for_monitor` /
+  `recent_per_monitor`) + the trailing-window reads (`uptime_pct` /
+  `current_slo_uptime_pct` / `avg_latency_ms`) the scheduler + monitor detail
+  need (the heartbeats table was already created in 0004). Two MySQL aggregate
+  gotchas pinned down on real MariaDB: **`SUM(CASE…)` returns DECIMAL → wrap in
+  `CAST(… AS SIGNED)`** to decode as i64, and **`AVG(INT)` returns DECIMAL →
+  `* 1e0`** to force DOUBLE for f64; the `recent_per_monitor` derived table also
+  needs a `) AS sub` alias (MySQL requires it). The dashboard rollups (daily/
+  monthly buckets, mtbf/mttr, error budget, batch variants — they need the
+  `ts DIV 86400` / `DATE_FORMAT(FROM_UNIXTIME …)` bucket translations) are a
+  follow-up `heartbeats-analytics` slice. Full `mysql::` suite 19/19 green on
+  MariaDB. Off by default; PG + SQLite untouched.
 
 ### Added
 - **Multi-DB P2 (MySQL) — core monitoring: `monitors` + `tags` domains.** The
