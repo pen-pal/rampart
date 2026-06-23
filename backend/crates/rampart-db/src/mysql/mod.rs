@@ -22,4 +22,50 @@
 //!   no `RETURNING` (app-side UUID PK + INSERT-then-SELECT); no array binds
 //!   (bound `IN (?,…)` lists, as in the SQLite layer).
 
+pub mod orgs;
 pub mod settings;
+
+use rampart_core::ids::{OrgId, UserId};
+use rampart_core::Role;
+use time::OffsetDateTime;
+use uuid::Uuid;
+
+// Dialect-neutral decode/encode helpers. Identical to the SQLite layer's
+// (uuid→CHAR(36) hyphenated, ts→BIGINT unix-seconds, role enum↔TEXT) — copied
+// rather than shared because the SQLite module is feature-gated off in a
+// MySQL-only build.
+// ponytail: tiny duplication across two backend modules; fold into a shared
+// `crate::dialect` helper module if a third relational backend lands.
+
+/// Decode a BIGINT unix-seconds column to [`OffsetDateTime`].
+pub(crate) fn ts(secs: i64) -> OffsetDateTime {
+    OffsetDateTime::from_unix_timestamp(secs).unwrap_or(OffsetDateTime::UNIX_EPOCH)
+}
+
+/// Parse a CHAR(36) uuid column into an `OrgId` (nil on corrupt).
+pub(crate) fn oid(s: &str) -> OrgId {
+    OrgId::from_uuid(Uuid::parse_str(s).unwrap_or(Uuid::nil()))
+}
+
+/// Parse a CHAR(36) uuid column into a `UserId`.
+pub(crate) fn uid(s: &str) -> UserId {
+    UserId::from_uuid(Uuid::parse_str(s).unwrap_or(Uuid::nil()))
+}
+
+/// `Role` → the TEXT form stored in MySQL (the PG `user_role` labels).
+pub(crate) fn role_str(r: Role) -> &'static str {
+    match r {
+        Role::Admin => "admin",
+        Role::Editor => "editor",
+        Role::Readonly => "readonly",
+    }
+}
+
+/// TEXT role → `Role` (unknown/corrupt → `Editor`, least-privilege-ish default).
+pub(crate) fn role_from(s: &str) -> Role {
+    match s {
+        "admin" => Role::Admin,
+        "readonly" => Role::Readonly,
+        _ => Role::Editor,
+    }
+}
