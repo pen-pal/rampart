@@ -85,9 +85,10 @@ async fn retry(
         ApiError::Conflict("cannot retry: the channel for this delivery has been deleted".into())
     })?;
 
-    let attempt = rampart_notifier::service::resend_delivery(s.pool(), &entry, channel_id)
-        .await
-        .map_err(|e| ApiError::BadRequest(format!("retry failed: {e}")))?;
+    let attempt =
+        rampart_notifier::service::resend_delivery(s.store().as_ref(), &entry, channel_id)
+            .await
+            .map_err(|e| ApiError::BadRequest(format!("retry failed: {e}")))?;
     Ok(Json(attempt))
 }
 
@@ -249,7 +250,8 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        let attempt = rampart_notifier::service::resend_delivery(&pool, &entry, channel.id)
+        let store = rampart_db::store::PgStore::new(pool.clone());
+        let attempt = rampart_notifier::service::resend_delivery(&store, &entry, channel.id)
             .await
             .unwrap();
 

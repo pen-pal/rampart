@@ -29,6 +29,28 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.25] — 2026-06-23
+
+### Changed
+- **Multi-DB P1 seam-plumbing slice B2: rampart-notifier core off `&DbPool`
+  onto the `Store` seam.** The whole notifier service (service.rs ~18 fns:
+  dispatch_one / send_event_to_channel / fire_escalation_step / dispatch_one's
+  digest flush / resend_delivery / dispatch_error_alert / send_system_email /
+  fan_out_maintenance_subscribers / render_digest …), the channel dispatch
+  entrypoint (`channels::dispatch`) and the Web Push fan-out (`webpush::send_all`)
+  now take `&dyn Store` / `Arc<dyn Store>` instead of a concrete pool. `dispatch_one`
+  takes an owned `Arc<dyn Store>` so its per-channel `tokio::spawn` tasks get a
+  cheap clone. Web Push composes the existing `get_vapid_keys` / `set_vapid_keys`
+  + its own generator (the closure-based `get_or_create_vapid` free fn isn't
+  object-safe). `NotifierService` holds `store: Arc<dyn Store>`. Callers updated:
+  the 6 rampart-api routes (delivery_log retry, notifications/monitors send-test,
+  scheduled-reports, rum + error-ingest alert spawns) now pass `state.store()`;
+  the scheduler gains an `Arc<dyn Store>` (used only for its 7 cross-crate
+  notifier calls — its own domain reads stay on the pool until slice C);
+  main.rs builds one `Arc<dyn Store>` and shares it across notifier/scheduler/siem.
+  68 notifier unit tests pass; full workspace `clippy --all-targets -D warnings`
+  + fmt green. PG behavior identical; off-by-default sqlite untouched.
+
 ## [0.156.24] — 2026-06-23
 
 ### Changed
