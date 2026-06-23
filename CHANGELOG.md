@@ -29,6 +29,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.69] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `monitor_groups` folder tree + dependency graph.**
+  The dispatch-path `any_parent_down` suppression read was already wired; this
+  adds in_org / list / create / update / would_form_group_cycle / delete +
+  parents_of / children_of / attach_dependency / detach_dependency /
+  would_form_cycle to `mysql/monitor_groups.rs` and un-stubs the 11 remaining
+  `StoreMonitorGroups` methods (no migration — `monitor_groups` +
+  `monitor_dependencies` tables exist). The folder-tree + dependency-DAG cycle
+  guards walk the graph in Rust (reused shape); `update` gates via `in_org`
+  first (MySQL counts CHANGED rows, so a no-op COALESCE can't carry the gate);
+  tri-state reparent is a separate UPDATE; `ON CONFLICT DO NOTHING`→`INSERT
+  IGNORE`. +1 `#[sqlx::test]` (folder create/list/reparent + cycle guard,
+  dependency attach/detach + self/cycle rejection + pending-parent suppression,
+  cross-org gate, delete) green on MariaDB. PG + SQLite untouched.
+
 ## [0.156.68] — 2026-06-23
 
 ### Added
