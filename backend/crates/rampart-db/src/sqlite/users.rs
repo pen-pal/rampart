@@ -5,9 +5,9 @@
 //! Parity notes vs Postgres:
 //! - `create` / `set_admin` / `set_role` keep the Default-org membership in sync
 //!   in the same transaction (the multi-tenancy invariant), like the PG path.
-//! - `set_admin` / `set_role` / `disable_totp` do NOT yet revoke sessions —
-//!   the SQLite `sessions` domain isn't built. Wire the revoke in once it lands
-//!   (the PG versions call `sessions::delete_for_user` after commit).
+//! - `set_admin` / `set_role` / `disable_totp` revoke the user's sessions
+//!   (via [`super::sessions::delete_for_user`]) so a privilege/2FA downgrade
+//!   takes effect immediately — parity with the Postgres path.
 //! - booleans are INTEGER 0/1, timestamps INTEGER unix-seconds, role CHECK'd
 //!   TEXT (see `migrations-sqlite/0002_identity.sql`).
 
@@ -173,12 +173,12 @@ pub async fn enable_totp(pool: &SqlitePool, id: UserId) -> DbResult<()> {
 }
 
 pub async fn disable_totp(pool: &SqlitePool, id: UserId) -> DbResult<()> {
-    // NB: PG also revokes sessions here; wire that in once the SQLite sessions
-    // domain exists.
     sqlx::query("UPDATE users SET totp_secret = NULL, totp_enabled = 0 WHERE id = ?")
         .bind(id.0.to_string())
         .execute(pool)
         .await?;
+    // Disabling 2FA is a security downgrade — revoke all sessions (PG parity).
+    super::sessions::delete_for_user(pool, id).await?;
     Ok(())
 }
 
@@ -267,6 +267,9 @@ async fn set_role_inner(pool: &SqlitePool, id: UserId, role: Role, is_admin: boo
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;
+    // Privilege change — revoke the target's sessions so it takes effect now
+    // (parity with the Postgres path).
+    super::sessions::delete_for_user(pool, id).await?;
     Ok(())
 }
 
@@ -352,7 +355,9 @@ mod tests {
     #[sqlx::test(migrations = "../../migrations-sqlite")]
     async fn create_seeds_default_membership_and_reads_back(pool: SqlitePool) {
         assert_eq!(count(&pool).await.unwrap(), 0);
-        let u = create(&pool, new_user("a@e.com", Role::Admin)).await.unwrap();
+        let u = create(&pool, new_user("a@e.com", Role::Admin))
+            .await
+            .unwrap();
         assert_eq!(u.role, Role::Admin);
         assert!(u.is_admin);
         assert_eq!(count(&pool).await.unwrap(), 1);
@@ -360,7 +365,9 @@ mod tests {
         // Default-org membership seeded with the user's role.
         let def = super::super::oid("00000000-0000-0000-0000-000000000001");
         assert_eq!(
-            super::super::orgs::member_role(&pool, def, u.id).await.unwrap(),
+            super::super::orgs::member_role(&pool, def, u.id)
+                .await
+                .unwrap(),
             Some(Role::Admin)
         );
 
@@ -381,29 +388,40 @@ mod tests {
 
     #[sqlx::test(migrations = "../../migrations-sqlite")]
     async fn set_role_mirrors_membership_and_password(pool: SqlitePool) {
-        let u = create(&pool, new_user("r@e.com", Role::Editor)).await.unwrap();
+        let u = create(&pool, new_user("r@e.com", Role::Editor))
+            .await
+            .unwrap();
         let def = super::super::oid("00000000-0000-0000-0000-000000000001");
 
         set_role(&pool, u.id, Role::Readonly).await.unwrap();
         assert_eq!(get(&pool, u.id).await.unwrap().role, Role::Readonly);
         assert_eq!(
-            super::super::orgs::member_role(&pool, def, u.id).await.unwrap(),
+            super::super::orgs::member_role(&pool, def, u.id)
+                .await
+                .unwrap(),
             Some(Role::Readonly)
         );
         set_admin(&pool, u.id, true).await.unwrap();
         assert!(get(&pool, u.id).await.unwrap().is_admin);
         assert_eq!(
-            super::super::orgs::member_role(&pool, def, u.id).await.unwrap(),
+            super::super::orgs::member_role(&pool, def, u.id)
+                .await
+                .unwrap(),
             Some(Role::Admin)
         );
 
         set_password(&pool, u.id, "newhash").await.unwrap();
-        assert_eq!(get_by_email(&pool, "r@e.com").await.unwrap().password_hash, "newhash");
+        assert_eq!(
+            get_by_email(&pool, "r@e.com").await.unwrap().password_hash,
+            "newhash"
+        );
     }
 
     #[sqlx::test(migrations = "../../migrations-sqlite")]
     async fn totp_lockout_lifecycle(pool: SqlitePool) {
-        let u = create(&pool, new_user("t@e.com", Role::Editor)).await.unwrap();
+        let u = create(&pool, new_user("t@e.com", Role::Editor))
+            .await
+            .unwrap();
         set_totp_secret(&pool, u.id, "BASE32SECRET").await.unwrap();
         enable_totp(&pool, u.id).await.unwrap();
         assert!(get(&pool, u.id).await.unwrap().totp_enabled);
@@ -423,7 +441,9 @@ mod tests {
 
     #[sqlx::test(migrations = "../../migrations-sqlite")]
     async fn prefs_list_anonymize_delete(pool: SqlitePool) {
-        let u = create(&pool, new_user("p@e.com", Role::Editor)).await.unwrap();
+        let u = create(&pool, new_user("p@e.com", Role::Editor))
+            .await
+            .unwrap();
         assert_eq!(get_prefs(&pool, u.id).await.unwrap(), serde_json::json!({}));
         set_prefs(&pool, u.id, &serde_json::json!({ "theme": "dark" }))
             .await
