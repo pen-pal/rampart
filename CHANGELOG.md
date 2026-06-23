@@ -29,6 +29,27 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.40] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `heartbeats` analytics tail** (11 fns completing the
+  domain): `daily_status` + `daily_status_batch` (uptime ribbon),
+  `day_hourly_latency`, `monthly_uptime` + `monthly_uptime_batch`,
+  `uptime_pct_batch`, `avg_latency_ms_batch`, `summary_window` (24h dashboard
+  rollup), and the SLO walk trio `mtbf_mttr` / `error_budget` /
+  `error_budget_burndown`. Faithful mirror of the SQLite reference with the
+  MySQL dialect: integer day buckets `ts DIV 86400` (not decimal `/`);
+  `strftime('%H'/'%Y-%m', …)` → `HOUR(FROM_UNIXTIME(ts))` /
+  `DATE_FORMAT(FROM_UNIXTIME(ts), '%Y-%m')`; `SUM(CASE…)` → `CAST(… AS SIGNED)`;
+  `AVG(int)` → `* 1e0` for f64; `MAX(CASE…)` for the BOOL_OR ribbon flags;
+  `ROW_NUMBER()` window (aliased derived table) for the latest-status merge. The
+  MTBF/MTTR + error-budget computations reuse PG's exact ascending-ts Rust walk
+  verbatim (only the query is runtime-checked). +1 `#[sqlx::test]` exercising
+  every path over a Up→Down→Up timeline (daily ribbon, monthly %, mtbf/mttr,
+  error budget + burndown, summary window, all four batch rollups, hourly
+  latency) green on MariaDB. `heartbeats` is now a complete MySQL domain;
+  PG + SQLite untouched.
+
 ## [0.156.39] — 2026-06-23
 
 ### Added
