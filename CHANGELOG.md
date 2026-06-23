@@ -29,6 +29,27 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.14] — 2026-06-23
+
+### Added
+- **Multi-DB P1 boot-wiring: SQLite `escalations` domain (un-stubs
+  `StoreEscalations`).** Fourth boot-wiring slice; standalone (no cross-domain
+  reads). `migrations-sqlite/0011_escalations.sql` (`escalation_policies` +
+  `escalation_episodes`; jsonb steps→TEXT, ts→INTEGER, the "one open episode per
+  subject" partial unique index ported verbatim) + `sqlite::escalations` for the
+  full 18-fn surface — policy CRUD + the episode state machine (open_episode /
+  open_episode_for_subject / resolve_subject / ack_episode / list_open /
+  list_open_for_org / episode_in_org / open_for_monitor / ack / resolve /
+  advance / due). Partial-target `ON CONFLICT(subject_kind, subject_ref) WHERE
+  resolved_at IS NULL DO NOTHING` ports as-is (SQLite 3.35+); `next_due` is the
+  pure rampart_core logic; `NOW()`→`unixepoch()`. +1 `#[sqlx::test]` (policy CRUD
+  + subject-episode open/idempotency/advance/resolve + cross-org gate).
+  **Boot-wiring 4/9** (proxies, scheduled_reports, maintenance, escalations); 5
+  left (audit; detection; and the telemetry-coupled metric_rules+metric_samples,
+  slos, telemetry_rules+logs/traces). Off-by-default `sqlite`; PG untouched.
+
+---
+
 ## [0.156.13] — 2026-06-23
 
 ### Added
