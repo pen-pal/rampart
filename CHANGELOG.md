@@ -29,6 +29,29 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.49] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — boot flip: `DATABASE_URL=mysql://…` selects `MysqlStore`.**
+  `main.rs` gains the `mysql:` scheme branch (alongside `postgres://` and
+  `sqlite:`), gated behind a new off-by-default `rampart-api` `mysql` feature
+  (`mysql = ["rampart-db/mysql"]`) so the default Postgres build compiles zero
+  MySQL code. On a `mysql://` URL it builds `MysqlStore::connect` (no PG pool),
+  the leader becomes `Leadership::always()` (no advisory lock without a PG pool),
+  and the Postgres-only paths (prune / self-metrics / seed-demo) are skipped —
+  same shape as the SQLite flip. **Verified against MariaDB:** the binary built
+  `--features mysql` boots on a `mysql://` URL, applies the full migration set,
+  and serves `/healthz` (`{"status":"alive","version":"0.156.49"}`); the
+  management API + all 20 ported domains' reads/writes work.
+- **Known limitation (management-API tier):** the scheduler / notifier background
+  loops call Store methods for domains not yet ported to MySQL (maintenance,
+  digest_buffer, routing, silences, templates, monitor_groups, agents) → those
+  loops `unimplemented!()`-panic in their worker threads (the HTTP server +
+  ported domains are unaffected). So MySQL is currently a **management-API +
+  telemetry-read tier**; the monitoring/alerting tier needs that scheduler-
+  dependency domain tail ported — the same tail SQLite completed (v0.156.11-27)
+  before its boot was panic-free. Postgres + SQLite unchanged.
+
 ## [0.156.48] — 2026-06-23
 
 ### Added

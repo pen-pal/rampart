@@ -98,7 +98,11 @@ async fn main() -> anyhow::Result<()> {
     // to be built with the `sqlite` feature). The scheduler / notifier / SIEM
     // loops are backend-agnostic (they take `Arc<dyn Store>`); only the residual
     // telemetry-ingest / prune / self-metrics paths still need the raw pool.
+    // `mysql://…` → MysqlStore (relational-subset tier; requires the `mysql`
+    // feature). Same backend-agnostic story as sqlite: no Postgres pool, so the
+    // prune / self-metrics / seed-demo paths (Postgres-only) are skipped.
     let is_sqlite = database_url.starts_with("sqlite:");
+    let is_mysql = database_url.starts_with("mysql:");
     let (store, pg_pool): (
         std::sync::Arc<dyn rampart_db::store::Store>,
         Option<rampart_db::DbPool>,
@@ -114,6 +118,20 @@ async fn main() -> anyhow::Result<()> {
             anyhow::bail!(
                 "DATABASE_URL is a sqlite URL but this binary was built without the `sqlite` \
                  feature. Rebuild with `--features sqlite`, or use a postgres:// DATABASE_URL."
+            );
+        }
+    } else if is_mysql {
+        #[cfg(feature = "mysql")]
+        {
+            let s = rampart_db::mysql::store::MysqlStore::connect(&database_url).await?;
+            info!("mysql backend: migrations applied");
+            (std::sync::Arc::new(s), None)
+        }
+        #[cfg(not(feature = "mysql"))]
+        {
+            anyhow::bail!(
+                "DATABASE_URL is a mysql URL but this binary was built without the `mysql` \
+                 feature. Rebuild with `--features mysql`, or use a postgres:// DATABASE_URL."
             );
         }
     } else {
@@ -228,7 +246,8 @@ async fn main() -> anyhow::Result<()> {
     // single replica the lock is acquired immediately (no behaviour change).
     // The HTTP API below runs on every replica regardless. The advisory-lock
     // election is Postgres-only; the single-binary SQLite tier is always leader.
-    let leadership = if is_sqlite {
+    // Non-Postgres tiers (SQLite, MySQL) have no PG pool / advisory lock → always leader.
+    let leadership = if pg_pool.is_none() {
         rampart_db::leader::Leadership::always()
     } else {
         rampart_db::leader::spawn(database_url.clone())
