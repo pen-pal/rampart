@@ -29,7 +29,22 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
-## [0.156.30] — 2026-06-23
+## [0.156.31] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — auth core: `users` + `sessions` domains.**
+  `mysql::users` (20 fns: accounts / RBAC role / TOTP-2FA lockout / prefs / GDPR
+  anonymize, role-mirror onto Default-org membership + session revocation on
+  privilege/2FA downgrade) and `mysql::sessions` (9 fns) +
+  `migrations-mysql/0003_sessions.sql`. MySQL dialect deltas handled: no
+  `RETURNING` → insert-then-get; `unixepoch()` → `UNIX_TIMESTAMP()`; `||` →
+  `CONCAT` (anonymize); upsert → `ON DUPLICATE KEY UPDATE`; and the TOTP-lockout
+  UPDATE orders the `totp_locked_until` CASE **before** the counter increment
+  because MySQL evaluates `SET` left-to-right over already-updated values (unlike
+  the SQL-standard all-old-values that PG/SQLite use) — otherwise the lock
+  threshold would double-count. **Verified on a real MariaDB**: the full
+  `mysql::` suite (settings + orgs + sessions + users) is 12/12 green locally,
+  not just compile-checked. Off by default; PG + SQLite untouched.
 
 ### Added
 - **Multi-DB P2 (MySQL) — identity domain: `orgs` + the identity migration.**
