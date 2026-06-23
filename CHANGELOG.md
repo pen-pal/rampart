@@ -29,6 +29,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.41] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `metric_samples` domain** (externally-pushed metric
+  series; the read foundation for metric_rules + slos): insert_many /
+  list_series / range_query / baseline / latest / prune_older_than +
+  `migrations-mysql/0011_metric_samples.sql`. The **first telemetry-tier MySQL
+  domain.** jsonb/canonical-TEXT labels → a **`utf8mb4_bin`** TEXT column so `=`
+  and `GROUP BY` are byte-exact — utf8mb4's default collation is case/accent-
+  insensitive and would silently merge distinct label sets, so series identity
+  must use a binary collation. `(ts/step)*step` bucket → `(ts DIV step)*step`
+  integer math; `STDDEV_SAMP` (absent) computed app-side from sum/sum-of-squares/
+  count (identical to SQLite); AVG/SUM of a DOUBLE column return DOUBLE so no
+  `* 1e0`. PG/SQLite have no PK; MySQL gets a surrogate `id` AUTO_INCREMENT that
+  also serves as the same-second `latest` tie-break (replacing SQLite rowid).
+  +1 `#[sqlx::test]` incl. a case-sensitive label-identity assertion ("A" ≠ "a")
+  green on MariaDB. PG + SQLite untouched.
+
 ## [0.156.40] — 2026-06-23
 
 ### Added
