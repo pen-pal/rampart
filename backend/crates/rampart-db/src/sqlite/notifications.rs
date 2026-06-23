@@ -28,7 +28,8 @@ use uuid::Uuid;
 
 /// The 13 channel columns every read selects (bare names so the get-by-name
 /// row helper resolves them after a `for_monitor` JOIN aliases `n.*`).
-const COLS: &str = "id, kind, name, config, active, template_id, created_at, cooldown_seconds, \
+pub(crate) const COLS: &str =
+    "id, kind, name, config, active, template_id, created_at, cooldown_seconds, \
      digest_window_secs, quiet_hours_start, quiet_hours_end, rate_limit_per_hour, last_fired_at";
 
 fn channel_kind_str(k: ChannelKind) -> String {
@@ -45,7 +46,7 @@ fn channel_kind_from(s: &str) -> ChannelKind {
 /// clippy `type_complexity`). Config is re-opened here so EVERY materialization
 /// decrypts — there is no read path that can forget it. Integers are read as
 /// `i64` then narrowed, matching the rest of the SQLite layer.
-fn notification_from(r: &sqlx::sqlite::SqliteRow) -> Notification {
+pub(crate) fn notification_from(r: &sqlx::sqlite::SqliteRow) -> Notification {
     let cfg: serde_json::Value =
         serde_json::from_str(&r.get::<String, _>("config")).unwrap_or_default();
     Notification {
