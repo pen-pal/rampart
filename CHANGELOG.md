@@ -29,6 +29,25 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.23] — 2026-06-23
+
+### Added
+- **Multi-DB P1 seam-plumbing slice A: `StoreDigestBuffer` trait + SQLite
+  `digest_buffer` domain.** Foundation for migrating rampart-notifier off the
+  concrete `&DbPool`: a 6-reader mapping workflow over scheduler / notifier /
+  seed / import / api / boot found the notifier's per-channel digest buffer is
+  the only consumer with NO Store-trait coverage (it called
+  `rampart_db::digest_buffer::` free fns directly). New `StoreDigestBuffer`
+  sub-trait (enqueue_digest / drain_due_digests / take_digest_for_channel /
+  delete_digest_by_ids) added to the `Store` super-trait, impl'd on PgStore
+  (delegates) and SqliteStore (new `sqlite::digest_buffer` — migration-free; the
+  table was pre-created in `0007_notifications.sql`). +1 `#[sqlx::test]`
+  (enqueue → window-gated drain_due → take → scoped delete). Additive, zero
+  callers yet (the notifier migration consumes it next); PG behavior unchanged.
+  The vapid case needs no new method — Store callers compose the existing
+  get/set_vapid_keys with their own generator (the `get_or_create_vapid` closure
+  is intentionally non-object-safe). Off-by-default `sqlite`; PG untouched.
+
 ## [0.156.22] — 2026-06-23
 
 ### Added
