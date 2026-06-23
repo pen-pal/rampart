@@ -29,7 +29,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
-## [0.156.31] — 2026-06-23
+## [0.156.32] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — core monitoring: `monitors` + `tags` domains.** The
+  big coupled slice: `mysql::monitors` (28 fns: CRUD, partial `update` with
+  double-Option clears, `bulk_edit`/`bulk_edit_preview`, push-token + run
+  lifecycle, cert/SLO state, `set_active_by_tag`, `list_stale_agent_monitors`,
+  `public_fields_batch`) + `mysql::tags` (11 fns incl batch hydrators) +
+  `migrations-mysql/0004_monitoring.sql` (monitors + heartbeats + agents + tags
+  + the 3 tag join-tables, one migration because the domains are mutually
+  dependent: monitors hydrate tags, monitor_tags FKs monitors, the stale-agent
+  watchdog JOINs agents + heartbeats). MySQL deltas: strict integer typing (all
+  Monitor int fields i32 → INT, ts → BIGINT, bools → TINYINT decoded as i64);
+  no `RETURNING` → insert-then-get; `unixepoch()` → `UNIX_TIMESTAMP()`;
+  `ON CONFLICT DO NOTHING` → `ON DUPLICATE KEY`; UPDATE existence gated on a
+  SELECT (MySQL reports changed not matched rows). **Verified on real MariaDB:
+  the full `mysql::` suite is 18/18 green** (settings/orgs/sessions/users +
+  monitors/tags). Off by default; PG + SQLite untouched.
 
 ### Added
 - **Multi-DB P2 (MySQL) — auth core: `users` + `sessions` domains.**
