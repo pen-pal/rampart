@@ -29,6 +29,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.58] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `api_keys` + `ingest_keys` domains** (management-API
+  tail, slice 5; the credential pair). `migrations-mysql/0025_api_keys_ingest_keys.sql`
+  + 2 modules, un-stubbing `StoreApiKeys` (list/create/delete/lookup/
+  touch_last_used — bearer keys, SHA-256-hashed, lookup on the UNIQUE key_hash;
+  the legacy `scopes` array dropped, `scope` authoritative) and `StoreIngestKeys`
+  (create/find_by_token/touch/list/delete — per-org ingest credentials, dual-write
+  token + token_hash with hash-primary lookup + plaintext fallback). Both reuse
+  `crate::api_keys::sha256_hex` so hashes match the PG store. TEXT[]→LONGTEXT(JSON),
+  ts→BIGINT, no RETURNING → re-select. +2 `#[sqlx::test]` (incl. bearer lookup +
+  cross-org isolation + origins round-trip) green on MariaDB. PG + SQLite untouched.
+
 ## [0.156.57] — 2026-06-23
 
 ### Added

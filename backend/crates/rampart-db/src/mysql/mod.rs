@@ -23,6 +23,7 @@
 //!   (bound `IN (?,…)` lists, as in the SQLite layer).
 
 pub mod agents;
+pub mod api_keys;
 pub mod audit;
 pub mod delivery_log;
 pub mod deploy_markers;
@@ -30,6 +31,7 @@ pub mod detection;
 pub mod digest_buffer;
 pub mod escalations;
 pub mod heartbeats;
+pub mod ingest_keys;
 pub mod logs;
 pub mod maintenance;
 pub mod metric_rules;
