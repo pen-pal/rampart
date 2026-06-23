@@ -35,6 +35,7 @@ pub mod heartbeats;
 pub mod monitors;
 pub mod notifications;
 pub mod orgs;
+pub mod proxies;
 pub mod sessions;
 pub mod settings;
 pub mod store;

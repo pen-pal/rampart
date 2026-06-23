@@ -404,29 +404,27 @@ impl StoreSlos for SqliteStore {
 #[async_trait::async_trait]
 impl StoreProxies for SqliteStore {
     async fn list_proxies(&self, org_id: OrgId) -> DbResult<Vec<Proxy>> {
-        unimplemented!("SqliteStore::list_proxies: proxies domain not yet ported (multi-DB P1)")
+        crate::sqlite::proxies::list(&self.pool, org_id).await
     }
 
     async fn get_proxy(&self, id: ProxyId, org_id: OrgId) -> DbResult<Proxy> {
-        unimplemented!("SqliteStore::get_proxy: proxies domain not yet ported (multi-DB P1)")
+        crate::sqlite::proxies::get(&self.pool, id, org_id).await
     }
 
     async fn get_proxy_unscoped(&self, id: ProxyId) -> DbResult<Proxy> {
-        unimplemented!(
-            "SqliteStore::get_proxy_unscoped: proxies domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::proxies::get_unscoped(&self.pool, id).await
     }
 
     async fn create_proxy(&self, input: NewProxy, org_id: OrgId) -> DbResult<Proxy> {
-        unimplemented!("SqliteStore::create_proxy: proxies domain not yet ported (multi-DB P1)")
+        crate::sqlite::proxies::create(&self.pool, input, org_id).await
     }
 
     async fn delete_proxy(&self, id: ProxyId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!("SqliteStore::delete_proxy: proxies domain not yet ported (multi-DB P1)")
+        crate::sqlite::proxies::delete(&self.pool, id, org_id).await
     }
 
     async fn set_active_proxy(&self, id: ProxyId, active: bool, org_id: OrgId) -> DbResult<()> {
-        unimplemented!("SqliteStore::set_active_proxy: proxies domain not yet ported (multi-DB P1)")
+        crate::sqlite::proxies::set_active(&self.pool, id, active, org_id).await
     }
 }
 
