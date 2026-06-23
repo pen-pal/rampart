@@ -29,6 +29,7 @@ pub mod digest_buffer;
 pub mod escalations;
 pub mod heartbeats;
 pub mod logs;
+pub mod maintenance;
 pub mod metric_rules;
 pub mod metric_samples;
 pub mod monitors;
