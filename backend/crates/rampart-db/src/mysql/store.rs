@@ -1254,37 +1254,35 @@ impl StoreRouting for MysqlStore {
     }
 
     async fn group_tag_ids(&self, group: MonitorGroupId) -> DbResult<Vec<TagId>> {
-        unimplemented!("MysqlStore::group_tag_ids: routing domain not yet ported (multi-DB P1)")
+        crate::mysql::routing::group_tag_ids(&self.pool, group).await
     }
 
     async fn channel_tag_ids(&self, notif: NotificationId) -> DbResult<Vec<TagId>> {
-        unimplemented!("MysqlStore::channel_tag_ids: routing domain not yet ported (multi-DB P1)")
+        crate::mysql::routing::channel_tag_ids(&self.pool, notif).await
     }
 
     async fn group_channel_ids(&self, group: MonitorGroupId) -> DbResult<Vec<NotificationId>> {
-        unimplemented!("MysqlStore::group_channel_ids: routing domain not yet ported (multi-DB P1)")
+        crate::mysql::routing::group_channel_ids(&self.pool, group).await
     }
 
     async fn monitor_exclude_ids(&self, monitor: MonitorId) -> DbResult<Vec<NotificationId>> {
-        unimplemented!(
-            "MysqlStore::monitor_exclude_ids: routing domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::routing::monitor_exclude_ids(&self.pool, monitor).await
     }
 
     async fn tag_group(&self, group: MonitorGroupId, tag: TagId) -> DbResult<()> {
-        unimplemented!("MysqlStore::tag_group: routing domain not yet ported (multi-DB P1)")
+        crate::mysql::routing::tag_group(&self.pool, group, tag).await
     }
 
     async fn untag_group(&self, group: MonitorGroupId, tag: TagId) -> DbResult<()> {
-        unimplemented!("MysqlStore::untag_group: routing domain not yet ported (multi-DB P1)")
+        crate::mysql::routing::untag_group(&self.pool, group, tag).await
     }
 
     async fn tag_channel(&self, notif: NotificationId, tag: TagId) -> DbResult<()> {
-        unimplemented!("MysqlStore::tag_channel: routing domain not yet ported (multi-DB P1)")
+        crate::mysql::routing::tag_channel(&self.pool, notif, tag).await
     }
 
     async fn untag_channel(&self, notif: NotificationId, tag: TagId) -> DbResult<()> {
-        unimplemented!("MysqlStore::untag_channel: routing domain not yet ported (multi-DB P1)")
+        crate::mysql::routing::untag_channel(&self.pool, notif, tag).await
     }
 
     async fn attach_group_channel(
@@ -1292,9 +1290,7 @@ impl StoreRouting for MysqlStore {
         group: MonitorGroupId,
         notif: NotificationId,
     ) -> DbResult<()> {
-        unimplemented!(
-            "MysqlStore::attach_group_channel: routing domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::routing::attach_group_channel(&self.pool, group, notif).await
     }
 
     async fn detach_group_channel(
@@ -1302,17 +1298,15 @@ impl StoreRouting for MysqlStore {
         group: MonitorGroupId,
         notif: NotificationId,
     ) -> DbResult<()> {
-        unimplemented!(
-            "MysqlStore::detach_group_channel: routing domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::routing::detach_group_channel(&self.pool, group, notif).await
     }
 
     async fn exclude_channel(&self, monitor: MonitorId, notif: NotificationId) -> DbResult<()> {
-        unimplemented!("MysqlStore::exclude_channel: routing domain not yet ported (multi-DB P1)")
+        crate::mysql::routing::exclude_channel(&self.pool, monitor, notif).await
     }
 
     async fn unexclude_channel(&self, monitor: MonitorId, notif: NotificationId) -> DbResult<()> {
-        unimplemented!("MysqlStore::unexclude_channel: routing domain not yet ported (multi-DB P1)")
+        crate::mysql::routing::unexclude_channel(&self.pool, monitor, notif).await
     }
 }
 

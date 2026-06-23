@@ -7,8 +7,9 @@
 use super::notifications::{notification_from, COLS};
 use crate::notifications::Notification;
 use crate::DbResult;
-use rampart_core::ids::MonitorId;
-use sqlx::MySqlPool;
+use rampart_core::ids::{MonitorGroupId, MonitorId, NotificationId, TagId};
+use sqlx::{MySqlPool, Row};
+use uuid::Uuid;
 
 pub async fn resolve_channels_for_monitor(
     pool: &MySqlPool,
@@ -55,6 +56,166 @@ pub async fn resolve_channels_for_monitor(
         .fetch_all(pool)
         .await?;
     Ok(rows.iter().map(notification_from).collect())
+}
+
+// ── read helpers (for the UI) ─────────────────────────────────────────────
+
+async fn id_col(pool: &MySqlPool, sql: &'static str, bind: &str) -> DbResult<Vec<Uuid>> {
+    let rows = sqlx::query(sql).bind(bind).fetch_all(pool).await?;
+    Ok(rows
+        .iter()
+        .map(|r| super::raw_uuid(&r.get::<String, _>(0)))
+        .collect())
+}
+
+pub async fn group_tag_ids(pool: &MySqlPool, group: MonitorGroupId) -> DbResult<Vec<TagId>> {
+    let ids = id_col(
+        pool,
+        "SELECT tag_id FROM group_tags WHERE group_id = ?",
+        &group.0.to_string(),
+    )
+    .await?;
+    Ok(ids.into_iter().map(TagId::from_uuid).collect())
+}
+
+pub async fn channel_tag_ids(pool: &MySqlPool, notif: NotificationId) -> DbResult<Vec<TagId>> {
+    let ids = id_col(
+        pool,
+        "SELECT tag_id FROM notification_tags WHERE notification_id = ?",
+        &notif.0.to_string(),
+    )
+    .await?;
+    Ok(ids.into_iter().map(TagId::from_uuid).collect())
+}
+
+pub async fn group_channel_ids(
+    pool: &MySqlPool,
+    group: MonitorGroupId,
+) -> DbResult<Vec<NotificationId>> {
+    let ids = id_col(
+        pool,
+        "SELECT notification_id FROM group_notifications WHERE group_id = ?",
+        &group.0.to_string(),
+    )
+    .await?;
+    Ok(ids.into_iter().map(NotificationId::from_uuid).collect())
+}
+
+pub async fn monitor_exclude_ids(
+    pool: &MySqlPool,
+    monitor: MonitorId,
+) -> DbResult<Vec<NotificationId>> {
+    let ids = id_col(
+        pool,
+        "SELECT notification_id FROM monitor_notification_excludes WHERE monitor_id = ?",
+        &monitor.0.to_string(),
+    )
+    .await?;
+    Ok(ids.into_iter().map(NotificationId::from_uuid).collect())
+}
+
+// ── junction helpers ──────────────────────────────────────────────────────
+
+async fn link(pool: &MySqlPool, sql: &'static str, a: &str, b: &str) -> DbResult<()> {
+    sqlx::query(sql).bind(a).bind(b).execute(pool).await?;
+    Ok(())
+}
+
+pub async fn tag_group(pool: &MySqlPool, group: MonitorGroupId, tag: TagId) -> DbResult<()> {
+    link(
+        pool,
+        "INSERT IGNORE INTO group_tags (group_id, tag_id) VALUES (?, ?)",
+        &group.0.to_string(),
+        &tag.0.to_string(),
+    )
+    .await
+}
+
+pub async fn untag_group(pool: &MySqlPool, group: MonitorGroupId, tag: TagId) -> DbResult<()> {
+    link(
+        pool,
+        "DELETE FROM group_tags WHERE group_id = ? AND tag_id = ?",
+        &group.0.to_string(),
+        &tag.0.to_string(),
+    )
+    .await
+}
+
+pub async fn tag_channel(pool: &MySqlPool, notif: NotificationId, tag: TagId) -> DbResult<()> {
+    link(
+        pool,
+        "INSERT IGNORE INTO notification_tags (notification_id, tag_id) VALUES (?, ?)",
+        &notif.0.to_string(),
+        &tag.0.to_string(),
+    )
+    .await
+}
+
+pub async fn untag_channel(pool: &MySqlPool, notif: NotificationId, tag: TagId) -> DbResult<()> {
+    link(
+        pool,
+        "DELETE FROM notification_tags WHERE notification_id = ? AND tag_id = ?",
+        &notif.0.to_string(),
+        &tag.0.to_string(),
+    )
+    .await
+}
+
+pub async fn attach_group_channel(
+    pool: &MySqlPool,
+    group: MonitorGroupId,
+    notif: NotificationId,
+) -> DbResult<()> {
+    link(
+        pool,
+        "INSERT IGNORE INTO group_notifications (group_id, notification_id) VALUES (?, ?)",
+        &group.0.to_string(),
+        &notif.0.to_string(),
+    )
+    .await
+}
+
+pub async fn detach_group_channel(
+    pool: &MySqlPool,
+    group: MonitorGroupId,
+    notif: NotificationId,
+) -> DbResult<()> {
+    link(
+        pool,
+        "DELETE FROM group_notifications WHERE group_id = ? AND notification_id = ?",
+        &group.0.to_string(),
+        &notif.0.to_string(),
+    )
+    .await
+}
+
+/// Exclude a channel from a monitor — wins over any inclusion path.
+pub async fn exclude_channel(
+    pool: &MySqlPool,
+    monitor: MonitorId,
+    notif: NotificationId,
+) -> DbResult<()> {
+    link(
+        pool,
+        "INSERT IGNORE INTO monitor_notification_excludes (monitor_id, notification_id) VALUES (?, ?)",
+        &monitor.0.to_string(),
+        &notif.0.to_string(),
+    )
+    .await
+}
+
+pub async fn unexclude_channel(
+    pool: &MySqlPool,
+    monitor: MonitorId,
+    notif: NotificationId,
+) -> DbResult<()> {
+    link(
+        pool,
+        "DELETE FROM monitor_notification_excludes WHERE monitor_id = ? AND notification_id = ?",
+        &monitor.0.to_string(),
+        &notif.0.to_string(),
+    )
+    .await
 }
 
 #[cfg(test)]
@@ -140,5 +301,69 @@ mod tests {
             .await
             .unwrap();
         assert!(silences::is_silenced(&pool, Some(mon.id.0)).await.unwrap());
+    }
+
+    #[sqlx::test(migrations = "../../migrations-mysql")]
+    async fn junction_round_trips(pool: MySqlPool) {
+        use crate::mysql::tags;
+        let org = super::super::oid(DEF);
+        let grp = monitor_groups::create(
+            &pool,
+            rampart_core::monitor_group::NewMonitorGroup {
+                name: "G".into(),
+                sort_order: 0,
+                parent_id: None,
+            },
+            org,
+        )
+        .await
+        .unwrap();
+        let ch = notifications::create(
+            &pool,
+            serde_json::from_value::<NewNotification>(serde_json::json!({
+                "kind": "webhook", "name": "c", "config": {"url": "https://e.com/h"}
+            }))
+            .unwrap(),
+            org,
+        )
+        .await
+        .unwrap();
+        let tag = tags::create(
+            &pool,
+            serde_json::from_value(serde_json::json!({ "name": "env", "color": "#ffffff" }))
+                .unwrap(),
+            org,
+        )
+        .await
+        .unwrap();
+        let mon = monitors::create(&pool, new_http(), org).await.unwrap();
+
+        // group ↔ tag (idempotent insert + read + delete).
+        tag_group(&pool, grp.id, tag.id).await.unwrap();
+        tag_group(&pool, grp.id, tag.id).await.unwrap();
+        assert_eq!(group_tag_ids(&pool, grp.id).await.unwrap(), vec![tag.id]);
+        untag_group(&pool, grp.id, tag.id).await.unwrap();
+        assert!(group_tag_ids(&pool, grp.id).await.unwrap().is_empty());
+
+        // channel ↔ tag.
+        tag_channel(&pool, ch.id, tag.id).await.unwrap();
+        assert_eq!(channel_tag_ids(&pool, ch.id).await.unwrap(), vec![tag.id]);
+        untag_channel(&pool, ch.id, tag.id).await.unwrap();
+        assert!(channel_tag_ids(&pool, ch.id).await.unwrap().is_empty());
+
+        // group ↔ channel.
+        attach_group_channel(&pool, grp.id, ch.id).await.unwrap();
+        assert_eq!(group_channel_ids(&pool, grp.id).await.unwrap(), vec![ch.id]);
+        detach_group_channel(&pool, grp.id, ch.id).await.unwrap();
+        assert!(group_channel_ids(&pool, grp.id).await.unwrap().is_empty());
+
+        // monitor channel exclusion.
+        exclude_channel(&pool, mon.id, ch.id).await.unwrap();
+        assert_eq!(
+            monitor_exclude_ids(&pool, mon.id).await.unwrap(),
+            vec![ch.id]
+        );
+        unexclude_channel(&pool, mon.id, ch.id).await.unwrap();
+        assert!(monitor_exclude_ids(&pool, mon.id).await.unwrap().is_empty());
     }
 }

@@ -29,6 +29,21 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.70] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `routing` junction helpers.** The dispatch-path
+  `resolve_channels_for_monitor` (recursive folder-walk union) was already
+  wired; this adds the 12 remaining `StoreRouting` methods — read helpers
+  (group_tag_ids / channel_tag_ids / group_channel_ids / monitor_exclude_ids)
+  and junction mutators (tag_group / untag_group / tag_channel / untag_channel /
+  attach_group_channel / detach_group_channel / exclude_channel /
+  unexclude_channel) over `group_tags` / `notification_tags` /
+  `group_notifications` / `monitor_notification_excludes` (no migration — the
+  junction tables exist). `ON CONFLICT DO NOTHING`→`INSERT IGNORE`. +1
+  `#[sqlx::test]` (group↔tag, channel↔tag, group↔channel, monitor-exclude
+  round-trips incl. idempotent insert) green on MariaDB. PG + SQLite untouched.
+
 ## [0.156.69] — 2026-06-23
 
 ### Added
