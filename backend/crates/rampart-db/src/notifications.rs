@@ -81,18 +81,18 @@ fn default_enabled() -> bool {
 
 /// Clamp a digest window to the supported 0..=3600 range. Mirrors the
 /// DB CHECK constraint so a bad value is corrected rather than rejected.
-fn clamp_digest_window(v: i32) -> i32 {
+pub(crate) fn clamp_digest_window(v: i32) -> i32 {
     v.clamp(0, 3600)
 }
 
 /// Clamp a quiet-hours hour into the 0..=23 range. `None` stays `None`.
 /// Mirrors the DB CHECK so a bad value is corrected rather than rejected.
-fn clamp_hour(v: Option<i16>) -> Option<i16> {
+pub(crate) fn clamp_hour(v: Option<i16>) -> Option<i16> {
     v.map(|h| h.clamp(0, 23))
 }
 
 /// Clamp a rate limit to be non-negative. Mirrors the DB CHECK.
-fn clamp_rate(v: i32) -> i32 {
+pub(crate) fn clamp_rate(v: i32) -> i32 {
     v.max(0)
 }
 

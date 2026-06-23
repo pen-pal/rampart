@@ -29,6 +29,37 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.8] — 2026-06-23
+
+### Added
+- **Multi-DB P1: SQLite `notifications` (channels) + `delivery_log` domains.**
+  New `migrations-sqlite/0007_notifications.sql` (notification_templates,
+  notifications, monitor_notifications, group_notifications,
+  monitor_notification_excludes, digest_buffer, delivery_log — dialect-mapped:
+  uuid→TEXT, ts→INTEGER unix-seconds, bool→0/1, jsonb→TEXT, channel_kind→
+  app-validated TEXT, per-org template-name unique index, delivery_log
+  `BIGSERIAL`→`INTEGER PRIMARY KEY`). `sqlite::notifications` mirrors the full PG
+  free-fn surface — list / list_all / get / get_unscoped / create / update
+  (read-modify-write preserving the `double_option` template/quiet-hours
+  semantics) / counts_per_monitor / delete / attach / detach / for_monitor /
+  mark_fired. **Channel `config` is sealed by `crate::secrets::seal` on write and
+  re-opened by `crate::secrets::open` on EVERY read** (the row helper centralizes
+  it so no path can repeat the #112 decrypt-on-fanout bug); clamps + structs are
+  reused from the PG module (clamp helpers promoted to `pub(crate)`) so behavior
+  can't drift across backends. `sqlite::delivery_log` mirrors record / get / list
+  (keyset + nullable filters) / list_all, with the same in-SQL org floor
+  (`COALESCE((SELECT org_id FROM notifications WHERE id = ?), Default)`). Tags
+  hydrate via the existing `sqlite::tags::hydrate_for_channels`. +5 `#[sqlx::test]`
+  (CRUD/clamps/double-option/cross-org, enum round-trip, attach/for_monitor/
+  counts/tags/mark_fired, delivery org-floor + list filter matrix). **SQLite
+  domains now 10: settings, orgs, users, sessions, monitors, heartbeats, tags,
+  agents, notifications, delivery_log (26 tests).** Deferred: the routing
+  resolver (`resolve_channels_for_monitor` needs the not-yet-forked
+  `monitor_groups`) and notification_template / digest_buffer CRUD. Off-by-default
+  `sqlite` feature; PG build untouched.
+
+---
+
 ## [0.156.7] — 2026-06-23
 
 ### Added

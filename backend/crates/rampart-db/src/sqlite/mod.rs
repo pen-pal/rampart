@@ -30,8 +30,10 @@
 //!   excluded.col`; the `user_role` enum as a CHECK'd TEXT column.
 
 pub mod agents;
+pub mod delivery_log;
 pub mod heartbeats;
 pub mod monitors;
+pub mod notifications;
 pub mod orgs;
 pub mod sessions;
 pub mod settings;
