@@ -1,10 +1,10 @@
 //! MySQL/MariaDB backend — multi-DB P2 (relational subset for MySQL shops).
 //!
 //! Behind the `mysql` cargo feature so the default Postgres build + its `.sqlx`
-//! cache are untouched. See `docs/design/MULTI_DB.md` (P2 plan). This is the P0
-//! spike: it proves the toolchain (driver + `#[sqlx::test]` + the upsert
-//! dialect) on `settings`; later slices add real domains the way the SQLite
-//! backend did, then a full `impl Store for MysqlStore`.
+//! cache are untouched. See `docs/design/MULTI_DB.md` (P2 plan). Every `Store`
+//! sub-trait is now implemented for `MysqlStore` — no `unimplemented!()` stubs
+//! remain — so a MySQL/MariaDB shop can run the full management + telemetry +
+//! ingest surface, each domain covered by a `#[sqlx::test]` against MariaDB.
 //!
 //! ## Why runtime-checked queries (not `query!`)
 //!
@@ -22,6 +22,7 @@
 //!   no `RETURNING` (app-side UUID PK + INSERT-then-SELECT); no array binds
 //!   (bound `IN (?,…)` lists, as in the SQLite layer).
 
+pub mod access_review;
 pub mod agents;
 pub mod api_keys;
 pub mod audit;
