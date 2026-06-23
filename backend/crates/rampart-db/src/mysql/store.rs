@@ -684,7 +684,7 @@ impl StoreEscalations for MysqlStore {
 #[async_trait::async_trait]
 impl StoreMaintenance for MysqlStore {
     async fn list_maintenance_windows(&self, org_id: OrgId) -> DbResult<Vec<MaintenanceWindow>> {
-        unimplemented!("MySQL store: maintenance domain not yet ported")
+        crate::mysql::maintenance::list(&self.pool, org_id).await
     }
 
     async fn get_maintenance_window(
@@ -692,7 +692,7 @@ impl StoreMaintenance for MysqlStore {
         id: MaintenanceId,
         org_id: OrgId,
     ) -> DbResult<MaintenanceWindow> {
-        unimplemented!("MySQL store: maintenance domain not yet ported")
+        crate::mysql::maintenance::get(&self.pool, id, org_id).await
     }
 
     async fn create_maintenance_window(
@@ -700,7 +700,7 @@ impl StoreMaintenance for MysqlStore {
         input: NewMaintenanceWindow,
         org_id: OrgId,
     ) -> DbResult<MaintenanceWindow> {
-        unimplemented!("MySQL store: maintenance domain not yet ported")
+        crate::mysql::maintenance::create(&self.pool, input, org_id).await
     }
 
     async fn update_maintenance_window(
@@ -709,11 +709,11 @@ impl StoreMaintenance for MysqlStore {
         patch: UpdateMaintenanceWindow,
         org_id: OrgId,
     ) -> DbResult<MaintenanceWindow> {
-        unimplemented!("MySQL store: maintenance domain not yet ported")
+        crate::mysql::maintenance::update(&self.pool, id, patch, org_id).await
     }
 
     async fn delete_maintenance_window(&self, id: MaintenanceId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!("MySQL store: maintenance domain not yet ported")
+        crate::mysql::maintenance::delete(&self.pool, id, org_id).await
     }
 
     async fn set_active_maintenance(
@@ -722,7 +722,7 @@ impl StoreMaintenance for MysqlStore {
         active: bool,
         org_id: OrgId,
     ) -> DbResult<()> {
-        unimplemented!("MySQL store: maintenance domain not yet ported")
+        crate::mysql::maintenance::set_active(&self.pool, id, active, org_id).await
     }
 
     async fn attach_maintenance_monitor(
@@ -730,7 +730,7 @@ impl StoreMaintenance for MysqlStore {
         window: MaintenanceId,
         monitor: MonitorId,
     ) -> DbResult<()> {
-        unimplemented!("MySQL store: maintenance domain not yet ported")
+        crate::mysql::maintenance::attach(&self.pool, window, monitor).await
     }
 
     async fn detach_maintenance_monitor(
@@ -738,25 +738,25 @@ impl StoreMaintenance for MysqlStore {
         window: MaintenanceId,
         monitor: MonitorId,
     ) -> DbResult<()> {
-        unimplemented!("MySQL store: maintenance domain not yet ported")
+        crate::mysql::maintenance::detach(&self.pool, window, monitor).await
     }
 
     async fn is_in_active_window(&self, monitor: MonitorId) -> DbResult<bool> {
-        unimplemented!("MySQL store: maintenance domain not yet ported")
+        crate::mysql::maintenance::is_in_active_window(&self.pool, monitor).await
     }
 
     async fn maintenance_transitions_needing_notification(
         &self,
     ) -> DbResult<Vec<MaintenanceTransition>> {
-        unimplemented!("MySQL store: maintenance domain not yet ported")
+        crate::mysql::maintenance::transitions_needing_notification(&self.pool).await
     }
 
     async fn mark_maintenance_notified_start(&self, id: MaintenanceId) -> DbResult<()> {
-        unimplemented!("MySQL store: maintenance domain not yet ported")
+        crate::mysql::maintenance::mark_notified_start(&self.pool, id).await
     }
 
     async fn mark_maintenance_notified_end(&self, id: MaintenanceId) -> DbResult<()> {
-        unimplemented!("MySQL store: maintenance domain not yet ported")
+        crate::mysql::maintenance::mark_notified_end(&self.pool, id).await
     }
 
     // DEFERRED: both couple to the not-yet-ported status_pages tables

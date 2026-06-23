@@ -29,6 +29,33 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.51] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `maintenance` domain** (scheduler/notifier-tail slice
+  2/N): maintenance windows + their monitor sets (list / get / create / update /
+  delete / set_active / attach / detach / is_in_active_window /
+  transitions_needing_notification / mark_notified_start / mark_notified_end) +
+  `migrations-mysql/0019_maintenance.sql`, un-stubbing the 12 `StoreMaintenance`
+  methods on `MysqlStore` (the 2 status-page-coupled methods stay stubbed like
+  SQLite). `Recurrence::contains` is pure rampart_core, reused verbatim;
+  `ON CONFLICT DO NOTHING` → `INSERT IGNORE`; real `ON DELETE CASCADE` FKs on the
+  join table; `update` drops the `rows_affected()` gate (MySQL changed-vs-matched
+  → trailing `get()`); `set_active` disambiguates a 0-row UPDATE (no-op vs absent)
+  with an existence SELECT. **This un-stubs the scheduler tick's maintenance
+  check** — combined with `digest_buffer` (v0.156.50), **an idle `mysql://` boot
+  is now PANIC-FREE** (verified: built `--features mysql`, booted against MariaDB,
+  scheduler + notifier loops ran 30s with zero `unimplemented!()` panics,
+  `/healthz` alive). +1 `#[sqlx::test]` (CRUD + attach + active-window +
+  transition + no-op-set_active + cross-org) green on MariaDB.
+
+### Known limitation
+- A `mysql://` boot **with monitors + channels** can still panic the
+  notifier-dispatch / agent-watchdog loops on the last unported domains: routing,
+  monitor_groups, silences, templates, agents. Those are the remaining
+  scheduler/notifier-tail slices toward full MySQL monitoring parity. PG + SQLite
+  unchanged.
+
 ## [0.156.50] — 2026-06-23
 
 ### Added
