@@ -674,7 +674,7 @@ impl StoreEscalations for SqliteStore {
 #[async_trait::async_trait]
 impl StoreMaintenance for SqliteStore {
     async fn list_maintenance_windows(&self, org_id: OrgId) -> DbResult<Vec<MaintenanceWindow>> {
-        unimplemented!("SqliteStore::list_maintenance_windows: maintenance domain not yet ported (multi-DB P1)")
+        crate::sqlite::maintenance::list(&self.pool, org_id).await
     }
 
     async fn get_maintenance_window(
@@ -682,9 +682,7 @@ impl StoreMaintenance for SqliteStore {
         id: MaintenanceId,
         org_id: OrgId,
     ) -> DbResult<MaintenanceWindow> {
-        unimplemented!(
-            "SqliteStore::get_maintenance_window: maintenance domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::maintenance::get(&self.pool, id, org_id).await
     }
 
     async fn create_maintenance_window(
@@ -692,7 +690,7 @@ impl StoreMaintenance for SqliteStore {
         input: NewMaintenanceWindow,
         org_id: OrgId,
     ) -> DbResult<MaintenanceWindow> {
-        unimplemented!("SqliteStore::create_maintenance_window: maintenance domain not yet ported (multi-DB P1)")
+        crate::sqlite::maintenance::create(&self.pool, input, org_id).await
     }
 
     async fn update_maintenance_window(
@@ -701,11 +699,11 @@ impl StoreMaintenance for SqliteStore {
         patch: UpdateMaintenanceWindow,
         org_id: OrgId,
     ) -> DbResult<MaintenanceWindow> {
-        unimplemented!("SqliteStore::update_maintenance_window: maintenance domain not yet ported (multi-DB P1)")
+        crate::sqlite::maintenance::update(&self.pool, id, patch, org_id).await
     }
 
     async fn delete_maintenance_window(&self, id: MaintenanceId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!("SqliteStore::delete_maintenance_window: maintenance domain not yet ported (multi-DB P1)")
+        crate::sqlite::maintenance::delete(&self.pool, id, org_id).await
     }
 
     async fn set_active_maintenance(
@@ -714,9 +712,7 @@ impl StoreMaintenance for SqliteStore {
         active: bool,
         org_id: OrgId,
     ) -> DbResult<()> {
-        unimplemented!(
-            "SqliteStore::set_active_maintenance: maintenance domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::maintenance::set_active(&self.pool, id, active, org_id).await
     }
 
     async fn attach_maintenance_monitor(
@@ -724,7 +720,7 @@ impl StoreMaintenance for SqliteStore {
         window: MaintenanceId,
         monitor: MonitorId,
     ) -> DbResult<()> {
-        unimplemented!("SqliteStore::attach_maintenance_monitor: maintenance domain not yet ported (multi-DB P1)")
+        crate::sqlite::maintenance::attach(&self.pool, window, monitor).await
     }
 
     async fn detach_maintenance_monitor(
@@ -732,41 +728,41 @@ impl StoreMaintenance for SqliteStore {
         window: MaintenanceId,
         monitor: MonitorId,
     ) -> DbResult<()> {
-        unimplemented!("SqliteStore::detach_maintenance_monitor: maintenance domain not yet ported (multi-DB P1)")
+        crate::sqlite::maintenance::detach(&self.pool, window, monitor).await
     }
 
     async fn is_in_active_window(&self, monitor: MonitorId) -> DbResult<bool> {
-        unimplemented!(
-            "SqliteStore::is_in_active_window: maintenance domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::maintenance::is_in_active_window(&self.pool, monitor).await
     }
 
     async fn maintenance_transitions_needing_notification(
         &self,
     ) -> DbResult<Vec<MaintenanceTransition>> {
-        unimplemented!("SqliteStore::maintenance_transitions_needing_notification: maintenance domain not yet ported (multi-DB P1)")
+        crate::sqlite::maintenance::transitions_needing_notification(&self.pool).await
     }
 
     async fn mark_maintenance_notified_start(&self, id: MaintenanceId) -> DbResult<()> {
-        unimplemented!("SqliteStore::mark_maintenance_notified_start: maintenance domain not yet ported (multi-DB P1)")
+        crate::sqlite::maintenance::mark_notified_start(&self.pool, id).await
     }
 
     async fn mark_maintenance_notified_end(&self, id: MaintenanceId) -> DbResult<()> {
-        unimplemented!("SqliteStore::mark_maintenance_notified_end: maintenance domain not yet ported (multi-DB P1)")
+        crate::sqlite::maintenance::mark_notified_end(&self.pool, id).await
     }
 
+    // DEFERRED: both couple to the not-yet-ported status_pages tables
+    // (status_page_subscribers / status_page_monitors).
     async fn confirmed_subscriber_emails_for_monitors(
         &self,
         monitors: &[MonitorId],
     ) -> DbResult<Vec<String>> {
-        unimplemented!("SqliteStore::confirmed_subscriber_emails_for_monitors: maintenance domain not yet ported (multi-DB P1)")
+        unimplemented!("SqliteStore::confirmed_subscriber_emails_for_monitors: status_pages domain not yet ported (multi-DB P1)")
     }
 
     async fn public_maintenance_for_status_page(
         &self,
         page: StatusPageId,
     ) -> DbResult<Vec<PublicMaintenance>> {
-        unimplemented!("SqliteStore::public_maintenance_for_status_page: maintenance domain not yet ported (multi-DB P1)")
+        unimplemented!("SqliteStore::public_maintenance_for_status_page: status_pages domain not yet ported (multi-DB P1)")
     }
 }
 
