@@ -29,6 +29,32 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.48] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `impl Store for MysqlStore` CAPSTONE.** The object-safe
+  `crate::store::Store` super-trait (~46 sub-traits, ~420 methods) is now
+  satisfied by MySQL, so `AppState` can hold `Arc<dyn Store>` over **any of the
+  three backends** (Postgres / SQLite / MySQL). `rampart-db/src/mysql/store.rs`:
+  `MysqlStore { pool }` + `new()` / `connect(url)`. The 20 ported P2 domains
+  (settings, orgs, users, sessions, monitors, tags, heartbeats, proxies,
+  notifications, delivery_log, escalations, scheduled_reports, audit,
+  metric_samples, logs, metric_rules, traces, telemetry_rules, slos, detection)
+  delegate to their `crate::mysql::*` free fns; the not-yet-ported domains
+  (agents, maintenance, digest_buffer, templates, silences, routing,
+  monitor_groups, error_tracking, profiles, rum, status_pages, incidents,
+  api_keys, ingest_keys, on_call, …) are `unimplemented!()` stubs that panic if
+  hit. **`connect()` sets `sql_mode=STRICT_TRANS_TABLES` per pooled connection**
+  (via `after_connect`) so an over-length write errors instead of silently
+  truncating — the audit hash chain + detection matching depend on stored ==
+  hashed bytes — while keeping MySQL's default backslash-escaping (the detection
+  `BodyContains ESCAPE` clause needs it); then runs the `migrations-mysql` set.
+  +1 `#[sqlx::test]` keystone: `MysqlStore` is usable as `Arc<dyn Store>`,
+  delegated domains (monitors + settings) round-trip through the trait object,
+  and the full MySQL migration set applies cleanly. PG + SQLite untouched.
+  **Remaining for a `DATABASE_URL=mysql://…` boot: the `mysql:` scheme branch in
+  `main.rs` + the `rampart-api` `mysql` feature (mirrors the SQLite boot flip).**
+
 ## [0.156.47] — 2026-06-23
 
 ### Added

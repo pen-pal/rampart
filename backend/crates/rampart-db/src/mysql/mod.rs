@@ -38,6 +38,7 @@ pub mod scheduled_reports;
 pub mod sessions;
 pub mod settings;
 pub mod slos;
+pub mod store;
 pub mod tags;
 pub mod telemetry_rules;
 pub mod traces;
