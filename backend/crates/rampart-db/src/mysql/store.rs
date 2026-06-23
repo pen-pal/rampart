@@ -1109,21 +1109,15 @@ impl StoreOidcState for MysqlStore {
         nonce: Option<&str>,
         return_to: Option<&str>,
     ) -> DbResult<()> {
-        unimplemented!(
-            "MysqlStore::stash_oidc_state: oidc_state domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::oidc_state::stash(&self.pool, state, pkce_verifier, nonce, return_to).await
     }
 
     async fn consume_oidc_state(&self, state: &str) -> DbResult<Option<Consumed>> {
-        unimplemented!(
-            "MysqlStore::consume_oidc_state: oidc_state domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::oidc_state::consume(&self.pool, state).await
     }
 
     async fn prune_oidc_state(&self) -> DbResult<u64> {
-        unimplemented!(
-            "MysqlStore::prune_oidc_state: oidc_state domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::oidc_state::prune_expired(&self.pool).await
     }
 }
 
@@ -2255,9 +2249,7 @@ impl StoreIncidentTemplates for MysqlStore {
 #[async_trait::async_trait]
 impl StoreMonitorPresets for MysqlStore {
     async fn list_monitor_presets(&self, org_id: OrgId) -> DbResult<Vec<MonitorPreset>> {
-        unimplemented!(
-            "MysqlStore::list_monitor_presets: monitor_presets domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::monitor_presets::list(&self.pool, org_id).await
     }
 
     async fn get_monitor_preset(
@@ -2265,9 +2257,7 @@ impl StoreMonitorPresets for MysqlStore {
         id: MonitorPresetId,
         org_id: OrgId,
     ) -> DbResult<MonitorPreset> {
-        unimplemented!(
-            "MysqlStore::get_monitor_preset: monitor_presets domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::monitor_presets::get(&self.pool, id, org_id).await
     }
 
     async fn create_monitor_preset(
@@ -2275,18 +2265,18 @@ impl StoreMonitorPresets for MysqlStore {
         input: NewMonitorPreset,
         org_id: OrgId,
     ) -> DbResult<MonitorPreset> {
-        unimplemented!("MysqlStore::create_monitor_preset: monitor_presets domain not yet ported (multi-DB P1)")
+        crate::mysql::monitor_presets::create(&self.pool, input, org_id).await
     }
 
     async fn delete_monitor_preset(&self, id: MonitorPresetId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!("MysqlStore::delete_monitor_preset: monitor_presets domain not yet ported (multi-DB P1)")
+        crate::mysql::monitor_presets::delete(&self.pool, id, org_id).await
     }
 }
 
 #[async_trait::async_trait]
 impl StoreMonitorTemplates for MysqlStore {
     async fn list_monitor_templates(&self, org_id: OrgId) -> DbResult<Vec<MonitorTemplate>> {
-        unimplemented!("MysqlStore::list_monitor_templates: monitor_templates domain not yet ported (multi-DB P1)")
+        crate::mysql::monitor_templates::list(&self.pool, org_id).await
     }
 
     async fn get_monitor_template(
@@ -2294,7 +2284,7 @@ impl StoreMonitorTemplates for MysqlStore {
         id: MonitorTemplateId,
         org_id: OrgId,
     ) -> DbResult<MonitorTemplate> {
-        unimplemented!("MysqlStore::get_monitor_template: monitor_templates domain not yet ported (multi-DB P1)")
+        crate::mysql::monitor_templates::get(&self.pool, id, org_id).await
     }
 
     async fn create_monitor_template(
@@ -2302,11 +2292,11 @@ impl StoreMonitorTemplates for MysqlStore {
         input: NewMonitorTemplate,
         org_id: OrgId,
     ) -> DbResult<MonitorTemplate> {
-        unimplemented!("MysqlStore::create_monitor_template: monitor_templates domain not yet ported (multi-DB P1)")
+        crate::mysql::monitor_templates::create(&self.pool, input, org_id).await
     }
 
     async fn delete_monitor_template(&self, id: MonitorTemplateId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!("MysqlStore::delete_monitor_template: monitor_templates domain not yet ported (multi-DB P1)")
+        crate::mysql::monitor_templates::delete(&self.pool, id, org_id).await
     }
 }
 

@@ -29,6 +29,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.56] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `monitor_presets` + `monitor_templates` + `oidc_state`**
+  (management-API tail, slice 3; 3 standalone domains batched into one migration +
+  release). `migrations-mysql/0023_presets_templates_oidc.sql` + 3 modules,
+  un-stubbing `StoreMonitorPresets`, `StoreMonitorTemplates`, `StoreOidcState`.
+  Ported from PG: JSONB→LONGTEXT; `kind` CHECK ported; `state` TEXT PK →
+  VARCHAR(64). **`oidc_state::consume` emulates PG's replay-safe `DELETE …
+  RETURNING` with a tx `SELECT … FOR UPDATE` (row lock) → capture → `DELETE` →
+  commit** — same one-time-use guarantee (a racing replay blocks on the lock,
+  then finds nothing). +3 `#[sqlx::test]` (incl. the oidc one-time-use + expiry
+  + prune path) green on MariaDB. PG + SQLite untouched.
+
 ## [0.156.55] — 2026-06-23
 
 ### Added
