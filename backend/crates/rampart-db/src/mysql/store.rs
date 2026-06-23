@@ -312,9 +312,7 @@ impl StoreDeployMarkers for MysqlStore {
         input: NewDeployMarker,
         org_id: OrgId,
     ) -> DbResult<DeployMarker> {
-        unimplemented!(
-            "MysqlStore::create_deploy_marker: deploy_markers domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::deploy_markers::create(&self.pool, input, org_id).await
     }
 
     async fn list_deploy_markers_window(
@@ -323,13 +321,11 @@ impl StoreDeployMarkers for MysqlStore {
         service: Option<&str>,
         org_id: OrgId,
     ) -> DbResult<Vec<DeployMarker>> {
-        unimplemented!("MysqlStore::list_deploy_markers_window: deploy_markers domain not yet ported (multi-DB P1)")
+        crate::mysql::deploy_markers::list_window(&self.pool, hours, service, org_id).await
     }
 
     async fn delete_deploy_marker(&self, id: DeployMarkerId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!(
-            "MysqlStore::delete_deploy_marker: deploy_markers domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::deploy_markers::delete(&self.pool, id, org_id).await
     }
 }
 

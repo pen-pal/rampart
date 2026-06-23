@@ -25,6 +25,7 @@
 pub mod agents;
 pub mod audit;
 pub mod delivery_log;
+pub mod deploy_markers;
 pub mod detection;
 pub mod digest_buffer;
 pub mod escalations;
