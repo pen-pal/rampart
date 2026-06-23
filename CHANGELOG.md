@@ -29,7 +29,14 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
-## [0.156.33] — 2026-06-23
+## [0.156.34] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `proxies` domain.** Outbound proxy configs for probe
+  routing (list / get / get_unscoped / create / delete / set_active);
+  `migrations-mysql/0005_proxies.sql`. `auth` derived from username/password on
+  create; insert-then-get (no RETURNING). 8th MySQL domain; suite green on
+  MariaDB. Off by default; PG + SQLite untouched.
 
 ### Added
 - **Multi-DB P2 (MySQL) — `heartbeats` core domain.** The probe time-series
