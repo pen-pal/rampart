@@ -29,7 +29,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
-## [0.156.36] — 2026-06-23
+## [0.156.37] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `escalations` domain** (policies + the episode state
+  machine: 18 fns — list/get/get_unscoped/create/update/delete + open_episode /
+  open_episode_for_subject / resolve_subject / ack_episode / list_open /
+  list_open_for_org / episode_in_org / open_for_monitor / ack / resolve /
+  advance / due). `migrations-mysql/0008_escalations.sql`. **The "one open
+  episode per subject" partial unique index (PG/SQLite `WHERE resolved_at IS
+  NULL`) has no MySQL equivalent → replaced with a STORED generated column
+  `open_key` (= `subject_kind:subject_ref` while open, NULL once resolved) + a
+  plain UNIQUE** — so a duplicate open INSERT atomically hits the unique key
+  (`Ok(None)`, same semantics) and resolving frees the slot. RETURNING →
+  UPDATE/INSERT-then-reselect; the `advance` race-claim re-checks via
+  rows_affected. +1 `#[sqlx::test]` (full policy + episode lifecycle incl.
+  reopen-after-resolve) green on MariaDB. 11th MySQL domain; PG + SQLite
+  untouched.
 
 ### Added
 - **Multi-DB P2 (MySQL) — `delivery_log` domain.** Append-only channel-send log

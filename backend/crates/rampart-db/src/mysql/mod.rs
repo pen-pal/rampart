@@ -23,6 +23,7 @@
 //!   (bound `IN (?,…)` lists, as in the SQLite layer).
 
 pub mod delivery_log;
+pub mod escalations;
 pub mod heartbeats;
 pub mod monitors;
 pub mod notifications;
