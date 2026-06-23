@@ -22,9 +22,11 @@
 //!   no `RETURNING` (app-side UUID PK + INSERT-then-SELECT); no array binds
 //!   (bound `IN (?,…)` lists, as in the SQLite layer).
 
+pub mod monitors;
 pub mod orgs;
 pub mod sessions;
 pub mod settings;
+pub mod tags;
 pub mod users;
 
 use rampart_core::ids::{OrgId, UserId};
@@ -83,4 +85,45 @@ pub(crate) fn role_from(s: &str) -> Role {
         "readonly" => Role::Readonly,
         _ => Role::Editor,
     }
+}
+
+/// Parse a CHAR(36) uuid column into a `MonitorId`.
+pub(crate) fn mid(s: &str) -> rampart_core::ids::MonitorId {
+    rampart_core::ids::MonitorId::from_uuid(raw_uuid(s))
+}
+
+/// `MonitorKind`/`MonitorStatus` ↔ their TEXT form via the serde `rename_all`
+/// labels (matches the PG enum labels), avoiding a 40-arm match.
+pub(crate) fn kind_str(k: rampart_core::monitor::MonitorKind) -> String {
+    serde_json::to_value(k)
+        .ok()
+        .and_then(|v| v.as_str().map(String::from))
+        .unwrap_or_else(|| "http".into())
+}
+pub(crate) fn kind_from(s: &str) -> rampart_core::monitor::MonitorKind {
+    serde_json::from_value(serde_json::Value::String(s.to_string()))
+        .unwrap_or(rampart_core::monitor::MonitorKind::Http)
+}
+pub(crate) fn mstatus_str(s: rampart_core::monitor::MonitorStatus) -> String {
+    serde_json::to_value(s)
+        .ok()
+        .and_then(|v| v.as_str().map(String::from))
+        .unwrap_or_else(|| "pending".into())
+}
+pub(crate) fn mstatus_from(s: &str) -> rampart_core::monitor::MonitorStatus {
+    serde_json::from_value(serde_json::Value::String(s.to_string()))
+        .unwrap_or(rampart_core::monitor::MonitorStatus::Pending)
+}
+
+/// `IN (?,?,…)` placeholder list of length `n` (n >= 1). Count from the slice;
+/// values always bound, never interpolated. Shared by the batch hydrators.
+pub(crate) fn in_placeholders(n: usize) -> String {
+    let mut s = String::with_capacity(n * 2);
+    for i in 0..n {
+        if i > 0 {
+            s.push(',');
+        }
+        s.push('?');
+    }
+    s
 }
