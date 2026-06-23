@@ -43,6 +43,7 @@ pub mod proxies;
 pub mod scheduled_reports;
 pub mod sessions;
 pub mod settings;
+pub mod slos;
 pub mod store;
 pub mod tags;
 pub mod users;
