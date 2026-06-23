@@ -34,6 +34,7 @@ pub mod monitors;
 pub mod orgs;
 pub mod sessions;
 pub mod settings;
+pub mod tags;
 pub mod users;
 
 /// The Default org's id (seeded by `migrations-sqlite/0002_identity.sql`), as a
