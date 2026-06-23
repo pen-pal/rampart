@@ -892,7 +892,7 @@ impl StoreTemplates for SqliteStore {
         &self,
         id: NotificationTemplateId,
     ) -> DbResult<RenderedTemplate> {
-        unimplemented!("SqliteStore::get_template_render_strings: templates domain not yet ported (multi-DB P1)")
+        crate::sqlite::templates::get_render_strings(&self.pool, id).await
     }
 }
 
@@ -1050,9 +1050,7 @@ impl StoreMonitorGroups for SqliteStore {
     }
 
     async fn any_parent_down(&self, child: MonitorId) -> DbResult<bool> {
-        unimplemented!(
-            "SqliteStore::any_parent_down: monitor_groups domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::monitor_groups::any_parent_down(&self.pool, child).await
     }
 
     async fn attach_dependency(&self, child: MonitorId, parent: MonitorId) -> DbResult<()> {
@@ -1077,7 +1075,7 @@ impl StoreMonitorGroups for SqliteStore {
 #[async_trait::async_trait]
 impl StoreSilences for SqliteStore {
     async fn is_silenced(&self, monitor: Option<Uuid>) -> DbResult<bool> {
-        unimplemented!("SqliteStore::is_silenced: silences domain not yet ported (multi-DB P1)")
+        crate::sqlite::silences::is_silenced(&self.pool, monitor).await
     }
 
     async fn create_silence(&self, s: NewSilence<'_>, org_id: OrgId) -> DbResult<Uuid> {
@@ -1319,7 +1317,7 @@ impl StoreRouting for SqliteStore {
         &self,
         monitor: MonitorId,
     ) -> DbResult<Vec<Notification>> {
-        unimplemented!("SqliteStore::resolve_channels_for_monitor: routing domain not yet ported (multi-DB P1)")
+        crate::sqlite::routing::resolve_channels_for_monitor(&self.pool, monitor).await
     }
 
     async fn group_tag_ids(&self, group: MonitorGroupId) -> DbResult<Vec<TagId>> {
