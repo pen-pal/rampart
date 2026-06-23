@@ -29,6 +29,32 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.6] — 2026-06-23
+
+### Added
+- **Multi-DB P1: SQLite `tags` domain + monitor tag hydration / bulk flip.**
+  New `migrations-sqlite/0005_tags.sql` (`tags` with per-org `(org_id, name)`
+  unique index forked from PG `tags_org_name_uidx`, `monitor_tags`, and the
+  `notification_tags` / `group_tags` join tables so `usage()` can COUNT
+  channel/group attachments before those domains are forked). New
+  `sqlite::tags` mirrors the full PG free-fn surface — list / get / create
+  (unique-name → `Conflict`) / update / `usage` / delete / attach / detach /
+  `list_for_monitor` / `hydrate_for_channels` / `hydrate_for_monitors` (the
+  batch hydrators build a bound `IN (?,?,…)` list — sqlx 0.9 `SqlSafeStr` via
+  `AssertSqlSafe`, placeholder count from the slice, values always bound).
+  Closes two of the deferred `sqlite::monitors` items: read paths
+  (`get` / `get_unscoped` / `list` / `list_all`) now hydrate `m.tags` (single
+  fetch for one monitor, one batched round trip for lists), and
+  `set_active_by_tag` (org-scoped bulk active/paused flip, idempotent via
+  `active <> ?`). +2 `#[sqlx::test]` (CRUD + conflict; attach/hydrate/usage +
+  monitor flip + detach). **SQLite domains now 7: settings, orgs, users,
+  sessions, monitors, heartbeats, tags (18 tests).** Still deferred (need
+  unbuilt tables): `list_stale_agent_monitors` (agents), `bulk_edit` /
+  `bulk_edit_preview`, and the heartbeat analytic aggregations. Off-by-default
+  `sqlite` feature; PG build untouched.
+
+---
+
 ## [0.156.5] — 2026-06-23
 
 ### Added
