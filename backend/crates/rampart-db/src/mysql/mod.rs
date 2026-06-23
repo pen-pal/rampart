@@ -40,6 +40,7 @@ pub mod logs;
 pub mod maintenance;
 pub mod metric_rules;
 pub mod metric_samples;
+pub mod metrics;
 pub mod monitor_groups;
 pub mod monitor_presets;
 pub mod monitor_templates;
