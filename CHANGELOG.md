@@ -29,6 +29,22 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.61] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `rum` domain** (Real User Monitoring, Tier 4).
+  `migrations-mysql/0028_rum.sql` + 1 module, un-stubbing `StoreRum` (insert_event
+  / page_samples / recent_traced / summary / pages / browser_breakdown /
+  user_breakdown / apps / prune, all org-scoped). The key dialect delta: PG's p75
+  reads use `percentile_cont(0.75) WITHIN GROUP` as an aggregate, which MySQL
+  lacks (MariaDB exposes it window-only) — so the breakdown reads fetch the
+  windowed rows and aggregate (group + count + linear-interpolation p75 +
+  last_seen) app-side, bounded by short RUM retention × the read window. `ILIKE`
+  UA buckets → app-side lowercase `contains`; `make_interval` → Rust cutoff;
+  `DOUBLE PRECISION` → `DOUBLE`. +1 `#[sqlx::test]` (p75 correctness, page/
+  browser/user rollups, traced feed, apps dropdown, cross-org isolation, prune)
+  green on MariaDB. PG + SQLite untouched.
+
 ## [0.156.60] — 2026-06-23
 
 ### Added
