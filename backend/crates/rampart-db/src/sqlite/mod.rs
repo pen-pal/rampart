@@ -48,6 +48,7 @@ pub mod settings;
 pub mod slos;
 pub mod store;
 pub mod tags;
+pub mod traces;
 pub mod users;
 
 /// `IN (?,?,…)` placeholder list of length `n` (n >= 1). The count comes from

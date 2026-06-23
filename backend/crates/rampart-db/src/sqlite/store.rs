@@ -1777,15 +1777,15 @@ impl StoreLogs for SqliteStore {
 #[async_trait::async_trait]
 impl StoreTraces for SqliteStore {
     async fn insert_spans(&self, spans: &[ParsedSpan], org_id: OrgId) -> DbResult<u64> {
-        unimplemented!("SqliteStore::insert_spans: traces domain not yet ported (multi-DB P1)")
+        crate::sqlite::traces::insert_spans(&self.pool, spans, org_id).await
     }
 
     async fn list_traces(&self, f: TraceFilter<'_>, org_id: OrgId) -> DbResult<Vec<TraceSummary>> {
-        unimplemented!("SqliteStore::list_traces: traces domain not yet ported (multi-DB P1)")
+        crate::sqlite::traces::list_traces(&self.pool, f, org_id).await
     }
 
     async fn get_trace_spans(&self, trace_id: &str, org_id: OrgId) -> DbResult<Vec<Span>> {
-        unimplemented!("SqliteStore::get_trace_spans: traces domain not yet ported (multi-DB P1)")
+        crate::sqlite::traces::get_trace_spans(&self.pool, trace_id, org_id).await
     }
 
     async fn trace_service_map(
@@ -1793,7 +1793,7 @@ impl StoreTraces for SqliteStore {
         window_hours: i64,
         org_id: OrgId,
     ) -> DbResult<Vec<ServiceEdge>> {
-        unimplemented!("SqliteStore::trace_service_map: traces domain not yet ported (multi-DB P1)")
+        crate::sqlite::traces::service_map(&self.pool, window_hours, org_id).await
     }
 
     async fn trace_operation_stats(
@@ -1802,9 +1802,7 @@ impl StoreTraces for SqliteStore {
         window_hours: i64,
         org_id: OrgId,
     ) -> DbResult<Vec<OperationStat>> {
-        unimplemented!(
-            "SqliteStore::trace_operation_stats: traces domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::traces::operation_stats(&self.pool, service, window_hours, org_id).await
     }
 
     async fn trace_operation_trend(
@@ -1815,13 +1813,19 @@ impl StoreTraces for SqliteStore {
         buckets: i64,
         org_id: OrgId,
     ) -> DbResult<Vec<f64>> {
-        unimplemented!(
-            "SqliteStore::trace_operation_trend: traces domain not yet ported (multi-DB P1)"
+        crate::sqlite::traces::operation_trend(
+            &self.pool,
+            service,
+            operation,
+            window_hours,
+            buckets,
+            org_id,
         )
+        .await
     }
 
     async fn prune_spans(&self, days: i32) -> DbResult<u64> {
-        unimplemented!("SqliteStore::prune_spans: traces domain not yet ported (multi-DB P1)")
+        crate::sqlite::traces::prune(&self.pool, days).await
     }
 }
 
