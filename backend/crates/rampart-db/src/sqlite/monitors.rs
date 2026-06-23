@@ -19,7 +19,9 @@
 use super::{kind_from, kind_str, mid, mstatus_from, mstatus_str, raw_uuid, ts};
 use crate::monitors::SloState;
 use crate::{DbError, DbResult};
-use rampart_core::ids::{AgentId, EscalationPolicyId, MonitorGroupId, MonitorId, OrgId, ProxyId};
+use rampart_core::ids::{
+    AgentId, EscalationPolicyId, MonitorGroupId, MonitorId, OrgId, ProxyId, TagId,
+};
 use rampart_core::monitor::{Monitor, MonitorStatus, NewMonitor, UpdateMonitor};
 use sqlx::{Row, SqlitePool};
 use std::collections::HashMap;
@@ -125,7 +127,9 @@ pub async fn get(pool: &SqlitePool, id: MonitorId, org_id: OrgId) -> DbResult<Mo
         .bind(org_id.0.to_string())
         .fetch_optional(pool)
         .await?;
-    row.map(|r| monitor_from(&r)).ok_or(DbError::NotFound)
+    let mut m = row.map(|r| monitor_from(&r)).ok_or(DbError::NotFound)?;
+    m.tags = super::tags::list_for_monitor(pool, m.id).await?;
+    Ok(m)
 }
 
 pub async fn get_unscoped(pool: &SqlitePool, id: MonitorId) -> DbResult<Monitor> {
@@ -133,7 +137,9 @@ pub async fn get_unscoped(pool: &SqlitePool, id: MonitorId) -> DbResult<Monitor>
         .bind(id.0.to_string())
         .fetch_optional(pool)
         .await?;
-    row.map(|r| monitor_from(&r)).ok_or(DbError::NotFound)
+    let mut m = row.map(|r| monitor_from(&r)).ok_or(DbError::NotFound)?;
+    m.tags = super::tags::list_for_monitor(pool, m.id).await?;
+    Ok(m)
 }
 
 pub async fn list(pool: &SqlitePool, org_id: OrgId) -> DbResult<Vec<Monitor>> {
@@ -141,14 +147,30 @@ pub async fn list(pool: &SqlitePool, org_id: OrgId) -> DbResult<Vec<Monitor>> {
         .bind(org_id.0.to_string())
         .fetch_all(pool)
         .await?;
-    Ok(rows.iter().map(monitor_from).collect())
+    hydrate(pool, rows.iter().map(monitor_from).collect()).await
 }
 
 pub async fn list_all(pool: &SqlitePool) -> DbResult<Vec<Monitor>> {
     let rows = sqlx::query("SELECT * FROM monitors ORDER BY created_at ASC")
         .fetch_all(pool)
         .await?;
-    Ok(rows.iter().map(monitor_from).collect())
+    hydrate(pool, rows.iter().map(monitor_from).collect()).await
+}
+
+/// Batch-attach tags to a list of monitors in one round trip (PG `list` /
+/// `list_all` do the same via `hydrate_for_monitors`).
+async fn hydrate(pool: &SqlitePool, mut monitors: Vec<Monitor>) -> DbResult<Vec<Monitor>> {
+    if monitors.is_empty() {
+        return Ok(monitors);
+    }
+    let ids: Vec<MonitorId> = monitors.iter().map(|m| m.id).collect();
+    let mut by = super::tags::hydrate_for_monitors(pool, &ids).await?;
+    for m in &mut monitors {
+        if let Some(t) = by.remove(&m.id) {
+            m.tags = t;
+        }
+    }
+    Ok(monitors)
 }
 
 pub async fn delete(pool: &SqlitePool, id: MonitorId, org_id: OrgId) -> DbResult<()> {
@@ -326,6 +348,31 @@ pub async fn set_group(
         return Err(DbError::NotFound);
     }
     Ok(())
+}
+
+/// Bulk active/paused flip across every monitor carrying `tag` (org-scoped).
+/// Returns the number of rows actually changed (idempotent — the `active <> ?`
+/// guard skips monitors already in the target state). Mirrors PG.
+pub async fn set_active_by_tag(
+    pool: &SqlitePool,
+    tag: TagId,
+    active: bool,
+    org_id: OrgId,
+) -> DbResult<u64> {
+    let r = sqlx::query(
+        "UPDATE monitors
+            SET active = ?, updated_at = unixepoch()
+          WHERE active <> ?
+            AND org_id = ?
+            AND id IN (SELECT monitor_id FROM monitor_tags WHERE tag_id = ?)",
+    )
+    .bind(active as i64)
+    .bind(active as i64)
+    .bind(org_id.0.to_string())
+    .bind(tag.0.to_string())
+    .execute(pool)
+    .await?;
+    Ok(r.rows_affected())
 }
 
 // ── push-token + run lifecycle ───────────────────────────────────────────────
