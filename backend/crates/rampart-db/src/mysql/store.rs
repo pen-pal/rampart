@@ -2868,25 +2868,25 @@ impl StoreDigestBuffer for MysqlStore {
         notification_id: NotificationId,
         event_json: &serde_json::Value,
     ) -> DbResult<()> {
-        unimplemented!("MySQL store: digest_buffer domain not yet ported")
+        crate::mysql::digest_buffer::enqueue(&self.pool, notification_id, event_json).await
     }
 
     async fn drain_due_digests(
         &self,
         now: OffsetDateTime,
     ) -> DbResult<Vec<crate::digest_buffer::DueChannel>> {
-        unimplemented!("MySQL store: digest_buffer domain not yet ported")
+        crate::mysql::digest_buffer::drain_due(&self.pool, now).await
     }
 
     async fn take_digest_for_channel(
         &self,
         notification_id: NotificationId,
     ) -> DbResult<Vec<crate::digest_buffer::BufferedEvent>> {
-        unimplemented!("MySQL store: digest_buffer domain not yet ported")
+        crate::mysql::digest_buffer::take_for_channel(&self.pool, notification_id).await
     }
 
     async fn delete_digest_by_ids(&self, ids: &[Uuid]) -> DbResult<()> {
-        unimplemented!("MySQL store: digest_buffer domain not yet ported")
+        crate::mysql::digest_buffer::delete_by_ids(&self.pool, ids).await
     }
 }
 
