@@ -29,6 +29,27 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.28] — 2026-06-23
+
+### Added
+- **Multi-DB P1 — the boot flip: Rampart runs on SQLite.** `DATABASE_URL`'s
+  scheme now selects the backend at boot — `postgres://…` → PgStore (+ pool, the
+  reference build); `sqlite:…` → SqliteStore (single-binary / homelab tier).
+  Verified end-to-end: built with `--features sqlite`, booted against a
+  `sqlite:///…` file (20 migrations applied, scheduler + notifier + SIEM loops
+  spawned on the object-safe seam, HTTP up, `/healthz` → alive) with no panic.
+  Mechanics: new off-by-default `sqlite` cargo feature on `rampart-api`
+  (`= ["rampart-db/sqlite"]`) so the default build stays Postgres-only with zero
+  SQLite code; `AppState.pool` is now `Option<DbPool>` (`None` on SQLite) with a
+  new `with_scheduler_store(Arc<dyn Store>, …)` constructor; leader election is
+  Postgres-advisory-lock on PG and `Leadership::always()` on SQLite (single
+  binary); the prune loop + self-metrics + `seed-demo`/`reset-password`
+  subcommands are Postgres-only (clean bail / skip on SQLite). CI gains a
+  `clippy -p rampart-api --features sqlite` lane. Core monitoring + alerting work
+  on SQLite; the residual Postgres-only telemetry-ingest / management endpoints
+  (the ~181 cold SqliteStore stubs) `expect()` the pool and are out of the
+  supported SQLite surface until ported on demand.
+
 ## [0.156.27] — 2026-06-23
 
 ### Added
