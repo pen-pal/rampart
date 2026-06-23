@@ -29,6 +29,29 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.19] — 2026-06-23
+
+### Added
+- **Multi-DB P1 boot-wiring: SQLite `logs` domain (un-stubs `StoreLogs`).**
+  First of the telemetry foundation (unblocks telemetry_rules + detection).
+  `migrations-sqlite/0016_logs.sql` (uuid→TEXT, smallint→INTEGER, jsonb attrs→
+  TEXT, ts/received_at→INTEGER; recent/service/org/trace indexes) +
+  `sqlite::logs`: insert_logs / query_logs / level_counts / histogram /
+  list_services / prune. PG-isms translated: `UNNEST`→per-row tx;
+  `make_interval(hours=>?)`→`unixepoch() - hours*3600`; `date_bin`→
+  `origin + ((ts-origin)/step)*step`; `COUNT(*) FILTER`→`SUM(CASE …)`; row-value
+  keyset `(ts,id) < (subquery)` ports as-is.
+- **NOTE — log full-text search degraded on SQLite.** PG's `body_tsv @@
+  websearch_to_tsquery('english', …)` (generated tsvector + GIN) has no SQLite
+  equivalent, so the SQLite backend matches `body LIKE '%query%'` — substring
+  only, no phrase/OR/negation. Acceptable for the single-binary homelab tier;
+  documented in the module. +1 `#[sqlx::test]` (insert + service/severity/body/
+  trace filters + level_counts + histogram error-split + prune). **Boot-wiring:
+  logs done; traces next, then telemetry_rules + detection.** Off-by-default
+  `sqlite`; PG untouched.
+
+---
+
 ## [0.156.18] — 2026-06-23
 
 ### Added
