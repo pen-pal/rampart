@@ -539,6 +539,31 @@ pub async fn list_for_agent(pool: &SqlitePool, agent: AgentId) -> DbResult<Vec<M
     Ok(rows.iter().map(monitor_from).collect())
 }
 
+/// Agent-assigned monitors whose last heartbeat (or, lacking one, their
+/// `updated_at`) is older than `interval*2 + 30s` — the scheduler's stale-agent
+/// watchdog (the agent went dark and stopped probing). Returns each monitor
+/// paired with its agent's name. Mirrors PG `list_stale_agent_monitors`; tags
+/// are not hydrated (the watchdog doesn't need them). Cross-tenant by design —
+/// the in-process scheduler watches every org.
+pub async fn list_stale_agent_monitors(pool: &SqlitePool) -> DbResult<Vec<(Monitor, String)>> {
+    let rows = sqlx::query(
+        "SELECT m.*, a.name AS agent_name
+         FROM monitors m JOIN agents a ON a.id = m.agent_id
+         WHERE m.active = 1
+           AND m.current_status <> 'paused'
+           AND COALESCE(
+                 (SELECT MAX(h.ts) FROM heartbeats h WHERE h.monitor_id = m.id),
+                 m.updated_at
+               ) < unixepoch() - (m.interval_seconds * 2 + 30)",
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .iter()
+        .map(|r| (monitor_from(r), r.get::<String, _>("agent_name")))
+        .collect())
+}
+
 /// Public (id → name + status) for a set of monitor ids. Per-id lookups (the
 /// id set is small — a status page's monitors); a batched `IN (...)` would need
 /// dynamic SQL, which sqlx 0.9 only allows via `AssertSqlSafe`.
@@ -730,5 +755,69 @@ mod tests {
 
         bump_push_at(&pool, m.id).await.unwrap();
         assert!(fetch_last_push_at(&pool, m.id).await.unwrap().is_some());
+    }
+
+    #[sqlx::test(migrations = "../../migrations-sqlite")]
+    async fn stale_agent_watchdog(pool: SqlitePool) {
+        use crate::sqlite::agents;
+        let org = super::super::oid(DEF);
+        let agent = agents::create(
+            &pool,
+            rampart_core::agent::NewAgent {
+                name: "probe".into(),
+                location: None,
+            },
+            org,
+        )
+        .await
+        .unwrap()
+        .agent
+        .id;
+
+        // Two agent-assigned monitors; a third stays local.
+        let stale = create(&pool, new_http("stale"), org).await.unwrap();
+        let fresh = create(&pool, new_http("fresh"), org).await.unwrap();
+        let local_old = create(&pool, new_http("local"), org).await.unwrap();
+        for id in [stale.id, fresh.id] {
+            let patch: UpdateMonitor =
+                serde_json::from_value(serde_json::json!({ "agent_id": agent.0.to_string() }))
+                    .unwrap();
+            update(&pool, id, patch, org).await.unwrap();
+        }
+
+        // Backdate `stale` and `local_old` well past interval*2+30; `fresh`
+        // keeps its just-now updated_at.
+        for id in [stale.id, local_old.id] {
+            sqlx::query("UPDATE monitors SET updated_at = unixepoch() - 100000 WHERE id = ?")
+                .bind(id.0.to_string())
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+
+        let out = list_stale_agent_monitors(&pool).await.unwrap();
+        // Only the agent-assigned + backdated monitor qualifies; the local one
+        // has no agent (JOIN drops it), the fresh one isn't old enough.
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].0.id, stale.id);
+        assert_eq!(out[0].1, "probe"); // agent name paired in
+
+        // A recent heartbeat on `stale` clears it from the watchdog.
+        crate::sqlite::heartbeats::insert_many(
+            &pool,
+            &[rampart_core::Heartbeat {
+                monitor_id: stale.id,
+                ts: OffsetDateTime::now_utc(),
+                status: MonitorStatus::Up,
+                latency_ms: Some(5),
+                status_code: Some(200),
+                msg: None,
+                retries: 0,
+                important: false,
+            }],
+        )
+        .await
+        .unwrap();
+        assert!(list_stale_agent_monitors(&pool).await.unwrap().is_empty());
     }
 }
