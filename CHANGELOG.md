@@ -29,6 +29,26 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.21] — 2026-06-23
+
+### Added
+- **Multi-DB P1 boot-wiring: SQLite `telemetry_rules` domain (un-stubs
+  `StoreTelemetryRules`).** `migrations-sqlite/0018_telemetry_rules.sql`
+  (kind app-validated, op CHECK ported, UUID[]→JSON, ts→INTEGER) +
+  `sqlite::telemetry_rules`: list / list_all / get / get_unscoped / create /
+  update / delete / evaluate_tick. Reuses the pure `rule_transition` state
+  machine. `observe` computes the per-tier aggregate: **log_volume**,
+  **trace_latency** (p95 app-side via `p_cont`) and **trace_error_rate** are
+  real (logs+traces ported); the **error_rate / profile_samples / rum_lcp_p75**
+  tiers return `None` (no-data → resolve, never a false fire) until
+  error_tracking / profiles / rum are forked — documented so the gap is visible
+  rather than a runtime "no such table". +1 `#[sqlx::test]` (log_volume fire +
+  not-yet-ported tier no-fires + CRUD/cross-org). **Boot-wiring: only
+  `detection` remains** of the scheduler-dep domains. Off-by-default `sqlite`;
+  PG untouched.
+
+---
+
 ## [0.156.20] — 2026-06-23
 
 ### Added

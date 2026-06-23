@@ -899,11 +899,11 @@ impl StoreTemplates for SqliteStore {
 #[async_trait::async_trait]
 impl StoreTelemetryRules for SqliteStore {
     async fn list_telemetry_rules(&self, org_id: OrgId) -> DbResult<Vec<TelemetryRule>> {
-        unimplemented!("SqliteStore::list_telemetry_rules: telemetry_rules domain not yet ported (multi-DB P1)")
+        crate::sqlite::telemetry_rules::list(&self.pool, org_id).await
     }
 
     async fn list_all_telemetry_rules(&self) -> DbResult<Vec<TelemetryRule>> {
-        unimplemented!("SqliteStore::list_all_telemetry_rules: telemetry_rules domain not yet ported (multi-DB P1)")
+        crate::sqlite::telemetry_rules::list_all(&self.pool).await
     }
 
     async fn get_telemetry_rule(
@@ -911,13 +911,11 @@ impl StoreTelemetryRules for SqliteStore {
         id: TelemetryRuleId,
         org_id: OrgId,
     ) -> DbResult<TelemetryRule> {
-        unimplemented!(
-            "SqliteStore::get_telemetry_rule: telemetry_rules domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::telemetry_rules::get(&self.pool, id, org_id).await
     }
 
     async fn get_telemetry_rule_unscoped(&self, id: TelemetryRuleId) -> DbResult<TelemetryRule> {
-        unimplemented!("SqliteStore::get_telemetry_rule_unscoped: telemetry_rules domain not yet ported (multi-DB P1)")
+        crate::sqlite::telemetry_rules::get_unscoped(&self.pool, id).await
     }
 
     async fn create_telemetry_rule(
@@ -925,7 +923,7 @@ impl StoreTelemetryRules for SqliteStore {
         input: NewTelemetryRule,
         org_id: OrgId,
     ) -> DbResult<TelemetryRule> {
-        unimplemented!("SqliteStore::create_telemetry_rule: telemetry_rules domain not yet ported (multi-DB P1)")
+        crate::sqlite::telemetry_rules::create(&self.pool, input, org_id).await
     }
 
     async fn update_telemetry_rule(
@@ -934,15 +932,15 @@ impl StoreTelemetryRules for SqliteStore {
         patch: UpdateTelemetryRule,
         org_id: OrgId,
     ) -> DbResult<TelemetryRule> {
-        unimplemented!("SqliteStore::update_telemetry_rule: telemetry_rules domain not yet ported (multi-DB P1)")
+        crate::sqlite::telemetry_rules::update(&self.pool, id, patch, org_id).await
     }
 
     async fn delete_telemetry_rule(&self, id: TelemetryRuleId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!("SqliteStore::delete_telemetry_rule: telemetry_rules domain not yet ported (multi-DB P1)")
+        crate::sqlite::telemetry_rules::delete(&self.pool, id, org_id).await
     }
 
     async fn evaluate_telemetry_rules_tick(&self) -> DbResult<Vec<TelemetryRuleEvent>> {
-        unimplemented!("SqliteStore::evaluate_telemetry_rules_tick: telemetry_rules domain not yet ported (multi-DB P1)")
+        crate::sqlite::telemetry_rules::evaluate_tick(&self.pool).await
     }
 }
 
