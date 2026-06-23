@@ -29,6 +29,31 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.39] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `audit` domain** (the tamper-evident hash chain:
+  insert / set_chain_watermark / verify_chain / security_insights / list /
+  fetch_since / export_batch) + `migrations-mysql/0010_audit.sql`. The chain
+  reuses `crate::audit::chain_hash` **verbatim** so insert + verify feed
+  byte-identical inputs. MySQL deltas: no `RETURNING` → `LAST_INSERT_ID()` plus
+  an explicitly-bound `ts` (hashed ts == stored ts, no re-select);
+  `SUM(CASE…)` → `CAST(… AS SIGNED)`; `date_trunc('hour')` → `(ts DIV 3600)*3600`;
+  INET → plain TEXT. **Chain serialization** replaces `pg_advisory_xact_lock`
+  (no InnoDB equivalent; `GET_LOCK` is session-scoped → leaks on a pool) with
+  **two tx-scoped `FOR UPDATE` locks**: a single-row `audit_chain_lock` to order
+  writers (and cover genesis), plus a **locking tip read** so the prev-hash read
+  observes the latest *committed* tip regardless of the REPEATABLE-READ snapshot
+  — both auto-released on commit, no leak. An adversarial multi-agent review of
+  the chain integrity drove the locking-read fix and three watermark/prune
+  regression tests (head-truncation-verifies, surviving-row-deletion-detected,
+  middle-deletion-detected) mirroring the PG suite. **Honest scope:** the prune
+  watermark is stored in plaintext here (as on SQLite — `mysql::settings` has no
+  AES-GCM envelope yet), so the PG "sealed watermark can't be forged" guarantee
+  does not hold on this backend; backward-linkage + middle/surviving-row tamper
+  detection are intact. 4 `#[sqlx::test]` green on MariaDB. 13th MySQL domain;
+  PG + SQLite untouched.
+
 ## [0.156.38] — 2026-06-23
 
 ### Added
