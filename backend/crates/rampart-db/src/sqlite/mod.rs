@@ -31,6 +31,7 @@
 
 pub mod agents;
 pub mod delivery_log;
+pub mod escalations;
 pub mod heartbeats;
 pub mod maintenance;
 pub mod monitors;
