@@ -29,6 +29,25 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.1] — 2026-06-23
+
+### Added
+- **Multi-DB P1: SQLite `orgs` domain (identity/tenancy core).** Building out
+  `SqliteStore` domain-by-domain on the P1-0 foundation. Restructured the SQLite
+  backend into a `rampart_db::sqlite` module dir (shared conversions — `Role`↔TEXT,
+  uuid↔TEXT, unix-seconds↔`OffsetDateTime`); added `migrations-sqlite/0002_identity.sql`
+  (users / organizations / org_members, forked from the current PG schema —
+  citext→`COLLATE NOCASE`, enum→CHECK'd TEXT, timestamptz→INTEGER `unixepoch()`,
+  the slug regex→GLOB negated-class, + the seeded Default org) and `sqlite::orgs`
+  with all 12 `StoreOrgs`-equivalent fns (create / get / by-slug / rename /
+  orgs-for-user / member upsert+role+list+detailed+remove / admin-count / atomic
+  create-with-owner). 6 `#[sqlx::test]` SQLite tests pass — including dup-slug →
+  `Conflict` (sqlx's `is_unique_violation` works on SQLite) and the
+  members-detailed JOIN. Still off-by-default `sqlite` feature; default PG build
+  untouched. Next: the `users` domain, then `RAMPART_DB_URL=sqlite` wiring.
+
+---
+
 ## [0.156.0] — 2026-06-23
 
 ### Added
