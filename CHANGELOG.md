@@ -29,6 +29,22 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.72] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `access_review` domain + CAPSTONE: `MysqlStore` is now
+  fully implemented.** `mysql/access_review.rs` un-stubs the last remaining
+  `Store` method (`StoreCompliance::access_review`, the SOC 2 CC6 user-access
+  snapshot — every org-membership grant joined to identity + last-login + MFA,
+  cross-tenant). role enum→TEXT, ts→BIGINT, bool→TINYINT. With this slice **no
+  `unimplemented!()` stubs remain on `MysqlStore`** — a MySQL/MariaDB deployment
+  can run the entire management + telemetry + ingest + compliance surface, every
+  domain covered by a `#[sqlx::test]` against MariaDB (104 MySQL tests). The
+  default Postgres build, its `.sqlx` cache, and the SQLite backend are
+  untouched (the layer stays behind the off-by-default `mysql` cargo feature).
+  +1 `#[sqlx::test]` (cross-org membership report with identity/role/MFA) green
+  on MariaDB.
+
 ## [0.156.71] — 2026-06-23
 
 ### Added

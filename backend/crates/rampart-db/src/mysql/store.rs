@@ -2715,7 +2715,7 @@ impl StoreAudit for MysqlStore {
 #[async_trait::async_trait]
 impl StoreCompliance for MysqlStore {
     async fn access_review(&self) -> DbResult<Vec<crate::access_review::AccessReviewRow>> {
-        unimplemented!("MysqlStore::access_review: compliance domain not yet ported (multi-DB P1)")
+        crate::mysql::access_review::list(&self.pool).await
     }
 }
 
