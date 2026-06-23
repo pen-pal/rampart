@@ -23,7 +23,9 @@
 //!   (bound `IN (?,…)` lists, as in the SQLite layer).
 
 pub mod orgs;
+pub mod sessions;
 pub mod settings;
+pub mod users;
 
 use rampart_core::ids::{OrgId, UserId};
 use rampart_core::Role;
@@ -50,6 +52,19 @@ pub(crate) fn oid(s: &str) -> OrgId {
 /// Parse a CHAR(36) uuid column into a `UserId`.
 pub(crate) fn uid(s: &str) -> UserId {
     UserId::from_uuid(Uuid::parse_str(s).unwrap_or(Uuid::nil()))
+}
+
+/// Parse a CHAR(36) uuid column into a raw `Uuid` (session ids, active_org_id).
+pub(crate) fn raw_uuid(s: &str) -> Uuid {
+    Uuid::parse_str(s).unwrap_or(Uuid::nil())
+}
+
+/// The Default org's id (seeded by `migrations-mysql/0002_identity.sql`), as a
+/// string for binding. Mirrors `rampart_core::org::DEFAULT_ORG_ID`.
+pub(crate) fn default_org_id_str() -> String {
+    OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID)
+        .0
+        .to_string()
 }
 
 /// `Role` → the TEXT form stored in MySQL (the PG `user_role` labels).
