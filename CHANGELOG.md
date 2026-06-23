@@ -29,7 +29,22 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
-## [0.156.26] — 2026-06-23
+## [0.156.27] — 2026-06-23
+
+### Added
+- **Multi-DB P1 domain-port tail: SQLite notifier dispatch path.** The notifier's
+  per-event dispatch hit 4 still-stubbed SqliteStore reads that would panic a
+  sqlite boot on the first alert: `resolve_channels_for_monitor` (routing union),
+  `is_silenced` (silences), `get_template_render_strings` (templates), and
+  `any_parent_down` (monitor_groups dependency suppression). All 4 now real.
+  `migrations-sqlite/0020_dispatch_path.sql` forks the 3 missing tables
+  (monitor_groups + parent_id folder tree, monitor_dependencies, silences;
+  uuid→TEXT, ts→INTEGER). `routing::resolve_channels_for_monitor` runs the same
+  `WITH RECURSIVE` folder-ancestor walk as PG (SQLite supports it) and reuses the
+  `sqlite::notifications` row decoder. CRUD for these domains stays stubbed (cold
+  management-API paths) — only the hot dispatch reads are wired. +1 `#[sqlx::test]`
+  (empty boot case + attach→resolve roundtrip + global silence). clippy + fmt
+  green; PG untouched.
 
 ### Changed
 - **Multi-DB P1 seam-plumbing slice C: rampart-scheduler fully off `&DbPool`
