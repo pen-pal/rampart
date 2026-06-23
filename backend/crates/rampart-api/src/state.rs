@@ -17,7 +17,11 @@ use uuid::Uuid;
 pub struct AppState(Arc<Inner>);
 
 struct Inner {
-    pool: DbPool,
+    /// Concrete Postgres pool. `Some` on the Postgres backend, `None` on SQLite
+    /// (multi-DB P1) — the object-safe `store` below is the backend-agnostic
+    /// handle. The few remaining `pool()` callers are Postgres-only paths
+    /// (telemetry ingest, prune, self-metrics) that aren't reached on SQLite.
+    pool: Option<DbPool>,
     /// Object-safe `Store` seam (multi-DB P0). Additive for now — constructed
     /// from the same `pool` (no I/O) and has zero callers yet; it exists to
     /// prove the `Arc<dyn Store>` wiring compiles ahead of caller migration.
@@ -62,7 +66,7 @@ impl AppState {
     pub fn new(pool: DbPool, scheduler_reload: Arc<Notify>) -> Self {
         let store = Arc::new(rampart_db::store::PgStore::new(pool.clone()));
         Self(Arc::new(Inner {
-            pool,
+            pool: Some(pool),
             store,
             scheduler_reload,
             scheduler: None,
@@ -81,7 +85,29 @@ impl AppState {
     ) -> Self {
         let store = Arc::new(rampart_db::store::PgStore::new(pool.clone()));
         Self(Arc::new(Inner {
-            pool,
+            pool: Some(pool),
+            store,
+            scheduler_reload,
+            scheduler: Some(scheduler),
+            totp_challenges: Mutex::new(HashMap::new()),
+            http_metrics: Arc::new(HttpMetrics::new()),
+            auth_rate_limiter: IpRateLimiter::new(),
+            ingest_rate_limiter: IpRateLimiter::with_params(240.0, 4.0),
+            trusted_proxies: TrustedProxies::from_env(),
+        }))
+    }
+
+    /// Backend-agnostic constructor (multi-DB P1): build directly from an
+    /// `Arc<dyn Store>` with no concrete pool — the SQLite boot path. `pool()`
+    /// callers (Postgres-only telemetry/prune/self-metrics endpoints) are not
+    /// reached on this backend.
+    pub fn with_scheduler_store(
+        store: Arc<dyn rampart_db::store::Store>,
+        scheduler_reload: Arc<Notify>,
+        scheduler: Arc<Scheduler>,
+    ) -> Self {
+        Self(Arc::new(Inner {
+            pool: None,
             store,
             scheduler_reload,
             scheduler: Some(scheduler),
@@ -110,8 +136,15 @@ impl AppState {
         self.0.trusted_proxies.clone()
     }
 
+    /// The Postgres pool. Postgres-only paths (telemetry ingest, prune,
+    /// self-metrics, the residual handlers not yet on the `store` seam) call
+    /// this; it panics on the SQLite backend, where those endpoints aren't part
+    /// of the supported single-binary surface yet (multi-DB P1).
     pub fn pool(&self) -> &DbPool {
-        &self.0.pool
+        self.0
+            .pool
+            .as_ref()
+            .expect("pool() called on a non-Postgres backend (this endpoint is Postgres-only)")
     }
 
     /// Object-safe `Store` seam (multi-DB P0). Additive — no callers yet; the
