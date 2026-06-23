@@ -29,7 +29,21 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
-## [0.156.34] — 2026-06-23
+## [0.156.35] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `notifications` (channels) domain.** Full channel CRUD
+  (list / list_all / get / get_unscoped / create / update / delete /
+  counts_per_monitor / attach / detach / for_monitor / mark_fired) +
+  `migrations-mysql/0006_notifications.sql` (notifications + notification_templates
+  + monitor_notifications + group_notifications + monitor_notification_excludes).
+  Channel `config` sealed via `crate::secrets::seal` on write, re-opened on every
+  read (the #112 invariant); reuses the dialect-neutral clamp helpers + the
+  double-Option `template_id`/quiet-hours merge; tag hydration through
+  `mysql::tags`. MySQL deltas: insert/update-then-get (no RETURNING),
+  `ON DUPLICATE KEY` attach. +3 `#[sqlx::test]` (clamps + seal/open + cross-org;
+  enum round-trip; attach/for_monitor/counts/tag-hydration) green on MariaDB.
+  9th MySQL domain. Off by default; PG + SQLite untouched.
 
 ### Added
 - **Multi-DB P2 (MySQL) — `proxies` domain.** Outbound proxy configs for probe
