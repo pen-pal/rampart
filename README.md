@@ -176,9 +176,9 @@ rampart/
 │   └── crates/
 │       ├── rampart-core                  # pure types, no I/O
 │       ├── rampart-db                    # sqlx repository layer
-│       ├── rampart-checker               # probe runners (38 kinds)
+│       ├── rampart-checker               # probe runners (42 kinds)
 │       ├── rampart-scheduler             # per-monitor tokio tasks + batched writer
-│       ├── rampart-notifier              # channel fan-out (128 adapters)
+│       ├── rampart-notifier              # channel fan-out (129 adapters)
 │       └── rampart-api                   # axum HTTP server (embeds React)
 ├── frontend/                             # Vite + React SPA
 ├── docs/                                 # architecture, setup, security debt
