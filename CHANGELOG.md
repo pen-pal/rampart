@@ -29,6 +29,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.54] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `deploy_markers` domain** (management-API tail, slice
+  1/N): deploy-timeline annotations (create / list_window / delete) +
+  `migrations-mysql/0021_deploy_markers.sql`, un-stubbing `StoreDeployMarkers` on
+  `MysqlStore`. First of the management-API domains — these have **no SQLite
+  reference** (cold stubs there too), so they're ported from the PG impl directly:
+  `COALESCE($2, now())` → `COALESCE(?, UNIX_TIMESTAMP())` with an app-bound
+  optional ts; `make_interval(hours=>$1)` → a Rust-computed `now - hours*3600`
+  cutoff; no `RETURNING` → INSERT-then-re-select. +1 `#[sqlx::test]` (create +
+  window + service-filter + cross-org isolation + delete) green on MariaDB.
+  PG + SQLite untouched.
+
 ## [0.156.53] — 2026-06-23
 
 ### Added
