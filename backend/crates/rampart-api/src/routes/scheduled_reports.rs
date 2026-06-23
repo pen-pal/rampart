@@ -130,7 +130,8 @@ async fn send_now(
         .store()
         .render_scheduled_report(&report.name, &report.cadence)
         .await?;
-    rampart_notifier::send_system_email(s.pool(), &report.recipients, &subject, &body).await;
+    rampart_notifier::send_system_email(s.store().as_ref(), &report.recipients, &subject, &body)
+        .await;
 
     // Stamp regardless of how many recipients SMTP actually reached: a
     // manual send is still a send, and per-recipient failures are logged

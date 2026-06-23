@@ -11,7 +11,7 @@ use crate::{ChannelError, Event};
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use rampart_core::ids::NotificationId;
-use rampart_db::DbPool;
+use rampart_db::store::Store;
 use serde::Deserialize;
 use tracing::{info, warn};
 
@@ -27,7 +27,7 @@ pub struct WebpushConfig {
 /// single failed endpoint doesn't fail the others, and 404/410 responses
 /// prune the dead subscription.
 pub async fn send_all(
-    pool: &DbPool,
+    store: &dyn Store,
     notification_id: NotificationId,
     config: &serde_json::Value,
     subject: &str,
@@ -40,11 +40,28 @@ pub async fn send_all(
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "mailto:admin@localhost".to_string());
 
-    let vapid = rampart_db::webpush::get_or_create_vapid(pool, generate_vapid_keys)
+    // `Store`-callers compose the two primitives + their own generator (the
+    // `get_or_create_vapid` free fn takes a closure, which isn't object-safe on
+    // `&dyn Store`). Same get-then-set semantics as before.
+    let vapid = match store
+        .get_vapid_keys()
         .await
-        .map_err(|e| ChannelError::BadConfig(format!("vapid keys: {e}")))?;
+        .map_err(|e| ChannelError::BadConfig(format!("vapid keys: {e}")))?
+    {
+        Some(k) => k,
+        None => {
+            let (public, private) = generate_vapid_keys();
+            let keys = rampart_db::webpush::VapidKeys { public, private };
+            store
+                .set_vapid_keys(&keys)
+                .await
+                .map_err(|e| ChannelError::BadConfig(format!("vapid keys: {e}")))?;
+            keys
+        }
+    };
 
-    let subs = rampart_db::webpush::list_for_notification(pool, notification_id)
+    let subs = store
+        .list_webpush_subs(notification_id)
         .await
         .map_err(|e| ChannelError::BadConfig(format!("load subscriptions: {e}")))?;
     if subs.is_empty() {
@@ -120,7 +137,7 @@ pub async fn send_all(
             Ok(r) if r.status().as_u16() == 404 || r.status().as_u16() == 410 => {
                 // Subscription expired/gone — prune it so we stop trying.
                 info!(endpoint = %sub.endpoint, "pruning expired webpush subscription");
-                let _ = rampart_db::webpush::delete_by_endpoint(pool, &sub.endpoint).await;
+                let _ = store.delete_webpush_sub_by_endpoint(&sub.endpoint).await;
             }
             Ok(r) => {
                 let code = r.status().as_u16();

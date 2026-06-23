@@ -20,9 +20,9 @@
 use crate::{channels, template, Event, EventKind};
 use rampart_core::ids::NotificationId;
 use rampart_core::ChannelKind;
-use rampart_db::DbPool;
+use rampart_db::store::Store;
 use std::collections::{HashMap, VecDeque};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
@@ -104,7 +104,7 @@ fn kind_str<T: serde::Serialize>(kind: &T) -> String {
 /// the notifier. Called from both the immediate dispatch path and the
 /// digest flush so the log reflects every actual send attempt.
 async fn record_delivery(
-    pool: &DbPool,
+    store: &dyn Store,
     notification_id: NotificationId,
     channel_kind: ChannelKind,
     event: &Event,
@@ -119,7 +119,7 @@ async fn record_delivery(
         ok,
         error,
     };
-    if let Err(e) = rampart_db::delivery_log::record(pool, entry).await {
+    if let Err(e) = store.record_delivery(entry).await {
         warn!(channel = %notification_id.0, error = %e, "delivery_log record failed");
     }
 }
@@ -187,7 +187,7 @@ fn synthetic_monitor() -> rampart_core::Monitor {
 /// ids that no longer resolve are logged and skipped. Fire-and-forget — the
 /// ingest handler spawns this so the SDK response isn't blocked on delivery.
 pub async fn dispatch_error_alert(
-    pool: &DbPool,
+    store: &dyn Store,
     project_name: &str,
     channel_ids: &[NotificationId],
     regressed: bool,
@@ -216,7 +216,7 @@ pub async fn dispatch_error_alert(
         slo_current_pct: None,
     };
     for ch in channel_ids {
-        if let Err(e) = send_event_to_channel(pool, *ch, &event).await {
+        if let Err(e) = send_event_to_channel(store, *ch, &event).await {
             warn!(channel = %ch.0, error = %e, "error-alert send failed");
         }
     }
@@ -239,11 +239,11 @@ pub async fn dispatch_error_alert(
 /// Both a successful and a failed retry append a fresh row — the returned
 /// entry is that new attempt.
 pub async fn resend_delivery(
-    pool: &DbPool,
+    store: &dyn Store,
     entry: &rampart_db::delivery_log::DeliveryEntry,
     channel_id: NotificationId,
 ) -> anyhow::Result<rampart_db::delivery_log::DeliveryEntry> {
-    let chan = rampart_db::notifications::get_unscoped(pool, channel_id).await?;
+    let chan = store.get_notification_unscoped(channel_id).await?;
 
     // Rebuild a representative monitor for rendering: the real one when it
     // still exists, otherwise a synthetic stand-in.
@@ -251,11 +251,9 @@ pub async fn resend_delivery(
         Some(mid) => {
             // Notifier fan-out runs with no request context; the monitor id
             // comes from the alert being rendered, so fetch unscoped.
-            match rampart_db::monitors::get_unscoped(
-                pool,
-                rampart_core::ids::MonitorId::from_uuid(mid),
-            )
-            .await
+            match store
+                .get_monitor_unscoped(rampart_core::ids::MonitorId::from_uuid(mid))
+                .await
             {
                 Ok(m) => m,
                 Err(rampart_db::DbError::NotFound) => synthetic_monitor(),
@@ -287,7 +285,7 @@ pub async fn resend_delivery(
     let subject = template::default_subject(&event);
     let body = match chan.template_id {
         None => template::default_body(&event),
-        Some(tid) => match rampart_db::templates::get_render_strings(pool, tid).await {
+        Some(tid) => match store.get_template_render_strings(tid).await {
             Ok(t) => template::render(&t.body, &event),
             Err(e) => {
                 warn!(channel = %chan.name, template = %tid.0, error = %e,
@@ -305,7 +303,7 @@ pub async fn resend_delivery(
         &subject,
         &body,
         &event,
-        pool,
+        store,
         channel_id,
     )
     .await
@@ -320,18 +318,16 @@ pub async fn resend_delivery(
         }
     };
 
-    let new_entry = rampart_db::delivery_log::record(
-        pool,
-        rampart_db::delivery_log::NewDelivery {
+    let new_entry = store
+        .record_delivery(rampart_db::delivery_log::NewDelivery {
             notification_id: Some(channel_id),
             channel_kind: &kind_str(&chan.kind),
             event_kind: &kind_str(&event.kind),
             monitor_id: entry.monitor_id,
             ok,
             error: err.as_deref(),
-        },
-    )
-    .await?;
+        })
+        .await?;
     Ok(new_entry)
 }
 
@@ -342,7 +338,7 @@ pub async fn resend_delivery(
 /// whether the send succeeded. Channel ids that no longer resolve are
 /// the caller's problem to skip.
 pub async fn send_event_to_channel(
-    pool: &DbPool,
+    store: &dyn Store,
     channel_id: NotificationId,
     event: &Event,
 ) -> anyhow::Result<bool> {
@@ -359,20 +355,17 @@ pub async fn send_event_to_channel(
                 | EventKind::MaintenanceEnded
         );
         let mon = scoped.then_some(event.monitor.id.0);
-        if rampart_db::silences::is_silenced(pool, mon)
-            .await
-            .unwrap_or(false)
-        {
+        if store.is_silenced(mon).await.unwrap_or(false) {
             tracing::info!(channel = %channel_id.0, "alert suppressed by active silence");
             return Ok(false);
         }
     }
-    let chan = rampart_db::notifications::get_unscoped(pool, channel_id).await?;
+    let chan = store.get_notification_unscoped(channel_id).await?;
 
     let subject = template::default_subject(event);
     let body = match chan.template_id {
         None => template::default_body(event),
-        Some(tid) => match rampart_db::templates::get_render_strings(pool, tid).await {
+        Some(tid) => match store.get_template_render_strings(tid).await {
             Ok(t) => template::render(&t.body, event),
             Err(e) => {
                 warn!(channel = %chan.name, template = %tid.0, error = %e,
@@ -388,7 +381,7 @@ pub async fn send_event_to_channel(
         &subject,
         &body,
         event,
-        pool,
+        store,
         channel_id,
     )
     .await
@@ -402,18 +395,16 @@ pub async fn send_event_to_channel(
 
     // monitor_id stays NULL — the event's monitor is a synthetic stand-in
     // for the rule, not a real row.
-    let _ = rampart_db::delivery_log::record(
-        pool,
-        rampart_db::delivery_log::NewDelivery {
+    let _ = store
+        .record_delivery(rampart_db::delivery_log::NewDelivery {
             notification_id: Some(channel_id),
             channel_kind: &kind_str(&chan.kind),
             event_kind: &kind_str(&event.kind),
             monitor_id: None,
             ok,
             error: err.as_deref(),
-        },
-    )
-    .await;
+        })
+        .await;
     Ok(ok)
 }
 
@@ -421,11 +412,11 @@ pub async fn send_event_to_channel(
 /// Failures log and bail — a broken policy must never block the writer
 /// pipeline (the heartbeat is already persisted by this point).
 async fn handle_escalation_flip(
-    pool: &DbPool,
+    store: &dyn Store,
     event: &Event,
     policy_id: rampart_core::ids::EscalationPolicyId,
 ) {
-    let policy = match rampart_db::escalations::get_unscoped(pool, policy_id).await {
+    let policy = match store.get_escalation_policy_unscoped(policy_id).await {
         Ok(p) => p,
         Err(e) => {
             warn!(policy = %policy_id.0, error = %e, "escalation policy load failed");
@@ -437,16 +428,16 @@ async fn handle_escalation_flip(
         // Open + page step 0. None = an episode is already open
         // (flap / re-down while acked) — the ladder is already running,
         // nothing new to page.
-        match rampart_db::escalations::open_episode(pool, event.monitor.id, &policy).await {
+        match store.open_episode(event.monitor.id, &policy).await {
             Ok(Some(_episode)) => {
-                fire_escalation_step(pool, event, &policy, 0).await;
+                fire_escalation_step(store, event, &policy, 0).await;
             }
             Ok(None) => {}
             Err(e) => warn!(monitor = %event.monitor.id, error = %e, "episode open failed"),
         }
     } else if event.heartbeat.status == rampart_core::MonitorStatus::Up {
         // Recovery: close the episode and tell everyone already paged.
-        match rampart_db::escalations::resolve(pool, event.monitor.id).await {
+        match store.resolve_episode_for_monitor(event.monitor.id).await {
             Ok(Some(episode)) => {
                 let mut recovery = event.clone();
                 recovery.kind = EventKind::Escalation;
@@ -456,7 +447,7 @@ async fn handle_escalation_flip(
                     policy.steps.len()
                 ));
                 for step in policy.steps.iter().take(episode.last_step as usize + 1) {
-                    dispatch_step_targets(pool, step, &recovery).await;
+                    dispatch_step_targets(store, step, &recovery).await;
                 }
             }
             Ok(None) => {}
@@ -469,7 +460,7 @@ async fn handle_escalation_flip(
 /// escalation pages bypass digest coalescing and quiet hours by design
 /// (a page that waits for a digest window is not a page).
 pub async fn fire_escalation_step(
-    pool: &DbPool,
+    store: &dyn Store,
     event: &Event,
     policy: &rampart_core::EscalationPolicy,
     step_no: usize,
@@ -478,7 +469,8 @@ pub async fn fire_escalation_step(
         return;
     };
     // An active silence on the monitor stops the escalation ladder too.
-    if rampart_db::silences::is_silenced(pool, Some(event.monitor.id.0))
+    if store
+        .is_silenced(Some(event.monitor.id.0))
         .await
         .unwrap_or(false)
     {
@@ -493,30 +485,34 @@ pub async fn fire_escalation_step(
         policy.steps.len(),
         policy.name
     ));
-    dispatch_step_targets(pool, step, &page).await;
+    dispatch_step_targets(store, step, &page).await;
 }
 
 /// Page one ladder step's targets: its fixed `channel_ids` plus the current
 /// on-call channel of each schedule in `schedule_ids`. A schedule that no
 /// longer resolves (deleted, emptied) is logged and skipped — same as an
 /// unresolvable channel id, never a hard failure of the page.
-async fn dispatch_step_targets(pool: &DbPool, step: &rampart_core::EscalationStep, event: &Event) {
+async fn dispatch_step_targets(
+    store: &dyn Store,
+    step: &rampart_core::EscalationStep,
+    event: &Event,
+) {
     for ch in &step.channel_ids {
-        if let Err(e) = send_event_to_channel(pool, *ch, event).await {
+        if let Err(e) = send_event_to_channel(store, *ch, event).await {
             warn!(channel = %ch.0, error = %e, "escalation step send failed");
         }
     }
     let now = time::OffsetDateTime::now_utc();
     for sid in &step.schedule_ids {
-        match rampart_db::on_call::current_target(pool, *sid, now).await {
+        match store.oncall_current_target(*sid, now).await {
             Ok(Some(rampart_core::on_call::OnCallTarget::Channel(ch))) => {
-                if let Err(e) = send_event_to_channel(pool, ch, event).await {
+                if let Err(e) = send_event_to_channel(store, ch, event).await {
                     warn!(channel = %ch.0, schedule = %sid.0, error = %e,
                           "escalation on-call send failed");
                 }
             }
             Ok(Some(rampart_core::on_call::OnCallTarget::User(uid))) => {
-                if let Err(e) = send_event_to_user(pool, uid, event).await {
+                if let Err(e) = send_event_to_user(store, uid, event).await {
                     warn!(user = %uid.0, schedule = %sid.0, error = %e,
                           "escalation on-call user email failed");
                 }
@@ -530,12 +526,12 @@ async fn dispatch_step_targets(pool: &DbPool, step: &rampart_core::EscalationSte
 /// Page a user who is on call: email the event to their account address (the
 /// universally-present contact for a user; webpush is a possible follow-up).
 async fn send_event_to_user(
-    pool: &DbPool,
+    store: &dyn Store,
     user_id: rampart_core::ids::UserId,
     event: &Event,
 ) -> anyhow::Result<()> {
-    let user = rampart_db::users::get(pool, user_id).await?;
-    let cfg: SubscriberSmtp = match rampart_db::settings::get(pool, "smtp").await? {
+    let user = store.get_user(user_id).await?;
+    let cfg: SubscriberSmtp = match store.get_setting("smtp").await? {
         Some(v) => serde_json::from_value(v)?,
         None => {
             warn!(user = %user_id.0, "no SMTP configured; cannot page on-call user");
@@ -597,13 +593,13 @@ impl NotifierHandle {
 
 pub struct NotifierService {
     rx: mpsc::Receiver<Event>,
-    pool: DbPool,
+    store: Arc<dyn Store>,
 }
 
 impl NotifierService {
-    pub fn new(pool: DbPool) -> (Self, NotifierHandle) {
+    pub fn new(store: Arc<dyn Store>) -> (Self, NotifierHandle) {
         let (tx, rx) = mpsc::channel(CHANNEL_BUFFER);
-        (NotifierService { rx, pool }, NotifierHandle(tx))
+        (NotifierService { rx, store }, NotifierHandle(tx))
     }
 
     pub async fn run(mut self, leadership: std::sync::Arc<rampart_db::leader::Leadership>) {
@@ -615,24 +611,24 @@ impl NotifierService {
         // picks up any rows left by a previous process — pending coalesced
         // alerts survive a restart. Leader-only so replicas don't double-send
         // a coalesced digest.
-        let flush_pool = self.pool.clone();
+        let flush_store = self.store.clone();
         let flush_leadership = leadership.clone();
         tokio::spawn(async move {
             let mut tick = tokio::time::interval(DIGEST_FLUSH_TICK);
             loop {
                 tick.tick().await;
                 if flush_leadership.is_leader() {
-                    flush_due_digests(&flush_pool).await;
+                    flush_due_digests(flush_store.as_ref()).await;
                 }
             }
         });
 
         while let Some(event) = self.rx.recv().await {
-            let pool = self.pool.clone();
+            let store = self.store.clone();
             // Dispatch on a child task so a slow channel can't block the
             // next event. The child handles its own logging.
             tokio::spawn(async move {
-                if let Err(e) = dispatch_one(&pool, event).await {
+                if let Err(e) = dispatch_one(store, event).await {
                     warn!(error = %e, "notifier dispatch failed");
                 }
             });
@@ -641,13 +637,13 @@ impl NotifierService {
     }
 }
 
-async fn dispatch_one(pool: &DbPool, event: Event) -> anyhow::Result<()> {
+async fn dispatch_one(store: Arc<dyn Store>, event: Event) -> anyhow::Result<()> {
     // Dependency suppression. If this monitor depends on any other
     // monitor whose current_status is Down/Pending, the failure here is
     // almost certainly downstream of *that* root cause. Suppress the
     // alert (heartbeat still recorded so the dashboard shows the state)
     // to keep one root incident from paging every dependent service.
-    match rampart_db::monitor_groups::any_parent_down(pool, event.monitor.id).await {
+    match store.any_parent_down(event.monitor.id).await {
         Ok(true) => {
             info!(
                 monitor = %event.monitor.id,
@@ -672,7 +668,7 @@ async fn dispatch_one(pool: &DbPool, event: Event) -> anyhow::Result<()> {
     // keep their normal routing even with a policy attached.
     if event.kind_is_status_flip() {
         if let Some(policy_id) = event.monitor.escalation_policy_id {
-            handle_escalation_flip(pool, &event, policy_id).await;
+            handle_escalation_flip(store.as_ref(), &event, policy_id).await;
             return Ok(());
         }
     }
@@ -685,13 +681,13 @@ async fn dispatch_one(pool: &DbPool, event: Event) -> anyhow::Result<()> {
         event.kind,
         EventKind::MaintenanceStarted | EventKind::MaintenanceEnded
     ) {
-        fan_out_maintenance_subscribers(pool, &event).await;
+        fan_out_maintenance_subscribers(store.as_ref(), &event).await;
     }
 
     // Resolve effective channels: explicitly-attached ∪ tag-matched ∪
     // folder-attached − excluded. Replaces the old direct attach lookup
     // so tag/folder routing fires without materialized rows.
-    let rows = rampart_db::routing::resolve_channels_for_monitor(pool, event.monitor.id).await?;
+    let rows = store.resolve_channels_for_monitor(event.monitor.id).await?;
     if rows.is_empty() {
         return Ok(());
     }
@@ -754,7 +750,7 @@ async fn dispatch_one(pool: &DbPool, event: Event) -> anyhow::Result<()> {
         // always go out immediately — a user clicking "send test" expects
         // an instant message, not one merged into a future digest.
         if row.digest_window_secs > 0 && !matches!(event.kind, EventKind::Test) {
-            enqueue_digest(pool, row.id, &event).await;
+            enqueue_digest(store.as_ref(), row.id, &event).await;
             info!(
                 channel = %row.name, kind = ?row.kind,
                 window = row.digest_window_secs,
@@ -765,7 +761,7 @@ async fn dispatch_one(pool: &DbPool, event: Event) -> anyhow::Result<()> {
 
         let (subject, body) = match row.template_id {
             None => (default_subject.clone(), default_body.clone()),
-            Some(tid) => match rampart_db::templates::get_render_strings(pool, tid).await {
+            Some(tid) => match store.get_template_render_strings(tid).await {
                 Ok(t) => {
                     let subj = t
                         .subject
@@ -805,7 +801,7 @@ async fn dispatch_one(pool: &DbPool, event: Event) -> anyhow::Result<()> {
         let cfg = row.config;
         let name = row.name;
         let id = row.id;
-        let pool_clone = pool.clone();
+        let task_store = store.clone();
         handles.push(tokio::spawn(async move {
             // Bounded retry with exponential backoff: re-send on transient
             // failures (network / 429 / 5xx) so a momentary blip doesn't drop a
@@ -813,7 +809,16 @@ async fn dispatch_one(pool: &DbPool, event: Event) -> anyhow::Result<()> {
             // SSRF-blocked, 4xx) which would only fail identically.
             let mut attempt = 1;
             let outcome = loop {
-                match channels::dispatch(kind, &cfg, &subject, &body, &event, &pool_clone, id).await
+                match channels::dispatch(
+                    kind,
+                    &cfg,
+                    &subject,
+                    &body,
+                    &event,
+                    task_store.as_ref(),
+                    id,
+                )
+                .await
                 {
                     Ok(()) => break Ok(()),
                     Err(e) if attempt < MAX_SEND_ATTEMPTS && e.is_retryable() => {
@@ -832,9 +837,9 @@ async fn dispatch_one(pool: &DbPool, event: Event) -> anyhow::Result<()> {
                 Ok(()) => {
                     info!(channel = %name, kind = ?kind, attempt, "notification sent");
                     // Record the successful attempt (best-effort).
-                    record_delivery(&pool_clone, id, kind, &event, true, None).await;
+                    record_delivery(task_store.as_ref(), id, kind, &event, true, None).await;
                     // Bump last_fired_at so the next event respects the cooldown.
-                    if let Err(e) = rampart_db::notifications::mark_fired(&pool_clone, id).await {
+                    if let Err(e) = task_store.mark_notification_fired(id).await {
                         warn!(channel = %name, error = %e, "mark_fired failed");
                     }
                 }
@@ -842,8 +847,15 @@ async fn dispatch_one(pool: &DbPool, event: Event) -> anyhow::Result<()> {
                     warn!(channel = %name, kind = ?kind, attempts = attempt, error = %e,
                           "notification failed (gave up)");
                     // Record the failed attempt with its error (best-effort).
-                    record_delivery(&pool_clone, id, kind, &event, false, Some(&e.to_string()))
-                        .await;
+                    record_delivery(
+                        task_store.as_ref(),
+                        id,
+                        kind,
+                        &event,
+                        false,
+                        Some(&e.to_string()),
+                    )
+                    .await;
                 }
             }
         }));
@@ -859,7 +871,7 @@ async fn dispatch_one(pool: &DbPool, event: Event) -> anyhow::Result<()> {
 /// will be flushed by the background task once the channel's window
 /// elapses. A serialization failure is logged and dropped (the event
 /// can't be persisted, and we'd rather not stall the dispatch path).
-async fn enqueue_digest(pool: &DbPool, id: NotificationId, event: &Event) {
+async fn enqueue_digest(store: &dyn Store, id: NotificationId, event: &Event) {
     let json = match serde_json::to_value(event) {
         Ok(v) => v,
         Err(e) => {
@@ -867,7 +879,7 @@ async fn enqueue_digest(pool: &DbPool, id: NotificationId, event: &Event) {
             return;
         }
     };
-    if let Err(e) = rampart_db::digest_buffer::enqueue(pool, id, &json).await {
+    if let Err(e) = store.enqueue_digest(id, &json).await {
         warn!(channel = %id.0, error = %e, "digest enqueue failed; dropping");
     }
 }
@@ -878,9 +890,9 @@ async fn enqueue_digest(pool: &DbPool, id: NotificationId, event: &Event) {
 /// from the DB, so a restart resumes any rows left by a prior process.
 /// Channels still inside their window are left untouched. Called on the
 /// flush tick.
-async fn flush_due_digests(pool: &DbPool) {
+async fn flush_due_digests(store: &dyn Store) {
     let now = time::OffsetDateTime::now_utc();
-    let due = match rampart_db::digest_buffer::drain_due(pool, now).await {
+    let due = match store.drain_due_digests(now).await {
         Ok(d) => d,
         Err(e) => {
             warn!(error = %e, "digest drain_due failed");
@@ -889,7 +901,7 @@ async fn flush_due_digests(pool: &DbPool) {
     };
 
     for channel in due {
-        if let Err(e) = flush_channel(pool, channel.notification_id).await {
+        if let Err(e) = flush_channel(store, channel.notification_id).await {
             warn!(channel = %channel.notification_id.0, error = %e, "digest flush failed");
         }
     }
@@ -898,8 +910,8 @@ async fn flush_due_digests(pool: &DbPool) {
 /// Flush one due channel: load its buffered rows + current config, render
 /// the combined message, dispatch, then delete exactly the rows that were
 /// drained (events enqueued after this snapshot roll into the next window).
-async fn flush_channel(pool: &DbPool, id: NotificationId) -> anyhow::Result<()> {
-    let rows = rampart_db::digest_buffer::take_for_channel(pool, id).await?;
+async fn flush_channel(store: &dyn Store, id: NotificationId) -> anyhow::Result<()> {
+    let rows = store.take_digest_for_channel(id).await?;
     if rows.is_empty() {
         return Ok(());
     }
@@ -923,10 +935,10 @@ async fn flush_channel(pool: &DbPool, id: NotificationId) -> anyhow::Result<()> 
     // config / template / window — reflects any edit made mid-window). If
     // the channel was deleted the FK cascade already cleared the buffer,
     // so a NotFound here means there's nothing left to do.
-    let chan = match rampart_db::notifications::get_unscoped(pool, id).await {
+    let chan = match store.get_notification_unscoped(id).await {
         Ok(c) => c,
         Err(rampart_db::DbError::NotFound) => {
-            rampart_db::digest_buffer::delete_by_ids(pool, &drained_ids).await?;
+            store.delete_digest_by_ids(&drained_ids).await?;
             return Ok(());
         }
         Err(e) => return Err(e.into()),
@@ -934,7 +946,7 @@ async fn flush_channel(pool: &DbPool, id: NotificationId) -> anyhow::Result<()> 
 
     if events.is_empty() {
         // Everything failed to deserialize — just clear the dead rows.
-        rampart_db::digest_buffer::delete_by_ids(pool, &drained_ids).await?;
+        store.delete_digest_by_ids(&drained_ids).await?;
         return Ok(());
     }
 
@@ -948,7 +960,7 @@ async fn flush_channel(pool: &DbPool, id: NotificationId) -> anyhow::Result<()> 
     };
 
     let count = digest.events.len();
-    let (subject, body) = render_digest(pool, &digest).await;
+    let (subject, body) = render_digest(store, &digest).await;
     // The combined message represents the whole window; use the most
     // recent event as the dispatch `event` so channels that read
     // structured fields (e.g. Web Push title) see current state.
@@ -956,22 +968,32 @@ async fn flush_channel(pool: &DbPool, id: NotificationId) -> anyhow::Result<()> 
         .events
         .last()
         .expect("non-empty: events checked above");
-    match channels::dispatch(digest.kind, &digest.config, &subject, &body, repr, pool, id).await {
+    match channels::dispatch(
+        digest.kind,
+        &digest.config,
+        &subject,
+        &body,
+        repr,
+        store,
+        id,
+    )
+    .await
+    {
         Ok(()) => {
             info!(channel = %digest.name, kind = ?digest.kind, count, "digest sent");
             // Record the combined send as one delivery attempt, keyed on the
             // representative (most-recent) event (best-effort).
-            record_delivery(pool, id, digest.kind, repr, true, None).await;
-            if let Err(e) = rampart_db::notifications::mark_fired(pool, id).await {
+            record_delivery(store, id, digest.kind, repr, true, None).await;
+            if let Err(e) = store.mark_notification_fired(id).await {
                 warn!(channel = %digest.name, error = %e, "mark_fired failed");
             }
             // Only delete the drained rows once the send succeeded — a
             // failed dispatch leaves them buffered for the next tick.
-            rampart_db::digest_buffer::delete_by_ids(pool, &drained_ids).await?;
+            store.delete_digest_by_ids(&drained_ids).await?;
         }
         Err(e) => {
             warn!(channel = %digest.name, kind = ?digest.kind, error = %e, "digest send failed");
-            record_delivery(pool, id, digest.kind, repr, false, Some(&e.to_string())).await;
+            record_delivery(store, id, digest.kind, repr, false, Some(&e.to_string())).await;
         }
     }
     Ok(())
@@ -984,7 +1006,7 @@ async fn flush_channel(pool: &DbPool, id: NotificationId) -> anyhow::Result<()> 
 ///   - api down (was up)
 ///   - db SLO recovered
 ///   - web down (was up)
-async fn render_digest(pool: &DbPool, digest: &ChannelDigest) -> (String, String) {
+async fn render_digest(store: &dyn Store, digest: &ChannelDigest) -> (String, String) {
     let count = digest.events.len();
     let window = digest.window_secs;
     let subject = format!("{count} alerts in the last {window}s");
@@ -996,7 +1018,7 @@ async fn render_digest(pool: &DbPool, digest: &ChannelDigest) -> (String, String
     let mut lines = Vec::with_capacity(count + 1);
     lines.push(format!("{subject}:"));
     match digest.template_id {
-        Some(tid) => match rampart_db::templates::get_render_strings(pool, tid).await {
+        Some(tid) => match store.get_template_render_strings(tid).await {
             Ok(t) => {
                 for ev in &digest.events {
                     lines.push(template::render(&t.body, ev));
@@ -1105,12 +1127,10 @@ struct SubscriberSmtp {
 /// is configured we silently no-op (same contract as the incident
 /// fan-out). Failures per recipient are logged, never surfaced — the
 /// channel dispatch path is independent of this.
-async fn fan_out_maintenance_subscribers(pool: &DbPool, event: &Event) {
-    let emails = match rampart_db::maintenance::confirmed_subscriber_emails_for_monitors(
-        pool,
-        std::slice::from_ref(&event.monitor.id),
-    )
-    .await
+async fn fan_out_maintenance_subscribers(store: &dyn Store, event: &Event) {
+    let emails = match store
+        .confirmed_subscriber_emails_for_monitors(std::slice::from_ref(&event.monitor.id))
+        .await
     {
         Ok(e) if !e.is_empty() => e,
         Ok(_) => return,
@@ -1120,7 +1140,7 @@ async fn fan_out_maintenance_subscribers(pool: &DbPool, event: &Event) {
         }
     };
 
-    let cfg = match rampart_db::settings::get(pool, "smtp").await {
+    let cfg = match store.get_setting("smtp").await {
         Ok(Some(v)) => match serde_json::from_value::<SubscriberSmtp>(v) {
             Ok(c) => c,
             Err(e) => {
@@ -1153,7 +1173,7 @@ async fn fan_out_maintenance_subscribers(pool: &DbPool, event: &Event) {
 /// same fail-soft contract as the subscriber fan-out. Used by the
 /// scheduler's weekly uptime-report check.
 pub async fn send_system_email(
-    pool: &DbPool,
+    store: &dyn Store,
     recipients: &[String],
     subject: &str,
     body: &str,
@@ -1161,7 +1181,7 @@ pub async fn send_system_email(
     if recipients.is_empty() {
         return 0;
     }
-    let cfg = match rampart_db::settings::get(pool, "smtp").await {
+    let cfg = match store.get_setting("smtp").await {
         Ok(Some(v)) => match serde_json::from_value::<SubscriberSmtp>(v) {
             Ok(c) => c,
             Err(e) => {

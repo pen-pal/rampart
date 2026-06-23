@@ -1418,7 +1418,7 @@ async fn test_notifications(
             &subject,
             &body,
             &event,
-            state.pool(),
+            state.store().as_ref(),
             ch.id,
         )
         .await;

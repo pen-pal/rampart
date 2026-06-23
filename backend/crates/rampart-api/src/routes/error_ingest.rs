@@ -108,7 +108,7 @@ async fn ingest(
 
         // Alert on new / regressed issues only, off the request path.
         if (outcome.is_new || outcome.regressed) && !project.alert_channel_ids.is_empty() {
-            let pool = s.pool().clone();
+            let store = s.store().clone();
             let channels = project.alert_channel_ids.clone();
             let name = project.name.clone();
             let title = outcome.title.clone();
@@ -119,7 +119,11 @@ async fn ingest(
             // without this the spawn would run as the bypass owner under S7.
             tokio::spawn(rampart_db::rls::with_org(org, async move {
                 rampart_notifier::service::dispatch_error_alert(
-                    &pool, &name, &channels, regressed, &title,
+                    store.as_ref(),
+                    &name,
+                    &channels,
+                    regressed,
+                    &title,
                 )
                 .await;
             }));

@@ -137,7 +137,7 @@ pub mod zulip;
 use crate::{Channel, ChannelError, Event};
 use rampart_core::ids::NotificationId;
 use rampart_core::ChannelKind;
-use rampart_db::DbPool;
+use rampart_db::store::Store;
 
 /// Recursively collect every `http(s)://` string value in a config blob.
 fn collect_urls(v: &serde_json::Value, out: &mut Vec<String>) {
@@ -196,7 +196,7 @@ mod url_collect_tests {
 /// to send. Returns `Err(BadConfig)` for kinds we haven't built yet so
 /// the caller can log it instead of crashing the dispatcher.
 ///
-/// `pool` + `notification_id` are only used by fan-out channels (Web
+/// `store` + `notification_id` are only used by fan-out channels (Web
 /// Push) that load per-subscriber state from the DB; the uniform
 /// `Channel` adapters ignore them.
 pub async fn dispatch(
@@ -205,7 +205,7 @@ pub async fn dispatch(
     subject: &str,
     body: &str,
     event: &Event,
-    pool: &DbPool,
+    store: &dyn Store,
     notification_id: NotificationId,
 ) -> Result<(), ChannelError> {
     // SSRF pre-flight: vet every http(s) URL in the channel config before we
@@ -218,7 +218,7 @@ pub async fn dispatch(
     // Web Push is a fan-out channel — handled directly, not via the
     // single-target `Channel` trait.
     if kind == ChannelKind::Webpush {
-        return webpush::send_all(pool, notification_id, config, subject, body, event).await;
+        return webpush::send_all(store, notification_id, config, subject, body, event).await;
     }
 
     let channel: Box<dyn Channel> = match kind {
