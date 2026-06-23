@@ -34,6 +34,8 @@ pub mod monitor_groups;
 pub mod monitor_presets;
 pub mod monitor_templates;
 pub mod monitors;
+#[cfg(feature = "mysql")]
+pub mod mysql;
 pub mod notifications;
 pub mod oidc_state;
 pub mod on_call;

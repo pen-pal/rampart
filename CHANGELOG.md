@@ -29,6 +29,25 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.29] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL/MariaDB) — P0 toolchain spike.** Mirrors the SQLite
+  P1-0 spike: a new off-by-default `mysql` cargo feature on `rampart-db`
+  (`mysql` is already in the workspace sqlx features), `rampart_db::mysql`
+  module gated behind it, `migrations-mysql/0001_settings.sql`, and a
+  `mysql::settings` domain (get / put / delete) whose `put` exercises the
+  `INSERT … ON DUPLICATE KEY UPDATE` upsert dialect (the PG `ON CONFLICT` /
+  SQLite `excluded` equivalent). Runtime-checked `sqlx::query`/`query_as` so it
+  builds under `SQLX_OFFLINE` alongside the PG cache; a new `backend-mysql` CI
+  job spins up a `mysql:8` service container and runs the `#[sqlx::test]`
+  settings round-trip for real (no local MySQL, so the test is CI-only). The
+  module doc records the P2 dialect conventions (uuid→CHAR(36), ts→BIGINT,
+  JSON→LONGTEXT or native JSON+JSON_EXTRACT, no RETURNING → app-side UUID PK +
+  INSERT-then-SELECT, no array binds → bound `IN (?,…)`, GET_LOCK leader). Off
+  by default; the PG + SQLite builds are untouched. Real domains + the full
+  `impl Store for MysqlStore` + boot flip follow the SQLite playbook.
+
 ## [0.156.28] — 2026-06-23
 
 ### Added
