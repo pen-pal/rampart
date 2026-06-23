@@ -2193,7 +2193,7 @@ impl StoreScheduledReports for MysqlStore {
 #[async_trait::async_trait]
 impl StoreIncidentTemplates for MysqlStore {
     async fn list_incident_templates(&self, org_id: OrgId) -> DbResult<Vec<IncidentTemplate>> {
-        unimplemented!("MysqlStore::list_incident_templates: incident_templates domain not yet ported (multi-DB P1)")
+        crate::mysql::incident_templates::list(&self.pool, org_id).await
     }
 
     async fn get_incident_template(
@@ -2201,7 +2201,7 @@ impl StoreIncidentTemplates for MysqlStore {
         id: IncidentTemplateId,
         org_id: OrgId,
     ) -> DbResult<IncidentTemplate> {
-        unimplemented!("MysqlStore::get_incident_template: incident_templates domain not yet ported (multi-DB P1)")
+        crate::mysql::incident_templates::get(&self.pool, id, org_id).await
     }
 
     async fn create_incident_template(
@@ -2209,7 +2209,7 @@ impl StoreIncidentTemplates for MysqlStore {
         input: NewIncidentTemplate,
         org_id: OrgId,
     ) -> DbResult<IncidentTemplate> {
-        unimplemented!("MysqlStore::create_incident_template: incident_templates domain not yet ported (multi-DB P1)")
+        crate::mysql::incident_templates::create(&self.pool, input, org_id).await
     }
 
     async fn update_incident_template(
@@ -2218,7 +2218,7 @@ impl StoreIncidentTemplates for MysqlStore {
         input: UpdateIncidentTemplate,
         org_id: OrgId,
     ) -> DbResult<IncidentTemplate> {
-        unimplemented!("MysqlStore::update_incident_template: incident_templates domain not yet ported (multi-DB P1)")
+        crate::mysql::incident_templates::update(&self.pool, id, input, org_id).await
     }
 
     async fn delete_incident_template(
@@ -2226,7 +2226,7 @@ impl StoreIncidentTemplates for MysqlStore {
         id: IncidentTemplateId,
         org_id: OrgId,
     ) -> DbResult<()> {
-        unimplemented!("MysqlStore::delete_incident_template: incident_templates domain not yet ported (multi-DB P1)")
+        crate::mysql::incident_templates::delete(&self.pool, id, org_id).await
     }
 }
 

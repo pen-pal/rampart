@@ -29,6 +29,18 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.59] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `incident_templates` domain** (management-API tail,
+  slice 6; canned incident-update bodies). `migrations-mysql/0026_incident_templates.sql`
+  + 1 module, un-stubbing `StoreIncidentTemplates` (list/get/create/update/delete,
+  all org-scoped). The PG `incident_style` enum → `VARCHAR(16)` via serde
+  round-trip (like `monitors.kind`); no RETURNING → INSERT/UPDATE-then-re-select;
+  `update` is read-modify-write (get-first confirms existence + `NotFound`, mirroring
+  PG). +1 `#[sqlx::test]` (CRUD incl. style default, partial-update field retention,
+  cross-org isolation) green on MariaDB. PG + SQLite untouched.
+
 ## [0.156.58] — 2026-06-23
 
 ### Added
