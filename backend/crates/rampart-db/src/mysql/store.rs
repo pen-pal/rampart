@@ -446,17 +446,15 @@ impl StoreProxies for MysqlStore {
 #[async_trait::async_trait]
 impl StoreOnCall for MysqlStore {
     async fn list_on_call(&self, org_id: OrgId) -> DbResult<Vec<OnCallSchedule>> {
-        unimplemented!("MysqlStore::list_on_call: on_call domain not yet ported (multi-DB P1)")
+        crate::mysql::on_call::list(&self.pool, org_id).await
     }
 
     async fn get_on_call(&self, id: OnCallScheduleId, org_id: OrgId) -> DbResult<OnCallSchedule> {
-        unimplemented!("MysqlStore::get_on_call: on_call domain not yet ported (multi-DB P1)")
+        crate::mysql::on_call::get(&self.pool, id, org_id).await
     }
 
     async fn get_on_call_unscoped(&self, id: OnCallScheduleId) -> DbResult<OnCallSchedule> {
-        unimplemented!(
-            "MysqlStore::get_on_call_unscoped: on_call domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::on_call::get_unscoped(&self.pool, id).await
     }
 
     async fn create_on_call(
@@ -464,7 +462,7 @@ impl StoreOnCall for MysqlStore {
         input: NewOnCallSchedule,
         org_id: OrgId,
     ) -> DbResult<OnCallSchedule> {
-        unimplemented!("MysqlStore::create_on_call: on_call domain not yet ported (multi-DB P1)")
+        crate::mysql::on_call::create(&self.pool, input, org_id).await
     }
 
     async fn update_on_call(
@@ -473,11 +471,11 @@ impl StoreOnCall for MysqlStore {
         patch: UpdateOnCallSchedule,
         org_id: OrgId,
     ) -> DbResult<OnCallSchedule> {
-        unimplemented!("MysqlStore::update_on_call: on_call domain not yet ported (multi-DB P1)")
+        crate::mysql::on_call::update(&self.pool, id, patch, org_id).await
     }
 
     async fn delete_on_call(&self, id: OnCallScheduleId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!("MysqlStore::delete_on_call: on_call domain not yet ported (multi-DB P1)")
+        crate::mysql::on_call::delete(&self.pool, id, org_id).await
     }
 
     async fn oncall_current_channel(
@@ -485,9 +483,7 @@ impl StoreOnCall for MysqlStore {
         id: OnCallScheduleId,
         at: OffsetDateTime,
     ) -> DbResult<Option<NotificationId>> {
-        unimplemented!(
-            "MysqlStore::oncall_current_channel: on_call domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::on_call::current_channel(&self.pool, id, at).await
     }
 
     async fn oncall_current_target(
@@ -495,9 +491,7 @@ impl StoreOnCall for MysqlStore {
         id: OnCallScheduleId,
         at: OffsetDateTime,
     ) -> DbResult<Option<OnCallTarget>> {
-        unimplemented!(
-            "MysqlStore::oncall_current_target: on_call domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::on_call::current_target(&self.pool, id, at).await
     }
 }
 
@@ -2537,7 +2531,7 @@ impl StoreWebpush for MysqlStore {
         &self,
         notification: NotificationId,
     ) -> DbResult<Vec<crate::webpush::WebpushSubscription>> {
-        unimplemented!("MysqlStore::list_webpush_subs: webpush domain not yet ported (multi-DB P1)")
+        crate::mysql::webpush::list_for_notification(&self.pool, notification).await
     }
 
     async fn upsert_webpush_sub(
@@ -2547,27 +2541,23 @@ impl StoreWebpush for MysqlStore {
         p256dh: &str,
         auth: &str,
     ) -> DbResult<()> {
-        unimplemented!(
-            "MysqlStore::upsert_webpush_sub: webpush domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::webpush::upsert(&self.pool, notification, endpoint, p256dh, auth).await
     }
 
     async fn delete_webpush_sub_by_endpoint(&self, endpoint: &str) -> DbResult<()> {
-        unimplemented!("MysqlStore::delete_webpush_sub_by_endpoint: webpush domain not yet ported (multi-DB P1)")
+        crate::mysql::webpush::delete_by_endpoint(&self.pool, endpoint).await
     }
 
     async fn delete_webpush_sub(&self, id: Uuid) -> DbResult<()> {
-        unimplemented!(
-            "MysqlStore::delete_webpush_sub: webpush domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::webpush::delete(&self.pool, id).await
     }
 
     async fn get_vapid_keys(&self) -> DbResult<Option<crate::webpush::VapidKeys>> {
-        unimplemented!("MysqlStore::get_vapid_keys: webpush domain not yet ported (multi-DB P1)")
+        crate::mysql::webpush::get_vapid(&self.pool).await
     }
 
     async fn set_vapid_keys(&self, keys: &crate::webpush::VapidKeys) -> DbResult<()> {
-        unimplemented!("MysqlStore::set_vapid_keys: webpush domain not yet ported (multi-DB P1)")
+        crate::mysql::webpush::set_vapid(&self.pool, keys).await
     }
 }
 
