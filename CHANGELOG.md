@@ -29,6 +29,18 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.68] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `silences` CRUD** (alert suppression). The
+  dispatch-path `is_silenced` chokepoint was already wired; this adds
+  create/list_active/delete to `mysql/silences.rs` and un-stubs the 3
+  `StoreSilences` management methods (no migration — the table exists). App-side
+  UUID (no RETURNING), `now()`→bound cutoff, `list_active` LEFT JOINs monitors
+  for the name, org-scoped delete returns a bool. +1 `#[sqlx::test]`
+  (global-vs-scoped silencing, active listing, cross-org delete no-op, expired
+  silence ignored) green on MariaDB. PG + SQLite untouched.
+
 ## [0.156.67] — 2026-06-23
 
 ### Added

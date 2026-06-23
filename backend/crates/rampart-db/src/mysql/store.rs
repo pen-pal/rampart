@@ -1065,17 +1065,15 @@ impl StoreSilences for MysqlStore {
     }
 
     async fn create_silence(&self, s: NewSilence<'_>, org_id: OrgId) -> DbResult<Uuid> {
-        unimplemented!("MysqlStore::create_silence: silences domain not yet ported (multi-DB P1)")
+        crate::mysql::silences::create(&self.pool, s, org_id).await
     }
 
     async fn list_active_silences(&self, org_id: OrgId) -> DbResult<Vec<Silence>> {
-        unimplemented!(
-            "MysqlStore::list_active_silences: silences domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::silences::list_active(&self.pool, org_id).await
     }
 
     async fn delete_silence(&self, id: Uuid, org_id: OrgId) -> DbResult<bool> {
-        unimplemented!("MysqlStore::delete_silence: silences domain not yet ported (multi-DB P1)")
+        crate::mysql::silences::delete(&self.pool, id, org_id).await
     }
 }
 
