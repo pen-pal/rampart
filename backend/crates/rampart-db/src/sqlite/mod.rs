@@ -31,6 +31,13 @@
 
 pub mod orgs;
 pub mod settings;
+pub mod users;
+
+/// The Default org's id (seeded by `migrations-sqlite/0002_identity.sql`), as a
+/// string for binding. Mirrors `rampart_core::org::DEFAULT_ORG_ID`.
+pub(crate) fn default_org_id_str() -> String {
+    OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID).0.to_string()
+}
 
 use rampart_core::ids::{OrgId, UserId};
 use rampart_core::Role;
