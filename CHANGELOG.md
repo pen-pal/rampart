@@ -29,6 +29,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.3] — 2026-06-23
+
+### Added
+- **Multi-DB P1: SQLite `sessions` domain.** `sqlite::sessions` with all 9
+  `StoreSessions`-equivalent fns (create [random v4 id, INTEGER unix expiry] /
+  get [expiry-filtered] / set_active_org [owner-scoped] / delete /
+  delete_for_user / list_for_user / delete_one_for_user / delete_others /
+  cleanup_expired) + `migrations-sqlite/0003_sessions.sql`. This also **closes the
+  last users parity gap**: `users::set_admin` / `set_role` / `disable_totp` now
+  revoke the user's sessions (via `sessions::delete_for_user`) so a privilege or
+  2FA downgrade takes effect immediately — matching Postgres. 2 `#[sqlx::test]`
+  pass (create/lookup/expiry/active-org/revoke + the cross-domain
+  role-change-revokes-sessions). A SQLite Rampart can now do the full
+  login/session/org flow. Off-by-default `sqlite` feature; PG build untouched.
+
+---
+
 ## [0.156.2] — 2026-06-23
 
 ### Added
