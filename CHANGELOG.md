@@ -29,6 +29,29 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.5] — 2026-06-23
+
+### Added
+- **Multi-DB P1: SQLite `monitors` deferred-fn backfill (write/lifecycle
+  surface).** Fills the heavier `sqlite::monitors` methods left out of 0.156.4:
+  `update` (COALESCE patch over 21 fields + per-field clears for the double-Option
+  group — `group_id` / `slo_target_pct` / `slo_window_days` / `agent_id` /
+  `escalation_policy_id`, so an explicit `null` clears and a missing key leaves
+  the column), `set_group`, the push/run lifecycle (`generate_push_token` →
+  `regenerate_push_token` (push-kind + org gated) → `find_by_push_token`,
+  `mark_run_started` → `push_state` → `close_run` (returns the prior run start) →
+  `bump_push_at` / `fetch_last_push_at`), `set_cert_info`, the SLO trio
+  (`slo_state` / `mark_slo_breached` / `clear_slo_breached`), `list_for_agent`,
+  and `public_fields_batch` (per-id loop — sqlx 0.9 `SqlSafeStr` rejects the
+  dynamic `IN (...)`). 2 more `#[sqlx::test]` cover the update double-Option
+  clear/set, group + agent reassign, push/run round-trip, cert, and SLO breach
+  lifecycle. **SQLite monitors now: 16 tests.** Still DEFERRED (need unbuilt
+  tables): `list_stale_agent_monitors` (agents), `set_active_by_tag` /
+  `bulk_edit` / tag hydration (tags / monitor_tags), and the heartbeat analytic
+  aggregations. Off-by-default `sqlite` feature; PG build untouched.
+
+---
+
 ## [0.156.4] — 2026-06-23
 
 ### Added
