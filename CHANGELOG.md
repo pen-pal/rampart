@@ -29,6 +29,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.45] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `telemetry_rules` domain** (threshold alert rules over
+  the telemetry tiers): list / list_all / get / get_unscoped / create / update /
+  delete / evaluate_tick + `migrations-mysql/0015_telemetry_rules.sql`.
+  `evaluate_tick` reuses the pure `rule_transition` state machine; `observe`
+  computes per-tier aggregates over the now-ported **logs + traces** MySQL
+  domains (trace-latency p95 app-side via `p_cont`; trace-error-rate via
+  `CAST(SUM(CASE…) AS SIGNED)`; log-volume via `body LIKE CONCAT('%',?,'%')`).
+  The error_tracking / profiles / rum tiers aren't forked to MySQL yet → those
+  kinds return `None` (no-data → resolve, never a false fire). `update` drops the
+  `rows_affected()` gate (MySQL changed-vs-matched) and lets the trailing `get()`
+  surface NotFound. +1 `#[sqlx::test]` (CRUD + log-volume fire + not-yet-ported-
+  tier no-fire + no-op-update-must-not-404 + cross-org) green on MariaDB.
+  PG + SQLite untouched.
+
 ## [0.156.44] — 2026-06-23
 
 ### Added

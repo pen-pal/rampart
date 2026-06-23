@@ -37,6 +37,7 @@ pub mod scheduled_reports;
 pub mod sessions;
 pub mod settings;
 pub mod tags;
+pub mod telemetry_rules;
 pub mod traces;
 pub mod users;
 
