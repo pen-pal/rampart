@@ -979,15 +979,11 @@ impl StoreMetricRules for MysqlStore {
 #[async_trait::async_trait]
 impl StoreMonitorGroups for MysqlStore {
     async fn monitor_group_in_org(&self, group: MonitorGroupId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!(
-            "MysqlStore::monitor_group_in_org: monitor_groups domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::monitor_groups::in_org(&self.pool, group, org_id).await
     }
 
     async fn list_monitor_groups(&self, org_id: OrgId) -> DbResult<Vec<MonitorGroup>> {
-        unimplemented!(
-            "MysqlStore::list_monitor_groups: monitor_groups domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::monitor_groups::list(&self.pool, org_id).await
     }
 
     async fn create_monitor_group(
@@ -995,9 +991,7 @@ impl StoreMonitorGroups for MysqlStore {
         input: NewMonitorGroup,
         org_id: OrgId,
     ) -> DbResult<MonitorGroup> {
-        unimplemented!(
-            "MysqlStore::create_monitor_group: monitor_groups domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::monitor_groups::create(&self.pool, input, org_id).await
     }
 
     async fn update_monitor_group(
@@ -1006,9 +1000,7 @@ impl StoreMonitorGroups for MysqlStore {
         patch: UpdateMonitorGroup,
         org_id: OrgId,
     ) -> DbResult<MonitorGroup> {
-        unimplemented!(
-            "MysqlStore::update_monitor_group: monitor_groups domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::monitor_groups::update(&self.pool, id, patch, org_id).await
     }
 
     async fn would_form_group_cycle(
@@ -1016,23 +1008,19 @@ impl StoreMonitorGroups for MysqlStore {
         group: MonitorGroupId,
         new_parent: MonitorGroupId,
     ) -> DbResult<bool> {
-        unimplemented!("MysqlStore::would_form_group_cycle: monitor_groups domain not yet ported (multi-DB P1)")
+        crate::mysql::monitor_groups::would_form_group_cycle(&self.pool, group, new_parent).await
     }
 
     async fn delete_monitor_group(&self, id: MonitorGroupId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!(
-            "MysqlStore::delete_monitor_group: monitor_groups domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::monitor_groups::delete(&self.pool, id, org_id).await
     }
 
     async fn parents_of(&self, child: MonitorId) -> DbResult<Vec<MonitorId>> {
-        unimplemented!("MysqlStore::parents_of: monitor_groups domain not yet ported (multi-DB P1)")
+        crate::mysql::monitor_groups::parents_of(&self.pool, child).await
     }
 
     async fn children_of(&self, parent: MonitorId) -> DbResult<Vec<MonitorId>> {
-        unimplemented!(
-            "MysqlStore::children_of: monitor_groups domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::monitor_groups::children_of(&self.pool, parent).await
     }
 
     async fn any_parent_down(&self, child: MonitorId) -> DbResult<bool> {
@@ -1040,21 +1028,15 @@ impl StoreMonitorGroups for MysqlStore {
     }
 
     async fn attach_dependency(&self, child: MonitorId, parent: MonitorId) -> DbResult<()> {
-        unimplemented!(
-            "MysqlStore::attach_dependency: monitor_groups domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::monitor_groups::attach_dependency(&self.pool, child, parent).await
     }
 
     async fn detach_dependency(&self, child: MonitorId, parent: MonitorId) -> DbResult<()> {
-        unimplemented!(
-            "MysqlStore::detach_dependency: monitor_groups domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::monitor_groups::detach_dependency(&self.pool, child, parent).await
     }
 
     async fn would_form_cycle(&self, child: MonitorId, parent: MonitorId) -> DbResult<bool> {
-        unimplemented!(
-            "MysqlStore::would_form_cycle: monitor_groups domain not yet ported (multi-DB P1)"
-        )
+        crate::mysql::monitor_groups::would_form_cycle(&self.pool, child, parent).await
     }
 }
 
