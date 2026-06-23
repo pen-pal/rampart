@@ -26,6 +26,7 @@ pub mod audit;
 pub mod delivery_log;
 pub mod escalations;
 pub mod heartbeats;
+pub mod logs;
 pub mod metric_samples;
 pub mod monitors;
 pub mod notifications;

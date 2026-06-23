@@ -29,6 +29,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.42] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `logs` domain** (log storage + filtered reads; the
+  telemetry foundation for detection + telemetry_rules): insert_logs /
+  query_logs / level_counts / histogram / list_services / prune +
+  `migrations-mysql/0012_logs.sql`. MySQL deltas: `UNNEST` insert → per-row tx;
+  `date_bin(step, ts, origin)` → `origin + ((ts-origin) DIV step)*step` (integer
+  `DIV`, not decimal `/`); `COUNT(*) FILTER` → `CAST(SUM(CASE…) AS SIGNED)`; `||`
+  concat → `CONCAT`; the row-value keyset `(ts,id) < (SELECT ts,id …)` ports
+  as-is (MySQL row-subquery comparison). **Full-text search degrades to a `LIKE`
+  substring match** — like the SQLite tier — because InnoDB `MATCH…AGAINST` is
+  word/stopword/min-token based, not substring (a behavior change, not parity);
+  a FULLTEXT index is the upgrade path if word-search is wanted. +1 `#[sqlx::test]`
+  incl. a keyset-paging assertion that exercises the row-value subquery, green on
+  MariaDB. PG + SQLite untouched.
+
 ## [0.156.41] — 2026-06-23
 
 ### Added
