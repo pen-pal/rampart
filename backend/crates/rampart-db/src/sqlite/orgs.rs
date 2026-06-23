@@ -255,9 +255,14 @@ mod tests {
         let u = seed_user(&pool, "m@e.com").await;
 
         upsert_member(&pool, org.id, u, Role::Editor).await.unwrap();
-        assert_eq!(member_role(&pool, org.id, u).await.unwrap(), Some(Role::Editor));
+        assert_eq!(
+            member_role(&pool, org.id, u).await.unwrap(),
+            Some(Role::Editor)
+        );
         // Idempotent + role update.
-        upsert_member(&pool, org.id, u, Role::Readonly).await.unwrap();
+        upsert_member(&pool, org.id, u, Role::Readonly)
+            .await
+            .unwrap();
         assert_eq!(
             member_role(&pool, org.id, u).await.unwrap(),
             Some(Role::Readonly)
@@ -288,7 +293,10 @@ mod tests {
     async fn create_with_owner_makes_admin(pool: SqlitePool) {
         let u = seed_user(&pool, "o@e.com").await;
         let org = create_with_owner(&pool, "owned", "Owned", u).await.unwrap();
-        assert_eq!(member_role(&pool, org.id, u).await.unwrap(), Some(Role::Admin));
+        assert_eq!(
+            member_role(&pool, org.id, u).await.unwrap(),
+            Some(Role::Admin)
+        );
         assert_eq!(count_admins(&pool, org.id).await.unwrap(), 1);
         assert!(matches!(
             create_with_owner(&pool, "owned", "Dup", u).await,
@@ -298,9 +306,8 @@ mod tests {
 
     #[sqlx::test(migrations = "../../migrations-sqlite")]
     async fn default_org_seeded(pool: SqlitePool) {
-        let def = OrgId::from_uuid(
-            Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap(),
-        );
+        let def =
+            OrgId::from_uuid(Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap());
         assert_eq!(get(&pool, def).await.unwrap().slug, "default");
     }
 }

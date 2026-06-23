@@ -30,13 +30,16 @@
 //!   excluded.col`; the `user_role` enum as a CHECK'd TEXT column.
 
 pub mod orgs;
+pub mod sessions;
 pub mod settings;
 pub mod users;
 
 /// The Default org's id (seeded by `migrations-sqlite/0002_identity.sql`), as a
 /// string for binding. Mirrors `rampart_core::org::DEFAULT_ORG_ID`.
 pub(crate) fn default_org_id_str() -> String {
-    OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID).0.to_string()
+    OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID)
+        .0
+        .to_string()
 }
 
 use rampart_core::ids::{OrgId, UserId};
@@ -77,4 +80,9 @@ pub(crate) fn oid(s: &str) -> OrgId {
 /// Parse a TEXT uuid column into a `UserId`.
 pub(crate) fn uid(s: &str) -> UserId {
     UserId::from_uuid(Uuid::parse_str(s).unwrap_or(Uuid::nil()))
+}
+
+/// Parse a TEXT uuid column into a raw `Uuid` (session ids, active_org_id).
+pub(crate) fn raw_uuid(s: &str) -> Uuid {
+    Uuid::parse_str(s).unwrap_or(Uuid::nil())
 }
