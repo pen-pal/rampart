@@ -29,7 +29,19 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
-## [0.156.23] — 2026-06-23
+## [0.156.24] — 2026-06-23
+
+### Changed
+- **Multi-DB P1 seam-plumbing slice B1: rampart-notifier `siem` export off
+  `&DbPool` onto `Arc<dyn Store>`.** The SIEM/syslog forward-tail loop
+  (`siem::run_loop` + load_config / cursor / findings_cursor / tick) now takes
+  the object-safe `Store` seam instead of a concrete pool — all 4 of its DB
+  touches (settings get/put, `fetch_audit_since`, `fetch_detection_findings_since`)
+  were already trait-covered, so this is pure plumbing. main.rs builds the store
+  from the pool (no I/O) and hands it to the loop. The 68 notifier unit tests
+  (CEF/LEEF/syslog formatting — all pool-free) pass unchanged; PG behavior
+  identical. First running component fully on the seam; service.rs + channels +
+  scheduler follow.
 
 ### Added
 - **Multi-DB P1 seam-plumbing slice A: `StoreDigestBuffer` trait + SQLite
