@@ -2349,15 +2349,15 @@ impl StoreDeliveryLog for MysqlStore {
 #[async_trait::async_trait]
 impl StoreAgents for MysqlStore {
     async fn list_agents(&self, org_id: OrgId) -> DbResult<Vec<Agent>> {
-        unimplemented!("MySQL store: agents domain not yet ported")
+        crate::mysql::agents::list(&self.pool, org_id).await
     }
 
     async fn get_agent(&self, id: AgentId, org_id: OrgId) -> DbResult<Agent> {
-        unimplemented!("MySQL store: agents domain not yet ported")
+        crate::mysql::agents::get(&self.pool, id, org_id).await
     }
 
     async fn create_agent(&self, input: NewAgent, org_id: OrgId) -> DbResult<IssuedAgent> {
-        unimplemented!("MySQL store: agents domain not yet ported")
+        crate::mysql::agents::create(&self.pool, input, org_id).await
     }
 
     async fn update_agent(
@@ -2366,19 +2366,19 @@ impl StoreAgents for MysqlStore {
         patch: UpdateAgent,
         org_id: OrgId,
     ) -> DbResult<Agent> {
-        unimplemented!("MySQL store: agents domain not yet ported")
+        crate::mysql::agents::update(&self.pool, id, patch, org_id).await
     }
 
     async fn delete_agent(&self, id: AgentId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!("MySQL store: agents domain not yet ported")
+        crate::mysql::agents::delete(&self.pool, id, org_id).await
     }
 
     async fn lookup_agent(&self, token: &str) -> DbResult<Agent> {
-        unimplemented!("MySQL store: agents domain not yet ported")
+        crate::mysql::agents::lookup(&self.pool, token).await
     }
 
     async fn touch_agent_seen(&self, id: AgentId, version: Option<&str>) -> DbResult<()> {
-        unimplemented!("MySQL store: agents domain not yet ported")
+        crate::mysql::agents::touch_seen(&self.pool, id, version).await
     }
 }
 
