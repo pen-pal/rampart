@@ -29,6 +29,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.2] — 2026-06-23
+
+### Added
+- **Multi-DB P1: SQLite `users` domain.** `sqlite::users` with all 20
+  `StoreUsers`-equivalent fns — count / create (seeds the Default-org membership
+  atomically) / get / get_by_email (`UserWithHash`) / by_email / TOTP
+  set-secret+enable+disable / mark_login / the durable TOTP-lockout
+  (record_failure + locked-until + reset, `unixepoch()`-based) / list / set_admin
+  + set_role (mirror the role onto the Default-org membership in-tx, like PG) /
+  delete / GDPR anonymize / prefs / set_password. 4 `#[sqlx::test]` SQLite tests
+  pass (membership seeding, case-insensitive email via `COLLATE NOCASE`,
+  dup-email → `Conflict`, role-mirror, TOTP lockout lifecycle, anonymize). Parity
+  gap noted: `set_admin`/`set_role`/`disable_totp` don't yet revoke sessions (the
+  SQLite `sessions` domain isn't built — next). Off-by-default `sqlite` feature;
+  PG build untouched.
+
+---
+
 ## [0.156.1] — 2026-06-23
 
 ### Added
