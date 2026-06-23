@@ -29,6 +29,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.50] — 2026-06-23
+
+### Added
+- **Multi-DB P2 (MySQL) — `digest_buffer` domain** (scheduler/notifier-tail slice
+  1/N toward a panic-free `mysql://` boot). The notifier's durable per-channel
+  digest buffer (enqueue / drain_due / take_for_channel / delete_by_ids) +
+  `migrations-mysql/0018_digest_buffer.sql` (the table was never created on MySQL
+  — a comment referenced it but no DDL), and un-stubs `StoreDigestBuffer` on
+  `MysqlStore`. `drain_due` joins `notifications` so each channel flushes on its
+  own `digest_window_secs`; a real `ON DELETE CASCADE` FK drops buffered events
+  when a channel is deleted. **This removes the notifier digest-flush-timer panic
+  on a `mysql://` boot.** +1 `#[sqlx::test]` green on MariaDB. PG + SQLite
+  untouched.
+
 ## [0.156.49] — 2026-06-23
 
 ### Added
