@@ -29,6 +29,28 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.13] — 2026-06-23
+
+### Added
+- **Multi-DB P1 boot-wiring: SQLite `maintenance` domain (un-stubs the
+  scheduler-relevant `StoreMaintenance` methods).** Third boot-wiring slice.
+  `migrations-sqlite/0010_maintenance.sql` (`maintenance_windows` +
+  `maintenance_window_monitors`; recurrence jsonb→TEXT, timestamps→INTEGER,
+  range CHECK) + `sqlite::maintenance` for the 12 self-contained fns — list /
+  get / create / update (double-Option description clear) / delete / set_active
+  / attach / detach / is_in_active_window / transitions_needing_notification /
+  mark_notified_start / mark_notified_end. The recurrence evaluation
+  (`Recurrence::contains`) is the pure rampart_core logic, reused verbatim;
+  `= ANY` edge hydration → bound `IN (?,…)`. Covers all 4 scheduler maintenance
+  deps. DEFERRED (still stubbed — couple to the not-yet-ported `status_pages`
+  tables): `confirmed_subscriber_emails_for_monitors` +
+  `public_maintenance_for_status_page`. +1 `#[sqlx::test]`. **Boot-wiring 3/9
+  scheduler-dep domains done** (proxies, scheduled_reports, maintenance); 6 left
+  (audit, detection, escalations, metric_rules+metric_samples, slos,
+  telemetry_rules+logs/traces). Off-by-default `sqlite` feature; PG untouched.
+
+---
+
 ## [0.156.12] — 2026-06-23
 
 ### Added

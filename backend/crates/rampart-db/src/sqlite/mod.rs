@@ -32,6 +32,7 @@
 pub mod agents;
 pub mod delivery_log;
 pub mod heartbeats;
+pub mod maintenance;
 pub mod monitors;
 pub mod notifications;
 pub mod orgs;
