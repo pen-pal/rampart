@@ -29,6 +29,28 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.20] — 2026-06-23
+
+### Added
+- **Multi-DB P1 boot-wiring: SQLite `traces` domain (un-stubs `StoreTraces`).**
+  Second telemetry-foundation domain (completes logs+traces; unblocks the
+  remaining detection + telemetry_rules). `migrations-sqlite/0017_traces.sql`
+  (span_id PK, ns→INTEGER, double→REAL, jsonb→TEXT) + `sqlite::traces`:
+  insert_spans (per-row tx, `ON CONFLICT(span_id) DO NOTHING` dedup) /
+  list_traces / get_trace_spans / service_map / operation_stats /
+  operation_trend / prune. **SQLite has no `percentile_cont` / `LATERAL` /
+  `ARRAY_AGG`, so the four analytic reads fetch span rows and aggregate in
+  Rust** — a continuous percentile (`p_cont`, matching `percentile_cont`),
+  per-trace assembly (root span, services, error counts, `(received_at,
+  trace_id)` keyset), service-dependency edges (p95 callee latency), and the
+  per-operation APM rollup (p50/p95/p99/avg/max). +1 `#[sqlx::test]` (insert+
+  dedup, waterfall, errors_only/q filters, service_map p95, operation_stats
+  error-rate, operation_trend, prune). **Boot-wiring: logs + traces done — the
+  telemetry foundation is complete**; detection + telemetry_rules remain.
+  Off-by-default `sqlite`; PG untouched.
+
+---
+
 ## [0.156.19] — 2026-06-23
 
 ### Added
