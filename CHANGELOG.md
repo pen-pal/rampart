@@ -29,6 +29,22 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.82] — 2026-06-24
+
+### Fixed
+- **Heartbeat retention fold-and-prune is now chunked.** The retention sweep
+  rolled every past-tier raw heartbeat into hourly buckets and deleted it in one
+  transaction — on a large backlog that holds a long lock and balloons WAL,
+  stalling heartbeat writes. It now folds and deletes in bounded batches: each
+  batch is a single atomic statement (a `MATERIALIZED` CTE pins a fixed set of
+  rows, a data-modifying CTE rolls exactly those rows into rollups, and the same
+  statement deletes exactly those `ctid`s), looped until drained. This keeps the
+  crash-safety invariant the single transaction gave — raw rows are never
+  deleted unless durably rolled up first — while bounding each statement's lock
+  and WAL footprint. The `ON CONFLICT` rollup accumulation is order-independent,
+  so batching produces identical rollups to the old one-shot fold; the existing
+  rollup/idempotency/aggregation tests pass unchanged.
+
 ## [0.156.81] — 2026-06-24
 
 ### Fixed

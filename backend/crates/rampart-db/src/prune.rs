@@ -13,6 +13,7 @@
 
 use crate::{DbPool, DbResult};
 use serde::{Deserialize, Serialize};
+use sqlx::Row;
 use std::time::Duration;
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -390,77 +391,94 @@ pub async fn rollups_for_monitor(
         .collect())
 }
 
+/// One batch of the heartbeat fold-and-delete. A `MATERIALIZED` CTE pins a fixed
+/// set of past-tier raw rows (so both sub-queries below see the same `ctid`s),
+/// the `rolled` CTE folds them into hourly rollup buckets (executed to
+/// completion regardless of the outer query — that's how a data-modifying CTE
+/// behaves), the `deleted` CTE removes exactly those `ctid`s, and the final
+/// SELECT returns both counts. `$1` = raw-tier retention days, `$2` = batch size.
+const HEARTBEAT_FOLD_DELETE_BATCH: &str = "\
+WITH batch AS MATERIALIZED ( \
+    SELECT ctid, monitor_id, ts, status, latency_ms \
+    FROM heartbeats \
+    WHERE ts < NOW() - make_interval(days => $1) \
+    LIMIT $2 \
+), \
+rolled AS ( \
+    INSERT INTO heartbeat_rollups \
+        (monitor_id, bucket_start, up_count, down_count, \
+         other_count, sample_count, avg_latency_ms) \
+    SELECT \
+        monitor_id, \
+        date_trunc('hour', ts AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS bucket_start, \
+        COUNT(*) FILTER (WHERE status = 'up')::int, \
+        COUNT(*) FILTER (WHERE status = 'down')::int, \
+        COUNT(*) FILTER (WHERE status NOT IN ('up','down'))::int, \
+        COUNT(*)::int, \
+        AVG(latency_ms) FILTER (WHERE latency_ms IS NOT NULL) \
+    FROM batch \
+    GROUP BY monitor_id, bucket_start \
+    ON CONFLICT (monitor_id, bucket_start) DO UPDATE SET \
+        up_count       = heartbeat_rollups.up_count     + EXCLUDED.up_count, \
+        down_count     = heartbeat_rollups.down_count   + EXCLUDED.down_count, \
+        other_count    = heartbeat_rollups.other_count  + EXCLUDED.other_count, \
+        sample_count   = heartbeat_rollups.sample_count + EXCLUDED.sample_count, \
+        avg_latency_ms = CASE \
+            WHEN heartbeat_rollups.avg_latency_ms IS NULL THEN EXCLUDED.avg_latency_ms \
+            WHEN EXCLUDED.avg_latency_ms IS NULL THEN heartbeat_rollups.avg_latency_ms \
+            ELSE (heartbeat_rollups.avg_latency_ms * heartbeat_rollups.sample_count \
+                  + EXCLUDED.avg_latency_ms * EXCLUDED.sample_count) \
+                 / NULLIF(heartbeat_rollups.sample_count + EXCLUDED.sample_count, 0) \
+        END \
+    RETURNING 1 \
+), \
+deleted AS ( \
+    DELETE FROM heartbeats WHERE ctid IN (SELECT ctid FROM batch) RETURNING 1 \
+) \
+SELECT (SELECT COUNT(*) FROM rolled)::bigint  AS rolled, \
+       (SELECT COUNT(*) FROM deleted)::bigint AS deleted";
+
 /// One sweep — best-effort, logs and continues on partial failure.
 ///
-/// The heartbeat tiering (aggregate → delete raw → prune rollups) runs in
-/// a single transaction so a crash can never delete raw rows that were not
-/// durably rolled up first.
+/// The heartbeat tiering (aggregate raw → delete raw → prune rollups) folds and
+/// deletes raw rows in bounded batches. Each batch is ONE atomic statement: a
+/// data-modifying CTE rolls a fixed set of raw rows into hourly buckets and the
+/// same statement deletes exactly those rows by `ctid`, so a crash between
+/// batches can never delete raw rows that were not durably rolled up first (the
+/// invariant the old single transaction gave) — while bounding each statement's
+/// lock + WAL footprint instead of one table-locking DELETE over the whole
+/// backlog. The `ON CONFLICT` accumulation is order-independent, so batching
+/// yields byte-identical rollups to the old one-shot fold.
 pub async fn run_once(pool: &DbPool) -> DbResult<PruneStats> {
     let cfg = load_config(pool).await?;
     let mut stats = PruneStats::default();
 
-    let mut tx = pool.begin().await?;
+    // (1+2) Fold + delete raw heartbeats older than the raw tier, batch by batch
+    // until drained.
+    loop {
+        let row = sqlx::query(HEARTBEAT_FOLD_DELETE_BATCH)
+            .bind(cfg.heartbeats)
+            .bind(PRUNE_BATCH)
+            .fetch_one(pool)
+            .await?;
+        let rolled: i64 = row.try_get("rolled")?;
+        let deleted: i64 = row.try_get("deleted")?;
+        stats.rollups_upserted += rolled as u64;
+        stats.heartbeats_rolled += deleted as u64;
+        if deleted < PRUNE_BATCH {
+            break;
+        }
+    }
 
-    // (1) Aggregate raw heartbeats older than the raw tier into hourly
-    // buckets. UPSERT so a partially-folded hour (e.g. a previous sweep
-    // that fell mid-hour, or a re-run) accumulates rather than double
-    // counts: each sweep folds only the raw rows still present, and step
-    // (2) deletes exactly those rows, so re-running is a no-op per bucket.
-    stats.rollups_upserted = sqlx::query!(
-        r#"
-        INSERT INTO heartbeat_rollups
-            (monitor_id, bucket_start, up_count, down_count,
-             other_count, sample_count, avg_latency_ms)
-        SELECT
-            monitor_id,
-            date_trunc('hour', ts AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS bucket_start,
-            COUNT(*) FILTER (WHERE status = 'up')::int                   AS up_count,
-            COUNT(*) FILTER (WHERE status = 'down')::int                 AS down_count,
-            COUNT(*) FILTER (WHERE status NOT IN ('up','down'))::int     AS other_count,
-            COUNT(*)::int                                                AS sample_count,
-            AVG(latency_ms) FILTER (WHERE latency_ms IS NOT NULL)        AS avg_latency_ms
-        FROM heartbeats
-        WHERE ts < NOW() - make_interval(days => $1)
-        GROUP BY monitor_id, bucket_start
-        ON CONFLICT (monitor_id, bucket_start) DO UPDATE SET
-            up_count       = heartbeat_rollups.up_count     + EXCLUDED.up_count,
-            down_count     = heartbeat_rollups.down_count   + EXCLUDED.down_count,
-            other_count    = heartbeat_rollups.other_count  + EXCLUDED.other_count,
-            sample_count   = heartbeat_rollups.sample_count + EXCLUDED.sample_count,
-            avg_latency_ms = CASE
-                WHEN heartbeat_rollups.avg_latency_ms IS NULL THEN EXCLUDED.avg_latency_ms
-                WHEN EXCLUDED.avg_latency_ms IS NULL THEN heartbeat_rollups.avg_latency_ms
-                ELSE (heartbeat_rollups.avg_latency_ms * heartbeat_rollups.sample_count
-                      + EXCLUDED.avg_latency_ms * EXCLUDED.sample_count)
-                     / NULLIF(heartbeat_rollups.sample_count + EXCLUDED.sample_count, 0)
-            END
-        "#,
-        cfg.heartbeats,
-    )
-    .execute(&mut *tx)
-    .await?
-    .rows_affected();
-
-    // (2) Delete the raw heartbeats now represented in rollups — the same
-    // age predicate, so we only drop rows that step (1) just folded.
-    stats.heartbeats_rolled = sqlx::query!(
-        "DELETE FROM heartbeats WHERE ts < NOW() - make_interval(days => $1)",
-        cfg.heartbeats,
-    )
-    .execute(&mut *tx)
-    .await?
-    .rows_affected();
-
-    // (3) Drop rollup buckets past the (longer) rollup tier.
+    // (3) Drop rollup buckets past the (longer) rollup tier. Independent of the
+    // raw fold above, so it runs as its own statement.
     stats.rollups_deleted = sqlx::query!(
         "DELETE FROM heartbeat_rollups WHERE bucket_start < NOW() - make_interval(days => $1)",
         cfg.rollup_days,
     )
-    .execute(&mut *tx)
+    .execute(pool)
     .await?
     .rows_affected();
-
-    tx.commit().await?;
 
     // audit_log keeps the flat tier — independent of the heartbeat txn.
     // Capture the newest HASHED row about to be deleted: it is exactly the
