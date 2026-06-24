@@ -220,11 +220,7 @@ pub async fn list_services(pool: &MySqlPool, org_id: OrgId) -> DbResult<Vec<Stri
 /// Delete logs older than `days`. Returns rows removed.
 pub async fn prune(pool: &MySqlPool, days: i32) -> DbResult<u64> {
     let cutoff = OffsetDateTime::now_utc().unix_timestamp() - days.max(0) as i64 * 86400;
-    let res = sqlx::query("DELETE FROM logs WHERE received_at < ?")
-        .bind(cutoff)
-        .execute(pool)
-        .await?;
-    Ok(res.rows_affected())
+    super::chunked_delete_older(pool, "logs", "received_at", cutoff).await
 }
 
 #[cfg(test)]

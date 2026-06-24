@@ -169,3 +169,34 @@ pub(crate) fn in_placeholders(n: usize) -> String {
     }
     s
 }
+
+/// Chunked age-based delete (MySQL): repeatedly delete up to
+/// [`crate::prune::PRUNE_BATCH`] rows where `ts_col` < `cutoff` (a unix epoch
+/// second) until fewer than a full batch remain. Bounds each DELETE's lock +
+/// binlog footprint so a large retention backlog is cleared in many short
+/// statements instead of one long table-locking DELETE. `table`/`ts_col` are
+/// crate-internal literals (no user input → no injection surface), hence
+/// `AssertSqlSafe`. MySQL allows `LIMIT` in a single-table DELETE, so no
+/// id-subquery is needed. Returns total rows deleted.
+pub(crate) async fn chunked_delete_older(
+    pool: &sqlx::MySqlPool,
+    table: &str,
+    ts_col: &str,
+    cutoff: i64,
+) -> crate::DbResult<u64> {
+    let sql = format!("DELETE FROM {table} WHERE {ts_col} < ? LIMIT ?");
+    let mut total = 0u64;
+    loop {
+        let n = sqlx::query(sqlx::AssertSqlSafe(sql.clone()))
+            .bind(cutoff)
+            .bind(crate::prune::PRUNE_BATCH)
+            .execute(pool)
+            .await?
+            .rows_affected();
+        total += n;
+        if n < crate::prune::PRUNE_BATCH as u64 {
+            break;
+        }
+    }
+    Ok(total)
+}

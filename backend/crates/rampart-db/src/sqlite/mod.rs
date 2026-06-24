@@ -73,6 +73,41 @@ pub(crate) fn in_placeholders(n: usize) -> String {
     s
 }
 
+/// Chunked age-based delete (SQLite): repeatedly delete up to
+/// [`crate::prune::PRUNE_BATCH`] rows where `ts_col` < `cutoff` (a unix epoch
+/// second) until fewer than a full batch remain. Bounds each DELETE's
+/// write-lock + WAL footprint so a large retention backlog is cleared in many
+/// short statements. SQLite only supports `DELETE ... LIMIT` when the amalgam is
+/// built with `SQLITE_ENABLE_UPDATE_DELETE_LIMIT` (not guaranteed), so this
+/// limits via a `rowid IN (SELECT ... LIMIT ?)` subquery, which is portable.
+/// `table`/`ts_col` are crate-internal literals (no injection surface), hence
+/// `AssertSqlSafe`. Returns total rows deleted.
+pub(crate) async fn chunked_delete_older(
+    pool: &sqlx::SqlitePool,
+    table: &str,
+    ts_col: &str,
+    cutoff: i64,
+) -> crate::DbResult<u64> {
+    let sql = format!(
+        "DELETE FROM {table} WHERE rowid IN \
+         (SELECT rowid FROM {table} WHERE {ts_col} < ? LIMIT ?)"
+    );
+    let mut total = 0u64;
+    loop {
+        let n = sqlx::query(sqlx::AssertSqlSafe(sql.clone()))
+            .bind(cutoff)
+            .bind(crate::prune::PRUNE_BATCH)
+            .execute(pool)
+            .await?
+            .rows_affected();
+        total += n;
+        if n < crate::prune::PRUNE_BATCH as u64 {
+            break;
+        }
+    }
+    Ok(total)
+}
+
 /// The Default org's id (seeded by `migrations-sqlite/0002_identity.sql`), as a
 /// string for binding. Mirrors `rampart_core::org::DEFAULT_ORG_ID`.
 pub(crate) fn default_org_id_str() -> String {

@@ -29,6 +29,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.83] — 2026-06-24
+
+### Fixed
+- **MySQL and SQLite telemetry retention prunes are now chunked.** The
+  per-table flat prunes added for the non-Postgres backends (heartbeats, logs,
+  spans, metric samples, RUM, profiles, audit log, detection findings) each ran
+  a single unbounded `DELETE` — on a large backlog that holds a long lock and
+  balloons the binlog/WAL. They now delete in bounded batches (`PRUNE_BATCH`)
+  via a shared per-backend helper: MySQL uses a single-table `DELETE … LIMIT`,
+  SQLite uses a portable `rowid IN (SELECT … LIMIT ?)` subquery (since
+  `DELETE … LIMIT` requires a non-default SQLite build option). This brings the
+  flat backends in line with the Postgres `batched_delete` already used for the
+  same tables. (Postgres was already chunked.)
+
 ## [0.156.82] — 2026-06-24
 
 ### Fixed
