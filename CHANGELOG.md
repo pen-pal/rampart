@@ -29,6 +29,13 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.7] — 2026-06-24
+
+### Changed
+- **Moved the global nav launcher to the top-right.** The fixed `☰ Menu`
+  launcher (and its slide-in drawer) now lives in the top-right corner; the top
+  bar's right padding clears it. (Refines the v0.157.0 reposition.)
+
 ## [0.157.6] — 2026-06-24
 
 ### Security
