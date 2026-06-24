@@ -29,6 +29,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.80] — 2026-06-24
+
+### Fixed
+- **Public ingest surfaces no longer 413-drop legitimately large telemetry
+  batches.** A single 2 MiB request-body cap was applied to the whole router,
+  including the public ingest endpoints (OTLP traces/logs, Prometheus
+  remote-write, profiles, syslog, RUM). Real collectors routinely batch past
+  2 MiB — well under the 64 MiB decompression ceiling the ingest handlers
+  already enforce — so those payloads were being silently rejected with
+  `413 Payload Too Large`. Body caps are now per-surface: the management / push
+  / `/v1` routes keep the 2 MiB cap, while the ingest router gets a cap equal to
+  the decompression ceiling (`MAX_BODY_INGEST`). Both the axum extractor limit
+  (`DefaultBodyLimit`, which silently defaults to 2 MiB) and the hard tower-http
+  stream cap are raised for ingest — raising only one leaves the other capping
+  at 2 MiB. Regression tests assert a >2 MiB body is rejected on `/v1` but
+  accepted on the ingest surface.
+
 ## [0.156.79] — 2026-06-24
 
 ### Fixed

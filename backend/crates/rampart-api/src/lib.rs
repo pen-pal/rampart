@@ -61,6 +61,19 @@ fn cors_layer() -> CorsLayer {
         .allow_origin(Any)
 }
 
+/// Request-body cap for the management + push + `/v1` surfaces. Generous for
+/// the largest legitimate payload (a bulk-monitor action carrying hundreds of
+/// IDs; a notification template bounded by the editor at ~64 KB).
+const MAX_BODY_DEFAULT: usize = 2 * 1024 * 1024;
+
+/// Larger body cap for the public telemetry-ingest surfaces (OTLP / Prometheus
+/// remote-write / profiles / logs / RUM beacons): real collectors batch well
+/// past 2 MiB, and the old single 2 MiB cap silently 413-dropped legitimate
+/// payloads that sit comfortably under the decompression ceiling. Set to that
+/// same ceiling so the inbound (often compressed) body is never the limiting
+/// factor before `ingest_util`'s own decompressed-size guard.
+const MAX_BODY_INGEST: usize = crate::ingest_util::MAX_DECOMPRESSED;
+
 /// Build a Router for the given AppState. Used by `main.rs` for the
 /// production binary and by `tests/` to drive the API in-process.
 pub fn build_router(state: AppState) -> Router {
@@ -168,13 +181,10 @@ pub fn build_router(state: AppState) -> Router {
         .layer(trace_layer)
         .layer(PropagateRequestIdLayer::x_request_id())
         .layer(security_headers)
-        // 2 MiB request body cap. Generous enough for the largest
-        // legitimate inbound payload (an audit-CSV export request has
-        // no body; a bulk-monitor action could carry hundreds of IDs;
-        // a notification-template body is bounded by the editor at
-        // ~64 KB). Anything over the cap is a misuse or an attack —
-        // 413 + drop.
-        .layer(RequestBodyLimitLayer::new(2 * 1024 * 1024))
+        // Request-body caps are applied PER-SURFACE below, not here: the
+        // management/`/v1` routes get `MAX_BODY_DEFAULT` (2 MiB) while the
+        // public ingest router gets the larger `MAX_BODY_INGEST`. A single
+        // global cap here would also throttle ingest.
         .layer(CompressionLayer::new())
         .layer(TimeoutLayer::with_status_code(
             axum::http::StatusCode::REQUEST_TIMEOUT,
@@ -234,7 +244,14 @@ pub fn build_router(state: AppState) -> Router {
         .route_layer(axum::middleware::from_fn_with_state(
             state.ingest_rate_limiter(),
             crate::rate_limit::enforce_ip_rate_limit,
-        ));
+        ))
+        // Larger body cap for the ingest surfaces. BOTH limits must be raised:
+        // axum's `DefaultBodyLimit` (which the Json/Bytes extractors honour, and
+        // which otherwise silently defaults to 2 MiB) AND the hard tower-http
+        // stream cap. Applied to the ingest router BEFORE it's merged below so
+        // the default 2 MiB caps never wrap it.
+        .layer(axum::extract::DefaultBodyLimit::max(MAX_BODY_INGEST))
+        .layer(RequestBodyLimitLayer::new(MAX_BODY_INGEST));
 
     Router::new()
         .merge(routes::health::router())
@@ -244,8 +261,14 @@ pub fn build_router(state: AppState) -> Router {
         // /push/:token is intentionally public — the token IS the auth.
         // Sits outside /v1 to keep external cron snippets short.
         .nest("/push", routes::push::router())
-        .merge(ingest)
         .nest("/v1", routes::v1_public(&state).merge(protected_v1))
+        // 2 MiB body caps for the management + push + `/v1` surfaces — the axum
+        // extractor limit + the hard stream cap. Applied here so they wrap
+        // everything added ABOVE; the ingest router is merged AFTER (carrying
+        // its own, larger caps).
+        .layer(axum::extract::DefaultBodyLimit::max(MAX_BODY_DEFAULT))
+        .layer(RequestBodyLimitLayer::new(MAX_BODY_DEFAULT))
+        .merge(ingest)
         .with_state(state)
         .fallback(static_assets::handler)
         .layer(axum::middleware::from_fn_with_state(
