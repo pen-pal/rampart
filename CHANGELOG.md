@@ -29,6 +29,25 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.77] — 2026-06-24
+
+### Security
+- **Org-gated the FK refs in escalation steps and on-call rings.** Escalation
+  policy steps carry `channel_ids` + `schedule_ids`, and on-call schedules carry
+  `participant_ids` (channels) + `participant_user_ids` — all editor-settable
+  body fields. The create/update routes validated the *structure* of these
+  ladders but never checked that the referenced channels, schedules, and users
+  belonged to the caller's org. Because the notifier resolves those ids
+  **unscoped** when a step fires, an editor in org A could reference org B's
+  channel / schedule / user and page it (or surface a non-member user's email
+  as the on-call target) on the next alert. Both routes now resolve every
+  referenced id through the same per-org gate the rest of the routing layer
+  uses (`get_notification`/`get_on_call`/`org_member_role`); a body ref to a
+  foreign or absent id is a `400`, mirroring `routing.rs`'s double-gate. The
+  update path gates only the lists actually being written. Regression tests:
+  `oncall_and_escalation_reject_foreign_refs` plus the tightened
+  `policy_crud_and_validation`.
+
 ## [0.156.76] — 2026-06-24
 
 ### Security

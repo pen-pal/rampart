@@ -127,12 +127,13 @@ async fn tags_channels_escalations_isolated(pool: PgPool) {
         Some(&admin),
     )
     .await;
-    let _: Value = common::json(&router, Method::POST, "/v1/notifications", Some(json!({"name":"c","kind":"webhook","config":{"url":"https://e.example.com/h"},"active":true})), Some(&admin)).await;
+    let ch: Value = common::json(&router, Method::POST, "/v1/notifications", Some(json!({"name":"c","kind":"webhook","config":{"url":"https://e.example.com/h"},"active":true})), Some(&admin)).await;
+    let cid = ch["id"].as_str().unwrap();
     let _: Value = common::json(
         &router,
         Method::POST,
         "/v1/escalation-policies",
-        Some(json!({"name":"p","steps":[{"wait_seconds":0,"channel_ids":[uuid::Uuid::new_v4()]}]})),
+        Some(json!({"name":"p","steps":[{"wait_seconds":0,"channel_ids":[cid]}]})),
         Some(&admin),
     )
     .await;
@@ -648,13 +649,13 @@ async fn escalation_episodes_isolated(pool: PgPool) {
     )
     .await;
     let mid = mon["id"].as_str().unwrap();
+    let ch: Value = common::json(&router, Method::POST, "/v1/notifications", Some(json!({"name":"c","kind":"webhook","config":{"url":"https://e.example.com/h"},"active":true})), Some(&admin)).await;
+    let cid = ch["id"].as_str().unwrap();
     let pol: Value = common::json(
         &router,
         Method::POST,
         "/v1/escalation-policies",
-        Some(
-            json!({"name":"esc","steps":[{"wait_seconds":0,"channel_ids":[uuid::Uuid::new_v4()]}]}),
-        ),
+        Some(json!({"name":"esc","steps":[{"wait_seconds":0,"channel_ids":[cid]}]})),
         Some(&admin),
     )
     .await;
