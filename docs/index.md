@@ -102,9 +102,9 @@ the [single-binary](SETUP.md) path.
 ## Design principles
 
 - **One binary.** Frontend embedded via `rust-embed`; no Node runtime on the host.
-- **Postgres-backed.** The database you already operate — no SQLite, no proprietary store.
+- **Pluggable backing store.** Postgres (default + reference), MySQL/MariaDB, or single-file SQLite — chosen by the `DATABASE_URL` scheme. No proprietary store.
 - **Open wire formats.** OpenTelemetry + Sentry in, 128 channels out. No lock-in.
-- **Single-tenant.** No `workspace_id` anywhere; the operator controls exposure.
+- **Multi-tenant when you want it.** Organizations with per-org RBAC + optional Postgres row-level security; or run it single-org and ignore the whole thing.
 - **Zero telemetry.** Nothing phones home.
 
 See [Architecture](ARCHITECTURE.md) for the rationale, and

@@ -1,7 +1,10 @@
 # Rampart · Architecture
 
-Single-binary, single-tenant, Postgres-backed. Six Rust crates in one
-workspace; one React SPA embedded into the API binary at compile time.
+Single-binary; multi-tenant (organizations + per-org RBAC, optional Postgres
+RLS); pluggable backing store — Postgres (default/reference), MySQL/MariaDB, or
+single-file SQLite, selected by the `DATABASE_URL` scheme behind an object-safe
+`Store` trait. Six Rust crates in one workspace; one React SPA embedded into the
+API binary at compile time.
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
@@ -204,8 +207,14 @@ recovery). Recovery codes are SHA-256-hashed, single-use.
 
 ## Database
 
-Postgres 16+, single schema, single tenant. Migrations live in
-`backend/migrations/0001_*.sql` … and beyond — `sqlx::migrate!` runs
+Postgres 16+ is the default + full-feature reference backend (single schema,
+multi-tenant via `org_id` on every tenant root). The same domains run on
+MySQL/MariaDB and single-file SQLite behind an object-safe `Store` trait —
+the `DATABASE_URL` scheme selects the store at boot (`postgres://` / `mysql://`
+/ `sqlite:`); each backend has its own parallel migration set
+(`backend/migrations/`, `migrations-mysql/`, `migrations-sqlite/`) and per-backend
+`#[sqlx::test]` coverage. See [`design/MULTI_DB.md`](design/MULTI_DB.md). Migrations
+live in `backend/migrations/0001_*.sql` … and beyond — `sqlx::migrate!` runs
 them on every boot. No down migrations; rolling forward only.
 
 Key tables:

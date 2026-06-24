@@ -6,13 +6,13 @@
 
 ### Self-hosted uptime monitoring **and** observability you can actually trust.
 
-**One Rust binary. One Postgres. 42 probe kinds. 129 notification channels.**<br/>
+**One Rust binary. Postgres, MySQL, or SQLite. 42 probe kinds. 129 notification channels.**<br/>
 Uptime + status pages, **error tracking, distributed traces, logs, and RUM** — one binary, no SaaS.<br/>
 Tier alerting • On-call rotations • Multi-step synthetics • **SSO (OIDC)** • **HA (leader election)** • encrypted secrets • SSRF-guarded probes • tamper-evident audit • 2FA.
 
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 [![Built with Rust](https://img.shields.io/badge/built%20with-Rust-dea584.svg?logo=rust)](https://www.rust-lang.org/)
-[![Postgres](https://img.shields.io/badge/database-Postgres%2014%2B-336791.svg?logo=postgresql)](https://www.postgresql.org/)
+[![Database](https://img.shields.io/badge/database-Postgres%20%C2%B7%20MySQL%20%C2%B7%20SQLite-336791.svg?logo=postgresql)](docs/design/MULTI_DB.md)
 [![Probes](https://img.shields.io/badge/probes-42-brightgreen.svg)](#-42-probe-kinds)
 [![Channels](https://img.shields.io/badge/channels-129-brightgreen.svg)](#-129-notification-channels)
 [![Bundle](https://img.shields.io/badge/binary-~10%20MB-informational.svg)](#-why-rampart)
@@ -59,7 +59,7 @@ We built Rampart because we were tired of choosing between bloated SaaS tools an
 | Feature | The Rampart Way |
 | :--- | :--- |
 | 📦 **One Binary** | Frontend embedded via `rust-embed`. ~10 MB stripped release binary. No Node runtime on the host. |
-| 🐘 **Postgres-backed** | The DB you already operate. No SQLite weirdness, no proprietary stores. |
+| 🗄️ **Pluggable backing store** | Postgres (default + full-feature reference), MySQL/MariaDB, or single-file SQLite — picked by the `DATABASE_URL` scheme. No proprietary stores. |
 | 🦀 **Pure-Rust Crypto** | Web Push (RFC 8291) hand-rolled with `p256` + `aes-gcm`. No `aws-lc-rs` / `openssl` dragged in. |
 | ⚡ **Live, Not Polled** | Server-Sent Events stream heartbeats to the dashboard; the UI never refreshes from cache. |
 | 🕵️ **Zero Telemetry** | Nothing phones home. Self-hosted means *actually* self-hosted. |
@@ -68,7 +68,7 @@ We built Rampart because we were tired of choosing between bloated SaaS tools an
 ### How it compares
 
 - **vs. SaaS (Datadog / Pingdom / Site24x7)** — Lives on your hardware, no per-monitor pricing, no log-volume bills, no data leaving your perimeter.
-- **vs. other self-hosted dashboards** — Broader probe catalog (DBs, banner protocols, Kafka, RADIUS, NTP), proper tag routing with folder ancestor inheritance, real audit log, Postgres instead of SQLite, a single Rust binary instead of a Node runtime + headless Chromium.
+- **vs. other self-hosted dashboards** — Broader probe catalog (DBs, banner protocols, Kafka, RADIUS, NTP), proper tag routing with folder ancestor inheritance, real audit log, a pluggable backing store (Postgres / MySQL / SQLite), multi-tenant organizations, and a single Rust binary instead of a Node runtime + headless Chromium.
 - **vs. roll-your-own Prometheus blackbox** — Out of the box: status pages, incident posting, maintenance windows, dependency-aware alerting, and 129 outbound channels.
 - **vs. a separate APM/error stack (Datadog / Sentry / Grafana LGTM)** — Error tracking, traces, logs, RUM, and continuous profiling (flamegraphs) live in the *same* binary as your uptime checks, speak OpenTelemetry + Sentry + pprof wire formats (no proprietary agent), and alert through the same channels — instead of standing up and paying for a second platform.
 
@@ -165,6 +165,8 @@ an error issue jumps to its trace, and a browser exception becomes an error issu
 | 📝 **Templates** | Liquid templating for notification subject + body — filters, conditionals, loops. Clone existing templates. |
 | 🌐 **Proxies** | HTTP/SOCKS proxy registry; HTTP-family monitors route through their assigned proxy. |
 | 📜 **Cert Tracking** | Auto-inspect leaf cert on HTTPS monitors every hour. Days-left badge on detail page. |
+| 🏢 **Multi-tenancy** | Organizations with per-org RBAC, an org switcher, and OIDC→org mapping. Every tenant root is `org_id`-stamped on write and read-filtered. Optional Postgres **row-level security** (`RAMPART_RLS=1`) enforces isolation at the database, not just the app layer. |
+| 🗄️ **Pluggable backing store** | Postgres (full-feature reference + default), MySQL/MariaDB, or single-file SQLite — selected by the `DATABASE_URL` scheme; every domain is exercised by per-backend tests. See [`docs/design/MULTI_DB.md`](docs/design/MULTI_DB.md). |
 
 ---
 
@@ -220,6 +222,9 @@ DATABASE_URL=postgres://rampart:rampart@localhost:5432/rampart \
   ./backend/target/release/rampart-api
 ```
 
+*Postgres needs no extra feature flag. For the other backends, build the API crate
+with the matching feature and point `DATABASE_URL` at it:* `cargo build --release -p rampart-api --features mysql` *(then `DATABASE_URL=mysql://…`)* *or* `--features sqlite` *(then `DATABASE_URL=sqlite:rampart.db`).*
+
 ### ☸️ Kubernetes (Helm)
 
 Production-grade chart published to GHCR (OCI) — HPA, PDB, topology spread,
@@ -258,8 +263,9 @@ All configuration is done via environment variables. Defaults are in `backend/.e
 
 | Variable | Default | Description |
 | :--- | :--- | :--- |
-| `DATABASE_URL` | `postgres://...` | Postgres connection string. Pool size 16; bump for prod. |
+| `DATABASE_URL` | `postgres://...` | Backing-store connection string; the **scheme picks the store**: `postgres://…` (default, full-feature reference), `mysql://…` (relational tier — build with `--features mysql`), or `sqlite:rampart.db` (single-file/homelab — build with `--features sqlite`). Pool size 16; bump for prod. |
 | `DATABASE_POOL_SIZE` | `16` | Max connections in the database pool. |
+| `RAMPART_RLS` | _(unset)_ | Set `1` to enable Postgres row-level security for tenant isolation at the database layer (defense-in-depth on top of app-level org filtering). Postgres only. |
 | `BIND_ADDR` | `0.0.0.0:3000` | Use `127.0.0.1:3000` if behind a reverse proxy. |
 | `RUST_LOG` | `info` | e.g., `rampart=debug,tower_http=warn,info` |
 | `RAMPART_TRUSTED_PROXIES` | _(unset)_ | Comma-separated IPs/CIDRs of the proxy/LB that fronts Rampart. Unset (default) = ignore `X-Forwarded-For`, use the TCP peer IP for rate-limiting + audit (secure). Behind a proxy you **must** set it to the proxy's IP or per-client rate-limits + audit IPs collapse to the proxy. Use a **specific** IP/`/32`, never a broad range. |
@@ -411,7 +417,7 @@ Modifications you serve over the network must be shared back. Run it on your own
 <details>
 <summary><strong>How do I reset the admin password if I'm locked out?</strong></summary>
 
-Since Rampart uses a standard Postgres backend, you can reset the admin password directly via the database if you lose access:
+You can reset the admin password directly via your backing store if you lose access. On the default Postgres backend (MySQL/SQLite are analogous — `mysql`/`sqlite3` the same `users` table):
 
 ```bash
 # 1. Open a shell in your postgres container
@@ -431,7 +437,7 @@ docker compose restart rampart
 <details>
 <summary><strong>How do I backup my data?</strong></summary>
 
-Because Rampart relies entirely on Postgres, backing up is trivial. Just use standard Postgres tools:
+Rampart stores everything in your backing store, so backups use that store's native tooling. On the default Postgres backend (SQLite: just copy the single `.db` file; MySQL: `mysqldump`):
 
 ```bash
 # Dump the database
@@ -455,12 +461,14 @@ cat backup_2024-01-01.sql | docker exec -i rampart-postgres-1 psql -U rampart ra
 
 ## 🗺️ Roadmap
 
-Rampart is feature-complete for 95% of uptime monitoring use cases, but we are actively working on:
+Rampart covers the vast majority of self-hosted uptime + observability use cases. On the horizon (deliberately out-of-scope items live in [CONTRIBUTING.md](CONTRIBUTING.md#scope-read-this-first)):
 
-- [ ] **Prometheus Exporter:** Expose a `/metrics` endpoint so you can scrape Rampart's internal health and probe latencies into your existing Grafana stack.
-- [ ] **Public API Rate Limiting:** Add configurable rate limits to the `/v1` API to prevent abuse if exposed to the public internet.
-- [ ] **Webhook Payload Builder:** A visual UI for testing and formatting Liquid templates before saving them to a notification channel.
-- [ ] **Read-Only Roles:** Allow team members to view dashboards and status pages without being able to mutate monitors or delete data.
+- [ ] **Document-store backends** — MongoDB / Cassandra backing stores. The relational tier (Postgres / MySQL / SQLite) ships today; these are demand-gated from-scratch query layers — see [`docs/design/MULTI_DB.md`](docs/design/MULTI_DB.md).
+- [ ] **Enterprise SSO** — SAML + SCIM user provisioning (OIDC ships today).
+- [ ] **Horizontal probe sharding** — partition the monitor set across replicas for very large fleets (leader-election HA ships today).
+- [ ] **Compliance evidence** — SOC 2 / ISO 27001 / GDPR report bundles (access-review snapshot + GDPR export/erasure already ship).
+
+**✅ Recently shipped** (was on this roadmap): a Prometheus `/metrics` exporter, per-API-key rate limiting, read-only RBAC roles, multi-tenant organizations with optional Postgres RLS, and MySQL + SQLite backing stores.
 
 *Have a feature request? [Open a Discussion](https://github.com/pen-pal/rampart/discussions) before submitting a PR to ensure it aligns with our scope.*
 
