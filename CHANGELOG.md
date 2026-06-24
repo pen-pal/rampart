@@ -29,6 +29,18 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.0] — 2026-06-24
+
+### Changed
+- **Dashboard navigation + account menu cleanup.** The avatar in the top bar is
+  now an **account menu**: clicking it opens a dropdown with the signed-in
+  user, an **Account & security** link (password change + 2FA on the `/security`
+  page), and **Sign out** — replacing the standalone sign-out button. The global
+  navigation launcher moved from the bottom-right to the **top-left** and its
+  drawer now slides in from the left, and the redundant per-page hamburger next
+  to the monitor icon was removed (the fixed launcher is the single nav entry
+  across all pages).
+
 ## [0.156.86] — 2026-06-24
 
 ### Security

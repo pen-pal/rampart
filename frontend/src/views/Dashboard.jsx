@@ -10,7 +10,7 @@ import {
   Database, Radio, Lock, Hash,
   Menu, Folder, Tag as TagIcon, Calendar as CalIcon, Network, Key, ScrollText, Users as UsersIcon, Mail, Database as DbIcon, Settings, Upload, FileStack,
   Bookmark, Star, Check, Trash2, X, Copy, Share2, Download, RotateCcw,
-  ShieldAlert,
+  ShieldAlert, LogOut, Shield,
 } from 'lucide-react';
 import {
   api, useApi, formatRelative, offsetDateTimeArrayToDate, statusToClass,
@@ -1000,7 +1000,8 @@ export default function Dashboard({ user, onLogout } = {}) {
       {/* ─── top bar ─────────────────────────────────────────────── */}
       <header className="dash-topbar" style={{
         display: 'flex', alignItems: 'center', gap: 16,
-        padding: '12px 20px', borderBottom: '1px solid var(--border)',
+        // Extra left padding clears the fixed top-left nav launcher (App.jsx).
+        padding: '12px 20px 12px 112px', borderBottom: '1px solid var(--border)',
         background: 'var(--surface)', position: 'sticky', top: 0, zIndex: 10
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1036,10 +1037,6 @@ export default function Dashboard({ user, onLogout } = {}) {
               transition: 'background .2s',
             }}/>
           <ThemeToggle/>
-          <button className="btn btn-ghost" title={t('common.menu')} aria-label={t('nav.open')}
-            onClick={() => window.dispatchEvent(new Event('rampart:nav-open'))}>
-            <Menu size={16}/>
-          </button>
           <a className="btn btn-ghost" title={t('dashboard.tip.channels')} href="#/notifications" style={{ textDecoration: 'none' }}>
             <Bell size={14}/>
           </a>
@@ -1055,21 +1052,7 @@ export default function Dashboard({ user, onLogout } = {}) {
           <button className="btn" onClick={goToStatusPage}><Wrench size={13}/> {t("dashboard.status_page")}</button>
           {writable && <a className="btn btn-ghost" href="#/import" style={{ textDecoration: 'none' }} title={t("import.link_title")}><Upload size={13}/> {t("import.link")}</a>}
           {writable && <button className="btn btn-accent" onClick={goToNewMonitor}><Plus size={13} strokeWidth={2.4}/> {t("dashboard.add_monitor")}</button>}
-          {user && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div title={user.email} style={{
-                width: 30, height: 30, borderRadius: '50%',
-                background: 'linear-gradient(135deg, #fb923c, #ea580c)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: 'white', fontSize: 12, fontWeight: 600, textTransform: 'uppercase',
-              }}>
-                {(user.name || user.email || '?').charAt(0)}
-              </div>
-              <button className="btn btn-ghost" onClick={onLogout} title={t("dashboard.sign_out")} style={{ fontSize: 12 }}>
-                {t("dashboard.sign_out")}
-              </button>
-            </div>
-          )}
+          {user && <AccountMenu user={user} onLogout={onLogout}/>}
         </div>
       </header>
 
@@ -1906,6 +1889,73 @@ export default function Dashboard({ user, onLogout } = {}) {
               </button>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Account dropdown anchored on the avatar. Replaces the standalone "Sign out"
+// button: clicking the avatar opens a small menu (account & security → the
+// /security page for password change + 2FA, and sign out). Mirrors ViewsMenu's
+// outside-click / Escape dismissal.
+function AccountMenu({ user, onLogout }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+
+  const itemStyle = {
+    display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+    justifyContent: 'flex-start', fontSize: 13, textDecoration: 'none',
+  };
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        title={user.email}
+        aria-label={t('dashboard.account.menu')}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        style={{
+          width: 30, height: 30, borderRadius: '50%', padding: 0, border: 'none', cursor: 'pointer',
+          background: 'linear-gradient(135deg, #fb923c, #ea580c)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: 'white', fontSize: 12, fontWeight: 600, textTransform: 'uppercase',
+        }}
+      >
+        {(user.name || user.email || '?').charAt(0)}
+      </button>
+      {open && (
+        <div className="card" role="menu" style={{
+          position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 50,
+          minWidth: 210, padding: 6, boxShadow: 'var(--shadow, 0 8px 24px rgba(0,0,0,.12))',
+        }}>
+          <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', marginBottom: 4 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {user.name || user.email}
+            </div>
+            {user.name && (
+              <div style={{ fontSize: 11, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {user.email}
+              </div>
+            )}
+          </div>
+          <a className="btn btn-ghost" role="menuitem" href="#/security"
+             onClick={() => setOpen(false)} style={itemStyle}>
+            <Shield size={14}/> {t('dashboard.account.security')}
+          </a>
+          <button className="btn btn-ghost" role="menuitem"
+                  onClick={() => { setOpen(false); onLogout?.(); }} style={itemStyle}>
+            <LogOut size={14}/> {t('dashboard.sign_out')}
+          </button>
         </div>
       )}
     </div>
