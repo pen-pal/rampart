@@ -12,7 +12,7 @@
 > shot list in [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md).
 >
 > Published backend image: **`ghcr.io/pen-pal/rampart`** (public; GHCR tags strip
-> the leading `v`). Pin a tag — this runbook uses **`0.157.7`** (the current
+> the leading `v`). Pin a tag — this runbook uses **`0.157.12`** (the current
 > workspace version). It runs migrations on boot and serves `/healthz` + `/readyz`
 > on port **3000**.
 
@@ -136,7 +136,7 @@ postgres://rampart:STRONG-PASSWORD@rampart.cluster-xxxx.us-east-1.rds.amazonaws.
    up:
 
    ```bash
-   # in deploy/compose.aws.yaml, set:  image: ghcr.io/pen-pal/rampart:0.157.7
+   # in deploy/compose.aws.yaml, set:  image: ghcr.io/pen-pal/rampart:0.157.12
    docker compose --env-file deploy/aws.env -f deploy/compose.aws.yaml up -d
    docker compose -f deploy/compose.aws.yaml logs -f rampart
    ```
@@ -248,7 +248,7 @@ seeder once against Aurora (everything it creates is tagged `[demo]`; idempotent
 # from the EC2 box (or any host that can reach Aurora):
 docker run --rm \
   -e DATABASE_URL='postgres://rampart:PASS@<writer-endpoint>:5432/rampart?sslmode=require' \
-  ghcr.io/pen-pal/rampart:0.157.7 rampart-api seed-demo
+  ghcr.io/pen-pal/rampart:0.157.12 rampart-api seed-demo
 ```
 
 > For the **richest video footage**, record locally against the

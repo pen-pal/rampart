@@ -8,7 +8,7 @@
 > [`../DEPLOY.md`](../DEPLOY.md) + [`../deploy/aws-vercel.md`](../deploy/aws-vercel.md).
 > The zero-to-live runbook is [`GO_LIVE.md`](GO_LIVE.md); the demo-video script +
 > screenshot list is [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md). Everything below maps to
-> shipped code at workspace **v0.157.7**.
+> shipped code at workspace **v0.157.12**.
 
 ---
 
@@ -53,12 +53,12 @@
 
 - ✅ Full feature set shipped (uptime 42 kinds, traces, logs, metrics, RUM,
   profiling, errors, SIEM, on-call, status pages) in one binary — `CHANGELOG.md`
-  through v0.157.7.
+  through v0.157.12.
 - ✅ Pre-submission hardening pass — closed cross-tenant telemetry leaks
   (heartbeat SSE stream, scheduled reports), rate-limited the public status-page
   `/unlock` DoS surface, made bearer auth crash-safe on non-Postgres backends,
   and fixed syslog-parser / incident-dedup / uptime-math correctness bugs, each
-  with a named regression test — `CHANGELOG.md` v0.156.84–v0.157.7.
+  with a named regression test — `CHANGELOG.md` v0.156.84–v0.157.12.
 - ✅ Multi-tenancy (orgs, per-org RBAC, per-org ingest creds, org switcher,
   OIDC→org) — Phases 1–5 shipped; `../MULTITENANCY.md`.
 - ✅ Postgres RLS tenant isolation (defense-in-depth) — flag-gated `RAMPART_RLS=1`,
@@ -80,7 +80,7 @@ Everything above marked ⬜ requires a human. The hard blockers, grouped:
 2. **Deploy to produce the live URL + AWS proof.** Follow the numbered runbook in
    [`GO_LIVE.md`](GO_LIVE.md): provision Aurora PostgreSQL (Serverless v2, private
    subnets, SG open to the backend SG on 5432); deploy the backend
-   (`ghcr.io/pen-pal/rampart:0.157.7`) on EC2 + `deploy/compose.aws.yaml` (simplest)
+   (`ghcr.io/pen-pal/rampart:0.157.12`) on EC2 + `deploy/compose.aws.yaml` (simplest)
    or ECS Express / Fargate with `DATABASE_URL`, `RAMPART_SECRET_KEY`,
    `BIND_ADDR=0.0.0.0:3000`; confirm `/readyz` → 200; set the real API origin in
    `frontend/vercel.json` and `vercel --prod` the SPA. Produces: the live "try it"
@@ -122,7 +122,7 @@ Everything above marked ⬜ requires a human. The hard blockers, grouped:
 
 This `docs/hackathon/` set is the consolidated, current deliverable:
 
-- [`SUBMISSION.md`](SUBMISSION.md) — paste-ready Devpost copy (v0.157.7).
+- [`SUBMISSION.md`](SUBMISSION.md) — paste-ready Devpost copy (v0.157.12).
 - [`GO_LIVE.md`](GO_LIVE.md) — zero-to-live deploy runbook (Aurora + Vercel).
 - [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md) — the < 3-min demo-video shot list.
 - this file — field-by-field readiness.

@@ -2,7 +2,7 @@
 
 > Honest, code-grounded answers to the questions a technical judge or skeptic is
 > most likely to ask. Every claim points at code or config that exists today at
-> workspace version **v0.157.7**. Paired docs:
+> workspace version **v0.157.12**. Paired docs:
 > [`SUBMISSION.md`](SUBMISSION.md) (paste-ready copy),
 > [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md) (video shot list),
 > [`GO_LIVE.md`](GO_LIVE.md) (deploy runbook),
@@ -184,7 +184,7 @@ deployment path, the Vercel frontend wiring, the `examples/everything` real-data
 demo stack, and a focused pre-submission **hardening pass** that fixed the failure
 modes that bite multi-tenant internet-facing services — cross-tenant telemetry
 leaks, a public-surface password-hash DoS, and a non-Postgres crash path — each
-with a named regression test (`CHANGELOG.md` v0.156.84–v0.157.7). We're explicit
+with a named regression test (`CHANGELOG.md` v0.156.84–v0.157.12). We're explicit
 about that split rather than claiming it was all built in a weekend.
 
 ## 15. What happens if a judge points an exporter at it live and nothing shows up?

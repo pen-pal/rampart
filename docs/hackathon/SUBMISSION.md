@@ -5,7 +5,7 @@
 > AWS Database: **Aurora PostgreSQL** · Frontend on **Vercel** (Vite/React SPA,
 > same-origin `/v1` rewrite) with a **v0**-scaffolded Next.js landing shell.
 >
-> Every claim below maps to shipped code at workspace version **0.157.7**.
+> Every claim below maps to shipped code at workspace version **0.157.12**.
 > The deploy mechanics live in [`../DEPLOY.md`](../DEPLOY.md) and
 > [`../deploy/aws-vercel.md`](../deploy/aws-vercel.md); the demo shot list lives in
 > [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md), the zero-to-live runbook in
