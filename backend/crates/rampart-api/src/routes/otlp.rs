@@ -59,6 +59,7 @@ async fn ingest_logs(
                 .map_err(|_| ApiError::BadRequest("invalid OTLP JSON body".into()))?;
             rampart_core::log::parse_otlp_logs_json(&v)
         };
+        crate::ingest_util::enforce_record_cap(logs.len())?;
 
         // Head sampling. A log carrying a trace_id is sampled on that id (so it
         // follows its trace when both rates match); a trace-less log falls back to
@@ -107,6 +108,7 @@ async fn ingest_traces(
                 .map_err(|_| ApiError::BadRequest("invalid OTLP JSON body".into()))?;
             rampart_core::trace::parse_otlp_traces_json(&v)
         };
+        crate::ingest_util::enforce_record_cap(spans.len())?;
 
         // Head sampling, keyed on trace_id so every span of a kept trace survives
         // and a dropped trace leaves no orphans (consistent across batches/replicas).

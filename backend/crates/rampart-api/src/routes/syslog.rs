@@ -46,6 +46,7 @@ async fn ingest_text(
         let body = crate::ingest_util::decompress(&headers, &body)?;
         let text = String::from_utf8_lossy(&body);
         let logs = rampart_core::syslog::parse_syslog(&text);
+        crate::ingest_util::enforce_record_cap(logs.len())?;
         let logs = sample_logs(&s, logs).await?;
         s.store().insert_logs(&logs, org).await?;
         Ok(Json(serde_json::json!({ "accepted": logs.len() })))
@@ -65,6 +66,7 @@ async fn ingest_json(
         let body = crate::ingest_util::decompress(&headers, &body)?;
         let text = String::from_utf8_lossy(&body);
         let logs = rampart_core::syslog::parse_ndjson(&text);
+        crate::ingest_util::enforce_record_cap(logs.len())?;
         let logs = sample_logs(&s, logs).await?;
         s.store().insert_logs(&logs, org).await?;
         Ok(Json(serde_json::json!({ "accepted": logs.len() })))
