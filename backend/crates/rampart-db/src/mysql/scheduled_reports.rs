@@ -158,8 +158,11 @@ pub async fn render(
     if monitors.is_empty() {
         lines.push("(no monitors configured)".to_string());
     }
+    // One set-based aggregate instead of a per-monitor query (was N+1).
+    let ids: Vec<Uuid> = monitors.iter().map(|m| m.id.0).collect();
+    let pcts = super::heartbeats::uptime_pct_batch(pool, &ids, window_seconds).await?;
     for m in &monitors {
-        match super::heartbeats::uptime_pct(pool, m.id, window_seconds).await? {
+        match pcts.get(&m.id.0) {
             Some(p) => lines.push(format!("- {}: {:.2}%", m.name, p)),
             None => lines.push(format!("- {}: no data", m.name)),
         }

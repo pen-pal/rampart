@@ -251,9 +251,13 @@ pub async fn render(
     if monitors.is_empty() {
         lines.push("(no monitors configured)".to_string());
     }
+    // One set-based aggregate instead of a per-monitor query (was N+1 across the
+    // fleet on every due-report tick + send-now). Absent id == no data, same as
+    // the per-monitor `total == 0 -> None`.
+    let ids: Vec<Uuid> = monitors.iter().map(|m| m.id.0).collect();
+    let pcts = crate::heartbeats::uptime_pct_batch(pool, &ids, window_seconds).await?;
     for m in &monitors {
-        let pct = crate::heartbeats::uptime_pct(pool, m.id, window_seconds).await?;
-        match pct {
+        match pcts.get(&m.id.0) {
             Some(p) => lines.push(format!("- {}: {:.2}%", m.name, p)),
             None => lines.push(format!("- {}: no data", m.name)),
         }
