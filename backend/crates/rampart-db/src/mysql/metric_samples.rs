@@ -166,11 +166,7 @@ pub async fn latest(
 
 /// Age-based prune. Returns rows deleted.
 pub async fn prune_older_than(pool: &MySqlPool, cutoff: OffsetDateTime) -> DbResult<u64> {
-    let res = sqlx::query("DELETE FROM metric_samples WHERE ts < ?")
-        .bind(cutoff.unix_timestamp())
-        .execute(pool)
-        .await?;
-    Ok(res.rows_affected())
+    super::chunked_delete_older(pool, "metric_samples", "ts", cutoff.unix_timestamp()).await
 }
 
 #[cfg(test)]

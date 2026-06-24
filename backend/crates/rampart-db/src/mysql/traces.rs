@@ -417,11 +417,7 @@ pub async fn operation_trend(
 /// Delete spans older than `days`. Returns rows removed.
 pub async fn prune(pool: &MySqlPool, days: i32) -> DbResult<u64> {
     let cutoff = now_unix() - days.max(0) as i64 * 86400;
-    let res = sqlx::query("DELETE FROM spans WHERE received_at < ?")
-        .bind(cutoff)
-        .execute(pool)
-        .await?;
-    Ok(res.rows_affected())
+    super::chunked_delete_older(pool, "spans", "received_at", cutoff).await
 }
 
 #[cfg(test)]

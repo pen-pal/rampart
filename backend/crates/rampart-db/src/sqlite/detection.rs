@@ -734,11 +734,7 @@ pub async fn ack_finding(pool: &SqlitePool, id: DetectionFindingId) -> DbResult<
 /// Returns rows deleted.
 pub async fn prune(pool: &SqlitePool, days: i32) -> DbResult<u64> {
     let cutoff = time::OffsetDateTime::now_utc().unix_timestamp() - days.max(0) as i64 * 86400;
-    let res = sqlx::query("DELETE FROM detection_findings WHERE created_at < ?")
-        .bind(cutoff)
-        .execute(pool)
-        .await?;
-    Ok(res.rows_affected())
+    super::chunked_delete_older(pool, "detection_findings", "created_at", cutoff).await
 }
 
 #[cfg(test)]

@@ -349,11 +349,7 @@ pub async fn export_batch(
 /// Returns rows deleted.
 pub async fn prune(pool: &MySqlPool, days: i32) -> DbResult<u64> {
     let cutoff = time::OffsetDateTime::now_utc().unix_timestamp() - days.max(0) as i64 * 86400;
-    let res = sqlx::query("DELETE FROM audit_log WHERE ts < ?")
-        .bind(cutoff)
-        .execute(pool)
-        .await?;
-    Ok(res.rows_affected())
+    super::chunked_delete_older(pool, "audit_log", "ts", cutoff).await
 }
 
 #[cfg(test)]

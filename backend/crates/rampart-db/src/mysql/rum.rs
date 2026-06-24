@@ -354,11 +354,7 @@ pub async fn apps(pool: &MySqlPool, org_id: OrgId) -> DbResult<Vec<String>> {
 
 pub async fn prune(pool: &MySqlPool, days: i32) -> DbResult<u64> {
     let cutoff = OffsetDateTime::now_utc().unix_timestamp() - days.max(0) as i64 * 86400;
-    let res = sqlx::query("DELETE FROM rum_events WHERE received_at < ?")
-        .bind(cutoff)
-        .execute(pool)
-        .await?;
-    Ok(res.rows_affected())
+    super::chunked_delete_older(pool, "rum_events", "received_at", cutoff).await
 }
 
 #[cfg(test)]

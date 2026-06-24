@@ -752,11 +752,7 @@ pub async fn error_budget_burndown(
 /// Returns rows deleted.
 pub async fn prune(pool: &MySqlPool, days: i32) -> DbResult<u64> {
     let cutoff = time::OffsetDateTime::now_utc().unix_timestamp() - days.max(0) as i64 * 86400;
-    let res = sqlx::query("DELETE FROM heartbeats WHERE ts < ?")
-        .bind(cutoff)
-        .execute(pool)
-        .await?;
-    Ok(res.rows_affected())
+    super::chunked_delete_older(pool, "heartbeats", "ts", cutoff).await
 }
 
 #[cfg(test)]
