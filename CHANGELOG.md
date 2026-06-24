@@ -29,6 +29,22 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.14] — 2026-06-24
+
+### Performance
+- **MySQL / SQLite trace listing aggregates in SQL.** `list_traces` on the
+  MySQL and SQLite backends previously pulled up to 100k raw spans for the org
+  into Rust and assembled the per-trace summaries in a `BTreeMap` — a large scan
+  and allocation for a page of ≤500 rows, and one that could partially aggregate
+  a trace straddling the 100k cap. Both now do the rollup in the database with a
+  single `GROUP BY trace_id` query that mirrors the Postgres path: the same
+  `HAVING` filters (service / min-duration / errors-only), a `(received_at,
+  trace_id)` keyset for pagination, the root span resolved via a correlated
+  subquery, and `services` via `GROUP_CONCAT` / `group_concat`. Only the summary
+  rows cross the wire. Postgres is unchanged. (SQLite path covered by a new
+  keyset-pagination test; the MySQL query mirrors it with the dialect swaps
+  `CONCAT` / `CAST … AS DOUBLE` / `COUNT(CASE …)`.)
+
 ## [0.157.13] — 2026-06-24
 
 ### Performance

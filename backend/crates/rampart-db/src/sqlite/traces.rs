@@ -17,7 +17,7 @@ use rampart_core::ids::OrgId;
 use rampart_core::trace::{ParsedSpan, ServiceEdge, Span, TraceSummary};
 use rampart_core::OperationStat;
 use sqlx::{Row, SqlitePool};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use time::OffsetDateTime;
 
 /// Continuous percentile (matches PG `percentile_cont`): rank = p·(n−1),
@@ -119,130 +119,102 @@ pub async fn get_trace_spans(
     Ok(rows.iter().map(span_from).collect())
 }
 
-/// Per-trace aggregate built in Rust (SQLite has no LATERAL/ARRAY_AGG).
-#[derive(Default)]
-struct Agg {
-    min_start: i64,
-    max_end: i64,
-    count: i64,
-    errors: i64,
-    services: BTreeSet<String>,
-    min_recv: i64,
-    root: Option<(i64, String, String)>, // (start_ns, service, name), parent IS NULL
-}
-
-/// Recent traces, newest first, filtered. Fetches the org's spans (capped) and
-/// assembles one summary per trace_id in Rust — mirrors the PG aggregation +
-/// HAVING filters + (received_at, trace_id) keyset.
+/// Recent traces, newest first, filtered — aggregated in SQL (`GROUP BY
+/// trace_id`), not by scanning every span into Rust. Mirrors the PG free-fn:
+/// per-trace rollup, the same HAVING filters, and a `(received_at, trace_id)`
+/// keyset. The root span (service + name) is the earliest `parent_span_id IS
+/// NULL` span, resolved with a correlated subquery (SQLite has no LATERAL);
+/// `services` is `group_concat(DISTINCT …)` split on `,`. `spans_trace_idx`
+/// backs the group + root lookups.
 pub async fn list_traces(
     pool: &SqlitePool,
     f: TraceFilter<'_>,
     org_id: OrgId,
 ) -> DbResult<Vec<TraceSummary>> {
-    let limit = f.limit.clamp(1, 500) as usize;
-    // Bound the scan; homelab span volume is modest. Newest first so a capped
-    // fetch still covers the recent traces the list shows.
+    let org = org_id.0.to_string();
+    let limit = f.limit.clamp(1, 500);
+    let errors_only = i64::from(f.errors_only);
     let rows = sqlx::query(
-        "SELECT trace_id, parent_span_id, service_name, name, start_ns, end_ns, status_code,
-                received_at
-         FROM spans WHERE org_id = ? ORDER BY received_at DESC LIMIT 100000",
+        "SELECT t.* FROM (
+           SELECT
+             s.trace_id AS trace_id,
+             (SELECT rr.service_name FROM spans rr
+                WHERE rr.trace_id = s.trace_id AND rr.parent_span_id IS NULL AND rr.org_id = ?
+                ORDER BY rr.start_ns LIMIT 1) AS root_service,
+             (SELECT rr.name FROM spans rr
+                WHERE rr.trace_id = s.trace_id AND rr.parent_span_id IS NULL AND rr.org_id = ?
+                ORDER BY rr.start_ns LIMIT 1) AS root_name,
+             MIN(s.start_ns) AS start_ns,
+             CAST(MAX(s.end_ns) - MIN(s.start_ns) AS REAL) / 1000000.0 AS duration_ms,
+             COUNT(*) AS span_count,
+             SUM(CASE WHEN s.status_code = 2 THEN 1 ELSE 0 END) AS error_count,
+             group_concat(DISTINCT s.service_name) AS services,
+             MIN(s.received_at) AS started_at
+           FROM spans s
+           WHERE s.org_id = ?
+           GROUP BY s.trace_id
+           HAVING (? IS NULL OR MAX(CASE WHEN s.service_name = ? THEN 1 ELSE 0 END) = 1)
+              AND (? IS NULL OR CAST(MAX(s.end_ns) - MIN(s.start_ns) AS REAL) / 1000000.0 >= ?)
+              AND (? = 0 OR SUM(CASE WHEN s.status_code = 2 THEN 1 ELSE 0 END) > 0)
+         ) t
+         WHERE (? IS NULL
+                OR t.root_name LIKE '%' || ? || '%'
+                OR t.root_service LIKE '%' || ? || '%'
+                OR t.trace_id LIKE '%' || ? || '%')
+           AND (? IS NULL
+                OR t.started_at < (SELECT MIN(received_at) FROM spans WHERE trace_id = ? AND org_id = ?)
+                OR (t.started_at = (SELECT MIN(received_at) FROM spans WHERE trace_id = ? AND org_id = ?)
+                    AND t.trace_id < ?))
+         ORDER BY t.started_at DESC, t.trace_id DESC
+         LIMIT ?",
     )
-    .bind(org_id.0.to_string())
+    .bind(&org) // root_service correlated subquery
+    .bind(&org) // root_name correlated subquery
+    .bind(&org) // WHERE s.org_id
+    .bind(f.service) // HAVING service IS NULL
+    .bind(f.service) // HAVING service match
+    .bind(f.min_duration_ms) // HAVING min_dur IS NULL
+    .bind(f.min_duration_ms) // HAVING min_dur >=
+    .bind(errors_only) // HAVING errors_only
+    .bind(f.q) // outer q IS NULL
+    .bind(f.q) // root_name LIKE
+    .bind(f.q) // root_service LIKE
+    .bind(f.q) // trace_id LIKE
+    .bind(f.before_id) // keyset before IS NULL
+    .bind(f.before_id) // cursor subquery (< branch)
+    .bind(&org) // cursor subquery org (< branch)
+    .bind(f.before_id) // cursor subquery (= branch)
+    .bind(&org) // cursor subquery org (= branch)
+    .bind(f.before_id) // trace_id < cursor
+    .bind(limit) // LIMIT
     .fetch_all(pool)
     .await?;
 
-    let mut by: BTreeMap<String, Agg> = BTreeMap::new();
-    for r in &rows {
-        let tid = r.get::<String, _>("trace_id");
-        let start = r.get::<i64, _>("start_ns");
-        let end = r.get::<i64, _>("end_ns");
-        let recv = r.get::<i64, _>("received_at");
-        let svc = r.get::<String, _>("service_name");
-        let status = r.get::<i64, _>("status_code");
-        let a = by.entry(tid).or_insert_with(|| Agg {
-            min_start: start,
-            max_end: end,
-            min_recv: recv,
-            ..Default::default()
-        });
-        a.min_start = a.min_start.min(start);
-        a.max_end = a.max_end.max(end);
-        a.min_recv = a.min_recv.min(recv);
-        a.count += 1;
-        if status == 2 {
-            a.errors += 1;
-        }
-        a.services.insert(svc.clone());
-        if r.get::<Option<String>, _>("parent_span_id").is_none() {
-            let nm = r.get::<String, _>("name");
-            match &a.root {
-                Some((rs, _, _)) if *rs <= start => {}
-                _ => a.root = Some((start, svc, nm)),
-            }
-        }
-    }
-
-    // Resolve the keyset cursor row's started_at (may be outside the cap).
-    let before = match f.before_id {
-        Some(bid) => {
-            let recv: Option<i64> = sqlx::query_scalar(
-                "SELECT MIN(received_at) FROM spans WHERE trace_id = ? AND org_id = ?",
-            )
-            .bind(bid)
-            .bind(org_id.0.to_string())
-            .fetch_one(pool)
-            .await?;
-            recv.map(|r| (r, bid.to_string()))
-        }
-        None => None,
-    };
-
-    let ql = f.q.map(|q| q.to_lowercase());
-    let mut out: Vec<TraceSummary> = by
-        .into_iter()
-        .map(|(trace_id, a)| {
-            let (root_service, root_name) = a
-                .root
-                .map(|(_, s, n)| (s, n))
-                .unwrap_or_else(|| ("unknown".to_string(), String::new()));
+    Ok(rows
+        .iter()
+        .map(|r| {
+            let services = r
+                .get::<Option<String>, _>("services")
+                .unwrap_or_default()
+                .split(',')
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+                .collect();
             TraceSummary {
-                trace_id,
-                root_service,
-                root_name,
-                start_ns: a.min_start,
-                duration_ms: (a.max_end - a.min_start) as f64 / 1_000_000.0,
-                span_count: a.count,
-                error_count: a.errors,
-                services: a.services.into_iter().collect(),
-                started_at: ts(a.min_recv),
+                trace_id: r.get("trace_id"),
+                root_service: r
+                    .get::<Option<String>, _>("root_service")
+                    .unwrap_or_else(|| "unknown".to_string()),
+                root_name: r.get::<Option<String>, _>("root_name").unwrap_or_default(),
+                start_ns: r.get("start_ns"),
+                duration_ms: r.get("duration_ms"),
+                span_count: r.get("span_count"),
+                error_count: r.get("error_count"),
+                services,
+                started_at: ts(r.get::<i64, _>("started_at")),
             }
         })
-        .filter(|t| f.service.is_none_or(|s| t.services.iter().any(|x| x == s)))
-        .filter(|t| f.min_duration_ms.is_none_or(|d| t.duration_ms >= d))
-        .filter(|t| !f.errors_only || t.error_count > 0)
-        .filter(|t| {
-            ql.as_ref().is_none_or(|q| {
-                t.root_name.to_lowercase().contains(q)
-                    || t.root_service.to_lowercase().contains(q)
-                    || t.trace_id.to_lowercase().contains(q)
-            })
-        })
-        .filter(|t| {
-            // keyset: strictly older than the cursor by (received_at, trace_id) desc.
-            before.as_ref().is_none_or(|(brecv, bid)| {
-                let trecv = t.started_at.unix_timestamp();
-                trecv < *brecv || (trecv == *brecv && t.trace_id.as_str() < bid.as_str())
-            })
-        })
-        .collect();
-
-    out.sort_by(|a, b| {
-        b.started_at
-            .cmp(&a.started_at)
-            .then(b.trace_id.cmp(&a.trace_id))
-    });
-    out.truncate(limit);
-    Ok(out)
+        .collect())
 }
 
 /// Service dependency edges (caller→callee) over the window: calls, errors, p95
@@ -571,6 +543,64 @@ mod tests {
             .unwrap()
             .len(),
             1
+        );
+    }
+
+    #[sqlx::test(migrations = "../../migrations-sqlite")]
+    async fn list_traces_keyset_paginates(pool: SqlitePool) {
+        let org = super::super::oid(DEF);
+        insert_spans(
+            &pool,
+            &[
+                span("a1", "ta", None, "api", "GET /a", 10.0, 0),
+                span("b1", "tb", None, "api", "GET /b", 10.0, 0),
+                span("c1", "tc", None, "api", "GET /c", 10.0, 0),
+            ],
+            org,
+        )
+        .await
+        .unwrap();
+        // Distinct received_at so the DESC order is deterministic: tc newest.
+        for (id, recv) in [("a1", 100), ("b1", 200), ("c1", 300)] {
+            sqlx::query("UPDATE spans SET received_at = ? WHERE span_id = ?")
+                .bind(recv)
+                .bind(id)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+
+        // Page 1: newest first, limit 2.
+        let p1 = list_traces(
+            &pool,
+            TraceFilter {
+                limit: 2,
+                ..Default::default()
+            },
+            org,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            p1.iter().map(|t| t.trace_id.as_str()).collect::<Vec<_>>(),
+            ["tc", "tb"]
+        );
+
+        // Page 2: strictly older than the tb cursor → ta only.
+        let p2 = list_traces(
+            &pool,
+            TraceFilter {
+                limit: 2,
+                before_id: Some("tb"),
+                ..Default::default()
+            },
+            org,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            p2.iter().map(|t| t.trace_id.as_str()).collect::<Vec<_>>(),
+            ["ta"]
         );
     }
 }
