@@ -106,9 +106,10 @@ use crate::store::{
     StoreLogs, StoreMaintenance, StoreMetricRules, StoreMetricSamples, StoreMetrics,
     StoreMonitorGroups, StoreMonitorPresets, StoreMonitorTemplates, StoreMonitors,
     StoreNotifications, StoreOidcState, StoreOnCall, StoreOrgs, StoreProfiles, StoreProxies,
-    StoreRecoveryCodes, StoreRouting, StoreRum, StoreScheduledReports, StoreSessions,
-    StoreSettings, StoreSilences, StoreSlos, StoreSourceMaps, StoreStatusPages, StoreSubscribers,
-    StoreTags, StoreTelemetryRules, StoreTemplates, StoreTraces, StoreUsers, StoreWebpush,
+    StoreRecoveryCodes, StoreRetention, StoreRouting, StoreRum, StoreScheduledReports,
+    StoreSessions, StoreSettings, StoreSilences, StoreSlos, StoreSourceMaps, StoreStatusPages,
+    StoreSubscribers, StoreTags, StoreTelemetryRules, StoreTemplates, StoreTraces, StoreUsers,
+    StoreWebpush,
 };
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::SqlitePool;
@@ -1114,9 +1115,10 @@ impl StoreOidcState for SqliteStore {
     }
 
     async fn prune_oidc_state(&self) -> DbResult<u64> {
-        unimplemented!(
-            "SqliteStore::prune_oidc_state: oidc_state domain not yet ported (multi-DB P1)"
-        )
+        // oidc_state domain isn't ported to SQLite — nothing writes the table, so
+        // there's nothing to prune. Return 0 rather than panic (the retention
+        // loop must not blow up on a backend that simply has no such data).
+        Ok(0)
     }
 }
 
@@ -1880,8 +1882,10 @@ impl StoreRum for SqliteStore {
         unimplemented!("SqliteStore::rum_apps: rum domain not yet ported (multi-DB P1)")
     }
 
-    async fn prune_rum(&self, days: i32) -> DbResult<u64> {
-        unimplemented!("SqliteStore::prune_rum: rum domain not yet ported (multi-DB P1)")
+    async fn prune_rum(&self, _days: i32) -> DbResult<u64> {
+        // rum domain isn't ported to SQLite — nothing writes the table, nothing
+        // to prune. Return 0 rather than panic.
+        Ok(0)
     }
 }
 
@@ -1935,8 +1939,10 @@ impl StoreProfiles for SqliteStore {
         unimplemented!("SqliteStore::profile_types: profiles domain not yet ported (multi-DB P1)")
     }
 
-    async fn prune_profiles(&self, days: i32) -> DbResult<u64> {
-        unimplemented!("SqliteStore::prune_profiles: profiles domain not yet ported (multi-DB P1)")
+    async fn prune_profiles(&self, _days: i32) -> DbResult<u64> {
+        // profiles domain isn't ported to SQLite — nothing writes the table,
+        // nothing to prune. Return 0 rather than panic.
+        Ok(0)
     }
 }
 
@@ -2153,9 +2159,9 @@ impl StoreErrorTracking for SqliteStore {
     }
 
     async fn prune_error_events(&self) -> DbResult<u64> {
-        unimplemented!(
-            "SqliteStore::prune_error_events: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        // error_tracking domain isn't ported to SQLite — nothing writes the
+        // table, nothing to prune. Return 0 rather than panic.
+        Ok(0)
     }
 }
 
@@ -2425,6 +2431,29 @@ impl StoreMetricSamples for SqliteStore {
 
     async fn prune_metric_samples_older_than(&self, cutoff: OffsetDateTime) -> DbResult<u64> {
         crate::sqlite::metric_samples::prune_older_than(&self.pool, cutoff).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreRetention for SqliteStore {
+    async fn run_retention_prune(&self) -> DbResult<u64> {
+        // Flat age-based prune of every telemetry table SQLite writes. The
+        // rum/profiles/error-tracking/oidc-state domains aren't ported to
+        // SQLite — nothing writes those tables, so there's nothing to prune.
+        let cfg = crate::prune::parse_config(
+            crate::sqlite::settings::get_setting(&self.pool, "retention_days").await?,
+        );
+        let metrics_cutoff =
+            OffsetDateTime::now_utc() - time::Duration::days(cfg.metrics_days.max(0) as i64);
+        let mut total = 0u64;
+        total += crate::sqlite::heartbeats::prune(&self.pool, cfg.heartbeats).await?;
+        total += crate::sqlite::logs::prune(&self.pool, cfg.logs_days).await?;
+        total += crate::sqlite::traces::prune(&self.pool, cfg.traces_days).await?;
+        total +=
+            crate::sqlite::metric_samples::prune_older_than(&self.pool, metrics_cutoff).await?;
+        total += crate::sqlite::audit::prune(&self.pool, cfg.audit_log).await?;
+        total += crate::sqlite::detection::prune(&self.pool, cfg.findings_days).await?;
+        Ok(total)
     }
 }
 

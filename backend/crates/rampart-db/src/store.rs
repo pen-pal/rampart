@@ -1855,8 +1855,19 @@ pub trait StoreDigestBuffer: Send + Sync {
 }
 
 /// Composed store super-trait spanning every extracted domain sub-trait.
+/// Instance-wide retention prune. `PgStore` runs the full rollup-tiered sweep
+/// (`prune::run_once`); the MySQL and SQLite stores run a flat age-based prune
+/// of the same telemetry tables — no rollup tier yet, which only bounds growth
+/// rather than preserving long-range uptime history. The caller leader-gates.
+/// Returns total rows deleted, for a one-line log.
+#[async_trait::async_trait]
+pub trait StoreRetention: Send + Sync {
+    async fn run_retention_prune(&self) -> DbResult<u64>;
+}
+
 pub trait Store:
     StoreHeartbeats
+    + StoreRetention
     + StoreDeployMarkers
     + StoreIngestKeys
     + StoreSlos
@@ -4035,6 +4046,15 @@ impl StoreMetricSamples for PgStore {
 
     async fn prune_metric_samples_older_than(&self, cutoff: OffsetDateTime) -> DbResult<u64> {
         crate::metric_samples::prune_older_than(&self.pool, cutoff).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreRetention for PgStore {
+    async fn run_retention_prune(&self) -> DbResult<u64> {
+        // Full rollup-tiered sweep (heartbeats -> rollups, batched deletes,
+        // per-table retention). Identical to the loop's prior behaviour.
+        Ok(crate::prune::run_once(&self.pool).await?.total())
     }
 }
 

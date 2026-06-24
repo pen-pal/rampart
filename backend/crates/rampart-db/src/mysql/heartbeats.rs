@@ -746,6 +746,19 @@ pub async fn error_budget_burndown(
     Ok(out)
 }
 
+/// Flat age-based retention prune: drop heartbeats older than `days`. The
+/// Postgres backend folds heartbeats into hourly rollups before deleting; MySQL
+/// has no rollup tier yet, so this just bounds otherwise-unbounded growth.
+/// Returns rows deleted.
+pub async fn prune(pool: &MySqlPool, days: i32) -> DbResult<u64> {
+    let cutoff = time::OffsetDateTime::now_utc().unix_timestamp() - days.max(0) as i64 * 86400;
+    let res = sqlx::query("DELETE FROM heartbeats WHERE ts < ?")
+        .bind(cutoff)
+        .execute(pool)
+        .await?;
+    Ok(res.rows_affected())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -805,6 +818,24 @@ mod tests {
             retries: 0,
             important: false,
         }
+    }
+
+    #[sqlx::test(migrations = "../../migrations-mysql")]
+    async fn prune_drops_old_heartbeats_keeps_recent(pool: MySqlPool) {
+        let m = monitor(&pool).await;
+        insert_many(
+            &pool,
+            &[
+                hb(m, 2 * 86400, MonitorStatus::Up), // 2 days old
+                hb(m, 10, MonitorStatus::Up),        // within retention
+            ],
+        )
+        .await
+        .unwrap();
+        let deleted = prune(&pool, 1).await.unwrap();
+        assert_eq!(deleted, 1, "the 2-day-old beat is pruned at days=1");
+        let left = recent_for_monitor(&pool, m, 10).await.unwrap();
+        assert_eq!(left.len(), 1, "the recent beat survives");
     }
 
     #[sqlx::test(migrations = "../../migrations-mysql")]

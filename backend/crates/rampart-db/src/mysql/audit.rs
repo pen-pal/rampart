@@ -345,6 +345,17 @@ pub async fn export_batch(
         .collect())
 }
 
+/// Flat age-based retention prune: drop audit_log rows older than `days`.
+/// Returns rows deleted.
+pub async fn prune(pool: &MySqlPool, days: i32) -> DbResult<u64> {
+    let cutoff = time::OffsetDateTime::now_utc().unix_timestamp() - days.max(0) as i64 * 86400;
+    let res = sqlx::query("DELETE FROM audit_log WHERE ts < ?")
+        .bind(cutoff)
+        .execute(pool)
+        .await?;
+    Ok(res.rows_affected())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
