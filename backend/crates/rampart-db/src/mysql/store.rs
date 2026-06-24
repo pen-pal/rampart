@@ -109,9 +109,10 @@ use crate::store::{
     StoreLogs, StoreMaintenance, StoreMetricRules, StoreMetricSamples, StoreMetrics,
     StoreMonitorGroups, StoreMonitorPresets, StoreMonitorTemplates, StoreMonitors,
     StoreNotifications, StoreOidcState, StoreOnCall, StoreOrgs, StoreProfiles, StoreProxies,
-    StoreRecoveryCodes, StoreRouting, StoreRum, StoreScheduledReports, StoreSessions,
-    StoreSettings, StoreSilences, StoreSlos, StoreSourceMaps, StoreStatusPages, StoreSubscribers,
-    StoreTags, StoreTelemetryRules, StoreTemplates, StoreTraces, StoreUsers, StoreWebpush,
+    StoreRecoveryCodes, StoreRetention, StoreRouting, StoreRum, StoreScheduledReports,
+    StoreSessions, StoreSettings, StoreSilences, StoreSlos, StoreSourceMaps, StoreStatusPages,
+    StoreSubscribers, StoreTags, StoreTelemetryRules, StoreTemplates, StoreTraces, StoreUsers,
+    StoreWebpush,
 };
 use sqlx::mysql::{MySqlConnectOptions, MySqlPoolOptions};
 use sqlx::MySqlPool;
@@ -2304,6 +2305,32 @@ impl StoreMetricSamples for MysqlStore {
 
     async fn prune_metric_samples_older_than(&self, cutoff: OffsetDateTime) -> DbResult<u64> {
         crate::mysql::metric_samples::prune_older_than(&self.pool, cutoff).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StoreRetention for MysqlStore {
+    async fn run_retention_prune(&self) -> DbResult<u64> {
+        // Flat age-based prune of every telemetry table MySQL writes. No rollup
+        // tier yet (Postgres-only optimization), so this bounds growth without
+        // preserving long-range uptime history.
+        let cfg = crate::prune::parse_config(
+            crate::mysql::settings::get_setting(&self.pool, "retention_days").await?,
+        );
+        let metrics_cutoff =
+            OffsetDateTime::now_utc() - time::Duration::days(cfg.metrics_days.max(0) as i64);
+        let mut total = 0u64;
+        total += crate::mysql::heartbeats::prune(&self.pool, cfg.heartbeats).await?;
+        total += crate::mysql::logs::prune(&self.pool, cfg.logs_days).await?;
+        total += crate::mysql::traces::prune(&self.pool, cfg.traces_days).await?;
+        total += crate::mysql::metric_samples::prune_older_than(&self.pool, metrics_cutoff).await?;
+        total += crate::mysql::rum::prune(&self.pool, cfg.rum_days).await?;
+        total += crate::mysql::profiles::prune(&self.pool, cfg.profiles_days).await?;
+        total += crate::mysql::error_tracking::prune(&self.pool).await?;
+        total += crate::mysql::audit::prune(&self.pool, cfg.audit_log).await?;
+        total += crate::mysql::detection::prune(&self.pool, cfg.findings_days).await?;
+        total += crate::mysql::oidc_state::prune_expired(&self.pool).await?;
+        Ok(total)
     }
 }
 

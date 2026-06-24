@@ -730,6 +730,17 @@ pub async fn ack_finding(pool: &SqlitePool, id: DetectionFindingId) -> DbResult<
     Ok(finding_from(&row))
 }
 
+/// Flat age-based retention prune: drop detection_findings older than `days`.
+/// Returns rows deleted.
+pub async fn prune(pool: &SqlitePool, days: i32) -> DbResult<u64> {
+    let cutoff = time::OffsetDateTime::now_utc().unix_timestamp() - days.max(0) as i64 * 86400;
+    let res = sqlx::query("DELETE FROM detection_findings WHERE created_at < ?")
+        .bind(cutoff)
+        .execute(pool)
+        .await?;
+    Ok(res.rows_affected())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

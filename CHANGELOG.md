@@ -29,6 +29,25 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.79] — 2026-06-24
+
+### Fixed
+- **Retention prune now runs on every backend, not just Postgres.** The hourly
+  retention loop previously only spawned for Postgres deployments (it ran ~19
+  Postgres-specific raw queries), so **MySQL and SQLite instances grew their
+  telemetry tables — heartbeats, logs, spans, metric samples, audit log, etc. —
+  without bound**, and `SqliteStore::prune_rum` was an outright `unimplemented!()`
+  panic trap. The prune loop now runs through the object-safe `Store` seam
+  (`StoreRetention::run_retention_prune`): `PgStore` keeps the full rollup-tiered
+  sweep, while the MySQL and SQLite stores run a flat age-based prune of the same
+  telemetry tables (no rollup tier yet — this bounds growth without preserving
+  long-range uptime history, which remains a Postgres-only optimization). The
+  four SQLite prune methods for not-yet-ported domains (rum / profiles /
+  error-tracking / oidc-state) now return `Ok(0)` instead of panicking, since
+  nothing writes those tables under SQLite. Per-backend flat-prune helpers were
+  added for heartbeats, audit log, and detection findings on MySQL and SQLite,
+  with `#[sqlx::test]` coverage on each.
+
 ## [0.156.78] — 2026-06-24
 
 ### Fixed

@@ -278,24 +278,30 @@ async fn main() -> anyhow::Result<()> {
     });
     info!("scheduler started");
 
-    // Background retention prune — hourly DELETEs against heartbeats +
-    // audit_log. Reads thresholds from settings.retention_days (90 / 365
-    // days by default). Best-effort; failures log but don't kill the
-    // task.
-    // Postgres-only: the prune loop runs ~19 backend-specific raw queries with
-    // no SQLite variant yet. SQLite retention is a later slice.
-    if let Some(prune_pool) = pg_pool.clone() {
-        let prune_leadership = leadership.clone();
-        tokio::spawn(async move {
-            rampart_db::prune::run_loop(
-                prune_pool,
-                std::time::Duration::from_secs(3600),
-                prune_leadership,
-            )
-            .await;
-        });
-        info!("retention prune loop started");
-    }
+    // Background retention prune — hourly, leader-gated, best-effort. Runs
+    // through the `Store` seam so EVERY backend prunes: PgStore runs the full
+    // rollup-tiered sweep; MySQL/SQLite run a flat age-based prune of the same
+    // telemetry tables (no rollup tier yet). Reads thresholds from
+    // settings.retention_days; failures log but don't kill the task.
+    let prune_store = store.clone();
+    let prune_leadership = leadership.clone();
+    tokio::spawn(async move {
+        let mut ticker = tokio::time::interval(std::time::Duration::from_secs(3600));
+        ticker.tick().await; // skip the immediate tick — let the scheduler warm up
+        loop {
+            ticker.tick().await;
+            // Leader-only: one prune pass across the cluster, no racing DELETEs.
+            if !prune_leadership.is_leader() {
+                continue;
+            }
+            match prune_store.run_retention_prune().await {
+                Ok(0) => {}
+                Ok(rows) => info!(rows, "retention prune complete"),
+                Err(e) => warn!(error = %e, "retention prune failed"),
+            }
+        }
+    });
+    info!("retention prune loop started");
 
     // SIEM / syslog export — leader-gated forward tail of the audit log to an
     // external sink (configured in settings; disabled by default).

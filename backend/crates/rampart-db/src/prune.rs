@@ -184,6 +184,22 @@ pub struct PruneStats {
 }
 
 impl PruneStats {
+    /// Total rows DELETED this sweep (excludes `rollups_upserted`, which are
+    /// inserts). Used by the backend-agnostic prune loop for a one-line log.
+    pub fn total(&self) -> u64 {
+        self.metrics_deleted
+            + self.spans_deleted
+            + self.logs_deleted
+            + self.rum_deleted
+            + self.profiles_deleted
+            + self.heartbeats_rolled
+            + self.rollups_deleted
+            + self.audit_deleted
+            + self.errors_deleted
+            + self.findings_deleted
+            + self.oidc_state_deleted
+    }
+
     fn is_empty(&self) -> bool {
         self.rollups_upserted == 0
             && self.heartbeats_rolled == 0
@@ -212,13 +228,21 @@ pub struct HeartbeatRollup {
     pub avg_latency_ms: Option<f64>,
 }
 
+/// Parse a raw `retention_days` setting into a [`RetentionConfig`], falling back
+/// to defaults when the row is missing or malformed (e.g. an old install
+/// pre-migration 0020). Backend-agnostic — the MySQL/SQLite stores load the raw
+/// `serde_json::Value` from their own settings table and call this.
+pub fn parse_config(raw: Option<serde_json::Value>) -> RetentionConfig {
+    raw.and_then(|v| serde_json::from_value::<RetentionConfig>(v).ok())
+        .unwrap_or_default()
+}
+
 /// Load the retention setting; fall back to defaults if the row is
 /// missing or malformed (e.g. an old install pre-migration 0020).
 pub async fn load_config(pool: &DbPool) -> DbResult<RetentionConfig> {
-    let raw = crate::settings::get(pool, "retention_days").await?;
-    Ok(raw
-        .and_then(|v| serde_json::from_value::<RetentionConfig>(v).ok())
-        .unwrap_or_default())
+    Ok(parse_config(
+        crate::settings::get(pool, "retention_days").await?,
+    ))
 }
 
 /// One day's derived uptime, oldest first. `uptime_pct` is `None` when no
