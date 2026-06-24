@@ -41,6 +41,18 @@ pub struct NewErrorProject {
     pub alert_channel_ids: Vec<NotificationId>,
 }
 
+/// Max length of an error-project name (mirrors the `NewErrorProject` validator).
+/// The public RUM browser-error beacon auto-provisions a project named after its
+/// attacker-controllable `app` field via `find_or_create_by_name`, which bypasses
+/// the DTO validator — so the db layer clamps to this.
+pub const PROJECT_NAME_MAX: usize = 120;
+
+/// Cap on auto-provisioned error projects per org from the public RUM beacon — a
+/// DoS guard so a beacon spraying distinct `app` names can't amplify into
+/// unbounded rows + slug/key generation. Generous for legit multi-app sites;
+/// beyond it the beacon's errors drop rather than create rows.
+pub const MAX_AUTO_PROJECTS_PER_ORG: i64 = 100;
+
 #[derive(Debug, Clone, Deserialize, Validate)]
 pub struct UpdateErrorProject {
     #[validate(length(min = 1, max = 120))]

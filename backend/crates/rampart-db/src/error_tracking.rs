@@ -178,6 +178,14 @@ pub async fn find_or_create_by_name(
     name: &str,
     org_id: OrgId,
 ) -> DbResult<ErrorProject> {
+    // The RUM browser-error beacon is a PUBLIC surface and `name` is its
+    // attacker-controllable `app` field. Clamp the length (this path bypasses
+    // the `NewErrorProject` DTO validator, so an unbounded `app` would write an
+    // unbounded project name).
+    let name: String = name
+        .chars()
+        .take(rampart_core::error_tracking::PROJECT_NAME_MAX)
+        .collect();
     // Phase 5-3: the lookup AND the auto-create are scoped to the resolved org,
     // so two orgs can each have an app named e.g. "web" without colliding.
     let existing = sqlx::query_as!(
@@ -198,10 +206,25 @@ pub async fn find_or_create_by_name(
     if let Some(row) = existing {
         return Ok(row.into());
     }
+    // DoS guard: cap auto-provisioned projects per org so a public beacon
+    // spraying distinct `app` names can't amplify into unbounded rows + slug/key
+    // generation. At the cap the beacon's error drops (caller maps Err → 204)
+    // rather than minting another row; already-provisioned apps still capture.
+    let count = sqlx::query_scalar!(
+        r#"SELECT COUNT(*) AS "count!" FROM error_projects WHERE org_id = $1"#,
+        org_id.0,
+    )
+    .fetch_one(pool)
+    .await?;
+    if count >= rampart_core::error_tracking::MAX_AUTO_PROJECTS_PER_ORG {
+        return Err(DbError::Conflict(
+            "error-project auto-provision limit reached for this org".into(),
+        ));
+    }
     create(
         pool,
         rampart_core::error_tracking::NewErrorProject {
-            name: name.to_string(),
+            name,
             platform: Some("javascript".to_string()),
             alert_channel_ids: Vec::new(),
         },
@@ -844,4 +867,58 @@ pub async fn prune(pool: &DbPool) -> DbResult<u64> {
     .execute(pool)
     .await?;
     Ok(result.rows_affected())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rampart_core::error_tracking::{MAX_AUTO_PROJECTS_PER_ORG, PROJECT_NAME_MAX};
+    use rampart_core::org::DEFAULT_ORG_ID;
+    use sqlx::PgPool;
+
+    fn def_org() -> OrgId {
+        OrgId::from_uuid(DEFAULT_ORG_ID)
+    }
+
+    /// SECURITY (audit #123): the public RUM browser-error beacon auto-provisions
+    /// a project named after its attacker-controllable `app` via this fn. It must
+    /// (1) clamp the name length (the DTO validator is bypassed here) and (2) cap
+    /// the number of auto-provisioned projects per org so a beacon spraying
+    /// distinct app names can't amplify into unbounded rows.
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn find_or_create_clamps_name_and_caps_auto_provision(pool: PgPool) {
+        let org = def_org();
+
+        // (1) An over-long `app` name is clamped to PROJECT_NAME_MAX, not stored raw.
+        let long = "a".repeat(PROJECT_NAME_MAX + 500);
+        let p = find_or_create_by_name(&pool, &long, org).await.unwrap();
+        assert_eq!(p.name.chars().count(), PROJECT_NAME_MAX, "name clamped");
+        // Re-sent (still over-long) → same project, not a duplicate.
+        let p2 = find_or_create_by_name(&pool, &long, org).await.unwrap();
+        assert_eq!(p2.id, p.id);
+
+        // (2) Fill to the per-org cap with distinct app names, then assert the
+        //     next distinct app is REJECTED (no new row) — the DoS guard.
+        //     `p` already counts as 1; create up to the cap.
+        let mut made = 1usize;
+        while made < MAX_AUTO_PROJECTS_PER_ORG as usize {
+            find_or_create_by_name(&pool, &format!("app-{made}"), org)
+                .await
+                .unwrap();
+            made += 1;
+        }
+        // At the cap now. An already-provisioned app still resolves (lookup hit)…
+        assert_eq!(
+            find_or_create_by_name(&pool, "app-1", org)
+                .await
+                .unwrap()
+                .name,
+            "app-1"
+        );
+        // …but a brand-new distinct app is refused rather than minting a row.
+        assert!(matches!(
+            find_or_create_by_name(&pool, "spray-attacker-new", org).await,
+            Err(DbError::Conflict(_))
+        ));
+    }
 }
