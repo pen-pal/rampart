@@ -29,6 +29,22 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.86] — 2026-06-24
+
+### Security
+- **Scheduled uptime reports no longer leak every tenant's monitors.** The
+  report digest renderer listed monitors via `list_all` (the whole fleet) and
+  ignored the report's org, so a report's email enumerated every tenant's
+  monitor names + uptime. Any user could self-provision an org (org creation is
+  self-service), become its admin, point a report at their own address, and
+  `POST /v1/scheduled-reports/:id/send` to receive the full cross-tenant
+  inventory; the scheduler's periodic send had the same leak. `render` is now
+  org-scoped (`monitors::list(org_id)`); the send-now route passes its
+  `OrgContext` org, and `due_scheduled_reports` now returns each report with its
+  owning org so the scheduler renders each digest scoped to that org. Regression
+  test: `render_is_org_scoped`. (Threaded across the Postgres, MySQL, and SQLite
+  stores.)
+
 ## [0.156.85] — 2026-06-24
 
 ### Security

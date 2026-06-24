@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, name, recipients, cadence, last_sent_at, created_at\n        FROM scheduled_reports\n        WHERE last_sent_at IS NULL\n           OR CASE cadence\n                WHEN 'daily'   THEN last_sent_at <= $1::timestamptz - interval '1 day'\n                WHEN 'monthly' THEN date_trunc('month', last_sent_at)\n                                    < date_trunc('month', $1::timestamptz)\n                ELSE                last_sent_at <= $1::timestamptz - interval '7 days'\n              END\n        ",
+  "query": "\n        SELECT id, name, recipients, cadence, last_sent_at, created_at, org_id AS \"org_id!\"\n        FROM scheduled_reports\n        WHERE last_sent_at IS NULL\n           OR CASE cadence\n                WHEN 'daily'   THEN last_sent_at <= $1::timestamptz - interval '1 day'\n                WHEN 'monthly' THEN date_trunc('month', last_sent_at)\n                                    < date_trunc('month', $1::timestamptz)\n                ELSE                last_sent_at <= $1::timestamptz - interval '7 days'\n              END\n        ",
   "describe": {
     "columns": [
       {
@@ -68,6 +68,17 @@
             "name": "created_at"
           }
         }
+      },
+      {
+        "ordinal": 6,
+        "name": "org_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "scheduled_reports",
+            "name": "org_id"
+          }
+        }
       }
     ],
     "parameters": {
@@ -81,8 +92,9 @@
       false,
       false,
       true,
+      false,
       false
     ]
   },
-  "hash": "518023a606219ef92fc77c48b487a47551276ef220553f5e6e621c2972560d62"
+  "hash": "4945cc16dd5f688fc07434b57410260d686682071a7912a833ac3a97f2cbee57"
 }

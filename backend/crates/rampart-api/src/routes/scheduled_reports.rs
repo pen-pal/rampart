@@ -128,7 +128,7 @@ async fn send_now(
 
     let (subject, body) = s
         .store()
-        .render_scheduled_report(&report.name, &report.cadence)
+        .render_scheduled_report(&report.name, &report.cadence, org.org_id)
         .await?;
     rampart_notifier::send_system_email(s.store().as_ref(), &report.recipients, &subject, &body)
         .await;

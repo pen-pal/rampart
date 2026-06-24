@@ -2078,7 +2078,10 @@ impl StoreScheduledReports for MysqlStore {
         crate::mysql::scheduled_reports::delete(&self.pool, id, org_id).await
     }
 
-    async fn due_scheduled_reports(&self, now: OffsetDateTime) -> DbResult<Vec<ScheduledReport>> {
+    async fn due_scheduled_reports(
+        &self,
+        now: OffsetDateTime,
+    ) -> DbResult<Vec<(ScheduledReport, OrgId)>> {
         crate::mysql::scheduled_reports::due(&self.pool, now).await
     }
 
@@ -2086,8 +2089,9 @@ impl StoreScheduledReports for MysqlStore {
         &self,
         report_name: &str,
         cadence: &str,
+        org_id: OrgId,
     ) -> DbResult<(String, String)> {
-        crate::mysql::scheduled_reports::render(&self.pool, report_name, cadence).await
+        crate::mysql::scheduled_reports::render(&self.pool, report_name, cadence, org_id).await
     }
 
     async fn mark_scheduled_report_sent(&self, id: ScheduledReportId) -> DbResult<()> {
