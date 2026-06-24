@@ -6,7 +6,9 @@
 >
 > The paste-ready copy is in [`SUBMISSION.md`](SUBMISSION.md). Deploy mechanics:
 > [`../DEPLOY.md`](../DEPLOY.md) + [`../deploy/aws-vercel.md`](../deploy/aws-vercel.md).
-> Demo script + screenshot list: [`../HACKATHON_DEMO.md`](../HACKATHON_DEMO.md).
+> The zero-to-live runbook is [`GO_LIVE.md`](GO_LIVE.md); the demo-video script +
+> screenshot list is [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md). Everything below maps to
+> shipped code at workspace **v0.157.5**.
 
 ---
 
@@ -30,8 +32,8 @@
 | Track selected (Monetizable B2B App) | ⬜ | Set when creating the Devpost project |
 | Screenshots gallery | ⬜ | Feature PNGs exist in `site/assets/screenshots/`; the org-switcher (multi-tenant) and optional `sqlite:`-boot shots must be captured live |
 | Architecture diagram (PNG/SVG) | ⬜ | Mermaid + ASCII source in `SUBMISSION.md` / `../DEPLOY.md`; export to an image |
-| Demo video (YouTube, < 3 min) | ⬜ | Script in `../HACKATHON_DEMO.md`; record + upload |
-| Live demo URL (Vercel) | ⬜ | Produced by the deploy (`../DEPLOY.md`) |
+| Demo video (YouTube, < 3 min) | ✅ script / ⬜ record | Shot list in [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md); record + upload |
+| Live demo URL (Vercel) | ⬜ | Produced by the deploy — follow [`GO_LIVE.md`](GO_LIVE.md) |
 | Vercel Project Link | ⬜ | Captured at deploy time |
 | Vercel Team ID | ⬜ | Vercel → Settings → General → Team ID |
 | AWS-DB-usage screenshot | ⬜ | Aurora console + redacted `DATABASE_URL` |
@@ -51,7 +53,12 @@
 
 - ✅ Full feature set shipped (uptime 42 kinds, traces, logs, metrics, RUM,
   profiling, errors, SIEM, on-call, status pages) in one binary — `CHANGELOG.md`
-  through v0.157.0.
+  through v0.157.5.
+- ✅ Pre-submission hardening pass — closed cross-tenant telemetry leaks
+  (heartbeat SSE stream, scheduled reports), rate-limited the public status-page
+  `/unlock` DoS surface, made bearer auth crash-safe on non-Postgres backends,
+  and fixed syslog-parser / incident-dedup / uptime-math correctness bugs, each
+  with a named regression test — `CHANGELOG.md` v0.156.84–v0.157.5.
 - ✅ Multi-tenancy (orgs, per-org RBAC, per-org ingest creds, org switcher,
   OIDC→org) — Phases 1–5 shipped; `../MULTITENANCY.md`.
 - ✅ Postgres RLS tenant isolation (defense-in-depth) — flag-gated `RAMPART_RLS=1`,
@@ -70,18 +77,20 @@ Everything above marked ⬜ requires a human. The hard blockers, grouped:
 
 1. **Devpost account + project.** Create the entry, select track **Monetizable B2B
    App**, add any teammates, paste the copy from `SUBMISSION.md`.
-2. **Deploy to produce the live URL + AWS proof.** Provision Aurora PostgreSQL
-   (Serverless v2, private subnets, SG open to the backend SG on 5432); deploy the
-   backend (`ghcr.io/pen-pal/rampart`) on App Runner / ECS / EC2 with
-   `DATABASE_URL`, `RAMPART_SECRET_KEY=$(openssl rand -hex 32)`,
+2. **Deploy to produce the live URL + AWS proof.** Follow the numbered runbook in
+   [`GO_LIVE.md`](GO_LIVE.md): provision Aurora PostgreSQL (Serverless v2, private
+   subnets, SG open to the backend SG on 5432); deploy the backend
+   (`ghcr.io/pen-pal/rampart:0.157.5`) on EC2 + `deploy/compose.aws.yaml` (simplest)
+   or ECS Express / Fargate with `DATABASE_URL`, `RAMPART_SECRET_KEY`,
    `BIND_ADDR=0.0.0.0:3000`; confirm `/readyz` → 200; set the real API origin in
    `frontend/vercel.json` and `vercel --prod` the SPA. Produces: the live "try it"
    URL, the **Vercel Project Link + Team ID**, and the **AWS-DB console screenshot**.
 3. **Scaffold + deploy the v0 Next.js landing/login shell** (satisfies the "use v0"
    requirement).
 4. **Record + upload the demo video** (≤ 3:00, YouTube). Follow the scene-by-scene
-   script in `../HACKATHON_DEMO.md`; record locally against `examples/everything`
-   for the feature tour and cut to the live Aurora console for the DB proof.
+   script in [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md); record locally against
+   `examples/everything` for the feature tour and cut to the live Aurora console
+   for the DB proof.
 5. **Capture the live screenshots** the gallery still needs: the org-switcher /
    multi-tenant isolation shot, and (optional, high-impact) a terminal showing the
    same binary booting on `DATABASE_URL=sqlite:…`.
@@ -111,10 +120,17 @@ Everything above marked ⬜ requires a human. The hard blockers, grouped:
 
 ## Sibling hackathon docs (context, not duplicates)
 
-This `docs/hackathon/` set is the consolidated, current deliverable. The older
-top-level docs remain for deeper context and are fact-checked at v0.156.x:
+This `docs/hackathon/` set is the consolidated, current deliverable:
+
+- [`SUBMISSION.md`](SUBMISSION.md) — paste-ready Devpost copy (v0.157.5).
+- [`GO_LIVE.md`](GO_LIVE.md) — zero-to-live deploy runbook (Aurora + Vercel).
+- [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md) — the < 3-min demo-video shot list.
+- this file — field-by-field readiness.
+
+The older top-level docs remain for deeper context (fact-checked at v0.156.x; the
+hackathon-folder set above supersedes them where they overlap):
 
 - `../HACKATHON.md` — full runbook + judging-criteria narrative.
 - `../HACKATHON_SUBMISSION.md` — earlier paste-ready copy (Mermaid diagram source).
 - `../HACKATHON_SUBMISSION_PACKAGE.md` — the fact-check table (every number → source).
-- `../HACKATHON_DEMO.md` — the scene-by-scene video script + screenshot list.
+- `../HACKATHON_DEMO.md` — the earlier scene-by-scene video script + screenshot list.

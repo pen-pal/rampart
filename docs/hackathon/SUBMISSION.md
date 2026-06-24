@@ -5,10 +5,12 @@
 > AWS Database: **Aurora PostgreSQL** · Frontend on **Vercel** (Vite/React SPA,
 > same-origin `/v1` rewrite) with a **v0**-scaffolded Next.js landing shell.
 >
-> Every claim below maps to shipped code at workspace version **0.157.0**.
+> Every claim below maps to shipped code at workspace version **0.157.5**.
 > The deploy mechanics live in [`../DEPLOY.md`](../DEPLOY.md) and
-> [`../deploy/aws-vercel.md`](../deploy/aws-vercel.md); the demo shot list and the
-> field-by-field readiness state live in [`CHECKLIST.md`](CHECKLIST.md).
+> [`../deploy/aws-vercel.md`](../deploy/aws-vercel.md); the demo shot list lives in
+> [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md), the zero-to-live runbook in
+> [`GO_LIVE.md`](GO_LIVE.md), and the field-by-field readiness state in
+> [`CHECKLIST.md`](CHECKLIST.md).
 >
 > **Honesty guardrails (do not overclaim):**
 > - **Multi-backend:** the `DATABASE_URL` scheme picks the store behind one
@@ -295,6 +297,32 @@ flowchart TB
   SSRF-guarded probes, 2FA/TOTP, and compliance tooling (GDPR erasure that
   preserves the audit chain, SOC 2 CC6 access review) were designed in, not bolted
   on.
+- **Hardened like a product, not a demo.** In the run-up to submission we audited
+  and fixed the failure modes that actually bite multi-tenant, internet-facing
+  services — not feature work, *correctness and isolation* work:
+  - **No cross-tenant telemetry leaks.** Closed three tenant-isolation gaps: the
+    live heartbeat SSE stream (`/v1/stream/heartbeats`) was emitting every org's
+    probe results to any authenticated session — now filtered to the caller's
+    org; scheduled uptime reports were rendering the whole fleet's monitors into a
+    tenant's email — now org-scoped; each fix shipped with a regression test
+    (`drops_foreign_org_heartbeats`, `render_is_org_scoped`).
+  - **DoS resistance on the public surface.** Rate-limited the unauthenticated
+    status-page `/unlock` endpoint, which runs a ~19 MiB Argon2id hash per call —
+    it now carries the same per-IP limiter as `/auth` (`429` + `Retry-After`),
+    closing a password-hash-amplification DoS and unthrottled guessing, while the
+    cheap public reads viewers poll stay unthrottled.
+  - **Multi-backend crash safety.** A single `Authorization: Bearer` request used
+    to abort the whole process on the non-Postgres backends (a sync `pool()` call
+    that panics off-Postgres, fatal under `panic = "abort"`) — a trivial remote
+    DoS on a SQLite/MySQL deploy. The `last_used` bump now goes through the
+    object-safe `Store` seam, so bearer auth is a clean `401`, never a crash
+    (`bearer_api_key_paths_dont_panic_on_sqlite`).
+  - **Input-parser hardening + correctness.** Fixed an unsigned-underflow in the
+    RFC 5424 syslog structured-data parser (a crafted line to the public `/syslog`
+    ingest could panic a checked build or silently corrupt the split), an
+    incident-dedup check-then-act race that 500'd and dropped the rest of an
+    alert batch, and uptime math that counted planned maintenance as downtime.
+    Each landed with a named regression test.
 - **Pick your database.** One object-safe `Store` trait lets the same binary run on
   Postgres (reference), SQLite (a complete single-binary monitoring backend), or
   MySQL (management-API tier) — chosen by the `DATABASE_URL` scheme, no fork, no
