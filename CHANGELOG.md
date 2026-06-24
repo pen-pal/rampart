@@ -29,6 +29,21 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.3] — 2026-06-24
+
+### Fixed
+- **Uptime percentages no longer count planned maintenance as downtime.** The
+  uptime% queries (`uptime_pct`, `uptime_pct_batch`, `monthly_uptime`,
+  `monthly_uptime_batch`) divided `up` heartbeats by the *total* row count, which
+  included `maintenance` beats — so a maintenance window dragged the reported
+  uptime down and, on the public status page, contradicted the SLO figure for
+  the same monitor (the SLO query already excluded maintenance). All four
+  functions now exclude `status = 'maintenance'` from numerator and denominator,
+  matching `current_slo_uptime_pct`, across the Postgres, MySQL, and SQLite
+  backends. Regression test: `uptime_pct_excludes_maintenance`. (The dashboard
+  monitor-summary aggregate, whose `total` also feeds sample-count displays, is
+  left as-is — a separate follow-up.)
+
 ## [0.157.2] — 2026-06-24
 
 ### Changed

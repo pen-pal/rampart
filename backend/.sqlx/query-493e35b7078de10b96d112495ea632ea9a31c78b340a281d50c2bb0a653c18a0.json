@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            (date_trunc('month', ts AT TIME ZONE 'UTC'))::date AS \"month!\",\n            COUNT(*)                              AS \"total!\",\n            COUNT(*) FILTER (WHERE status = 'up') AS \"up!\"\n        FROM heartbeats\n        WHERE monitor_id = $1 AND ts >= $2\n        GROUP BY 1\n        ORDER BY 1\n        ",
+  "query": "\n        SELECT\n            (date_trunc('month', ts AT TIME ZONE 'UTC'))::date AS \"month!\",\n            COUNT(*)                              AS \"total!\",\n            COUNT(*) FILTER (WHERE status = 'up') AS \"up!\"\n        FROM heartbeats\n        -- Maintenance excluded from uptime% (matches current_slo_uptime_pct).\n        WHERE monitor_id = $1 AND ts >= $2 AND status <> 'maintenance'\n        GROUP BY 1\n        ORDER BY 1\n        ",
   "describe": {
     "columns": [
       {
@@ -34,5 +34,5 @@
       null
     ]
   },
-  "hash": "c0ad02208948f4b3c6cb56aadded7ab59e6b6c2febf8f866c1d070e1b4149a8a"
+  "hash": "493e35b7078de10b96d112495ea632ea9a31c78b340a281d50c2bb0a653c18a0"
 }

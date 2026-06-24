@@ -136,7 +136,7 @@ pub async fn uptime_pct(
     let since = time::OffsetDateTime::now_utc().unix_timestamp() - window_seconds;
     let (total, ok): (i64, i64) = sqlx::query_as(
         "SELECT COUNT(*), COALESCE(SUM(CASE WHEN status = 'up' THEN 1 ELSE 0 END), 0)
-         FROM heartbeats WHERE monitor_id = ? AND ts >= ?",
+         FROM heartbeats WHERE monitor_id = ? AND ts >= ? AND status <> 'maintenance'",
     )
     .bind(monitor.0.to_string())
     .bind(since)
@@ -328,7 +328,7 @@ pub async fn monthly_uptime(
         "SELECT strftime('%Y-%m', ts, 'unixepoch') AS ym,
                 COUNT(*) AS total,
                 SUM(CASE WHEN status = 'up' THEN 1 ELSE 0 END) AS up
-         FROM heartbeats WHERE monitor_id = ? AND ts >= ?
+         FROM heartbeats WHERE monitor_id = ? AND ts >= ? AND status <> 'maintenance'
          GROUP BY ym ORDER BY ym",
     )
     .bind(monitor.0.to_string())
@@ -368,7 +368,7 @@ pub async fn uptime_pct_batch(
     let sql = format!(
         "SELECT monitor_id, COUNT(*) AS total,
                 SUM(CASE WHEN status = 'up' THEN 1 ELSE 0 END) AS ok_count
-         FROM heartbeats WHERE monitor_id IN ({}) AND ts >= ?
+         FROM heartbeats WHERE monitor_id IN ({}) AND ts >= ? AND status <> 'maintenance'
          GROUP BY monitor_id",
         in_placeholders(monitor_ids.len())
     );
@@ -493,7 +493,7 @@ pub async fn monthly_uptime_batch(
         "SELECT monitor_id, strftime('%Y-%m', ts, 'unixepoch') AS ym,
                 COUNT(*) AS total,
                 SUM(CASE WHEN status = 'up' THEN 1 ELSE 0 END) AS up
-         FROM heartbeats WHERE monitor_id IN ({}) AND ts >= ?
+         FROM heartbeats WHERE monitor_id IN ({}) AND ts >= ? AND status <> 'maintenance'
          GROUP BY monitor_id, ym",
         in_placeholders(monitor_ids.len())
     );
