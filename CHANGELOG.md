@@ -29,6 +29,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.81] — 2026-06-24
+
+### Fixed
+- **Error-event retention prune is now chunked.** `error_tracking::prune`
+  deleted every past-retention row in the high-volume `error_events` table in a
+  single unbatched join-DELETE — on a large backlog that takes a long lock and
+  balloons WAL, stalling ingest. It now deletes in bounded batches
+  (`PRUNE_BATCH`) until drained, mirroring `prune::batched_delete` but joining
+  `error_projects` for the per-project retention window. Postgres batches by
+  `ctid + LIMIT`; MySQL — which forbids `LIMIT` in a multi-table DELETE —
+  batches by id via a derived-table subquery. Issues (small, long-lived) are
+  untouched; only per-occurrence event detail ages out. Regression test asserts
+  past-window events are dropped while the recent event and the issue survive.
+
 ## [0.156.80] — 2026-06-24
 
 ### Fixed

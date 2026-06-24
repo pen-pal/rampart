@@ -678,15 +678,31 @@ pub async fn list_events(
 }
 
 /// Delete events older than each project's `retention_days`. Issues persist.
+/// Delete events older than each project's `retention_days`, chunked to bound
+/// each DELETE's lock footprint on the high-volume `error_events` table. MySQL
+/// forbids `LIMIT` in a multi-table DELETE, so this selects a batch of ids
+/// (wrapped in a derived table — MySQL also forbids referencing the DELETE
+/// target directly in a subquery) and deletes by id. Returns rows removed.
 pub async fn prune(pool: &MySqlPool) -> DbResult<u64> {
-    let res = sqlx::query(
-        "DELETE e FROM error_events e
-         JOIN error_projects p ON p.id = e.project_id
-         WHERE e.ts < UNIX_TIMESTAMP() - p.retention_days * 86400",
-    )
-    .execute(pool)
-    .await?;
-    Ok(res.rows_affected())
+    const SQL: &str = "DELETE FROM error_events WHERE id IN (\
+         SELECT id FROM (\
+             SELECT e.id FROM error_events e \
+             JOIN error_projects p ON p.id = e.project_id \
+             WHERE e.ts < UNIX_TIMESTAMP() - p.retention_days * 86400 \
+             LIMIT ?) tmp)";
+    let mut total = 0u64;
+    loop {
+        let n = sqlx::query(SQL)
+            .bind(crate::prune::PRUNE_BATCH)
+            .execute(pool)
+            .await?
+            .rows_affected();
+        total += n;
+        if n < crate::prune::PRUNE_BATCH as u64 {
+            break;
+        }
+    }
+    Ok(total)
 }
 
 #[cfg(test)]
