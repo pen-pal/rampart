@@ -525,14 +525,19 @@ impl StoreApiKeys for SqliteStore {
         unimplemented!("SqliteStore::delete_api_key: api_keys domain not yet ported (multi-DB P1)")
     }
 
-    async fn lookup_api_key(&self, token: &str) -> DbResult<(ApiKey, UserId, OrgId)> {
-        unimplemented!("SqliteStore::lookup_api_key: api_keys domain not yet ported (multi-DB P1)")
+    async fn lookup_api_key(&self, _token: &str) -> DbResult<(ApiKey, UserId, OrgId)> {
+        // api_keys domain isn't ported to SQLite — no key can exist, so every
+        // bearer token is simply unknown. Return NotFound (the auth middleware
+        // maps it to 401) rather than panic: this runs on the universal auth
+        // path and with `panic = "abort"` a panic here would crash the process.
+        Err(crate::DbError::NotFound)
     }
 
-    async fn touch_api_key_last_used(&self, id: ApiKeyId) -> DbResult<()> {
-        unimplemented!(
-            "SqliteStore::touch_api_key_last_used: api_keys domain not yet ported (multi-DB P1)"
-        )
+    async fn touch_api_key_last_used(&self, _id: ApiKeyId) -> DbResult<()> {
+        // No api_keys table under SQLite — the best-effort last-used bump is a
+        // no-op rather than a panic (it runs in a spawned task on the auth path;
+        // a panic there would abort the process under `panic = "abort"`).
+        Ok(())
     }
 }
 
@@ -2970,6 +2975,26 @@ mod tests {
             .await
             .unwrap();
         assert!(store.get_setting("k").await.unwrap().is_some());
+    }
+
+    /// SECURITY (audit re-rank #1): the bearer-auth path must not PANIC on
+    /// SQLite. The api-keys domain isn't ported, so a token lookup is simply
+    /// unknown (NotFound → the auth middleware maps it to 401) and the
+    /// best-effort last-used bump is a no-op. Both were `unimplemented!()`, which
+    /// under `panic = "abort"` crashed the whole process on the first Bearer
+    /// request (the bump also ran in a spawned task — still fatal with abort).
+    #[sqlx::test(migrations = "../../migrations-sqlite")]
+    async fn bearer_api_key_paths_dont_panic_on_sqlite(pool: SqlitePool) {
+        let store: Arc<dyn Store> = Arc::new(SqliteStore::new(pool));
+        assert!(matches!(
+            store.lookup_api_key("rmp_anything").await,
+            Err(crate::DbError::NotFound)
+        ));
+        // No-op, must not panic.
+        store
+            .touch_api_key_last_used(rampart_core::ids::ApiKeyId::new())
+            .await
+            .unwrap();
     }
 
     /// `connect` builds a pool with foreign_keys on and runs the migration set.

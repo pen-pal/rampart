@@ -205,11 +205,16 @@ pub async fn require_session(
             .lookup_api_key(&token)
             .await
             .map_err(|_| ApiError::Unauthorized)?;
-        // Fire-and-forget — don't block the request on the bump.
-        let pool = state.pool().clone();
+        // Fire-and-forget — don't block the request on the bump. Routed through
+        // the Store seam, NOT `state.pool()`: `pool()` `.expect()`-panics on the
+        // MySQL/SQLite backends, and since this runs on the universal auth path
+        // with `panic = "abort"`, a single valid-Bearer request would otherwise
+        // crash the whole process. `touch` is best-effort (a no-op on backends
+        // that don't record last-used yet).
+        let store = state.store().clone();
         let key_id = key.id;
         tokio::spawn(async move {
-            let _ = rampart_db::api_keys::touch_last_used(&pool, key_id).await;
+            let _ = store.touch_api_key_last_used(key_id).await;
         });
 
         let mut user = state
