@@ -29,6 +29,25 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.84] — 2026-06-24
+
+### Fixed
+- **A single Bearer-token request no longer crashes the whole process on the
+  MySQL/SQLite backends.** The universal auth middleware (`require_session`)
+  bumped an API key's `last_used` by calling `state.pool()` **synchronously** on
+  the bearer path — and `pool()` `.expect()`-panics on any non-Postgres backend.
+  With `panic = "abort"`, one request carrying a valid `Authorization: Bearer`
+  key aborted the entire binary (API, scheduler, notifier, writer) — a trivial
+  remote DoS on a MySQL/SQLite deployment. The bump now goes through the
+  object-safe `Store` seam (`touch_api_key_last_used`, already implemented for
+  MySQL and a no-op on SQLite), so no backend reaches `pool()` here. The SQLite
+  `lookup_api_key` / `touch_api_key_last_used` stubs, which were
+  `unimplemented!()` (and would have re-introduced the abort from the spawned
+  bump task), now return `NotFound` / `Ok(())` so bearer auth on SQLite is a
+  clean `401` instead of a panic. Regression test:
+  `bearer_api_key_paths_dont_panic_on_sqlite`. (Postgres deployments were
+  unaffected.)
+
 ## [0.156.83] — 2026-06-24
 
 ### Fixed
