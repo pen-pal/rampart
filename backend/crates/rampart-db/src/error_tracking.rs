@@ -855,18 +855,33 @@ pub async fn list_events(
 /// Delete events older than each project's `retention_days`. Issues (small,
 /// long-lived) are kept; only the per-occurrence detail ages out. Returns the
 /// number of event rows removed.
+///
+/// Chunked (mirrors [`crate::prune::batched_delete`]) so a large retention
+/// backlog on the high-volume `error_events` table is cleared in many short,
+/// cancellable DELETEs instead of one multi-minute table-locking statement that
+/// stalls writes and balloons WAL. The retention window is per-project, so this
+/// joins `error_projects` rather than taking a single `days` like
+/// `batched_delete`. Runtime query (not `query!`) keeps the fixed SQL off the
+/// offline `.sqlx` cache.
 pub async fn prune(pool: &DbPool) -> DbResult<u64> {
-    let result = sqlx::query!(
-        r#"
-        DELETE FROM error_events e
-        USING error_projects p
-        WHERE e.project_id = p.id
-          AND e.ts < now() - make_interval(days => p.retention_days)
-        "#,
-    )
-    .execute(pool)
-    .await?;
-    Ok(result.rows_affected())
+    const SQL: &str = "DELETE FROM error_events WHERE ctid IN (\
+         SELECT e.ctid FROM error_events e \
+         JOIN error_projects p ON e.project_id = p.id \
+         WHERE e.ts < now() - make_interval(days => p.retention_days) \
+         LIMIT $1)";
+    let mut total = 0u64;
+    loop {
+        let n = sqlx::query(SQL)
+            .bind(crate::prune::PRUNE_BATCH)
+            .execute(pool)
+            .await?
+            .rows_affected();
+        total += n;
+        if n < crate::prune::PRUNE_BATCH as u64 {
+            break;
+        }
+    }
+    Ok(total)
 }
 
 #[cfg(test)]
@@ -920,5 +935,59 @@ mod tests {
             find_or_create_by_name(&pool, "spray-attacker-new", org).await,
             Err(DbError::Conflict(_))
         ));
+    }
+
+    /// PERF (audit #123 rank-8): `prune` chunks the high-volume `error_events`
+    /// table per project retention window — events past the window age out, the
+    /// recent event and the (small, long-lived) issue are kept. Runtime queries
+    /// keep the test off the offline `.sqlx` cache.
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn prune_deletes_old_events_keeps_recent_and_issue(pool: PgPool) {
+        let org = def_org();
+        // Default retention_days = 30.
+        let p = find_or_create_by_name(&pool, "app", org).await.unwrap();
+        let issue = uuid::Uuid::now_v7();
+        sqlx::query(
+            "INSERT INTO error_issues (id, project_id, fingerprint, title) VALUES ($1,$2,'fp','t')",
+        )
+        .bind(issue)
+        .bind(p.id.0)
+        .execute(&pool)
+        .await
+        .unwrap();
+        // One event well past the 30-day window → pruned; one fresh → kept.
+        sqlx::query("INSERT INTO error_events (id, issue_id, project_id, ts) VALUES ($1,$2,$3, now() - interval '400 days')")
+            .bind(uuid::Uuid::now_v7())
+            .bind(issue)
+            .bind(p.id.0)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO error_events (id, issue_id, project_id, ts) VALUES ($1,$2,$3, now())",
+        )
+        .bind(uuid::Uuid::now_v7())
+        .bind(issue)
+        .bind(p.id.0)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let deleted = prune(&pool).await.unwrap();
+        assert_eq!(deleted, 1, "only the 400-day-old event is pruned");
+
+        let events: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM error_events")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(events, 1, "the recent event survives");
+        let issues: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM error_issues")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            issues, 1,
+            "the issue is kept — only per-occurrence detail ages out"
+        );
     }
 }
