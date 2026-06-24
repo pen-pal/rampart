@@ -198,12 +198,44 @@ pub async fn require_telemetry_token(
 /// `Unauthorized` instead — no Default fallback — so un-keyed / wrong-keyed
 /// telemetry cannot land in (or be read from) the Default org. See
 /// [`multi_org_enabled`].
+/// The ingest surface a request hit, matched against the resolved key's `kind`
+/// scope. A key with `kind = "all"` accepts every surface; any other kind only
+/// accepts its own. (`Syslog` has no mintable kind today, so a syslog forwarder
+/// needs an `all` key.)
+#[derive(Clone, Copy)]
+pub enum IngestSurface {
+    Otlp,
+    Prometheus,
+    Rum,
+    Profiles,
+    Syslog,
+}
+
+impl IngestSurface {
+    fn as_kind(self) -> &'static str {
+        match self {
+            IngestSurface::Otlp => "otlp",
+            IngestSurface::Prometheus => "prometheus",
+            IngestSurface::Rum => "rum",
+            IngestSurface::Profiles => "profiles",
+            IngestSurface::Syslog => "syslog",
+        }
+    }
+}
+
+/// Does a key's `kind` scope permit this surface? `all` permits everything;
+/// otherwise the kind must match the surface exactly.
+fn kind_allows(key_kind: &str, surface: IngestSurface) -> bool {
+    key_kind == "all" || key_kind == surface.as_kind()
+}
+
 pub async fn resolve_ingest_org(
     pool: &DbPool,
     headers: &HeaderMap,
     query_k: Option<&str>,
+    surface: IngestSurface,
 ) -> Result<rampart_core::ids::OrgId, ApiError> {
-    resolve_ingest(pool, headers, query_k, None).await
+    resolve_ingest(pool, headers, query_k, None, surface).await
 }
 
 /// Like [`resolve_ingest_org`], but ALSO origin-binds the key (Phase 5-3 RUM).
@@ -217,8 +249,9 @@ pub async fn resolve_ingest_org_origin(
     headers: &HeaderMap,
     query_k: Option<&str>,
     origin: Option<&str>,
+    surface: IngestSurface,
 ) -> Result<rampart_core::ids::OrgId, ApiError> {
-    resolve_ingest(pool, headers, query_k, Some(origin)).await
+    resolve_ingest(pool, headers, query_k, Some(origin), surface).await
 }
 
 /// Shared resolver. `enforce_origin`: `None` = don't origin-bind (OTLP / prom /
@@ -229,11 +262,18 @@ async fn resolve_ingest(
     headers: &HeaderMap,
     query_k: Option<&str>,
     enforce_origin: Option<Option<&str>>,
+    surface: IngestSurface,
 ) -> Result<rampart_core::ids::OrgId, ApiError> {
     if let Some(tok) = presented_token(headers, query_k) {
-        if let Some((id, org_id, allowed)) =
+        if let Some((id, org_id, kind, allowed)) =
             rampart_db::ingest_keys::find_by_token(pool, tok).await?
         {
+            // Surface scope: a key minted for one signal (e.g. a RUM key, which
+            // ships publicly in browser JS) must not write to a different surface
+            // (OTLP/prom/profiles). `all` keys accept everything.
+            if !kind_allows(&kind, surface) {
+                return Err(ApiError::Forbidden);
+            }
             if let Some(origin) = enforce_origin {
                 if !allowed.is_empty() {
                     let o = origin.unwrap_or("");
@@ -304,6 +344,20 @@ mod tests {
     use super::*;
     use axum::http::{HeaderMap, HeaderValue};
     use std::io::Write;
+
+    /// SECURITY (audit re-rank #11): an ingest key's `kind` scope is enforced —
+    /// `all` accepts any surface, a scoped key only its own (so a public RUM key
+    /// can't write OTLP/prom/profiles).
+    #[test]
+    fn ingest_kind_scope_enforced() {
+        assert!(kind_allows("all", IngestSurface::Otlp));
+        assert!(kind_allows("all", IngestSurface::Rum));
+        assert!(kind_allows("otlp", IngestSurface::Otlp));
+        assert!(kind_allows("prometheus", IngestSurface::Prometheus));
+        assert!(!kind_allows("rum", IngestSurface::Otlp));
+        assert!(!kind_allows("otlp", IngestSurface::Prometheus));
+        assert!(!kind_allows("profiles", IngestSurface::Syslog));
+    }
 
     /// DoS guard (audit re-rank #9): a parsed batch over the per-request record
     /// cap is rejected with 413, not materialized into one giant insert.

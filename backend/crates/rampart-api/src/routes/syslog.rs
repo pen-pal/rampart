@@ -41,7 +41,13 @@ async fn ingest_text(
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Json<Value>, ApiError> {
-    let org = crate::ingest_util::resolve_ingest_org(s.pool(), &headers, q.k.as_deref()).await?;
+    let org = crate::ingest_util::resolve_ingest_org(
+        s.pool(),
+        &headers,
+        q.k.as_deref(),
+        crate::ingest_util::IngestSurface::Syslog,
+    )
+    .await?;
     rampart_db::rls::with_org(org, async move {
         let body = crate::ingest_util::decompress(&headers, &body)?;
         let text = String::from_utf8_lossy(&body);
@@ -61,7 +67,13 @@ async fn ingest_json(
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Json<Value>, ApiError> {
-    let org = crate::ingest_util::resolve_ingest_org(s.pool(), &headers, q.k.as_deref()).await?;
+    let org = crate::ingest_util::resolve_ingest_org(
+        s.pool(),
+        &headers,
+        q.k.as_deref(),
+        crate::ingest_util::IngestSurface::Syslog,
+    )
+    .await?;
     rampart_db::rls::with_org(org, async move {
         let body = crate::ingest_util::decompress(&headers, &body)?;
         let text = String::from_utf8_lossy(&body);

@@ -69,7 +69,13 @@ async fn ingest_folded(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Phase 5: resolve the owning org from the ingest credential (auth-gated
     // internally; Default on key-miss).
-    let org = crate::ingest_util::resolve_ingest_org(s.pool(), &headers, None).await?;
+    let org = crate::ingest_util::resolve_ingest_org(
+        s.pool(),
+        &headers,
+        None,
+        crate::ingest_util::IngestSurface::Profiles,
+    )
+    .await?;
     // Honor Content-Encoding (gzip/deflate) like the OTLP path.
     let body = crate::ingest_util::decompress(&headers, &body)?;
     let text = String::from_utf8(body)
@@ -103,7 +109,13 @@ async fn ingest_pprof(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Phase 5: resolve the owning org from the ingest credential (auth-gated
     // internally; Default on key-miss).
-    let org = crate::ingest_util::resolve_ingest_org(s.pool(), &headers, None).await?;
+    let org = crate::ingest_util::resolve_ingest_org(
+        s.pool(),
+        &headers,
+        None,
+        crate::ingest_util::IngestSurface::Profiles,
+    )
+    .await?;
     // Strip any HTTP Content-Encoding first; the pprof payload is itself usually
     // gzipped (parse_pprof inflates that inner layer).
     let body = crate::ingest_util::decompress(&headers, &body)?;
@@ -143,7 +155,13 @@ pub async fn ingest_otlp(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Phase 5: resolve the owning org from the ingest credential (auth-gated
     // internally; Default on key-miss).
-    let org = crate::ingest_util::resolve_ingest_org(s.pool(), &headers, None).await?;
+    let org = crate::ingest_util::resolve_ingest_org(
+        s.pool(),
+        &headers,
+        None,
+        crate::ingest_util::IngestSurface::Profiles,
+    )
+    .await?;
     let body = crate::ingest_util::decompress(&headers, &body)?;
     let profiles =
         crate::otlp_profiles::parse_otlp_profiles(&body).map_err(ApiError::BadRequest)?;

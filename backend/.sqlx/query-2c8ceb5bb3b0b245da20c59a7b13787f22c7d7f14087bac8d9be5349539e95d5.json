@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, org_id, allowed_origins FROM ingest_keys\n           WHERE token_hash = $1 OR token = $2",
+  "query": "SELECT id, org_id, kind, allowed_origins FROM ingest_keys\n           WHERE token_hash = $1 OR token = $2",
   "describe": {
     "columns": [
       {
@@ -27,6 +27,17 @@
       },
       {
         "ordinal": 2,
+        "name": "kind",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "ingest_keys",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
         "name": "allowed_origins",
         "type_info": "TextArray",
         "origin": {
@@ -46,8 +57,9 @@
     "nullable": [
       false,
       false,
+      false,
       true
     ]
   },
-  "hash": "c46d13c1f1b5ae3905f393dc98b0a36bed1d0b98f637124d20eff1bc0c6eded9"
+  "hash": "2c8ceb5bb3b0b245da20c59a7b13787f22c7d7f14087bac8d9be5349539e95d5"
 }

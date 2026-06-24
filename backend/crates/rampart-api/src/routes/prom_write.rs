@@ -58,7 +58,13 @@ async fn remote_write(
 ) -> Result<StatusCode, ApiError> {
     // Phase 5: resolve the owning org from the ingest credential (same optional
     // shared-token gate as before, now org-aware; Default on key-miss).
-    let org = crate::ingest_util::resolve_ingest_org(s.pool(), &headers, None).await?;
+    let org = crate::ingest_util::resolve_ingest_org(
+        s.pool(),
+        &headers,
+        None,
+        crate::ingest_util::IngestSurface::Prometheus,
+    )
+    .await?;
     // RLS: bind the resolved org for the write below (no-op when RAMPART_RLS off).
     rampart_db::rls::with_org(org, async move {
         // remote_write bodies are snappy *block* format (not framed). The block
