@@ -1000,8 +1000,8 @@ export default function Dashboard({ user, onLogout } = {}) {
       {/* ─── top bar ─────────────────────────────────────────────── */}
       <header className="dash-topbar" style={{
         display: 'flex', alignItems: 'center', gap: 16,
-        // Extra left padding clears the fixed top-left nav launcher (App.jsx).
-        padding: '12px 20px 12px 112px', borderBottom: '1px solid var(--border)',
+        // Extra right padding clears the fixed top-right nav launcher (App.jsx).
+        padding: '12px 112px 12px 20px', borderBottom: '1px solid var(--border)',
         background: 'var(--surface)', position: 'sticky', top: 0, zIndex: 10
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
