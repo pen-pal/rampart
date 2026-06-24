@@ -520,8 +520,8 @@ function NavDrawer({ current, user, orgs, activeOrgId }) {
         title="Navigation menu"
         onClick={() => setOpen(true)}
         style={{
-          position: 'fixed', right: 16, bottom: 16, zIndex: 9998,
-          height: 44, padding: '0 16px', borderRadius: 12, cursor: 'pointer',
+          position: 'fixed', left: 12, top: 10, zIndex: 9998,
+          height: 36, padding: '0 14px', borderRadius: 10, cursor: 'pointer',
           display: 'inline-flex', alignItems: 'center', gap: 8,
           background: 'var(--accent, #14b8a6)', color: '#fff', border: 'none',
           fontSize: 14, fontWeight: 600, lineHeight: 1,
@@ -539,10 +539,10 @@ function NavDrawer({ current, user, orgs, activeOrgId }) {
           }}/>
           {/* drawer */}
           <nav style={{
-            position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 10000,
+            position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 10000,
             width: 286, maxWidth: '84vw', display: 'flex', flexDirection: 'column',
             background: 'var(--surface, #fff)', color: 'var(--text, #18181b)',
-            borderLeft: '1px solid var(--border, #e7e5e4)',
+            borderRight: '1px solid var(--border, #e7e5e4)',
             boxShadow: '0 0 40px rgba(0,0,0,.25)',
             fontFamily: 'Inter, system-ui, sans-serif',
           }}>

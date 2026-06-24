@@ -14,6 +14,8 @@ const en = {
   'dashboard.add_monitor':           'Add monitor',
   'dashboard.status_page':           'Status page',
   'dashboard.sign_out':              'Sign out',
+  'dashboard.account.menu':          'Account menu',
+  'dashboard.account.security':      'Account & security',
   'dashboard.nav.title':             'Menu',
 
   // ── dashboard: sections ──────────────────────────────────────────
