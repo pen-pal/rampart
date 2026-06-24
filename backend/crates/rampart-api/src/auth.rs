@@ -379,6 +379,45 @@ pub async fn require_global_admin(req: Request, next: Next) -> Result<Response, 
     Ok(next.run(req).await)
 }
 
+/// Backend enforcement of the `require_2fa` policy (`off` | `admins` | `all`),
+/// the teeth behind the SPA's enrollment prompt. Layered inner to
+/// [`require_session`] (so `User` is present). When the policy applies to the
+/// caller and they have not enrolled TOTP, state-changing requests are rejected
+/// with 403 — EXCEPT safe (read-only) methods and the `/auth/2fa` enrollment
+/// endpoints, so the user can still load the app and finish enrolling without
+/// locking themselves out (`/auth/logout` is public, outside this gate). The
+/// settings read is skipped on the read hot path; default policy `off` is a
+/// no-op for every request.
+pub async fn require_2fa_gate(
+    State(state): State<AppState>,
+    req: Request,
+    next: Next,
+) -> Result<Response, ApiError> {
+    if req.method().is_safe() || req.uri().path().contains("/auth/2fa") {
+        return Ok(next.run(req).await);
+    }
+    let Some(user) = req.extensions().get::<User>().cloned() else {
+        return Ok(next.run(req).await);
+    };
+    let policy = state
+        .store()
+        .get_setting("require_2fa")
+        .await
+        .ok()
+        .flatten()
+        .and_then(|v| v.as_str().map(str::to_string))
+        .unwrap_or_else(|| "off".to_string());
+    let applies = match policy.as_str() {
+        "all" => true,
+        "admins" => user.is_admin, // global flag, mirrors the /me policy
+        _ => false,
+    };
+    if applies && !user.totp_enabled {
+        return Err(ApiError::Forbidden);
+    }
+    Ok(next.run(req).await)
+}
+
 /// Rejects users who cannot write (readonly) with 403, but lets admin +
 /// editor through regardless of HTTP verb. Apply on top of `require_session`
 /// to gate route groups that editors are allowed to fully manage.
