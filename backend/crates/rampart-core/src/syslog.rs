@@ -127,7 +127,13 @@ fn split_structured_data(s: &str) -> (Option<String>, &str) {
             match c {
                 '[' => depth += 1,
                 ']' => {
-                    depth -= 1;
+                    // Unbalanced ']' (more closes than opens) — stop scanning.
+                    // A malformed tail must never underflow `depth` (overflow
+                    // panic in debug/`overflow-checks` builds → with panic=abort
+                    // a single crafted /syslog line aborts the process;
+                    // wrap-to-usize::MAX in release → silent SD/MSG mis-split).
+                    let Some(d) = depth.checked_sub(1) else { break };
+                    depth = d;
                     if depth == 0 {
                         end = i + 1;
                     }
@@ -323,6 +329,26 @@ fn parse_ts_loose(s: &str) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// SECURITY (audit re-rank #7): a structured-data run with more `]` than `[`
+    /// must not underflow the bracket-depth counter (panic / silent mis-split).
+    #[test]
+    fn split_sd_handles_unbalanced_close() {
+        // Valid SD prefix then a stray ']' tail — keep the balanced prefix, push
+        // the rest to the message; no panic.
+        let (sd, msg) = split_structured_data("[a b]] tail");
+        assert_eq!(sd.as_deref(), Some("[a b]"));
+        assert_eq!(msg, "] tail");
+
+        // Leading closes (no '[') are just a plain message.
+        let (sd2, msg2) = split_structured_data("]]] only msg");
+        assert!(sd2.is_none());
+        assert_eq!(msg2, "]]] only msg");
+
+        // An unclosed run yields no SD (loop never balances).
+        let (sd3, _) = split_structured_data("[a b only msg");
+        assert!(sd3.is_none());
+    }
 
     #[test]
     fn rfc5424_canonical() {
