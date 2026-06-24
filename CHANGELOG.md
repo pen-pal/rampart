@@ -29,6 +29,27 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.75] — 2026-06-24
+
+### Security
+- **Bounded the public RUM browser-error beacon's error-project auto-provisioning
+  (row-amplification DoS + validation bypass).** The unauthenticated RUM
+  error-capture endpoint auto-creates an `error_project` named after the
+  beacon's `app` field via `find_or_create_error_project_by_name`, which
+  constructs `NewErrorProject` directly — bypassing the 120-char DTO validator —
+  and created a new project (with slug + public-key generation) for every
+  distinct `app` string. An attacker could spray distinct/over-long app names to
+  amplify into unbounded rows. Fix at the db choke point (Postgres + MySQL):
+  clamp the name to `PROJECT_NAME_MAX` (120) and cap auto-provisioned projects
+  per org at `MAX_AUTO_PROJECTS_PER_ORG` (100) — beyond the cap the beacon's
+  error drops (the handler already maps `Err → 204`) rather than minting a row;
+  already-provisioned apps still capture. New shared consts in
+  `rampart_core::error_tracking`. +1 `#[sqlx::test]` (over-long name clamped,
+  idempotent re-send, per-org cap rejects a new spray app while existing apps
+  still resolve) green on Postgres; MySQL `error_tracking` regression green.
+  (SQLite error-tracking is still a stub — unaffected.) Audit #123 — fresh-audit
+  rank-2 finding.
+
 ## [0.156.74] — 2026-06-24
 
 ### Performance

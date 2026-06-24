@@ -147,21 +147,37 @@ pub async fn find_or_create_by_name(
     name: &str,
     org_id: OrgId,
 ) -> DbResult<ErrorProject> {
+    // Public RUM beacon path: `name` is the attacker-controllable `app`. Clamp
+    // length (bypasses the DTO validator) — see the PG impl for the rationale.
+    let name: String = name
+        .chars()
+        .take(rampart_core::error_tracking::PROJECT_NAME_MAX)
+        .collect();
     let sql = format!(
         "SELECT {PROJECT_COLS} FROM error_projects WHERE name = ? AND org_id = ? ORDER BY created_at LIMIT 1"
     );
     let existing = sqlx::query(sqlx::AssertSqlSafe(sql))
-        .bind(name)
+        .bind(&name)
         .bind(org_id.0.to_string())
         .fetch_optional(pool)
         .await?;
     if let Some(row) = existing {
         return Ok(project_from(&row));
     }
+    // DoS guard: cap auto-provisioned projects per org (public-beacon spray).
+    let (count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM error_projects WHERE org_id = ?")
+        .bind(org_id.0.to_string())
+        .fetch_one(pool)
+        .await?;
+    if count >= rampart_core::error_tracking::MAX_AUTO_PROJECTS_PER_ORG {
+        return Err(DbError::Conflict(
+            "error-project auto-provision limit reached for this org".into(),
+        ));
+    }
     create(
         pool,
         NewErrorProject {
-            name: name.to_string(),
+            name,
             platform: Some("javascript".to_string()),
             alert_channel_ids: Vec::new(),
         },
