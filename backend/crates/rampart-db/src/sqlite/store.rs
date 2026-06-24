@@ -433,8 +433,14 @@ impl StoreOnCall for SqliteStore {
         unimplemented!("SqliteStore::list_on_call: on_call domain not yet ported (multi-DB P1)")
     }
 
-    async fn get_on_call(&self, id: OnCallScheduleId, org_id: OrgId) -> DbResult<OnCallSchedule> {
-        unimplemented!("SqliteStore::get_on_call: on_call domain not yet ported (multi-DB P1)")
+    async fn get_on_call(&self, _id: OnCallScheduleId, _org_id: OrgId) -> DbResult<OnCallSchedule> {
+        // on_call domain isn't ported to SQLite — no schedule can exist. Return
+        // NotFound rather than panic: this is reached INDIRECTLY by the
+        // escalation-policy gate (`gate_step_refs` resolves each `schedule_ids`
+        // ref), so an editor creating a policy with a schedule ref would
+        // otherwise abort the handler under `panic = "abort"`. NotFound makes the
+        // gate yield a clean 400.
+        Err(crate::DbError::NotFound)
     }
 
     async fn get_on_call_unscoped(&self, id: OnCallScheduleId) -> DbResult<OnCallSchedule> {
@@ -793,8 +799,13 @@ impl StoreIngestTokens for SqliteStore {
         unimplemented!("SqliteStore::list_ingest_tokens_for_page: ingest_tokens domain not yet ported (multi-DB P1)")
     }
 
-    async fn find_ingest_token_by_token(&self, token: &str) -> DbResult<IngestToken> {
-        unimplemented!("SqliteStore::find_ingest_token_by_token: ingest_tokens domain not yet ported (multi-DB P1)")
+    async fn find_ingest_token_by_token(&self, _token: &str) -> DbResult<IngestToken> {
+        // ingest_tokens domain isn't ported to SQLite — no token can exist.
+        // Return NotFound rather than panic: this backs the PUBLIC alert-webhook
+        // receiver (`routes/ingest.rs`), so an external POST to a SQLite
+        // deployment would otherwise abort the connection handler under
+        // `panic = "abort"`. NotFound maps to a clean 404.
+        Err(crate::DbError::NotFound)
     }
 
     async fn delete_ingest_token(&self, id: IngestTokenId, org_id: OrgId) -> DbResult<()> {
@@ -2999,6 +3010,27 @@ mod tests {
             .touch_api_key_last_used(rampart_core::ids::ApiKeyId::new())
             .await
             .unwrap();
+    }
+
+    /// ROBUSTNESS (audit re-rank #16/#17): the request-reachable stubs for
+    /// unported domains return NotFound instead of `unimplemented!()`. Both back
+    /// live request paths on SQLite — the public alert webhook
+    /// (find_ingest_token_by_token) and the escalation-policy gate (get_on_call)
+    /// — so a panic here would abort the handler under `panic = "abort"`.
+    #[sqlx::test(migrations = "../../migrations-sqlite")]
+    async fn unported_request_path_stubs_return_notfound(pool: SqlitePool) {
+        let store: Arc<dyn Store> = Arc::new(SqliteStore::new(pool));
+        let org = OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID);
+        assert!(matches!(
+            store
+                .get_on_call(rampart_core::ids::OnCallScheduleId::new(), org)
+                .await,
+            Err(crate::DbError::NotFound)
+        ));
+        assert!(matches!(
+            store.find_ingest_token_by_token("anything").await,
+            Err(crate::DbError::NotFound)
+        ));
     }
 
     /// `connect` builds a pool with foreign_keys on and runs the migration set.

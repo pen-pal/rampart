@@ -29,6 +29,21 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.11] — 2026-06-24
+
+### Fixed
+- **Request-reachable SQLite store stubs return `NotFound` instead of
+  panicking.** Two unported-domain methods sit on live request paths on a SQLite
+  deployment: `find_ingest_token_by_token` backs the **public** Alertmanager
+  webhook receiver, and `get_on_call` is reached indirectly by the
+  escalation-policy gate (which resolves each step's `schedule_ids`). Both were
+  `unimplemented!()`, so a request would abort the connection handler (and under
+  `panic = "abort"`, the process). They now return `DbError::NotFound`, which the
+  callers map to a clean `404` (webhook) / `400` (escalation gate). Regression
+  test: `unported_request_path_stubs_return_notfound`. (Postgres unaffected;
+  other unported SQLite stubs that are only reachable from admin/editor UI of
+  not-yet-ported domains are left loud.)
+
 ## [0.157.10] — 2026-06-24
 
 ### Security
