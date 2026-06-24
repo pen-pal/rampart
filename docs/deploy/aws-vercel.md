@@ -167,6 +167,15 @@ options, easiest first.
 | `BIND_ADDR` | `0.0.0.0:3000` | image default; leave as is so the platform's health check can reach it |
 | `RUST_LOG` | `rampart=info,tower_http=warn,info` | image default |
 | `RAMPART_LOG_FORMAT` | `json` | structured logs for CloudWatch |
+| `RAMPART_TRUSTED_PROXIES` | the ALB/proxy IP (or `/32`) | **set this behind an ALB/App Runner** or per-client rate-limit + audit IPs collapse to the load balancer |
+| `RAMPART_MULTI_ORG` | _(unset)_ | `1`/`true` to enforce multi-org tenancy on ingest (no-key payloads rejected 401 instead of falling back to the default org); leave unset for single-tenant |
+
+The same surface is captured as a fill-in file at
+[`/deploy/aws.env.example`](../../deploy/aws.env.example), and there's an
+EC2/Docker prod-parity compose at
+[`/deploy/compose.aws.yaml`](../../deploy/compose.aws.yaml) (runs the image
+against external RDS, no Postgres container). The full per-variable table lives
+in [`../DEPLOY.md`](../DEPLOY.md).
 
 > Note on `RAMPART_SECRET_KEY` + the live demo: the `examples/everything` README
 > documents an upstream flip-path bug where, *with a key set*, monitor-flip
@@ -176,7 +185,18 @@ options, easiest first.
 > `/test`-fired deliveries + digests, or leave it unset to show live flip-path
 > deliveries — your call; the readiness section in HACKATHON.md flags this.
 
-### Option A — App Runner (least ops; good for the deadline)
+> **Heads-up — App Runner is closed to new customers.** AWS stopped onboarding
+> new App Runner customers (existing customers keep working). On a fresh
+> hackathon account, use one of:
+> - **Amazon ECS Express Mode** — AWS's recommended App Runner replacement, and
+>   the least-ops path today: one `aws ecs create-express-gateway-service` call
+>   provisions a Fargate service + ALB + autoscaling + networking from your ECR
+>   image (no extra charge beyond the underlying resources). Set
+>   `--primary-container` `containerPort` to **3000** and `--health-check-path`
+>   to **`/readyz`**, and pass the env from the table below.
+> - **Option B (ECS Fargate)** below — the fully manual, most "AWS-native" path.
+
+### Option A — App Runner (least ops; only if your account already has access)
 
 App Runner runs a container with an HTTPS endpoint and autoscaling, no
 load-balancer wiring. Caveat: it needs a **VPC connector** to reach a private
