@@ -6,7 +6,7 @@
 >
 > Companions: paste-ready copy → [`SUBMISSION.md`](SUBMISSION.md); zero-to-live
 > deploy → [`GO_LIVE.md`](GO_LIVE.md); field readiness → [`CHECKLIST.md`](CHECKLIST.md).
-> Everything below maps to shipped code at workspace **v0.157.5** and a tier the
+> Everything below maps to shipped code at workspace **v0.157.7** and a tier the
 > `examples/everything` stack fills with **real** data — no fabricated rows.
 
 ---
