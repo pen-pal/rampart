@@ -29,6 +29,25 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.78] — 2026-06-24
+
+### Fixed
+- **`upside_down` (inverted health) now applies to every monitor kind.** The
+  flag — which marks a monitor that is *supposed* to be down (a honeypot, an
+  offline failover, a staging box that must stay dark) so that a failing probe
+  is healthy and a succeeding one alerts — was only honoured by the HTTP and
+  browser probes. The other ~30 kinds (TCP, DNS, Ping, TLS, all the database
+  and message-queue probes, gRPC, Docker, …) silently ignored it, so an
+  `upside_down` Postgres or TCP monitor never inverted. Inversion now happens
+  once, centrally, on the dispatch result in `Probes::run` — applied before the
+  latency gate (matching the prior HTTP ordering) and flipping only `Up`↔`Down`
+  (`Warn`/`Paused`/`Pending`/`Maintenance` pass through). The per-probe
+  inversion was removed from the HTTP and browser probes to avoid a
+  double-flip; the browser probe's separate `keyword_invert` flag is unchanged.
+  An SSRF-blocked check is deliberately **not** inverted — a blocked connection
+  is a Rampart-side safety failure, not a target-health signal. Unit tests
+  cover all four transitions.
+
 ## [0.156.77] — 2026-06-24
 
 ### Security

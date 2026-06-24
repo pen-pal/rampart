@@ -221,7 +221,42 @@ impl Probes {
             MonitorKind::Synthetic => self.synthetic.run(monitor).await,
             unsupported => unsupported_kind(monitor.id, unsupported),
         };
+        // Invert the health verdict FIRST (before the latency gate), so an
+        // inverted-to-Down beat isn't re-judged as "slow" — this matches the
+        // ordering the HTTP probe used when it inverted internally.
+        let hb = apply_upside_down(monitor, hb);
         apply_latency_threshold(monitor, hb)
+    }
+}
+
+/// `upside_down` inverts the health verdict: a monitor that is *supposed* to be
+/// DOWN (a honeypot, a staging box that must stay offline, a failover that
+/// should never serve) is healthy when the probe fails and alerting when it
+/// succeeds. Applied centrally to EVERY kind's dispatch result — previously
+/// only the HTTP and browser probes honoured the flag, so the other ~30 kinds
+/// silently ignored it. Only flips `Up`<->`Down`; `Warn`/`Paused`/`Pending`/
+/// `Maintenance` pass through untouched. The SSRF early-return is intentionally
+/// NOT inverted: a blocked connection is a Rampart-side safety failure, not a
+/// target-health signal.
+fn apply_upside_down(monitor: &Monitor, hb: Heartbeat) -> Heartbeat {
+    if !monitor.upside_down {
+        return hb;
+    }
+    match hb.status {
+        MonitorStatus::Up => Heartbeat {
+            status: MonitorStatus::Down,
+            msg: Some("upside-down: target is UP but this monitor expects it DOWN".into()),
+            ..hb
+        },
+        MonitorStatus::Down => Heartbeat {
+            status: MonitorStatus::Up,
+            // The original failure text describes why the target is down, which
+            // is the EXPECTED healthy state here — drop it so the UI doesn't
+            // show an error on a green beat.
+            msg: None,
+            ..hb
+        },
+        _ => hb,
     }
 }
 
@@ -413,5 +448,45 @@ mod latency_tests {
         let out = apply_latency_threshold(&monitor(Some(100)), hb);
         assert_eq!(out.status, MonitorStatus::Down);
         assert_eq!(out.msg.as_deref(), Some("connect refused"));
+    }
+
+    // ── upside_down (audit #123 rank-5): now applied centrally to every kind ──
+    #[test]
+    fn upside_down_flips_up_to_down() {
+        let mut m = monitor(None);
+        m.upside_down = true;
+        let hb = apply_upside_down(&m, up(Some(5)));
+        assert_eq!(hb.status, MonitorStatus::Down);
+        assert!(hb.msg.unwrap().contains("upside-down"));
+    }
+
+    #[test]
+    fn upside_down_flips_down_to_up_and_clears_failure_msg() {
+        let mut m = monitor(None);
+        m.upside_down = true;
+        let mut down = up(Some(5));
+        down.status = MonitorStatus::Down;
+        down.msg = Some("connect refused".into());
+        let hb = apply_upside_down(&m, down);
+        assert_eq!(hb.status, MonitorStatus::Up);
+        assert!(
+            hb.msg.is_none(),
+            "failure text dropped on the now-healthy beat"
+        );
+    }
+
+    #[test]
+    fn upside_down_passes_through_warn() {
+        let mut m = monitor(None);
+        m.upside_down = true;
+        let mut warn = up(Some(5));
+        warn.status = MonitorStatus::Warn;
+        assert_eq!(apply_upside_down(&m, warn).status, MonitorStatus::Warn);
+    }
+
+    #[test]
+    fn upside_down_off_is_identity() {
+        let m = monitor(None); // upside_down defaults false
+        assert_eq!(apply_upside_down(&m, up(Some(5))).status, MonitorStatus::Up);
     }
 }

@@ -246,11 +246,9 @@ impl HttpProbe {
                     )
                 };
 
-                // upside_down inverts the pass/fail decision (useful for
-                // monitoring services that should be down, like a
-                // honeypot or staging instance).
-                let raw_ok = status_matches && body_ok && version_ok && assert_fail.is_none();
-                let ok = if monitor.upside_down { !raw_ok } else { raw_ok };
+                // Raw pass/fail. `upside_down` inversion is applied centrally in
+                // `Probes::run` (so every kind honours it), not per-probe here.
+                let ok = status_matches && body_ok && version_ok && assert_fail.is_none();
 
                 let http_status = if ok {
                     MonitorStatus::Up
