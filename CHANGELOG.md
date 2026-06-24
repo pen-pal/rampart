@@ -29,6 +29,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.12] — 2026-06-24
+
+### Security
+- **Backend enforcement of the `require_2fa` policy.** The `require_2fa` setting
+  (`off` | `admins` | `all`) was advisory: the SPA prompted unenrolled users to
+  set up TOTP, but nothing stopped a crafted request from skipping the prompt. A
+  new `require_2fa_gate` middleware, layered inside `require_session` on the
+  protected `/v1` tree, now rejects state-changing requests (403) from a user
+  the policy applies to who has not enrolled TOTP. It is lockout-safe by
+  construction: safe (read-only) methods and the `/auth/2fa` enrollment
+  endpoints are always allowed, so a user caught by a freshly-tightened policy
+  can still load the app and finish enrolling. Default policy `off` is a no-op,
+  so existing deployments are unaffected until an admin opts in.
+
 ## [0.157.11] — 2026-06-24
 
 ### Fixed

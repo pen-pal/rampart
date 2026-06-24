@@ -193,6 +193,16 @@ pub fn build_router(state: AppState) -> Router {
         .layer(cors_layer());
 
     let protected_v1 = routes::v1_protected()
+        // 2FA enforcement (settings.require_2fa). Innermost, so it runs AFTER
+        // require_session has stamped the `User`: when the policy applies to this
+        // user and they haven't enrolled, state-changing requests are 403'd —
+        // except GET/HEAD reads and the `/auth/2fa` enrollment endpoints, so the
+        // user can still load the app and complete enrollment (no lockout).
+        // Default policy is off → no-op.
+        .route_layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            auth::require_2fa_gate,
+        ))
         // Per-key rate limit + `X-RateLimit-*` headers. Layered INNER to
         // `require_session` (route_layers apply last-outermost, so the
         // require_session layer below — applied last — wraps this one):
