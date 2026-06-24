@@ -29,6 +29,21 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.5] — 2026-06-24
+
+### Fixed
+- **Concurrent webhook alerts with the same dedup key no longer 500 and drop the
+  rest of the batch.** The Alertmanager/Grafana ingest path checked for an
+  existing active incident and then inserted — a check-then-act race: two
+  near-simultaneous firings for the same `dedup_key` both passed the check, both
+  inserted, and the second hit the partial unique index
+  (`status_page_id, dedup_key` WHERE active), surfaced as a generic `500`, which
+  aborted the surrounding batch loop and silently dropped every remaining alert
+  (lost creates/resolves). The create path now treats that unique violation as
+  "already reported" (the fast-path pre-check stays), so a duplicate is a no-op
+  and the batch continues. Regression test:
+  `duplicate_active_dedup_key_is_unique_violation`.
+
 ## [0.157.4] — 2026-06-24
 
 ### Security

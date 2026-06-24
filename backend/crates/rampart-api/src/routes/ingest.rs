@@ -225,9 +225,26 @@ async fn apply_alert(
                 pinned: true,
                 dedup_key: Some(alert.dedup_key),
             };
-            s.store().create_incident(page, None, new).await?;
-            crate::routes::status_pages::invalidate_public_view_cache();
-            Ok((1, 0))
+            // The pre-check above is a fast path, but two near-simultaneous
+            // firings for the same dedup_key both pass it and both INSERT — the
+            // second collides with the partial unique index
+            // (status_page_id, dedup_key) WHERE active. Treat that unique
+            // violation as already-reported (someone else just created it)
+            // rather than erroring, so a concurrent duplicate doesn't 500 and
+            // abort the rest of the batch.
+            match s.store().create_incident(page, None, new).await {
+                Ok(_) => {
+                    crate::routes::status_pages::invalidate_public_view_cache();
+                    Ok((1, 0))
+                }
+                Err(rampart_db::DbError::Sqlx(e))
+                    if e.as_database_error()
+                        .is_some_and(|d| d.is_unique_violation()) =>
+                {
+                    Ok((0, 0))
+                }
+                Err(e) => Err(e.into()),
+            }
         }
     }
 }

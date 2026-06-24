@@ -415,3 +415,39 @@ pub async fn post_update(
     .await?;
     Ok(id)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rampart_core::org::DEFAULT_ORG_ID;
+    use sqlx::PgPool;
+
+    /// CORRECTNESS (audit re-rank #8): a second active incident with the same
+    /// (status_page_id, dedup_key) hits the partial unique index and surfaces as
+    /// a `DbError::Sqlx` unique violation — the exact shape the webhook ingest
+    /// route catches as "already reported" so a concurrent duplicate firing
+    /// doesn't 500 and abort the rest of the batch.
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn duplicate_active_dedup_key_is_unique_violation(pool: PgPool) {
+        let org = OrgId::from_uuid(DEFAULT_ORG_ID);
+        let page = crate::status_pages::create(
+            &pool,
+            serde_json::from_value(serde_json::json!({ "slug": "page", "title": "P" })).unwrap(),
+            org,
+        )
+        .await
+        .unwrap();
+        let mk = || -> NewIncident {
+            serde_json::from_value(serde_json::json!({
+                "title": "t", "content": "c", "dedup_key": "k"
+            }))
+            .unwrap()
+        };
+        create(&pool, page.id, None, mk()).await.unwrap();
+        let err = create(&pool, page.id, None, mk()).await.unwrap_err();
+        assert!(
+            matches!(&err, DbError::Sqlx(e) if e.as_database_error().is_some_and(|d| d.is_unique_violation())),
+            "expected a unique violation, got {err:?}"
+        );
+    }
+}
