@@ -160,3 +160,100 @@ async fn admin_can_set_role_and_me_includes_role(pool: PgPool) {
     assert_eq!(updated.role, Role::Readonly);
     assert!(!updated.is_admin, "is_admin shim must follow role");
 }
+
+/// SECURITY REGRESSION (audit #123): a self-provisioned org admin must NOT reach
+/// instance-global, cross-tenant surfaces. `/v1/orgs` is no-role-gated, and
+/// `require_session` overwrites `User.role` with the ACTIVE-org role — so before
+/// the `require_global_admin` fix, any user could create an org, switch into it
+/// (→ role=Admin), and reach global user management = full instance takeover.
+#[sqlx::test(migrations = "../../migrations")]
+async fn self_provisioned_org_admin_cannot_reach_global_surfaces(pool: PgPool) {
+    let app = router(pool.clone());
+    // Low-priv user: editor in the Default org → global is_admin = false.
+    let cookie = user_with_role(&pool, "editor@example.com", Role::Editor).await;
+
+    // Baseline: a Default-org editor is already 403 on global user management.
+    let (st, _, _) = request(&app, Method::GET, "/v1/users", None, Some(&cookie)).await;
+    assert_eq!(
+        st,
+        StatusCode::FORBIDDEN,
+        "editor blocked before the org trick"
+    );
+
+    // 1) Self-provision an org → become its Admin.
+    let (st, _, body) = request(
+        &app,
+        Method::POST,
+        "/v1/orgs",
+        Some(json!({ "slug": "evil-corp", "name": "Evil Corp" })),
+        Some(&cookie),
+    )
+    .await;
+    assert_eq!(
+        st,
+        StatusCode::CREATED,
+        "any authenticated user can create an org: {}",
+        String::from_utf8_lossy(&body)
+    );
+    let org: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let org_id = org["id"].as_str().expect("org id");
+
+    // 2) Switch active org → require_session now resolves role=Admin (active org).
+    let (st, _, _) = request(
+        &app,
+        Method::POST,
+        &format!("/v1/orgs/{org_id}/switch"),
+        None,
+        Some(&cookie),
+    )
+    .await;
+    assert_eq!(st, StatusCode::NO_CONTENT, "switch into own org");
+
+    // 3) PRIVESC ATTEMPT — global user management. role=Admin (active org) but
+    //    global is_admin=false → require_global_admin 403s. (Pre-fix: 200.)
+    let (st, _, body) = request(&app, Method::GET, "/v1/users", None, Some(&cookie)).await;
+    assert_eq!(
+        st,
+        StatusCode::FORBIDDEN,
+        "self-provisioned org admin must NOT reach global user management: {}",
+        String::from_utf8_lossy(&body)
+    );
+
+    // 4) Minting a GLOBAL admin via the trick is likewise blocked.
+    let (st, _, _) = request(
+        &app,
+        Method::POST,
+        "/v1/users",
+        Some(json!({
+            "email": "pwn@example.com",
+            "password": "correct-horse-battery-staple",
+            "is_admin": true
+        })),
+        Some(&cookie),
+    )
+    .await;
+    assert_eq!(st, StatusCode::FORBIDDEN, "cannot mint a global admin");
+
+    // 5) The other instance-global surfaces are equally gated.
+    for path in [
+        "/v1/audit-log",
+        "/v1/compliance/access-review",
+        "/v1/settings/smtp",
+    ] {
+        let (st, _, _) = request(&app, Method::GET, path, None, Some(&cookie)).await;
+        assert_eq!(
+            st,
+            StatusCode::FORBIDDEN,
+            "global surface {path} must reject an active-org admin"
+        );
+    }
+
+    // 6) NO REGRESSION: a genuine GLOBAL admin still manages users.
+    let admin = user_with_role(&pool, "boss@example.com", Role::Admin).await;
+    let (st, _, _) = request(&app, Method::GET, "/v1/users", None, Some(&admin)).await;
+    assert_eq!(
+        st,
+        StatusCode::OK,
+        "real global admin still reaches /v1/users"
+    );
+}

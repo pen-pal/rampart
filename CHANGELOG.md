@@ -29,6 +29,32 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.73] — 2026-06-24
+
+### Security
+- **Fixed a CRITICAL privilege escalation: a self-provisioned org admin could
+  reach instance-global admin surfaces.** `/v1/orgs` is no-role-gated (any
+  authenticated user can create an org and become its admin), and
+  `require_session` overwrites `User.role` with the caller's role in their
+  *active* org. So any low-priv user could `POST /v1/orgs` → `POST
+  /v1/orgs/{id}/switch` → and their request role became `Admin`, passing
+  `require_admin` on the whole `admin_only` group — reaching **global user
+  management** (`/v1/users`: create global admins, set_admin/delete/erase any
+  user, list all users), instance **settings** (SMTP creds, retention),
+  cross-org **audit-log**, and the cross-tenant **compliance** access-review
+  roster = full instance takeover from any account. Fix: a new
+  `require_global_admin` guard requires BOTH the request's effective role
+  (`user.role.is_admin()` — so an api-key's scope still floors it) AND the
+  GLOBAL `user.is_admin` flag (untouched by an org switch). The genuinely
+  instance-global surfaces (`/v1/users`, `/v1/audit-log`, `/v1/compliance`,
+  `/v1/settings/*`) move to a new `global_admin_only` router group behind it;
+  the org-scoped admin surfaces (api-keys, ingest-keys, proxies, agents,
+  scheduled-reports, ingest-tokens, delivery-log) keep per-org `require_admin`.
+  Regression test (`rbac::self_provisioned_org_admin_cannot_reach_global_surfaces`)
+  drives the full create-org → switch → escalate attempt and asserts 403 on
+  every global surface, plus no regression for a genuine global admin. (Audit
+  #123 — fresh 8-lens adversarial audit, rank-1 finding.)
+
 ## [0.156.72] — 2026-06-23
 
 ### Added
