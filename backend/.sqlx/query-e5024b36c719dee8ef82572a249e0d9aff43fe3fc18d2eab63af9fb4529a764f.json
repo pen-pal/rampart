@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            monitor_id,\n            COUNT(*)                              AS \"total!\",\n            COUNT(*) FILTER (WHERE status = 'up') AS \"ok_count!\"\n        FROM heartbeats\n        WHERE monitor_id = ANY($1) AND ts >= $2\n        GROUP BY monitor_id\n        ",
+  "query": "\n        SELECT\n            monitor_id,\n            COUNT(*)                              AS \"total!\",\n            COUNT(*) FILTER (WHERE status = 'up') AS \"ok_count!\"\n        FROM heartbeats\n        -- Maintenance excluded from uptime% (matches current_slo_uptime_pct).\n        WHERE monitor_id = ANY($1) AND ts >= $2 AND status <> 'maintenance'\n        GROUP BY monitor_id\n        ",
   "describe": {
     "columns": [
       {
@@ -39,5 +39,5 @@
       null
     ]
   },
-  "hash": "2219d782524af46c75fdba5b8cf3823e2b3ba1cdda2f0555ccd8f2022a5f0d9f"
+  "hash": "e5024b36c719dee8ef82572a249e0d9aff43fe3fc18d2eab63af9fb4529a764f"
 }

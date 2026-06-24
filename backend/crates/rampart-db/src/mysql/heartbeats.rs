@@ -193,7 +193,7 @@ pub async fn uptime_pct(
     let (total, ok): (i64, i64) = sqlx::query_as(
         "SELECT COUNT(*),
                 CAST(COALESCE(SUM(CASE WHEN status = 'up' THEN 1 ELSE 0 END), 0) AS SIGNED)
-         FROM heartbeats WHERE monitor_id = ? AND ts >= ?",
+         FROM heartbeats WHERE monitor_id = ? AND ts >= ? AND status <> 'maintenance'",
     )
     .bind(monitor.0.to_string())
     .bind(since_secs(window_seconds))
@@ -350,7 +350,7 @@ pub async fn monthly_uptime(
         "SELECT DATE_FORMAT(FROM_UNIXTIME(ts), '%Y-%m') AS ym,
                 COUNT(*) AS total,
                 CAST(COALESCE(SUM(CASE WHEN status = 'up' THEN 1 ELSE 0 END), 0) AS SIGNED) AS up
-         FROM heartbeats WHERE monitor_id = ? AND ts >= ?
+         FROM heartbeats WHERE monitor_id = ? AND ts >= ? AND status <> 'maintenance'
          GROUP BY ym ORDER BY ym",
     )
     .bind(monitor.0.to_string())
@@ -390,7 +390,7 @@ pub async fn uptime_pct_batch(
     let sql = format!(
         "SELECT monitor_id, COUNT(*) AS total,
                 CAST(COALESCE(SUM(CASE WHEN status = 'up' THEN 1 ELSE 0 END), 0) AS SIGNED) AS ok_count
-         FROM heartbeats WHERE monitor_id IN ({}) AND ts >= ?
+         FROM heartbeats WHERE monitor_id IN ({}) AND ts >= ? AND status <> 'maintenance'
          GROUP BY monitor_id",
         in_placeholders(monitor_ids.len())
     );
@@ -515,7 +515,7 @@ pub async fn monthly_uptime_batch(
         "SELECT monitor_id, DATE_FORMAT(FROM_UNIXTIME(ts), '%Y-%m') AS ym,
                 COUNT(*) AS total,
                 CAST(COALESCE(SUM(CASE WHEN status = 'up' THEN 1 ELSE 0 END), 0) AS SIGNED) AS up
-         FROM heartbeats WHERE monitor_id IN ({}) AND ts >= ?
+         FROM heartbeats WHERE monitor_id IN ({}) AND ts >= ? AND status <> 'maintenance'
          GROUP BY monitor_id, ym",
         in_placeholders(monitor_ids.len())
     );

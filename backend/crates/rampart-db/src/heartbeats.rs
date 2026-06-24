@@ -189,7 +189,9 @@ pub async fn uptime_pct(
             COUNT(*)                              AS total,
             COUNT(*) FILTER (WHERE status = 'up') AS ok_count
         FROM heartbeats
-        WHERE monitor_id = $1 AND ts >= $2
+        -- Planned maintenance is neither uptime nor downtime — exclude it from
+        -- both numerator and denominator (matches current_slo_uptime_pct).
+        WHERE monitor_id = $1 AND ts >= $2 AND status <> 'maintenance'
         "#,
         monitor.0,
         since,
@@ -417,7 +419,8 @@ pub async fn monthly_uptime(
             COUNT(*)                              AS "total!",
             COUNT(*) FILTER (WHERE status = 'up') AS "up!"
         FROM heartbeats
-        WHERE monitor_id = $1 AND ts >= $2
+        -- Maintenance excluded from uptime% (matches current_slo_uptime_pct).
+        WHERE monitor_id = $1 AND ts >= $2 AND status <> 'maintenance'
         GROUP BY 1
         ORDER BY 1
         "#,
@@ -498,7 +501,8 @@ pub async fn uptime_pct_batch(
             COUNT(*)                              AS "total!",
             COUNT(*) FILTER (WHERE status = 'up') AS "ok_count!"
         FROM heartbeats
-        WHERE monitor_id = ANY($1) AND ts >= $2
+        -- Maintenance excluded from uptime% (matches current_slo_uptime_pct).
+        WHERE monitor_id = ANY($1) AND ts >= $2 AND status <> 'maintenance'
         GROUP BY monitor_id
         "#,
         monitor_ids,
@@ -677,7 +681,8 @@ pub async fn monthly_uptime_batch(
             COUNT(*)                              AS "total!",
             COUNT(*) FILTER (WHERE status = 'up') AS "up!"
         FROM heartbeats
-        WHERE monitor_id = ANY($1) AND ts >= $2
+        -- Maintenance excluded from uptime% (matches current_slo_uptime_pct).
+        WHERE monitor_id = ANY($1) AND ts >= $2 AND status <> 'maintenance'
         GROUP BY monitor_id, (date_trunc('month', ts AT TIME ZONE 'UTC'))::date
         "#,
         monitor_ids,
@@ -1205,5 +1210,43 @@ mod tests {
             .await
             .unwrap()
             .is_empty());
+    }
+
+    /// CORRECTNESS (audit re-rank #6): planned-maintenance heartbeats are
+    /// excluded from the uptime% denominator (matching current_slo_uptime_pct),
+    /// so a maintenance window can't drag the reported uptime down.
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn uptime_pct_excludes_maintenance(pool: PgPool) {
+        let m = mk_monitor(&pool, "m").await;
+        let now = OffsetDateTime::now_utc();
+        let beat = |secs: i64, status: MonitorStatus| Heartbeat {
+            monitor_id: m,
+            ts: now - time::Duration::seconds(secs),
+            status,
+            latency_ms: Some(5),
+            status_code: None,
+            msg: None,
+            retries: 0,
+            important: false,
+        };
+        insert_many(
+            &pool,
+            &[
+                beat(10, MonitorStatus::Up),
+                beat(20, MonitorStatus::Up),
+                beat(30, MonitorStatus::Down),
+                beat(40, MonitorStatus::Maintenance),
+                beat(50, MonitorStatus::Maintenance),
+            ],
+        )
+        .await
+        .unwrap();
+
+        // 2 up, 1 down, 2 maintenance → 2/(2+1) = 66.67%, NOT 2/5 = 40%.
+        let pct = uptime_pct(&pool, m, 3600).await.unwrap().unwrap();
+        assert!(
+            (pct - 66.6667).abs() < 0.01,
+            "maintenance must be out of the denominator, got {pct}"
+        );
     }
 }
