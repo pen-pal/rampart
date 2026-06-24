@@ -174,11 +174,10 @@ impl Probe for BrowserProbe {
         }
 
         let contains = text.contains(keyword);
-        // upside_down: success/failure inverted by the monitor. Applied
-        // *after* the keyword check so the keyword semantics stay
-        // intuitive ("keyword absent" is its own flag).
-        let raw_ok = if invert { !contains } else { contains };
-        let ok = if monitor.upside_down { !raw_ok } else { raw_ok };
+        // `invert` is the per-monitor `keyword_invert` flag (success = keyword
+        // ABSENT) — distinct from monitor-level `upside_down`, which is applied
+        // centrally in `Probes::run` so every kind honours it.
+        let ok = if invert { !contains } else { contains };
 
         let (s, msg) = if ok {
             (MonitorStatus::Up, None)
