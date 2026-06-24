@@ -50,6 +50,26 @@ pub fn decompress(headers: &HeaderMap, body: &[u8]) -> Result<Vec<u8>, ApiError>
 /// — which don't go through [`inflate_capped`] — can enforce the same ceiling.
 pub(crate) const MAX_DECOMPRESSED: usize = 64 * 1024 * 1024;
 
+/// Hard cap on the number of records (log lines / spans) accepted in one ingest
+/// request. The 64 MiB body limit still permits millions of tiny rows in a
+/// single payload (e.g. ~16M 4-byte syslog lines), which would balloon one `Vec`
+/// and one INSERT/UNNEST transaction; this bounds the per-request row work.
+/// Generous versus a typical batch (~10k); a larger producer must split across
+/// requests.
+pub(crate) const MAX_INGEST_RECORDS: usize = 250_000;
+
+/// Reject a parsed batch that exceeds [`MAX_INGEST_RECORDS`] with `413` rather
+/// than materializing millions of rows in one transaction.
+pub(crate) fn enforce_record_cap(count: usize) -> Result<(), ApiError> {
+    if count > MAX_INGEST_RECORDS {
+        return Err(ApiError::PayloadTooLarge(format!(
+            "ingest batch of {count} records exceeds the per-request limit of \
+             {MAX_INGEST_RECORDS}; split into smaller batches"
+        )));
+    }
+    Ok(())
+}
+
 /// Inflate `reader` into memory, refusing anything past [`MAX_DECOMPRESSED`].
 /// Reads one byte past the cap so a body exactly at the limit still passes
 /// while an over-limit body is rejected rather than silently truncated.
@@ -284,6 +304,18 @@ mod tests {
     use super::*;
     use axum::http::{HeaderMap, HeaderValue};
     use std::io::Write;
+
+    /// DoS guard (audit re-rank #9): a parsed batch over the per-request record
+    /// cap is rejected with 413, not materialized into one giant insert.
+    #[test]
+    fn record_cap_rejects_oversize_batch() {
+        assert!(enforce_record_cap(0).is_ok());
+        assert!(enforce_record_cap(MAX_INGEST_RECORDS).is_ok());
+        assert!(matches!(
+            enforce_record_cap(MAX_INGEST_RECORDS + 1),
+            Err(ApiError::PayloadTooLarge(_))
+        ));
+    }
 
     #[test]
     fn decompress_passthrough_when_unencoded() {

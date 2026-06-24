@@ -23,6 +23,9 @@ pub enum ApiError {
     #[error("bad request: {0}")]
     BadRequest(String),
 
+    #[error("payload too large: {0}")]
+    PayloadTooLarge(String),
+
     #[error("conflict: {0}")]
     Conflict(String),
 
@@ -49,6 +52,11 @@ impl IntoResponse for ApiError {
         let (status, code, message) = match &self {
             ApiError::NotFound => (StatusCode::NOT_FOUND, "not_found", self.to_string()),
             ApiError::BadRequest(_) => (StatusCode::BAD_REQUEST, "bad_request", self.to_string()),
+            ApiError::PayloadTooLarge(_) => (
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "payload_too_large",
+                self.to_string(),
+            ),
             ApiError::Conflict(_) => (StatusCode::CONFLICT, "conflict", self.to_string()),
             ApiError::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthorized", self.to_string()),
             ApiError::Forbidden => (StatusCode::FORBIDDEN, "forbidden", self.to_string()),

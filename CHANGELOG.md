@@ -29,6 +29,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.6] — 2026-06-24
+
+### Security
+- **Capped the per-request record count on the syslog and OTLP ingest paths.**
+  The 64 MiB request-body limit still let a single payload carry millions of
+  tiny records (e.g. ~16M four-byte syslog lines, or a huge OTLP batch), which
+  parsed into one unbounded `Vec` and then one giant INSERT/`UNNEST`
+  transaction — a memory- and lock-amplification DoS on the public, unauth-by-
+  default ingest plane. Parsed batches are now capped at `MAX_INGEST_RECORDS`
+  (250k); an over-cap batch is rejected with `413` (new `ApiError::PayloadTooLarge`)
+  telling the producer to split, instead of being materialized. Applied to
+  `/syslog`, `/syslog/json`, and OTLP logs + traces. Unit test:
+  `record_cap_rejects_oversize_batch`.
+
 ## [0.157.5] — 2026-06-24
 
 ### Fixed
