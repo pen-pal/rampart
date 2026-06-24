@@ -344,6 +344,36 @@ pub async fn require_admin(req: Request, next: Next) -> Result<Response, ApiErro
     Ok(next.run(req).await)
 }
 
+/// Stricter than `require_admin`: gates genuinely **instance-global**, cross-tenant
+/// surfaces (global user management, instance settings, cross-org audit-log +
+/// compliance reports) on the caller's GLOBAL admin authority — NOT the per-org
+/// role.
+///
+/// `require_session` overwrites `User.role` with the caller's role in their
+/// *active* org (Phase 4e), but leaves `User.is_admin` as the GLOBAL flag (synced
+/// from `users.role`, untouched by an org switch). Since ANY authenticated user
+/// may create an org and become its admin (`/v1/orgs` is no-role-gated), gating
+/// these surfaces on the per-org role alone let a self-provisioned active-org
+/// admin reach global user management → full instance takeover.
+///
+/// We require BOTH the request's *effective* role (`user.role.is_admin()`, so an
+/// api-key's scope still floors it — a `read`-scoped key never reaches here) AND
+/// the global flag (`user.is_admin`, so a self-made active-org admin whose global
+/// flag is still false, and an admin-scoped key minted by a non-global admin, are
+/// both rejected). Fails closed — a genuine global admin operating under a lesser
+/// role in another org must switch back to one they administer (Default mirrors).
+pub async fn require_global_admin(req: Request, next: Next) -> Result<Response, ApiError> {
+    let user = req
+        .extensions()
+        .get::<rampart_db::users::User>()
+        .ok_or(ApiError::Unauthorized)?
+        .clone();
+    if !(user.role.is_admin() && user.is_admin) {
+        return Err(ApiError::Forbidden);
+    }
+    Ok(next.run(req).await)
+}
+
 /// Rejects users who cannot write (readonly) with 403, but lets admin +
 /// editor through regardless of HTTP verb. Apply on top of `require_session`
 /// to gate route groups that editors are allowed to fully manage.

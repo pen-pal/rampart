@@ -202,18 +202,29 @@ pub fn v1_protected() -> Router<AppState> {
             crate::auth::require_write_or_readonly_get,
         ));
 
-    let admin_only = Router::new()
-        // /v1/users admin CRUD + role management.
+    // ── global_admin_only ────────────────────────────────────────────────
+    // Genuinely INSTANCE-GLOBAL, cross-tenant surfaces — no per-org scoping, so
+    // a per-org admin reaching them is a privilege escalation / cross-tenant
+    // leak. `/v1/orgs` is no-role-gated (any user can self-provision an org and
+    // become its admin), and `require_session` overwrites `User.role` with the
+    // ACTIVE-org role — so gating these on the per-org role let a self-made org
+    // admin reach global user management (create global admins → instance
+    // takeover). `require_global_admin` requires the GLOBAL `is_admin` flag too.
+    let global_admin_only = Router::new()
+        // /v1/users admin CRUD + role management — GLOBAL user table, not org-scoped.
         .nest("/users", users::admin_router())
-        // /v1/audit-log
+        // /v1/audit-log — currently a cross-org view.
         .nest("/audit-log", audit::router())
-        // /v1/compliance — auditor evidence reports (access-review)
+        // /v1/compliance — cross-tenant auditor evidence (access-review roster).
         .nest("/compliance", compliance::router())
+        // SMTP + retention settings — instance-global config (key-value `settings`).
+        .merge(subscribers::settings_router())
+        .route_layer(axum::middleware::from_fn(crate::auth::require_global_admin));
+
+    let admin_only = Router::new()
         // /v1/delivery-log — recent notification delivery attempts (admin)
         .nest("/delivery-log", delivery_log::router())
-        // SMTP + retention settings.
-        .merge(subscribers::settings_router())
-        // /v1/api-keys — list/create/revoke
+        // /v1/api-keys — list/create/revoke (org-scoped via OrgContext)
         .nest("/api-keys", api_keys::router())
         // /v1/ingest-keys — per-org telemetry ingest credentials (list/create/delete)
         .nest("/ingest-keys", ingest_keys::router())
@@ -248,6 +259,7 @@ pub fn v1_protected() -> Router<AppState> {
 
     Router::new()
         .merge(editor_or_read)
+        .merge(global_admin_only)
         .merge(admin_only)
         .merge(self_service)
 }
