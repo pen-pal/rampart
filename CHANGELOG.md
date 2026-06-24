@@ -29,6 +29,22 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.85] — 2026-06-24
+
+### Security
+- **The live heartbeat SSE stream no longer leaks other tenants' data.**
+  `GET /v1/stream/heartbeats` subscribed to the process-global heartbeat
+  broadcast and emitted **every org's** heartbeats — monitor id, status,
+  latency, status code, and the free-text message (which carries probe/error
+  output) — with no org filtering. Any authenticated session, including a
+  Readonly or self-provisioned-org user (the route allows GET under
+  `require_write_or_readonly_get`), could open one `EventSource` and watch every
+  tenant's live probe results. The handler now snapshots the caller's org's
+  monitor ids from the `OrgContext` and drops any heartbeat outside that set
+  before emitting. (A monitor created after the stream opens begins streaming on
+  the `EventSource`'s next reconnect.) Regression test:
+  `drops_foreign_org_heartbeats`.
+
 ## [0.156.84] — 2026-06-24
 
 ### Fixed
