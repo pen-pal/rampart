@@ -117,10 +117,13 @@ pub async fn delete(pool: &SqlitePool, id: ScheduledReportId, org_id: OrgId) -> 
 /// Reports due to send (never sent, or older than the cadence window). The PG
 /// `interval` / `date_trunc('month')` CASE becomes unix-second math +
 /// `strftime('%Y-%m')`. `now` is bound once per `?` occurrence (positional).
-pub async fn due(pool: &SqlitePool, now: OffsetDateTime) -> DbResult<Vec<ScheduledReport>> {
+pub async fn due(
+    pool: &SqlitePool,
+    now: OffsetDateTime,
+) -> DbResult<Vec<(ScheduledReport, OrgId)>> {
     let now_unix = now.unix_timestamp();
     let sql = format!(
-        "SELECT {COLS} FROM scheduled_reports
+        "SELECT {COLS}, org_id FROM scheduled_reports
          WHERE last_sent_at IS NULL
             OR CASE cadence
                  WHEN 'daily'   THEN last_sent_at <= ? - 86400
@@ -135,7 +138,10 @@ pub async fn due(pool: &SqlitePool, now: OffsetDateTime) -> DbResult<Vec<Schedul
         .bind(now_unix)
         .fetch_all(pool)
         .await?;
-    Ok(rows.iter().map(report_from).collect())
+    Ok(rows
+        .iter()
+        .map(|r| (report_from(r), super::oid(&r.get::<String, _>("org_id"))))
+        .collect())
 }
 
 fn cadence_label(cadence: &str) -> &'static str {
@@ -152,9 +158,11 @@ pub async fn render(
     pool: &SqlitePool,
     report_name: &str,
     cadence: &str,
+    org_id: OrgId,
 ) -> DbResult<(String, String)> {
     let window_seconds = cadence_window_seconds(cadence);
-    let monitors = super::monitors::list_all(pool).await?;
+    // Org-scoped — a report only summarizes its own org's monitors.
+    let monitors = super::monitors::list(pool, org_id).await?;
     let subject = format!("{} uptime report — {report_name}", cadence_label(cadence));
     let mut lines = Vec::with_capacity(monitors.len() + 2);
     lines.push(subject.clone());

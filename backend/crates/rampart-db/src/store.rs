@@ -1399,12 +1399,18 @@ pub trait StoreScheduledReports: Send + Sync {
 
     async fn delete_scheduled_report(&self, id: ScheduledReportId, org_id: OrgId) -> DbResult<()>;
 
-    async fn due_scheduled_reports(&self, now: OffsetDateTime) -> DbResult<Vec<ScheduledReport>>;
+    /// Due reports paired with their owning org, so the caller renders each
+    /// digest scoped to that org's monitors.
+    async fn due_scheduled_reports(
+        &self,
+        now: OffsetDateTime,
+    ) -> DbResult<Vec<(ScheduledReport, OrgId)>>;
 
     async fn render_scheduled_report(
         &self,
         report_name: &str,
         cadence: &str,
+        org_id: OrgId,
     ) -> DbResult<(String, String)>;
 
     async fn mark_scheduled_report_sent(&self, id: ScheduledReportId) -> DbResult<()>;
@@ -3828,7 +3834,10 @@ impl StoreScheduledReports for PgStore {
         crate::scheduled_reports::delete(&self.pool, id, org_id).await
     }
 
-    async fn due_scheduled_reports(&self, now: OffsetDateTime) -> DbResult<Vec<ScheduledReport>> {
+    async fn due_scheduled_reports(
+        &self,
+        now: OffsetDateTime,
+    ) -> DbResult<Vec<(ScheduledReport, OrgId)>> {
         crate::scheduled_reports::due(&self.pool, now).await
     }
 
@@ -3836,8 +3845,9 @@ impl StoreScheduledReports for PgStore {
         &self,
         report_name: &str,
         cadence: &str,
+        org_id: OrgId,
     ) -> DbResult<(String, String)> {
-        crate::scheduled_reports::render(&self.pool, report_name, cadence).await
+        crate::scheduled_reports::render(&self.pool, report_name, cadence, org_id).await
     }
 
     async fn mark_scheduled_report_sent(&self, id: ScheduledReportId) -> DbResult<()> {

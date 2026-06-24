@@ -171,10 +171,10 @@ pub async fn delete(pool: &DbPool, id: ScheduledReportId, org_id: OrgId) -> DbRe
 /// never wedge a report into "never due". A row with no recipients is still
 /// returned — the scheduler logs + skips it so a misconfigured report is
 /// visible rather than silently never due.
-pub async fn due(pool: &DbPool, now: OffsetDateTime) -> DbResult<Vec<ScheduledReport>> {
+pub async fn due(pool: &DbPool, now: OffsetDateTime) -> DbResult<Vec<(ScheduledReport, OrgId)>> {
     let rows = sqlx::query!(
         r#"
-        SELECT id, name, recipients, cadence, last_sent_at, created_at
+        SELECT id, name, recipients, cadence, last_sent_at, created_at, org_id AS "org_id!"
         FROM scheduled_reports
         WHERE last_sent_at IS NULL
            OR CASE cadence
@@ -190,13 +190,18 @@ pub async fn due(pool: &DbPool, now: OffsetDateTime) -> DbResult<Vec<ScheduledRe
     .await?;
     Ok(rows
         .into_iter()
-        .map(|r| ScheduledReport {
-            id: ScheduledReportId::from_uuid(r.id),
-            name: r.name,
-            recipients: r.recipients,
-            cadence: r.cadence,
-            last_sent_at: r.last_sent_at,
-            created_at: r.created_at,
+        .map(|r| {
+            (
+                ScheduledReport {
+                    id: ScheduledReportId::from_uuid(r.id),
+                    name: r.name,
+                    recipients: r.recipients,
+                    cadence: r.cadence,
+                    last_sent_at: r.last_sent_at,
+                    created_at: r.created_at,
+                },
+                OrgId::from_uuid(r.org_id),
+            )
         })
         .collect())
 }
@@ -227,11 +232,16 @@ fn cadence_label(cadence: &str) -> &'static str {
 /// the window holds no heartbeats). Plain text — the system email sender
 /// ships text/plain. Returns `(subject, body)`. Shared by the scheduler's
 /// due-report check and the API's send-now endpoint so the two never drift.
-pub async fn render(pool: &DbPool, report_name: &str, cadence: &str) -> DbResult<(String, String)> {
+pub async fn render(
+    pool: &DbPool,
+    report_name: &str,
+    cadence: &str,
+    org_id: OrgId,
+) -> DbResult<(String, String)> {
     let window_seconds = cadence_window_seconds(cadence);
-    // System-side report generation over the whole fleet (scheduled reports
-    // become per-org in a later multi-tenancy phase).
-    let monitors = crate::monitors::list_all(pool).await?;
+    // Org-scoped: a report only ever summarizes ITS org's monitors. Using
+    // list_all here leaked every tenant's monitors+uptime into any org's report.
+    let monitors = crate::monitors::list(pool, org_id).await?;
 
     let subject = format!("{} uptime report — {report_name}", cadence_label(cadence));
     let mut lines = Vec::with_capacity(monitors.len() + 2);
@@ -261,4 +271,75 @@ pub async fn mark_sent(pool: &DbPool, id: ScheduledReportId) -> DbResult<()> {
     .execute(pool)
     .await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rampart_core::monitor::{MonitorKind, NewMonitor};
+    use rampart_core::org::DEFAULT_ORG_ID;
+    use sqlx::PgPool;
+
+    fn http(name: &str) -> NewMonitor {
+        NewMonitor {
+            name: name.into(),
+            kind: MonitorKind::Http,
+            url: Some(format!("https://{name}.example.com")),
+            hostname: None,
+            port: None,
+            config: serde_json::Value::Null,
+            interval_seconds: 60,
+            timeout_seconds: 10,
+            max_retries: 0,
+            retry_interval_sec: 60,
+            resend_interval_sec: 0,
+            upside_down: false,
+            http_method: "GET".into(),
+            http_body: None,
+            http_headers: None,
+            accepted_statuses: vec![200],
+            follow_redirect: true,
+            ignore_tls: false,
+            proxy_id: None,
+            group_id: None,
+            check_cert: false,
+            cert_expiry_days: 14,
+            slo_target_pct: None,
+            slo_window_days: None,
+            agent_id: None,
+            escalation_policy_id: None,
+        }
+    }
+
+    /// SECURITY (audit re-rank #3): a report's digest only ever lists ITS org's
+    /// monitors — `render` must not leak another tenant's monitors (it used
+    /// `list_all` over the whole fleet).
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn render_is_org_scoped(pool: PgPool) {
+        let default_org = OrgId::from_uuid(DEFAULT_ORG_ID);
+        let other = uuid::Uuid::from_u128(2);
+        sqlx::query("INSERT INTO organizations (id, slug, name) VALUES ($1, 'other', 'Other')")
+            .bind(other)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let other_org = OrgId::from_uuid(other);
+
+        crate::monitors::create(&pool, http("default-mon"), default_org)
+            .await
+            .unwrap();
+        crate::monitors::create(&pool, http("other-mon"), other_org)
+            .await
+            .unwrap();
+
+        let (_subject, body) = render(&pool, "r", "weekly", other_org).await.unwrap();
+        assert!(
+            body.contains("other-mon"),
+            "the report's own-org monitor is listed"
+        );
+        assert!(
+            !body.contains("default-mon"),
+            "another tenant's monitor must never appear in the digest"
+        );
+    }
 }

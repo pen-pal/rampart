@@ -961,7 +961,7 @@ impl Scheduler {
             return;
         }
 
-        for report in due {
+        for (report, org_id) in due {
             if report.recipients.is_empty() {
                 // Nothing to send — stamp it so we don't rescan it every
                 // tick, and so it shows a sensible last_sent_at in the UI.
@@ -971,9 +971,10 @@ impl Scheduler {
                 continue;
             }
 
+            // Render scoped to the report's OWN org — never the whole fleet.
             let (subject, body) = match self
                 .store
-                .render_scheduled_report(&report.name, &report.cadence)
+                .render_scheduled_report(&report.name, &report.cadence, org_id)
                 .await
             {
                 Ok(v) => v,

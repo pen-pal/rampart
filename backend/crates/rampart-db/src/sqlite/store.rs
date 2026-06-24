@@ -2205,7 +2205,10 @@ impl StoreScheduledReports for SqliteStore {
         crate::sqlite::scheduled_reports::delete(&self.pool, id, org_id).await
     }
 
-    async fn due_scheduled_reports(&self, now: OffsetDateTime) -> DbResult<Vec<ScheduledReport>> {
+    async fn due_scheduled_reports(
+        &self,
+        now: OffsetDateTime,
+    ) -> DbResult<Vec<(ScheduledReport, OrgId)>> {
         crate::sqlite::scheduled_reports::due(&self.pool, now).await
     }
 
@@ -2213,8 +2216,9 @@ impl StoreScheduledReports for SqliteStore {
         &self,
         report_name: &str,
         cadence: &str,
+        org_id: OrgId,
     ) -> DbResult<(String, String)> {
-        crate::sqlite::scheduled_reports::render(&self.pool, report_name, cadence).await
+        crate::sqlite::scheduled_reports::render(&self.pool, report_name, cadence, org_id).await
     }
 
     async fn mark_scheduled_report_sent(&self, id: ScheduledReportId) -> DbResult<()> {
