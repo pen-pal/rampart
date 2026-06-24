@@ -50,30 +50,29 @@ pub async fn insert_spans(pool: &SqlitePool, spans: &[ParsedSpan], org_id: OrgId
     let org = org_id.0.to_string();
     let mut tx = pool.begin().await?;
     let mut n = 0u64;
-    for s in spans {
-        let res = sqlx::query(
-            "INSERT INTO spans
-                (span_id, trace_id, parent_span_id, service_name, name, kind, start_ns, end_ns,
-                 duration_ms, status_code, status_message, attributes, org_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-             ON CONFLICT(span_id) DO NOTHING",
-        )
-        .bind(&s.span_id)
-        .bind(&s.trace_id)
-        .bind(&s.parent_span_id)
-        .bind(&s.service_name)
-        .bind(&s.name)
-        .bind(s.kind)
-        .bind(s.start_ns)
-        .bind(s.end_ns)
-        .bind(s.duration_ms())
-        .bind(s.status_code)
-        .bind(&s.status_message)
-        .bind(serde_json::to_string(&s.attributes).unwrap_or_else(|_| "null".into()))
-        .bind(&org)
-        .execute(&mut *tx)
-        .await?;
-        n += res.rows_affected();
+    for batch in spans.chunks(super::insert_chunk(13)) {
+        let mut qb = sqlx::QueryBuilder::new(
+            "INSERT INTO spans \
+                (span_id, trace_id, parent_span_id, service_name, name, kind, start_ns, end_ns, \
+                 duration_ms, status_code, status_message, attributes, org_id) ",
+        );
+        qb.push_values(batch, |mut b, s| {
+            b.push_bind(&s.span_id)
+                .push_bind(&s.trace_id)
+                .push_bind(&s.parent_span_id)
+                .push_bind(&s.service_name)
+                .push_bind(&s.name)
+                .push_bind(s.kind)
+                .push_bind(s.start_ns)
+                .push_bind(s.end_ns)
+                .push_bind(s.duration_ms())
+                .push_bind(s.status_code)
+                .push_bind(&s.status_message)
+                .push_bind(serde_json::to_string(&s.attributes).unwrap_or_else(|_| "null".into()))
+                .push_bind(&org);
+        });
+        qb.push(" ON CONFLICT(span_id) DO NOTHING");
+        n += qb.build().execute(&mut *tx).await?.rows_affected();
     }
     tx.commit().await?;
     Ok(n)

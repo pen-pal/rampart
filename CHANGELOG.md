@@ -29,6 +29,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.13] — 2026-06-24
+
+### Performance
+- **MySQL / SQLite telemetry ingest batches its inserts.** The MySQL and SQLite
+  bulk writers for heartbeats, logs, spans and metric samples issued one
+  `INSERT` round-trip per row inside a transaction (the Postgres path already
+  uses a single `UNNEST`). A 10k-span OTLP batch meant 10k sequential
+  round-trips. They now build multi-row `INSERT … VALUES (…),(…),…` statements
+  via `QueryBuilder::push_values`, chunked to stay under each backend's bind
+  ceiling (SQLite ≤ 999 placeholders, MySQL ≤ 65535). Dedup semantics are
+  preserved exactly — SQLite keeps `ON CONFLICT … DO NOTHING`, MySQL keeps
+  `INSERT IGNORE` (spans) / `ON DUPLICATE KEY` (heartbeats), and the
+  inserted-row counts returned to callers are unchanged. Postgres is untouched.
+
 ## [0.157.12] — 2026-06-24
 
 ### Security

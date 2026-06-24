@@ -57,18 +57,19 @@ pub async fn insert_many(pool: &MySqlPool, samples: &[PromSample], org_id: OrgId
     let now = OffsetDateTime::now_utc().unix_timestamp();
     let org = org_id.0.to_string();
     let mut tx = pool.begin().await?;
-    for s in samples {
-        let labels = serde_json::to_value(&s.labels).unwrap_or_else(|_| serde_json::json!({}));
-        sqlx::query(
-            "INSERT INTO metric_samples (name, labels, value, ts, org_id) VALUES (?, ?, ?, ?, ?)",
-        )
-        .bind(&s.name)
-        .bind(labels_text(&labels))
-        .bind(s.value)
-        .bind(now)
-        .bind(&org)
-        .execute(&mut *tx)
-        .await?;
+    for batch in samples.chunks(super::insert_chunk(5)) {
+        let mut qb = sqlx::QueryBuilder::new(
+            "INSERT INTO metric_samples (name, labels, value, ts, org_id) ",
+        );
+        qb.push_values(batch, |mut b, s| {
+            let labels = serde_json::to_value(&s.labels).unwrap_or_else(|_| serde_json::json!({}));
+            b.push_bind(&s.name)
+                .push_bind(labels_text(&labels))
+                .push_bind(s.value)
+                .push_bind(now)
+                .push_bind(&org);
+        });
+        qb.build().execute(&mut *tx).await?;
     }
     tx.commit().await?;
     Ok(())

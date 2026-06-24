@@ -59,18 +59,19 @@ pub async fn insert_many(pool: &SqlitePool, samples: &[PromSample], org_id: OrgI
     let now = OffsetDateTime::now_utc().unix_timestamp();
     let org = org_id.0.to_string();
     let mut tx = pool.begin().await?;
-    for s in samples {
-        let labels = serde_json::to_value(&s.labels).unwrap_or_else(|_| serde_json::json!({}));
-        sqlx::query(
-            "INSERT INTO metric_samples (name, labels, value, ts, org_id) VALUES (?, ?, ?, ?, ?)",
-        )
-        .bind(&s.name)
-        .bind(labels_text(&labels))
-        .bind(s.value)
-        .bind(now)
-        .bind(&org)
-        .execute(&mut *tx)
-        .await?;
+    for batch in samples.chunks(super::insert_chunk(5)) {
+        let mut qb = sqlx::QueryBuilder::new(
+            "INSERT INTO metric_samples (name, labels, value, ts, org_id) ",
+        );
+        qb.push_values(batch, |mut b, s| {
+            let labels = serde_json::to_value(&s.labels).unwrap_or_else(|_| serde_json::json!({}));
+            b.push_bind(&s.name)
+                .push_bind(labels_text(&labels))
+                .push_bind(s.value)
+                .push_bind(now)
+                .push_bind(&org);
+        });
+        qb.build().execute(&mut *tx).await?;
     }
     tx.commit().await?;
     Ok(())
@@ -292,5 +293,17 @@ mod tests {
             .unwrap();
         assert_eq!(deleted, 3);
         assert!(list_series(&pool, org).await.unwrap().is_empty());
+    }
+
+    #[sqlx::test(migrations = "../../migrations-sqlite")]
+    async fn insert_many_across_chunk_boundary(pool: SqlitePool) {
+        // > one chunk forces the multi-batch loop; every distinct series must land.
+        let org = super::super::oid(DEF);
+        let n = super::super::insert_chunk(5) + 25;
+        let samples: Vec<PromSample> = (0..n)
+            .map(|i| sample(&format!("m{i}"), &[("job", "web")], i as f64))
+            .collect();
+        insert_many(&pool, &samples, org).await.unwrap();
+        assert_eq!(list_series(&pool, org).await.unwrap().len(), n);
     }
 }

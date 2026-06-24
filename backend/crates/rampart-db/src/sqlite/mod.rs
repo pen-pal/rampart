@@ -73,6 +73,22 @@ pub(crate) fn in_placeholders(n: usize) -> String {
     s
 }
 
+/// Conservative per-statement bind ceiling for multi-row `INSERT`s. SQLite's
+/// `SQLITE_MAX_VARIABLE_NUMBER` defaults to 999 on the libsqlite3 amalgam sqlx
+/// bundles; staying under it keeps batched inserts portable regardless of build
+/// flags. [`insert_chunk`] turns this into a row count for a given column width.
+pub(crate) const SQLITE_MAX_BIND: usize = 900;
+
+/// Rows per batched `INSERT` given `ncols` bind params per row (>= 1).
+pub(crate) const fn insert_chunk(ncols: usize) -> usize {
+    let c = SQLITE_MAX_BIND / ncols;
+    if c == 0 {
+        1
+    } else {
+        c
+    }
+}
+
 /// Chunked age-based delete (SQLite): repeatedly delete up to
 /// [`crate::prune::PRUNE_BATCH`] rows where `ts_col` < `cutoff` (a unix epoch
 /// second) until fewer than a full batch remain. Bounds each DELETE's
