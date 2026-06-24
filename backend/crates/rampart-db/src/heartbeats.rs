@@ -1059,27 +1059,32 @@ pub async fn recent_per_monitor(
     per_monitor: i64,
     org_id: OrgId,
 ) -> DbResult<Vec<Heartbeat>> {
+    // Index-backed top-N per monitor via LATERAL: for each of the org's monitors,
+    // walk only its newest `per_monitor` heartbeats through `heartbeats_monitor_ts_idx
+    // (monitor_id, ts DESC)`. The previous form ROW_NUMBER()'d the org's ENTIRE
+    // heartbeat history just to keep ~per_monitor rows each — an unbounded scan that
+    // grew with retention on the 30s dashboard poll. Result set + ordering identical.
     let rows = sqlx::query!(
         r#"
         SELECT
-            monitor_id,
-            ts,
-            status AS "status: MonitorStatus",
-            latency_ms,
-            status_code,
-            msg,
-            retries,
-            important
-        FROM (
-            SELECT
-                h.monitor_id, h.ts, h.status, h.latency_ms, h.status_code, h.msg, h.retries, h.important,
-                ROW_NUMBER() OVER (PARTITION BY h.monitor_id ORDER BY h.ts DESC) AS rn
+            hb.monitor_id,
+            hb.ts,
+            hb.status AS "status: MonitorStatus",
+            hb.latency_ms,
+            hb.status_code,
+            hb.msg,
+            hb.retries,
+            hb.important
+        FROM monitors m
+        JOIN LATERAL (
+            SELECT h.monitor_id, h.ts, h.status, h.latency_ms, h.status_code, h.msg, h.retries, h.important
             FROM heartbeats h
-            JOIN monitors m ON m.id = h.monitor_id
-            WHERE m.org_id = $2
-        ) t
-        WHERE rn <= $1
-        ORDER BY monitor_id, ts ASC
+            WHERE h.monitor_id = m.id
+            ORDER BY h.ts DESC
+            LIMIT $1
+        ) hb ON TRUE
+        WHERE m.org_id = $2
+        ORDER BY hb.monitor_id, hb.ts ASC
         "#,
         per_monitor,
         org_id.0,
@@ -1100,4 +1105,105 @@ pub async fn recent_per_monitor(
             important: r.important,
         })
         .collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rampart_core::org::DEFAULT_ORG_ID;
+    use rampart_core::MonitorStatus;
+    use sqlx::PgPool;
+    use time::OffsetDateTime;
+
+    fn def_org() -> OrgId {
+        OrgId::from_uuid(DEFAULT_ORG_ID)
+    }
+
+    async fn mk_monitor(pool: &PgPool, name: &str) -> MonitorId {
+        crate::monitors::create(
+            pool,
+            serde_json::from_value(serde_json::json!({
+                "name": name, "kind": "http", "url": "https://x",
+                "interval_seconds": 60, "timeout_seconds": 10, "max_retries": 0,
+                "retry_interval_sec": 60, "resend_interval_sec": 0, "upside_down": false,
+                "http_method": "GET", "accepted_statuses": [200],
+                "follow_redirect": true, "ignore_tls": false, "check_cert": false,
+                "cert_expiry_days": 14
+            }))
+            .unwrap(),
+            def_org(),
+        )
+        .await
+        .unwrap()
+        .id
+    }
+
+    fn hb(m: MonitorId, ts: OffsetDateTime, latency: i32) -> Heartbeat {
+        Heartbeat {
+            monitor_id: m,
+            ts,
+            status: MonitorStatus::Up,
+            latency_ms: Some(latency),
+            status_code: None,
+            msg: None,
+            retries: 0,
+            important: false,
+        }
+    }
+
+    /// The LATERAL top-N rewrite must return the SAME thing the old
+    /// ROW_NUMBER form did: newest `per_monitor` heartbeats per monitor,
+    /// oldest-first within each monitor, org-scoped.
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn recent_per_monitor_caps_orders_and_scopes(pool: PgPool) {
+        let m1 = mk_monitor(&pool, "m1").await;
+        let m2 = mk_monitor(&pool, "m2").await;
+        let now = OffsetDateTime::now_utc();
+
+        // m1: 5 beats (latency 0..4, ascending ts); m2: 2 beats.
+        let mut hbs = Vec::new();
+        for i in 0..5 {
+            hbs.push(hb(
+                m1,
+                now - time::Duration::seconds(60 * (5 - i)),
+                i as i32,
+            ));
+        }
+        for i in 0..2 {
+            hbs.push(hb(
+                m2,
+                now - time::Duration::seconds(60 * (2 - i)),
+                100 + i as i32,
+            ));
+        }
+        insert_many(&pool, &hbs).await.unwrap();
+
+        let out = recent_per_monitor(&pool, 3, def_org()).await.unwrap();
+        let m1_rows: Vec<&Heartbeat> = out.iter().filter(|h| h.monitor_id == m1).collect();
+        let m2_rows: Vec<&Heartbeat> = out.iter().filter(|h| h.monitor_id == m2).collect();
+
+        assert_eq!(m1_rows.len(), 3, "m1 capped at per=3");
+        assert_eq!(m2_rows.len(), 2, "m2 returns all of its 2");
+        // oldest-first within m1.
+        assert!(
+            m1_rows.windows(2).all(|w| w[0].ts <= w[1].ts),
+            "ascending ts"
+        );
+        // the 3 returned are the NEWEST 3 (latency 2,3,4 — not the oldest two).
+        assert_eq!(
+            m1_rows
+                .iter()
+                .map(|h| h.latency_ms.unwrap())
+                .collect::<Vec<_>>(),
+            vec![2, 3, 4],
+            "newest per_monitor, not oldest"
+        );
+
+        // Cross-org isolation: a different org sees nothing.
+        let other = crate::orgs::create(&pool, "other", "Other").await.unwrap();
+        assert!(recent_per_monitor(&pool, 3, other.id)
+            .await
+            .unwrap()
+            .is_empty());
+    }
 }
