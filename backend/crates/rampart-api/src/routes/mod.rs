@@ -98,7 +98,10 @@ pub fn v1_public(state: &AppState) -> Router<AppState> {
         .nest("/auth", auth::router(state.auth_rate_limiter()))
         // Public status-page reads — embedded under /v1/public so the
         // boundary is explicit and obvious in the routing table.
-        .nest("/public/status-pages", status_pages::public_router())
+        .nest(
+            "/public/status-pages",
+            status_pages::public_router(state.auth_rate_limiter()),
+        )
         // Public subscribe + unsubscribe.
         .nest("/public", subscribers::public_router())
         // Public inbound webhook receivers (Alertmanager). The {token} in

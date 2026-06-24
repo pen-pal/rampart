@@ -42,11 +42,21 @@ pub fn admin_router() -> Router<AppState> {
         )
 }
 
-pub fn public_router() -> Router<AppState> {
+pub fn public_router(limiter: crate::rate_limit::IpRateLimiter) -> Router<AppState> {
+    // `/unlock` runs a memory-hard Argon2id verify (~19 MiB) on an
+    // unauthenticated path, so a known private slug lets an anonymous client
+    // flood cheap POSTs and pin CPU/RAM. Throttle it per-IP with the same
+    // limiter as `/auth` (10-burst / ~10-per-min). The cheap public read GETs
+    // below are polled by every status-page viewer, so they stay unthrottled.
+    let unlock = Router::new()
+        .route("/{slug}/unlock", axum::routing::post(public_unlock))
+        .route_layer(axum::middleware::from_fn_with_state(
+            limiter,
+            crate::rate_limit::enforce_ip_rate_limit,
+        ));
     Router::new()
         .route("/by-domain/{host}", get(public_view_by_domain))
         .route("/{slug}", get(public_view))
-        .route("/{slug}/unlock", axum::routing::post(public_unlock))
         .route("/{slug}/feed.atom", get(public_feed_atom))
         .route("/{slug}/feed.rss", get(public_feed_rss))
         .route(
@@ -58,6 +68,7 @@ pub fn public_router() -> Router<AppState> {
             get(public_incident_feed_rss),
         )
         .route("/{slug}/day-latency", get(public_day_latency))
+        .merge(unlock)
 }
 
 fn parse(id: &str) -> Result<StatusPageId, ApiError> {

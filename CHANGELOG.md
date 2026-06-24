@@ -29,6 +29,19 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.1] — 2026-06-24
+
+### Security
+- **Rate-limited the public status-page `/unlock` endpoint.** Verifying a
+  private status page's password runs a memory-hard Argon2id hash (~19 MiB) and
+  the endpoint is unauthenticated, but it sat outside the per-IP rate-limited
+  subtree — so anyone who knew a private slug could flood cheap POSTs and pin
+  CPU/RAM (a password-hash amplification DoS, also unthrottled password
+  guessing). `/unlock` now carries the same per-IP limiter as `/auth`
+  (10-burst / ~10-per-minute → `429` with `Retry-After`); the cheap public
+  status-page read endpoints, which viewers poll, stay unthrottled. (The limiter
+  itself is unit-tested; the wiring mirrors the `/auth/oidc` flow.)
+
 ## [0.157.0] — 2026-06-24
 
 ### Changed
