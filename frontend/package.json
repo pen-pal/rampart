@@ -1,7 +1,7 @@
 {
   "name": "rampart-frontend",
   "private": true,
-  "version": "0.156.73",
+  "version": "0.156.74",
   "type": "module",
   "scripts": {
     "dev": "vite",

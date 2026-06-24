@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            monitor_id,\n            ts,\n            status AS \"status: MonitorStatus\",\n            latency_ms,\n            status_code,\n            msg,\n            retries,\n            important\n        FROM (\n            SELECT\n                h.monitor_id, h.ts, h.status, h.latency_ms, h.status_code, h.msg, h.retries, h.important,\n                ROW_NUMBER() OVER (PARTITION BY h.monitor_id ORDER BY h.ts DESC) AS rn\n            FROM heartbeats h\n            JOIN monitors m ON m.id = h.monitor_id\n            WHERE m.org_id = $2\n        ) t\n        WHERE rn <= $1\n        ORDER BY monitor_id, ts ASC\n        ",
+  "query": "\n        SELECT\n            hb.monitor_id,\n            hb.ts,\n            hb.status AS \"status: MonitorStatus\",\n            hb.latency_ms,\n            hb.status_code,\n            hb.msg,\n            hb.retries,\n            hb.important\n        FROM monitors m\n        JOIN LATERAL (\n            SELECT h.monitor_id, h.ts, h.status, h.latency_ms, h.status_code, h.msg, h.retries, h.important\n            FROM heartbeats h\n            WHERE h.monitor_id = m.id\n            ORDER BY h.ts DESC\n            LIMIT $1\n        ) hb ON TRUE\n        WHERE m.org_id = $2\n        ORDER BY hb.monitor_id, hb.ts ASC\n        ",
   "describe": {
     "columns": [
       {
@@ -123,5 +123,5 @@
       false
     ]
   },
-  "hash": "14307a563e4274292134dba19bff77b225560a833204bdb1b540ad2e622e0da5"
+  "hash": "d08ed9667d2489ee772bca04b0f13c4b072b8224be10809337f4fcc8d9b5ee07"
 }

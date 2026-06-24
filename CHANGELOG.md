@@ -29,6 +29,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.74] — 2026-06-24
+
+### Performance
+- **`/v1/monitors/history` (the 30s dashboard poll) no longer scans the whole
+  heartbeats table.** `heartbeats::recent_per_monitor` rolled `ROW_NUMBER() OVER
+  (PARTITION BY monitor_id ORDER BY ts DESC)` over the org's ENTIRE heartbeat
+  history just to keep the newest ~N per monitor — an unbounded sort that grew
+  with retention on every dashboard refresh. Rewritten as an index-backed
+  `JOIN LATERAL (… ORDER BY ts DESC LIMIT $1)` per monitor, which walks only the
+  newest N rows of each via `heartbeats_monitor_ts_idx (monitor_id, ts DESC)` —
+  O(monitors × N) instead of O(all heartbeats). Result set + ordering are
+  byte-identical (regression test asserts the per-monitor cap, oldest-first
+  ordering, newest-N selection, and cross-org isolation). Postgres (default/
+  reference backend); the SQLite + MySQL tiers keep the window-function form for
+  now (lower-scale, queued in the audit backlog). Audit #123 — fresh-audit
+  rank-1 finding.
+
 ## [0.156.73] — 2026-06-24
 
 ### Security
