@@ -66,6 +66,7 @@ async fn ingest(
         &headers,
         q.k.as_deref(),
         origin,
+        crate::ingest_util::IngestSurface::Rum,
     )
     .await
     {
@@ -120,6 +121,7 @@ async fn ingest_error(
         &headers,
         q.k.as_deref(),
         origin,
+        crate::ingest_util::IngestSurface::Rum,
     )
     .await
     {

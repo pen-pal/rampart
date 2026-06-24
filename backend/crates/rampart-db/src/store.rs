@@ -2118,7 +2118,11 @@ impl StoreIngestKeys for PgStore {
         &self,
         token: &str,
     ) -> DbResult<Option<(Uuid, OrgId, Vec<String>)>> {
-        crate::ingest_keys::find_by_token(&self.pool, token).await
+        // The free fn now also returns the key `kind` (enforced by the ingest
+        // resolver); this seam method doesn't expose it, so drop it here.
+        Ok(crate::ingest_keys::find_by_token(&self.pool, token)
+            .await?
+            .map(|(id, org, _kind, allowed)| (id, org, allowed)))
     }
 
     async fn touch_ingest_key_last_used(&self, id: Uuid) -> DbResult<()> {

@@ -104,13 +104,14 @@ pub async fn create(
     Ok((row.into(), token))
 }
 
-/// Resolve a presented token to its `(key id, org, allowed_origins)`. `None`
-/// when the token isn't an ingest key — the caller then falls back to the
-/// legacy global-token gate (Default org).
+/// Resolve a presented token to its `(key id, org, kind, allowed_origins)`.
+/// `None` when the token isn't an ingest key — the caller then falls back to the
+/// legacy global-token gate (Default org). `kind` is the surface scope (`all` /
+/// `otlp` / `prometheus` / `rum` / `profiles`), enforced by the ingest resolver.
 pub async fn find_by_token(
     pool: &DbPool,
     token: &str,
-) -> DbResult<Option<(Uuid, OrgId, Vec<String>)>> {
+) -> DbResult<Option<(Uuid, OrgId, String, Vec<String>)>> {
     // Hash-primary lookup with a plaintext fallback (Phase A): the fallback
     // resolves a key created by an OLD build mid-rolling-deploy (it wrote only
     // `token`, no `token_hash`). Both columns are UNIQUE so this returns at most
@@ -118,7 +119,7 @@ pub async fn find_by_token(
     // migration once no old build remains.
     let hash = crate::api_keys::sha256_hex(token);
     let row = sqlx::query!(
-        r#"SELECT id, org_id, allowed_origins FROM ingest_keys
+        r#"SELECT id, org_id, kind, allowed_origins FROM ingest_keys
            WHERE token_hash = $1 OR token = $2"#,
         hash,
         token,
@@ -129,6 +130,7 @@ pub async fn find_by_token(
         (
             r.id,
             OrgId::from_uuid(r.org_id),
+            r.kind,
             r.allowed_origins.unwrap_or_default(),
         )
     }))
@@ -188,9 +190,10 @@ mod tests {
         assert!(token.starts_with("ingk_"));
 
         // find_by_token resolves to the org.
-        let (id, found_org, origins) = find_by_token(&pool, &token).await.unwrap().unwrap();
+        let (id, found_org, kind, origins) = find_by_token(&pool, &token).await.unwrap().unwrap();
         assert_eq!(id, key.id);
         assert_eq!(found_org, org);
+        assert_eq!(kind, "all");
         assert!(origins.is_empty());
 
         // unknown token -> None (caller falls back to the legacy gate).
@@ -211,7 +214,8 @@ mod tests {
         let org = OrgId::from_uuid(DEFAULT_ORG_ID);
         let origins = vec!["https://app.example.com".to_string()];
         let (key, token) = create(&pool, org, "rum", "rum", &origins).await.unwrap();
-        let (_, _, got) = find_by_token(&pool, &token).await.unwrap().unwrap();
+        let (_, _, kind, got) = find_by_token(&pool, &token).await.unwrap().unwrap();
+        assert_eq!(kind, "rum");
         assert_eq!(got, origins);
         let listed = list_for_org(&pool, org).await.unwrap();
         assert_eq!(listed[0].allowed_origins, origins);

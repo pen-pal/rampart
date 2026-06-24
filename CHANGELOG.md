@@ -29,6 +29,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.9] — 2026-06-24
+
+### Security
+- **Ingest keys now enforce their `kind` (surface) scope.** A key minted for one
+  signal — e.g. a **RUM** key, which necessarily ships in public browser JS — was
+  accepted on every ingest surface, so a leaked RUM key could write arbitrary
+  OTLP traces/logs, Prometheus metrics, or profiles into the org. The resolver
+  now checks the key's `kind` against the surface it hit (`otlp` / `prometheus`
+  / `rum` / `profiles` / `syslog`): an `all` key accepts everything, any other
+  kind only its own surface, else `403`. Threaded through every ingest handler;
+  unit test `ingest_kind_scope_enforced`. (Ingest is the Postgres-pool path
+  today, so this is the PG resolver; behavior change: a non-`all` key that was
+  being misused cross-surface will now be rejected.)
+
 ## [0.157.8] — 2026-06-24
 
 ### Fixed

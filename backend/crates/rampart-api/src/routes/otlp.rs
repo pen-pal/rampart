@@ -38,7 +38,13 @@ async fn ingest_logs(
 ) -> Result<Json<Value>, ApiError> {
     // Phase 5: resolve the owning org from the ingest credential (gates auth
     // internally, exactly as require_telemetry_token did; Default on key-miss).
-    let org = crate::ingest_util::resolve_ingest_org(s.pool(), &headers, None).await?;
+    let org = crate::ingest_util::resolve_ingest_org(
+        s.pool(),
+        &headers,
+        None,
+        crate::ingest_util::IngestSurface::Otlp,
+    )
+    .await?;
     // RLS: bind the resolved org so the pool hook scopes the writes below to
     // this tenant (no-op when RAMPART_RLS off). Ingest handlers carry no
     // session, so the chokepoint is here rather than the auth middleware.
@@ -88,7 +94,13 @@ async fn ingest_traces(
 ) -> Result<Json<Value>, ApiError> {
     // Phase 5: resolve the owning org from the ingest credential (gates auth
     // internally, exactly as require_telemetry_token did; Default on key-miss).
-    let org = crate::ingest_util::resolve_ingest_org(s.pool(), &headers, None).await?;
+    let org = crate::ingest_util::resolve_ingest_org(
+        s.pool(),
+        &headers,
+        None,
+        crate::ingest_util::IngestSurface::Otlp,
+    )
+    .await?;
     // RLS: bind the resolved org so the writes below are tenant-scoped under
     // the pool hook (no-op when RAMPART_RLS off).
     rampart_db::rls::with_org(org, async move {
