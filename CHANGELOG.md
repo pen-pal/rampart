@@ -29,6 +29,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.2] — 2026-06-24
+
+### Changed
+- **Hardened MySQL/SQLite metric-label canonicalization against a future
+  `preserve_order` flip.** On the TEXT-storage backends, metric series identity
+  is the JSON label string, matched with `labels = ?` across insert and every
+  read / metric-rule / SLO path. That relied on serde_json emitting object keys
+  in sorted order — true today (its default Map is a sorted `BTreeMap`), but a
+  future Mongo/bson backend would pull in serde_json's `preserve_order` feature,
+  which feature-unification turns on for *all* serde_json users; `to_string`
+  would then emit insertion order and label matching would **silently** miss,
+  quietly returning no data and making metric rules / SLOs never fire. Label
+  text is now canonicalized by explicitly sorting object keys (recursively, via
+  `BTreeMap`), so it's correct regardless of that feature. No behavior change on
+  current builds. Order-independence unit tests added on both backends. (Also
+  repaired the MySQL/SQLite `scheduled_reports` test calls for the org-scoped
+  `render` signature from v0.156.86, which only compile under those features.)
+
 ## [0.157.1] — 2026-06-24
 
 ### Security

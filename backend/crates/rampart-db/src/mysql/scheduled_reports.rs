@@ -223,7 +223,7 @@ mod tests {
         assert_eq!(u.recipients.len(), 2);
         assert_eq!(u.cadence, "daily");
 
-        let (subject, body) = render(&pool, "weekly digest", "weekly").await.unwrap();
+        let (subject, body) = render(&pool, "weekly digest", "weekly", org).await.unwrap();
         assert!(subject.starts_with("Weekly uptime report"));
         assert!(body.contains("no monitors configured"));
 
