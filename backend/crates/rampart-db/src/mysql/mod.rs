@@ -170,6 +170,22 @@ pub(crate) fn in_placeholders(n: usize) -> String {
     s
 }
 
+/// Conservative per-statement bind ceiling for multi-row `INSERT`s. MySQL caps
+/// prepared-statement placeholders at 65535; staying well under it also keeps
+/// each statement comfortably inside `max_allowed_packet`. [`insert_chunk`]
+/// turns this into a row count for a given column width.
+pub(crate) const MYSQL_MAX_BIND: usize = 60_000;
+
+/// Rows per batched `INSERT` given `ncols` bind params per row (>= 1).
+pub(crate) const fn insert_chunk(ncols: usize) -> usize {
+    let c = MYSQL_MAX_BIND / ncols;
+    if c == 0 {
+        1
+    } else {
+        c
+    }
+}
+
 /// Chunked age-based delete (MySQL): repeatedly delete up to
 /// [`crate::prune::PRUNE_BATCH`] rows where `ts_col` < `cutoff` (a unix epoch
 /// second) until fewer than a full batch remain. Bounds each DELETE's lock +

@@ -46,35 +46,33 @@ pub async fn insert_logs(pool: &MySqlPool, logs: &[ParsedLog], org_id: OrgId) ->
     }
     let org = org_id.0.to_string();
     let mut tx = pool.begin().await?;
-    let mut n = 0u64;
-    for l in logs {
-        let ts_unix = if l.time_ns > 0 {
-            l.time_ns / 1_000_000_000
-        } else {
-            OffsetDateTime::now_utc().unix_timestamp()
-        };
-        sqlx::query(
-            "INSERT INTO logs
-                (id, ts, severity, severity_text, service_name, body, trace_id, span_id,
-                 attributes, org_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        )
-        .bind(Uuid::now_v7().to_string())
-        .bind(ts_unix)
-        .bind(l.severity)
-        .bind(&l.severity_text)
-        .bind(&l.service_name)
-        .bind(&l.body)
-        .bind(&l.trace_id)
-        .bind(&l.span_id)
-        .bind(serde_json::to_string(&l.attributes).unwrap_or_else(|_| "null".into()))
-        .bind(&org)
-        .execute(&mut *tx)
-        .await?;
-        n += 1;
+    for batch in logs.chunks(super::insert_chunk(10)) {
+        let mut qb = sqlx::QueryBuilder::new(
+            "INSERT INTO logs \
+                (id, ts, severity, severity_text, service_name, body, trace_id, span_id, \
+                 attributes, org_id) ",
+        );
+        qb.push_values(batch, |mut b, l| {
+            let ts_unix = if l.time_ns > 0 {
+                l.time_ns / 1_000_000_000
+            } else {
+                OffsetDateTime::now_utc().unix_timestamp()
+            };
+            b.push_bind(Uuid::now_v7().to_string())
+                .push_bind(ts_unix)
+                .push_bind(l.severity)
+                .push_bind(&l.severity_text)
+                .push_bind(&l.service_name)
+                .push_bind(&l.body)
+                .push_bind(&l.trace_id)
+                .push_bind(&l.span_id)
+                .push_bind(serde_json::to_string(&l.attributes).unwrap_or_else(|_| "null".into()))
+                .push_bind(&org);
+        });
+        qb.build().execute(&mut *tx).await?;
     }
     tx.commit().await?;
-    Ok(n)
+    Ok(logs.len() as u64)
 }
 
 /// Recent logs matching the filter, newest first, org-scoped. Body search is a

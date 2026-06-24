@@ -87,23 +87,23 @@ pub async fn insert_many(pool: &SqlitePool, hbs: &[Heartbeat]) -> DbResult<()> {
         return Ok(());
     }
     let mut tx = pool.begin().await?;
-    for h in hbs {
-        sqlx::query(
-            "INSERT INTO heartbeats
-                (monitor_id, ts, status, latency_ms, status_code, msg, retries, important)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-             ON CONFLICT(monitor_id, ts) DO NOTHING",
-        )
-        .bind(h.monitor_id.0.to_string())
-        .bind(h.ts.unix_timestamp())
-        .bind(mstatus_str(h.status))
-        .bind(h.latency_ms)
-        .bind(h.status_code)
-        .bind(&h.msg)
-        .bind(h.retries)
-        .bind(h.important as i64)
-        .execute(&mut *tx)
-        .await?;
+    for batch in hbs.chunks(super::insert_chunk(8)) {
+        let mut qb = sqlx::QueryBuilder::new(
+            "INSERT INTO heartbeats \
+                (monitor_id, ts, status, latency_ms, status_code, msg, retries, important) ",
+        );
+        qb.push_values(batch, |mut b, h| {
+            b.push_bind(h.monitor_id.0.to_string())
+                .push_bind(h.ts.unix_timestamp())
+                .push_bind(mstatus_str(h.status))
+                .push_bind(h.latency_ms)
+                .push_bind(h.status_code)
+                .push_bind(&h.msg)
+                .push_bind(h.retries)
+                .push_bind(h.important as i64);
+        });
+        qb.push(" ON CONFLICT(monitor_id, ts) DO NOTHING");
+        qb.build().execute(&mut *tx).await?;
     }
     tx.commit().await?;
     Ok(())
