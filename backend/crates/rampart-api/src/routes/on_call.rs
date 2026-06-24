@@ -10,9 +10,10 @@ use axum::extract::{Extension, Path, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::routing::get;
 use axum::{Json, Router};
-use rampart_core::ids::OnCallScheduleId;
+use rampart_core::ids::{NotificationId, OnCallScheduleId, UserId};
 use rampart_core::on_call::{NewOnCallSchedule, OnCallSchedule, UpdateOnCallSchedule};
 use rampart_db::users::User;
+use rampart_db::DbError;
 use serde::Serialize;
 use std::str::FromStr;
 use time::OffsetDateTime;
@@ -30,6 +31,37 @@ fn parse(s: &str) -> Result<OnCallScheduleId, ApiError> {
     Uuid::from_str(s)
         .map(OnCallScheduleId::from_uuid)
         .map_err(|_| ApiError::BadRequest("invalid schedule id".into()))
+}
+
+/// Reject participant channels/users owned by ANOTHER org. The ring is resolved
+/// unscoped at fire time, so without this gate an editor could page (or pull the
+/// email of) another tenant's channel/user. Mirrors the routing.rs double-gate;
+/// a body ref to a foreign/absent id is a 400, not a 404.
+async fn gate_participant_refs(
+    s: &AppState,
+    channels: &[NotificationId],
+    users: &[UserId],
+    org: &OrgContext,
+) -> Result<(), ApiError> {
+    for c in channels {
+        match s.store().get_notification(*c, org.org_id).await {
+            Ok(_) => {}
+            Err(DbError::NotFound) => {
+                return Err(ApiError::BadRequest(format!(
+                    "schedule references channel {c} not in this org"
+                )))
+            }
+            Err(e) => return Err(ApiError::Db(e)),
+        }
+    }
+    for u in users {
+        if s.store().org_member_role(org.org_id, *u).await?.is_none() {
+            return Err(ApiError::BadRequest(format!(
+                "schedule references user {u} who is not a member of this org"
+            )));
+        }
+    }
+    Ok(())
 }
 
 async fn list(
@@ -54,6 +86,13 @@ async fn create(
         input.participant_ids.len() + input.participant_user_ids.len(),
     )
     .map_err(ApiError::BadRequest)?;
+    gate_participant_refs(
+        &s,
+        &input.participant_ids,
+        &input.participant_user_ids,
+        &org,
+    )
+    .await?;
     let name = input.name.clone();
     let schedule = s.store().create_on_call(input, org.org_id).await?;
     crate::audit::record(
@@ -101,6 +140,14 @@ async fn update(
             .len();
         rampart_core::on_call::validate_schedule(rotation, chans + users)
             .map_err(ApiError::BadRequest)?;
+    }
+    // Gate only the refs actually being written this request; omitted lists keep
+    // their stored (already-gated) values.
+    if let Some(ch) = &input.participant_ids {
+        gate_participant_refs(&s, ch, &[], &org).await?;
+    }
+    if let Some(us) = &input.participant_user_ids {
+        gate_participant_refs(&s, &[], us, &org).await?;
     }
     let schedule = s
         .store()

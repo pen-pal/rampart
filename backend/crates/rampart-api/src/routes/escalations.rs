@@ -12,11 +12,12 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use rampart_core::escalation::{
-    validate_steps, EscalationEpisode, EscalationPolicy, NewEscalationPolicy,
+    validate_steps, EscalationEpisode, EscalationPolicy, EscalationStep, NewEscalationPolicy,
     UpdateEscalationPolicy,
 };
 use rampart_core::ids::{EscalationPolicyId, MonitorId};
 use rampart_db::users::User;
+use rampart_db::DbError;
 use std::str::FromStr;
 use uuid::Uuid;
 use validator::Validate;
@@ -85,6 +86,43 @@ fn parse_monitor(s: &str) -> Result<MonitorId, ApiError> {
         .map_err(|_| ApiError::BadRequest("invalid monitor id".into()))
 }
 
+/// Reject steps that reference a channel or on-call schedule owned by ANOTHER
+/// org. The notifier resolves these ids unscoped at fire time, so without this
+/// gate an editor could page (or read the redacted config path of) another
+/// tenant's channels/schedules. Mirrors the routing.rs double-gate; a body ref
+/// to a foreign/absent id is a 400, not a 404.
+async fn gate_step_refs(
+    s: &AppState,
+    steps: &[EscalationStep],
+    org: &OrgContext,
+) -> Result<(), ApiError> {
+    for st in steps {
+        for c in &st.channel_ids {
+            match s.store().get_notification(*c, org.org_id).await {
+                Ok(_) => {}
+                Err(DbError::NotFound) => {
+                    return Err(ApiError::BadRequest(format!(
+                        "step references channel {c} not in this org"
+                    )))
+                }
+                Err(e) => return Err(ApiError::Db(e)),
+            }
+        }
+        for sc in &st.schedule_ids {
+            match s.store().get_on_call(*sc, org.org_id).await {
+                Ok(_) => {}
+                Err(DbError::NotFound) => {
+                    return Err(ApiError::BadRequest(format!(
+                        "step references on-call schedule {sc} not in this org"
+                    )))
+                }
+                Err(e) => return Err(ApiError::Db(e)),
+            }
+        }
+    }
+    Ok(())
+}
+
 async fn list(
     State(s): State<AppState>,
     Extension(org): Extension<OrgContext>,
@@ -103,6 +141,7 @@ async fn create(
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     validate_steps(&input.steps).map_err(ApiError::BadRequest)?;
+    gate_step_refs(&s, &input.steps, &org).await?;
     let name = input.name.clone();
     let policy = s
         .store()
@@ -135,6 +174,7 @@ async fn update(
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     if let Some(steps) = &input.steps {
         validate_steps(steps).map_err(ApiError::BadRequest)?;
+        gate_step_refs(&s, steps, &org).await?;
     }
     let policy = s
         .store()
