@@ -18,10 +18,36 @@ use rampart_core::promtext::PromSample;
 use sqlx::{Row, SqlitePool};
 use time::OffsetDateTime;
 
-/// Canonical JSON text for a label set — the storage + match form. serde_json's
-/// default Map sorts keys, so this is stable and TEXT `=` is semantic equality.
+/// Canonical JSON text for a label set — the storage + match form, so TEXT `=`
+/// is semantic equality across insert and every read/rule path. We sort object
+/// keys explicitly (via `BTreeMap`) rather than relying on serde_json's default
+/// Map ordering: a future Mongo/bson backend would pull in serde_json's
+/// `preserve_order` feature, and feature-unification flips it on for ALL
+/// serde_json users — at which point `to_string` would emit insertion order and
+/// `labels = ?` matching would SILENTLY miss, so metric reads and metric-rule /
+/// SLO evaluation would quietly return nothing. The explicit sort is correct
+/// regardless of that feature.
 fn labels_text(v: &serde_json::Value) -> String {
-    serde_json::to_string(v).unwrap_or_else(|_| "{}".into())
+    serde_json::to_string(&canonicalize(v)).unwrap_or_else(|_| "{}".into())
+}
+
+/// Recursively rebuild a JSON value with object keys in sorted order. `BTreeMap`
+/// iterates sorted, so `to_value` re-inserts in that order regardless of
+/// serde_json's Map backing — making the serialized form backing-independent.
+fn canonicalize(v: &serde_json::Value) -> serde_json::Value {
+    match v {
+        serde_json::Value::Object(m) => {
+            let sorted: std::collections::BTreeMap<String, serde_json::Value> = m
+                .iter()
+                .map(|(k, val)| (k.clone(), canonicalize(val)))
+                .collect();
+            serde_json::to_value(sorted).unwrap_or_else(|_| serde_json::json!({}))
+        }
+        serde_json::Value::Array(a) => {
+            serde_json::Value::Array(a.iter().map(canonicalize).collect())
+        }
+        other => other.clone(),
+    }
 }
 
 /// Bulk-insert one ingest payload, all rows stamped with a single `now`
@@ -176,6 +202,16 @@ mod tests {
     use std::collections::BTreeMap;
 
     const DEF: &str = "00000000-0000-0000-0000-000000000001";
+
+    /// The canonical label text is key-sorted (recursively) so insert and every
+    /// `labels = ?` read agree regardless of caller key order or serde_json's
+    /// Map backing — guards against a future `preserve_order` flip silently
+    /// breaking metric/SLO matching.
+    #[test]
+    fn labels_text_sorts_keys_canonically() {
+        let out = labels_text(&serde_json::json!({ "z": "1", "a": "2", "m": { "y": 1, "x": 2 } }));
+        assert_eq!(out, r#"{"a":"2","m":{"x":2,"y":1},"z":"1"}"#);
+    }
 
     fn sample(name: &str, labels: &[(&str, &str)], value: f64) -> PromSample {
         PromSample {

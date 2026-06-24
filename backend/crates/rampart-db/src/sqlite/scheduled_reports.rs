@@ -241,7 +241,7 @@ mod tests {
         assert_eq!(u.cadence, "daily");
 
         // render produces a subject + a line per monitor (none here).
-        let (subject, body) = render(&pool, "weekly digest", "weekly").await.unwrap();
+        let (subject, body) = render(&pool, "weekly digest", "weekly", org).await.unwrap();
         assert!(subject.starts_with("Weekly uptime report"));
         assert!(body.contains("no monitors configured"));
 
