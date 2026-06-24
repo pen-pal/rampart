@@ -29,6 +29,17 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.8] — 2026-06-24
+
+### Fixed
+- **Scheduled uptime reports build the digest with one query instead of N+1.**
+  The report renderer looped a per-monitor uptime query (`uptime_pct`) over the
+  whole fleet on every due-report tick and the send-now path. It now calls the
+  existing set-based `uptime_pct_batch` once and builds each line from the result
+  map (absent id == "no data", identical output), across the Postgres, MySQL,
+  and SQLite backends. Behaviour unchanged; covered by the existing
+  `render_is_org_scoped` test.
+
 ## [0.157.7] — 2026-06-24
 
 ### Changed
