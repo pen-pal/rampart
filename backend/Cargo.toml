@@ -32,7 +32,7 @@ members  = [
 # tag". The same value reaches the running binary through
 # env!("CARGO_PKG_VERSION") in `rampart-api` and surfaces on `/healthz` +
 # `/metrics`; the dashboard reads it from `/healthz` for the header pill.
-version      = "0.156.75"
+version      = "0.156.76"
 edition      = "2021"
 # MSRV is forced up by transitive deps (time 0.3.47, base64ct, etc. need
 # edition2024 / rustc 1.88). Newer compilers work fine; the release

@@ -29,19 +29,36 @@ use time::OffsetDateTime;
 
 pub struct BrowserProbe {
     client: reqwest::Client,
+    /// Operator-trusted renderer hosts (env `RAMPART_BROWSER_RENDERER_ALLOW`,
+    /// comma-separated) that may resolve to PRIVATE IPs even under
+    /// `RAMPART_SSRF_BLOCK_PRIVATE`. The always-blocked set (loopback /
+    /// link-local / cloud metadata) is NEVER exemptable.
+    allow_hosts: Vec<String>,
 }
 
 impl BrowserProbe {
     pub fn new() -> Self {
-        // Client connects to the operator-configured headless renderer
-        // (trusted infra, often internal), which fetches the target itself —
-        // so it is intentionally NOT built through the SSRF-guarded resolver
-        // (that would break an internal renderer under BLOCK_PRIVATE).
+        // `renderer_url` is per-monitor config an EDITOR sets — NOT operator-only
+        // — so the renderer connection IS SSRF-guarded: an editor could otherwise
+        // point it at `http://169.254.169.254/…` or an internal port and read the
+        // response body back. The client's resolver vets every dialled IP (closing
+        // the DNS-rebind window), and a per-run preflight rejects with a clear
+        // reason. An operator running a private internal renderer (e.g.
+        // `browserless` on a 10.x host) allow-lists it via
+        // `RAMPART_BROWSER_RENDERER_ALLOW`; even then metadata/loopback stay blocked.
+        let allow_hosts: Vec<String> = std::env::var("RAMPART_BROWSER_RENDERER_ALLOW")
+            .unwrap_or_default()
+            .split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(String::from)
+            .collect();
         Self {
-            client: reqwest::Client::builder()
+            client: crate::ssrf::guarded_client_builder_allowing(allow_hosts.clone())
                 .user_agent("Rampart/0.4")
                 .build()
                 .expect("reqwest client"),
+            allow_hosts,
         }
     }
 }
@@ -76,11 +93,26 @@ impl Probe for BrowserProbe {
             _ => return fail(monitor, ts, "config.renderer_url is required"),
         };
 
+        // SSRF preflight on the RENDERER endpoint itself. `renderer_url` is
+        // editor-settable monitor config, so an editor could aim it at an
+        // internal port or `http://169.254.169.254/…` and exfil the response.
+        // Operator-allow-listed hosts may be private; metadata/loopback are
+        // always blocked. The client's resolver also vets the dialled IP, so a
+        // DNS rebind that passes this preflight still can't connect to a blocked
+        // address.
+        if let Err(b) = crate::ssrf::guard_url_allowing(renderer, &self.allow_hosts).await {
+            return fail(
+                monitor,
+                ts,
+                &format!("SSRF blocked renderer {}: {}", b.host, b.reason),
+            );
+        }
+
         // SSRF preflight on the TARGET page. The renderer fetches monitor.url on
         // our behalf, so a url pointing at a link-local / metadata / private
         // address (e.g. http://169.254.169.254/…) is the same SSRF the HTTP probe
         // already blocks. Honors RAMPART_SSRF_BLOCK_PRIVATE (no-op when unset).
-        // The renderer connection itself stays unguarded — it's operator infra.
+        // (The renderer endpoint itself is guarded just above.)
         if let Err(b) = crate::ssrf::guard_url(url).await {
             return fail(
                 monitor,
@@ -194,5 +226,82 @@ fn truncate(s: &str, n: usize) -> String {
         s.to_string()
     } else {
         format!("{}…", &s[..n])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rampart_core::ids::MonitorId;
+    use rampart_core::MonitorKind;
+
+    fn browser_monitor(renderer: &str) -> Monitor {
+        let now = OffsetDateTime::now_utc();
+        Monitor {
+            id: MonitorId::new(),
+            name: "b".into(),
+            kind: MonitorKind::Browser,
+            url: Some("https://example.com".into()),
+            hostname: None,
+            port: None,
+            config: json!({ "renderer_url": renderer, "keyword": "ok" }),
+            interval_seconds: 60,
+            retry_interval_sec: 60,
+            max_retries: 0,
+            timeout_seconds: 5,
+            resend_interval_sec: 0,
+            upside_down: false,
+            http_method: "GET".into(),
+            http_body: None,
+            http_headers: None,
+            accepted_statuses: vec![],
+            follow_redirect: true,
+            ignore_tls: false,
+            proxy_id: None,
+            push_token: None,
+            last_push_at: None,
+            last_run_started_at: None,
+            active: true,
+            current_status: MonitorStatus::Up,
+            created_at: now,
+            updated_at: now,
+            tags: Vec::new(),
+            cert_days_left: None,
+            cert_subject: None,
+            cert_checked_at: None,
+            check_cert: false,
+            cert_expiry_days: 14,
+            group_id: None,
+            slo_target_pct: None,
+            slo_window_days: None,
+            agent_id: None,
+            escalation_policy_id: None,
+        }
+    }
+
+    /// SECURITY (audit #123): the browser probe's renderer connection is now
+    /// SSRF-guarded. An editor-set `renderer_url` aimed at cloud metadata is
+    /// rejected BEFORE any request — `169.254.169.254` is always-blocked
+    /// regardless of `RAMPART_SSRF_BLOCK_PRIVATE` and can never be allow-listed —
+    /// instead of POSTing to it and reading the response body back.
+    #[tokio::test]
+    async fn renderer_url_to_cloud_metadata_is_ssrf_blocked() {
+        // The real app installs the ring CryptoProvider at boot (main.rs); the
+        // unit-test process must do the same or `reqwest::build()` panics
+        // "No provider set" before any SSRF logic runs.
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let probe = BrowserProbe::new();
+        let hb = probe
+            .run(&browser_monitor("http://169.254.169.254/latest/meta-data/"))
+            .await;
+        assert_eq!(hb.status, MonitorStatus::Down);
+        assert!(
+            hb.msg
+                .as_deref()
+                .unwrap_or("")
+                .contains("SSRF blocked renderer"),
+            "expected renderer SSRF block, got: {:?}",
+            hb.msg
+        );
     }
 }

@@ -29,6 +29,25 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.156.76] — 2026-06-24
+
+### Security
+- **SSRF-guarded the browser-rendered monitor's renderer connection.** The
+  browser probe POSTs to `config.renderer_url` and reads the rendered HTML back
+  — and `renderer_url` is per-monitor config any **editor** can set, not an
+  operator-only value. Previously that connection was unguarded, so an editor
+  could point it at `http://169.254.169.254/latest/meta-data/`, an internal
+  admin port, or any private address and exfiltrate the response body through
+  the heartbeat message. The probe now runs `renderer_url` through the same
+  SSRF preflight + DNS-rebind-safe resolver as the target page: cloud-metadata
+  and loopback are **always blocked** (never allow-listable), and operators who
+  run a private internal renderer (e.g. `browserless` on a `10.x` host)
+  allow-list its host via the new `RAMPART_BROWSER_RENDERER_ALLOW` env
+  (comma-separated) — which still cannot exempt metadata/loopback. Both the
+  renderer endpoint and the target page are now guarded; the resolver vets
+  every dialled IP so a DNS rebind that passes the preflight still can't
+  connect. Regression test: `renderer_url_to_cloud_metadata_is_ssrf_blocked`.
+
 ## [0.156.75] — 2026-06-24
 
 ### Security
