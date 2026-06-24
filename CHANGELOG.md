@@ -29,6 +29,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.4] — 2026-06-24
+
+### Security
+- **Fixed a bracket-depth underflow in the RFC 5424 syslog structured-data
+  parser.** `split_structured_data` decremented an unsigned depth counter on
+  every `]`, so a structured-data run with more `]` than `[` (e.g. `[a]] msg`)
+  underflowed it — a debug / `overflow-checks` build panics (and with
+  `panic = "abort"` a single crafted line to the public `/syslog` ingest path
+  aborts the whole process), while a release build wraps to `usize::MAX` and
+  silently mis-splits structured-data from the message (corruption). The scan now
+  uses a checked decrement and stops at the first unbalanced `]`, keeping any
+  valid leading SD element and pushing the remainder to the message. Regression
+  test: `split_sd_handles_unbalanced_close`.
+
 ## [0.157.3] — 2026-06-24
 
 ### Fixed
