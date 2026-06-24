@@ -29,6 +29,18 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.15] — 2026-06-24
+
+### Fixed
+- **Nav launcher confirmed top-right; frontend version resynced.** The global
+  navigation launcher already renders fixed at the **top-right** in source (the
+  `left → right` move landed in v0.157.7), and a fresh production build was
+  verified to bake in `right: 12` — a top-left launcher only appears on a stale
+  cached bundle. This release resyncs `frontend/package.json` (which had drifted
+  to 0.156.75) to the workspace version and cuts a clean artifact so deployments
+  pick up the corrected bundle; hard-refresh (Cmd/Ctrl+Shift+R) to clear a
+  cached shell.
+
 ## [0.157.14] — 2026-06-24
 
 ### Performance
