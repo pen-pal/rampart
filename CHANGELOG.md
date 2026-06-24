@@ -29,6 +29,18 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.10] — 2026-06-24
+
+### Security
+- **Rate-limited the public status-page subscribe endpoint.** `POST
+  /v1/public/status-pages/{slug}/subscribe` is unauthenticated and the caller
+  controls the email, so the per-(page,email) `ON CONFLICT` dedup didn't stop a
+  flood of distinct addresses from growing the `status_page_subscribers` table
+  and bloating notification fan-out (disk-fill / resource-growth). The subscribe
+  route now carries the same per-IP limiter as `/auth` (10-burst / ~10-per-min →
+  `429`); the token-scoped unsubscribe/manage routes stay unthrottled. Mirrors
+  the `/unlock` fix.
+
 ## [0.157.9] — 2026-06-24
 
 ### Security

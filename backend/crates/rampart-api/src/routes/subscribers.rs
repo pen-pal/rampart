@@ -18,9 +18,20 @@ use serde::Deserialize;
 use std::str::FromStr;
 use uuid::Uuid;
 
-pub fn public_router() -> Router<AppState> {
-    Router::new()
+pub fn public_router(limiter: crate::rate_limit::IpRateLimiter) -> Router<AppState> {
+    // `/subscribe` is unauthenticated and the attacker controls the email, so the
+    // per-(page,email) ON CONFLICT dedup doesn't stop a flood of distinct
+    // addresses growing the table / bloating notification fan-out. Throttle it
+    // per-IP (same limiter as /auth — a real subscriber signs up once). The
+    // token-scoped unsubscribe/manage routes below carry their own opaque token
+    // and aren't a growth vector, so they stay unthrottled.
+    let subscribe = Router::new()
         .route("/status-pages/{slug}/subscribe", post(subscribe))
+        .route_layer(axum::middleware::from_fn_with_state(
+            limiter,
+            crate::rate_limit::enforce_ip_rate_limit,
+        ));
+    Router::new()
         .route("/subscribe/unsubscribe/{token}", get(unsubscribe))
         .route("/subscribers/manage/{token}", get(manage))
         .route(
@@ -31,6 +42,7 @@ pub fn public_router() -> Router<AppState> {
             "/subscribers/manage/{token}/unsubscribe/{slug}",
             post(unsubscribe_page),
         )
+        .merge(subscribe)
 }
 
 /// Status-page subscriber management — editors may manage these (they're

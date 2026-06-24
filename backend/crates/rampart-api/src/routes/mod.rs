@@ -103,7 +103,10 @@ pub fn v1_public(state: &AppState) -> Router<AppState> {
             status_pages::public_router(state.auth_rate_limiter()),
         )
         // Public subscribe + unsubscribe.
-        .nest("/public", subscribers::public_router())
+        .nest(
+            "/public",
+            subscribers::public_router(state.auth_rate_limiter()),
+        )
         // Public inbound webhook receivers (Alertmanager). The {token} in
         // the URL is the auth — no session.
         .nest("/public", ingest::public_router())
