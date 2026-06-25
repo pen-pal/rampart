@@ -58,8 +58,9 @@ only build it yourself if you've changed source.
 endpoint and autoscaling, no load-balancer to wire. Caveat: it needs a **VPC
 connector** to reach a private RDS/Aurora cluster, and it pulls from **ECR, not
 GHCR**, so mirror the image first. Full walkthrough (plus ECS Fargate and EC2
-alternatives) in [`deploy/aws-vercel.md` §2](deploy/aws-vercel.md). A minimal
-App Runner service config skeleton is in [`/deploy/apprunner.yaml`](../deploy/apprunner.yaml).
+alternatives) in [`deploy/aws-vercel.md` §2](deploy/aws-vercel.md) — App Runner
+takes the container image straight from ECR (configured in the console/API), so
+there is no `apprunner.yaml` to ship.
 
 The database is RDS PostgreSQL or Aurora PostgreSQL — both are wire-compatible,
 so it's a connection-string swap, not a rewrite. sqlx reads `sslmode` (and
@@ -150,7 +151,7 @@ Set these on the AWS service (App Runner config / ECS task def / EC2 `-e`). Put
 | `RAMPART_REQUIRE_SECRET_KEY` | no | _(unset)_ | `1`/`true`/`yes` → process refuses to start without a valid `RAMPART_SECRET_KEY`. Belt-and-suspenders for prod. |
 | `BIND_ADDR` | no | `0.0.0.0:3000` | Leave as the image default so the platform health check reaches port 3000. |
 | `DATABASE_POOL_SIZE` | no | `16` | Max pool connections. Ensure RDS allows `pool_size × replicas`. |
-| `RUST_LOG` | no | `rampart=info,tower_http=warn,info` | Tracing filter. |
+| `RUST_LOG` | no | `rampart=info,tower_http=info,info` | Tracing filter (code default). The bundled env files set `tower_http=warn` to quiet per-request spans — drop it in if you want that. |
 | `RAMPART_LOG_FORMAT` | no | _(human)_ | `json` → structured logs for CloudWatch / aggregators. |
 | `RAMPART_TRUSTED_PROXIES` | **if behind a proxy/LB** | _(unset)_ | Comma-separated IPs/CIDRs of the LB so `X-Forwarded-For` is honored for rate-limit + audit IPs. Behind an ALB/App Runner you must set this (to a **specific** IP/`/32`) or per-client limits collapse to the proxy. |
 | `RAMPART_RLS` | no | _(unset)_ | `1` → Postgres row-level security for tenant isolation at the DB layer (defense-in-depth; Postgres only). |
