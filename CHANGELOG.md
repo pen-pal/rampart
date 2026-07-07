@@ -29,6 +29,25 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.41] — 2026-07-07
+
+### Added
+- **SQLite backend: real error-tracking (Sentry-lite) domain.** The biggest
+  management-API port — 23 `StoreErrorTracking` methods over 3 tables
+  (`error_projects` / `error_issues` / `error_events`) were `unimplemented!()`
+  on SQLite; now a real `sqlite::error_tracking` module + migration
+  `0025_error_tracking.sql`. A SQLite-backed Rampart now ingests
+  Sentry-compatible events, groups them into issues by fingerprint, and serves
+  the full error dashboard — project CRUD, issue list/detail/stats/
+  affected-users, event feed, histogram, trace cross-link, assign/resolve/regress
+  — same as Postgres/MySQL. SQLite dialect: `INSERT IGNORE`→`ON CONFLICT DO
+  NOTHING` for the fingerprint claim, `JSON_EXTRACT`→`json_extract` for the
+  affected-users / release / environment stats, integer `/` for the histogram
+  bucketing, row-value keyset paging, manual delete-cascade in a transaction.
+  `run_retention_prune` now prunes `error_events` per project `retention_days`.
+  Full round-trip test. (Source-map symbolication is a separate trait/table —
+  still a stub on SQLite; the dashboard works without it.) Part of #133.
+
 ## [0.157.40] — 2026-07-07
 
 ### Added
