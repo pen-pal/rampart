@@ -29,6 +29,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.20] — 2026-06-25
+
+### Fixed
+- **RUM "traced pages" list no longer white-pages on a row missing a
+  `trace_id`.** The traced-pages table called `r.trace_id.slice(0, 12)`
+  unguarded; a row without a trace id would throw and blank the RUM view. Now
+  guarded (renders `—`), matching the per-page detail table that already did.
+  Second and last finding from the data-heavy crash-risk review; all other
+  reviewed views use proper guards.
+
 ## [0.157.19] — 2026-06-25
 
 ### Fixed
