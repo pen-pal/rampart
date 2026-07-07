@@ -29,6 +29,22 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.35] — 2026-07-07
+
+### Changed
+- **Misc management reads go through the `Store` trait, not the raw Postgres
+  pool.** Five remaining handlers called concrete-pool free functions via
+  `state.pool()`: user-session listing (GDPR export), session + recovery-code
+  deletion (right-to-erasure), error-map symbolication, and the incidents SMTP
+  config load. They now use the existing `Store` methods
+  (`list_sessions_for_user` / `delete_sessions_for_user` /
+  `delete_recovery_codes_for_user` / `get_source_map`); `smtp::load` and the
+  `symbolicate_events` helper now take `&Arc<dyn Store>`. No new trait methods,
+  no schema change, identical behavior. This leaves only the deliberately
+  Postgres-only health-pool metrics (`pool.size()` / readiness ping) on the
+  concrete pool. Completes the telemetry + management read seam for the multi-DB
+  work (#133).
+
 ## [0.157.34] — 2026-07-07
 
 ### Changed
