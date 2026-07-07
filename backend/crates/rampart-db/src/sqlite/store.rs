@@ -2012,35 +2012,27 @@ impl StoreMetrics for SqliteStore {
 #[async_trait::async_trait]
 impl StoreErrorTracking for SqliteStore {
     async fn list_error_projects(&self, org_id: OrgId) -> DbResult<Vec<ErrorProject>> {
-        unimplemented!(
-            "SqliteStore::list_error_projects: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::error_tracking::list(&self.pool, org_id).await
     }
 
     async fn error_project_in_org(&self, project: ErrorProjectId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!(
-            "SqliteStore::error_project_in_org: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::error_tracking::project_in_org(&self.pool, project, org_id).await
     }
 
     async fn error_issue_in_org(&self, issue: ErrorIssueId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!(
-            "SqliteStore::error_issue_in_org: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::error_tracking::issue_in_org(&self.pool, issue, org_id).await
     }
 
     async fn get_error_project(&self, id: ErrorProjectId) -> DbResult<ErrorProject> {
-        unimplemented!(
-            "SqliteStore::get_error_project: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::error_tracking::get(&self.pool, id).await
     }
 
     async fn org_for_error_project(&self, id: ErrorProjectId) -> DbResult<OrgId> {
-        unimplemented!("SqliteStore::org_for_error_project: error_tracking domain not yet ported (multi-DB P1)")
+        crate::sqlite::error_tracking::org_for_project(&self.pool, id).await
     }
 
     async fn get_error_project_opt(&self, id: ErrorProjectId) -> DbResult<Option<ErrorProject>> {
-        unimplemented!("SqliteStore::get_error_project_opt: error_tracking domain not yet ported (multi-DB P1)")
+        crate::sqlite::error_tracking::get_opt(&self.pool, id).await
     }
 
     async fn find_or_create_error_project_by_name(
@@ -2048,7 +2040,7 @@ impl StoreErrorTracking for SqliteStore {
         name: &str,
         org_id: OrgId,
     ) -> DbResult<ErrorProject> {
-        unimplemented!("SqliteStore::find_or_create_error_project_by_name: error_tracking domain not yet ported (multi-DB P1)")
+        crate::sqlite::error_tracking::find_or_create_by_name(&self.pool, name, org_id).await
     }
 
     async fn create_error_project(
@@ -2056,9 +2048,7 @@ impl StoreErrorTracking for SqliteStore {
         input: NewErrorProject,
         org_id: OrgId,
     ) -> DbResult<ErrorProject> {
-        unimplemented!(
-            "SqliteStore::create_error_project: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::error_tracking::create(&self.pool, input, org_id).await
     }
 
     async fn update_error_project(
@@ -2067,15 +2057,11 @@ impl StoreErrorTracking for SqliteStore {
         patch: UpdateErrorProject,
         org_id: OrgId,
     ) -> DbResult<ErrorProject> {
-        unimplemented!(
-            "SqliteStore::update_error_project: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::error_tracking::update(&self.pool, id, patch, org_id).await
     }
 
     async fn delete_error_project(&self, id: ErrorProjectId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!(
-            "SqliteStore::delete_error_project: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::error_tracking::delete(&self.pool, id, org_id).await
     }
 
     async fn record_error_event(
@@ -2083,9 +2069,7 @@ impl StoreErrorTracking for SqliteStore {
         project_id: ErrorProjectId,
         ev: &ParsedEvent,
     ) -> DbResult<RecordOutcome> {
-        unimplemented!(
-            "SqliteStore::record_error_event: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::error_tracking::record_event(&self.pool, project_id, ev).await
     }
 
     async fn error_issues_for_trace(
@@ -2093,7 +2077,7 @@ impl StoreErrorTracking for SqliteStore {
         trace_id: &str,
         org_id: OrgId,
     ) -> DbResult<Vec<TraceErrorRef>> {
-        unimplemented!("SqliteStore::error_issues_for_trace: error_tracking domain not yet ported (multi-DB P1)")
+        crate::sqlite::error_tracking::issues_for_trace(&self.pool, trace_id, org_id).await
     }
 
     async fn list_error_issues(
@@ -2103,9 +2087,8 @@ impl StoreErrorTracking for SqliteStore {
         before_id: Option<Uuid>,
         limit: i64,
     ) -> DbResult<Vec<ErrorIssue>> {
-        unimplemented!(
-            "SqliteStore::list_error_issues: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::error_tracking::list_issues(&self.pool, project_id, status, before_id, limit)
+            .await
     }
 
     async fn recent_open_error_issues(
@@ -2113,7 +2096,7 @@ impl StoreErrorTracking for SqliteStore {
         limit: i64,
         org_id: OrgId,
     ) -> DbResult<Vec<ErrorIssue>> {
-        unimplemented!("SqliteStore::recent_open_error_issues: error_tracking domain not yet ported (multi-DB P1)")
+        crate::sqlite::error_tracking::recent_open_issues(&self.pool, limit, org_id).await
     }
 
     async fn error_project_event_histogram(
@@ -2122,13 +2105,14 @@ impl StoreErrorTracking for SqliteStore {
         hours: i32,
         buckets: i64,
     ) -> DbResult<Vec<ErrorBucket>> {
-        unimplemented!("SqliteStore::error_project_event_histogram: error_tracking domain not yet ported (multi-DB P1)")
+        crate::sqlite::error_tracking::project_event_histogram(
+            &self.pool, project_id, hours, buckets,
+        )
+        .await
     }
 
     async fn get_error_issue(&self, id: ErrorIssueId) -> DbResult<ErrorIssue> {
-        unimplemented!(
-            "SqliteStore::get_error_issue: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::error_tracking::get_issue(&self.pool, id).await
     }
 
     async fn error_issue_affected_users(
@@ -2136,17 +2120,15 @@ impl StoreErrorTracking for SqliteStore {
         id: ErrorIssueId,
         limit: i64,
     ) -> DbResult<Vec<AffectedUser>> {
-        unimplemented!("SqliteStore::error_issue_affected_users: error_tracking domain not yet ported (multi-DB P1)")
+        crate::sqlite::error_tracking::issue_affected_users(&self.pool, id, limit).await
     }
 
     async fn error_issue_stats(&self, id: ErrorIssueId) -> DbResult<IssueStats> {
-        unimplemented!(
-            "SqliteStore::error_issue_stats: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::error_tracking::issue_stats(&self.pool, id).await
     }
 
     async fn set_error_issue_status(&self, id: ErrorIssueId, status: &str) -> DbResult<ErrorIssue> {
-        unimplemented!("SqliteStore::set_error_issue_status: error_tracking domain not yet ported (multi-DB P1)")
+        crate::sqlite::error_tracking::set_issue_status(&self.pool, id, status).await
     }
 
     async fn assign_error_issue(
@@ -2154,16 +2136,14 @@ impl StoreErrorTracking for SqliteStore {
         id: ErrorIssueId,
         assignee: Option<UserId>,
     ) -> DbResult<ErrorIssue> {
-        unimplemented!(
-            "SqliteStore::assign_error_issue: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::error_tracking::assign_issue(&self.pool, id, assignee).await
     }
 
     async fn error_assignable_users(
         &self,
-        _org_id: OrgId,
+        org_id: OrgId,
     ) -> DbResult<Vec<crate::error_tracking::AssignableUser>> {
-        unimplemented!("SqliteStore::error_assignable_users: error_tracking domain not yet ported (multi-DB P1)")
+        crate::sqlite::error_tracking::assignable_users(&self.pool, org_id).await
     }
 
     async fn list_error_events(
@@ -2171,15 +2151,11 @@ impl StoreErrorTracking for SqliteStore {
         issue_id: ErrorIssueId,
         limit: i64,
     ) -> DbResult<Vec<ErrorEvent>> {
-        unimplemented!(
-            "SqliteStore::list_error_events: error_tracking domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::error_tracking::list_events(&self.pool, issue_id, limit).await
     }
 
     async fn prune_error_events(&self) -> DbResult<u64> {
-        // error_tracking domain isn't ported to SQLite — nothing writes the
-        // table, nothing to prune. Return 0 rather than panic.
-        Ok(0)
+        crate::sqlite::error_tracking::prune(&self.pool).await
     }
 }
 
@@ -2461,8 +2437,8 @@ impl StoreRetention for SqliteStore {
     async fn run_retention_prune(&self) -> DbResult<u64> {
         // Heartbeats tier into the hourly rollup table before deletion (see
         // fold_and_prune); the other telemetry tables get a flat age-based prune.
-        // The error-tracking/oidc-state domains aren't ported to SQLite —
-        // nothing writes those tables, so there's nothing to prune.
+        // The oidc-state domain isn't ported to SQLite (ephemeral auth-flow
+        // rows); nothing writes it, so there's nothing to prune.
         let cfg = crate::prune::parse_config(
             crate::sqlite::settings::get_setting(&self.pool, "retention_days").await?,
         );
@@ -2478,6 +2454,7 @@ impl StoreRetention for SqliteStore {
             crate::sqlite::metric_samples::prune_older_than(&self.pool, metrics_cutoff).await?;
         total += crate::sqlite::rum::prune(&self.pool, cfg.rum_days).await?;
         total += crate::sqlite::profiles::prune(&self.pool, cfg.profiles_days).await?;
+        total += crate::sqlite::error_tracking::prune(&self.pool).await?;
         total += crate::sqlite::audit::prune(&self.pool, cfg.audit_log).await?;
         total += crate::sqlite::detection::prune(&self.pool, cfg.findings_days).await?;
         Ok(total)
