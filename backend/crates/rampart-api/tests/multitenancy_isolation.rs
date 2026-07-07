@@ -362,6 +362,42 @@ async fn monitor_cannot_reference_foreign_proxy(pool: PgPool) {
     assert_eq!(s, StatusCode::BAD_REQUEST, "cannot bind a foreign proxy");
 }
 
+/// A silence must not target another org's monitor — else one tenant could mute
+/// another tenant's alerting.
+#[sqlx::test(migrations = "../../migrations")]
+async fn silence_cannot_target_foreign_monitor(pool: PgPool) {
+    let router = common::router(pool.clone());
+    let admin = register_admin(&router).await;
+
+    let monitor: Value = common::json(
+        &router,
+        Method::POST,
+        "/v1/monitors",
+        Some(json!({"name":"m","kind":"http","url":"https://x.test"})),
+        Some(&admin),
+    )
+    .await;
+    let monitor_id = monitor["id"].as_str().unwrap().to_string();
+    sqlx::query("INSERT INTO organizations (id, slug, name) VALUES ($1::uuid, 'other', 'Other') ON CONFLICT DO NOTHING")
+        .bind(OTHER_ORG).execute(&pool).await.unwrap();
+    sqlx::query("UPDATE monitors SET org_id = $1::uuid WHERE id = $2::uuid")
+        .bind(OTHER_ORG)
+        .bind(&monitor_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let (s, _, _) = request(
+        &router,
+        Method::POST,
+        "/v1/silences",
+        Some(json!({"monitor_id":monitor_id,"reason":"maintenance"})),
+        Some(&admin),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "cannot silence a foreign monitor");
+}
+
 #[sqlx::test(migrations = "../../migrations")]
 async fn incidents_isolated_via_owning_page(pool: PgPool) {
     // Incidents have no org_id of their own — they inherit the owning status

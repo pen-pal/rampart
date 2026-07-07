@@ -46,6 +46,14 @@ async fn create(
     headers: HeaderMap,
     Json(input): Json<NewSilenceInput>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
+    // A monitor-scoped silence must target the caller's OWN monitor — otherwise
+    // one org could silence (mute the alerting of) another org's monitor.
+    if let Some(mid) = input.monitor_id {
+        s.store()
+            .get_monitor(rampart_core::ids::MonitorId::from_uuid(mid), org.org_id)
+            .await
+            .map_err(|_| ApiError::BadRequest("unknown monitor".into()))?;
+    }
     // Clamp + checked_add: `now + Duration::minutes(m)` PANICS on out-of-range
     // (and `Duration::minutes(i64::MAX)` overflows) — an unclamped
     // `duration_minutes` from the body would abort the whole server (panic =

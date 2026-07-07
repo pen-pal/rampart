@@ -29,6 +29,22 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.30] — 2026-06-25
+
+### Security
+- **Cross-org silence isolation.** Two gaps let one tenant mute another tenant's
+  alerting: (1) creating a silence didn't check the target `monitor_id` belonged
+  to the caller's org, so org A could silence org B's specific monitor; (2) a
+  *global* silence (`monitor_id IS NULL`) was matched by `is_silenced` with no
+  org filter, so org A's global silence suppressed **every** org's monitor
+  alerts. Now silence-create validates the monitor is in-org (400 otherwise),
+  and a global silence only mutes alerts for monitors in its **own** org (the
+  monitor's org is derived in the query — no signature/plumbing change). Applied
+  to Postgres/MySQL/SQLite. Tests: `global_and_scoped_silences` (a foreign org's
+  monitor isn't muted) + `silence_cannot_target_foreign_monitor`. (Residual, low:
+  rule/error alerts carry no monitor context, so a global silence still applies
+  to them regardless of org — noted for a future org-plumbing pass.)
+
 ## [0.157.29] — 2026-06-25
 
 ### Security
