@@ -236,9 +236,11 @@ export default function Rum() {
                     <div className="row" key={i} style={{ gridTemplateColumns: '1fr 90px 170px' }}>
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.url}>{r.url}</span>
                       <span>{r.load_ms == null ? '—' : `${Math.round(r.load_ms)} ms`}</span>
-                      <a href={`#/traces/${encodeURIComponent(r.trace_id)}`} style={{ color: 'var(--accent)', fontFamily: 'monospace', fontSize: 12 }}>
-                        {r.trace_id.slice(0, 12)}… →
-                      </a>
+                      {r.trace_id ? (
+                        <a href={`#/traces/${encodeURIComponent(r.trace_id)}`} style={{ color: 'var(--accent)', fontFamily: 'monospace', fontSize: 12 }}>
+                          {r.trace_id.slice(0, 12)}… →
+                        </a>
+                      ) : <span style={{ color: 'var(--text-3)' }}>—</span>}
                     </div>
                   ))}
                 </div>
