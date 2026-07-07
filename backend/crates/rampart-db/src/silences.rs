@@ -164,7 +164,10 @@ mod tests {
 
         // Cross-org: a monitor in ANOTHER org is NOT muted by the Default org's
         // global silence — the isolation this fix adds.
-        let other = crate::orgs::create(&pool, "other", "Other").await.unwrap().id;
+        let other = crate::orgs::create(&pool, "other", "Other")
+            .await
+            .unwrap()
+            .id;
         let onm: rampart_core::monitor::NewMonitor = serde_json::from_value(
             serde_json::json!({"name":"o","kind":"http","url":"https://y.test"}),
         )

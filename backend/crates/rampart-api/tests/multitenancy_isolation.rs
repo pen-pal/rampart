@@ -395,7 +395,11 @@ async fn silence_cannot_target_foreign_monitor(pool: PgPool) {
         Some(&admin),
     )
     .await;
-    assert_eq!(s, StatusCode::BAD_REQUEST, "cannot silence a foreign monitor");
+    assert_eq!(
+        s,
+        StatusCode::BAD_REQUEST,
+        "cannot silence a foreign monitor"
+    );
 }
 
 #[sqlx::test(migrations = "../../migrations")]
