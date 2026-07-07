@@ -1153,14 +1153,19 @@ impl StoreStatusPages for MysqlStore {
 
     async fn update_status_page_section(
         &self,
+        page_id: StatusPageId,
         id: StatusPageSectionId,
         patch: UpdateStatusPageSection,
     ) -> DbResult<StatusPageSection> {
-        crate::mysql::status_pages::update_section(&self.pool, id, patch).await
+        crate::mysql::status_pages::update_section(&self.pool, page_id, id, patch).await
     }
 
-    async fn delete_status_page_section(&self, id: StatusPageSectionId) -> DbResult<()> {
-        crate::mysql::status_pages::delete_section(&self.pool, id).await
+    async fn delete_status_page_section(
+        &self,
+        page_id: StatusPageId,
+        id: StatusPageSectionId,
+    ) -> DbResult<()> {
+        crate::mysql::status_pages::delete_section(&self.pool, page_id, id).await
     }
 
     async fn assign_status_page_monitor_section(

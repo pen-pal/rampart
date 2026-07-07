@@ -1222,13 +1222,20 @@ impl StoreStatusPages for SqliteStore {
 
     async fn update_status_page_section(
         &self,
+        _page_id: StatusPageId,
         id: StatusPageSectionId,
         patch: UpdateStatusPageSection,
     ) -> DbResult<StatusPageSection> {
+        let _ = (id, patch);
         unimplemented!("SqliteStore::update_status_page_section: status_pages domain not yet ported (multi-DB P1)")
     }
 
-    async fn delete_status_page_section(&self, id: StatusPageSectionId) -> DbResult<()> {
+    async fn delete_status_page_section(
+        &self,
+        _page_id: StatusPageId,
+        id: StatusPageSectionId,
+    ) -> DbResult<()> {
+        let _ = id;
         unimplemented!("SqliteStore::delete_status_page_section: status_pages domain not yet ported (multi-DB P1)")
     }
 

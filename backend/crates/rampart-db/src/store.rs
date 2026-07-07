@@ -778,11 +778,16 @@ pub trait StoreStatusPages: Send + Sync {
 
     async fn update_status_page_section(
         &self,
+        page_id: StatusPageId,
         id: StatusPageSectionId,
         patch: UpdateStatusPageSection,
     ) -> DbResult<StatusPageSection>;
 
-    async fn delete_status_page_section(&self, id: StatusPageSectionId) -> DbResult<()>;
+    async fn delete_status_page_section(
+        &self,
+        page_id: StatusPageId,
+        id: StatusPageSectionId,
+    ) -> DbResult<()>;
 
     async fn assign_status_page_monitor_section(
         &self,
@@ -2930,14 +2935,19 @@ impl StoreStatusPages for PgStore {
 
     async fn update_status_page_section(
         &self,
+        page_id: StatusPageId,
         id: StatusPageSectionId,
         patch: UpdateStatusPageSection,
     ) -> DbResult<StatusPageSection> {
-        crate::status_pages::update_section(&self.pool, id, patch).await
+        crate::status_pages::update_section(&self.pool, page_id, id, patch).await
     }
 
-    async fn delete_status_page_section(&self, id: StatusPageSectionId) -> DbResult<()> {
-        crate::status_pages::delete_section(&self.pool, id).await
+    async fn delete_status_page_section(
+        &self,
+        page_id: StatusPageId,
+        id: StatusPageSectionId,
+    ) -> DbResult<()> {
+        crate::status_pages::delete_section(&self.pool, page_id, id).await
     }
 
     async fn assign_status_page_monitor_section(

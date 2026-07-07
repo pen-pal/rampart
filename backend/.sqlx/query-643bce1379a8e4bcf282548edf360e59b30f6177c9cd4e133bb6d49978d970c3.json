@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, status_page_id, name, position\n        FROM status_page_sections\n        WHERE id = $1\n        ",
+  "query": "\n        SELECT id, status_page_id, name, position\n        FROM status_page_sections\n        WHERE id = $1 AND status_page_id = $2\n        ",
   "describe": {
     "columns": [
       {
@@ -50,6 +50,7 @@
     ],
     "parameters": {
       "Left": [
+        "Uuid",
         "Uuid"
       ]
     },
@@ -60,5 +61,5 @@
       false
     ]
   },
-  "hash": "4951a498ad6c146b2da7ddab30cb1fd45a77c661bcd4373de30a9ae5719f1a5d"
+  "hash": "643bce1379a8e4bcf282548edf360e59b30f6177c9cd4e133bb6d49978d970c3"
 }
