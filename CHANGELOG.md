@@ -29,6 +29,19 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.31] — 2026-07-07
+
+### Security
+- **Startup warning when the ingest surface is open with no auth.** Symmetric to
+  the existing secrets-at-rest (`RAMPART_SECRET_KEY`) startup warning: if none of
+  `RAMPART_MULTI_ORG`, `RAMPART_REQUIRE_INGEST_AUTH`, or a `telemetry_token`
+  setting is configured, the telemetry-ingest endpoints (OTLP / Prometheus / RUM
+  / syslog / profiles) accept **unauthenticated** writes into the Default org.
+  The server now logs a loud `SECURITY:` warning at boot naming the fix
+  (`RAMPART_REQUIRE_INGEST_AUTH=1` or ingest keys + `RAMPART_MULTI_ORG=1`) so an
+  operator who exposed the port on a public network notices. Posture only — no
+  behavior change; fine on a private/trusted network.
+
 ## [0.157.30] — 2026-06-25
 
 ### Security

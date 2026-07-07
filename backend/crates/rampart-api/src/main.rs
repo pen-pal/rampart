@@ -240,6 +240,32 @@ async fn main() -> anyhow::Result<()> {
         );
     }
 
+    // Symmetric to the secrets-at-rest warning: if the public telemetry-ingest
+    // surface is reachable with no auth configured, anonymous clients can write
+    // telemetry into the Default org. Flag it loudly so an operator who exposed
+    // the port notices (matches the RAMPART_REQUIRE_INGEST_AUTH fail-closed knob).
+    if !rampart_api::ingest_util::multi_org_enabled()
+        && !rampart_api::ingest_util::require_ingest_auth()
+    {
+        let token_set = store
+            .get_setting(rampart_api::ingest_util::TELEMETRY_TOKEN_KEY)
+            .await
+            .ok()
+            .flatten()
+            .and_then(|v| v.as_str().map(|s| !s.trim().is_empty()))
+            .unwrap_or(false);
+        if !token_set {
+            warn!(
+                "SECURITY: the telemetry-ingest endpoints (OTLP / Prometheus / RUM / syslog / \
+                 profiles) accept UNAUTHENTICATED writes into the Default org — no \
+                 RAMPART_MULTI_ORG, no RAMPART_REQUIRE_INGEST_AUTH, and no `telemetry_token` set. \
+                 Fine on a private/trusted network; if the ingest port is publicly reachable set \
+                 RAMPART_REQUIRE_INGEST_AUTH=1 (or mint ingest keys + RAMPART_MULTI_ORG=1) to \
+                 require a credential."
+            );
+        }
+    }
+
     // Leader election. Only the replica holding the Postgres advisory lock
     // runs the scheduler / notifier digest flush / retention prune, so a
     // multi-replica deployment never double-probes or double-pages. On a
