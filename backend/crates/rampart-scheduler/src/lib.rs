@@ -2004,7 +2004,7 @@ fn alert_monitor(name: String, monitor_id: Option<rampart_core::MonitorId>) -> M
     // monitor-silence-scoped anyway (they match only a global silence).
     let now = time::OffsetDateTime::now_utc();
     Monitor {
-        id: monitor_id.unwrap_or_else(rampart_core::MonitorId::new),
+        id: monitor_id.unwrap_or_default(),
         name,
         kind: MonitorKind::Http,
         url: None,

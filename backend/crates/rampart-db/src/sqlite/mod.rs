@@ -36,6 +36,7 @@ pub mod detection;
 pub mod digest_buffer;
 pub mod escalations;
 pub mod heartbeats;
+pub mod ingest_keys;
 pub mod logs;
 pub mod maintenance;
 pub mod metric_rules;
