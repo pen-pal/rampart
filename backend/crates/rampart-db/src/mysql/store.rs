@@ -2323,16 +2323,17 @@ impl StoreMetricSamples for MysqlStore {
 #[async_trait::async_trait]
 impl StoreRetention for MysqlStore {
     async fn run_retention_prune(&self) -> DbResult<u64> {
-        // Flat age-based prune of every telemetry table MySQL writes. No rollup
-        // tier yet (Postgres-only optimization), so this bounds growth without
-        // preserving long-range uptime history.
+        // Heartbeats tier into the hourly rollup table before deletion (see
+        // fold_and_prune); the other telemetry tables get a flat age-based prune.
         let cfg = crate::prune::parse_config(
             crate::mysql::settings::get_setting(&self.pool, "retention_days").await?,
         );
         let metrics_cutoff =
             OffsetDateTime::now_utc() - time::Duration::days(cfg.metrics_days.max(0) as i64);
         let mut total = 0u64;
-        total += crate::mysql::heartbeats::prune(&self.pool, cfg.heartbeats).await?;
+        total +=
+            crate::mysql::heartbeats::fold_and_prune(&self.pool, cfg.heartbeats, cfg.rollup_days)
+                .await?;
         total += crate::mysql::logs::prune(&self.pool, cfg.logs_days).await?;
         total += crate::mysql::traces::prune(&self.pool, cfg.traces_days).await?;
         total += crate::mysql::metric_samples::prune_older_than(&self.pool, metrics_cutoff).await?;

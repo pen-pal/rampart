@@ -14,6 +14,7 @@
 
 use super::{in_placeholders, mid, mstatus_from, mstatus_str, ts};
 use crate::heartbeats::{BurndownPoint, ErrorBudget, MonitorSummary, MonthlyUptime, MtbfMttr};
+use crate::prune::{DailyUptimePoint, HeartbeatRollup};
 use crate::DbResult;
 use rampart_core::ids::{MonitorId, OrgId};
 use rampart_core::{Heartbeat, MonitorStatus};
@@ -747,12 +748,186 @@ pub async fn error_budget_burndown(
 }
 
 /// Flat age-based retention prune: drop heartbeats older than `days`. The
-/// Postgres backend folds heartbeats into hourly rollups before deleting; MySQL
-/// has no rollup tier yet, so this just bounds otherwise-unbounded growth.
-/// Returns rows deleted.
-pub async fn prune(pool: &MySqlPool, days: i32) -> DbResult<u64> {
-    let cutoff = time::OffsetDateTime::now_utc().unix_timestamp() - days.max(0) as i64 * 86400;
-    super::chunked_delete_older(pool, "heartbeats", "ts", cutoff).await
+/// Retention fold: aggregate raw heartbeats older than the raw tier into hourly
+/// `heartbeat_rollups` buckets, delete those raw rows, then drop rollup buckets
+/// past the (longer) `rollup_days` tier. Mirrors the Postgres/SQLite tiering so
+/// long-range uptime history survives after the high-resolution rows are pruned.
+/// Returns rows deleted (raw heartbeats + expired rollups).
+///
+/// Fold + raw delete run in ONE transaction, so a crash can't delete raw rows
+/// that weren't durably rolled up first (retry re-folds cleanly on rollback; the
+/// `ON DUPLICATE KEY UPDATE` accumulation is idempotent). NOTE (MySQL-specific):
+/// the update assigns `avg_latency_ms` BEFORE `sample_count` because MySQL
+/// evaluates `ON DUPLICATE KEY UPDATE` assignments left-to-right and later ones
+/// see earlier updates — the weighted mean needs the PRE-update `sample_count`.
+///
+/// ponytail: folds the whole backlog in one statement (no batching). Fine for
+/// the relational-subset tier; batch by `bucket_start` window if a deployment
+/// ever accumulates millions of stale heartbeats between prune ticks.
+pub async fn fold_and_prune(
+    pool: &MySqlPool,
+    heartbeat_days: i32,
+    rollup_days: i32,
+) -> DbResult<u64> {
+    let now = OffsetDateTime::now_utc().unix_timestamp();
+    let cutoff = now - heartbeat_days.max(0) as i64 * 86_400;
+    let rollup_cutoff = now - rollup_days.max(0) as i64 * 86_400;
+
+    let mut tx = pool.begin().await?;
+    sqlx::query(
+        "INSERT INTO heartbeat_rollups
+            (monitor_id, bucket_start, up_count, down_count, other_count, sample_count, avg_latency_ms)
+         SELECT monitor_id,
+                (ts DIV 3600) * 3600 AS bucket_start,
+                SUM(status = 'up'),
+                SUM(status = 'down'),
+                SUM(status NOT IN ('up', 'down')),
+                COUNT(*),
+                AVG(latency_ms)
+         FROM heartbeats
+         WHERE ts < ?
+         GROUP BY monitor_id, bucket_start
+         ON DUPLICATE KEY UPDATE
+            avg_latency_ms = CASE
+                WHEN avg_latency_ms IS NULL THEN VALUES(avg_latency_ms)
+                WHEN VALUES(avg_latency_ms) IS NULL THEN avg_latency_ms
+                ELSE (avg_latency_ms * sample_count + VALUES(avg_latency_ms) * VALUES(sample_count))
+                     / (sample_count + VALUES(sample_count))
+            END,
+            up_count     = up_count + VALUES(up_count),
+            down_count   = down_count + VALUES(down_count),
+            other_count  = other_count + VALUES(other_count),
+            sample_count = sample_count + VALUES(sample_count)",
+    )
+    .bind(cutoff)
+    .execute(&mut *tx)
+    .await?;
+
+    let deleted_raw = sqlx::query("DELETE FROM heartbeats WHERE ts < ?")
+        .bind(cutoff)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+
+    let deleted_rollups = sqlx::query("DELETE FROM heartbeat_rollups WHERE bucket_start < ?")
+        .bind(rollup_cutoff)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+
+    tx.commit().await?;
+    Ok(deleted_raw + deleted_rollups)
+}
+
+/// Hourly rollups for a monitor over `[since, until)`, oldest first.
+pub async fn rollups_for_monitor(
+    pool: &MySqlPool,
+    monitor: Uuid,
+    since: OffsetDateTime,
+    until: OffsetDateTime,
+) -> DbResult<Vec<HeartbeatRollup>> {
+    let rows = sqlx::query(
+        "SELECT bucket_start, up_count, down_count, other_count, sample_count, avg_latency_ms
+         FROM heartbeat_rollups
+         WHERE monitor_id = ? AND bucket_start >= ? AND bucket_start < ?
+         ORDER BY bucket_start ASC",
+    )
+    .bind(monitor.to_string())
+    .bind(since.unix_timestamp())
+    .bind(until.unix_timestamp())
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .iter()
+        .map(|r| HeartbeatRollup {
+            monitor_id: monitor,
+            bucket_start: ts(r.get::<i64, _>("bucket_start")),
+            up_count: r.get::<i32, _>("up_count"),
+            down_count: r.get::<i32, _>("down_count"),
+            other_count: r.get::<i32, _>("other_count"),
+            sample_count: r.get::<i32, _>("sample_count"),
+            avg_latency_ms: r.get::<Option<f64>, _>("avg_latency_ms"),
+        })
+        .collect())
+}
+
+fn daily_point(day_num: i64, up: i64, samples: i64) -> DailyUptimePoint {
+    DailyUptimePoint {
+        day: date_from_day_num(day_num),
+        up_count: up,
+        sample_count: samples,
+        uptime_pct: if samples > 0 {
+            Some(up as f64 / samples as f64 * 100.0)
+        } else {
+            None
+        },
+    }
+}
+
+/// Daily uptime% from the hourly rollups over `[since, until)`, oldest first.
+/// The long-range path (rollups outlive raw heartbeats).
+pub async fn daily_uptime_from_rollups(
+    pool: &MySqlPool,
+    monitor: Uuid,
+    since: OffsetDateTime,
+    until: OffsetDateTime,
+) -> DbResult<Vec<DailyUptimePoint>> {
+    let rows = sqlx::query(
+        "SELECT bucket_start DIV 86400 AS day_num,
+                CAST(SUM(up_count) AS SIGNED)     AS up,
+                CAST(SUM(sample_count) AS SIGNED) AS samples
+         FROM heartbeat_rollups
+         WHERE monitor_id = ? AND bucket_start >= ? AND bucket_start < ?
+         GROUP BY day_num ORDER BY day_num ASC",
+    )
+    .bind(monitor.to_string())
+    .bind(since.unix_timestamp())
+    .bind(until.unix_timestamp())
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .iter()
+        .map(|r| {
+            daily_point(
+                r.get::<i64, _>("day_num"),
+                r.get::<i64, _>("up"),
+                r.get::<i64, _>("samples"),
+            )
+        })
+        .collect())
+}
+
+/// Daily uptime% from the raw heartbeats over `[since, until)`, oldest first —
+/// the recent within-retention portion, stitched onto the rollup series.
+pub async fn daily_uptime_from_raw(
+    pool: &MySqlPool,
+    monitor: Uuid,
+    since: OffsetDateTime,
+    until: OffsetDateTime,
+) -> DbResult<Vec<DailyUptimePoint>> {
+    let rows = sqlx::query(
+        "SELECT ts DIV 86400 AS day_num,
+                CAST(SUM(status = 'up') AS SIGNED) AS up,
+                CAST(COUNT(*) AS SIGNED)           AS samples
+         FROM heartbeats
+         WHERE monitor_id = ? AND ts >= ? AND ts < ?
+         GROUP BY day_num ORDER BY day_num ASC",
+    )
+    .bind(monitor.to_string())
+    .bind(since.unix_timestamp())
+    .bind(until.unix_timestamp())
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .iter()
+        .map(|r| {
+            daily_point(
+                r.get::<i64, _>("day_num"),
+                r.get::<i64, _>("up"),
+                r.get::<i64, _>("samples"),
+            )
+        })
+        .collect())
 }
 
 #[cfg(test)]
@@ -817,21 +992,63 @@ mod tests {
     }
 
     #[sqlx::test(migrations = "../../migrations-mysql")]
-    async fn prune_drops_old_heartbeats_keeps_recent(pool: MySqlPool) {
+    async fn fold_and_prune_rolls_up_old_and_keeps_recent(pool: MySqlPool) {
         let m = monitor(&pool).await;
         insert_many(
             &pool,
             &[
-                hb(m, 2 * 86400, MonitorStatus::Up), // 2 days old
-                hb(m, 10, MonitorStatus::Up),        // within retention
+                hb(m, 2 * 86400, MonitorStatus::Up), // 2 days old  → folded + deleted
+                hb(m, 2 * 86400 + 60, MonitorStatus::Down), // same hour, other status
+                hb(m, 10, MonitorStatus::Up),        // within retention → kept raw
             ],
         )
         .await
         .unwrap();
-        let deleted = prune(&pool, 1).await.unwrap();
-        assert_eq!(deleted, 1, "the 2-day-old beat is pruned at days=1");
+
+        // raw tier = 1 day, rollup tier = 365 days.
+        let deleted = fold_and_prune(&pool, 1, 365).await.unwrap();
+        assert_eq!(deleted, 2, "the two 2-day-old beats are folded + deleted");
         let left = recent_for_monitor(&pool, m, 10).await.unwrap();
-        assert_eq!(left.len(), 1, "the recent beat survives");
+        assert_eq!(left.len(), 1, "the recent beat survives as raw");
+
+        let since = ts(OffsetDateTime::now_utc().unix_timestamp() - 30 * 86400);
+        let until = OffsetDateTime::now_utc();
+
+        // The old day survives in the rollup tier: 2 samples, 1 up.
+        let roll = daily_uptime_from_rollups(&pool, m.0, since, until)
+            .await
+            .unwrap();
+        assert_eq!(roll.iter().map(|d| d.sample_count).sum::<i64>(), 2);
+        assert_eq!(roll.iter().map(|d| d.up_count).sum::<i64>(), 1);
+
+        // The recent beat is still countable from the raw tier.
+        let raw = daily_uptime_from_raw(&pool, m.0, since, until)
+            .await
+            .unwrap();
+        assert_eq!(raw.iter().map(|d| d.sample_count).sum::<i64>(), 1);
+        assert_eq!(raw.iter().map(|d| d.up_count).sum::<i64>(), 1);
+
+        // rollups_for_monitor returns the hourly bucket(s).
+        let buckets = rollups_for_monitor(&pool, m.0, since, until).await.unwrap();
+        assert_eq!(buckets.iter().map(|b| b.sample_count).sum::<i32>(), 2);
+        assert_eq!(buckets.iter().map(|b| b.up_count).sum::<i32>(), 1);
+        assert_eq!(buckets.iter().map(|b| b.down_count).sum::<i32>(), 1);
+    }
+
+    #[sqlx::test(migrations = "../../migrations-mysql")]
+    async fn fold_is_idempotent_across_runs(pool: MySqlPool) {
+        let m = monitor(&pool).await;
+        insert_many(&pool, &[hb(m, 3 * 86400, MonitorStatus::Up)])
+            .await
+            .unwrap();
+        fold_and_prune(&pool, 1, 365).await.unwrap();
+        // A second run with nothing new to fold must not double-count.
+        fold_and_prune(&pool, 1, 365).await.unwrap();
+        let since = ts(OffsetDateTime::now_utc().unix_timestamp() - 30 * 86400);
+        let roll = daily_uptime_from_rollups(&pool, m.0, since, OffsetDateTime::now_utc())
+            .await
+            .unwrap();
+        assert_eq!(roll.iter().map(|d| d.sample_count).sum::<i64>(), 1);
     }
 
     #[sqlx::test(migrations = "../../migrations-mysql")]
