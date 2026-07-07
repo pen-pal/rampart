@@ -2828,12 +2828,12 @@ function TemplatesPanel({ state, reload }) {
             <div>
               <div style={{ fontSize: 13.5, fontWeight: 500 }}>{tpl.name}</div>
               <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>
-                <span style={{ textTransform: 'uppercase', letterSpacing: '.04em' }}>{tpl.event_kind.replace(/_/g, ' ')}</span>
-                {tpl.channel_kinds.length > 0 && <> · for: {tpl.channel_kinds.join(', ')}</>}
+                <span style={{ textTransform: 'uppercase', letterSpacing: '.04em' }}>{(tpl.event_kind || '').replace(/_/g, ' ')}</span>
+                {tpl.channel_kinds?.length > 0 && <> · for: {tpl.channel_kinds.join(', ')}</>}
               </div>
             </div>
             <span style={{ fontSize: 11, color: 'var(--text-3)' }}>
-              {t('notifications.templates.chars', { n: tpl.body_template.length })}
+              {t('notifications.templates.chars', { n: (tpl.body_template || '').length })}
             </span>
             <button className="btn" onClick={() => setEditing(tpl)} title={t('notifications.templates.edit_title')}>
               <Edit3 size={12}/>

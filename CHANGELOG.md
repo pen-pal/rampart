@@ -29,6 +29,17 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.21] — 2026-06-25
+
+### Fixed
+- **Notification templates list guards its fields against a white-page.** The
+  templates tab read `tpl.event_kind.replace()`, `tpl.channel_kinds.length` and
+  `tpl.body_template.length` directly, so a template with any of those unset
+  would blank the view. Now guarded (`|| ''`, optional chaining). Closes out the
+  crash-risk review of the two largest views (MonitorDetail, Notifications) —
+  MonitorDetail was clean (its date helper returns `Date(NaN)`, never null, so
+  the flagged `.toLocaleString()` calls can't throw).
+
 ## [0.157.20] — 2026-06-25
 
 ### Fixed
