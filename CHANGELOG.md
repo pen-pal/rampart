@@ -29,6 +29,21 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.25] — 2026-06-25
+
+### Fixed
+- **SLO fast-burn now uses a multiwindow rule — no more paging on an
+  already-recovered blip.** Fast-burn fired on the 1-hour burn rate alone, so a
+  single down heartbeat could page even when the 30-day budget was healthy and
+  the blip had recovered (for a monitor checked every few minutes, one bad
+  sample = a huge short-term burn). It now requires BOTH the 1-hour window AND a
+  short ~10-minute confirmation window to be burning past the threshold (Google
+  SRE multiwindow). The short window confirms the burn is happening *now*, so an
+  outage that already recovered — still weighing on the 1-hour rate — no longer
+  alerts; a genuinely ongoing burn still pages, and budget exhaustion remains an
+  unconditional backstop. Applied across Postgres / MySQL / SQLite; the
+  `SloSnapshot` shape is unchanged. New unit case covers the recovered-blip path.
+
 ## [0.157.24] — 2026-06-25
 
 ### Fixed

@@ -24,6 +24,8 @@ use sqlx::{MySqlPool, Row};
 use time::OffsetDateTime;
 
 const FAST_BURN_WINDOW_SECONDS: i64 = 3600;
+/// Short confirmation window for multiwindow fast-burn (see PG `slos.rs`).
+const SHORT_BURN_WINDOW_SECONDS: i64 = 600;
 
 fn channel_ids_from(s: &str) -> Vec<NotificationId> {
     serde_json::from_str::<Vec<String>>(s)
@@ -273,8 +275,9 @@ async fn achieved(pool: &MySqlPool, slo: &Slo, window_seconds: i64) -> DbResult<
 
 pub async fn compute(pool: &MySqlPool, slo: &Slo) -> DbResult<SloSnapshot> {
     let full = achieved(pool, slo, slo.window_days as i64 * 86400).await?;
-    let short = achieved(pool, slo, FAST_BURN_WINDOW_SECONDS).await?;
-    Ok(snapshot(full, short, slo.objective_pct))
+    let long = achieved(pool, slo, FAST_BURN_WINDOW_SECONDS).await?;
+    let confirm = achieved(pool, slo, SHORT_BURN_WINDOW_SECONDS).await?;
+    Ok(snapshot(full, long, confirm, slo.objective_pct))
 }
 
 /// Achieved-ratio trend bucketed into ~`buckets` points (oldest→newest).
