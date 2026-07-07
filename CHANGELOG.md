@@ -29,6 +29,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.17] — 2026-06-25
+
+### Changed
+- **Notifications view adopts the shared breadcrumb header** — it kept its own
+  bespoke sticky bar; now consistent with every other sub-view (the "Add
+  channel" action moves next to the page title).
+- **Dependency graph only draws monitors that actually have dependencies.**
+  Edge-less monitors were dumped into the graph as a wall of disconnected boxes
+  that buried the real topology. The view now lays out only the connected
+  component and notes the rest (`· N with no dependencies`), so the structure
+  reads at a glance.
+
+### Demo
+- **`seed-demo` now wires a dependency topology** (Website → API → { Database,
+  Cache }) so the dependency graph shows real structure on a fresh instance
+  instead of an empty state.
+
 ## [0.157.16] — 2026-06-25
 
 ### Changed
