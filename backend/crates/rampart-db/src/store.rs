@@ -1361,7 +1361,10 @@ pub trait StoreErrorTracking: Send + Sync {
         assignee: Option<UserId>,
     ) -> DbResult<ErrorIssue>;
 
-    async fn error_assignable_users(&self) -> DbResult<Vec<crate::error_tracking::AssignableUser>>;
+    async fn error_assignable_users(
+        &self,
+        org_id: OrgId,
+    ) -> DbResult<Vec<crate::error_tracking::AssignableUser>>;
 
     async fn list_error_events(
         &self,
@@ -3786,8 +3789,11 @@ impl StoreErrorTracking for PgStore {
         crate::error_tracking::assign_issue(&self.pool, id, assignee).await
     }
 
-    async fn error_assignable_users(&self) -> DbResult<Vec<crate::error_tracking::AssignableUser>> {
-        crate::error_tracking::assignable_users(&self.pool).await
+    async fn error_assignable_users(
+        &self,
+        org_id: OrgId,
+    ) -> DbResult<Vec<crate::error_tracking::AssignableUser>> {
+        crate::error_tracking::assignable_users(&self.pool, org_id).await
     }
 
     async fn list_error_events(

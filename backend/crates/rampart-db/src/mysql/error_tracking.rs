@@ -627,11 +627,18 @@ pub async fn assign_issue(
     get_issue(pool, id).await
 }
 
-pub async fn assignable_users(pool: &MySqlPool) -> DbResult<Vec<AssignableUser>> {
-    let rows =
-        sqlx::query("SELECT id, name, email FROM users ORDER BY (name IS NULL), name, email")
-            .fetch_all(pool)
-            .await?;
+pub async fn assignable_users(pool: &MySqlPool, org_id: OrgId) -> DbResult<Vec<AssignableUser>> {
+    // Members of the caller's org only (mirrors PG) — don't leak the full
+    // cross-tenant user directory (id + name + email PII).
+    let rows = sqlx::query(
+        "SELECT u.id, u.name, u.email FROM users u \
+         JOIN org_members m ON m.user_id = u.id \
+         WHERE m.org_id = ? \
+         ORDER BY (u.name IS NULL), u.name, u.email",
+    )
+    .bind(org_id.0.to_string())
+    .fetch_all(pool)
+    .await?;
     Ok(rows
         .iter()
         .map(|r| AssignableUser {

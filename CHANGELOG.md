@@ -29,6 +29,21 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.27] — 2026-06-25
+
+### Security
+- **Cross-tenant user-directory leak in the error-issue assignee picker.**
+  `GET /v1/error-issues/assignable-users` ran `SELECT id, name, email FROM
+  users` with no org filter and an ungated handler, so any authenticated user of
+  any org received the id + name + email (PII) of **every** user across **all**
+  tenants. It now scopes to members of the caller's org (`JOIN org_members …
+  WHERE org_id = $1`, handler takes `OrgContext`). Fixed on Postgres and MySQL
+  (SQLite error-tracking remains an unported stub). Regression test asserts a
+  user is visible to their own org but never to a foreign one. Found by a
+  cross-org isolation audit of the read paths — every other telemetry read
+  (traces / logs / metrics / RUM / profiles / heartbeats, all 3 backends) was
+  verified correctly org-scoped.
+
 ## [0.157.26] — 2026-06-25
 
 ### Fixed
