@@ -29,6 +29,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.29] — 2026-06-25
+
+### Security
+- **Cross-org reference injection: a monitor (or folder / error-issue) could
+  point at another org's resource.** Monitor create/update and bulk-edit bound
+  `group_id` / `proxy_id` / `escalation_policy_id` without checking the
+  referenced row belonged to the caller's org, so a user could route their
+  monitor's checks through **another org's proxy**, page **another org's
+  escalation policy**, or file monitors under a foreign group; folder re-parent
+  and error-issue assignment had the same gap (foreign parent group / foreign
+  assignee). Each referenced id is now validated in-org before the write
+  (`monitor_group_in_org` / `get_proxy` / `get_escalation_policy` /
+  `org_member_role`), returning 400 for a foreign id. `agent_id` was already
+  checked. Regression test: a monitor can't bind a foreign-org proxy. Found by a
+  cross-org write-authorization audit (the defense-in-depth follow-up to the
+  status-page-section IDOR).
+
 ## [0.157.28] — 2026-06-25
 
 ### Security

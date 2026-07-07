@@ -63,6 +63,13 @@ async fn create(
     Json(input): Json<NewMonitorGroup>,
 ) -> Result<(StatusCode, Json<MonitorGroup>), ApiError> {
     input.validate()?;
+    // The parent group must be the caller's own — no cross-org reference.
+    if let Some(pid) = input.parent_id {
+        s.store()
+            .monitor_group_in_org(pid, org.org_id)
+            .await
+            .map_err(|_| ApiError::BadRequest("unknown parent group".into()))?;
+    }
     let g = s.store().create_monitor_group(input, org.org_id).await?;
     crate::audit::record(
         s.store(),
@@ -87,6 +94,13 @@ async fn update(
 ) -> Result<Json<MonitorGroup>, ApiError> {
     input.validate()?;
     let gid = parse_group(&id)?;
+    // A re-parent target must be the caller's own — no cross-org reference.
+    if let Some(Some(pid)) = input.parent_id {
+        s.store()
+            .monitor_group_in_org(pid, org.org_id)
+            .await
+            .map_err(|_| ApiError::BadRequest("unknown parent group".into()))?;
+    }
     let g = s
         .store()
         .update_monitor_group(gid, input, org.org_id)
