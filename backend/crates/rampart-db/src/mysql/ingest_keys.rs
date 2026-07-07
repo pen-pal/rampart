@@ -141,10 +141,11 @@ mod tests {
         let (key, token) = create(&pool, org, "rum", "rum", &origins).await.unwrap();
         assert!(token.starts_with("ingk_"));
 
-        // find_by_token → org + origins round-trip.
-        let (id, found_org, got) = find_by_token(&pool, &token).await.unwrap().unwrap();
+        // find_by_token → org + kind + origins round-trip.
+        let (id, found_org, kind, got) = find_by_token(&pool, &token).await.unwrap().unwrap();
         assert_eq!(id, key.id);
         assert_eq!(found_org, org);
+        assert_eq!(kind, "rum");
         assert_eq!(got, origins);
         // unknown → None (caller falls back to the legacy gate).
         assert!(find_by_token(&pool, "ingk_nope").await.unwrap().is_none());
