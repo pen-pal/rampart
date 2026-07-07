@@ -45,6 +45,7 @@ pub mod monitor_groups;
 pub mod monitors;
 pub mod notifications;
 pub mod orgs;
+pub mod profiles;
 pub mod proxies;
 pub mod routing;
 pub mod rum;

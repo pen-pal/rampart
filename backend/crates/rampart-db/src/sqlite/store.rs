@@ -1907,7 +1907,7 @@ impl StoreRum for SqliteStore {
 #[async_trait::async_trait]
 impl StoreProfiles for SqliteStore {
     async fn insert_profile(&self, p: NewProfile<'_>, org_id: OrgId) -> DbResult<i64> {
-        unimplemented!("SqliteStore::insert_profile: profiles domain not yet ported (multi-DB P1)")
+        crate::sqlite::profiles::insert(&self.pool, p, org_id).await
     }
 
     async fn list_profiles(
@@ -1918,7 +1918,7 @@ impl StoreProfiles for SqliteStore {
         limit: i64,
         org_id: OrgId,
     ) -> DbResult<Vec<ProfileMeta>> {
-        unimplemented!("SqliteStore::list_profiles: profiles domain not yet ported (multi-DB P1)")
+        crate::sqlite::profiles::list(&self.pool, service, profile_type, hours, limit, org_id).await
     }
 
     async fn profile_folded_in_window(
@@ -1929,9 +1929,15 @@ impl StoreProfiles for SqliteStore {
         to: OffsetDateTime,
         org_id: OrgId,
     ) -> DbResult<Vec<Vec<u8>>> {
-        unimplemented!(
-            "SqliteStore::profile_folded_in_window: profiles domain not yet ported (multi-DB P1)"
+        crate::sqlite::profiles::folded_in_window(
+            &self.pool,
+            service,
+            profile_type,
+            from,
+            to,
+            org_id,
         )
+        .await
     }
 
     async fn profile_fetch_folded(
@@ -1939,25 +1945,19 @@ impl StoreProfiles for SqliteStore {
         id: i64,
         org_id: OrgId,
     ) -> DbResult<Option<(String, Vec<u8>)>> {
-        unimplemented!(
-            "SqliteStore::profile_fetch_folded: profiles domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::profiles::fetch_folded(&self.pool, id, org_id).await
     }
 
     async fn profile_services(&self, org_id: OrgId) -> DbResult<Vec<String>> {
-        unimplemented!(
-            "SqliteStore::profile_services: profiles domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::profiles::services(&self.pool, org_id).await
     }
 
     async fn profile_types(&self, service: Option<&str>, org_id: OrgId) -> DbResult<Vec<String>> {
-        unimplemented!("SqliteStore::profile_types: profiles domain not yet ported (multi-DB P1)")
+        crate::sqlite::profiles::profile_types(&self.pool, service, org_id).await
     }
 
-    async fn prune_profiles(&self, _days: i32) -> DbResult<u64> {
-        // profiles domain isn't ported to SQLite — nothing writes the table,
-        // nothing to prune. Return 0 rather than panic.
-        Ok(0)
+    async fn prune_profiles(&self, days: i32) -> DbResult<u64> {
+        crate::sqlite::profiles::prune(&self.pool, days).await
     }
 }
 
@@ -2461,8 +2461,8 @@ impl StoreRetention for SqliteStore {
     async fn run_retention_prune(&self) -> DbResult<u64> {
         // Heartbeats tier into the hourly rollup table before deletion (see
         // fold_and_prune); the other telemetry tables get a flat age-based prune.
-        // The profiles/error-tracking/oidc-state domains aren't ported to SQLite
-        // — nothing writes those tables, so there's nothing to prune.
+        // The error-tracking/oidc-state domains aren't ported to SQLite —
+        // nothing writes those tables, so there's nothing to prune.
         let cfg = crate::prune::parse_config(
             crate::sqlite::settings::get_setting(&self.pool, "retention_days").await?,
         );
@@ -2477,6 +2477,7 @@ impl StoreRetention for SqliteStore {
         total +=
             crate::sqlite::metric_samples::prune_older_than(&self.pool, metrics_cutoff).await?;
         total += crate::sqlite::rum::prune(&self.pool, cfg.rum_days).await?;
+        total += crate::sqlite::profiles::prune(&self.pool, cfg.profiles_days).await?;
         total += crate::sqlite::audit::prune(&self.pool, cfg.audit_log).await?;
         total += crate::sqlite::detection::prune(&self.pool, cfg.findings_days).await?;
         Ok(total)
