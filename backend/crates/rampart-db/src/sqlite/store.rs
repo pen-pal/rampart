@@ -2160,7 +2160,10 @@ impl StoreErrorTracking for SqliteStore {
         )
     }
 
-    async fn error_assignable_users(&self) -> DbResult<Vec<crate::error_tracking::AssignableUser>> {
+    async fn error_assignable_users(
+        &self,
+        _org_id: OrgId,
+    ) -> DbResult<Vec<crate::error_tracking::AssignableUser>> {
         unimplemented!("SqliteStore::error_assignable_users: error_tracking domain not yet ported (multi-DB P1)")
     }
 

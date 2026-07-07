@@ -480,8 +480,9 @@ async fn assign(
 
 async fn assignable_users(
     State(s): State<AppState>,
+    Extension(org): Extension<OrgContext>,
 ) -> Result<Json<Vec<rampart_db::error_tracking::AssignableUser>>, ApiError> {
-    Ok(Json(s.store().error_assignable_users().await?))
+    Ok(Json(s.store().error_assignable_users(org.org_id).await?))
 }
 
 /// Error issues touched by a given trace — the trace → errors correlation link.

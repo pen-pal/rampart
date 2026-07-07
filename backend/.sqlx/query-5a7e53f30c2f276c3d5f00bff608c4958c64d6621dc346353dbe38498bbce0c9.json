@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, name, email::text AS \"email!\" FROM users ORDER BY name NULLS LAST, email",
+  "query": "SELECT u.id, u.name, u.email::text AS \"email!\"\n           FROM users u\n           JOIN org_members m ON m.user_id = u.id\n           WHERE m.org_id = $1\n           ORDER BY u.name NULLS LAST, u.email",
   "describe": {
     "columns": [
       {
@@ -33,7 +33,9 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid"
+      ]
     },
     "nullable": [
       false,
@@ -41,5 +43,5 @@
       null
     ]
   },
-  "hash": "a5824fa73af7ba9256c8d66c180861bdbbb6ff4120dc51d97641350bc146cfbd"
+  "hash": "5a7e53f30c2f276c3d5f00bff608c4958c64d6621dc346353dbe38498bbce0c9"
 }

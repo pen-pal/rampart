@@ -782,10 +782,17 @@ pub struct AssignableUser {
     pub email: String,
 }
 
-pub async fn assignable_users(pool: &DbPool) -> DbResult<Vec<AssignableUser>> {
+pub async fn assignable_users(pool: &DbPool, org_id: OrgId) -> DbResult<Vec<AssignableUser>> {
+    // Members of the caller's org only — an assignee picker must not leak the
+    // full cross-tenant user directory (id + name + email PII).
     let rows = sqlx::query_as!(
         AssignableUser,
-        r#"SELECT id, name, email::text AS "email!" FROM users ORDER BY name NULLS LAST, email"#,
+        r#"SELECT u.id, u.name, u.email::text AS "email!"
+           FROM users u
+           JOIN org_members m ON m.user_id = u.id
+           WHERE m.org_id = $1
+           ORDER BY u.name NULLS LAST, u.email"#,
+        org_id.0,
     )
     .fetch_all(pool)
     .await?;
@@ -935,6 +942,45 @@ mod tests {
             find_or_create_by_name(&pool, "spray-attacker-new", org).await,
             Err(DbError::Conflict(_))
         ));
+    }
+
+    /// SECURITY: the issue-assignee picker must return only members of the
+    /// caller's org — it used to `SELECT ... FROM users` with no org filter,
+    /// leaking every tenant's user directory (id + name + email PII).
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn assignable_users_scoped_to_caller_org(pool: PgPool) {
+        let default_org = def_org();
+        let org_b = crate::orgs::create(&pool, "orgb", "Org B")
+            .await
+            .unwrap()
+            .id;
+
+        // A user created via the normal path is a member of the Default org (the
+        // multi-tenancy mirror), NOT of org_b.
+        let u = crate::users::create(
+            &pool,
+            crate::users::NewUser {
+                email: "alice@a.test".into(),
+                name: Some("Alice".into()),
+                password_hash: "x".into(),
+                role: rampart_core::Role::Admin,
+            },
+        )
+        .await
+        .unwrap();
+
+        // Visible to their own (Default) org…
+        let own = assignable_users(&pool, default_org).await.unwrap();
+        assert!(
+            own.iter().any(|x| x.id == u.id.0),
+            "member visible to their own org"
+        );
+        // …but NOT to an org they don't belong to (no cross-tenant leak).
+        let foreign = assignable_users(&pool, org_b).await.unwrap();
+        assert!(
+            !foreign.iter().any(|x| x.id == u.id.0),
+            "must not leak a user to a foreign org"
+        );
     }
 
     /// PERF (audit #123 rank-8): `prune` chunks the high-volume `error_events`
