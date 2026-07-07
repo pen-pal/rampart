@@ -732,6 +732,7 @@ mod tests {
         assert_eq!(list_sections(&pool, p.id).await.unwrap().len(), 2);
         let r = update_section(
             &pool,
+            p.id,
             s1.id,
             serde_json::from_value(serde_json::json!({ "name": "Backend" })).unwrap(),
         )
@@ -781,7 +782,7 @@ mod tests {
         assert!(!pv.sections.iter().any(|s| s.name.is_none()));
 
         // deleting a section detaches its monitor back to ungrouped.
-        delete_section(&pool, s2.id).await.unwrap();
+        delete_section(&pool, p.id, s2.id).await.unwrap();
         let pv2 = public_view(&pool, "acme").await.unwrap();
         assert!(pv2
             .sections
