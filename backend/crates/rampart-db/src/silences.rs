@@ -40,7 +40,13 @@ pub async fn is_silenced(pool: &DbPool, monitor: Option<Uuid>) -> DbResult<bool>
         SELECT EXISTS(
             SELECT 1 FROM silences
             WHERE (expires_at IS NULL OR expires_at > now())
-              AND (monitor_id IS NULL OR monitor_id = $1)
+              AND (
+                monitor_id = $1
+                OR (monitor_id IS NULL AND (
+                     $1::uuid IS NULL
+                     OR org_id = (SELECT org_id FROM monitors WHERE id = $1)
+                ))
+              )
         ) AS "silenced!"
         "#,
         monitor,
@@ -125,12 +131,22 @@ mod tests {
 
     #[sqlx::test(migrations = "../../migrations")]
     async fn global_and_scoped_silences(pool: PgPool) {
-        let mon = uuid::Uuid::new_v4();
+        // A real monitor in the Default org (a global silence scopes to a
+        // monitor's org, derived from the monitors table).
+        let nm: rampart_core::monitor::NewMonitor = serde_json::from_value(
+            serde_json::json!({"name":"m","kind":"http","url":"https://x.test"}),
+        )
+        .unwrap();
+        let mon = crate::monitors::create(&pool, nm, def_org())
+            .await
+            .unwrap()
+            .id
+            .0;
         // Nothing silenced initially.
         assert!(!is_silenced(&pool, Some(mon)).await.unwrap());
         assert!(!is_silenced(&pool, None).await.unwrap());
 
-        // A global silence mutes the monitor AND rules (None).
+        // A global silence in the Default org mutes that org's monitor AND rules (None).
         let g = create(
             &pool,
             NewSilence {
@@ -145,10 +161,29 @@ mod tests {
         .unwrap();
         assert!(is_silenced(&pool, Some(mon)).await.unwrap());
         assert!(is_silenced(&pool, None).await.unwrap());
+
+        // Cross-org: a monitor in ANOTHER org is NOT muted by the Default org's
+        // global silence — the isolation this fix adds.
+        let other = crate::orgs::create(&pool, "other", "Other").await.unwrap().id;
+        let onm: rampart_core::monitor::NewMonitor = serde_json::from_value(
+            serde_json::json!({"name":"o","kind":"http","url":"https://y.test"}),
+        )
+        .unwrap();
+        let omon = crate::monitors::create(&pool, onm, other)
+            .await
+            .unwrap()
+            .id
+            .0;
+        assert!(
+            !is_silenced(&pool, Some(omon)).await.unwrap(),
+            "another org's monitor must not be muted by this org's global silence"
+        );
+
         // list_active is org-scoped; the silence landed in the Default org.
         assert_eq!(list_active(&pool, def_org()).await.unwrap().len(), 1);
         assert!(delete(&pool, g, def_org()).await.unwrap());
         assert!(!is_silenced(&pool, None).await.unwrap());
+        assert!(!is_silenced(&pool, Some(mon)).await.unwrap());
 
         // An expired silence doesn't count.
         create(

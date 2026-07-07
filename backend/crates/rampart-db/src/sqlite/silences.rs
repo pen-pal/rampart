@@ -11,14 +11,23 @@ use uuid::Uuid;
 /// a silence matches when not expired AND (global OR scoped to this monitor).
 pub async fn is_silenced(pool: &SqlitePool, monitor: Option<Uuid>) -> DbResult<bool> {
     let now = OffsetDateTime::now_utc().unix_timestamp();
+    // A GLOBAL silence (monitor_id IS NULL) only mutes same-org monitors (see PG).
     let (n,): (i64,) = sqlx::query_as(
         "SELECT EXISTS(
             SELECT 1 FROM silences
             WHERE (expires_at IS NULL OR expires_at > ?)
-              AND (monitor_id IS NULL OR monitor_id = ?)
+              AND (
+                monitor_id = ?
+                OR (monitor_id IS NULL AND (
+                     ? IS NULL
+                     OR org_id = (SELECT org_id FROM monitors WHERE id = ?)
+                ))
+              )
         )",
     )
     .bind(now)
+    .bind(monitor.map(|m| m.to_string()))
+    .bind(monitor.map(|m| m.to_string()))
     .bind(monitor.map(|m| m.to_string()))
     .fetch_one(pool)
     .await?;
