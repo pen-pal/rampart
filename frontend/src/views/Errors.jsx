@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { api, useApi, formatRelative } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import SubViewHeader from '../components/SubViewHeader.jsx';
 import { confirmDialog } from '../lib/notify.js';
 import { canWrite } from '../lib/roles.js';
 
@@ -99,7 +100,7 @@ function ProjectsList({ user, onOpen }) {
 
   return (
     <>
-      <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}><ChevronLeft size={14}/> {t('errors.back')}</a>
+      <SubViewHeader title={t('errors.title')} icon={Bug} />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 22 }}>
         <div>
           <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 4px', letterSpacing: '-.02em' }}>{t('errors.title')}</h1>

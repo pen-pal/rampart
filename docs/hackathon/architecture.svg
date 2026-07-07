@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="900" viewBox="0 0 1240 900" font-family="Inter,system-ui,sans-serif">
+<defs><marker id="ar" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#5b6b7d"/></marker></defs>
+<rect width="1240" height="900" fill="#ffffff"/>
+<text x="620" y="40" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="21" font-weight="700" fill="#102a43" text-anchor="middle">Rampart — single-binary observability + SIEM on AWS</text>
+<text x="620" y="62" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="13" font-weight="400" fill="#627d98" text-anchor="middle">React/Vite SPA · Rust/axum API · object-safe Store seam · Aurora PostgreSQL</text>
+<rect x="40" y="84" width="520" height="150" rx="12" fill="#e8f1fb" stroke="#4a78b8" stroke-width="1.5"/>
+<text x="300" y="108" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="13.5" font-weight="700" fill="#2c5694" text-anchor="middle">Browser — operators &amp; status-page viewers</text>
+<rect x="64" y="128" width="230" height="84" rx="9" fill="#ffffff" stroke="#9cc0e8" stroke-width="1.2"/>
+<text x="179" y="166" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="12.5" font-weight="600" fill="#243b53" text-anchor="middle">Rampart React/Vite SPA</text>
+<text x="179" y="182" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="12.5" font-weight="400" fill="#243b53" text-anchor="middle">(served same-origin)</text>
+<rect x="310" y="128" width="226" height="84" rx="9" fill="#ffffff" stroke="#9cc0e8" stroke-width="1.2"/>
+<text x="423" y="166" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="12.5" font-weight="600" fill="#243b53" text-anchor="middle">v0 Next.js</text>
+<text x="423" y="182" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="12.5" font-weight="400" fill="#243b53" text-anchor="middle">landing / login shell</text>
+<rect x="680" y="84" width="520" height="150" rx="12" fill="#fdf2e0" stroke="#d9913a" stroke-width="1.5"/>
+<text x="940" y="108" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="13.5" font-weight="700" fill="#a86417" text-anchor="middle">Customer apps — any language</text>
+<rect x="696" y="126" width="240" height="30" rx="9" fill="#ffffff" stroke="#e7c08a" stroke-width="1.2"/>
+<text x="816" y="145" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="12.5" font-weight="600" fill="#243b53" text-anchor="middle">OTLP traces/logs/metrics</text>
+<rect x="946" y="126" width="240" height="30" rx="9" fill="#ffffff" stroke="#e7c08a" stroke-width="1.2"/>
+<text x="1066" y="145" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="12.5" font-weight="600" fill="#243b53" text-anchor="middle">Prometheus remote-write</text>
+<rect x="696" y="162" width="240" height="30" rx="9" fill="#ffffff" stroke="#e7c08a" stroke-width="1.2"/>
+<text x="816" y="181" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="12.5" font-weight="600" fill="#243b53" text-anchor="middle">Sentry DSN (errors)</text>
+<rect x="946" y="162" width="240" height="30" rx="9" fill="#ffffff" stroke="#e7c08a" stroke-width="1.2"/>
+<text x="1066" y="181" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="12.5" font-weight="600" fill="#243b53" text-anchor="middle">RUM browser snippet</text>
+<rect x="696" y="198" width="240" height="30" rx="9" fill="#ffffff" stroke="#e7c08a" stroke-width="1.2"/>
+<text x="816" y="217" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="12.5" font-weight="600" fill="#243b53" text-anchor="middle">pprof / OTLP profiles</text>
+<rect x="946" y="198" width="240" height="30" rx="9" fill="#ffffff" stroke="#e7c08a" stroke-width="1.2"/>
+<text x="1066" y="217" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="12.5" font-weight="600" fill="#243b53" text-anchor="middle">push / heartbeat</text>
+<rect x="696" y="234" width="240" height="30" rx="9" fill="#ffffff" stroke="#e7c08a" stroke-width="1.2"/>
+<text x="816" y="253" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="12.5" font-weight="600" fill="#243b53" text-anchor="middle">syslog / NDJSON</text>
+<rect x="40" y="272" width="520" height="84" rx="12" fill="#eef1f4" stroke="#52606d" stroke-width="1.5"/>
+<text x="300" y="296" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="13.5" font-weight="700" fill="#3e4c59" text-anchor="middle">VERCEL — frontend, edge-delivered</text>
+<rect x="64" y="310" width="472" height="34" rx="9" fill="#ffffff" stroke="#b8c2cc" stroke-width="1.2"/>
+<text x="300" y="331" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="12.5" font-weight="600" fill="#243b53" text-anchor="middle">Static assets + vercel.json — same-origin /v1 rewrite (proxies to AWS origin)</text>
+<rect x="40" y="398" width="1160" height="316" rx="12" fill="#eaf6ee" stroke="#3a9d5d" stroke-width="1.5"/>
+<text x="58" y="422" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="13.5" font-weight="700" fill="#27764a" text-anchor="start">AWS — same VPC as Aurora</text>
+<rect x="64" y="438" width="724" height="258" rx="12" fill="#ffffff" stroke="#5bbd80" stroke-width="1.5"/>
+<text x="426" y="462" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="13" font-weight="700" fill="#1f6b41" text-anchor="middle">RAMPART API — Rust / axum · single binary · leader-elected</text>
+<rect x="80" y="482" width="130" height="86" rx="9" fill="#f0f9f3" stroke="#9ad6b4" stroke-width="1.2"/>
+<text x="145" y="513" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="12.5" font-weight="600" fill="#243b53" text-anchor="middle">REST API /v1</text>
+<text x="145" y="529" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="12.5" font-weight="400" fill="#243b53" text-anchor="middle">+ org resolution</text>
+<text x="145" y="545" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="12.5" font-weight="400" fill="#243b53" text-anchor="middle">cookie/api-key/ingest</text>
+<rect x="218" y="482" width="130" height="86" rx="9" fill="#f0f9f3" stroke="#9ad6b4" stroke-width="1.2"/>
+<text x="283" y="513" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="12.5" font-weight="600" fill="#243b53" text-anchor="middle">Ingest listeners</text>
+<text x="283" y="529" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="12.5" font-weight="400" fill="#243b53" text-anchor="middle">OTLP·Prom·Sentry</text>
+<text x="283" y="545" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="12.5" font-weight="400" fill="#243b53" text-anchor="middle">RUM·prof·syslog·push</text>
+<rect x="356" y="482" width="130" height="86" rx="9" fill="#f0f9f3" stroke="#9ad6b4" stroke-width="1.2"/>
+<text x="421" y="513" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="12.5" font-weight="600" fill="#243b53" text-anchor="middle">Scheduler</text>
+<text x="421" y="529" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="12.5" font-weight="400" fill="#243b53" text-anchor="middle">probes·prune</text>
+<text x="421" y="545" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="12.5" font-weight="400" fill="#243b53" text-anchor="middle">SLO burn·audit</text>
+<rect x="494" y="482" width="130" height="86" rx="9" fill="#f0f9f3" stroke="#9ad6b4" stroke-width="1.2"/>
+<text x="559" y="513" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="12.5" font-weight="600" fill="#243b53" text-anchor="middle">Notifier</text>
+<text x="559" y="529" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="12.5" font-weight="400" fill="#243b53" text-anchor="middle">channel fan-out</text>
+<text x="559" y="545" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="12.5" font-weight="400" fill="#243b53" text-anchor="middle">(129 channels)</text>
+<rect x="632" y="482" width="130" height="86" rx="9" fill="#f0f9f3" stroke="#9ad6b4" stroke-width="1.2"/>
+<text x="697" y="513" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="12.5" font-weight="600" fill="#243b53" text-anchor="middle">Detection</text>
+<text x="697" y="529" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="12.5" font-weight="400" fill="#243b53" text-anchor="middle">log patterns</text>
+<text x="697" y="545" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="12.5" font-weight="400" fill="#243b53" text-anchor="middle">→ findings</text>
+<text x="426" y="600" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="11.5" font-weight="400" fill="#5b8f72" text-anchor="middle">every plane resolves org_id, then goes through one seam ↓</text>
+<rect x="820" y="470" width="356" height="150" rx="12" fill="#efeafe" stroke="#7a5af0" stroke-width="1.5"/>
+<text x="998" y="498" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="14" font-weight="700" fill="#5a3ec8" text-anchor="middle">Object-safe Store seam</text>
+<rect x="840" y="512" width="316" height="40" rx="9" fill="#ffffff" stroke="#c3b3f5" stroke-width="1.2"/>
+<text x="998" y="536" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="12.5" font-weight="600" fill="#243b53" text-anchor="middle">Arc&lt;dyn Store&gt; · per-domain traits</text>
+<text x="998" y="576" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="11" font-weight="400" fill="#6b5bc0" text-anchor="middle">DATABASE_URL scheme picks the backend:</text>
+<text x="998" y="592" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="11" font-weight="600" fill="#5a3ec8" text-anchor="middle">postgres (reference) · sqlite · mysql</text>
+<path d="M400,752 a220,16 0 0 0 440,0 v110 a220,16 0 0 1 -440,0 Z" fill="#dce9fb" stroke="#2b6cb0" stroke-width="1.6"/>
+<ellipse cx="620" cy="752" rx="220" ry="16" fill="#cfe0f7" stroke="#2b6cb0" stroke-width="1.6"/>
+<text x="620" y="782" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="15" font-weight="700" fill="#234e84" text-anchor="middle">AURORA POSTGRESQL</text>
+<text x="620" y="804" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="11" font-weight="400" fill="#3c5d85" text-anchor="middle">org_id-scoped tenant tables · FK graph · compile-checked sqlx</text>
+<text x="620" y="820" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="11" font-weight="400" fill="#3c5d85" text-anchor="middle">100+ migrations on boot · retention pruning · optional RLS</text>
+<path d="M300,234 L300,272" fill="none" stroke="#5b6b7d" stroke-width="1.8" marker-end="url(#ar)"/>
+<text x="330" y="260" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="11.5" font-weight="600" fill="#486581" text-anchor="middle">HTTPS</text>
+<path d="M300,356 L300,438" fill="none" stroke="#5b6b7d" stroke-width="1.8" marker-end="url(#ar)"/>
+<text x="392" y="392" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="11.5" font-weight="600" fill="#486581" text-anchor="middle">same-origin proxy</text>
+<text x="392" y="406" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="10.5" font-weight="400" fill="#829ab1" text-anchor="middle">cookie session · no CORS</text>
+<path d="M940,234 L720,438" fill="none" stroke="#5b6b7d" stroke-width="1.8" marker-end="url(#ar)"/>
+<text x="905" y="330" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="11.5" font-weight="600" fill="#486581" text-anchor="middle">point exporters</text>
+<text x="905" y="344" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="10.5" font-weight="400" fill="#829ab1" text-anchor="middle">at AWS origin, not Vercel</text>
+<path d="M788,560 L820,560" fill="none" stroke="#5b6b7d" stroke-width="1.8" marker-end="url(#ar)"/>
+<path d="M998,620 L998,752" fill="none" stroke="#5b6b7d" stroke-width="1.8" marker-end="url(#ar)"/>
+<text x="1066" y="690" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="11.5" font-weight="600" fill="#486581" text-anchor="middle">sqlx pool</text>
+<text x="1066" y="704" font-family="Inter,system-ui,Segoe UI,sans-serif" font-size="10.5" font-weight="400" fill="#829ab1" text-anchor="middle">TLS · sslmode=require</text>
+</svg>

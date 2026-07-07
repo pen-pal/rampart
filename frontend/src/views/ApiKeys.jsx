@@ -1,10 +1,11 @@
 import React, { useRef, useState } from 'react';
 import { useFocusTrap } from '../lib/useFocusTrap.js';
 import {
-  ChevronLeft, Plus, Trash2, Key, Copy, Check, AlertCircle, Loader2, X, Eye, EyeOff,
+  Plus, Trash2, Key, Copy, Check, AlertCircle, Loader2, X, Eye, EyeOff,
 } from 'lucide-react';
 import { api, useApi, formatRelative, offsetDateTimeArrayToDate } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import SubViewHeader from '../components/SubViewHeader.jsx';
 import { confirmDialog } from '../lib/notify.js';
 
 const css = `
@@ -91,9 +92,7 @@ export default function ApiKeys() {
       <style>{css}</style>
 
       <div style={{ maxWidth: 880, margin: '0 auto', padding: '32px 32px 64px' }}>
-        <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}>
-          <ChevronLeft size={14}/> {t('common.dashboard')}
-        </a>
+        <SubViewHeader title={t('apikeys.title')} icon={Key} />
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 22 }}>
           <div>

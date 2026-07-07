@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  ChevronLeft, Folder, FolderTree, Plus, Trash2, Loader2, AlertCircle, X,
+  Folder, FolderTree, Plus, Trash2, Loader2, AlertCircle, X,
   Tag as TagIcon, Bell, Pencil, Check, Activity, CornerDownRight,
 } from 'lucide-react';
 import { api, useApi } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import SubViewHeader from '../components/SubViewHeader.jsx';
 import { confirmDialog, toast } from '../lib/notify.js';
 
 const css = `
@@ -142,7 +143,7 @@ export default function Folders() {
     <div className="rampart">
       <style>{css}</style>
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '32px 32px 64px' }}>
-        <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}><ChevronLeft size={14}/> {t('common.dashboard')}</a>
+        <SubViewHeader title={t('folders.title')} icon={FolderTree} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
           <FolderTree size={20}/>
           <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0, letterSpacing: '-.02em' }}>{t('folders.title')}</h1>

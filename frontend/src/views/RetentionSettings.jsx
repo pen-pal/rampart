@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ChevronLeft, Save, Loader2, AlertCircle, Database,
+  Save, Loader2, AlertCircle, Database,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import SubViewHeader from '../components/SubViewHeader.jsx';
 
 const css = `
   .rampart {
@@ -112,9 +113,7 @@ export default function RetentionSettings() {
     <div className="rampart">
       <style>{css}</style>
       <div style={{ maxWidth: 640, margin: '0 auto', padding: '32px 32px 64px' }}>
-        <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}>
-          <ChevronLeft size={14}/> {t('common.dashboard')}
-        </a>
+        <SubViewHeader title={t('settings.retention.title')} icon={Database} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
           <Database size={20}/>
           <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0, letterSpacing: '-.02em' }}>{t('settings.retention.title')}</h1>

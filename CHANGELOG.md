@@ -29,6 +29,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.16] — 2026-06-25
+
+### Changed
+- **Consistent sticky breadcrumb header across every sub-view.** Each view used
+  to roll its own bare `‹ Dashboard` ghost link — inconsistent labels, no frame,
+  and the only way back was that easy-to-miss link. A new shared `SubViewHeader`
+  component renders one framed, sticky breadcrumb on all 32 sub-views —
+  `🛡 Overview › 〔icon〕 <View>` — where the shield and "Overview" both click
+  home, it pins while you scroll, and the right edge clears the global nav
+  launcher. Flows/builders (new-monitor wizard, CSV import handled separately)
+  and the monitor-detail page keep their own chrome. Purely presentational; no
+  behaviour change.
+
+### Docs
+- Added `docs/hackathon/architecture.svg` — the system architecture diagram for
+  the Devpost submission gallery.
+
 ## [0.157.15] — 2026-06-24
 
 ### Fixed

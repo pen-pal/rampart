@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { api, useApi, ApiError, formatRelative, formatClock, offsetDateTimeArrayToDate } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import SubViewHeader from '../components/SubViewHeader.jsx';
 import { isAdmin } from '../lib/roles.js';
 
 const css = `
@@ -136,9 +137,7 @@ export default function DeliveryLog({ user }) {
     <div className="rampart">
       <style>{css}</style>
       <div style={{ maxWidth: 1080, margin: '0 auto', padding: '32px 32px 64px' }}>
-        <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}>
-          <ChevronLeft size={14}/> {t('delivery.back')}
-        </a>
+        <SubViewHeader title={t('delivery.title')} icon={Send} />
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 22 }}>
           <div>

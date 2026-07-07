@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ChevronLeft, Plus, Save, Loader2, AlertCircle, Trash2, BellRing, X,
+  Plus, Save, Loader2, AlertCircle, Trash2, BellRing, X,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import SubViewHeader from '../components/SubViewHeader.jsx';
 import { confirmDialog } from '../lib/notify.js';
 
 const css = `
@@ -83,9 +84,7 @@ export default function AlertRules() {
     <div className="rampart">
       <style>{css}</style>
       <div style={{ maxWidth: 760, margin: '0 auto', padding: '32px 32px 64px' }}>
-        <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}>
-          <ChevronLeft size={14}/> {t('common.dashboard')}
-        </a>
+        <SubViewHeader title={t('alertrules.title')} icon={BellRing} />
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <BellRing size={20}/>

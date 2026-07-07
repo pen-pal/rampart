@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import {
-  ChevronLeft, Plus, Trash2, AlertCircle, Loader2, X, Pencil, Check, Copy,
+  Plus, Trash2, AlertCircle, Loader2, X, Pencil, Check, Copy,
   Activity, BellRing, Flame, LineChart, Flag,
 } from 'lucide-react';
 import { api, useApi, formatRelative, offsetDateTimeArrayToDate } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import SubViewHeader from '../components/SubViewHeader.jsx';
 import { confirmDialog, promptDialog, toast } from '../lib/notify.js';
 import { canWrite } from '../lib/roles.js';
 
@@ -146,9 +147,7 @@ export default function Metrics({ user }) {
     <div className="rampart">
       <style>{css}</style>
       <div style={{ maxWidth: 980, margin: '0 auto', padding: '32px 32px 64px' }}>
-        <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}>
-          <ChevronLeft size={14}/> {t('metrics.back')}
-        </a>
+        <SubViewHeader title={t('metrics.title')} icon={LineChart} />
 
         <div style={{ marginBottom: 22, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
           <div>

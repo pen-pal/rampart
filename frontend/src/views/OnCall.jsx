@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import {
-  ChevronLeft, Plus, Trash2, AlertCircle, Loader2, X, Pencil, Check,
+  Plus, Trash2, AlertCircle, Loader2, X, Pencil, Check,
   CalendarClock, ArrowUp, ArrowDown,
 } from 'lucide-react';
 import { api, useApi, offsetDateTimeArrayToDate } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import SubViewHeader from '../components/SubViewHeader.jsx';
 import { confirmDialog } from '../lib/notify.js';
 import { canWrite } from '../lib/roles.js';
 
@@ -155,9 +156,7 @@ export default function OnCall({ user }) {
     <div className="rampart">
       <style>{css}</style>
       <div style={{ maxWidth: 920, margin: '0 auto', padding: '32px 32px 64px' }}>
-        <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}>
-          <ChevronLeft size={14}/> {t('oncall.back')}
-        </a>
+        <SubViewHeader title={t('oncall.title')} icon={CalendarClock} />
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 22 }}>
           <div>
