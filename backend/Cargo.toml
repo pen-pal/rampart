@@ -165,7 +165,7 @@ opentelemetry-proto = { version = "0.30", default-features = false, features = [
 # RAMPART_OTLP_ENDPOINT is set (dogfood; in the example it points at itself).
 # HTTP+reqwest exporter (not grpc/tonic) keeps the tree pure-Rust + ring-only.
 opentelemetry      = "0.30"
-opentelemetry_sdk  = { version = "0.30", features = ["rt-tokio"] }
+opentelemetry_sdk  = { version = "0.32", features = ["rt-tokio"] }
 # reqwest-BLOCKING client (not async): opentelemetry_sdk 0.30's batch processor
 # runs on a dedicated OS thread with no Tokio reactor, so an async client panics
 # ("no reactor running"). The blocking client owns its own runtime internally.
