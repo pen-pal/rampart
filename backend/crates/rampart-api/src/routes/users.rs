@@ -215,7 +215,9 @@ async fn export_data(
         .get_user_prefs(target)
         .await
         .unwrap_or_else(|_| serde_json::json!({}));
-    let sessions = rampart_db::sessions::list_for_user(s.pool(), target)
+    let sessions = s
+        .store()
+        .list_sessions_for_user(target)
         .await
         .unwrap_or_default();
     let organizations = s.store().orgs_for_user(target).await.unwrap_or_default();
@@ -255,8 +257,8 @@ async fn erase(
         ));
     }
     s.store().anonymize_user(target).await?;
-    let _ = rampart_db::sessions::delete_for_user(s.pool(), target).await;
-    let _ = rampart_db::recovery_codes::delete_for_user(s.pool(), target).await;
+    let _ = s.store().delete_sessions_for_user(target).await;
+    let _ = s.store().delete_recovery_codes_for_user(target).await;
     crate::audit::record(
         s.store(),
         &caller,

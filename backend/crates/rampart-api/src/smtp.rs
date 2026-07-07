@@ -9,9 +9,10 @@
 use lettre::message::{header, Mailbox};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
-use rampart_db::DbPool;
+use rampart_db::store::Store;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SmtpConfig {
@@ -29,10 +30,8 @@ pub struct SmtpConfig {
     pub from: String,
 }
 
-pub async fn load(pool: &DbPool) -> Result<Option<SmtpConfig>, String> {
-    let raw = rampart_db::settings::get(pool, "smtp")
-        .await
-        .map_err(|e| e.to_string())?;
+pub async fn load(store: &Arc<dyn Store>) -> Result<Option<SmtpConfig>, String> {
+    let raw = store.get_setting("smtp").await.map_err(|e| e.to_string())?;
     match raw {
         None => Ok(None),
         Some(v) => serde_json::from_value::<SmtpConfig>(v)

@@ -253,7 +253,7 @@ async fn list_events(
     let iid = issue_id(&id)?;
     s.store().error_issue_in_org(iid, org.org_id).await?;
     let mut events = s.store().list_error_events(iid, 50).await?;
-    symbolicate_events(s.pool(), &mut events).await;
+    symbolicate_events(s.store(), &mut events).await;
     Ok(Json(events))
 }
 
@@ -261,7 +261,10 @@ async fn list_events(
 /// map for its event's release + file basename. Best-effort: a missing/garbage
 /// map just leaves the frame as-is. Maps are cached per (release, file) for the
 /// batch so a 50-event page does one lookup per unique file.
-async fn symbolicate_events(pool: &rampart_db::DbPool, events: &mut [ErrorEvent]) {
+async fn symbolicate_events(
+    store: &std::sync::Arc<dyn rampart_db::store::Store>,
+    events: &mut [ErrorEvent],
+) {
     use std::collections::HashMap;
     let mut cache: HashMap<(String, String), Option<serde_json::Value>> = HashMap::new();
     for ev in events.iter_mut() {
@@ -285,7 +288,8 @@ async fn symbolicate_events(pool: &rampart_db::DbPool, events: &mut [ErrorEvent]
             let colno = frame.get("colno").and_then(|v| v.as_i64());
             let key = (release.clone(), base);
             if !cache.contains_key(&key) {
-                let m = rampart_db::source_maps::get(pool, pid, &key.0, &key.1)
+                let m = store
+                    .get_source_map(pid, &key.0, &key.1)
                     .await
                     .ok()
                     .flatten();

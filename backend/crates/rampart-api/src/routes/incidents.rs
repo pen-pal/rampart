@@ -206,7 +206,7 @@ fn fan_out_incident(
     // status-page read deliberately stays `get_unscoped` (the page was already
     // org-checked) — the org binding just makes that lookup tenant-correct.
     tokio::spawn(rampart_db::rls::with_org(org, async move {
-        let cfg = match crate::smtp::load(state.pool()).await {
+        let cfg = match crate::smtp::load(state.store()).await {
             Ok(Some(c)) => c,
             Ok(None) => return, // no SMTP configured — silent no-op
             Err(e) => {
