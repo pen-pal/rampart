@@ -29,6 +29,21 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.39] — 2026-07-07
+
+### Added
+- **SQLite backend: real RUM (Real User Monitoring) domain.** The nine
+  `StoreRum` methods were `unimplemented!()` on SQLite (beacon ingest
+  stub-panicked); they now delegate to a real `sqlite::rum` module + migration
+  `0023_rum.sql`. A SQLite-backed Rampart now ingests browser Web-Vitals beacons
+  and serves the full RUM dashboard — p75 summary vitals, per-page / per-browser
+  / per-user breakdowns, page drill-down, traced loads, app list — same as
+  Postgres/MySQL. Mirrors the MySQL tier: runtime queries + app-side p75 and
+  browser-family aggregation (SQLite has no `percentile_cont`). `run_retention_
+  prune` now prunes `rum_events` (`rum_days`) since the table accumulates on
+  SQLite. Round-trip + cross-org-isolation test included. Part of the multi-DB
+  port (#133).
+
 ## [0.157.38] — 2026-07-07
 
 ### Added
