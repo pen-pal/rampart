@@ -47,6 +47,7 @@ pub mod notifications;
 pub mod orgs;
 pub mod proxies;
 pub mod routing;
+pub mod rum;
 pub mod scheduled_reports;
 pub mod sessions;
 pub mod settings;

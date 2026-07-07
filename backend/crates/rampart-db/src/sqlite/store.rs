@@ -1835,7 +1835,7 @@ impl StoreTraces for SqliteStore {
 #[async_trait::async_trait]
 impl StoreRum for SqliteStore {
     async fn insert_rum_event(&self, b: &RumBeacon, org_id: OrgId) -> DbResult<()> {
-        unimplemented!("SqliteStore::insert_rum_event: rum domain not yet ported (multi-DB P1)")
+        crate::sqlite::rum::insert_event(&self.pool, b, org_id).await
     }
 
     async fn rum_page_samples(
@@ -1846,7 +1846,7 @@ impl StoreRum for SqliteStore {
         limit: i64,
         org_id: OrgId,
     ) -> DbResult<Vec<RumSample>> {
-        unimplemented!("SqliteStore::rum_page_samples: rum domain not yet ported (multi-DB P1)")
+        crate::sqlite::rum::page_samples(&self.pool, app, url, hours, limit, org_id).await
     }
 
     async fn rum_recent_traced(
@@ -1856,7 +1856,7 @@ impl StoreRum for SqliteStore {
         limit: i64,
         org_id: OrgId,
     ) -> DbResult<Vec<RumTracedLoad>> {
-        unimplemented!("SqliteStore::rum_recent_traced: rum domain not yet ported (multi-DB P1)")
+        crate::sqlite::rum::recent_traced(&self.pool, app, hours, limit, org_id).await
     }
 
     async fn rum_summary(
@@ -1865,7 +1865,7 @@ impl StoreRum for SqliteStore {
         hours: i32,
         org_id: OrgId,
     ) -> DbResult<RumVitals> {
-        unimplemented!("SqliteStore::rum_summary: rum domain not yet ported (multi-DB P1)")
+        crate::sqlite::rum::summary(&self.pool, app, hours, org_id).await
     }
 
     async fn rum_pages(
@@ -1874,7 +1874,7 @@ impl StoreRum for SqliteStore {
         hours: i32,
         org_id: OrgId,
     ) -> DbResult<Vec<RumPage>> {
-        unimplemented!("SqliteStore::rum_pages: rum domain not yet ported (multi-DB P1)")
+        crate::sqlite::rum::pages(&self.pool, app, hours, org_id).await
     }
 
     async fn rum_browser_breakdown(
@@ -1883,9 +1883,7 @@ impl StoreRum for SqliteStore {
         hours: i32,
         org_id: OrgId,
     ) -> DbResult<Vec<RumBrowser>> {
-        unimplemented!(
-            "SqliteStore::rum_browser_breakdown: rum domain not yet ported (multi-DB P1)"
-        )
+        crate::sqlite::rum::browser_breakdown(&self.pool, app, hours, org_id).await
     }
 
     async fn rum_user_breakdown(
@@ -1894,17 +1892,15 @@ impl StoreRum for SqliteStore {
         hours: i32,
         org_id: OrgId,
     ) -> DbResult<Vec<RumUser>> {
-        unimplemented!("SqliteStore::rum_user_breakdown: rum domain not yet ported (multi-DB P1)")
+        crate::sqlite::rum::user_breakdown(&self.pool, app, hours, org_id).await
     }
 
     async fn rum_apps(&self, org_id: OrgId) -> DbResult<Vec<String>> {
-        unimplemented!("SqliteStore::rum_apps: rum domain not yet ported (multi-DB P1)")
+        crate::sqlite::rum::apps(&self.pool, org_id).await
     }
 
-    async fn prune_rum(&self, _days: i32) -> DbResult<u64> {
-        // rum domain isn't ported to SQLite — nothing writes the table, nothing
-        // to prune. Return 0 rather than panic.
-        Ok(0)
+    async fn prune_rum(&self, days: i32) -> DbResult<u64> {
+        crate::sqlite::rum::prune(&self.pool, days).await
     }
 }
 
@@ -2465,8 +2461,8 @@ impl StoreRetention for SqliteStore {
     async fn run_retention_prune(&self) -> DbResult<u64> {
         // Heartbeats tier into the hourly rollup table before deletion (see
         // fold_and_prune); the other telemetry tables get a flat age-based prune.
-        // The rum/profiles/error-tracking/oidc-state domains aren't ported to
-        // SQLite — nothing writes those tables, so there's nothing to prune.
+        // The profiles/error-tracking/oidc-state domains aren't ported to SQLite
+        // — nothing writes those tables, so there's nothing to prune.
         let cfg = crate::prune::parse_config(
             crate::sqlite::settings::get_setting(&self.pool, "retention_days").await?,
         );
@@ -2480,6 +2476,7 @@ impl StoreRetention for SqliteStore {
         total += crate::sqlite::traces::prune(&self.pool, cfg.traces_days).await?;
         total +=
             crate::sqlite::metric_samples::prune_older_than(&self.pool, metrics_cutoff).await?;
+        total += crate::sqlite::rum::prune(&self.pool, cfg.rum_days).await?;
         total += crate::sqlite::audit::prune(&self.pool, cfg.audit_log).await?;
         total += crate::sqlite::detection::prune(&self.pool, cfg.findings_days).await?;
         Ok(total)
