@@ -29,6 +29,25 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.37] — 2026-07-07
+
+### Added
+- **SQLite backend: real heartbeat rollup tier (long-range uptime history).** The
+  SQLite tier kept only a flat age-based heartbeat prune, so uptime history
+  vanished once raw rows aged out — and the uptime-history route's four
+  `StoreRetention` reads (`retention_config`, `rollups_for_monitor`,
+  `daily_uptime_from_rollups`, `daily_uptime_from_raw`) were `unimplemented!()`.
+  Ported the Postgres rollup tier: migration `0022_heartbeat_rollups.sql` (hourly
+  `heartbeat_rollups`) + a `fold_and_prune` that aggregates raw heartbeats older
+  than the raw tier into hourly buckets, deletes them, and drops rollup buckets
+  past `rollup_days` — the fold + raw-delete in one transaction, so a crash can't
+  drop un-rolled raw rows (retry re-folds on rollback; accumulation is
+  idempotent). A SQLite-backed Rampart now answers uptime-history long after the
+  high-resolution rows are pruned, same as Postgres. Part of the multi-DB port
+  (#133). ponytail note: folds the whole backlog in one statement (fine for the
+  single-binary tier; batch by bucket window if a homelab accumulates millions of
+  stale heartbeats between ticks).
+
 ## [0.157.36] — 2026-07-07
 
 ### Added
