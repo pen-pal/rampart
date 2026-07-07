@@ -29,6 +29,28 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.36] — 2026-07-07
+
+### Added
+- **SQLite backend: real per-org ingest keys.** The `ingest_keys` domain (mint /
+  resolve-by-token / touch / list / revoke) was `unimplemented!()` on the SQLite
+  tier; it's now a real `sqlite::ingest_keys` module behind the five
+  `StoreIngestKeys` methods, with migration `0021_ingest_keys.sql`. A
+  SQLite-backed Rampart can now mint per-org ingest keys and resolve
+  OTLP / Prometheus / RUM / profiles / syslog telemetry to the owning org —
+  enforcing the token, its surface `kind` scope, and RUM origin-binding — the
+  same as Postgres. Dialect: `uuid`→TEXT, timestamps→INTEGER unix-seconds,
+  `TEXT[]` origins→JSON; dual `token` + `token_hash` columns mirror the
+  hash-primary lookup. Round-trip test included. Part of the multi-DB port (#133).
+
+### Fixed
+- **SQLite CI lane compile.** `rampart-scheduler`'s `alert_monitor` used
+  `unwrap_or_else(MonitorId::new)`, which a newer clippy flags under
+  `-D warnings` (blocking `cargo clippy -p rampart-api --features sqlite`).
+  `MonitorId`'s `Default` is `new()` (a fresh v7 id), so `unwrap_or_default()` is
+  behavior-identical. Pre-existing drift, unrelated to the port but required for
+  the lane.
+
 ## [0.157.35] — 2026-07-07
 
 ### Changed
