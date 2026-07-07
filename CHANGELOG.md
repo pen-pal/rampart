@@ -29,6 +29,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.40] — 2026-07-07
+
+### Added
+- **SQLite backend: real profiles (continuous-profiling) domain.** The seven
+  `StoreProfiles` methods were `unimplemented!()` on SQLite (profile ingest
+  stub-panicked); they now delegate to a real `sqlite::profiles` module +
+  migration `0024_profiles.sql`. A SQLite-backed Rampart now ingests continuous
+  profiles and serves the flamegraph UI — list, folded-in-window merge set,
+  single-fetch, service + type pickers — same as Postgres/MySQL. Dialect:
+  `BIGSERIAL`→`INTEGER PRIMARY KEY AUTOINCREMENT` (`last_insert_rowid()`),
+  `BYTEA`→`BLOB` for the gzipped folded stacks, `JSONB`→TEXT labels.
+  `run_retention_prune` now prunes `profiles` (`profiles_days`). Round-trip +
+  cross-org-isolation test. Part of the multi-DB port (#133).
+
 ## [0.157.39] — 2026-07-07
 
 ### Added
