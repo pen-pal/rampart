@@ -464,6 +464,15 @@ async fn assign(
         ),
         None => None,
     };
+    // The assignee must be a member of the caller's org — don't let an issue be
+    // assigned to a user from another tenant.
+    if let Some(uid) = assignee {
+        if s.store().org_member_role(org.org_id, uid).await?.is_none() {
+            return Err(ApiError::BadRequest(
+                "assignee is not a member of this org".into(),
+            ));
+        }
+    }
     let issue = s.store().assign_error_issue(iid, assignee).await?;
     crate::audit::record(
         s.store(),

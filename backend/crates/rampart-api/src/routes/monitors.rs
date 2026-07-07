@@ -215,6 +215,39 @@ async fn apply_monitors(
     Ok(Json(res))
 }
 
+/// Every id a monitor points at — its group, proxy, and escalation policy — must
+/// belong to the caller's org. Without this a user could bind their monitor to
+/// ANOTHER org's proxy (routing its checks through that proxy) or escalation
+/// policy (paging that org's people), or file it under a foreign group. `agent_id`
+/// is validated separately at each call site (it carries a push-monitor rule).
+async fn validate_monitor_refs(
+    store: &std::sync::Arc<dyn rampart_db::store::Store>,
+    org_id: rampart_core::ids::OrgId,
+    group_id: Option<rampart_core::ids::MonitorGroupId>,
+    proxy_id: Option<rampart_core::ids::ProxyId>,
+    escalation_policy_id: Option<rampart_core::ids::EscalationPolicyId>,
+) -> Result<(), ApiError> {
+    if let Some(gid) = group_id {
+        store
+            .monitor_group_in_org(gid, org_id)
+            .await
+            .map_err(|_| ApiError::BadRequest("unknown monitor group".into()))?;
+    }
+    if let Some(pid) = proxy_id {
+        store
+            .get_proxy(pid, org_id)
+            .await
+            .map_err(|_| ApiError::BadRequest("unknown proxy".into()))?;
+    }
+    if let Some(eid) = escalation_policy_id {
+        store
+            .get_escalation_policy(eid, org_id)
+            .await
+            .map_err(|_| ApiError::BadRequest("unknown escalation policy".into()))?;
+    }
+    Ok(())
+}
+
 async fn create(
     State(state): State<AppState>,
     Extension(user): Extension<User>,
@@ -236,6 +269,14 @@ async fn create(
             .await
             .map_err(|_| ApiError::BadRequest("unknown agent".into()))?;
     }
+    validate_monitor_refs(
+        state.store(),
+        org.org_id,
+        input.group_id,
+        input.proxy_id,
+        input.escalation_policy_id,
+    )
+    .await?;
     let monitor = state.store().create_monitor(input, org.org_id).await?;
     state.poke_scheduler();
     crate::audit::record(
@@ -381,6 +422,14 @@ async fn update(
             .await
             .map_err(|_| ApiError::BadRequest("unknown agent".into()))?;
     }
+    validate_monitor_refs(
+        state.store(),
+        org.org_id,
+        input.group_id.flatten(),
+        input.proxy_id,
+        input.escalation_policy_id.flatten(),
+    )
+    .await?;
     let monitor = state
         .store()
         .update_monitor(monitor_id, input, org.org_id)
@@ -887,6 +936,15 @@ async fn bulk_edit(
                 .map_err(|_| ApiError::BadRequest("invalid group_id".into()))?,
         )),
     };
+
+    // The target group must be the caller's own — no cross-org reference.
+    if let Some(Some(gid)) = group_id {
+        state
+            .store()
+            .monitor_group_in_org(gid, org.org_id)
+            .await
+            .map_err(|_| ApiError::BadRequest("unknown monitor group".into()))?;
+    }
 
     // Parse the tag set, when supplied.
     let tags: Option<Vec<TagId>> = match &req.patch.tags {

@@ -324,6 +324,44 @@ async fn status_page_section_mutation_cross_org_idor(pool: PgPool) {
     assert_eq!(name, "Core", "foreign section untouched");
 }
 
+/// A monitor must not be bindable to another org's proxy (reference injection):
+/// otherwise a user could route their checks through a foreign org's proxy.
+#[sqlx::test(migrations = "../../migrations")]
+async fn monitor_cannot_reference_foreign_proxy(pool: PgPool) {
+    let router = common::router(pool.clone());
+    let admin = register_admin(&router).await;
+
+    // Admin creates a proxy, then it's reassigned to another org → foreign.
+    let proxy: Value = common::json(
+        &router,
+        Method::POST,
+        "/v1/proxies",
+        Some(json!({"protocol":"http","host":"p.test","port":8080})),
+        Some(&admin),
+    )
+    .await;
+    let proxy_id = proxy["id"].as_str().unwrap().to_string();
+    sqlx::query("INSERT INTO organizations (id, slug, name) VALUES ($1::uuid, 'other', 'Other') ON CONFLICT DO NOTHING")
+        .bind(OTHER_ORG).execute(&pool).await.unwrap();
+    sqlx::query("UPDATE proxies SET org_id = $1::uuid WHERE id = $2::uuid")
+        .bind(OTHER_ORG)
+        .bind(&proxy_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    // Creating a monitor that points at the now-foreign proxy is rejected.
+    let (s, _, _) = request(
+        &router,
+        Method::POST,
+        "/v1/monitors",
+        Some(json!({"name":"m","kind":"http","url":"https://x.test","proxy_id":proxy_id})),
+        Some(&admin),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "cannot bind a foreign proxy");
+}
+
 #[sqlx::test(migrations = "../../migrations")]
 async fn incidents_isolated_via_owning_page(pool: PgPool) {
     // Incidents have no org_id of their own — they inherit the owning status
