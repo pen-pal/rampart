@@ -2463,8 +2463,9 @@ impl StoreMetricSamples for SqliteStore {
 #[async_trait::async_trait]
 impl StoreRetention for SqliteStore {
     async fn run_retention_prune(&self) -> DbResult<u64> {
-        // Flat age-based prune of every telemetry table SQLite writes. The
-        // rum/profiles/error-tracking/oidc-state domains aren't ported to
+        // Heartbeats tier into the hourly rollup table before deletion (see
+        // fold_and_prune); the other telemetry tables get a flat age-based prune.
+        // The rum/profiles/error-tracking/oidc-state domains aren't ported to
         // SQLite — nothing writes those tables, so there's nothing to prune.
         let cfg = crate::prune::parse_config(
             crate::sqlite::settings::get_setting(&self.pool, "retention_days").await?,
@@ -2472,7 +2473,9 @@ impl StoreRetention for SqliteStore {
         let metrics_cutoff =
             OffsetDateTime::now_utc() - time::Duration::days(cfg.metrics_days.max(0) as i64);
         let mut total = 0u64;
-        total += crate::sqlite::heartbeats::prune(&self.pool, cfg.heartbeats).await?;
+        total +=
+            crate::sqlite::heartbeats::fold_and_prune(&self.pool, cfg.heartbeats, cfg.rollup_days)
+                .await?;
         total += crate::sqlite::logs::prune(&self.pool, cfg.logs_days).await?;
         total += crate::sqlite::traces::prune(&self.pool, cfg.traces_days).await?;
         total +=
@@ -2482,40 +2485,38 @@ impl StoreRetention for SqliteStore {
         Ok(total)
     }
 
-    // Uptime-history reads use the Postgres rollup tier, which SQLite doesn't
-    // maintain (flat age-based prune only). Not ported — the uptime-history
-    // route stays Postgres-only, as it was when it called the PG-only `pool()`.
     async fn retention_config(&self) -> DbResult<crate::prune::RetentionConfig> {
-        unimplemented!("SqliteStore::retention_config: rollup tier not ported (multi-DB P1)")
+        Ok(crate::prune::parse_config(
+            crate::sqlite::settings::get_setting(&self.pool, "retention_days").await?,
+        ))
     }
 
     async fn rollups_for_monitor(
         &self,
-        _monitor: Uuid,
-        _since: OffsetDateTime,
-        _until: OffsetDateTime,
+        monitor: Uuid,
+        since: OffsetDateTime,
+        until: OffsetDateTime,
     ) -> DbResult<Vec<crate::prune::HeartbeatRollup>> {
-        unimplemented!("SqliteStore::rollups_for_monitor: rollup tier not ported (multi-DB P1)")
+        crate::sqlite::heartbeats::rollups_for_monitor(&self.pool, monitor, since, until).await
     }
 
     async fn daily_uptime_from_rollups(
         &self,
-        _monitor: Uuid,
-        _since: OffsetDateTime,
-        _until: OffsetDateTime,
+        monitor: Uuid,
+        since: OffsetDateTime,
+        until: OffsetDateTime,
     ) -> DbResult<Vec<crate::prune::DailyUptimePoint>> {
-        unimplemented!(
-            "SqliteStore::daily_uptime_from_rollups: rollup tier not ported (multi-DB P1)"
-        )
+        crate::sqlite::heartbeats::daily_uptime_from_rollups(&self.pool, monitor, since, until)
+            .await
     }
 
     async fn daily_uptime_from_raw(
         &self,
-        _monitor: Uuid,
-        _since: OffsetDateTime,
-        _until: OffsetDateTime,
+        monitor: Uuid,
+        since: OffsetDateTime,
+        until: OffsetDateTime,
     ) -> DbResult<Vec<crate::prune::DailyUptimePoint>> {
-        unimplemented!("SqliteStore::daily_uptime_from_raw: rollup tier not ported (multi-DB P1)")
+        crate::sqlite::heartbeats::daily_uptime_from_raw(&self.pool, monitor, since, until).await
     }
 }
 
