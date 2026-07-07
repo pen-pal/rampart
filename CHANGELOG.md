@@ -29,6 +29,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.19] — 2026-06-25
+
+### Fixed
+- **Detection rule preview no longer white-pages when the result omits
+  `samples`.** The preview panel guarded `preview` but then accessed
+  `preview.samples.length` / `.map()` directly, so a preview response without a
+  `samples` array would throw and blank the rule editor. Now guarded with
+  `(preview.samples || [])`. Found by a crash-risk review sweep of the
+  data-heavy views (the rest came back clean).
+
 ## [0.157.18] — 2026-06-25
 
 ### Fixed

@@ -532,10 +532,10 @@ function RuleForm({ rule, channels, onSaved, onCancel, setErr }) {
       </label>
       {preview && (
         <div className="card" style={{ padding: 12, marginBottom: 14, background: 'var(--surface-2)' }}>
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: preview.samples.length ? 8 : 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: (preview.samples || []).length ? 8 : 0 }}>
             {t('detection.preview_result', { n: preview.count, w: Number(f.window_seconds) || 300 })}
           </div>
-          {preview.samples.map((s, i) => (
+          {(preview.samples || []).map((s, i) => (
             <div key={i} className="mono" style={{ fontSize: 11.5, color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s}</div>
           ))}
         </div>
