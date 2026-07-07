@@ -224,7 +224,28 @@ fn truncate(s: &str, n: usize) -> String {
     if s.len() <= n {
         s.to_string()
     } else {
-        format!("{}…", &s[..n])
+        // `n` is a byte budget, but `s` is remote response text (arbitrary
+        // UTF-8) — slicing `&s[..n]` panics if n lands mid-multibyte-char, and
+        // under `panic = "abort"` that aborts the whole server. Walk back to the
+        // nearest char boundary first.
+        let mut end = n;
+        while end > 0 && !s.is_char_boundary(end) {
+            end -= 1;
+        }
+        format!("{}…", &s[..end])
+    }
+}
+
+#[cfg(test)]
+mod truncate_tests {
+    #[test]
+    fn truncate_multibyte_no_panic() {
+        // n lands inside a 3-byte '…' — must not panic, must stay valid UTF-8.
+        let s = "abc…def"; // '…' is 3 bytes at indices 3..6
+        for n in 0..s.len() {
+            let out = super::truncate(s, n);
+            assert!(out.is_char_boundary(out.len()));
+        }
     }
 }
 
