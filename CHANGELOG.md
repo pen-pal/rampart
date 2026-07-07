@@ -29,6 +29,22 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.38] — 2026-07-07
+
+### Added
+- **MySQL backend: real heartbeat rollup tier (long-range uptime history).** The
+  last `StoreRetention` gap: like SQLite, MySQL kept only a flat heartbeat prune,
+  so uptime history vanished once raw rows aged out and the four uptime-history
+  reads were `unimplemented!()`. Ported the tier: migration
+  `0034_heartbeat_rollups.sql` (hourly `heartbeat_rollups`) + a `fold_and_prune`
+  that aggregates raw heartbeats older than the raw tier into hourly buckets
+  (`ON DUPLICATE KEY UPDATE` sample-weighted accumulate), deletes them, and drops
+  rollup buckets past `rollup_days` — the fold + raw-delete in one transaction so
+  a crash can't drop un-rolled rows (idempotent). A MySQL-backed Rampart now
+  answers uptime-history long after the high-resolution rows are pruned, same as
+  Postgres/SQLite. Completes the rollup tier across all three relational
+  backends. Part of the multi-DB port (#133).
+
 ## [0.157.37] — 2026-07-07
 
 ### Added
