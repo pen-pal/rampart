@@ -29,6 +29,20 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.22] — 2026-06-25
+
+### Fixed
+- **Browser-probe response truncation could abort the whole server (panic on a
+  multi-byte UTF-8 boundary).** The browser check trims the fetched page text
+  for the heartbeat message with `&s[..n]`; when `n` landed inside a multi-byte
+  character the slice panicked, and under `panic = "abort"` that takes the entire
+  process down — a single browser monitor against a page with non-ASCII content
+  near the cutoff could kill the server on its next tick. Truncation now walks
+  back to the nearest char boundary; regression test added. Found by a
+  panic-risk audit of the background-task crates (scheduler / notifier / checker);
+  all other paths there were clean — flagged HMAC/`to_value` unwraps are provably
+  infallible.
+
 ## [0.157.21] — 2026-06-25
 
 ### Fixed
