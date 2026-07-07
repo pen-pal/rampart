@@ -334,7 +334,7 @@ impl StoreIngestKeys for SqliteStore {
     async fn find_ingest_key_by_token(
         &self,
         token: &str,
-    ) -> DbResult<Option<(Uuid, OrgId, Vec<String>)>> {
+    ) -> DbResult<Option<(Uuid, OrgId, String, Vec<String>)>> {
         unimplemented!("SqliteStore::find_ingest_key_by_token: ingest_keys domain not yet ported (multi-DB P1)")
     }
 

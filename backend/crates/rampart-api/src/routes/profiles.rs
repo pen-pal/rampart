@@ -70,7 +70,7 @@ async fn ingest_folded(
     // Phase 5: resolve the owning org from the ingest credential (auth-gated
     // internally; Default on key-miss).
     let org = crate::ingest_util::resolve_ingest_org(
-        s.pool(),
+        s.store(),
         &headers,
         None,
         crate::ingest_util::IngestSurface::Profiles,
@@ -110,7 +110,7 @@ async fn ingest_pprof(
     // Phase 5: resolve the owning org from the ingest credential (auth-gated
     // internally; Default on key-miss).
     let org = crate::ingest_util::resolve_ingest_org(
-        s.pool(),
+        s.store(),
         &headers,
         None,
         crate::ingest_util::IngestSurface::Profiles,
@@ -156,7 +156,7 @@ pub async fn ingest_otlp(
     // Phase 5: resolve the owning org from the ingest credential (auth-gated
     // internally; Default on key-miss).
     let org = crate::ingest_util::resolve_ingest_org(
-        s.pool(),
+        s.store(),
         &headers,
         None,
         crate::ingest_util::IngestSurface::Profiles,

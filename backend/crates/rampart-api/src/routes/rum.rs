@@ -62,7 +62,7 @@ async fn ingest(
     // Phase 5-3: resolve the org from the (public, ?k) RUM key, origin-bound.
     let origin = headers.get("origin").and_then(|v| v.to_str().ok());
     let org = match crate::ingest_util::resolve_ingest_org_origin(
-        s.pool(),
+        s.store(),
         &headers,
         q.k.as_deref(),
         origin,
@@ -117,7 +117,7 @@ async fn ingest_error(
     // Phase 5-3: resolve the org from the (public, ?k) RUM key, origin-bound.
     let origin = headers.get("origin").and_then(|v| v.to_str().ok());
     let org = match crate::ingest_util::resolve_ingest_org_origin(
-        s.pool(),
+        s.store(),
         &headers,
         q.k.as_deref(),
         origin,

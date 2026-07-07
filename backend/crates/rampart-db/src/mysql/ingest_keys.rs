@@ -83,10 +83,10 @@ pub async fn create(
 pub async fn find_by_token(
     pool: &MySqlPool,
     token: &str,
-) -> DbResult<Option<(Uuid, OrgId, Vec<String>)>> {
+) -> DbResult<Option<(Uuid, OrgId, String, Vec<String>)>> {
     let hash = crate::api_keys::sha256_hex(token);
     let row = sqlx::query(
-        "SELECT id, org_id, allowed_origins FROM ingest_keys WHERE token_hash = ? OR token = ?",
+        "SELECT id, org_id, kind, allowed_origins FROM ingest_keys WHERE token_hash = ? OR token = ?",
     )
     .bind(hash)
     .bind(token)
@@ -96,6 +96,7 @@ pub async fn find_by_token(
         (
             raw_uuid(&r.get::<String, _>("id")),
             super::oid(&r.get::<String, _>("org_id")),
+            r.get::<String, _>("kind"),
             origins_of(r.get::<Option<String>, _>("allowed_origins")),
         )
     }))

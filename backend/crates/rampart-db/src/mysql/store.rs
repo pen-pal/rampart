@@ -345,7 +345,7 @@ impl StoreIngestKeys for MysqlStore {
     async fn find_ingest_key_by_token(
         &self,
         token: &str,
-    ) -> DbResult<Option<(Uuid, OrgId, Vec<String>)>> {
+    ) -> DbResult<Option<(Uuid, OrgId, String, Vec<String>)>> {
         crate::mysql::ingest_keys::find_by_token(&self.pool, token).await
     }
 

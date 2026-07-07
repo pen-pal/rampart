@@ -20,8 +20,9 @@
 
 use crate::error::ApiError;
 use axum::http::HeaderMap;
-use rampart_db::DbPool;
+use rampart_db::store::Store;
 use std::io::Read;
+use std::sync::Arc;
 
 /// Setting key holding the optional shared ingest secret (a JSON string).
 pub const TELEMETRY_TOKEN_KEY: &str = "telemetry_token";
@@ -88,8 +89,8 @@ fn inflate_capped<R: Read>(reader: R, label: &str) -> Result<Vec<u8>, ApiError> 
 /// Read the configured telemetry token, if any. `None` means auth is
 /// disabled (the endpoints stay open). An empty-string setting is treated
 /// the same as unset so clearing the field in the UI re-opens the surface.
-pub async fn configured_token(pool: &DbPool) -> Result<Option<String>, ApiError> {
-    let raw = rampart_db::settings::get(pool, TELEMETRY_TOKEN_KEY).await?;
+pub async fn configured_token(store: &Arc<dyn Store>) -> Result<Option<String>, ApiError> {
+    let raw = store.get_setting(TELEMETRY_TOKEN_KEY).await?;
     Ok(raw
         .and_then(|v| v.as_str().map(str::to_owned))
         .filter(|s| !s.is_empty()))
@@ -123,8 +124,8 @@ impl Default for SamplingConfig {
 pub const SAMPLING_KEY: &str = "ingest_sampling";
 
 /// Load the sampling config, clamped to 0..=100. Missing/garbage = off.
-pub async fn sampling_config(pool: &DbPool) -> Result<SamplingConfig, ApiError> {
-    let raw = rampart_db::settings::get(pool, SAMPLING_KEY).await?;
+pub async fn sampling_config(store: &Arc<dyn Store>) -> Result<SamplingConfig, ApiError> {
+    let raw = store.get_setting(SAMPLING_KEY).await?;
     let mut cfg: SamplingConfig = raw
         .and_then(|v| serde_json::from_value(v).ok())
         .unwrap_or_default();
@@ -163,11 +164,11 @@ pub fn presented_token<'a>(headers: &'a HeaderMap, query_k: Option<&'a str>) -> 
 /// presented (an open ingest surface is refused outright). With a token
 /// configured it is always enforced. Comparison is constant-time.
 pub async fn require_telemetry_token(
-    pool: &DbPool,
+    store: &Arc<dyn Store>,
     headers: &HeaderMap,
     query_k: Option<&str>,
 ) -> Result<(), ApiError> {
-    let configured = configured_token(pool).await?;
+    let configured = configured_token(store).await?;
     let Some(expected) = configured else {
         // No token set: open by default; refuse if the operator mandated auth.
         return if require_ingest_auth() {
@@ -230,12 +231,12 @@ fn kind_allows(key_kind: &str, surface: IngestSurface) -> bool {
 }
 
 pub async fn resolve_ingest_org(
-    pool: &DbPool,
+    store: &Arc<dyn Store>,
     headers: &HeaderMap,
     query_k: Option<&str>,
     surface: IngestSurface,
 ) -> Result<rampart_core::ids::OrgId, ApiError> {
-    resolve_ingest(pool, headers, query_k, None, surface).await
+    resolve_ingest(store, headers, query_k, None, surface).await
 }
 
 /// Like [`resolve_ingest_org`], but ALSO origin-binds the key (Phase 5-3 RUM).
@@ -245,29 +246,27 @@ pub async fn resolve_ingest_org(
 /// can't misattribute beacons to another org from a different site. A key with
 /// no `allowed_origins` is unrestricted (same as the plain resolver).
 pub async fn resolve_ingest_org_origin(
-    pool: &DbPool,
+    store: &Arc<dyn Store>,
     headers: &HeaderMap,
     query_k: Option<&str>,
     origin: Option<&str>,
     surface: IngestSurface,
 ) -> Result<rampart_core::ids::OrgId, ApiError> {
-    resolve_ingest(pool, headers, query_k, Some(origin), surface).await
+    resolve_ingest(store, headers, query_k, Some(origin), surface).await
 }
 
 /// Shared resolver. `enforce_origin`: `None` = don't origin-bind (OTLP / prom /
 /// profiles — no browser Origin); `Some(origin)` = enforce `allowed_origins`
 /// against `origin` when the key restricts origins (RUM).
 async fn resolve_ingest(
-    pool: &DbPool,
+    store: &Arc<dyn Store>,
     headers: &HeaderMap,
     query_k: Option<&str>,
     enforce_origin: Option<Option<&str>>,
     surface: IngestSurface,
 ) -> Result<rampart_core::ids::OrgId, ApiError> {
     if let Some(tok) = presented_token(headers, query_k) {
-        if let Some((id, org_id, kind, allowed)) =
-            rampart_db::ingest_keys::find_by_token(pool, tok).await?
-        {
+        if let Some((id, org_id, kind, allowed)) = store.find_ingest_key_by_token(tok).await? {
             // Surface scope: a key minted for one signal (e.g. a RUM key, which
             // ships publicly in browser JS) must not write to a different surface
             // (OTLP/prom/profiles). `all` keys accept everything.
@@ -282,7 +281,7 @@ async fn resolve_ingest(
                     }
                 }
             }
-            let _ = rampart_db::ingest_keys::touch_last_used(pool, id).await;
+            let _ = store.touch_ingest_key_last_used(id).await;
             return Ok(org_id);
         }
     }
@@ -296,7 +295,7 @@ async fn resolve_ingest(
         return Err(ApiError::Unauthorized);
     }
     // Single-org / legacy: global-token gate, verbatim, then the Default org.
-    require_telemetry_token(pool, headers, query_k).await?;
+    require_telemetry_token(store, headers, query_k).await?;
     Ok(rampart_core::ids::OrgId::from_uuid(
         rampart_core::org::DEFAULT_ORG_ID,
     ))

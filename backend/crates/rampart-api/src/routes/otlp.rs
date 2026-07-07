@@ -39,7 +39,7 @@ async fn ingest_logs(
     // Phase 5: resolve the owning org from the ingest credential (gates auth
     // internally, exactly as require_telemetry_token did; Default on key-miss).
     let org = crate::ingest_util::resolve_ingest_org(
-        s.pool(),
+        s.store(),
         &headers,
         None,
         crate::ingest_util::IngestSurface::Otlp,
@@ -70,7 +70,7 @@ async fn ingest_logs(
         // Head sampling. A log carrying a trace_id is sampled on that id (so it
         // follows its trace when both rates match); a trace-less log falls back to
         // a per-record key (service + time + body) for a uniform spread.
-        let sc = crate::ingest_util::sampling_config(s.pool()).await?;
+        let sc = crate::ingest_util::sampling_config(s.store()).await?;
         if sc.logs_pct < 100 {
             logs.retain(|l| {
                 let key = l
@@ -95,7 +95,7 @@ async fn ingest_traces(
     // Phase 5: resolve the owning org from the ingest credential (gates auth
     // internally, exactly as require_telemetry_token did; Default on key-miss).
     let org = crate::ingest_util::resolve_ingest_org(
-        s.pool(),
+        s.store(),
         &headers,
         None,
         crate::ingest_util::IngestSurface::Otlp,
@@ -124,7 +124,7 @@ async fn ingest_traces(
 
         // Head sampling, keyed on trace_id so every span of a kept trace survives
         // and a dropped trace leaves no orphans (consistent across batches/replicas).
-        let sc = crate::ingest_util::sampling_config(s.pool()).await?;
+        let sc = crate::ingest_util::sampling_config(s.store()).await?;
         if sc.traces_pct < 100 {
             spans.retain(|sp| rampart_core::sampling::keep(&sp.trace_id, sc.traces_pct));
         }

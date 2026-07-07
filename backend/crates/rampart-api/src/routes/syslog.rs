@@ -42,7 +42,7 @@ async fn ingest_text(
     body: Bytes,
 ) -> Result<Json<Value>, ApiError> {
     let org = crate::ingest_util::resolve_ingest_org(
-        s.pool(),
+        s.store(),
         &headers,
         q.k.as_deref(),
         crate::ingest_util::IngestSurface::Syslog,
@@ -68,7 +68,7 @@ async fn ingest_json(
     body: Bytes,
 ) -> Result<Json<Value>, ApiError> {
     let org = crate::ingest_util::resolve_ingest_org(
-        s.pool(),
+        s.store(),
         &headers,
         q.k.as_deref(),
         crate::ingest_util::IngestSurface::Syslog,
@@ -89,7 +89,7 @@ async fn ingest_json(
 /// Apply the shared logs head-sampling (same `logs_pct` + key scheme as the
 /// OTLP log path) so syslog respects the configured sampling rate.
 async fn sample_logs(s: &AppState, mut logs: Vec<ParsedLog>) -> Result<Vec<ParsedLog>, ApiError> {
-    let sc = crate::ingest_util::sampling_config(s.pool()).await?;
+    let sc = crate::ingest_util::sampling_config(s.store()).await?;
     if sc.logs_pct < 100 {
         logs.retain(|l| {
             let key = l

@@ -59,7 +59,7 @@ async fn remote_write(
     // Phase 5: resolve the owning org from the ingest credential (same optional
     // shared-token gate as before, now org-aware; Default on key-miss).
     let org = crate::ingest_util::resolve_ingest_org(
-        s.pool(),
+        s.store(),
         &headers,
         None,
         crate::ingest_util::IngestSurface::Prometheus,

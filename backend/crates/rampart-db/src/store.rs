@@ -230,10 +230,13 @@ pub trait StoreIngestKeys: Send + Sync {
         allowed_origins: &[String],
     ) -> DbResult<(IngestKey, String)>;
 
+    /// Returns `(id, org_id, kind, allowed_origins)`. `kind` is the key's
+    /// surface scope ("all" / "otlp" / "rum" / ...) — the ingest resolver
+    /// enforces it so a public RUM key can't write OTLP/prom/profiles.
     async fn find_ingest_key_by_token(
         &self,
         token: &str,
-    ) -> DbResult<Option<(Uuid, OrgId, Vec<String>)>>;
+    ) -> DbResult<Option<(Uuid, OrgId, String, Vec<String>)>>;
 
     async fn touch_ingest_key_last_used(&self, id: Uuid) -> DbResult<()>;
 
@@ -2125,12 +2128,8 @@ impl StoreIngestKeys for PgStore {
     async fn find_ingest_key_by_token(
         &self,
         token: &str,
-    ) -> DbResult<Option<(Uuid, OrgId, Vec<String>)>> {
-        // The free fn now also returns the key `kind` (enforced by the ingest
-        // resolver); this seam method doesn't expose it, so drop it here.
-        Ok(crate::ingest_keys::find_by_token(&self.pool, token)
-            .await?
-            .map(|(id, org, _kind, allowed)| (id, org, allowed)))
+    ) -> DbResult<Option<(Uuid, OrgId, String, Vec<String>)>> {
+        crate::ingest_keys::find_by_token(&self.pool, token).await
     }
 
     async fn touch_ingest_key_last_used(&self, id: Uuid) -> DbResult<()> {

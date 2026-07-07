@@ -78,7 +78,7 @@ pub fn settings_router() -> Router<AppState> {
 async fn sampling_get(
     State(s): State<AppState>,
 ) -> Result<Json<crate::ingest_util::SamplingConfig>, ApiError> {
-    Ok(Json(crate::ingest_util::sampling_config(s.pool()).await?))
+    Ok(Json(crate::ingest_util::sampling_config(s.store()).await?))
 }
 
 async fn sampling_put(
@@ -427,7 +427,7 @@ async fn retention_put(
 async fn telemetry_token_get(
     State(s): State<AppState>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let token = crate::ingest_util::configured_token(s.pool())
+    let token = crate::ingest_util::configured_token(s.store())
         .await?
         .unwrap_or_default();
     Ok(Json(serde_json::json!({ "token": token })))
