@@ -1880,6 +1880,34 @@ pub trait StoreDigestBuffer: Send + Sync {
 #[async_trait::async_trait]
 pub trait StoreRetention: Send + Sync {
     async fn run_retention_prune(&self) -> DbResult<u64>;
+
+    /// The configured retention windows (used by the uptime-history route to
+    /// decide the rollup-vs-raw boundary).
+    async fn retention_config(&self) -> DbResult<crate::prune::RetentionConfig>;
+
+    /// Pre-aggregated hourly rollups for one monitor over `[since, until]`.
+    async fn rollups_for_monitor(
+        &self,
+        monitor: Uuid,
+        since: time::OffsetDateTime,
+        until: time::OffsetDateTime,
+    ) -> DbResult<Vec<crate::prune::HeartbeatRollup>>;
+
+    /// Daily uptime derived from the rollup tier (older days).
+    async fn daily_uptime_from_rollups(
+        &self,
+        monitor: Uuid,
+        since: time::OffsetDateTime,
+        until: time::OffsetDateTime,
+    ) -> DbResult<Vec<crate::prune::DailyUptimePoint>>;
+
+    /// Daily uptime derived from raw heartbeats (recent days, pre-rollup).
+    async fn daily_uptime_from_raw(
+        &self,
+        monitor: Uuid,
+        since: time::OffsetDateTime,
+        until: time::OffsetDateTime,
+    ) -> DbResult<Vec<crate::prune::DailyUptimePoint>>;
 }
 
 pub trait Store:
@@ -4084,6 +4112,37 @@ impl StoreRetention for PgStore {
         // Full rollup-tiered sweep (heartbeats -> rollups, batched deletes,
         // per-table retention). Identical to the loop's prior behaviour.
         Ok(crate::prune::run_once(&self.pool).await?.total())
+    }
+
+    async fn retention_config(&self) -> DbResult<crate::prune::RetentionConfig> {
+        crate::prune::load_config(&self.pool).await
+    }
+
+    async fn rollups_for_monitor(
+        &self,
+        monitor: Uuid,
+        since: time::OffsetDateTime,
+        until: time::OffsetDateTime,
+    ) -> DbResult<Vec<crate::prune::HeartbeatRollup>> {
+        crate::prune::rollups_for_monitor(&self.pool, monitor, since, until).await
+    }
+
+    async fn daily_uptime_from_rollups(
+        &self,
+        monitor: Uuid,
+        since: time::OffsetDateTime,
+        until: time::OffsetDateTime,
+    ) -> DbResult<Vec<crate::prune::DailyUptimePoint>> {
+        crate::prune::daily_uptime_from_rollups(&self.pool, monitor, since, until).await
+    }
+
+    async fn daily_uptime_from_raw(
+        &self,
+        monitor: Uuid,
+        since: time::OffsetDateTime,
+        until: time::OffsetDateTime,
+    ) -> DbResult<Vec<crate::prune::DailyUptimePoint>> {
+        crate::prune::daily_uptime_from_raw(&self.pool, monitor, since, until).await
     }
 }
 

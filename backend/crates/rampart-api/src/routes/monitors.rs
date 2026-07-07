@@ -1808,7 +1808,10 @@ async fn rollups(
         return Err(ApiError::BadRequest("from must be before to".into()));
     }
 
-    let rows = rampart_db::prune::rollups_for_monitor(state.pool(), monitor_id.0, from, to).await?;
+    let rows = state
+        .store()
+        .rollups_for_monitor(monitor_id.0, from, to)
+        .await?;
     Ok(Json(
         rows.into_iter()
             .map(|r| RollupDto {
@@ -1889,7 +1892,7 @@ async fn uptime_history(
     // Raw-retention boundary: heartbeats older than this have been pruned and
     // only survive as rollups. Clamp into the range so a retention window
     // wider than the request just means "all raw, no rollup tail".
-    let cfg = rampart_db::prune::load_config(state.pool()).await?;
+    let cfg = state.store().retention_config().await?;
     let raw_boundary = (now - time::Duration::days(cfg.heartbeats as i64)).max(range_start);
 
     // Accumulate (up, samples) per UTC day across both sources.
@@ -1898,13 +1901,10 @@ async fn uptime_history(
 
     // Older portion: rollups for [range_start, raw_boundary).
     if range_start < raw_boundary {
-        let pts = rampart_db::prune::daily_uptime_from_rollups(
-            state.pool(),
-            monitor_id.0,
-            range_start,
-            raw_boundary,
-        )
-        .await?;
+        let pts = state
+            .store()
+            .daily_uptime_from_rollups(monitor_id.0, range_start, raw_boundary)
+            .await?;
         for p in pts {
             let e = by_day.entry(p.day).or_insert((0, 0));
             e.0 += p.up_count;
@@ -1913,9 +1913,10 @@ async fn uptime_history(
     }
 
     // Recent portion: raw heartbeats for [raw_boundary, now).
-    let pts =
-        rampart_db::prune::daily_uptime_from_raw(state.pool(), monitor_id.0, raw_boundary, now)
-            .await?;
+    let pts = state
+        .store()
+        .daily_uptime_from_raw(monitor_id.0, raw_boundary, now)
+        .await?;
     for p in pts {
         let e = by_day.entry(p.day).or_insert((0, 0));
         e.0 += p.up_count;
