@@ -29,6 +29,18 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.26] — 2026-06-25
+
+### Fixed
+- **A per-monitor silence now also mutes that monitor's SLO alerts.** SLO
+  breach/recovery pages were built on a synthetic alert-monitor with a random
+  id, so the silence check (which is monitor-scoped for SLO events) never matched
+  a silence placed on the SLO's underlying monitor — only a global silence would
+  mute them. A monitor-backed SLO's page now carries that monitor's id, so
+  silencing the monitor silences its SLO too. Metric-based SLOs (no underlying
+  monitor) and rule/finding alerts are unaffected (they match only global
+  silences, as before).
+
 ## [0.157.25] — 2026-06-25
 
 ### Fixed
