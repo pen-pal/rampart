@@ -210,7 +210,7 @@ export default function ImportMonitors({ user } = {}) {
     <div className="rampart">
       <style>{css}</style>
       <div style={{ maxWidth: 720, margin: '0 auto', padding: '32px 32px 64px' }}>
-        <SubViewHeader title={t('import.title')} icon={<Upload/>} />
+        <SubViewHeader title={t('import.title')} icon={Upload} />
 
         <h1 style={{ fontSize: 24, fontWeight: 600, margin: '0 0 4px', letterSpacing: '-.02em' }}>
           {t('import.title')}

@@ -29,6 +29,18 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.18] — 2026-06-25
+
+### Fixed
+- **Status-page and CSV-import views no longer crash (React #130).** The v0.157.16
+  header rollout passed the `SubViewHeader` icon as a JSX element
+  (`icon={<Globe/>}`) instead of a component reference in those two views, so the
+  header tried to render an element as a component and white-paged the page. Now
+  `icon={Globe}` / `icon={Upload}`. A full live sweep of every sub-view confirms
+  all now render the breadcrumb header with zero console errors.
+- **RUM view adopts the shared breadcrumb header** — it was missed by the rollout
+  (still on the old `‹ Dashboard` link) and is now consistent with the rest.
+
 ## [0.157.17] — 2026-06-25
 
 ### Changed

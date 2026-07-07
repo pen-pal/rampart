@@ -99,7 +99,7 @@ export default function StatusPageBuilder({ user } = {}) {
       <style>{css}</style>
 
       <div style={{ maxWidth: 980, margin: '0 auto', padding: '32px 32px 64px' }}>
-        <SubViewHeader title={t('statuspage.title')} icon={<Globe/>} />
+        <SubViewHeader title={t('statuspage.title')} icon={Globe} />
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 22 }}>
           <div>
