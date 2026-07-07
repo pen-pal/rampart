@@ -29,6 +29,19 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.23] — 2026-06-25
+
+### Fixed
+- **Creating a silence with a huge `duration_minutes` could abort the server.**
+  `now + Duration::minutes(m)` panics when the result overflows the valid date
+  range (and `Duration::minutes(i64::MAX)` overflows first), so a body like
+  `{"duration_minutes": 9223372036854775807}` white-killed the whole process
+  (`panic = "abort"`). Now clamped to one year and computed with `checked_add`.
+  Found by a panic-risk audit of the authed management handlers; a codebase-wide
+  scan of `now ± Duration::…(request)` confirmed the other sites are bounded
+  (uptime-range is an enum, profile hours are clamped) — this was the only
+  request-reachable one.
+
 ## [0.157.22] — 2026-06-25
 
 ### Fixed
