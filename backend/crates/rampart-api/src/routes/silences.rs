@@ -46,10 +46,14 @@ async fn create(
     headers: HeaderMap,
     Json(input): Json<NewSilenceInput>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
-    let expires_at = input
-        .duration_minutes
-        .filter(|m| *m > 0)
-        .map(|m| OffsetDateTime::now_utc() + time::Duration::minutes(m));
+    // Clamp + checked_add: `now + Duration::minutes(m)` PANICS on out-of-range
+    // (and `Duration::minutes(i64::MAX)` overflows) — an unclamped
+    // `duration_minutes` from the body would abort the whole server (panic =
+    // abort). A silence longer than a year is a mistake anyway.
+    const MAX_SILENCE_MINUTES: i64 = 366 * 24 * 60;
+    let expires_at = input.duration_minutes.filter(|m| *m > 0).and_then(|m| {
+        OffsetDateTime::now_utc().checked_add(time::Duration::minutes(m.min(MAX_SILENCE_MINUTES)))
+    });
     let id = s
         .store()
         .create_silence(
