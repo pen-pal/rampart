@@ -1351,7 +1351,7 @@ async fn test_now(
 
     // Persist the heartbeat + bump current_status to match — same shape
     // as a scheduled tick that flipped status.
-    rampart_db::heartbeats::insert_many(state.pool(), std::slice::from_ref(&hb)).await?;
+    state.store().insert_many(std::slice::from_ref(&hb)).await?;
     if hb.status != monitor.current_status {
         state
             .store()
@@ -1564,7 +1564,7 @@ async fn summary(
     Extension(org): Extension<OrgContext>,
     Query(q): Query<SummaryQuery>,
 ) -> Result<Json<Vec<MonitorSummaryDto>>, ApiError> {
-    let rows = rampart_db::heartbeats::summary_window(state.pool(), q.window, org.org_id).await?;
+    let rows = state.store().summary_window(q.window, org.org_id).await?;
     Ok(Json(
         rows.into_iter()
             .map(|r| MonitorSummaryDto {
@@ -1600,7 +1600,7 @@ async fn history_all(
     Query(q): Query<HistoryQuery>,
 ) -> Result<Json<Vec<Heartbeat>>, ApiError> {
     let per = q.per.clamp(1, 500);
-    let hbs = rampart_db::heartbeats::recent_per_monitor(state.pool(), per, org.org_id).await?;
+    let hbs = state.store().recent_per_monitor(per, org.org_id).await?;
     Ok(Json(hbs))
 }
 
@@ -1661,7 +1661,7 @@ async fn reliability(
         ));
     }
     let window_secs = window_days * 86_400;
-    let r = rampart_db::heartbeats::mtbf_mttr(state.pool(), monitor_id, window_secs).await?;
+    let r = state.store().mtbf_mttr(monitor_id, window_secs).await?;
     Ok(Json(ReliabilityDto {
         window_days,
         mtbf_secs: r.mtbf_secs,
@@ -1684,8 +1684,10 @@ async fn slo_error_budget(
     let monitor = state.store().get_monitor(monitor_id, org.org_id).await?;
     let target = monitor.slo_target_pct.ok_or(ApiError::NotFound)?;
     let window_days = monitor.slo_window_days.ok_or(ApiError::NotFound)?;
-    let budget =
-        rampart_db::heartbeats::error_budget(state.pool(), monitor_id, window_days, target).await?;
+    let budget = state
+        .store()
+        .error_budget(monitor_id, window_days, target)
+        .await?;
     Ok(Json(budget))
 }
 
@@ -1983,9 +1985,10 @@ async fn heartbeats_csv(
     if since >= until {
         return Err(ApiError::BadRequest("since must be before until".into()));
     }
-    let hbs =
-        rampart_db::heartbeats::range_for_monitor(state.pool(), monitor_id, since, until, 50_000)
-            .await?;
+    let hbs = state
+        .store()
+        .range_for_monitor(monitor_id, since, until, 50_000)
+        .await?;
 
     // RFC3339 timestamps; CSV-escape only `msg` (everything else is
     // numeric / enum / boolean and can't contain commas or quotes).

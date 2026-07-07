@@ -516,7 +516,7 @@ async fn public_day_latency(
         .copied()
         .ok_or(ApiError::NotFound)?;
 
-    let rows = rampart_db::heartbeats::day_hourly_latency(s.pool(), monitor_id, q.date).await?;
+    let rows = s.store().day_hourly_latency(monitor_id, q.date).await?;
 
     // Dense 24-entry pivot — frontend renders one bar per hour. Hours
     // missing from the sparse rows land as no-data buckets.

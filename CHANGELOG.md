@@ -29,6 +29,19 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.32] — 2026-07-07
+
+### Changed
+- **Heartbeat routes go through the `Store` trait, not the raw Postgres pool.**
+  Seven handlers (heartbeat write-through on manual push, monitor summary,
+  recent-per-monitor, MTBF/MTTR, error budget, CSV range export, and the status
+  page's day/hourly latency) called `rampart_db::heartbeats::*` with
+  `state.pool()` — the concrete `PgPool`. They now call the `StoreHeartbeats`
+  methods on `state.store()`, so these endpoints work on any backend
+  (SQLite / MySQL), not just Postgres. No behavior change on Postgres; no schema
+  change. Part of the multi-DB seam (#133) — moves callers off the concrete pool
+  one subsystem at a time.
+
 ## [0.157.31] — 2026-07-07
 
 ### Security
