@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  Bell, Plus, Trash2, Send, ChevronLeft, MessageSquare, Hash, Mail,
+  Bell, Plus, Trash2, Send, MessageSquare, Hash, Mail,
   Webhook as WebhookIcon, AlertCircle, Loader2, Smartphone, Server, Megaphone,
   Siren, Phone, Rocket, Layers, FileText, Edit3, Save, X, BellRing, Search,
   ChevronDown, Check, Copy,
@@ -8,6 +8,7 @@ import {
 import { api, useApi } from '../lib/api.js';
 import { canWrite } from '../lib/roles.js';
 import { t } from '../lib/i18n.js';
+import SubViewHeader from '../components/SubViewHeader.jsx';
 import { confirmDialog, toast } from '../lib/notify.js';
 
 const css = `
@@ -2583,40 +2584,29 @@ export default function Notifications({ user } = {}) {
     <div className="rampart">
       <style>{css}</style>
 
-      <header style={{
-        background: 'var(--surface)', borderBottom: '1px solid var(--border)',
-        padding: '14px 24px', display: 'flex', alignItems: 'center', gap: 14,
-        position: 'sticky', top: 0, zIndex: 10,
-      }}>
-        <a href="#/" style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-3)', textDecoration: 'none', fontSize: 13 }}>
-          <ChevronLeft size={14}/> {t('common.dashboard')}
-        </a>
-        <span style={{ color: 'var(--text-3)' }}>/</span>
-        <span style={{ fontSize: 14, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Bell size={15}/> {t('notifications.title')}
-        </span>
-        {tab === 'channels' && writable && (
-          showAdd ? (
-            <button className="btn" style={{ marginLeft: 'auto' }}
-              onClick={() => { setShowAdd(false); resetForm(); }}>
-              <X size={13}/> {t('notifications.close_form')}
-            </button>
-          ) : (
-            <button className="btn btn-accent" style={{ marginLeft: 'auto' }}
-              onClick={() => { resetForm(); setShowAdd(true); }}>
-              <Plus size={13}/> {t('notifications.add_channel')}
-            </button>
-          )
-        )}
-      </header>
-
       <main style={{ padding: '28px 32px', maxWidth: 1000, margin: '0 auto' }}>
-        <h1 style={{ fontSize: 22, fontWeight: 600, margin: '0 0 8px', letterSpacing: '-.02em' }}>
-          {t('notifications.title')}
-        </h1>
-        <p style={{ fontSize: 13, color: 'var(--text-2)', margin: '0 0 18px' }}>
-          {t('notifications.subtitle')}
-        </p>
+        <SubViewHeader title={t('notifications.title')} icon={Bell} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
+          <div>
+            <h1 style={{ fontSize: 22, fontWeight: 600, margin: '0 0 8px', letterSpacing: '-.02em' }}>
+              {t('notifications.title')}
+            </h1>
+            <p style={{ fontSize: 13, color: 'var(--text-2)', margin: '0 0 18px' }}>
+              {t('notifications.subtitle')}
+            </p>
+          </div>
+          {tab === 'channels' && writable && (
+            showAdd ? (
+              <button className="btn" onClick={() => { setShowAdd(false); resetForm(); }}>
+                <X size={13}/> {t('notifications.close_form')}
+              </button>
+            ) : (
+              <button className="btn btn-accent" onClick={() => { resetForm(); setShowAdd(true); }}>
+                <Plus size={13}/> {t('notifications.add_channel')}
+              </button>
+            )
+          )}
+        </div>
 
         <div className="tabs">
           <button className={tab === 'channels'  ? 'active' : ''} onClick={() => setTab('channels')}>

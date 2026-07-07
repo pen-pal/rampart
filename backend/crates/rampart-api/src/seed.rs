@@ -225,9 +225,11 @@ async fn seed_monitors(pool: &DbPool, group_id: uuid::Uuid, stats: &mut SeedStat
         json!({ "name": "[demo] Cache", "kind": "redis", "hostname": "cache.demo.rampart.local", "port": 6379, "config": {}, "group_id": group_id }),
     ];
     let now = OffsetDateTime::now_utc();
+    let mut ids: Vec<MonitorId> = Vec::new();
     for (i, spec) in specs.iter().enumerate() {
         let nm: NewMonitor = serde_json::from_value(spec.clone())?;
         let mon = rampart_db::monitors::create(pool, nm, SEED_ORG_ID).await?;
+        ids.push(mon.id);
         stats.monitors += 1;
 
         // 48 hourly heartbeats so the uptime strip + current status render.
@@ -256,6 +258,16 @@ async fn seed_monitors(pool: &DbPool, group_id: uuid::Uuid, stats: &mut SeedStat
         }
         stats.heartbeats += hbs.len();
         rampart_db::heartbeats::insert_many(pool, &hbs).await?;
+    }
+
+    // Wire a small dependency topology so the graph view has real structure to
+    // draw instead of an empty state: Website → API → { Database, Cache }.
+    // specs order: 0=API, 1=Website, 2=Database, 3=Cache. attach(child, parent).
+    if ids.len() == 4 {
+        rampart_db::monitor_groups::attach_dependency(pool, ids[1], ids[0]).await?; // Website depends on API
+        rampart_db::monitor_groups::attach_dependency(pool, ids[0], ids[2]).await?; // API depends on Database
+        rampart_db::monitor_groups::attach_dependency(pool, ids[0], ids[3]).await?;
+        // API depends on Cache
     }
     Ok(())
 }

@@ -223,9 +223,18 @@ export default function DependencyGraph() {
   const { data, error, loading } = useApi(fetchGraph, [], { pollMs: 15000 });
   const [hovered, setHovered] = useState(null);
 
-  const layout = useMemo(() => {
-    if (!data || !data.nodes?.length) return null;
-    return buildLayout(data.nodes, data.edges || []);
+  // Only lay out monitors that actually participate in a dependency edge —
+  // dumping every edge-less monitor into the graph buries the real structure in
+  // a wall of disconnected boxes. Orphans are counted and noted instead.
+  const { layout, orphanCount } = useMemo(() => {
+    if (!data || !data.nodes?.length) return { layout: null, orphanCount: 0 };
+    const edges = data.edges || [];
+    const connected = new Set(edges.flatMap(e => [e.from, e.to]));
+    const nodes = data.nodes.filter(n => connected.has(n.id));
+    return {
+      layout: nodes.length ? buildLayout(nodes, edges) : null,
+      orphanCount: data.nodes.length - nodes.length,
+    };
   }, [data]);
 
   const goToMonitor = (id) => { window.location.hash = `#/monitor/${id}`; };
@@ -256,6 +265,7 @@ export default function DependencyGraph() {
             <span style={{ flex: 1 }} />
             <span className="mono" style={{ fontSize: 12, color: 'var(--text-3)' }}>
               {t('deps.stats.monitors', { n: data.nodes.length })} · {t('deps.stats.edges', { n: (data.edges || []).length })}
+              {orphanCount > 0 && ` · ${orphanCount} with no dependencies`}
             </span>
           </div>
         )}
