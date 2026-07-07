@@ -403,17 +403,22 @@ pub struct FindingEvent {
 }
 
 /// Evaluate every enabled rule once. For each, count log records matching the
-/// rule spec with `received_at` in `(last_checked_at, now]` (or the rule's
-/// lookback window on first run) — the server ingest clock, so a client that
-/// backdates its event `ts` can't slip records out of the detection window;
-/// when the count reaches `threshold`, insert a finding
-/// and queue a notification. The watermark advances to `now` on every rule
-/// regardless of outcome, so matches are never counted twice.
+/// rule spec with `received_at` in the **sliding window** `(now -
+/// window_seconds, now]` — the server ingest clock, so a client that backdates
+/// its event `ts` can't slip records out of the detection window. When the count
+/// reaches `threshold`, insert a finding and queue a notification. Re-firing is
+/// suppressed for `max(cooldown_seconds, window_seconds)`: at least a full
+/// window, so the burst that tripped the rule ages out before it can fire again
+/// (no per-tick spam), and longer if the rule sets a bigger cooldown. The
+/// `last_checked_at` watermark still advances for display but no longer bounds
+/// the count (the old behaviour used the inter-tick gap as the window, so a "N
+/// hits in `window_seconds`" rule silently under-fired unless all N landed in
+/// one tick).
 pub async fn evaluate_tick(pool: &DbPool) -> DbResult<Vec<FindingEvent>> {
     let mut out = Vec::new();
 
     for rule in list_all(pool).await?.into_iter().filter(|r| r.enabled) {
-        let cooldown = rule.cooldown_seconds as i64;
+        let dedup_secs = (rule.cooldown_seconds as i64).max(rule.window_seconds as i64);
         let wto = if rule.group_by.is_empty() {
             // ── whole-match-set: one count, one finding ──────────────────────
             // Window bounds + count in one statement so both ends use the DB
@@ -423,9 +428,8 @@ pub async fn evaluate_tick(pool: &DbPool) -> DbResult<Vec<FindingEvent>> {
                 Some(cond) => tree_window(pool, &rule, cond).await?,
                 None => legacy_window(pool, &rule).await?,
             };
-            // Cooldown: keep advancing the watermark but don't re-raise.
-            let suppressed = rule.cooldown_seconds > 0
-                && has_recent_finding(pool, rule.id, cooldown, None).await?;
+            // Dedup: don't re-raise while a finding from this window is still recent.
+            let suppressed = has_recent_finding(pool, rule.id, dedup_secs, None).await?;
             if count >= rule.threshold as i64 && !suppressed {
                 let sample = match &rule.condition {
                     Some(cond) => tree_sample(pool, rule.org_id, wfrom, wto, cond).await?,
@@ -445,10 +449,8 @@ pub async fn evaluate_tick(pool: &DbPool) -> DbResult<Vec<FindingEvent>> {
             // ── per-entity (group_by): one finding per offending entity ──────
             let (wfrom, wto) = compute_bounds(pool, &rule).await?;
             for (entity, count, sample) in grouped_eval(pool, &rule, wfrom, wto).await? {
-                // Per-ENTITY cooldown: a noisy entity doesn't mute the others.
-                if rule.cooldown_seconds > 0
-                    && has_recent_finding(pool, rule.id, cooldown, Some(&entity)).await?
-                {
+                // Per-ENTITY dedup: a noisy entity doesn't mute the others.
+                if has_recent_finding(pool, rule.id, dedup_secs, Some(&entity)).await? {
                     continue;
                 }
                 let frow =
@@ -527,21 +529,19 @@ async fn legacy_window(
     let row = sqlx::query!(
         r#"
         WITH bounds AS (
-            SELECT COALESCE($1::timestamptz, now() - make_interval(secs => $2)) AS wfrom,
-                   now() AS wto
+            SELECT now() - make_interval(secs => $1) AS wfrom, now() AS wto
         )
         SELECT b.wfrom AS "wfrom!", b.wto AS "wto!", COUNT(l.id) AS "cnt!"
         FROM bounds b
         LEFT JOIN logs l
           ON l.received_at > b.wfrom AND l.received_at <= b.wto
-         AND ($3 = '' OR l.service_name = $3)
-         AND l.severity >= $4
-         AND ($5 = '' OR l.body ~* $5)
-         AND ($6 = '' OR l.attributes->>$6 = $7)
-         AND l.org_id = $8
+         AND ($2 = '' OR l.service_name = $2)
+         AND l.severity >= $3
+         AND ($4 = '' OR l.body ~* $4)
+         AND ($5 = '' OR l.attributes->>$5 = $6)
+         AND l.org_id = $7
         GROUP BY b.wfrom, b.wto
         "#,
-        rule.last_checked_at,
         rule.window_seconds as f64,
         rule.service,
         rule.min_level,
@@ -595,11 +595,10 @@ async fn tree_window(
     rule: &DetectionRule,
     cond: &DetectionCondition,
 ) -> DbResult<(OffsetDateTime, OffsetDateTime, i64)> {
-    let mut qb: QueryBuilder<Postgres> = QueryBuilder::new("WITH bounds AS (SELECT COALESCE(");
-    qb.push_bind(rule.last_checked_at);
-    qb.push("::timestamptz, now() - make_interval(secs => ");
+    let mut qb: QueryBuilder<Postgres> =
+        QueryBuilder::new("WITH bounds AS (SELECT now() - make_interval(secs => ");
     qb.push_bind(rule.window_seconds as f64);
-    qb.push(")) AS wfrom, now() AS wto) SELECT b.wfrom AS wfrom, b.wto AS wto, COUNT(l.id) AS cnt FROM bounds b LEFT JOIN logs l ON l.received_at > b.wfrom AND l.received_at <= b.wto AND l.org_id = ");
+    qb.push(") AS wfrom, now() AS wto) SELECT b.wfrom AS wfrom, b.wto AS wto, COUNT(l.id) AS cnt FROM bounds b LEFT JOIN logs l ON l.received_at > b.wfrom AND l.received_at <= b.wto AND l.org_id = ");
     qb.push_bind(rule.org_id.0);
     qb.push(" AND (");
     push_condition(&mut qb, cond);
@@ -641,9 +640,7 @@ async fn compute_bounds(
     rule: &DetectionRule,
 ) -> DbResult<(OffsetDateTime, OffsetDateTime)> {
     let row = sqlx::query!(
-        r#"SELECT COALESCE($1::timestamptz, now() - make_interval(secs => $2)) AS "wfrom!",
-                  now() AS "wto!""#,
-        rule.last_checked_at,
+        r#"SELECT now() - make_interval(secs => $1) AS "wfrom!", now() AS "wto!""#,
         rule.window_seconds as f64,
     )
     .fetch_one(pool)

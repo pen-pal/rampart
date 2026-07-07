@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT COALESCE($1::timestamptz, now() - make_interval(secs => $2)) AS \"wfrom!\",\n                  now() AS \"wto!\"",
+  "query": "SELECT now() - make_interval(secs => $1) AS \"wfrom!\", now() AS \"wto!\"",
   "describe": {
     "columns": [
       {
@@ -18,7 +18,6 @@
     ],
     "parameters": {
       "Left": [
-        "Timestamptz",
         "Float8"
       ]
     },
@@ -27,5 +26,5 @@
       null
     ]
   },
-  "hash": "474265dfe9fb00bca3e3f21c108e7a204b22d38efdb8fa42faae7521a563abe4"
+  "hash": "98158eadfadda6cf9c23c5b3680e280b93c958935861a13865f6777c3487d00a"
 }

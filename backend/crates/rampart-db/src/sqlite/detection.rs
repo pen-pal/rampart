@@ -543,26 +543,25 @@ async fn insert_finding(
     Ok(finding_from(&row))
 }
 
-/// Evaluate every enabled rule once. Mirrors PG `evaluate_tick`: count NEW
-/// matches in `(last_checked_at, now]` (or the lookback on first run), raise a
-/// finding at `threshold` (honoring per-rule / per-entity cooldown), then
-/// advance the watermark to `now` regardless of outcome.
+/// Evaluate every enabled rule once. Mirrors PG `evaluate_tick`: count matches
+/// in the sliding window `(now - window_seconds, now]`, raise a finding at
+/// `threshold`, and suppress re-firing for `max(cooldown_seconds,
+/// window_seconds)` so the burst ages out before it can fire again. The
+/// watermark advances for display only (it no longer bounds the count — the old
+/// per-tick-gap window silently under-fired multi-tick bursts).
 pub async fn evaluate_tick(pool: &SqlitePool) -> DbResult<Vec<FindingEvent>> {
     let now = OffsetDateTime::now_utc();
     let now_unix = now.unix_timestamp();
     let mut out = Vec::new();
 
     for rule in list_all(pool).await?.into_iter().filter(|r| r.enabled) {
-        let cooldown = rule.cooldown_seconds as i64;
-        let wfrom = rule
-            .last_checked_at
-            .unwrap_or_else(|| now - Duration::seconds(rule.window_seconds as i64));
+        let dedup_secs = (rule.cooldown_seconds as i64).max(rule.window_seconds as i64);
+        let wfrom = now - Duration::seconds(rule.window_seconds as i64);
         let (wfrom_u, wto_u) = (wfrom.unix_timestamp(), now_unix);
 
         if rule.group_by.is_empty() {
             let count = count_matches(pool, &rule, wfrom_u, wto_u).await?;
-            let suppressed = rule.cooldown_seconds > 0
-                && has_recent_finding(pool, rule.id, cooldown, None).await?;
+            let suppressed = has_recent_finding(pool, rule.id, dedup_secs, None).await?;
             if count >= rule.threshold as i64 && !suppressed {
                 let sample = sample_match(pool, &rule, wfrom_u, wto_u).await?;
                 let service = (!rule.service.is_empty()).then(|| rule.service.clone());
@@ -576,9 +575,7 @@ pub async fn evaluate_tick(pool: &SqlitePool) -> DbResult<Vec<FindingEvent>> {
             }
         } else {
             for (entity, count, sample) in grouped_eval(pool, &rule, wfrom_u, wto_u).await? {
-                if rule.cooldown_seconds > 0
-                    && has_recent_finding(pool, rule.id, cooldown, Some(&entity)).await?
-                {
+                if has_recent_finding(pool, rule.id, dedup_secs, Some(&entity)).await? {
                     continue;
                 }
                 let finding =
@@ -841,6 +838,47 @@ mod tests {
             finding_in_org(&pool, fid, other.id).await,
             Err(DbError::NotFound)
         ));
+    }
+
+    #[sqlx::test(migrations = "../../migrations-sqlite")]
+    async fn sliding_window_counts_across_ticks_and_dedups(pool: SqlitePool) {
+        let org = super::oid(DEF);
+        let mut rule = new_rule();
+        rule.name = "brute".into();
+        rule.body_regex = "denied".into();
+        rule.threshold = 2;
+        rule.window_seconds = 3600;
+        rule.cooldown_seconds = 0;
+        let r = create(&pool, rule, org).await.unwrap();
+
+        // Tick 1: a single match — below threshold, no fire.
+        logs::insert_logs(&pool, &[mk("denied 1", serde_json::json!({}))], org)
+            .await
+            .unwrap();
+        assert_eq!(
+            evaluate_tick(&pool).await.unwrap().len(),
+            0,
+            "1 < threshold 2"
+        );
+
+        // Tick 2: a second match in a LATER tick. The sliding window sees BOTH;
+        // the old watermark behaviour advanced past match 1 and counted only
+        // match 2 (→ 1 < 2 → silent miss). This is the regression the fix closes.
+        logs::insert_logs(&pool, &[mk("denied 2", serde_json::json!({}))], org)
+            .await
+            .unwrap();
+        let fired = evaluate_tick(&pool).await.unwrap();
+        assert_eq!(fired.len(), 1, "2 matches across ticks must fire");
+        assert_eq!(fired[0].finding.rule_id, r.id);
+        assert_eq!(fired[0].finding.match_count, 2);
+
+        // Tick 3: immediately again — a finding from this window is still recent,
+        // so dedup (max(cooldown, window)) suppresses the per-tick re-fire.
+        assert_eq!(
+            evaluate_tick(&pool).await.unwrap().len(),
+            0,
+            "no per-tick re-fire while the burst is still in-window"
+        );
     }
 
     #[sqlx::test(migrations = "../../migrations-sqlite")]

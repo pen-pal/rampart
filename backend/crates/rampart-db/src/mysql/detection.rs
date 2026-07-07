@@ -566,26 +566,25 @@ async fn insert_finding(
     Ok(finding_from(&row))
 }
 
-/// Evaluate every enabled rule once. Mirrors PG `evaluate_tick`: count NEW
-/// matches in `(last_checked_at, now]` (or the lookback on first run), raise a
-/// finding at `threshold` (honoring per-rule / per-entity cooldown), then
-/// advance the watermark to `now` regardless of outcome.
+/// Evaluate every enabled rule once. Mirrors PG `evaluate_tick`: count matches
+/// in the sliding window `(now - window_seconds, now]`, raise a finding at
+/// `threshold`, and suppress re-firing for `max(cooldown_seconds,
+/// window_seconds)` so the burst ages out before it can fire again. The
+/// watermark advances for display only (it no longer bounds the count — the old
+/// per-tick-gap window silently under-fired multi-tick bursts).
 pub async fn evaluate_tick(pool: &MySqlPool) -> DbResult<Vec<FindingEvent>> {
     let now = OffsetDateTime::now_utc();
     let now_unix = now.unix_timestamp();
     let mut out = Vec::new();
 
     for rule in list_all(pool).await?.into_iter().filter(|r| r.enabled) {
-        let cooldown = rule.cooldown_seconds as i64;
-        let wfrom = rule
-            .last_checked_at
-            .unwrap_or_else(|| now - Duration::seconds(rule.window_seconds as i64));
+        let dedup_secs = (rule.cooldown_seconds as i64).max(rule.window_seconds as i64);
+        let wfrom = now - Duration::seconds(rule.window_seconds as i64);
         let (wfrom_u, wto_u) = (wfrom.unix_timestamp(), now_unix);
 
         if rule.group_by.is_empty() {
             let count = count_matches(pool, &rule, wfrom_u, wto_u).await?;
-            let suppressed = rule.cooldown_seconds > 0
-                && has_recent_finding(pool, rule.id, cooldown, None).await?;
+            let suppressed = has_recent_finding(pool, rule.id, dedup_secs, None).await?;
             if count >= rule.threshold as i64 && !suppressed {
                 let sample = sample_match(pool, &rule, wfrom_u, wto_u).await?;
                 let service = (!rule.service.is_empty()).then(|| rule.service.clone());
@@ -599,9 +598,7 @@ pub async fn evaluate_tick(pool: &MySqlPool) -> DbResult<Vec<FindingEvent>> {
             }
         } else {
             for (entity, count, sample) in grouped_eval(pool, &rule, wfrom_u, wto_u).await? {
-                if rule.cooldown_seconds > 0
-                    && has_recent_finding(pool, rule.id, cooldown, Some(&entity)).await?
-                {
+                if has_recent_finding(pool, rule.id, dedup_secs, Some(&entity)).await? {
                     continue;
                 }
                 let finding =

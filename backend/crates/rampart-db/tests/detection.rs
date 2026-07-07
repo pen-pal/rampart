@@ -75,18 +75,14 @@ async fn regex_match_threshold_and_watermark(pool: PgPool) {
         .await
         .unwrap();
 
-    // One match — below threshold of 2 → no finding, but watermark advances.
+    // One match — below threshold of 2 → no finding.
     insert_log(&pool, "auth", 9, "failed login for bob").await;
     assert!(detection::evaluate_tick(&pool).await.unwrap().is_empty());
 
-    // The earlier log is now behind the watermark; a single fresh match is
-    // still below threshold on its own → no finding.
+    // A second match on a LATER tick. The sliding window `(now - window, now]`
+    // counts BOTH matches; the old watermark behaviour advanced past the first
+    // and counted only this one (→ 1 < 2 → silent miss) — the bug this closes.
     insert_log(&pool, "auth", 9, "failed login for alice").await;
-    assert!(detection::evaluate_tick(&pool).await.unwrap().is_empty());
-
-    // Two fresh matches in one window → finding with count 2.
-    insert_log(&pool, "auth", 9, "failed login x").await;
-    insert_log(&pool, "auth", 9, "failed login y").await;
     let ev = detection::evaluate_tick(&pool).await.unwrap();
     assert_eq!(ev.len(), 1);
     assert_eq!(ev[0].finding.match_count, 2);
@@ -98,7 +94,11 @@ async fn regex_match_threshold_and_watermark(pool: PgPool) {
         .unwrap()
         .contains("failed login"));
 
-    // No new logs → watermark means nothing re-fires.
+    // More matches, immediately: the finding from this window is still recent,
+    // so per-window dedup (max(cooldown, window)) suppresses the per-tick
+    // re-fire — one incident, not one alert per tick.
+    insert_log(&pool, "auth", 9, "failed login x").await;
+    insert_log(&pool, "auth", 9, "failed login y").await;
     assert!(detection::evaluate_tick(&pool).await.unwrap().is_empty());
 
     // Findings feed + open count reflect the one raised finding.
@@ -158,16 +158,18 @@ async fn boolean_condition_tree_matches(pool: PgPool) {
     });
     detection::create(&pool, nr, TEST_ORG).await.unwrap();
 
-    // Branch 1: auth service + "failed" in body.
-    insert_log(&pool, "auth", 9, "failed login for bob").await;
-    assert_eq!(detection::evaluate_tick(&pool).await.unwrap().len(), 1);
+    // Branch 1 (auth + "failed"), branch 2 (severity >= 17, not dev), and a
+    // record matching neither all land in the window. One tick: the OR-tree
+    // matches the two branch logs (not the third) → a single finding, count 2 —
+    // proving both AND/NOT arms of the tree evaluate correctly.
+    insert_log(&pool, "auth", 9, "failed login for bob").await; // branch 1
+    insert_log(&pool, "web", 17, "boom").await; // branch 2
+    insert_log(&pool, "web", 9, "all good").await; // neither
+    let ev = detection::evaluate_tick(&pool).await.unwrap();
+    assert_eq!(ev.len(), 1);
+    assert_eq!(ev[0].finding.match_count, 2);
 
-    // Branch 2: error severity on a non-dev record (default attrs = {}).
-    insert_log(&pool, "web", 17, "boom").await;
-    assert_eq!(detection::evaluate_tick(&pool).await.unwrap().len(), 1);
-
-    // Matches neither: web service, low severity, no "failed".
-    insert_log(&pool, "web", 9, "all good").await;
+    // Nothing new + the finding is still in-window → dedup, no re-fire.
     assert!(detection::evaluate_tick(&pool).await.unwrap().is_empty());
 }
 

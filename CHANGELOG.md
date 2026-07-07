@@ -29,6 +29,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.24] — 2026-06-25
+
+### Fixed
+- **SIEM detection now counts over a true sliding window — it was silently
+  under-firing.** A threshold rule counted matches only since the previous tick
+  and advanced its watermark to `now` every tick, so `window_seconds` was used
+  only on the very first run. Effect: a rule authored "N events in
+  `window_seconds`" actually needed all N inside a single ~30 s scheduler tick —
+  a slow brute-force (a few events per tick) or events spread across the window
+  never crossed the threshold and never alerted. Detection now counts over the
+  real sliding window `(now - window_seconds, now]`, and re-firing is suppressed
+  for `max(cooldown_seconds, window_seconds)` so a tripped burst raises one
+  finding (not one per tick) and re-arms once it ages out of the window. Fixed
+  identically across the Postgres, MySQL and SQLite backends; the watermark now
+  only drives the "last evaluated" display. Regression test added (matches
+  spread across ticks fire; per-tick re-fire is deduped).
+
 ## [0.157.23] — 2026-06-25
 
 ### Fixed
