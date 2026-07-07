@@ -560,11 +560,33 @@ async fn get_section(pool: &MySqlPool, id: StatusPageSectionId) -> DbResult<Stat
     Ok(section_from(&row))
 }
 
+/// A section belongs to the given (org-gated) page, else NotFound. Guards the
+/// by-id section mutations against cross-org tampering.
+async fn section_in_page(
+    pool: &MySqlPool,
+    page_id: StatusPageId,
+    id: StatusPageSectionId,
+) -> DbResult<()> {
+    let hit: Option<String> = sqlx::query_scalar(
+        "SELECT id FROM status_page_sections WHERE id = ? AND status_page_id = ?",
+    )
+    .bind(id.0.to_string())
+    .bind(page_id.0.to_string())
+    .fetch_optional(pool)
+    .await?;
+    if hit.is_none() {
+        return Err(DbError::NotFound);
+    }
+    Ok(())
+}
+
 pub async fn update_section(
     pool: &MySqlPool,
+    page_id: StatusPageId,
     id: StatusPageSectionId,
     patch: UpdateStatusPageSection,
 ) -> DbResult<StatusPageSection> {
+    section_in_page(pool, page_id, id).await?;
     if let Some(name) = patch.name.as_deref() {
         sqlx::query("UPDATE status_page_sections SET name = ? WHERE id = ?")
             .bind(name)
@@ -582,7 +604,12 @@ pub async fn update_section(
     get_section(pool, id).await
 }
 
-pub async fn delete_section(pool: &MySqlPool, id: StatusPageSectionId) -> DbResult<()> {
+pub async fn delete_section(
+    pool: &MySqlPool,
+    page_id: StatusPageId,
+    id: StatusPageSectionId,
+) -> DbResult<()> {
+    section_in_page(pool, page_id, id).await?;
     // FK is ON DELETE SET NULL in PG; the MySQL tier has no FK, so detach the
     // section's monitors back to ungrouped first, then drop the section.
     sqlx::query("UPDATE status_page_monitors SET section_id = NULL WHERE section_id = ?")

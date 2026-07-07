@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM status_page_sections WHERE id = $1 AND status_page_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d7ab3a203673489f5aadf6ce93929663d0bc6999c89d051e0a01e47e3915ecf6"
+}

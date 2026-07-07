@@ -686,23 +686,29 @@ pub async fn create_section(
 /// Rename and/or reposition a section. Fields left `None` are untouched.
 pub async fn update_section(
     pool: &DbPool,
+    page_id: StatusPageId,
     id: StatusPageSectionId,
     patch: UpdateStatusPageSection,
 ) -> DbResult<StatusPageSection> {
+    // Constrain to the (already org-gated) parent page: a section id belonging to
+    // a foreign org's page matches 0 rows → no mutation, NotFound below. Without
+    // this the handler's page-gate is bypassable by passing a foreign section id.
     if let Some(name) = patch.name.as_deref() {
         sqlx::query!(
-            "UPDATE status_page_sections SET name = $1 WHERE id = $2",
+            "UPDATE status_page_sections SET name = $1 WHERE id = $2 AND status_page_id = $3",
             name,
             id.0,
+            page_id.0,
         )
         .execute(pool)
         .await?;
     }
     if let Some(pos) = patch.position {
         sqlx::query!(
-            "UPDATE status_page_sections SET position = $1 WHERE id = $2",
+            "UPDATE status_page_sections SET position = $1 WHERE id = $2 AND status_page_id = $3",
             pos,
             id.0,
+            page_id.0,
         )
         .execute(pool)
         .await?;
@@ -712,9 +718,10 @@ pub async fn update_section(
         r#"
         SELECT id, status_page_id, name, position
         FROM status_page_sections
-        WHERE id = $1
+        WHERE id = $1 AND status_page_id = $2
         "#,
         id.0,
+        page_id.0,
     )
     .fetch_optional(pool)
     .await?
@@ -725,10 +732,19 @@ pub async fn update_section(
 /// Delete a section. The `status_page_monitors.section_id` FK is
 /// `ON DELETE SET NULL`, so its monitors fall back to ungrouped rather than
 /// detaching from the page.
-pub async fn delete_section(pool: &DbPool, id: StatusPageSectionId) -> DbResult<()> {
-    let result = sqlx::query!("DELETE FROM status_page_sections WHERE id = $1", id.0)
-        .execute(pool)
-        .await?;
+pub async fn delete_section(
+    pool: &DbPool,
+    page_id: StatusPageId,
+    id: StatusPageSectionId,
+) -> DbResult<()> {
+    // Constrain to the org-gated parent page (see `update_section`).
+    let result = sqlx::query!(
+        "DELETE FROM status_page_sections WHERE id = $1 AND status_page_id = $2",
+        id.0,
+        page_id.0,
+    )
+    .execute(pool)
+    .await?;
     if result.rows_affected() == 0 {
         return Err(DbError::NotFound);
     }

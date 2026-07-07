@@ -244,6 +244,86 @@ async fn status_page_management_isolated_but_public_view_open(pool: PgPool) {
     assert_eq!(s, StatusCode::OK, "public view stays open");
 }
 
+/// A section mutation gates the page from the URL path but must ALSO constrain
+/// to that page — otherwise a user who owns any page can edit/delete a foreign
+/// org's section by passing its id (cross-org write IDOR).
+#[sqlx::test(migrations = "../../migrations")]
+async fn status_page_section_mutation_cross_org_idor(pool: PgPool) {
+    let router = common::router(pool.clone());
+    let admin = register_admin(&router).await;
+
+    // Admin (Default org) owns page A — the path-gate the attacker would use.
+    let page_a: Value = common::json(
+        &router,
+        Method::POST,
+        "/v1/status-pages",
+        Some(json!({"slug":"mine","title":"Mine","monitor_ids":[]})),
+        Some(&admin),
+    )
+    .await;
+    let page_a_id = page_a["id"].as_str().unwrap();
+
+    // Admin creates page B + a section, then B is reassigned to another org (the
+    // section moves with it) — the section id is now a FOREIGN resource.
+    let page_b: Value = common::json(
+        &router,
+        Method::POST,
+        "/v1/status-pages",
+        Some(json!({"slug":"victim","title":"Victim","monitor_ids":[]})),
+        Some(&admin),
+    )
+    .await;
+    let page_b_id = page_b["id"].as_str().unwrap();
+    let section: Value = common::json(
+        &router,
+        Method::POST,
+        &format!("/v1/status-pages/{page_b_id}/sections"),
+        Some(json!({"name":"Core"})),
+        Some(&admin),
+    )
+    .await;
+    let section_id = section["id"].as_str().unwrap();
+
+    sqlx::query("INSERT INTO organizations (id, slug, name) VALUES ($1::uuid, 'other', 'Other') ON CONFLICT DO NOTHING")
+        .bind(OTHER_ORG).execute(&pool).await.unwrap();
+    sqlx::query("UPDATE status_pages SET org_id = $1::uuid WHERE id = $2::uuid")
+        .bind(OTHER_ORG)
+        .bind(page_b_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    // Gate on page A (owned), target the FOREIGN section → the mutation is
+    // constrained to page A, so it hits nothing → NotFound.
+    let (s, _, _) = request(
+        &router,
+        Method::PATCH,
+        &format!("/v1/status-pages/{page_a_id}/sections/{section_id}"),
+        Some(json!({"name":"HACKED"})),
+        Some(&admin),
+    )
+    .await;
+    assert_eq!(s, StatusCode::NOT_FOUND, "cross-org section update blocked");
+    let (s, _, _) = request(
+        &router,
+        Method::DELETE,
+        &format!("/v1/status-pages/{page_a_id}/sections/{section_id}"),
+        None,
+        Some(&admin),
+    )
+    .await;
+    assert_eq!(s, StatusCode::NOT_FOUND, "cross-org section delete blocked");
+
+    // The foreign section still exists, unchanged.
+    let name: String =
+        sqlx::query_scalar("SELECT name FROM status_page_sections WHERE id = $1::uuid")
+            .bind(section_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(name, "Core", "foreign section untouched");
+}
+
 #[sqlx::test(migrations = "../../migrations")]
 async fn incidents_isolated_via_owning_page(pool: PgPool) {
     // Incidents have no org_id of their own — they inherit the owning status

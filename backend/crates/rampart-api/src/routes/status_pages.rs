@@ -301,11 +301,13 @@ async fn update_section(
     input
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
-    // Gate via the parent page from the path; the section belongs to it.
-    s.store().get_status_page(parse(&id)?, org.org_id).await?;
+    // Gate via the parent page from the path; the mutation is constrained to
+    // that page too, so a foreign section id can't be tampered with.
+    let page_id = parse(&id)?;
+    s.store().get_status_page(page_id, org.org_id).await?;
     let section = s
         .store()
-        .update_status_page_section(parse_section(&section_id)?, input)
+        .update_status_page_section(page_id, parse_section(&section_id)?, input)
         .await?;
     invalidate_public_view_cache();
     Ok(Json(section))
@@ -316,9 +318,10 @@ async fn delete_section(
     Extension(org): Extension<OrgContext>,
     Path((id, section_id)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
-    s.store().get_status_page(parse(&id)?, org.org_id).await?;
+    let page_id = parse(&id)?;
+    s.store().get_status_page(page_id, org.org_id).await?;
     s.store()
-        .delete_status_page_section(parse_section(&section_id)?)
+        .delete_status_page_section(page_id, parse_section(&section_id)?)
         .await?;
     invalidate_public_view_cache();
     Ok(StatusCode::NO_CONTENT)

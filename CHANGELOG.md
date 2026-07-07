@@ -29,6 +29,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.28] — 2026-06-25
+
+### Security
+- **Cross-org write IDOR on status-page sections.** `PATCH`/`DELETE
+  /v1/status-pages/{page_id}/sections/{section_id}` org-gated the page in the URL
+  path but keyed the actual update/delete on the **section id alone** — so a user
+  who owns any one page could rename, reposition, or delete a **different org's**
+  section by passing its id (section ids are visible in the public status-page
+  JSON, so not secret). The section mutation is now constrained to the gated
+  parent page (`WHERE id = … AND status_page_id = …`; MySQL verifies membership
+  before any write, so a foreign section's monitors aren't detached either) →
+  a foreign section id returns 404 and is untouched. PG + MySQL (SQLite
+  status-pages is an unported stub). End-to-end regression test added. Found by a
+  cross-org write-authorization (IDOR) audit — every other tenant mutation
+  (monitors, channels, rules, escalations, SLOs, api-keys, …) was verified either
+  `WHERE id AND org_id` or handler-gated.
+
 ## [0.157.27] — 2026-06-25
 
 ### Security
