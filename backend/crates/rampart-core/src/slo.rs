@@ -171,18 +171,30 @@ pub fn burn_rate(achieved_pct: f64, objective_pct: f64) -> f64 {
     bad / error_budget_ratio(objective_pct)
 }
 
-/// Build a snapshot from a full-window achieved ratio and an optional short
-/// (1h) ratio. Either may be `None` (no data).
+/// Build a snapshot from a full-window achieved ratio and the two burn-rate
+/// windows: `achieved_1h` (the primary 1h rate, surfaced in the UI) and
+/// `achieved_confirm` (a short ~10m window). Fast-burn fires only when BOTH
+/// windows are burning past [`FAST_BURN_THRESHOLD`] — a multiwindow rule
+/// (Google SRE). The short window confirms the burn is happening *now*, so a
+/// transient blip that already recovered (still elevating the 1h rate but gone
+/// from the recent window) no longer pages. Any window may be `None` (no data);
+/// a `None` confirm window means "can't confirm active burn", so fast-burn
+/// holds off and the exhausted-budget check is the backstop.
 pub fn snapshot(
     achieved_pct: Option<f64>,
     achieved_1h: Option<f64>,
+    achieved_confirm: Option<f64>,
     objective_pct: f64,
 ) -> SloSnapshot {
     let consumed = achieved_pct.map(|a| budget_consumed_pct(a, objective_pct));
     let remaining = consumed.map(|c| (100.0 - c).max(0.0));
     let burn_1h = achieved_1h.map(|a| burn_rate(a, objective_pct));
+    let burn_confirm = achieved_confirm.map(|a| burn_rate(a, objective_pct));
     let exhausted = consumed.map(|c| c >= 100.0).unwrap_or(false);
-    let fast = burn_1h.map(|b| b >= FAST_BURN_THRESHOLD).unwrap_or(false);
+    // Both windows must be burning — the short one guards against paging on a
+    // blip that's already recovered but still weighs on the 1h rate.
+    let fast = burn_1h.is_some_and(|b| b >= FAST_BURN_THRESHOLD)
+        && burn_confirm.is_some_and(|b| b >= FAST_BURN_THRESHOLD);
     SloSnapshot {
         achieved_pct,
         consumed_pct: consumed,
@@ -240,18 +252,23 @@ mod tests {
     #[test]
     fn snapshot_breaching_paths() {
         // Healthy: no breach.
-        let s = snapshot(Some(99.99), Some(99.99), 99.9);
+        let s = snapshot(Some(99.99), Some(99.99), Some(99.99), 99.9);
         assert!(!s.breaching);
         assert!(s.remaining_pct.unwrap() > 0.0);
-        // Exhausted budget breaches even with a calm 1h window.
-        let s = snapshot(Some(99.0), Some(100.0), 99.9);
+        // Exhausted budget breaches even with calm burn windows.
+        let s = snapshot(Some(99.0), Some(100.0), Some(100.0), 99.9);
         assert!(s.breaching);
         assert_eq!(s.remaining_pct, Some(0.0));
-        // Fast burn breaches even with budget left over the full window.
-        let s = snapshot(Some(99.95), Some(95.0), 99.9);
-        assert!(s.breaching); // 1h burn ~50x ≫ 14.4
-                              // No data → not breaching, all None.
-        let s = snapshot(None, None, 99.9);
+        // Fast burn: BOTH the 1h and the short window are burning (budget still
+        // left over the full window) → page.
+        let s = snapshot(Some(99.95), Some(95.0), Some(95.0), 99.9);
+        assert!(s.breaching); // both burns ~50x ≫ 14.4
+                              // Recovered blip: the 1h rate is still elevated but the short window has
+                              // recovered → NO fast page (the multiwindow fix; was a false positive).
+        let s = snapshot(Some(99.95), Some(95.0), Some(100.0), 99.9);
+        assert!(!s.breaching);
+        // No data → not breaching, all None.
+        let s = snapshot(None, None, None, 99.9);
         assert!(!s.breaching);
         assert!(s.achieved_pct.is_none());
     }

@@ -16,6 +16,9 @@ use uuid::Uuid;
 
 /// Short window for the fast-burn signal.
 const FAST_BURN_WINDOW_SECONDS: i64 = 3600;
+/// Short confirmation window for multiwindow fast-burn: the 1h burn must ALSO be
+/// present here (recent) to page, so an already-recovered blip doesn't alert.
+const SHORT_BURN_WINDOW_SECONDS: i64 = 600;
 
 struct SloRow {
     id: Uuid,
@@ -302,8 +305,9 @@ async fn achieved(pool: &DbPool, slo: &Slo, window_seconds: i64) -> DbResult<Opt
 /// Compute the live budget snapshot for one SLO (full window + 1h fast-burn).
 pub async fn compute(pool: &DbPool, slo: &Slo) -> DbResult<SloSnapshot> {
     let full = achieved(pool, slo, slo.window_days as i64 * 86400).await?;
-    let short = achieved(pool, slo, FAST_BURN_WINDOW_SECONDS).await?;
-    Ok(snapshot(full, short, slo.objective_pct))
+    let long = achieved(pool, slo, FAST_BURN_WINDOW_SECONDS).await?;
+    let confirm = achieved(pool, slo, SHORT_BURN_WINDOW_SECONDS).await?;
+    Ok(snapshot(full, long, confirm, slo.objective_pct))
 }
 
 /// Achieved-ratio trend over the window, bucketed into ~`buckets` points
