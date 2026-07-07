@@ -29,6 +29,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.34] — 2026-07-07
+
+### Changed
+- **Uptime-history / retention reads go through the `Store` trait, not the raw
+  Postgres pool.** Five handlers read the rollup tier via `rampart_db::prune::*`
+  with the concrete, Postgres-only `state.pool()`: the uptime-history route
+  (`rollups_for_monitor` + `daily_uptime_from_rollups` + `daily_uptime_from_raw`),
+  its retention-config lookup, and the subscriber-facing retention config. The
+  existing `StoreRetention` trait gains `retention_config` /
+  `rollups_for_monitor` / `daily_uptime_from_rollups` / `daily_uptime_from_raw`,
+  called on `state.store()`. The Postgres impl delegates to the existing prune
+  functions; MySQL/SQLite keep no rollup tier (flat age-based prune only), so
+  their impls are `unimplemented!()` — the uptime-history route stays
+  Postgres-only exactly as before (it already called the PG-only `pool()`, which
+  panics on non-PG). No behavior change, no schema change. Part of the multi-DB
+  seam (#133); the last route group that reached around the `Store` seam for
+  telemetry reads, apart from the deliberately PG-only health-pool metrics.
+
 ## [0.157.33] — 2026-07-07
 
 ### Changed
