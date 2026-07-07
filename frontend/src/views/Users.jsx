@@ -6,6 +6,7 @@ import {
 import { api, useApi, formatRelative, offsetDateTimeArrayToDate } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
 import { confirmDialog } from '../lib/notify.js';
+import SubViewHeader from '../components/SubViewHeader.jsx';
 
 const css = `
   .rampart {
@@ -108,9 +109,7 @@ export default function Users() {
     <div className="rampart">
       <style>{css}</style>
       <div style={{ maxWidth: 920, margin: '0 auto', padding: '32px 32px 64px' }}>
-        <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}>
-          <ChevronLeft size={14}/> {t('common.dashboard')}
-        </a>
+        <SubViewHeader title={t('users.title')} icon={UsersIcon} />
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 22 }}>
           <div>

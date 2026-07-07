@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, Loader2, AlertCircle, ScrollText, Search, RefreshCw, Download, Bookmark, X } from 'lucide-react';
+import { Loader2, AlertCircle, ScrollText, Search, RefreshCw, Download, Bookmark, X } from 'lucide-react';
 import { api, useApi, formatClock, formatRelative } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import SubViewHeader from '../components/SubViewHeader.jsx';
 import { promptDialog } from '../lib/notify.js';
 
 const css = `
@@ -152,7 +153,7 @@ export default function Logs({ traceId }) {
     <div className="rampart">
       <style>{css}</style>
       <div style={{ maxWidth: 1040, margin: '0 auto', padding: '32px 32px 64px' }}>
-        <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}><ChevronLeft size={14}/> {t('logs.back')}</a>
+        <SubViewHeader title={t('logs.title')} icon={ScrollText} />
         <div style={{ marginBottom: 16 }}>
           <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 4px', letterSpacing: '-.02em' }}>{t('logs.title')}</h1>
           <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 0 }}>{t('logs.subtitle')}</p>

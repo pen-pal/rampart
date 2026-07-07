@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import {
-  ChevronLeft, Upload, FileText, Loader2, AlertCircle, CheckCircle2,
+  Upload, FileText, Loader2, AlertCircle, CheckCircle2,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { canWrite } from '../lib/roles.js';
 import { t } from '../lib/i18n.js';
+import SubViewHeader from '../components/SubViewHeader.jsx';
 
 // Self-contained styling, mirroring StatusPageBuilder so this lightweight
 // view doesn't depend on the dashboard chrome being mounted.
@@ -209,9 +210,7 @@ export default function ImportMonitors({ user } = {}) {
     <div className="rampart">
       <style>{css}</style>
       <div style={{ maxWidth: 720, margin: '0 auto', padding: '32px 32px 64px' }}>
-        <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}>
-          <ChevronLeft size={14}/> {t('common.dashboard')}
-        </a>
+        <SubViewHeader title={t('import.title')} icon={<Upload/>} />
 
         <h1 style={{ fontSize: 24, fontWeight: 600, margin: '0 0 4px', letterSpacing: '-.02em' }}>
           {t('import.title')}

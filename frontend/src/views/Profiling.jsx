@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ChevronLeft, Loader2, AlertCircle, Flame, RefreshCw, GitCompare } from 'lucide-react';
+import { Loader2, AlertCircle, Flame, RefreshCw, GitCompare } from 'lucide-react';
 import { api, useApi } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import SubViewHeader from '../components/SubViewHeader.jsx';
 
 const css = `
   .rampart {
@@ -247,7 +248,7 @@ export default function Profiling({ profileId }) {
     <div className="rampart">
       <style>{css}</style>
       <div style={{ maxWidth: 1040, margin: '0 auto', padding: '32px 32px 64px' }}>
-        <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}><ChevronLeft size={14} /> {t('profiling.back')}</a>
+        <SubViewHeader title={t('profiling.title')} icon={Flame} />
         <div style={{ marginBottom: 16 }}>
           <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 4px', letterSpacing: '-.02em', display: 'flex', alignItems: 'center', gap: 8 }}>
             <Flame size={22} /> {t('profiling.title')}

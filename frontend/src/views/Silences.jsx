@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { ChevronLeft, BellOff, Loader2, AlertCircle, X, Plus } from 'lucide-react';
+import { BellOff, Loader2, AlertCircle, X, Plus } from 'lucide-react';
 import { api, useApi, formatRelative } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import SubViewHeader from '../components/SubViewHeader.jsx';
 
 const css = `
   .rampart { --bg:#fafaf9; --surface:#fff; --surface-2:#f5f5f4; --border:#e7e5e4; --text:#1c1917; --text-2:#57534e; --text-3:#a8a29e; --accent:#14b8a6; --accent-2:#0d9488; --down:#ef4444;
@@ -57,7 +58,7 @@ export default function Silences() {
     <div className="rampart">
       <style>{css}</style>
       <div style={{ maxWidth: 880, margin: '0 auto', padding: '32px 32px 64px' }}>
-        <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}><ChevronLeft size={14}/> {t('common.dashboard')}</a>
+        <SubViewHeader title={t('silences.title')} icon={BellOff} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
           <BellOff size={20}/>
           <h1 style={{ fontSize: 28, fontWeight: 600, margin: 0, letterSpacing: '-.02em' }}>{t('silences.title')}</h1>

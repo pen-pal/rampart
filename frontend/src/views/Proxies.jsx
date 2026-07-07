@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import {
-  ChevronLeft, Plus, Trash2, Server, AlertCircle, Loader2, X, Pause, Play,
+  Plus, Trash2, Server, AlertCircle, Loader2, X, Pause, Play,
 } from 'lucide-react';
 import { api, useApi, formatRelative, offsetDateTimeArrayToDate } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import SubViewHeader from '../components/SubViewHeader.jsx';
 import { confirmDialog } from '../lib/notify.js';
 
 const css = `
@@ -88,9 +89,7 @@ export default function Proxies() {
     <div className="rampart">
       <style>{css}</style>
       <div style={{ maxWidth: 920, margin: '0 auto', padding: '32px 32px 64px' }}>
-        <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}>
-          <ChevronLeft size={14}/> {t('common.dashboard')}
-        </a>
+        <SubViewHeader title={t('proxies.title')} icon={Server} />
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 22 }}>
           <div>

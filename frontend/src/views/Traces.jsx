@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { api, useApi, formatRelative } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import SubViewHeader from '../components/SubViewHeader.jsx';
 import { promptDialog } from '../lib/notify.js';
 
 const css = `
@@ -121,7 +122,7 @@ export default function Traces({ openTraceId }) {
           <TraceDetail traceId={traceId} onBack={() => setTraceId(null)} />
         ) : (
           <>
-            <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}><ChevronLeft size={14}/> {t('traces.back')}</a>
+            <SubViewHeader title={t('traces.title')} icon={Activity} />
             <div style={{ marginBottom: 18 }}>
               <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 4px', letterSpacing: '-.02em' }}>{t('traces.title')}</h1>
               <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 0 }}>{t('traces.subtitle')}</p>

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronLeft, Plus, X, LayoutGrid, RefreshCw } from 'lucide-react';
+import { Plus, X, LayoutGrid, RefreshCw } from 'lucide-react';
 import { api, useApi } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import SubViewHeader from '../components/SubViewHeader.jsx';
 import { confirmDialog, promptDialog } from '../lib/notify.js';
 
 // Custom dashboards ("boards"): user-defined grids of widgets, persisted per
@@ -81,7 +82,7 @@ export default function Dashboards() {
     <div className="rampart">
       <style>{css}</style>
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 32px 64px' }}>
-        <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}><ChevronLeft size={14}/> {t('common.dashboard')}</a>
+        <SubViewHeader title={t('boards.title')} icon={LayoutGrid} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
           <LayoutGrid size={20}/>
           <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0, letterSpacing: '-.02em' }}>{t('boards.title')}</h1>

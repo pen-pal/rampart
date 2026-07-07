@@ -4,10 +4,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import qrcode from 'qrcode-generator';
 import {
-  ChevronLeft, Shield, ShieldCheck, Copy, Check, AlertCircle, Loader2, X,
+  Shield, ShieldCheck, Copy, Check, AlertCircle, Loader2, X,
 } from 'lucide-react';
 import { api, useApi } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import SubViewHeader from '../components/SubViewHeader.jsx';
 
 const css = `
   .rampart {
@@ -57,9 +58,7 @@ export default function Security() {
     <div className="rampart">
       <style>{css}</style>
       <div style={{ maxWidth: 720, margin: '0 auto', padding: '32px 32px 64px' }}>
-        <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}>
-          <ChevronLeft size={14}/> {t('common.dashboard')}
-        </a>
+        <SubViewHeader title={t('security.title')} icon={Shield} />
         <h1 style={{ fontSize: 28, fontWeight: 600, margin: '0 0 4px', letterSpacing: '-.02em' }}>
           {t('security.title')}
         </h1>

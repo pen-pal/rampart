@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ChevronLeft, Plus, Save, Loader2, AlertCircle, Trash2, Target, X,
+  Plus, Save, Loader2, AlertCircle, Trash2, Target, X,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { canWrite } from '../lib/roles.js';
 import { t } from '../lib/i18n.js';
+import SubViewHeader from '../components/SubViewHeader.jsx';
 import { confirmDialog } from '../lib/notify.js';
 
 const css = `
@@ -113,9 +114,7 @@ export default function Slos({ user }) {
     <div className="rampart">
       <style>{css}</style>
       <div style={{ maxWidth: 820, margin: '0 auto', padding: '32px 32px 64px' }}>
-        <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}>
-          <ChevronLeft size={14}/> {t('common.dashboard')}
-        </a>
+        <SubViewHeader title={t('slos.title')} icon={Target} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
           <Target size={20}/>
           <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0, letterSpacing: '-.02em' }}>{t('slos.title')}</h1>

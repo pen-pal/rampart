@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { ChevronLeft, Loader2, AlertCircle, Share2 } from 'lucide-react';
+import { Loader2, AlertCircle, Share2 } from 'lucide-react';
 import { api, useApi, statusToClass } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import SubViewHeader from '../components/SubViewHeader.jsx';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Dependency graph — a READ-ONLY visualisation of how monitors depend on each
@@ -233,9 +234,7 @@ export default function DependencyGraph() {
     <div className="rampart">
       <style>{css}</style>
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '28px 24px 64px' }}>
-        <a href="#/" className="btn" style={{ marginBottom: 18 }}>
-          <ChevronLeft size={15} /> {t('deps.back')}
-        </a>
+        <SubViewHeader title={t('deps.title')} icon={Share2} />
 
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 6 }}>
           <Share2 size={22} style={{ color: 'var(--accent)', marginTop: 4 }} />

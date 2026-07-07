@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import {
-  ChevronLeft, Plus, Trash2, Loader2, AlertCircle, X, Check,
+  Plus, Trash2, Loader2, AlertCircle, X, Check,
   Building2, ArrowRightLeft, Pencil,
 } from 'lucide-react';
 import { api, useApi, formatRelative, offsetDateTimeArrayToDate } from '../lib/api.js';
 import { t } from '../lib/i18n.js';
+import SubViewHeader from '../components/SubViewHeader.jsx';
 import { confirmDialog, toast } from '../lib/notify.js';
 
 const css = `
@@ -98,9 +99,7 @@ export default function Organizations() {
     <div className="rampart">
       <style>{css}</style>
       <div style={{ maxWidth: 920, margin: '0 auto', padding: '32px 32px 64px' }}>
-        <a href="#/" className="btn btn-ghost" style={{ marginBottom: 18 }}>
-          <ChevronLeft size={14}/> {t('common.dashboard')}
-        </a>
+        <SubViewHeader title={t('orgs.title')} icon={Building2} />
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 22 }}>
           <div>
