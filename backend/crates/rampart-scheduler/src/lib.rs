@@ -549,7 +549,7 @@ impl Scheduler {
                 } else {
                     rampart_notifier::EventKind::SloRecovered
                 },
-                monitor: alert_monitor(format!("SLO: {}", ev.slo.name)),
+                monitor: alert_monitor(format!("SLO: {}", ev.slo.name), ev.slo.monitor_id),
                 heartbeat: Heartbeat {
                     monitor_id: rampart_core::MonitorId::new(),
                     ts: time::OffsetDateTime::now_utc(),
@@ -645,7 +645,7 @@ impl Scheduler {
                 } else {
                     rampart_notifier::EventKind::TelemetryRuleResolved
                 },
-                monitor: alert_monitor(ev.rule.name.clone()),
+                monitor: alert_monitor(ev.rule.name.clone(), None),
                 heartbeat: Heartbeat {
                     monitor_id: rampart_core::MonitorId::new(),
                     ts: time::OffsetDateTime::now_utc(),
@@ -761,7 +761,7 @@ impl Scheduler {
 
             let event = rampart_notifier::Event {
                 kind: rampart_notifier::EventKind::DetectionFinding,
-                monitor: alert_monitor(f.rule_name.clone()),
+                monitor: alert_monitor(f.rule_name.clone(), None),
                 heartbeat: Heartbeat {
                     monitor_id: rampart_core::MonitorId::new(),
                     ts: time::OffsetDateTime::now_utc(),
@@ -1990,17 +1990,21 @@ async fn push_heartbeat(monitor: &Monitor, store: &Arc<dyn Store>) -> Option<Hea
 /// gives the template renderer well-formed fields ({{ monitor.name }} is
 /// the rule name). Never persisted.
 fn metric_rule_monitor(rule: &rampart_core::MetricRule) -> Monitor {
-    alert_monitor(rule.name.clone())
+    alert_monitor(rule.name.clone(), None)
 }
 
 /// A throwaway `Monitor` carrying just a display name, used as the
 /// notification subject for rule-based alerts (metric + telemetry) that have
 /// no real monitor row behind them. Every other field is an inert default —
 /// the channel templates only read `monitor.name` (+ the heartbeat `msg`).
-fn alert_monitor(name: String) -> Monitor {
+fn alert_monitor(name: String, monitor_id: Option<rampart_core::MonitorId>) -> Monitor {
+    // `monitor_id` carries the underlying monitor for a monitor-scoped SLO, so a
+    // per-monitor silence on that monitor also mutes its SLO page. `None` (metric
+    // SLOs, rule/finding alerts) gets a throwaway id — those aren't
+    // monitor-silence-scoped anyway (they match only a global silence).
     let now = time::OffsetDateTime::now_utc();
     Monitor {
-        id: rampart_core::MonitorId::new(),
+        id: monitor_id.unwrap_or_else(rampart_core::MonitorId::new),
         name,
         kind: MonitorKind::Http,
         url: None,
@@ -2064,7 +2068,7 @@ fn monitor_escalation_event(monitor: Monitor, msg: String) -> rampart_notifier::
 
 /// Escalation page event for a rule subject (synthetic alert monitor).
 fn alert_escalation_event(rule_name: &str, msg: String) -> rampart_notifier::Event {
-    monitor_escalation_event(alert_monitor(rule_name.to_string()), msg)
+    monitor_escalation_event(alert_monitor(rule_name.to_string(), None), msg)
 }
 
 /// A scheduler-synthesized Down heartbeat for a broken cron expectation.
@@ -2110,5 +2114,15 @@ mod tests {
         let a = sign_result_webhook("k", 1, body);
         let b = sign_result_webhook("k", 2, body);
         assert_ne!(a, b);
+    }
+
+    #[test]
+    fn alert_monitor_threads_underlying_id_for_silence_scoping() {
+        // A monitor-scoped SLO passes its underlying monitor id so a per-monitor
+        // silence mutes the SLO page; metric SLOs / rule alerts pass None and get
+        // a throwaway id.
+        let mid = rampart_core::MonitorId::new();
+        assert_eq!(alert_monitor("SLO: x".into(), Some(mid)).id, mid);
+        assert_ne!(alert_monitor("rule".into(), None).id, mid);
     }
 }
