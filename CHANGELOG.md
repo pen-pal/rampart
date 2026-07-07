@@ -29,6 +29,23 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
+## [0.157.33] — 2026-07-07
+
+### Changed
+- **Ingest-auth resolver goes through the `Store` trait, not the raw Postgres
+  pool.** The `ingest_util` helpers (`configured_token`, `sampling_config`,
+  `require_telemetry_token`, `resolve_ingest_org[_origin]`, `resolve_ingest`)
+  took a concrete `&DbPool`; they now take `&Arc<dyn Store>` and call the
+  `StoreSettings` / `StoreIngestKeys` methods. So OTLP / Prometheus / RUM /
+  profiles / syslog ingest resolve their org — and still enforce the shared
+  token, the key's surface `kind` scope, and RUM origin-binding — on any backend
+  (SQLite / MySQL), not just Postgres. The `Store` seam's
+  `find_ingest_key_by_token` now returns the key `kind` too (it previously
+  dropped it), so surface-scope enforcement (a public RUM key must not write
+  OTLP/prom/profiles) survives the move; PG/MySQL/SQLite impls updated to match.
+  Pure seam refactor — identical control flow and behavior on Postgres; no schema
+  change. Part of the multi-DB seam (#133); follows the heartbeat-routes slice.
+
 ## [0.157.32] — 2026-07-07
 
 ### Changed
