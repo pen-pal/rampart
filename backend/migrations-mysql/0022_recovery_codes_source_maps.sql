@@ -16,7 +16,11 @@ CREATE INDEX trc_user_unused_idx ON totp_recovery_codes (user_id);
 CREATE TABLE source_maps (
   id          BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY,
   project_id  CHAR(36)     NOT NULL,
-  `release`   VARCHAR(255) NOT NULL,
+  -- 200, not 255: the UNIQUE key below is (36 + 200 + 512) utf8mb4 chars =
+  -- 2996 bytes, under InnoDB's 3072-byte index limit. At 255 it was 3216 and
+  -- this migration failed on every MySQL 8 / MariaDB server (error 1071).
+  -- 200 is also the release-name cap Sentry SDKs enforce.
+  `release`   VARCHAR(200) NOT NULL,
   filename    VARCHAR(512) NOT NULL,
   map         LONGTEXT     NOT NULL,
   uploaded_at BIGINT       NOT NULL DEFAULT (UNIX_TIMESTAMP()),
