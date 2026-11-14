@@ -103,7 +103,19 @@ mod tests {
     #[sqlx::test(migrations = "../../migrations-mysql")]
     async fn global_scoped_and_expired(pool: MySqlPool) {
         let org = super::super::oid(DEF);
-        let mon = Uuid::new_v4();
+        // A real monitor: a global silence only mutes monitors in its own org,
+        // and the org is derived from the monitors row (v0.157.30).
+        let new_monitor = |name: &str| -> rampart_core::monitor::NewMonitor {
+            serde_json::from_value(
+                serde_json::json!({"name": name, "kind": "http", "url": "https://x.test"}),
+            )
+            .unwrap()
+        };
+        let mon = super::super::monitors::create(&pool, new_monitor("m"), org)
+            .await
+            .unwrap()
+            .id
+            .0;
         assert!(!is_silenced(&pool, Some(mon)).await.unwrap());
 
         // global silence mutes the monitor AND rule (None) alerts.
@@ -127,6 +139,13 @@ mod tests {
         let other = super::super::orgs::create(&pool, "other", "Other")
             .await
             .unwrap();
+        // ...and another org's monitor is NOT muted by this org's global silence.
+        let omon = super::super::monitors::create(&pool, new_monitor("o"), other.id)
+            .await
+            .unwrap()
+            .id
+            .0;
+        assert!(!is_silenced(&pool, Some(omon)).await.unwrap());
         assert!(!delete(&pool, g, other.id).await.unwrap());
         assert!(delete(&pool, g, org).await.unwrap());
         assert!(!is_silenced(&pool, None).await.unwrap());
