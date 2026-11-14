@@ -17,6 +17,13 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Fixed
+- **`backend-lint` green again on current stable Rust.** rustc 1.96's clippy
+  flags `unwrap_or_else(MonitorId::new)` in the scheduler's `alert_monitor`
+  (`clippy::unwrap_or_default`), which fails the `-D warnings` gate. Switched to
+  `unwrap_or_default()` — behaviour-identical, since the ID newtypes' `Default`
+  impl calls `new()`.
+
 ### Helm chart (v0.4.0)
 - **Zero-downtime rolling updates + node-disk-fill guard.** The Deployment now
   sets `terminationGracePeriodSeconds: 30` and an opt-out `preStop` sleep
