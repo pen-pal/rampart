@@ -37,6 +37,12 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
   runs in the `backend-sqlite` CI job.
 
 ### Fixed
+- **CI runs again.** `ci.yml` has failed YAML parsing since the multi-DB jobs
+  landed (2026-06-23): two `run:` commands end in `sqlite::` / `mysql::`, and a
+  plain YAML scalar cannot end in a colon. Every CI run since was a 0-second
+  "workflow file issue" failure, so no lint, test or e2e job has executed. The
+  two commands are now quoted. Also fixed the `greetings` workflow, whose
+  inputs were renamed to underscores in `actions/first-interaction@v3`.
 - **`backend-lint` green again on current stable Rust.** rustc 1.96's clippy
   flags `unwrap_or_else(MonitorId::new)` in the scheduler's `alert_monitor`
   (`clippy::unwrap_or_default`), which fails the `-D warnings` gate. Switched to
