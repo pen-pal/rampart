@@ -73,6 +73,10 @@ jobs:
         with: { components: clippy }
       - uses: Swatinem/rust-cache@v2
         with: { workspaces: backend }
+      # The api build below embeds frontend/dist/ via rust-embed, which errors at
+      # compile time if the folder is absent (same stub as backend-lint).
+      - name: Stub embedded frontend bundle
+        run: mkdir -p ../frontend/dist && touch ../frontend/dist/index.html
       - name: clippy (sqlite feature)
         run: cargo clippy -p rampart-db --features sqlite --all-targets -- -D warnings
       - name: test (sqlite backend)
@@ -193,7 +197,10 @@ jobs:
   # doesn't exercise.
   e2e:
     name: e2e · ${{ matrix.browser }}
-    runs-on: ubuntu-latest
+    # Pinned: `ubuntu-latest` is now 26.04, which the pinned Playwright release
+    # has no browser builds for ("does not support chromium on ubuntu26.04").
+    # Unpin when @playwright/test is bumped to a release that supports it.
+    runs-on: ubuntu-24.04
     needs: [backend-test, frontend-test]
     defaults:
       run: { working-directory: frontend }
