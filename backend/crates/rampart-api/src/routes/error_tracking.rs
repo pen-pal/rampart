@@ -253,7 +253,7 @@ async fn list_events(
     let iid = issue_id(&id)?;
     s.store().error_issue_in_org(iid, org.org_id).await?;
     let mut events = s.store().list_error_events(iid, 50).await?;
-    symbolicate_events(s.pool(), &mut events).await;
+    symbolicate_events(s.pool()?, &mut events).await;
     Ok(Json(events))
 }
 

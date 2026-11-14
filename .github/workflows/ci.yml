@@ -79,6 +79,12 @@ jobs:
         run: cargo test -p rampart-db --features sqlite --lib sqlite::
       - name: build api (sqlite feature — the RAMPART_DB_URL=sqlite flip)
         run: cargo clippy -p rampart-api --features sqlite --bin rampart-api -- -D warnings
+      # Drives the real router over a SQLite store: seam-backed endpoints must
+      # work and Postgres-only ones must 501 — never panic (release = abort).
+      - name: test api on sqlite (no request may panic)
+        run: |
+          mkdir -p ../frontend/dist && touch ../frontend/dist/index.html
+          cargo test -p rampart-api --features sqlite --test sqlite_backend
 
   backend-mysql:
     name: backend · mysql backend (multi-DB P2)

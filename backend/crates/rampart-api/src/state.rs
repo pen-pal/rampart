@@ -136,15 +136,14 @@ impl AppState {
         self.0.trusted_proxies.clone()
     }
 
-    /// The Postgres pool. Postgres-only paths (telemetry ingest, prune,
-    /// self-metrics, the residual handlers not yet on the `store` seam) call
-    /// this; it panics on the SQLite backend, where those endpoints aren't part
-    /// of the supported single-binary surface yet (multi-DB P1).
-    pub fn pool(&self) -> &DbPool {
-        self.0
-            .pool
-            .as_ref()
-            .expect("pool() called on a non-Postgres backend (this endpoint is Postgres-only)")
+    /// The Postgres pool, for the residual handlers not yet on the `store`
+    /// seam (telemetry ingest, rollups, per-key rate limit). `Err(Unsupported)`
+    /// (→ 501) on MySQL/SQLite — never a panic: with `panic = "abort"` a single
+    /// request to such an endpoint used to kill the whole process.
+    pub fn pool(&self) -> rampart_db::DbResult<&DbPool> {
+        self.0.pool.as_ref().ok_or_else(|| {
+            rampart_db::DbError::Unsupported("this endpoint requires the Postgres backend".into())
+        })
     }
 
     /// Object-safe `Store` seam (multi-DB P0). Additive — no callers yet; the

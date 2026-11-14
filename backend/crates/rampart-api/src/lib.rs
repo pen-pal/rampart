@@ -361,7 +361,12 @@ pub async fn enforce_api_key_rate_limit(
         .filter(|&l| l > 0)
         .unwrap_or(API_KEY_RATE_LIMIT);
 
-    let decision = match rampart_db::rate_limit::admit(state.pool(), auth_key.id, limit).await {
+    // No Postgres pool (MySQL/SQLite) → no durable counter yet: same fail-open
+    // as a counter error below, rather than aborting every Bearer request.
+    let Ok(pool) = state.pool() else {
+        return next.run(req).await;
+    };
+    let decision = match rampart_db::rate_limit::admit(pool, auth_key.id, limit).await {
         Ok(d) => d,
         // A counter failure must not take the request down — fail open. The
         // throttle is a courtesy, not a security control, so on a DB hiccup

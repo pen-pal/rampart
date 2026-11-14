@@ -1351,7 +1351,7 @@ async fn test_now(
 
     // Persist the heartbeat + bump current_status to match — same shape
     // as a scheduled tick that flipped status.
-    rampart_db::heartbeats::insert_many(state.pool(), std::slice::from_ref(&hb)).await?;
+    state.store().insert_many(std::slice::from_ref(&hb)).await?;
     if hb.status != monitor.current_status {
         state
             .store()
@@ -1564,7 +1564,7 @@ async fn summary(
     Extension(org): Extension<OrgContext>,
     Query(q): Query<SummaryQuery>,
 ) -> Result<Json<Vec<MonitorSummaryDto>>, ApiError> {
-    let rows = rampart_db::heartbeats::summary_window(state.pool(), q.window, org.org_id).await?;
+    let rows = state.store().summary_window(q.window, org.org_id).await?;
     Ok(Json(
         rows.into_iter()
             .map(|r| MonitorSummaryDto {
@@ -1600,7 +1600,7 @@ async fn history_all(
     Query(q): Query<HistoryQuery>,
 ) -> Result<Json<Vec<Heartbeat>>, ApiError> {
     let per = q.per.clamp(1, 500);
-    let hbs = rampart_db::heartbeats::recent_per_monitor(state.pool(), per, org.org_id).await?;
+    let hbs = state.store().recent_per_monitor(per, org.org_id).await?;
     Ok(Json(hbs))
 }
 
@@ -1661,7 +1661,7 @@ async fn reliability(
         ));
     }
     let window_secs = window_days * 86_400;
-    let r = rampart_db::heartbeats::mtbf_mttr(state.pool(), monitor_id, window_secs).await?;
+    let r = state.store().mtbf_mttr(monitor_id, window_secs).await?;
     Ok(Json(ReliabilityDto {
         window_days,
         mtbf_secs: r.mtbf_secs,
@@ -1684,8 +1684,10 @@ async fn slo_error_budget(
     let monitor = state.store().get_monitor(monitor_id, org.org_id).await?;
     let target = monitor.slo_target_pct.ok_or(ApiError::NotFound)?;
     let window_days = monitor.slo_window_days.ok_or(ApiError::NotFound)?;
-    let budget =
-        rampart_db::heartbeats::error_budget(state.pool(), monitor_id, window_days, target).await?;
+    let budget = state
+        .store()
+        .error_budget(monitor_id, window_days, target)
+        .await?;
     Ok(Json(budget))
 }
 
@@ -1739,13 +1741,10 @@ async fn slo_burndown(
         }
         None => configured_window,
     };
-    let points = rampart_db::heartbeats::error_budget_burndown(
-        state.pool(),
-        monitor_id,
-        window_days,
-        target,
-    )
-    .await?;
+    let points = state
+        .store()
+        .error_budget_burndown(monitor_id, window_days, target)
+        .await?;
     // Same allowance formula the burn-down helper uses internally; recompute
     // here so the response header matches the point values without threading
     // it back out of the helper. Uses the resolved (requested) window, not
@@ -1806,7 +1805,8 @@ async fn rollups(
         return Err(ApiError::BadRequest("from must be before to".into()));
     }
 
-    let rows = rampart_db::prune::rollups_for_monitor(state.pool(), monitor_id.0, from, to).await?;
+    let rows =
+        rampart_db::prune::rollups_for_monitor(state.pool()?, monitor_id.0, from, to).await?;
     Ok(Json(
         rows.into_iter()
             .map(|r| RollupDto {
@@ -1887,7 +1887,7 @@ async fn uptime_history(
     // Raw-retention boundary: heartbeats older than this have been pruned and
     // only survive as rollups. Clamp into the range so a retention window
     // wider than the request just means "all raw, no rollup tail".
-    let cfg = rampart_db::prune::load_config(state.pool()).await?;
+    let cfg = rampart_db::prune::load_config(state.pool()?).await?;
     let raw_boundary = (now - time::Duration::days(cfg.heartbeats as i64)).max(range_start);
 
     // Accumulate (up, samples) per UTC day across both sources.
@@ -1897,7 +1897,7 @@ async fn uptime_history(
     // Older portion: rollups for [range_start, raw_boundary).
     if range_start < raw_boundary {
         let pts = rampart_db::prune::daily_uptime_from_rollups(
-            state.pool(),
+            state.pool()?,
             monitor_id.0,
             range_start,
             raw_boundary,
@@ -1912,7 +1912,7 @@ async fn uptime_history(
 
     // Recent portion: raw heartbeats for [raw_boundary, now).
     let pts =
-        rampart_db::prune::daily_uptime_from_raw(state.pool(), monitor_id.0, raw_boundary, now)
+        rampart_db::prune::daily_uptime_from_raw(state.pool()?, monitor_id.0, raw_boundary, now)
             .await?;
     for p in pts {
         let e = by_day.entry(p.day).or_insert((0, 0));
@@ -1946,13 +1946,10 @@ async fn heartbeats(
     // Gate through the monitor's org — cross-org monitor id is a 404.
     state.store().get_monitor(monitor_id, org.org_id).await?;
     let limit = q.limit.clamp(1, 2000);
-    let hbs = rampart_db::heartbeats::recent_for_monitor_before(
-        state.pool(),
-        monitor_id,
-        limit,
-        q.before,
-    )
-    .await?;
+    let hbs = state
+        .store()
+        .recent_for_monitor_before(monitor_id, limit, q.before)
+        .await?;
     Ok(Json(hbs))
 }
 
@@ -1983,9 +1980,10 @@ async fn heartbeats_csv(
     if since >= until {
         return Err(ApiError::BadRequest("since must be before until".into()));
     }
-    let hbs =
-        rampart_db::heartbeats::range_for_monitor(state.pool(), monitor_id, since, until, 50_000)
-            .await?;
+    let hbs = state
+        .store()
+        .range_for_monitor(monitor_id, since, until, 50_000)
+        .await?;
 
     // RFC3339 timestamps; CSV-escape only `msg` (everything else is
     // numeric / enum / boolean and can't contain commas or quotes).

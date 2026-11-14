@@ -91,6 +91,13 @@ pub enum DbError {
 
     #[error("conflict: {0}")]
     Conflict(String),
+
+    /// The operation isn't available on this backing store (a domain not yet
+    /// ported to MySQL/SQLite, or a Postgres-only endpoint). The API maps it to
+    /// 501. Deliberately an error, never a panic: the release profile is
+    /// `panic = "abort"`, so a panicking stub is a one-request process kill.
+    #[error("unsupported on this backend: {0}")]
+    Unsupported(String),
 }
 
 pub type DbResult<T> = Result<T, DbError>;

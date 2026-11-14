@@ -61,8 +61,11 @@ async fn ingest(
 ) -> StatusCode {
     // Phase 5-3: resolve the org from the (public, ?k) RUM key, origin-bound.
     let origin = headers.get("origin").and_then(|v| v.to_str().ok());
+    let Ok(pool) = s.pool() else {
+        return StatusCode::NOT_IMPLEMENTED; // Postgres-only ingest
+    };
     let org = match crate::ingest_util::resolve_ingest_org_origin(
-        s.pool(),
+        pool,
         &headers,
         q.k.as_deref(),
         origin,
@@ -116,8 +119,11 @@ async fn ingest_error(
 ) -> StatusCode {
     // Phase 5-3: resolve the org from the (public, ?k) RUM key, origin-bound.
     let origin = headers.get("origin").and_then(|v| v.to_str().ok());
+    let Ok(pool) = s.pool() else {
+        return StatusCode::NOT_IMPLEMENTED; // Postgres-only ingest
+    };
     let org = match crate::ingest_util::resolve_ingest_org_origin(
-        s.pool(),
+        pool,
         &headers,
         q.k.as_deref(),
         origin,

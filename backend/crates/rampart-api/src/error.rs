@@ -69,6 +69,9 @@ impl IntoResponse for ApiError {
                 (StatusCode::NOT_FOUND, "not_found", "not found".into())
             }
             ApiError::Db(DbError::Conflict(m)) => (StatusCode::CONFLICT, "conflict", m.clone()),
+            ApiError::Db(e @ DbError::Unsupported(_)) => {
+                (StatusCode::NOT_IMPLEMENTED, "unsupported", e.to_string())
+            }
             ApiError::Db(e) => {
                 // Don't leak database details to clients. Log internally,
                 // surface a generic 500.
