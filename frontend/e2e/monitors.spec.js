@@ -2,7 +2,7 @@
 // dashboard, attach a channel, see the bell badge update.
 
 import { test, expect } from './fixtures.js';
-import { api, ensureLoggedIn, uniq } from './helpers.js';
+import { api, ensureLoggedIn, robustGoto, uniq } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -44,7 +44,7 @@ test('create an HTTP monitor through the wizard and see it on the dashboard', as
 
 test('dashboard lists the created monitor with a grey bell (no channels)', async ({ page }) => {
   await ensureLoggedIn(page);
-  await page.goto('/');
+  await robustGoto(page, '/');
   // The all-monitors table includes a row for our specific monitor.
   await expect(page.getByText(MONITOR_NAME).first()).toBeVisible();
   // At least one grey bell badge ("No notification channels attached…")
@@ -67,6 +67,6 @@ test('attach a webhook channel; bell badge shows count', async ({ page, browserN
   await api(page, 'POST', `/v1/monitors/${MONITOR_ID}/notifications/${ch.id}`);
 
   // Dashboard now shows a teal bell badge on this monitor's row.
-  await page.goto('/');
+  await robustGoto(page, '/');
   await expect(page.locator('[title*="notification channel"]').first()).toBeVisible({ timeout: 15_000 });
 });
