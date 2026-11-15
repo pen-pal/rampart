@@ -707,7 +707,7 @@ pub trait StoreMonitorGroups: Send + Sync {
 /// suffix on the collision-prone CRUD names.
 #[async_trait::async_trait]
 pub trait StoreSilences: Send + Sync {
-    async fn is_silenced(&self, monitor: Option<Uuid>) -> DbResult<bool>;
+    async fn is_silenced(&self, monitor: Option<Uuid>, channel: Option<Uuid>) -> DbResult<bool>;
 
     async fn create_silence(&self, s: NewSilence<'_>, org_id: OrgId) -> DbResult<Uuid>;
 
@@ -2825,8 +2825,8 @@ impl StoreMonitorGroups for PgStore {
 
 #[async_trait::async_trait]
 impl StoreSilences for PgStore {
-    async fn is_silenced(&self, monitor: Option<Uuid>) -> DbResult<bool> {
-        crate::silences::is_silenced(&self.pool, monitor).await
+    async fn is_silenced(&self, monitor: Option<Uuid>, channel: Option<Uuid>) -> DbResult<bool> {
+        crate::silences::is_silenced(&self.pool, monitor, channel).await
     }
 
     async fn create_silence(&self, s: NewSilence<'_>, org_id: OrgId) -> DbResult<Uuid> {

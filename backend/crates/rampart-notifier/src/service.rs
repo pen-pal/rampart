@@ -344,7 +344,9 @@ pub async fn send_event_to_channel(
 ) -> anyhow::Result<bool> {
     // Silence suppression — the single chokepoint every alert path flows
     // through. A manual channel Test always sends. Monitor-scoped kinds match
-    // that monitor's (or a global) silence; rule/error kinds match only global.
+    // that monitor's (or its org's global) silence; rule/error kinds have no
+    // real monitor, so their org — and thus which global silences apply — is
+    // taken from the channel being paged.
     if !matches!(event.kind, EventKind::Test) {
         let scoped = matches!(
             event.kind,
@@ -355,7 +357,11 @@ pub async fn send_event_to_channel(
                 | EventKind::MaintenanceEnded
         );
         let mon = scoped.then_some(event.monitor.id.0);
-        if store.is_silenced(mon).await.unwrap_or(false) {
+        if store
+            .is_silenced(mon, Some(channel_id.0))
+            .await
+            .unwrap_or(false)
+        {
             tracing::info!(channel = %channel_id.0, "alert suppressed by active silence");
             return Ok(false);
         }
@@ -470,7 +476,7 @@ pub async fn fire_escalation_step(
     };
     // An active silence on the monitor stops the escalation ladder too.
     if store
-        .is_silenced(Some(event.monitor.id.0))
+        .is_silenced(Some(event.monitor.id.0), None)
         .await
         .unwrap_or(false)
     {
@@ -682,6 +688,20 @@ async fn dispatch_one(store: Arc<dyn Store>, event: Event) -> anyhow::Result<()>
         EventKind::MaintenanceStarted | EventKind::MaintenanceEnded
     ) {
         fan_out_maintenance_subscribers(store.as_ref(), &event).await;
+    }
+
+    // Silence suppression for the routed (attached / tag / folder) fan-out.
+    // The direct-send path checks in `send_event_to_channel`; this one never
+    // did, so a silence did not mute an ordinary monitor up/down alert. A
+    // manual Test always sends; a failed lookup fails open (page, don't drop).
+    if !matches!(event.kind, EventKind::Test)
+        && store
+            .is_silenced(Some(event.monitor.id.0), None)
+            .await
+            .unwrap_or(false)
+    {
+        info!(monitor = %event.monitor.id, "notification suppressed by active silence");
+        return Ok(());
     }
 
     // Resolve effective channels: explicitly-attached ∪ tag-matched ∪
