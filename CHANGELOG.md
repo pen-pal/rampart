@@ -29,6 +29,8 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
   error); the MySQL `status_pages` lib test still used the pre-0.157.28 section
   signatures; and the e2e job is pinned to `ubuntu-24.04` because the pinned
   Playwright has no browser builds for the new `ubuntu-latest` (26.04).
+  One e2e spec was stale as well: the logout test clicked a standalone "Sign out"
+  button that has since moved into the avatar's account menu.
 - **The MySQL backend could not migrate on any MySQL 8 / MariaDB server.**
   Migration `0022` (v0.156.55) declared `UNIQUE (project_id, release, filename)`
   over `CHAR(36)` + `VARCHAR(255)` + `VARCHAR(512)` utf8mb4 columns = 3216 bytes,
