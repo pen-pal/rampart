@@ -17,6 +17,38 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Fixed
+- **CI runs again.** `ci.yml` has failed YAML parsing since the multi-DB jobs
+  landed (2026-06-23): two `run:` commands end in `sqlite::` / `mysql::`, and a
+  plain YAML scalar cannot end in a colon. Every CI run since was a 0-second
+  "workflow file issue" failure, so no lint, test or e2e job has executed. The
+  two commands are now quoted. Also fixed the `greetings` workflow, whose
+  inputs were renamed to underscores in `actions/first-interaction@v3`.
+  With CI running, three more breaks surfaced and are fixed: the `backend-sqlite`
+  job never stubbed `frontend/dist/` before building the API (rust-embed compile
+  error); the MySQL `status_pages` lib test still used the pre-0.157.28 section
+  signatures; and the e2e job is pinned to `ubuntu-24.04` because the pinned
+  Playwright has no browser builds for the new `ubuntu-latest` (26.04).
+  One e2e spec was stale as well: the logout test clicked a standalone "Sign out"
+  button that has since moved into the avatar's account menu.
+- **The MySQL backend could not migrate on any MySQL 8 / MariaDB server.**
+  Migration `0022` (v0.156.55) declared `UNIQUE (project_id, release, filename)`
+  over `CHAR(36)` + `VARCHAR(255)` + `VARCHAR(512)` utf8mb4 columns = 3216 bytes,
+  over InnoDB's 3072-byte index limit, so it failed with error 1071 and every
+  later migration was blocked. `release` is now `VARCHAR(200)` (2996 bytes; also
+  the cap Sentry SDKs enforce on release names). The migration is edited in
+  place: it can never have applied successfully, so no install has its checksum
+  recorded. A server where the boot was attempted is left with a
+  `totp_recovery_codes` table and a failed `_sqlx_migrations` row for version 22
+  — drop both before restarting. Also updated the stale MySQL silence test to
+  the org-scoped semantics from 0.157.30 (real monitors + a cross-org
+  assertion). MySQL suite: 73 passed.
+- **`backend-lint` green again on current stable Rust.** rustc 1.96's clippy
+  flags `unwrap_or_else(MonitorId::new)` in the scheduler's `alert_monitor`
+  (`clippy::unwrap_or_default`), which fails the `-D warnings` gate. Switched to
+  `unwrap_or_default()` — behaviour-identical, since the ID newtypes' `Default`
+  impl calls `new()`.
+
 ### Helm chart (v0.4.0)
 - **Zero-downtime rolling updates + node-disk-fill guard.** The Deployment now
   sets `terminationGracePeriodSeconds: 30` and an opt-out `preStop` sleep

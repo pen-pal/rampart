@@ -53,7 +53,9 @@ test('logout clears session — protected route now 401s + bounces', async ({ br
   const ctx  = await isolatedContext(browser);
   const page = await ctx.newPage();
   await login(page);
-  await page.getByRole('button', { name: /sign out/i }).click();
+  // Sign out lives in the avatar's account menu, not a standalone button.
+  await page.getByRole('button', { name: /account menu/i }).click();
+  await page.getByRole('menuitem', { name: /sign out/i }).click();
   await page.waitForURL(/#\/login/);
   // Try to navigate to protected route again — should bounce back.
   await page.goto('/#/new-monitor');
