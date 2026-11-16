@@ -142,7 +142,7 @@ mod tests {
     use super::*;
 
     fn test_cipher() -> Aes256Gcm {
-        Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&[7u8; 32]))
+        Aes256Gcm::new(&Aes256Gcm::generate_key(OsRng))
     }
 
     #[test]
@@ -175,7 +175,7 @@ mod tests {
     #[test]
     fn wrong_key_returns_blob_not_garbage() {
         let sealed = seal_with(Some(&test_cipher()), &json!({"a": 1}));
-        let other = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&[9u8; 32]));
+        let other = test_cipher();
         // Can't decrypt with the wrong key → returns the sealed value as-is
         // (never panics, never emits partial plaintext).
         assert_eq!(open_with(Some(&other), sealed.clone()), sealed);

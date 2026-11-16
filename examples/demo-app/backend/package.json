@@ -18,6 +18,7 @@
     "@opentelemetry/resources": "^1.30.0",
     "@opentelemetry/semantic-conventions": "^1.28.0",
     "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
     "ioredis": "^5.4.2",
     "pg": "^8.13.1"
   }

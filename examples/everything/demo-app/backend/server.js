@@ -6,6 +6,7 @@
 //
 // Run as `node -r ./otel.js server.js` so instrumentation loads first.
 const express = require('express');
+const { rateLimit } = require('express-rate-limit');
 const { Pool } = require('pg');
 const Redis = require('ioredis');
 const client = require('prom-client');
@@ -55,6 +56,9 @@ async function initDb() {
 
 const app = express();
 app.use(express.json());
+// Per-IP cap on the API. Far above the demo pages' polling (~1 req/s), so the
+// demo is unaffected; it only stops one client from flooding Postgres/Redis.
+app.use('/api', rateLimit({ windowMs: 60_000, limit: 600, standardHeaders: 'draft-7', legacyHeaders: false }));
 // per-request metric
 app.use((req, res, next) => {
   res.on('finish', () => httpReqs.inc({ route: req.path.replace(/\d+/g, ':id'), status: res.statusCode }));

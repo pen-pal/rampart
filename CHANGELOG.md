@@ -18,6 +18,26 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 ## [Unreleased]
 
 ### Security
+- **Channel credentials leaked into logs and the delivery log on network
+  errors.** Many channels carry their secret in the request URL because the
+  provider requires it there (Slack / Discord webhook URLs, Telegram bot tokens,
+  Pushy `api_key`, SIGNL4 team secret, GTX API key). reqwest's error text
+  includes the full URL, and channel errors are logged and stored in the
+  admin-visible delivery log. `ChannelError` now drops the URL when it wraps a
+  reqwest error (covers every channel), and per-monitor result webhooks do the
+  same. Found while triaging CodeQL `rust/cleartext-transmission`; the transport
+  itself was already HTTPS. Test: `network_error_text_omits_the_request_url`.
+- **RADIUS probe no longer falls back to a fixed `probe` / `probe` password**
+  when none is configured; it sends a random one. Access-Reject still counts as
+  Up, and a fixed pair could have matched a real account.
+- **Examples:** the `everything` webhook sink echoed the request method and path
+  into its HTML page unescaped (reflected XSS); all request-derived values are
+  now escaped. Both demo backends rate-limit `/api` per IP (600/min, well above
+  the demo pages' polling).
+- CodeQL `rust/hard-coded-cryptographic-value` in `secrets.rs`: the fixed keys
+  were test-only; the tests now generate keys.
+
+### Security
 - **Dependency refresh: 32 of 41 RustSec advisories cleared.** `cargo deny` has
   failed on `main` since 2026-07-07. A semver-compatible `cargo update` (220
   lockfile packages, no manifest change) fixes advisories in `anyhow`,

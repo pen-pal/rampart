@@ -50,14 +50,26 @@ use thiserror::Error;
 pub enum ChannelError {
     #[error("config invalid: {0}")]
     BadConfig(String),
+    /// Built via `From<reqwest::Error>`, which strips the request URL first.
     #[error("network: {0}")]
-    Network(#[from] reqwest::Error),
+    Network(reqwest::Error),
     #[error("upstream returned {0}: {1}")]
     Upstream(u16, String),
     #[error("blocked: {0}")]
     Blocked(String),
     #[error("other: {0}")]
     Other(String),
+}
+
+/// Many channels carry their credential in the request URL because the provider
+/// requires it there (Slack / Discord webhook URLs, Telegram `bot<token>`,
+/// Pushy `?api_key=`, SIGNL4 / GTX path secrets). reqwest's error text includes
+/// the full URL, and channel errors are logged and stored in the admin-visible
+/// delivery log, so the URL is dropped before the error is kept.
+impl From<reqwest::Error> for ChannelError {
+    fn from(e: reqwest::Error) -> Self {
+        ChannelError::Network(e.without_url())
+    }
 }
 
 impl ChannelError {
@@ -95,6 +107,34 @@ pub trait Channel: Send + Sync {
 #[cfg(test)]
 mod error_tests {
     use super::ChannelError;
+
+    /// A failed request must not carry its URL (often the credential) into the
+    /// error text that ends up in logs and the delivery log.
+    #[tokio::test]
+    async fn network_error_text_omits_the_request_url() {
+        crate::init_test_crypto();
+        let secret = "SECRET-bot-token-123";
+        // Nothing listens on port 1, so this fails fast with a connect error.
+        let err = reqwest::Client::new()
+            .post(format!(
+                "http://127.0.0.1:1/bot{secret}/send?api_key={secret}"
+            ))
+            .send()
+            .await
+            .expect_err("connection must fail");
+        assert!(
+            err.to_string().contains(secret),
+            "precondition: reqwest includes the URL"
+        );
+        let ce: ChannelError = err.into();
+        assert!(matches!(ce, ChannelError::Network(_)));
+        assert!(ce.is_retryable());
+        assert!(!ce.to_string().contains(secret), "leaked: {ce}");
+        assert!(
+            !format!("{ce:?}").contains(secret),
+            "leaked in Debug: {ce:?}"
+        );
+    }
 
     #[test]
     fn retryable_classification() {

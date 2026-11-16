@@ -6,6 +6,9 @@
 const http = require('node:http');
 const received = []; // newest first, capped
 
+// HTML-escape anything request-derived before it goes into the page.
+const esc = (s) => String(s).replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c]));
+
 function record(req, body) {
   received.unshift({
     at: new Date().toISOString(),
@@ -33,8 +36,8 @@ const server = http.createServer((req, res) => {
     const rows = received.map((e) => {
       let pretty = e.body;
       try { pretty = JSON.stringify(JSON.parse(e.body), null, 2); } catch {}
-      return `<div class=e><span class=m>${e.method}</span> <code>${e.path}</code>
-        <span class=t> · ${e.at}</span><pre>${pretty.replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))}</pre></div>`;
+      return `<div class=e><span class=m>${esc(e.method)}</span> <code>${esc(e.path)}</code>
+        <span class=t> · ${esc(e.at)}</span><pre>${esc(pretty)}</pre></div>`;
     }).join('');
     res.writeHead(200, { 'content-type': 'text/html' });
     return res.end(PAGE(rows || '<p class=p>nothing yet — waiting for the first delivery…</p>'));
