@@ -18,6 +18,19 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 ## [Unreleased]
 
 ### Security
+- **Frontend dev tooling:** `npm audit fix` clears all frontend advisories
+  (vite 8.0.16 → 8.3.8, vitest 4.1.8 → 4.1.12, postcss, undici, source-map-js,
+  nanoid). Lockfile only.
+- **Example demo apps:** OpenTelemetry JS bumped to the current SDK
+  (`sdk-node` 0.57 → 0.301, `auto-instrumentations-node` 0.56 → 0.83,
+  `resources` / `sdk-logs` → 3.x), clearing the Prometheus-exporter crash
+  advisories. `otel.js` moved to the new APIs (`resourceFromAttributes`, logs
+  API in `@opentelemetry/api`, log processor passed into the `NodeSDK`). Traces
+  verified end to end against a local Rampart. Known, pre-existing: the
+  `demo-app` backend's OTLP logs don't arrive in Rampart (0 on the old versions
+  too); not fixed here.
+
+### Security
 - **Dependency refresh: 32 of 41 RustSec advisories cleared.** `cargo deny` has
   failed on `main` since 2026-07-07. A semver-compatible `cargo update` (220
   lockfile packages, no manifest change) fixes advisories in `anyhow`,

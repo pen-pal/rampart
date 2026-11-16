@@ -13,14 +13,16 @@ const { getNodeAutoInstrumentations } = require('@opentelemetry/auto-instrumenta
 const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-http');
 const { OTLPLogExporter } = require('@opentelemetry/exporter-logs-otlp-http');
 const { BatchLogRecordProcessor } = require('@opentelemetry/sdk-logs');
-const { Resource } = require('@opentelemetry/resources');
+const { resourceFromAttributes } = require('@opentelemetry/resources');
 const { ATTR_SERVICE_NAME } = require('@opentelemetry/semantic-conventions');
-const logsApi = require('@opentelemetry/api-logs');
+// The logs API lives in @opentelemetry/api now; the SDK registers its global
+// LoggerProvider there (the separate api-logs package would get a no-op one).
+const { logs } = require('@opentelemetry/api');
 
 const SERVICE = process.env.OTEL_SERVICE_NAME || 'demo-backend';
 const BASE = (process.env.RAMPART_OTLP || 'http://rampart:3000/otlp').replace(/\/$/, '');
 const PROFILES_BASE = (process.env.RAMPART_PROFILES || 'http://rampart:3000/profiles').replace(/\/$/, '');
-const resource = new Resource({ [ATTR_SERVICE_NAME]: SERVICE });
+const resource = resourceFromAttributes({ [ATTR_SERVICE_NAME]: SERVICE });
 
 // ── errors: @sentry/node → Rampart's Sentry-compatible ingest ───────────────
 // SENTRY_DSN is written by `provision` (real error-project public_key + id).
@@ -89,7 +91,7 @@ const sdk = new NodeSDK({
 });
 sdk.start();
 
-const otelLogger = logsApi.logs.getLogger(SERVICE);
+const otelLogger = logs.getLogger(SERVICE);
 const SEV = { INFO: 9, WARN: 13, ERROR: 17 };
 // Exposed to the app for structured logging (the SIEM auth lines use this).
 global.rlog = (severityText, body, attributes = {}) => {

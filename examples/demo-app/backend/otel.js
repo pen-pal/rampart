@@ -7,31 +7,33 @@ const { NodeSDK } = require('@opentelemetry/sdk-node');
 const { getNodeAutoInstrumentations } = require('@opentelemetry/auto-instrumentations-node');
 const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-http');
 const { OTLPLogExporter } = require('@opentelemetry/exporter-logs-otlp-http');
-const { LoggerProvider, BatchLogRecordProcessor } = require('@opentelemetry/sdk-logs');
-const { Resource } = require('@opentelemetry/resources');
+const { BatchLogRecordProcessor } = require('@opentelemetry/sdk-logs');
+const { resourceFromAttributes } = require('@opentelemetry/resources');
 const { ATTR_SERVICE_NAME } = require('@opentelemetry/semantic-conventions');
-const logsApi = require('@opentelemetry/api-logs');
+// The logs API lives in @opentelemetry/api now; the SDK registers its global
+// LoggerProvider there (the separate api-logs package would get a no-op one).
+const { logs } = require('@opentelemetry/api');
 
 const SERVICE = process.env.OTEL_SERVICE_NAME || 'demo-backend';
 const BASE = (process.env.RAMPART_OTLP || 'http://rampart:3000/otlp').replace(/\/$/, '');
 const PROFILES_BASE = (process.env.RAMPART_PROFILES || 'http://rampart:3000/profiles').replace(/\/$/, '');
-const resource = new Resource({ [ATTR_SERVICE_NAME]: SERVICE });
+const resource = resourceFromAttributes({ [ATTR_SERVICE_NAME]: SERVICE });
 
-// ── traces ─────────────────────────────────────────────────────────────────
+// ── traces + logs ────────────────────────────────────────────────────────
+// The log processor goes INTO the NodeSDK: start() registers its own global
+// LoggerProvider, and the logs API ignores a later setGlobalLoggerProvider, so
+// a separately registered provider would silently drop every log line.
 const sdk = new NodeSDK({
   resource,
   traceExporter: new OTLPTraceExporter({ url: BASE + '/v1/traces' }),
+  logRecordProcessors: [
+    new BatchLogRecordProcessor(new OTLPLogExporter({ url: BASE + '/v1/logs' })),
+  ],
   instrumentations: [getNodeAutoInstrumentations()],
 });
 sdk.start();
 
-// ── logs ─────────────────────────────────────────────────────────────────
-const loggerProvider = new LoggerProvider({ resource });
-loggerProvider.addLogRecordProcessor(
-  new BatchLogRecordProcessor(new OTLPLogExporter({ url: BASE + '/v1/logs' })),
-);
-logsApi.logs.setGlobalLoggerProvider(loggerProvider);
-const otelLogger = logsApi.logs.getLogger(SERVICE);
+const otelLogger = logs.getLogger(SERVICE);
 const SEV = { INFO: 9, WARN: 13, ERROR: 17 };
 // Exposed to the app for structured logging (the SIEM auth lines use this).
 global.rlog = (severityText, body, attributes = {}) => {
@@ -106,7 +108,6 @@ setTimeout(profileOnce, 8000);
 
 // flush on exit
 process.on('SIGTERM', async () => {
-  try { await sdk.shutdown(); } catch {}
-  try { await loggerProvider.shutdown(); } catch {}
+  try { await sdk.shutdown(); } catch {} // flushes traces and logs
   process.exit(0);
 });
