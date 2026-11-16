@@ -17,6 +17,25 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Security
+- **A single request could kill the server on the SQLite / MySQL backends.**
+  `AppState::pool()` `.expect()`-panicked when there is no Postgres pool, and 175
+  not-yet-ported `SqliteStore` methods were `unimplemented!()` stubs. The release
+  profile is `panic = "abort"`, so any request reaching one took the whole
+  process down — including the dashboard's first call
+  (`GET /v1/monitors/summary`), the `/readyz` probe, the `/metrics` scrape, and
+  the unauthenticated ingest endpoints (OTLP / RUM / syslog / profiles /
+  Prometheus remote-write). Now `pool()` and every stub return
+  `DbError::Unsupported`, surfaced as **501** `{"error":{"code":"unsupported"}}`.
+  The heartbeat reads behind the dashboard, monitor detail, status-page latency,
+  test-now, and the GDPR session/recovery-code cleanup moved onto the `Store`
+  seam, so they now work on every backend instead of erroring. `/readyz` does a
+  Store round-trip off Postgres; `/metrics` omits the pool gauges there; the
+  per-API-key rate limiter fails open without a pool (as it already did on a
+  counter error). Postgres behaviour is unchanged. Regression test
+  `tests/sqlite_backend.rs` drives the real router over a SQLite store and now
+  runs in the `backend-sqlite` CI job.
+
 ### Fixed
 - **CI runs again.** `ci.yml` has failed YAML parsing since the multi-DB jobs
   landed (2026-06-23): two `run:` commands end in `sqlite::` / `mysql::`, and a

@@ -5,8 +5,8 @@
 //! backend. The 10 domains ported in P1 (settings, orgs, users, sessions,
 //! monitors, heartbeats, tags, agents, notifications, delivery_log) delegate to
 //! their `crate::sqlite::*` free functions; the remaining domains are
-//! `unimplemented!()` stubs that panic if hit — they light up as each domain is
-//! forked. This proves the seam is satisfiable by SQLite end-to-end at the type
+//! `unsupported!()` stubs returning `DbError::Unsupported` (HTTP 501) — they
+//! light up as each domain is forked. This proves the seam is satisfiable by SQLite end-to-end at the type
 //! level.
 //!
 //! NOT YET WIRED INTO BOOT: `AppState` still holds a `PgPool` that the
@@ -14,9 +14,17 @@
 //! `RAMPART_DB_URL=sqlite` end-to-end boot needs that pool abstracted first
 //! (a separate slice). `SqliteStore` + `connect` exist and compile now.
 
-// The 37 not-yet-ported domains are `unimplemented!()` stubs that intentionally
+// The 37 not-yet-ported domains are `unsupported!()` stubs that intentionally
 // ignore their args; allow that here rather than `_`-prefixing ~300 parameters.
 #![allow(unused_variables)]
+
+/// Body of a not-yet-ported method: `Err(DbError::Unsupported)`, never a panic
+/// (`panic = "abort"` in release would take the whole server down with it).
+macro_rules! unsupported {
+    ($msg:literal) => {
+        Err(crate::DbError::Unsupported($msg.into()))
+    };
+}
 
 use crate::delivery_log::{DeliveryEntry, NewDelivery};
 use crate::detection::{FindingEvent, PreviewResult};
@@ -296,7 +304,7 @@ impl StoreDeployMarkers for SqliteStore {
         input: NewDeployMarker,
         org_id: OrgId,
     ) -> DbResult<DeployMarker> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::create_deploy_marker: deploy_markers domain not yet ported (multi-DB P1)"
         )
     }
@@ -307,11 +315,11 @@ impl StoreDeployMarkers for SqliteStore {
         service: Option<&str>,
         org_id: OrgId,
     ) -> DbResult<Vec<DeployMarker>> {
-        unimplemented!("SqliteStore::list_deploy_markers_window: deploy_markers domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::list_deploy_markers_window: deploy_markers domain not yet ported (multi-DB P1)")
     }
 
     async fn delete_deploy_marker(&self, id: DeployMarkerId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::delete_deploy_marker: deploy_markers domain not yet ported (multi-DB P1)"
         )
     }
@@ -326,7 +334,7 @@ impl StoreIngestKeys for SqliteStore {
         kind: &str,
         allowed_origins: &[String],
     ) -> DbResult<(IngestKey, String)> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::create_ingest_key: ingest_keys domain not yet ported (multi-DB P1)"
         )
     }
@@ -335,19 +343,19 @@ impl StoreIngestKeys for SqliteStore {
         &self,
         token: &str,
     ) -> DbResult<Option<(Uuid, OrgId, Vec<String>)>> {
-        unimplemented!("SqliteStore::find_ingest_key_by_token: ingest_keys domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::find_ingest_key_by_token: ingest_keys domain not yet ported (multi-DB P1)")
     }
 
     async fn touch_ingest_key_last_used(&self, id: Uuid) -> DbResult<()> {
-        unimplemented!("SqliteStore::touch_ingest_key_last_used: ingest_keys domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::touch_ingest_key_last_used: ingest_keys domain not yet ported (multi-DB P1)")
     }
 
     async fn list_ingest_keys_for_org(&self, org_id: OrgId) -> DbResult<Vec<IngestKey>> {
-        unimplemented!("SqliteStore::list_ingest_keys_for_org: ingest_keys domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::list_ingest_keys_for_org: ingest_keys domain not yet ported (multi-DB P1)")
     }
 
     async fn delete_ingest_key(&self, id: Uuid, org_id: OrgId) -> DbResult<bool> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::delete_ingest_key: ingest_keys domain not yet ported (multi-DB P1)"
         )
     }
@@ -430,7 +438,7 @@ impl StoreProxies for SqliteStore {
 #[async_trait::async_trait]
 impl StoreOnCall for SqliteStore {
     async fn list_on_call(&self, org_id: OrgId) -> DbResult<Vec<OnCallSchedule>> {
-        unimplemented!("SqliteStore::list_on_call: on_call domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::list_on_call: on_call domain not yet ported (multi-DB P1)")
     }
 
     async fn get_on_call(&self, _id: OnCallScheduleId, _org_id: OrgId) -> DbResult<OnCallSchedule> {
@@ -444,7 +452,7 @@ impl StoreOnCall for SqliteStore {
     }
 
     async fn get_on_call_unscoped(&self, id: OnCallScheduleId) -> DbResult<OnCallSchedule> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::get_on_call_unscoped: on_call domain not yet ported (multi-DB P1)"
         )
     }
@@ -454,7 +462,7 @@ impl StoreOnCall for SqliteStore {
         input: NewOnCallSchedule,
         org_id: OrgId,
     ) -> DbResult<OnCallSchedule> {
-        unimplemented!("SqliteStore::create_on_call: on_call domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::create_on_call: on_call domain not yet ported (multi-DB P1)")
     }
 
     async fn update_on_call(
@@ -463,11 +471,11 @@ impl StoreOnCall for SqliteStore {
         patch: UpdateOnCallSchedule,
         org_id: OrgId,
     ) -> DbResult<OnCallSchedule> {
-        unimplemented!("SqliteStore::update_on_call: on_call domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::update_on_call: on_call domain not yet ported (multi-DB P1)")
     }
 
     async fn delete_on_call(&self, id: OnCallScheduleId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!("SqliteStore::delete_on_call: on_call domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::delete_on_call: on_call domain not yet ported (multi-DB P1)")
     }
 
     async fn oncall_current_channel(
@@ -475,7 +483,7 @@ impl StoreOnCall for SqliteStore {
         id: OnCallScheduleId,
         at: OffsetDateTime,
     ) -> DbResult<Option<NotificationId>> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::oncall_current_channel: on_call domain not yet ported (multi-DB P1)"
         )
     }
@@ -485,7 +493,7 @@ impl StoreOnCall for SqliteStore {
         id: OnCallScheduleId,
         at: OffsetDateTime,
     ) -> DbResult<Option<OnCallTarget>> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::oncall_current_target: on_call domain not yet ported (multi-DB P1)"
         )
     }
@@ -494,28 +502,28 @@ impl StoreOnCall for SqliteStore {
 #[async_trait::async_trait]
 impl StoreRecoveryCodes for SqliteStore {
     async fn issue_recovery_codes(&self, user: UserId, count: usize) -> DbResult<Vec<String>> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::issue_recovery_codes: recovery_codes domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn consume_recovery_code(&self, user: UserId, code: &str) -> DbResult<bool> {
-        unimplemented!("SqliteStore::consume_recovery_code: recovery_codes domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::consume_recovery_code: recovery_codes domain not yet ported (multi-DB P1)")
     }
 
     async fn delete_recovery_codes_for_user(&self, user: UserId) -> DbResult<()> {
-        unimplemented!("SqliteStore::delete_recovery_codes_for_user: recovery_codes domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::delete_recovery_codes_for_user: recovery_codes domain not yet ported (multi-DB P1)")
     }
 
     async fn remaining_recovery_codes(&self, user: UserId) -> DbResult<i64> {
-        unimplemented!("SqliteStore::remaining_recovery_codes: recovery_codes domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::remaining_recovery_codes: recovery_codes domain not yet ported (multi-DB P1)")
     }
 }
 
 #[async_trait::async_trait]
 impl StoreApiKeys for SqliteStore {
     async fn list_api_keys(&self, org_id: OrgId) -> DbResult<Vec<ApiKey>> {
-        unimplemented!("SqliteStore::list_api_keys: api_keys domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::list_api_keys: api_keys domain not yet ported (multi-DB P1)")
     }
 
     async fn create_api_key(
@@ -524,11 +532,11 @@ impl StoreApiKeys for SqliteStore {
         created_by: UserId,
         org_id: OrgId,
     ) -> DbResult<IssuedApiKey> {
-        unimplemented!("SqliteStore::create_api_key: api_keys domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::create_api_key: api_keys domain not yet ported (multi-DB P1)")
     }
 
     async fn delete_api_key(&self, id: ApiKeyId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!("SqliteStore::delete_api_key: api_keys domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::delete_api_key: api_keys domain not yet ported (multi-DB P1)")
     }
 
     async fn lookup_api_key(&self, _token: &str) -> DbResult<(ApiKey, UserId, OrgId)> {
@@ -754,14 +762,14 @@ impl StoreMaintenance for SqliteStore {
         &self,
         monitors: &[MonitorId],
     ) -> DbResult<Vec<String>> {
-        unimplemented!("SqliteStore::confirmed_subscriber_emails_for_monitors: status_pages domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::confirmed_subscriber_emails_for_monitors: status_pages domain not yet ported (multi-DB P1)")
     }
 
     async fn public_maintenance_for_status_page(
         &self,
         page: StatusPageId,
     ) -> DbResult<Vec<PublicMaintenance>> {
-        unimplemented!("SqliteStore::public_maintenance_for_status_page: status_pages domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::public_maintenance_for_status_page: status_pages domain not yet ported (multi-DB P1)")
     }
 }
 
@@ -772,7 +780,7 @@ impl StoreIngestTokens for SqliteStore {
         page: StatusPageId,
         input: NewIngestToken,
     ) -> DbResult<IngestToken> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::create_ingest_token: ingest_tokens domain not yet ported (multi-DB P1)"
         )
     }
@@ -783,7 +791,7 @@ impl StoreIngestTokens for SqliteStore {
         label: &str,
         token: &str,
     ) -> DbResult<IngestToken> {
-        unimplemented!("SqliteStore::create_ingest_token_with_token: ingest_tokens domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::create_ingest_token_with_token: ingest_tokens domain not yet ported (multi-DB P1)")
     }
 
     async fn set_ingest_token_mapping(
@@ -792,11 +800,11 @@ impl StoreIngestTokens for SqliteStore {
         mapping: Option<serde_json::Value>,
         org_id: OrgId,
     ) -> DbResult<IngestToken> {
-        unimplemented!("SqliteStore::set_ingest_token_mapping: ingest_tokens domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::set_ingest_token_mapping: ingest_tokens domain not yet ported (multi-DB P1)")
     }
 
     async fn list_ingest_tokens_for_page(&self, page: StatusPageId) -> DbResult<Vec<IngestToken>> {
-        unimplemented!("SqliteStore::list_ingest_tokens_for_page: ingest_tokens domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::list_ingest_tokens_for_page: ingest_tokens domain not yet ported (multi-DB P1)")
     }
 
     async fn find_ingest_token_by_token(&self, _token: &str) -> DbResult<IngestToken> {
@@ -809,13 +817,13 @@ impl StoreIngestTokens for SqliteStore {
     }
 
     async fn delete_ingest_token(&self, id: IngestTokenId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::delete_ingest_token: ingest_tokens domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn touch_ingest_token_last_used(&self, id: IngestTokenId) -> DbResult<()> {
-        unimplemented!("SqliteStore::touch_ingest_token_last_used: ingest_tokens domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::touch_ingest_token_last_used: ingest_tokens domain not yet ported (multi-DB P1)")
     }
 }
 
@@ -875,17 +883,15 @@ impl StoreTags for SqliteStore {
 #[async_trait::async_trait]
 impl StoreTemplates for SqliteStore {
     async fn list_templates(&self, org_id: OrgId) -> DbResult<Vec<Template>> {
-        unimplemented!("SqliteStore::list_templates: templates domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::list_templates: templates domain not yet ported (multi-DB P1)")
     }
 
     async fn get_template(&self, id: NotificationTemplateId, org_id: OrgId) -> DbResult<Template> {
-        unimplemented!("SqliteStore::get_template: templates domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::get_template: templates domain not yet ported (multi-DB P1)")
     }
 
     async fn create_template(&self, input: NewTemplate, org_id: OrgId) -> DbResult<Template> {
-        unimplemented!(
-            "SqliteStore::create_template: templates domain not yet ported (multi-DB P1)"
-        )
+        unsupported!("SqliteStore::create_template: templates domain not yet ported (multi-DB P1)")
     }
 
     async fn update_template(
@@ -894,15 +900,11 @@ impl StoreTemplates for SqliteStore {
         input: UpdateTemplate,
         org_id: OrgId,
     ) -> DbResult<Template> {
-        unimplemented!(
-            "SqliteStore::update_template: templates domain not yet ported (multi-DB P1)"
-        )
+        unsupported!("SqliteStore::update_template: templates domain not yet ported (multi-DB P1)")
     }
 
     async fn delete_template(&self, id: NotificationTemplateId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!(
-            "SqliteStore::delete_template: templates domain not yet ported (multi-DB P1)"
-        )
+        unsupported!("SqliteStore::delete_template: templates domain not yet ported (multi-DB P1)")
     }
 
     async fn get_template_render_strings(
@@ -1008,13 +1010,13 @@ impl StoreMetricRules for SqliteStore {
 #[async_trait::async_trait]
 impl StoreMonitorGroups for SqliteStore {
     async fn monitor_group_in_org(&self, group: MonitorGroupId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::monitor_group_in_org: monitor_groups domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn list_monitor_groups(&self, org_id: OrgId) -> DbResult<Vec<MonitorGroup>> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::list_monitor_groups: monitor_groups domain not yet ported (multi-DB P1)"
         )
     }
@@ -1024,7 +1026,7 @@ impl StoreMonitorGroups for SqliteStore {
         input: NewMonitorGroup,
         org_id: OrgId,
     ) -> DbResult<MonitorGroup> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::create_monitor_group: monitor_groups domain not yet ported (multi-DB P1)"
         )
     }
@@ -1035,7 +1037,7 @@ impl StoreMonitorGroups for SqliteStore {
         patch: UpdateMonitorGroup,
         org_id: OrgId,
     ) -> DbResult<MonitorGroup> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::update_monitor_group: monitor_groups domain not yet ported (multi-DB P1)"
         )
     }
@@ -1045,25 +1047,21 @@ impl StoreMonitorGroups for SqliteStore {
         group: MonitorGroupId,
         new_parent: MonitorGroupId,
     ) -> DbResult<bool> {
-        unimplemented!("SqliteStore::would_form_group_cycle: monitor_groups domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::would_form_group_cycle: monitor_groups domain not yet ported (multi-DB P1)")
     }
 
     async fn delete_monitor_group(&self, id: MonitorGroupId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::delete_monitor_group: monitor_groups domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn parents_of(&self, child: MonitorId) -> DbResult<Vec<MonitorId>> {
-        unimplemented!(
-            "SqliteStore::parents_of: monitor_groups domain not yet ported (multi-DB P1)"
-        )
+        unsupported!("SqliteStore::parents_of: monitor_groups domain not yet ported (multi-DB P1)")
     }
 
     async fn children_of(&self, parent: MonitorId) -> DbResult<Vec<MonitorId>> {
-        unimplemented!(
-            "SqliteStore::children_of: monitor_groups domain not yet ported (multi-DB P1)"
-        )
+        unsupported!("SqliteStore::children_of: monitor_groups domain not yet ported (multi-DB P1)")
     }
 
     async fn any_parent_down(&self, child: MonitorId) -> DbResult<bool> {
@@ -1071,19 +1069,19 @@ impl StoreMonitorGroups for SqliteStore {
     }
 
     async fn attach_dependency(&self, child: MonitorId, parent: MonitorId) -> DbResult<()> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::attach_dependency: monitor_groups domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn detach_dependency(&self, child: MonitorId, parent: MonitorId) -> DbResult<()> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::detach_dependency: monitor_groups domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn would_form_cycle(&self, child: MonitorId, parent: MonitorId) -> DbResult<bool> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::would_form_cycle: monitor_groups domain not yet ported (multi-DB P1)"
         )
     }
@@ -1096,17 +1094,17 @@ impl StoreSilences for SqliteStore {
     }
 
     async fn create_silence(&self, s: NewSilence<'_>, org_id: OrgId) -> DbResult<Uuid> {
-        unimplemented!("SqliteStore::create_silence: silences domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::create_silence: silences domain not yet ported (multi-DB P1)")
     }
 
     async fn list_active_silences(&self, org_id: OrgId) -> DbResult<Vec<Silence>> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::list_active_silences: silences domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn delete_silence(&self, id: Uuid, org_id: OrgId) -> DbResult<bool> {
-        unimplemented!("SqliteStore::delete_silence: silences domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::delete_silence: silences domain not yet ported (multi-DB P1)")
     }
 }
 
@@ -1119,13 +1117,13 @@ impl StoreOidcState for SqliteStore {
         nonce: Option<&str>,
         return_to: Option<&str>,
     ) -> DbResult<()> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::stash_oidc_state: oidc_state domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn consume_oidc_state(&self, state: &str) -> DbResult<Option<Consumed>> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::consume_oidc_state: oidc_state domain not yet ported (multi-DB P1)"
         )
     }
@@ -1141,33 +1139,33 @@ impl StoreOidcState for SqliteStore {
 #[async_trait::async_trait]
 impl StoreStatusPages for SqliteStore {
     async fn list_status_pages(&self, org_id: OrgId) -> DbResult<Vec<StatusPage>> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::list_status_pages: status_pages domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn list_all_status_pages(&self) -> DbResult<Vec<StatusPage>> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::list_all_status_pages: status_pages domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn get_status_page(&self, id: StatusPageId, org_id: OrgId) -> DbResult<StatusPage> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::get_status_page: status_pages domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn get_status_page_by_slug(&self, slug: &str) -> DbResult<StatusPage> {
-        unimplemented!("SqliteStore::get_status_page_by_slug: status_pages domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::get_status_page_by_slug: status_pages domain not yet ported (multi-DB P1)")
     }
 
     async fn get_status_page_unscoped(&self, id: StatusPageId) -> DbResult<StatusPage> {
-        unimplemented!("SqliteStore::get_status_page_unscoped: status_pages domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::get_status_page_unscoped: status_pages domain not yet ported (multi-DB P1)")
     }
 
     async fn find_status_page_by_custom_domain(&self, host: &str) -> DbResult<Option<StatusPage>> {
-        unimplemented!("SqliteStore::find_status_page_by_custom_domain: status_pages domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::find_status_page_by_custom_domain: status_pages domain not yet ported (multi-DB P1)")
     }
 
     async fn create_status_page(
@@ -1175,7 +1173,7 @@ impl StoreStatusPages for SqliteStore {
         input: NewStatusPage,
         org_id: OrgId,
     ) -> DbResult<StatusPage> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::create_status_page: status_pages domain not yet ported (multi-DB P1)"
         )
     }
@@ -1186,30 +1184,30 @@ impl StoreStatusPages for SqliteStore {
         patch: UpdateStatusPage,
         org_id: OrgId,
     ) -> DbResult<StatusPage> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::update_status_page: status_pages domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn delete_status_page(&self, id: StatusPageId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::delete_status_page: status_pages domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn status_page_public_view(&self, slug: &str) -> DbResult<PublicStatusPage> {
-        unimplemented!("SqliteStore::status_page_public_view: status_pages domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::status_page_public_view: status_pages domain not yet ported (multi-DB P1)")
     }
 
     async fn verify_status_page_password(&self, slug: &str, candidate: &str) -> DbResult<bool> {
-        unimplemented!("SqliteStore::verify_status_page_password: status_pages domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::verify_status_page_password: status_pages domain not yet ported (multi-DB P1)")
     }
 
     async fn list_status_page_sections(
         &self,
         page_id: StatusPageId,
     ) -> DbResult<Vec<StatusPageSection>> {
-        unimplemented!("SqliteStore::list_status_page_sections: status_pages domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::list_status_page_sections: status_pages domain not yet ported (multi-DB P1)")
     }
 
     async fn create_status_page_section(
@@ -1217,7 +1215,7 @@ impl StoreStatusPages for SqliteStore {
         page_id: StatusPageId,
         input: NewStatusPageSection,
     ) -> DbResult<StatusPageSection> {
-        unimplemented!("SqliteStore::create_status_page_section: status_pages domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::create_status_page_section: status_pages domain not yet ported (multi-DB P1)")
     }
 
     async fn update_status_page_section(
@@ -1227,7 +1225,7 @@ impl StoreStatusPages for SqliteStore {
         patch: UpdateStatusPageSection,
     ) -> DbResult<StatusPageSection> {
         let _ = (id, patch);
-        unimplemented!("SqliteStore::update_status_page_section: status_pages domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::update_status_page_section: status_pages domain not yet ported (multi-DB P1)")
     }
 
     async fn delete_status_page_section(
@@ -1236,7 +1234,7 @@ impl StoreStatusPages for SqliteStore {
         id: StatusPageSectionId,
     ) -> DbResult<()> {
         let _ = id;
-        unimplemented!("SqliteStore::delete_status_page_section: status_pages domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::delete_status_page_section: status_pages domain not yet ported (multi-DB P1)")
     }
 
     async fn assign_status_page_monitor_section(
@@ -1245,7 +1243,7 @@ impl StoreStatusPages for SqliteStore {
         monitor_id: MonitorId,
         section_id: Option<StatusPageSectionId>,
     ) -> DbResult<()> {
-        unimplemented!("SqliteStore::assign_status_page_monitor_section: status_pages domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::assign_status_page_monitor_section: status_pages domain not yet ported (multi-DB P1)")
     }
 }
 
@@ -1257,9 +1255,7 @@ impl StoreIncidents for SqliteStore {
         author: Option<UserId>,
         input: NewIncident,
     ) -> DbResult<Incident> {
-        unimplemented!(
-            "SqliteStore::create_incident: incidents domain not yet ported (multi-DB P1)"
-        )
+        unsupported!("SqliteStore::create_incident: incidents domain not yet ported (multi-DB P1)")
     }
 
     async fn find_active_incident_by_dedup_key(
@@ -1267,19 +1263,17 @@ impl StoreIncidents for SqliteStore {
         page: StatusPageId,
         key: &str,
     ) -> DbResult<Option<Incident>> {
-        unimplemented!("SqliteStore::find_active_incident_by_dedup_key: incidents domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::find_active_incident_by_dedup_key: incidents domain not yet ported (multi-DB P1)")
     }
 
     async fn list_active_incidents(&self, page: StatusPageId) -> DbResult<Vec<Incident>> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::list_active_incidents: incidents domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn recent_incidents(&self, limit: i64, org_id: OrgId) -> DbResult<Vec<Incident>> {
-        unimplemented!(
-            "SqliteStore::recent_incidents: incidents domain not yet ported (multi-DB P1)"
-        )
+        unsupported!("SqliteStore::recent_incidents: incidents domain not yet ported (multi-DB P1)")
     }
 
     async fn list_resolved_incident_history(
@@ -1287,39 +1281,33 @@ impl StoreIncidents for SqliteStore {
         page: StatusPageId,
         limit: i64,
     ) -> DbResult<Vec<Incident>> {
-        unimplemented!("SqliteStore::list_resolved_incident_history: incidents domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::list_resolved_incident_history: incidents domain not yet ported (multi-DB P1)")
     }
 
     async fn resolve_incident(&self, id: IncidentId, now: OffsetDateTime) -> DbResult<()> {
-        unimplemented!(
-            "SqliteStore::resolve_incident: incidents domain not yet ported (multi-DB P1)"
-        )
+        unsupported!("SqliteStore::resolve_incident: incidents domain not yet ported (multi-DB P1)")
     }
 
     async fn list_all_incidents(&self, page: StatusPageId, limit: i64) -> DbResult<Vec<Incident>> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::list_all_incidents: incidents domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn delete_incident(&self, id: IncidentId) -> DbResult<()> {
-        unimplemented!(
-            "SqliteStore::delete_incident: incidents domain not yet ported (multi-DB P1)"
-        )
+        unsupported!("SqliteStore::delete_incident: incidents domain not yet ported (multi-DB P1)")
     }
 
     async fn update_incident(&self, id: IncidentId, patch: UpdateIncident) -> DbResult<Incident> {
-        unimplemented!(
-            "SqliteStore::update_incident: incidents domain not yet ported (multi-DB P1)"
-        )
+        unsupported!("SqliteStore::update_incident: incidents domain not yet ported (multi-DB P1)")
     }
 
     async fn get_incident(&self, id: IncidentId) -> DbResult<Incident> {
-        unimplemented!("SqliteStore::get_incident: incidents domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::get_incident: incidents domain not yet ported (multi-DB P1)")
     }
 
     async fn list_incident_updates(&self, incident: IncidentId) -> DbResult<Vec<IncidentUpdate>> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::list_incident_updates: incidents domain not yet ported (multi-DB P1)"
         )
     }
@@ -1330,7 +1318,7 @@ impl StoreIncidents for SqliteStore {
         author: Option<UserId>,
         message: String,
     ) -> DbResult<Uuid> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::post_incident_update: incidents domain not yet ported (multi-DB P1)"
         )
     }
@@ -1346,39 +1334,37 @@ impl StoreRouting for SqliteStore {
     }
 
     async fn group_tag_ids(&self, group: MonitorGroupId) -> DbResult<Vec<TagId>> {
-        unimplemented!("SqliteStore::group_tag_ids: routing domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::group_tag_ids: routing domain not yet ported (multi-DB P1)")
     }
 
     async fn channel_tag_ids(&self, notif: NotificationId) -> DbResult<Vec<TagId>> {
-        unimplemented!("SqliteStore::channel_tag_ids: routing domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::channel_tag_ids: routing domain not yet ported (multi-DB P1)")
     }
 
     async fn group_channel_ids(&self, group: MonitorGroupId) -> DbResult<Vec<NotificationId>> {
-        unimplemented!(
-            "SqliteStore::group_channel_ids: routing domain not yet ported (multi-DB P1)"
-        )
+        unsupported!("SqliteStore::group_channel_ids: routing domain not yet ported (multi-DB P1)")
     }
 
     async fn monitor_exclude_ids(&self, monitor: MonitorId) -> DbResult<Vec<NotificationId>> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::monitor_exclude_ids: routing domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn tag_group(&self, group: MonitorGroupId, tag: TagId) -> DbResult<()> {
-        unimplemented!("SqliteStore::tag_group: routing domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::tag_group: routing domain not yet ported (multi-DB P1)")
     }
 
     async fn untag_group(&self, group: MonitorGroupId, tag: TagId) -> DbResult<()> {
-        unimplemented!("SqliteStore::untag_group: routing domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::untag_group: routing domain not yet ported (multi-DB P1)")
     }
 
     async fn tag_channel(&self, notif: NotificationId, tag: TagId) -> DbResult<()> {
-        unimplemented!("SqliteStore::tag_channel: routing domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::tag_channel: routing domain not yet ported (multi-DB P1)")
     }
 
     async fn untag_channel(&self, notif: NotificationId, tag: TagId) -> DbResult<()> {
-        unimplemented!("SqliteStore::untag_channel: routing domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::untag_channel: routing domain not yet ported (multi-DB P1)")
     }
 
     async fn attach_group_channel(
@@ -1386,7 +1372,7 @@ impl StoreRouting for SqliteStore {
         group: MonitorGroupId,
         notif: NotificationId,
     ) -> DbResult<()> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::attach_group_channel: routing domain not yet ported (multi-DB P1)"
         )
     }
@@ -1396,19 +1382,17 @@ impl StoreRouting for SqliteStore {
         group: MonitorGroupId,
         notif: NotificationId,
     ) -> DbResult<()> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::detach_group_channel: routing domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn exclude_channel(&self, monitor: MonitorId, notif: NotificationId) -> DbResult<()> {
-        unimplemented!("SqliteStore::exclude_channel: routing domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::exclude_channel: routing domain not yet ported (multi-DB P1)")
     }
 
     async fn unexclude_channel(&self, monitor: MonitorId, notif: NotificationId) -> DbResult<()> {
-        unimplemented!(
-            "SqliteStore::unexclude_channel: routing domain not yet ported (multi-DB P1)"
-        )
+        unsupported!("SqliteStore::unexclude_channel: routing domain not yet ported (multi-DB P1)")
     }
 }
 
@@ -1419,61 +1403,61 @@ impl StoreSubscribers for SqliteStore {
         page: StatusPageId,
         email: &str,
     ) -> DbResult<(Subscriber, String)> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::subscribe_email: subscribers domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn list_subscribers_for_page(&self, page: StatusPageId) -> DbResult<Vec<Subscriber>> {
-        unimplemented!("SqliteStore::list_subscribers_for_page: subscribers domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::list_subscribers_for_page: subscribers domain not yet ported (multi-DB P1)")
     }
 
     async fn confirmed_subscriber_emails_for_page(
         &self,
         page: StatusPageId,
     ) -> DbResult<Vec<String>> {
-        unimplemented!("SqliteStore::confirmed_subscriber_emails_for_page: subscribers domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::confirmed_subscriber_emails_for_page: subscribers domain not yet ported (multi-DB P1)")
     }
 
     async fn delete_subscriber(&self, id: StatusPageSubscriberId) -> DbResult<()> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::delete_subscriber: subscribers domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn unsubscribe_subscriber_by_token(&self, token: &str) -> DbResult<()> {
-        unimplemented!("SqliteStore::unsubscribe_subscriber_by_token: subscribers domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::unsubscribe_subscriber_by_token: subscribers domain not yet ported (multi-DB P1)")
     }
 
     async fn subscriber_email_for_token(&self, token: &str) -> DbResult<Option<String>> {
-        unimplemented!("SqliteStore::subscriber_email_for_token: subscribers domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::subscriber_email_for_token: subscribers domain not yet ported (multi-DB P1)")
     }
 
     async fn subscriptions_for_email(&self, email: &str) -> DbResult<Vec<ManagedSubscription>> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::subscriptions_for_email: subscribers domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn unsubscribe_all_for_email(&self, email: &str) -> DbResult<u64> {
-        unimplemented!("SqliteStore::unsubscribe_all_for_email: subscribers domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::unsubscribe_all_for_email: subscribers domain not yet ported (multi-DB P1)")
     }
 
     async fn unsubscribe_email_from_page(&self, page: StatusPageId, email: &str) -> DbResult<()> {
-        unimplemented!("SqliteStore::unsubscribe_email_from_page: subscribers domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::unsubscribe_email_from_page: subscribers domain not yet ported (multi-DB P1)")
     }
 
     async fn subscriber_page_for(
         &self,
         id: StatusPageSubscriberId,
     ) -> DbResult<Option<StatusPageId>> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::subscriber_page_for: subscribers domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn subscriber_token_for(&self, id: Uuid) -> DbResult<Option<String>> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::subscriber_token_for: subscribers domain not yet ported (multi-DB P1)"
         )
     }
@@ -1839,7 +1823,7 @@ impl StoreTraces for SqliteStore {
 #[async_trait::async_trait]
 impl StoreRum for SqliteStore {
     async fn insert_rum_event(&self, b: &RumBeacon, org_id: OrgId) -> DbResult<()> {
-        unimplemented!("SqliteStore::insert_rum_event: rum domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::insert_rum_event: rum domain not yet ported (multi-DB P1)")
     }
 
     async fn rum_page_samples(
@@ -1850,7 +1834,7 @@ impl StoreRum for SqliteStore {
         limit: i64,
         org_id: OrgId,
     ) -> DbResult<Vec<RumSample>> {
-        unimplemented!("SqliteStore::rum_page_samples: rum domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::rum_page_samples: rum domain not yet ported (multi-DB P1)")
     }
 
     async fn rum_recent_traced(
@@ -1860,7 +1844,7 @@ impl StoreRum for SqliteStore {
         limit: i64,
         org_id: OrgId,
     ) -> DbResult<Vec<RumTracedLoad>> {
-        unimplemented!("SqliteStore::rum_recent_traced: rum domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::rum_recent_traced: rum domain not yet ported (multi-DB P1)")
     }
 
     async fn rum_summary(
@@ -1869,7 +1853,7 @@ impl StoreRum for SqliteStore {
         hours: i32,
         org_id: OrgId,
     ) -> DbResult<RumVitals> {
-        unimplemented!("SqliteStore::rum_summary: rum domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::rum_summary: rum domain not yet ported (multi-DB P1)")
     }
 
     async fn rum_pages(
@@ -1878,7 +1862,7 @@ impl StoreRum for SqliteStore {
         hours: i32,
         org_id: OrgId,
     ) -> DbResult<Vec<RumPage>> {
-        unimplemented!("SqliteStore::rum_pages: rum domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::rum_pages: rum domain not yet ported (multi-DB P1)")
     }
 
     async fn rum_browser_breakdown(
@@ -1887,9 +1871,7 @@ impl StoreRum for SqliteStore {
         hours: i32,
         org_id: OrgId,
     ) -> DbResult<Vec<RumBrowser>> {
-        unimplemented!(
-            "SqliteStore::rum_browser_breakdown: rum domain not yet ported (multi-DB P1)"
-        )
+        unsupported!("SqliteStore::rum_browser_breakdown: rum domain not yet ported (multi-DB P1)")
     }
 
     async fn rum_user_breakdown(
@@ -1898,11 +1880,11 @@ impl StoreRum for SqliteStore {
         hours: i32,
         org_id: OrgId,
     ) -> DbResult<Vec<RumUser>> {
-        unimplemented!("SqliteStore::rum_user_breakdown: rum domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::rum_user_breakdown: rum domain not yet ported (multi-DB P1)")
     }
 
     async fn rum_apps(&self, org_id: OrgId) -> DbResult<Vec<String>> {
-        unimplemented!("SqliteStore::rum_apps: rum domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::rum_apps: rum domain not yet ported (multi-DB P1)")
     }
 
     async fn prune_rum(&self, _days: i32) -> DbResult<u64> {
@@ -1915,7 +1897,7 @@ impl StoreRum for SqliteStore {
 #[async_trait::async_trait]
 impl StoreProfiles for SqliteStore {
     async fn insert_profile(&self, p: NewProfile<'_>, org_id: OrgId) -> DbResult<i64> {
-        unimplemented!("SqliteStore::insert_profile: profiles domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::insert_profile: profiles domain not yet ported (multi-DB P1)")
     }
 
     async fn list_profiles(
@@ -1926,7 +1908,7 @@ impl StoreProfiles for SqliteStore {
         limit: i64,
         org_id: OrgId,
     ) -> DbResult<Vec<ProfileMeta>> {
-        unimplemented!("SqliteStore::list_profiles: profiles domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::list_profiles: profiles domain not yet ported (multi-DB P1)")
     }
 
     async fn profile_folded_in_window(
@@ -1937,7 +1919,7 @@ impl StoreProfiles for SqliteStore {
         to: OffsetDateTime,
         org_id: OrgId,
     ) -> DbResult<Vec<Vec<u8>>> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::profile_folded_in_window: profiles domain not yet ported (multi-DB P1)"
         )
     }
@@ -1947,19 +1929,17 @@ impl StoreProfiles for SqliteStore {
         id: i64,
         org_id: OrgId,
     ) -> DbResult<Option<(String, Vec<u8>)>> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::profile_fetch_folded: profiles domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn profile_services(&self, org_id: OrgId) -> DbResult<Vec<String>> {
-        unimplemented!(
-            "SqliteStore::profile_services: profiles domain not yet ported (multi-DB P1)"
-        )
+        unsupported!("SqliteStore::profile_services: profiles domain not yet ported (multi-DB P1)")
     }
 
     async fn profile_types(&self, service: Option<&str>, org_id: OrgId) -> DbResult<Vec<String>> {
-        unimplemented!("SqliteStore::profile_types: profiles domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::profile_types: profiles domain not yet ported (multi-DB P1)")
     }
 
     async fn prune_profiles(&self, _days: i32) -> DbResult<u64> {
@@ -1972,21 +1952,19 @@ impl StoreProfiles for SqliteStore {
 #[async_trait::async_trait]
 impl StoreMetrics for SqliteStore {
     async fn monitors_by_status(&self) -> DbResult<Vec<(String, i64)>> {
-        unimplemented!(
-            "SqliteStore::monitors_by_status: metrics domain not yet ported (multi-DB P1)"
-        )
+        unsupported!("SqliteStore::monitors_by_status: metrics domain not yet ported (multi-DB P1)")
     }
 
     async fn monitors_by_kind(&self) -> DbResult<Vec<(String, i64)>> {
-        unimplemented!("SqliteStore::monitors_by_kind: metrics domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::monitors_by_kind: metrics domain not yet ported (multi-DB P1)")
     }
 
     async fn channels_active(&self) -> DbResult<i64> {
-        unimplemented!("SqliteStore::channels_active: metrics domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::channels_active: metrics domain not yet ported (multi-DB P1)")
     }
 
     async fn webpush_subscribers(&self) -> DbResult<i64> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::webpush_subscribers: metrics domain not yet ported (multi-DB P1)"
         )
     }
@@ -1995,60 +1973,60 @@ impl StoreMetrics for SqliteStore {
         &self,
         window_seconds: i64,
     ) -> DbResult<Vec<(String, i64)>> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::heartbeats_recent_by_status: metrics domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn incidents_open(&self) -> DbResult<i64> {
-        unimplemented!("SqliteStore::incidents_open: metrics domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::incidents_open: metrics domain not yet ported (multi-DB P1)")
     }
 
     async fn pipeline_gauges(&self) -> DbResult<PipelineGauges> {
-        unimplemented!("SqliteStore::pipeline_gauges: metrics domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::pipeline_gauges: metrics domain not yet ported (multi-DB P1)")
     }
 
     async fn storage_usage(&self) -> DbResult<Vec<TableSize>> {
-        unimplemented!("SqliteStore::storage_usage: metrics domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::storage_usage: metrics domain not yet ported (multi-DB P1)")
     }
 
     async fn ingest_gauges(&self) -> DbResult<IngestGauges> {
-        unimplemented!("SqliteStore::ingest_gauges: metrics domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::ingest_gauges: metrics domain not yet ported (multi-DB P1)")
     }
 }
 
 #[async_trait::async_trait]
 impl StoreErrorTracking for SqliteStore {
     async fn list_error_projects(&self, org_id: OrgId) -> DbResult<Vec<ErrorProject>> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::list_error_projects: error_tracking domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn error_project_in_org(&self, project: ErrorProjectId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::error_project_in_org: error_tracking domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn error_issue_in_org(&self, issue: ErrorIssueId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::error_issue_in_org: error_tracking domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn get_error_project(&self, id: ErrorProjectId) -> DbResult<ErrorProject> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::get_error_project: error_tracking domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn org_for_error_project(&self, id: ErrorProjectId) -> DbResult<OrgId> {
-        unimplemented!("SqliteStore::org_for_error_project: error_tracking domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::org_for_error_project: error_tracking domain not yet ported (multi-DB P1)")
     }
 
     async fn get_error_project_opt(&self, id: ErrorProjectId) -> DbResult<Option<ErrorProject>> {
-        unimplemented!("SqliteStore::get_error_project_opt: error_tracking domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::get_error_project_opt: error_tracking domain not yet ported (multi-DB P1)")
     }
 
     async fn find_or_create_error_project_by_name(
@@ -2056,7 +2034,7 @@ impl StoreErrorTracking for SqliteStore {
         name: &str,
         org_id: OrgId,
     ) -> DbResult<ErrorProject> {
-        unimplemented!("SqliteStore::find_or_create_error_project_by_name: error_tracking domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::find_or_create_error_project_by_name: error_tracking domain not yet ported (multi-DB P1)")
     }
 
     async fn create_error_project(
@@ -2064,7 +2042,7 @@ impl StoreErrorTracking for SqliteStore {
         input: NewErrorProject,
         org_id: OrgId,
     ) -> DbResult<ErrorProject> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::create_error_project: error_tracking domain not yet ported (multi-DB P1)"
         )
     }
@@ -2075,13 +2053,13 @@ impl StoreErrorTracking for SqliteStore {
         patch: UpdateErrorProject,
         org_id: OrgId,
     ) -> DbResult<ErrorProject> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::update_error_project: error_tracking domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn delete_error_project(&self, id: ErrorProjectId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::delete_error_project: error_tracking domain not yet ported (multi-DB P1)"
         )
     }
@@ -2091,7 +2069,7 @@ impl StoreErrorTracking for SqliteStore {
         project_id: ErrorProjectId,
         ev: &ParsedEvent,
     ) -> DbResult<RecordOutcome> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::record_error_event: error_tracking domain not yet ported (multi-DB P1)"
         )
     }
@@ -2101,7 +2079,7 @@ impl StoreErrorTracking for SqliteStore {
         trace_id: &str,
         org_id: OrgId,
     ) -> DbResult<Vec<TraceErrorRef>> {
-        unimplemented!("SqliteStore::error_issues_for_trace: error_tracking domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::error_issues_for_trace: error_tracking domain not yet ported (multi-DB P1)")
     }
 
     async fn list_error_issues(
@@ -2111,7 +2089,7 @@ impl StoreErrorTracking for SqliteStore {
         before_id: Option<Uuid>,
         limit: i64,
     ) -> DbResult<Vec<ErrorIssue>> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::list_error_issues: error_tracking domain not yet ported (multi-DB P1)"
         )
     }
@@ -2121,7 +2099,7 @@ impl StoreErrorTracking for SqliteStore {
         limit: i64,
         org_id: OrgId,
     ) -> DbResult<Vec<ErrorIssue>> {
-        unimplemented!("SqliteStore::recent_open_error_issues: error_tracking domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::recent_open_error_issues: error_tracking domain not yet ported (multi-DB P1)")
     }
 
     async fn error_project_event_histogram(
@@ -2130,11 +2108,11 @@ impl StoreErrorTracking for SqliteStore {
         hours: i32,
         buckets: i64,
     ) -> DbResult<Vec<ErrorBucket>> {
-        unimplemented!("SqliteStore::error_project_event_histogram: error_tracking domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::error_project_event_histogram: error_tracking domain not yet ported (multi-DB P1)")
     }
 
     async fn get_error_issue(&self, id: ErrorIssueId) -> DbResult<ErrorIssue> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::get_error_issue: error_tracking domain not yet ported (multi-DB P1)"
         )
     }
@@ -2144,17 +2122,17 @@ impl StoreErrorTracking for SqliteStore {
         id: ErrorIssueId,
         limit: i64,
     ) -> DbResult<Vec<AffectedUser>> {
-        unimplemented!("SqliteStore::error_issue_affected_users: error_tracking domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::error_issue_affected_users: error_tracking domain not yet ported (multi-DB P1)")
     }
 
     async fn error_issue_stats(&self, id: ErrorIssueId) -> DbResult<IssueStats> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::error_issue_stats: error_tracking domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn set_error_issue_status(&self, id: ErrorIssueId, status: &str) -> DbResult<ErrorIssue> {
-        unimplemented!("SqliteStore::set_error_issue_status: error_tracking domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::set_error_issue_status: error_tracking domain not yet ported (multi-DB P1)")
     }
 
     async fn assign_error_issue(
@@ -2162,7 +2140,7 @@ impl StoreErrorTracking for SqliteStore {
         id: ErrorIssueId,
         assignee: Option<UserId>,
     ) -> DbResult<ErrorIssue> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::assign_error_issue: error_tracking domain not yet ported (multi-DB P1)"
         )
     }
@@ -2171,7 +2149,7 @@ impl StoreErrorTracking for SqliteStore {
         &self,
         _org_id: OrgId,
     ) -> DbResult<Vec<crate::error_tracking::AssignableUser>> {
-        unimplemented!("SqliteStore::error_assignable_users: error_tracking domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::error_assignable_users: error_tracking domain not yet ported (multi-DB P1)")
     }
 
     async fn list_error_events(
@@ -2179,7 +2157,7 @@ impl StoreErrorTracking for SqliteStore {
         issue_id: ErrorIssueId,
         limit: i64,
     ) -> DbResult<Vec<ErrorEvent>> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::list_error_events: error_tracking domain not yet ported (multi-DB P1)"
         )
     }
@@ -2250,7 +2228,7 @@ impl StoreScheduledReports for SqliteStore {
 #[async_trait::async_trait]
 impl StoreIncidentTemplates for SqliteStore {
     async fn list_incident_templates(&self, org_id: OrgId) -> DbResult<Vec<IncidentTemplate>> {
-        unimplemented!("SqliteStore::list_incident_templates: incident_templates domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::list_incident_templates: incident_templates domain not yet ported (multi-DB P1)")
     }
 
     async fn get_incident_template(
@@ -2258,7 +2236,7 @@ impl StoreIncidentTemplates for SqliteStore {
         id: IncidentTemplateId,
         org_id: OrgId,
     ) -> DbResult<IncidentTemplate> {
-        unimplemented!("SqliteStore::get_incident_template: incident_templates domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::get_incident_template: incident_templates domain not yet ported (multi-DB P1)")
     }
 
     async fn create_incident_template(
@@ -2266,7 +2244,7 @@ impl StoreIncidentTemplates for SqliteStore {
         input: NewIncidentTemplate,
         org_id: OrgId,
     ) -> DbResult<IncidentTemplate> {
-        unimplemented!("SqliteStore::create_incident_template: incident_templates domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::create_incident_template: incident_templates domain not yet ported (multi-DB P1)")
     }
 
     async fn update_incident_template(
@@ -2275,7 +2253,7 @@ impl StoreIncidentTemplates for SqliteStore {
         input: UpdateIncidentTemplate,
         org_id: OrgId,
     ) -> DbResult<IncidentTemplate> {
-        unimplemented!("SqliteStore::update_incident_template: incident_templates domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::update_incident_template: incident_templates domain not yet ported (multi-DB P1)")
     }
 
     async fn delete_incident_template(
@@ -2283,14 +2261,14 @@ impl StoreIncidentTemplates for SqliteStore {
         id: IncidentTemplateId,
         org_id: OrgId,
     ) -> DbResult<()> {
-        unimplemented!("SqliteStore::delete_incident_template: incident_templates domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::delete_incident_template: incident_templates domain not yet ported (multi-DB P1)")
     }
 }
 
 #[async_trait::async_trait]
 impl StoreMonitorPresets for SqliteStore {
     async fn list_monitor_presets(&self, org_id: OrgId) -> DbResult<Vec<MonitorPreset>> {
-        unimplemented!("SqliteStore::list_monitor_presets: monitor_presets domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::list_monitor_presets: monitor_presets domain not yet ported (multi-DB P1)")
     }
 
     async fn get_monitor_preset(
@@ -2298,7 +2276,7 @@ impl StoreMonitorPresets for SqliteStore {
         id: MonitorPresetId,
         org_id: OrgId,
     ) -> DbResult<MonitorPreset> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::get_monitor_preset: monitor_presets domain not yet ported (multi-DB P1)"
         )
     }
@@ -2308,18 +2286,18 @@ impl StoreMonitorPresets for SqliteStore {
         input: NewMonitorPreset,
         org_id: OrgId,
     ) -> DbResult<MonitorPreset> {
-        unimplemented!("SqliteStore::create_monitor_preset: monitor_presets domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::create_monitor_preset: monitor_presets domain not yet ported (multi-DB P1)")
     }
 
     async fn delete_monitor_preset(&self, id: MonitorPresetId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!("SqliteStore::delete_monitor_preset: monitor_presets domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::delete_monitor_preset: monitor_presets domain not yet ported (multi-DB P1)")
     }
 }
 
 #[async_trait::async_trait]
 impl StoreMonitorTemplates for SqliteStore {
     async fn list_monitor_templates(&self, org_id: OrgId) -> DbResult<Vec<MonitorTemplate>> {
-        unimplemented!("SqliteStore::list_monitor_templates: monitor_templates domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::list_monitor_templates: monitor_templates domain not yet ported (multi-DB P1)")
     }
 
     async fn get_monitor_template(
@@ -2327,7 +2305,7 @@ impl StoreMonitorTemplates for SqliteStore {
         id: MonitorTemplateId,
         org_id: OrgId,
     ) -> DbResult<MonitorTemplate> {
-        unimplemented!("SqliteStore::get_monitor_template: monitor_templates domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::get_monitor_template: monitor_templates domain not yet ported (multi-DB P1)")
     }
 
     async fn create_monitor_template(
@@ -2335,11 +2313,11 @@ impl StoreMonitorTemplates for SqliteStore {
         input: NewMonitorTemplate,
         org_id: OrgId,
     ) -> DbResult<MonitorTemplate> {
-        unimplemented!("SqliteStore::create_monitor_template: monitor_templates domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::create_monitor_template: monitor_templates domain not yet ported (multi-DB P1)")
     }
 
     async fn delete_monitor_template(&self, id: MonitorTemplateId, org_id: OrgId) -> DbResult<()> {
-        unimplemented!("SqliteStore::delete_monitor_template: monitor_templates domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::delete_monitor_template: monitor_templates domain not yet ported (multi-DB P1)")
     }
 }
 
@@ -2490,7 +2468,7 @@ impl StoreRetention for SqliteStore {
 #[async_trait::async_trait]
 impl StoreSourceMaps for SqliteStore {
     async fn upsert_source_map(&self, m: NewSourceMap<'_>) -> DbResult<i64> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::upsert_source_map: source_maps domain not yet ported (multi-DB P1)"
         )
     }
@@ -2501,19 +2479,17 @@ impl StoreSourceMaps for SqliteStore {
         release: &str,
         filename: &str,
     ) -> DbResult<Option<serde_json::Value>> {
-        unimplemented!(
-            "SqliteStore::get_source_map: source_maps domain not yet ported (multi-DB P1)"
-        )
+        unsupported!("SqliteStore::get_source_map: source_maps domain not yet ported (multi-DB P1)")
     }
 
     async fn list_source_maps(&self, project_id: Uuid) -> DbResult<Vec<SourceMapMeta>> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::list_source_maps: source_maps domain not yet ported (multi-DB P1)"
         )
     }
 
     async fn delete_source_map(&self, project_id: Uuid, id: i64) -> DbResult<bool> {
-        unimplemented!(
+        unsupported!(
             "SqliteStore::delete_source_map: source_maps domain not yet ported (multi-DB P1)"
         )
     }
@@ -2613,9 +2589,7 @@ impl StoreWebpush for SqliteStore {
         &self,
         notification: NotificationId,
     ) -> DbResult<Vec<crate::webpush::WebpushSubscription>> {
-        unimplemented!(
-            "SqliteStore::list_webpush_subs: webpush domain not yet ported (multi-DB P1)"
-        )
+        unsupported!("SqliteStore::list_webpush_subs: webpush domain not yet ported (multi-DB P1)")
     }
 
     async fn upsert_webpush_sub(
@@ -2625,27 +2599,23 @@ impl StoreWebpush for SqliteStore {
         p256dh: &str,
         auth: &str,
     ) -> DbResult<()> {
-        unimplemented!(
-            "SqliteStore::upsert_webpush_sub: webpush domain not yet ported (multi-DB P1)"
-        )
+        unsupported!("SqliteStore::upsert_webpush_sub: webpush domain not yet ported (multi-DB P1)")
     }
 
     async fn delete_webpush_sub_by_endpoint(&self, endpoint: &str) -> DbResult<()> {
-        unimplemented!("SqliteStore::delete_webpush_sub_by_endpoint: webpush domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::delete_webpush_sub_by_endpoint: webpush domain not yet ported (multi-DB P1)")
     }
 
     async fn delete_webpush_sub(&self, id: Uuid) -> DbResult<()> {
-        unimplemented!(
-            "SqliteStore::delete_webpush_sub: webpush domain not yet ported (multi-DB P1)"
-        )
+        unsupported!("SqliteStore::delete_webpush_sub: webpush domain not yet ported (multi-DB P1)")
     }
 
     async fn get_vapid_keys(&self) -> DbResult<Option<crate::webpush::VapidKeys>> {
-        unimplemented!("SqliteStore::get_vapid_keys: webpush domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::get_vapid_keys: webpush domain not yet ported (multi-DB P1)")
     }
 
     async fn set_vapid_keys(&self, keys: &crate::webpush::VapidKeys) -> DbResult<()> {
-        unimplemented!("SqliteStore::set_vapid_keys: webpush domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::set_vapid_keys: webpush domain not yet ported (multi-DB P1)")
     }
 }
 
@@ -2909,7 +2879,7 @@ impl StoreAudit for SqliteStore {
 #[async_trait::async_trait]
 impl StoreCompliance for SqliteStore {
     async fn access_review(&self) -> DbResult<Vec<crate::access_review::AccessReviewRow>> {
-        unimplemented!("SqliteStore::access_review: compliance domain not yet ported (multi-DB P1)")
+        unsupported!("SqliteStore::access_review: compliance domain not yet ported (multi-DB P1)")
     }
 }
 
@@ -3005,7 +2975,7 @@ mod tests {
     /// SECURITY (audit re-rank #1): the bearer-auth path must not PANIC on
     /// SQLite. The api-keys domain isn't ported, so a token lookup is simply
     /// unknown (NotFound → the auth middleware maps it to 401) and the
-    /// best-effort last-used bump is a no-op. Both were `unimplemented!()`, which
+    /// best-effort last-used bump is a no-op. Both were `unsupported!()`, which
     /// under `panic = "abort"` crashed the whole process on the first Bearer
     /// request (the bump also ran in a spawned task — still fatal with abort).
     #[sqlx::test(migrations = "../../migrations-sqlite")]
@@ -3023,7 +2993,7 @@ mod tests {
     }
 
     /// ROBUSTNESS (audit re-rank #16/#17): the request-reachable stubs for
-    /// unported domains return NotFound instead of `unimplemented!()`. Both back
+    /// unported domains return NotFound instead of `unsupported!()`. Both back
     /// live request paths on SQLite — the public alert webhook
     /// (find_ingest_token_by_token) and the escalation-policy gate (get_on_call)
     /// — so a panic here would abort the handler under `panic = "abort"`.

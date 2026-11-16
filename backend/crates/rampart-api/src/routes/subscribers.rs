@@ -78,7 +78,7 @@ pub fn settings_router() -> Router<AppState> {
 async fn sampling_get(
     State(s): State<AppState>,
 ) -> Result<Json<crate::ingest_util::SamplingConfig>, ApiError> {
-    Ok(Json(crate::ingest_util::sampling_config(s.pool()).await?))
+    Ok(Json(crate::ingest_util::sampling_config(s.pool()?).await?))
 }
 
 async fn sampling_put(
@@ -385,7 +385,7 @@ async fn retention_get(State(s): State<AppState>) -> Result<Json<serde_json::Val
     // Return the *effective* config: the stored blob with every missing tier
     // filled by its real default (so the UI shows exactly what the prune loop
     // uses, not a partial blob).
-    let cfg = rampart_db::prune::load_config(s.pool()).await?;
+    let cfg = rampart_db::prune::load_config(s.pool()?).await?;
     Ok(Json(
         serde_json::to_value(cfg).unwrap_or_else(|_| serde_json::json!({})),
     ))
@@ -427,7 +427,7 @@ async fn retention_put(
 async fn telemetry_token_get(
     State(s): State<AppState>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let token = crate::ingest_util::configured_token(s.pool())
+    let token = crate::ingest_util::configured_token(s.pool()?)
         .await?
         .unwrap_or_default();
     Ok(Json(serde_json::json!({ "token": token })))

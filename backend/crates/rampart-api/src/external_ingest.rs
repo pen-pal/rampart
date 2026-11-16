@@ -86,7 +86,7 @@ pub async fn ingest(
             }
         }
         None => {
-            rampart_db::heartbeats::insert_many(state.pool(), std::slice::from_ref(&hb)).await?;
+            state.store().insert_many(std::slice::from_ref(&hb)).await?;
             if hb.important {
                 state
                     .store()
