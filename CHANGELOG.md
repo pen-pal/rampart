@@ -17,6 +17,17 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Security
+- **Dependency refresh: 32 of 41 RustSec advisories cleared.** `cargo deny` has
+  failed on `main` since 2026-07-07. A semver-compatible `cargo update` (220
+  lockfile packages, no manifest change) fixes advisories in `anyhow`,
+  `crossbeam-epoch`, `ctutils`, `h2`, `hickory-net` / `-proto` / `-resolver`
+  (DNSSEC validation, malformed-packet panics, unbounded retries), `rustls`
+  0.23, `rustls-webpki` 0.103, `tokio`, `webpki-roots` and `webpki-root-certs`.
+  Notable bumps: tokio 1.52.3 → 1.54.1, rustls 0.23.40 → 0.23.46, hickory
+  0.26.1 → 0.26.3, hyper 1.10 → 1.12. The 9 that remain need more than a
+  lockfile update and are handled separately.
+
 ### Docs
 - **Recovery steps for MySQL installs stuck on migration 22** (`docs/SETUP.md`,
   "MySQL: migration 22 stuck"). A boot attempt with the broken migration leaves
