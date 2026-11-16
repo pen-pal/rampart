@@ -322,6 +322,25 @@ button appears on the sign-in page once enabled.
 | Push monitor stuck in Pending            | URL is `<rampart>/push/<token>?status=up`. Token visible on the monitor's overview card |
 | Login form rejects with "wrong password" | Could be the email; remember it's case-insensitive (citext) |
 | Subscriber emails not arriving           | Check `#/settings/smtp`; defaults to "no SMTP configured → silent no-op" |
+| MySQL boot fails: `migration 22 is partially applied` | A build up to v0.157.31 tried MySQL migration 22, which could not succeed (index too long, error 1071). Clean up once, then restart — see [below](#mysql-migration-22-stuck) |
+
+### MySQL: migration 22 stuck
+
+Builds up to and including v0.157.31 shipped a MySQL migration `0022` whose unique index was
+over InnoDB's 3072-byte limit, so it failed on every MySQL 8 / MariaDB server.
+MySQL can't roll back DDL, so the failed attempt leaves two things behind: a
+`totp_recovery_codes` table and a `_sqlx_migrations` row for version 22 with
+`success = 0`. A fixed build refuses to start until they're gone:
+
+```sql
+-- Only the failed row is deleted; every other migration is untouched.
+DROP TABLE IF EXISTS totp_recovery_codes;
+DELETE FROM _sqlx_migrations WHERE version = 22 AND success = 0;
+```
+
+Restart and the remaining migrations apply normally. No user data can be
+affected: migration 22 never completed, so nothing was ever stored in either
+table it creates.
 
 ---
 
