@@ -160,18 +160,18 @@ tonic            = { version = "0.14", default-features = false, features = ["tr
 tonic-health     = "0.14"
 prost            = "0.14"
 # OTLP protobuf message types (trace ingest). Pure-Rust (prost); no C.
-opentelemetry-proto = { version = "0.30", default-features = false, features = ["gen-tonic-messages", "trace", "logs"] }
+opentelemetry-proto = { version = "0.33", default-features = false, features = ["gen-tonic-messages", "trace", "logs"] }
 # Self-observability: Rampart exports its OWN traces + logs via OTLP/HTTP when
 # RAMPART_OTLP_ENDPOINT is set (dogfood; in the example it points at itself).
 # HTTP+reqwest exporter (not grpc/tonic) keeps the tree pure-Rust + ring-only.
-opentelemetry      = "0.30"
-opentelemetry_sdk  = { version = "0.30", features = ["rt-tokio"] }
+opentelemetry      = "0.33"
+opentelemetry_sdk  = { version = "0.33", features = ["rt-tokio"] }
 # reqwest-BLOCKING client (not async): opentelemetry_sdk 0.30's batch processor
 # runs on a dedicated OS thread with no Tokio reactor, so an async client panics
 # ("no reactor running"). The blocking client owns its own runtime internally.
-opentelemetry-otlp = { version = "0.30", default-features = false, features = ["http-proto", "reqwest-blocking-client", "trace", "logs"] }
-opentelemetry-appender-tracing = "0.30"
-tracing-opentelemetry = "0.31"
+opentelemetry-otlp = { version = "0.33", default-features = false, features = ["http-proto", "reqwest-blocking-client", "trace", "logs"] }
+opentelemetry-appender-tracing = "0.33"
+tracing-opentelemetry = "0.34"
 # MQTT client. `use-rustls-no-provider` links rustls 0.23 (webpki 0.103) without
 # choosing a crypto provider, so it resolves to the ring provider `main.rs` /
 # the agent install at startup. The plain `use-rustls` feature would pull

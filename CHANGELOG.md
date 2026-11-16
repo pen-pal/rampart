@@ -29,6 +29,17 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
   verified end to end against a local Rampart. Known, pre-existing: the
   `demo-app` backend's OTLP logs don't arrive in Rampart (0 on the old versions
   too); not fixed here.
+- **Rust OpenTelemetry 0.30 → 0.33** (`opentelemetry`, `_sdk`, `-otlp`,
+  `-appender-tracing`, `-proto`; `tracing-opentelemetry` 0.31 → 0.34). Clears
+  GHSA-w9wp-h8wv-79jx (unbounded `baggage` header parsing). Not reachable in
+  Rampart, which never extracts inbound propagation headers, but the bump was
+  clean. `rampart-api` now uses the workspace `prost` (0.14) to match
+  `opentelemetry-proto`.
+- **Self-telemetry no longer panics at startup.** With `RAMPART_OTLP_ENDPOINT`
+  set, `init_tracing()` built the OTLP exporter's HTTP client before `main`
+  installed the ring crypto provider; on the new exporter that panics with
+  "No provider set". The provider is now installed first. Verified: Rampart
+  exporting to itself ingests its own spans and logs.
 
 ### Security
 - **Dependency refresh: 32 of 41 RustSec advisories cleared.** `cargo deny` has

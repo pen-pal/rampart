@@ -50,8 +50,6 @@ use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let telemetry_guards = init_tracing();
-
     // Install the ring `CryptoProvider` as the global default before
     // any rustls-backed client is constructed. `reqwest 0.13` is
     // configured with the `rustls-no-provider` feature so this is
@@ -60,7 +58,13 @@ async fn main() -> anyhow::Result<()> {
     // `hyper-rustls`, and every other indirect consumer. Returns
     // `Err(())` if a provider was already installed (e.g. from a
     // test re-running this fn); we tolerate that.
+    //
+    // Must run BEFORE `init_tracing()`: with RAMPART_OTLP_ENDPOINT set, it
+    // builds the OTLP exporter's reqwest client, which panics with "No
+    // provider set" if no provider is installed yet.
     let _ = rustls::crypto::ring::default_provider().install_default();
+
+    let telemetry_guards = init_tracing();
 
     let database_url =
         std::env::var("DATABASE_URL").map_err(|_| anyhow::anyhow!("DATABASE_URL not set"))?;
