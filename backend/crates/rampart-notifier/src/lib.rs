@@ -113,25 +113,24 @@ mod error_tests {
     #[tokio::test]
     async fn network_error_text_omits_the_request_url() {
         crate::init_test_crypto();
-        let secret = "SECRET-bot-token-123";
-        // Nothing listens on port 1, so this fails fast with a connect error.
+        // Stand-in for a credential carried in the URL (path and query).
+        let marker = "url-marker-7f3a9c";
+        // Nothing listens on port 1, so this fails at connect, before any TLS.
         let err = reqwest::Client::new()
-            .post(format!(
-                "http://127.0.0.1:1/bot{secret}/send?api_key={secret}"
-            ))
+            .post(format!("https://127.0.0.1:1/bot{marker}/send?k={marker}"))
             .send()
             .await
             .expect_err("connection must fail");
         assert!(
-            err.to_string().contains(secret),
+            err.to_string().contains(marker),
             "precondition: reqwest includes the URL"
         );
         let ce: ChannelError = err.into();
         assert!(matches!(ce, ChannelError::Network(_)));
         assert!(ce.is_retryable());
-        assert!(!ce.to_string().contains(secret), "leaked: {ce}");
+        assert!(!ce.to_string().contains(marker), "leaked: {ce}");
         assert!(
-            !format!("{ce:?}").contains(secret),
+            !format!("{ce:?}").contains(marker),
             "leaked in Debug: {ce:?}"
         );
     }
