@@ -1,10 +1,31 @@
 //! SQLite `settings` domain — key/value with JSON-as-TEXT values. The original
 //! P1-0 spike that proved the SQLite toolchain (driver + `#[sqlx::test]`
-//! fixture). Mirrors the Postgres `settings::get`/`put` key/value upsert minus
-//! the secrets envelope (engine-agnostic; layers on later).
+//! fixture). Mirrors the Postgres `settings::get`/`put` key/value upsert,
+//! including the secrets-at-rest envelope for credential-bearing keys.
 
 use crate::DbResult;
 use sqlx::SqlitePool;
+
+// Same at-rest envelope as Postgres `settings::get`/`put`: credential-bearing
+// keys (smtp, telemetry_token, siem_export, ...) are sealed with
+// RAMPART_SECRET_KEY on write and opened on read. Rows written unsealed by an
+// older build still read back (open passes non-envelope values through) and
+// get sealed on their next write.
+fn open_if_secret(key: &str, v: serde_json::Value) -> serde_json::Value {
+    if crate::settings::is_secret(key) {
+        crate::secrets::open(v)
+    } else {
+        v
+    }
+}
+
+fn seal_if_secret(key: &str, v: &serde_json::Value) -> String {
+    if crate::settings::is_secret(key) {
+        crate::secrets::seal(v).to_string()
+    } else {
+        v.to_string()
+    }
+}
 
 /// Read a settings row, decoding the JSON-as-TEXT value. `None` when absent or
 /// when the stored text isn't valid JSON (defensive — a corrupt row reads as
@@ -14,7 +35,9 @@ pub async fn get_setting(pool: &SqlitePool, key: &str) -> DbResult<Option<serde_
         .bind(key)
         .fetch_optional(pool)
         .await?;
-    Ok(row.and_then(|(v,)| serde_json::from_str(&v).ok()))
+    Ok(row
+        .and_then(|(v,)| serde_json::from_str(&v).ok())
+        .map(|v| open_if_secret(key, v)))
 }
 
 /// Upsert a settings row, encoding the value as JSON text.
@@ -24,7 +47,7 @@ pub async fn put_setting(pool: &SqlitePool, key: &str, value: &serde_json::Value
          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')",
     )
     .bind(key)
-    .bind(value.to_string())
+    .bind(seal_if_secret(key, value))
     .execute(pool)
     .await?;
     Ok(())
