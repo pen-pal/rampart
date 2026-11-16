@@ -17,6 +17,18 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Docs
+- **Recovery steps for MySQL installs stuck on migration 22** (`docs/SETUP.md`,
+  "MySQL: migration 22 stuck"). A boot attempt with the broken migration leaves
+  a `totp_recovery_codes` table and a `success = 0` row in `_sqlx_migrations`,
+  and the fixed build then refuses to start with `migration 22 is partially
+  applied`. The two-statement cleanup was verified against MySQL 8.4: replayed
+  the old migration, confirmed the failed state, ran the cleanup, and the fixed
+  binary booted with all 33 migrations applied.
+- Corrected the `MysqlStore` header, which still described panicking
+  `unimplemented!()` stubs and an unwired boot path; dropped the blanket
+  `#![allow(unused_variables)]` that only existed for those stubs.
+
 ### Security
 - **Silences: closed the remaining cross-org mute, and made silences actually
   mute monitor alerts.** Two gaps in the same feature:
