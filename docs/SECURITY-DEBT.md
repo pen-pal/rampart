@@ -11,15 +11,25 @@ dependency cuts a new major version.
 
 | RUSTSEC | Crate | Via | Why accepted | Fix path |
 |---------|-------|-----|--------------|----------|
-| 2026-0049 | `rustls-webpki` 0.102 / 0.101 | `rumqttc` → `rustls` 0.22, `async-nats` 0.36 (0.102); `tiberius` → `rustls` 0.21 (0.101) | Cert name-constraint / CRL-parse panics. Only reachable on a TLS handshake to an operator-specified MQTT/NATS/MSSQL target presenting a malicious cert; the CRL path is not exercised by default config. | Needs `rustls` 0.23 (`webpki` 0.103) across these. **Blocked:** `rumqttc` 0.25 (the only rustls-0.23 release) pulls `aws-lc-rs`/cmake, breaking the pure-Rust / C-toolchain-free build (see `DEPENDENCIES.md`); `async-nats`/`tiberius` have no semver-compatible fixed release yet. |
-| 2026-0098 | `rustls-webpki` 0.102 | (same) | (same) | (same) |
-| 2026-0099 | `rustls-webpki` 0.102 | (same) | (same) | (same) |
-| 2026-0104 | `rustls-webpki` 0.102 | (same) | (same) | (same) |
-| GHSA-pwjx-qhcg-rvj4 | `rustls-webpki` 0.102 | (same) | CRLs not considered authoritative by `distributionPoint` due to faulty matching logic. Same chain — only affects callers that explicitly opt-in to CRL checking via `RevocationOptions`, which our MQTT probe does not. | (same) |
-| GHSA-82j2-j2ch-gfr8 | `rustls-webpki` 0.102 | (same) | DoS via panic on malformed CRL `BIT STRING`. Same chain — also CRL-only; reachable only when CRL revocation is explicitly enabled, which our default config doesn't do. | (same) |
+| 2026-0049, 0098, 0099, 0104, 0382 | `rustls-webpki` 0.101 / 0.102 | `tiberius` 0.12 → `rustls` 0.21 (0.101, MSSQL probe); `rumqttc` 0.25 (0.102, MQTT probe) | CRL / name-constraint / distrusted-intermediate issues in certificate verification. **0.102 is unreachable:** rumqttc only uses it for an error-enum variant; its handshake verifies through `rustls` 0.23 + `webpki` 0.103 (patched). **0.101 is reachable** only on a TLS connection to an operator-specified MSSQL target with a malicious cert, and the MSSQL probe defaults to `trust_cert: true`, which skips chain verification entirely. | **Blocked on `tiberius`:** 0.12.3 has no rustls-0.23 release; 0.13 dropped rustls for `native-tls` (OpenSSL on Linux), which breaks the pure-Rust build. The 0.102 entries go away when rumqttc drops its direct webpki 0.102 dep. |
+| 2026-0346 | `rustls` 0.21 | `tiberius` (MSSQL probe) | `Debug` impls of client session values include TLS secrets. Only exposed by a custom `ClientSessionStore` that formats them; there is none in the tree. | Same as above (tiberius). |
+| 2026-0349 | `rustls` 0.21 | `tiberius` (MSSQL probe) | Unauthenticated ServerHello can downgrade later key exchange to classical groups. rustls 0.21 has no post-quantum hybrid groups, so there is nothing to downgrade from. | Same as above (tiberius). |
+| 2026-0387 | `crypto-bigint` 0.5 | `elliptic-curve` 0.13 via `p256` (Web Push VAPID ES256 **signing**) and `jsonwebtoken` `rust_crypto` (`p256`/`p384`, OIDC ES* verification) | Some operations meant to be constant-time may branch on secrets depending on compiler/CPU. The secret-key use is VAPID signing of outbound Web Push requests; an attacker can't trigger signings on demand or time them in-process. | `p256` 0.14 (+ `jsonwebtoken` 12). **Blocked:** `p256` 0.14 is only on the RustCrypto release-candidate channel and has to move with the rest of that bundle (see `DEPENDENCIES.md`). When stable: re-run the RFC 8291 known-answer test (Web Push) and an OIDC login. |
+| 2023-0071 | `rsa` 0.9 | `jsonwebtoken` `rust_crypto` | Marvin timing side channel on private-key operations. OIDC uses RSA only to **verify** id_tokens (public key). The GCP Pub/Sub channel **signs** its service-account JWT with RS256, but only when minting an OAuth token (cached for its lifetime), outbound, with no attacker-triggered signing. | `jsonwebtoken` 12 if it moves to `rsa` 0.10 (fixed); verify before bumping. |
+| 2026-0459 | `libsqlite3-sys` 0.37 (bundled SQLite < 3.54) | `sqlx-sqlite` 0.9.0, which caps it at `< 0.38` | Uninitialized page-cache read when opening a database together with a crafted `-wal` file of a different page size. Requires an attacker to place both files where Rampart opens them; the SQLite path is the operator's `DATABASE_URL`. Note: compiled into every build, because the workspace `sqlx` enables the `sqlite` feature. | A `sqlx` release that allows `libsqlite3-sys` ≥ 0.38. |
 
 ## Progress
 
+- ✅ **2026-11-16 refresh: 41 → 0 unaccepted advisories.** `cargo deny` had
+  failed on `main` since 2026-07-07. A semver-compatible `cargo update`
+  cleared 32 (anyhow, crossbeam-epoch, ctutils, h2, hickory-net/-proto/
+  -resolver, rustls 0.23, rustls-webpki 0.103, tokio, webpki-roots,
+  webpki-root-certs). Bumping **`rumqttc` 0.24 → 0.25** (feature
+  `use-rustls-no-provider`, no aws-lc-rs) and **`async-nats` 0.36 → 0.52**
+  (`ring`) removed `rustls` 0.22 entirely and moved both probes' TLS onto
+  rustls 0.23. Both probes re-tested live: local Mosquitto + NATS, and TLS with
+  real certificate verification against test.mosquitto.org:8886 and
+  demo.nats.io:4443. The remaining 7 are in the table above.
 - ✅ **`validator` 0.18 → 0.20** — cleared RUSTSEC-2024-0421 (idna 0.5 dropped).
   Compiled clean with no call-site changes; removed from the ignore list.
 - ✅ **`mongodb` 3.2.0 → 3.7.0 + `hickory-resolver` 0.24 → 0.26** — cleared
@@ -35,18 +45,16 @@ dependency cuts a new major version.
 
 ## Planned upgrade pass
 
-One dependency advisory remains **blocked upstream** — attempted and
-reverted, do not re-try without the upstream change landing first:
+* **`tiberius`** — the last holder of `rustls` 0.21 / `webpki` 0.101. Watch for
+  a release with a rustls-0.23 option and a `ring` (or no-provider) feature;
+  0.13's `native-tls` is not acceptable.
+* **`p256` 0.14 + `jsonwebtoken` 12** — would clear `crypto-bigint` and likely
+  `rsa`. Waits on the coordinated RustCrypto stable release (`DEPENDENCIES.md`).
+  Re-run the Web Push known-answer test and an OIDC login after bumping.
+* **`sqlx`** — next release that lifts the `libsqlite3-sys < 0.38` cap.
 
-* **`rustls-webpki` 2026-0049/0098/0099/0104** — `rumqttc` 0.25.1 (latest)
-  *still* depends on `rustls-webpki 0.102.8` (does not clear the advisory)
-  and additionally drags in `aws-lc-rs` + `cmake` (a C crypto provider,
-  against the pure-Rust / lean-image stance). **Blocked until rumqttc
-  moves off webpki 0.102.**
-
-When this lands, do the bump, re-test the MQTT probe against a live
-broker, and remove the matching entries from the `ignore` list in
-`deny.toml`.
+After each, re-run `cargo deny check advisories` and remove the matching
+entries from the `ignore` list in `deny.toml`.
 
 ## Pending TLS gaps
 

@@ -25,8 +25,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
   (DNSSEC validation, malformed-packet panics, unbounded retries), `rustls`
   0.23, `rustls-webpki` 0.103, `tokio`, `webpki-roots` and `webpki-root-certs`.
   Notable bumps: tokio 1.52.3 → 1.54.1, rustls 0.23.40 → 0.23.46, hickory
-  0.26.1 → 0.26.3, hyper 1.10 → 1.12. The 9 that remain need more than a
-  lockfile update and are handled separately.
+  0.26.1 → 0.26.3, hyper 1.10 → 1.12.
+- **MQTT / NATS probes moved to rustls 0.23.** `rumqttc` 0.24 → 0.25 with
+  `use-rustls-no-provider` (no aws-lc-rs) and `async-nats` 0.36 → 0.52
+  (`ring`) drop `rustls` 0.22 from the tree. No probe code changes; both
+  re-tested against live brokers, including TLS with real certificate
+  verification.
+- **`cargo deny` green again.** The 7 remaining advisories have no fixed
+  release reachable without breaking the pure-Rust build or a major crypto
+  bump; each is documented with reachability and a fix path in
+  `docs/SECURITY-DEBT.md` and listed in `deny.toml`. Owner review requested.
 
 ### Docs
 - **Recovery steps for MySQL installs stuck on migration 22** (`docs/SETUP.md`,

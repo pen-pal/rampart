@@ -172,18 +172,19 @@ opentelemetry_sdk  = { version = "0.30", features = ["rt-tokio"] }
 opentelemetry-otlp = { version = "0.30", default-features = false, features = ["http-proto", "reqwest-blocking-client", "trace", "logs"] }
 opentelemetry-appender-tracing = "0.30"
 tracing-opentelemetry = "0.31"
-rumqttc          = { version = "0.24", default-features = false, features = ["use-rustls"] }
+# MQTT client. `use-rustls-no-provider` links rustls 0.23 (webpki 0.103) without
+# choosing a crypto provider, so it resolves to the ring provider `main.rs` /
+# the agent install at startup. The plain `use-rustls` feature would pull
+# aws-lc-rs + cmake (C crypto). rumqttc still lists rustls-webpki 0.102 as a
+# direct dep, but only for an error-enum variant; certificate verification runs
+# through rustls 0.23. See docs/SECURITY-DEBT.md.
+rumqttc          = { version = "0.25", default-features = false, features = ["use-rustls-no-provider"] }
 tokio-tungstenite = { version = "0.29", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
-# NATS client. `server_2_10` enables the modern protocol surface; we
-# rely only on the basic connect + flush handshake, but the upstream
-# feature gates the protocol version on a flag so we enable it
-# explicitly. No TLS feature — the probe accepts plaintext `nats://`
-# URIs only today; TLS-via-`tls://` is a follow-up.
-# `ring` selects the pure-Rust crypto provider through tokio-rustls;
-# the alternate `aws-lc-rs` feature contradicts the workspace's no-C-
-# crypto stance (see docs/DEPENDENCIES.md). `server_2_10` enables the
-# modern protocol surface.
-async-nats       = { version = "0.36", default-features = false, features = ["server_2_10", "ring"] }
+# NATS client. `server_2_10` enables the modern protocol surface; the probe
+# only needs connect + flush. `ring` selects the pure-Rust crypto provider
+# through tokio-rustls (rustls 0.23); the alternate `aws-lc-rs` feature
+# contradicts the workspace's no-C-crypto stance (see docs/DEPENDENCIES.md).
+async-nats       = { version = "0.52", default-features = false, features = ["server_2_10", "ring"] }
 # LDAP client. Pure-Rust. ldap3 0.12 splits TLS crypto-provider
 # selection into per-backend features — `tls-rustls-ring` matches
 # the rest of the workspace; `tls-rustls-aws-lc-rs` is the alternate
