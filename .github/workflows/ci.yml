@@ -81,6 +81,9 @@ jobs:
         run: cargo clippy -p rampart-db --features sqlite --all-targets -- -D warnings
       - name: test (sqlite backend)
         run: "cargo test -p rampart-db --features sqlite --lib sqlite::"
+      # Own binary: sets RAMPART_SECRET_KEY before the cipher's first use.
+      - name: test (sqlite secret settings sealed at rest)
+        run: cargo test -p rampart-db --features sqlite --test settings_secrets
       - name: build api (sqlite feature — the RAMPART_DB_URL=sqlite flip)
         run: cargo clippy -p rampart-api --features sqlite --bin rampart-api -- -D warnings
       # Drives the real router over a SQLite store: seam-backed endpoints must
@@ -119,6 +122,8 @@ jobs:
         run: cargo clippy -p rampart-db --features mysql --all-targets -- -D warnings
       - name: test (mysql backend)
         run: "cargo test -p rampart-db --features mysql --lib mysql::"
+      - name: test (mysql secret settings sealed at rest)
+        run: cargo test -p rampart-db --features mysql --test settings_secrets
 
   backend-test:
     name: backend · cargo test --workspace

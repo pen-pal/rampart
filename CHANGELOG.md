@@ -18,6 +18,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 ## [Unreleased]
 
 ### Security
+- **SMTP password and other credential settings were stored unencrypted on
+  SQLite and MySQL**, even with `RAMPART_SECRET_KEY` set, while startup logged
+  that credentials were encrypted at rest. Postgres seals the credential-bearing
+  settings keys (`smtp`, `telemetry_token`, `siem_export`,
+  `audit_chain_watermark`); the SQLite and MySQL settings functions skipped
+  that step. They now use the same envelope. Existing plaintext rows still read
+  back and are sealed on their next save, so after upgrading, re-save the SMTP /
+  SIEM settings (or rotate the telemetry token) to encrypt them. Regression test
+  `rampart-db/tests/settings_secrets.rs` (fails without the fix: the SMTP
+  password appears in the stored column) runs in both backend CI jobs.
 - **Dependency refresh: 32 of 41 RustSec advisories cleared.** `cargo deny` has
   failed on `main` since 2026-07-07. A semver-compatible `cargo update` (220
   lockfile packages, no manifest change) fixes advisories in `anyhow`,
@@ -35,6 +45,12 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
   release reachable without breaking the pure-Rust build or a major crypto
   bump; each is documented with reachability and a fix path in
   `docs/SECURITY-DEBT.md` and listed in `deny.toml`. Owner review requested.
+
+### Fixed
+- **Status-page subscriber emails for incidents now send on SQLite / MySQL.**
+  The SMTP config was read with the Postgres pool, so on other backends the
+  incident fan-out skipped sending (#96 turned the previous panic into a silent
+  skip). It now loads through the `Store` seam.
 
 ### Docs
 - **Recovery steps for MySQL installs stuck on migration 22** (`docs/SETUP.md`,

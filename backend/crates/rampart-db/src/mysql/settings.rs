@@ -1,10 +1,31 @@
 //! MySQL `settings` domain — key/value with JSON-as-LONGTEXT values. The P0
 //! spike that proves the MySQL toolchain (driver + `#[sqlx::test]` fixture + the
-//! `ON DUPLICATE KEY UPDATE` upsert). Mirrors the PG/SQLite `settings::get`/`put`
-//! minus the secrets envelope (engine-agnostic; layers on later).
+//! `ON DUPLICATE KEY UPDATE` upsert). Mirrors the PG `settings::get`/`put`,
+//! including the secrets-at-rest envelope for credential-bearing keys.
 
 use crate::DbResult;
 use sqlx::MySqlPool;
+
+// Same at-rest envelope as Postgres `settings::get`/`put`: credential-bearing
+// keys (smtp, telemetry_token, siem_export, ...) are sealed with
+// RAMPART_SECRET_KEY on write and opened on read. Rows written unsealed by an
+// older build still read back (open passes non-envelope values through) and
+// get sealed on their next write.
+fn open_if_secret(key: &str, v: serde_json::Value) -> serde_json::Value {
+    if crate::settings::is_secret(key) {
+        crate::secrets::open(v)
+    } else {
+        v
+    }
+}
+
+fn seal_if_secret(key: &str, v: &serde_json::Value) -> String {
+    if crate::settings::is_secret(key) {
+        crate::secrets::seal(v).to_string()
+    } else {
+        v.to_string()
+    }
+}
 
 /// Read a settings row, decoding the JSON text. `None` when absent or when the
 /// stored text isn't valid JSON (defensive — a corrupt row reads as missing).
@@ -13,7 +34,9 @@ pub async fn get_setting(pool: &MySqlPool, key: &str) -> DbResult<Option<serde_j
         .bind(key)
         .fetch_optional(pool)
         .await?;
-    Ok(row.and_then(|(v,)| serde_json::from_str(&v).ok()))
+    Ok(row
+        .and_then(|(v,)| serde_json::from_str(&v).ok())
+        .map(|v| open_if_secret(key, v)))
 }
 
 /// Upsert a settings row, encoding the value as JSON text. `VALUES(value)` (not
@@ -24,7 +47,7 @@ pub async fn put_setting(pool: &MySqlPool, key: &str, value: &serde_json::Value)
          ON DUPLICATE KEY UPDATE value = VALUES(value)",
     )
     .bind(key)
-    .bind(value.to_string())
+    .bind(seal_if_secret(key, value))
     .execute(pool)
     .await?;
     Ok(())

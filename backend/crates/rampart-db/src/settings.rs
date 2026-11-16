@@ -18,7 +18,7 @@ const SECRET_KEYS: &[&str] = &[
     "audit_chain_watermark",
 ];
 
-fn is_secret(key: &str) -> bool {
+pub(crate) fn is_secret(key: &str) -> bool {
     SECRET_KEYS.contains(&key)
 }
 
