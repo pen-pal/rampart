@@ -1356,4 +1356,93 @@ mod tests {
             EventKind::MaintenanceStarted
         ));
     }
+
+    /// The routed path (attached / tag / folder channels) must honour
+    /// silences, scoped to the silence's own org. Each `dispatch_one` that is
+    /// NOT suppressed records exactly one delivery attempt (it fails — the
+    /// webhook host doesn't resolve — but the attempt is logged either way),
+    /// so the delivery-log count is the observable.
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn routed_monitor_alert_respects_org_scoped_silence(pool: sqlx::PgPool) {
+        crate::init_test_crypto();
+        let store: Arc<dyn Store> = Arc::new(rampart_db::store::PgStore::new(pool.clone()));
+        let org = rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID);
+
+        let monitor = rampart_db::monitors::create(
+            &pool,
+            serde_json::from_value(
+                serde_json::json!({"name": "m", "kind": "http", "url": "https://x.test"}),
+            )
+            .unwrap(),
+            org,
+        )
+        .await
+        .unwrap();
+        let chan = rampart_db::notifications::create(
+            &pool,
+            serde_json::from_value(serde_json::json!({
+                "kind": "webhook", "name": "c",
+                "config": {"url": "https://hooks.example.invalid/x"}
+            }))
+            .unwrap(),
+            org,
+        )
+        .await
+        .unwrap();
+        rampart_db::notifications::attach(&pool, monitor.id, chan.id)
+            .await
+            .unwrap();
+
+        let event = Event {
+            kind: EventKind::StatusFlip,
+            monitor: monitor.clone(),
+            heartbeat: rampart_core::Heartbeat {
+                monitor_id: monitor.id,
+                ts: time::OffsetDateTime::now_utc(),
+                status: rampart_core::MonitorStatus::Down,
+                latency_ms: None,
+                status_code: None,
+                msg: Some("connection refused".into()),
+                retries: 0,
+                important: true,
+            },
+            prev_status: Some(rampart_core::MonitorStatus::Up),
+            slo_current_pct: None,
+        };
+        let attempts = || async { store.list_all_deliveries(100, org).await.unwrap().len() };
+        let silence = |reason: &'static str| rampart_db::silences::NewSilence {
+            monitor_id: None,
+            reason,
+            created_by: None,
+            expires_at: None,
+        };
+
+        // No silence: the routed channel is paged.
+        dispatch_one(store.clone(), event.clone()).await.unwrap();
+        assert_eq!(attempts().await, 1);
+
+        // Another org's global silence must not mute this org's monitor.
+        let other = rampart_db::orgs::create(&pool, "other", "Other")
+            .await
+            .unwrap()
+            .id;
+        rampart_db::silences::create(&pool, silence("theirs"), other)
+            .await
+            .unwrap();
+        dispatch_one(store.clone(), event.clone()).await.unwrap();
+        assert_eq!(attempts().await, 2, "foreign-org silence must not mute");
+
+        // This org's global silence mutes the routed alert...
+        rampart_db::silences::create(&pool, silence("ours"), org)
+            .await
+            .unwrap();
+        dispatch_one(store.clone(), event.clone()).await.unwrap();
+        assert_eq!(attempts().await, 2, "same-org silence must mute");
+
+        // ...but a manual "send test" always goes out.
+        let mut test = event.clone();
+        test.kind = EventKind::Test;
+        dispatch_one(store.clone(), test).await.unwrap();
+        assert_eq!(attempts().await, 3, "Test events bypass silences");
+    }
 }
