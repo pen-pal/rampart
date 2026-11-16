@@ -2,24 +2,9 @@
 //!
 //! `MysqlStore` satisfies the same object-safe [`crate::store::Store`]
 //! super-trait as `PgStore`/`SqliteStore`, so `AppState` can hold
-//! `Arc<dyn Store>` over any of the three backends. The 20 ported P2 domains
-//! (settings, orgs, users, sessions, monitors, tags, heartbeats, proxies,
-//! notifications, delivery_log, escalations, scheduled_reports, audit,
-//! metric_samples, logs, metric_rules, traces, telemetry_rules, slos, detection)
-//! delegate to their `crate::mysql::*` free functions; the remaining domains
-//! (agents, maintenance, digest_buffer, templates, silences, routing,
-//! monitor_groups, error_tracking, profiles, rum, status_pages, incidents,
-//! api_keys, ingest_keys, on_call, …) are `unimplemented!()` stubs that panic if
-//! hit. This proves the seam is satisfiable by MySQL end-to-end at the type level.
-//!
-//! NOT YET WIRED INTO BOOT: a true `DATABASE_URL=mysql://…` end-to-end boot needs
-//! the `mysql:` scheme branch in `main.rs` + the `rampart-api` `mysql` feature
-//! (a follow-up slice, mirroring the SQLite boot flip). `MysqlStore` + `connect`
-//! exist and compile now.
-
-// The not-yet-ported domains are `unimplemented!()` stubs that intentionally
-// ignore their args; allow that here rather than `_`-prefixing ~300 parameters.
-#![allow(unused_variables)]
+//! `Arc<dyn Store>` over any of the three backends. Every domain delegates to
+//! its `crate::mysql::*` free function. Selected at boot by a `mysql://`
+//! `DATABASE_URL` in a binary built with the `rampart-api` `mysql` feature.
 
 use crate::delivery_log::{DeliveryEntry, NewDelivery};
 use crate::detection::{FindingEvent, PreviewResult};
