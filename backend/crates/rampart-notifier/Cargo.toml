@@ -53,3 +53,5 @@ rampart-core = { path = "../rampart-core", features = ["testing"] }
 # `crate::init_test_crypto()` do the same install once per test
 # executable.
 rustls       = { workspace = true }
+# `#[sqlx::test]` for the dispatch-path tests that need a real store.
+sqlx         = { workspace = true }

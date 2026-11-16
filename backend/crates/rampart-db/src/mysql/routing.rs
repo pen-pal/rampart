@@ -270,8 +270,10 @@ mod tests {
             .await
             .unwrap()
             .is_empty());
-        assert!(!silences::is_silenced(&pool, Some(absent.0)).await.unwrap());
-        assert!(!silences::is_silenced(&pool, None).await.unwrap());
+        assert!(!silences::is_silenced(&pool, Some(absent.0), None)
+            .await
+            .unwrap());
+        assert!(!silences::is_silenced(&pool, None, None).await.unwrap());
         assert!(!monitor_groups::any_parent_down(&pool, absent)
             .await
             .unwrap());
@@ -300,7 +302,15 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
-        assert!(silences::is_silenced(&pool, Some(mon.id.0)).await.unwrap());
+        assert!(silences::is_silenced(&pool, Some(mon.id.0), None)
+            .await
+            .unwrap());
+        // A rule/error alert has no monitor: its org comes from the channel paged.
+        assert!(silences::is_silenced(&pool, None, Some(ch.id.0))
+            .await
+            .unwrap());
+        // No monitor and no channel → no org → a global silence never applies.
+        assert!(!silences::is_silenced(&pool, None, None).await.unwrap());
     }
 
     #[sqlx::test(migrations = "../../migrations-mysql")]

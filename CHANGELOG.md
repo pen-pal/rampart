@@ -49,6 +49,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
   `#![allow(unused_variables)]` that only existed for those stubs.
 
 ### Security
+- **Silences: closed the remaining cross-org mute, and made silences actually
+  mute monitor alerts.** Two gaps in the same feature:
+  1. A *global* silence still muted rule, error and escalation alerts in **every**
+     org (the residual noted under 0.157.30): those alerts carry a synthetic
+     monitor, so there was no org to match against. `is_silenced` now also takes
+     the channel being paged; a global silence applies only inside its own org,
+     derived from the monitor row or, failing that, from the channel. With
+     neither resolvable no global silence applies (the alert sends).
+  2. The routed monitor path (`dispatch_one` — attached / tag / folder channels)
+     never consulted silences at all, so since the feature shipped a silence
+     muted SLO, rule and escalation alerts but **not** an ordinary monitor
+     up/down alert. It now checks before fan-out; a manual "send test" still
+     always goes out, and a failed lookup fails open.
+
+  Behaviour change: an active silence now suppresses ordinary monitor alerts
+  (the documented intent), and metric-SLO alerts are muted by their own org's
+  global silence (they previously slipped past it). Postgres, MySQL and SQLite;
+  tests assert cross-org isolation via both monitor and channel.
 - **A single request could kill the server on the SQLite / MySQL backends.**
   `AppState::pool()` `.expect()`-panicked when there is no Postgres pool, and 175
   not-yet-ported `SqliteStore` methods were `unimplemented!()` stubs. The release
