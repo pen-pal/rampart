@@ -18,6 +18,28 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
 ## [Unreleased]
 
 ### Security
+- **Frontend dev tooling:** `npm audit fix` clears all frontend advisories
+  (vite 8.0.16 → 8.3.8, vitest 4.1.8 → 4.1.12, postcss, undici, source-map-js,
+  nanoid). Lockfile only.
+- **Example demo apps:** OpenTelemetry JS bumped to the current SDK
+  (`sdk-node` 0.57 → 0.301, `auto-instrumentations-node` 0.56 → 0.83,
+  `resources` / `sdk-logs` → 3.x), clearing the Prometheus-exporter crash
+  advisories. `otel.js` moved to the new APIs (`resourceFromAttributes`, logs
+  API in `@opentelemetry/api`, log processor passed into the `NodeSDK`). Traces
+  verified end to end against a local Rampart. Known, pre-existing: the
+  `demo-app` backend's OTLP logs don't arrive in Rampart (0 on the old versions
+  too); not fixed here.
+- **Rust OpenTelemetry 0.30 → 0.33** (`opentelemetry`, `_sdk`, `-otlp`,
+  `-appender-tracing`, `-proto`; `tracing-opentelemetry` 0.31 → 0.34). Clears
+  GHSA-w9wp-h8wv-79jx (unbounded `baggage` header parsing). Not reachable in
+  Rampart, which never extracts inbound propagation headers, but the bump was
+  clean. `rampart-api` now uses the workspace `prost` (0.14) to match
+  `opentelemetry-proto`.
+- **Self-telemetry no longer panics at startup.** With `RAMPART_OTLP_ENDPOINT`
+  set, `init_tracing()` built the OTLP exporter's HTTP client before `main`
+  installed the ring crypto provider; on the new exporter that panics with
+  "No provider set". The provider is now installed first. Verified: Rampart
+  exporting to itself ingests its own spans and logs.
 - **Channel credentials leaked into logs and the delivery log on network
   errors.** Many channels carry their secret in the request URL because the
   provider requires it there (Slack / Discord webhook URLs, Telegram bot tokens,
