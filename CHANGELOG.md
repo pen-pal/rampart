@@ -36,8 +36,16 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
   the demo pages' polling).
 - CodeQL `rust/hard-coded-cryptographic-value` in `secrets.rs`: the fixed keys
   were test-only; the tests now generate keys.
-
-### Security
+- **SMTP password and other credential settings were stored unencrypted on
+  SQLite and MySQL**, even with `RAMPART_SECRET_KEY` set, while startup logged
+  that credentials were encrypted at rest. Postgres seals the credential-bearing
+  settings keys (`smtp`, `telemetry_token`, `siem_export`,
+  `audit_chain_watermark`); the SQLite and MySQL settings functions skipped
+  that step. They now use the same envelope. Existing plaintext rows still read
+  back and are sealed on their next save, so after upgrading, re-save the SMTP /
+  SIEM settings (or rotate the telemetry token) to encrypt them. Regression test
+  `rampart-db/tests/settings_secrets.rs` (fails without the fix: the SMTP
+  password appears in the stored column) runs in both backend CI jobs.
 - **Dependency refresh: 32 of 41 RustSec advisories cleared.** `cargo deny` has
   failed on `main` since 2026-07-07. A semver-compatible `cargo update` (220
   lockfile packages, no manifest change) fixes advisories in `anyhow`,
@@ -56,19 +64,24 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
   bump; each is documented with reachability and a fix path in
   `docs/SECURITY-DEBT.md` and listed in `deny.toml`. Owner review requested.
 
-### Docs
-- **Recovery steps for MySQL installs stuck on migration 22** (`docs/SETUP.md`,
-  "MySQL: migration 22 stuck"). A boot attempt with the broken migration leaves
-  a `totp_recovery_codes` table and a `success = 0` row in `_sqlx_migrations`,
-  and the fixed build then refuses to start with `migration 22 is partially
-  applied`. The two-statement cleanup was verified against MySQL 8.4: replayed
-  the old migration, confirmed the failed state, ran the cleanup, and the fixed
-  binary booted with all 33 migrations applied.
-- Corrected the `MysqlStore` header, which still described panicking
-  `unimplemented!()` stubs and an unwired boot path; dropped the blanket
-  `#![allow(unused_variables)]` that only existed for those stubs.
+- **Silences: closed the remaining cross-org mute, and made silences actually
+  mute monitor alerts.** Two gaps in the same feature:
+  1. A *global* silence still muted rule, error and escalation alerts in **every**
+     org (the residual noted under 0.157.30): those alerts carry a synthetic
+     monitor, so there was no org to match against. `is_silenced` now also takes
+     the channel being paged; a global silence applies only inside its own org,
+     derived from the monitor row or, failing that, from the channel. With
+     neither resolvable no global silence applies (the alert sends).
+  2. The routed monitor path (`dispatch_one` — attached / tag / folder channels)
+     never consulted silences at all, so since the feature shipped a silence
+     muted SLO, rule and escalation alerts but **not** an ordinary monitor
+     up/down alert. It now checks before fan-out; a manual "send test" still
+     always goes out, and a failed lookup fails open.
 
-### Security
+  Behaviour change: an active silence now suppresses ordinary monitor alerts
+  (the documented intent), and metric-SLO alerts are muted by their own org's
+  global silence (they previously slipped past it). Postgres, MySQL and SQLite;
+  tests assert cross-org isolation via both monitor and channel.
 - **A single request could kill the server on the SQLite / MySQL backends.**
   `AppState::pool()` `.expect()`-panicked when there is no Postgres pool, and 175
   not-yet-ported `SqliteStore` methods were `unimplemented!()` stubs. The release
@@ -88,6 +101,11 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
   runs in the `backend-sqlite` CI job.
 
 ### Fixed
+- **Status-page subscriber emails for incidents now send on SQLite / MySQL.**
+  The SMTP config was read with the Postgres pool, so on other backends the
+  incident fan-out skipped sending (#96 turned the previous panic into a silent
+  skip). It now loads through the `Store` seam.
+
 - **CI runs again.** `ci.yml` has failed YAML parsing since the multi-DB jobs
   landed (2026-06-23): two `run:` commands end in `sqlite::` / `mysql::`, and a
   plain YAML scalar cannot end in a colon. Every CI run since was a 0-second
@@ -118,6 +136,18 @@ For the procedure to cut a release see [`docs/RELEASING.md`](docs/RELEASING.md).
   (`clippy::unwrap_or_default`), which fails the `-D warnings` gate. Switched to
   `unwrap_or_default()` — behaviour-identical, since the ID newtypes' `Default`
   impl calls `new()`.
+
+### Docs
+- **Recovery steps for MySQL installs stuck on migration 22** (`docs/SETUP.md`,
+  "MySQL: migration 22 stuck"). A boot attempt with the broken migration leaves
+  a `totp_recovery_codes` table and a `success = 0` row in `_sqlx_migrations`,
+  and the fixed build then refuses to start with `migration 22 is partially
+  applied`. The two-statement cleanup was verified against MySQL 8.4: replayed
+  the old migration, confirmed the failed state, ran the cleanup, and the fixed
+  binary booted with all 33 migrations applied.
+- Corrected the `MysqlStore` header, which still described panicking
+  `unimplemented!()` stubs and an unwired boot path; dropped the blanket
+  `#![allow(unused_variables)]` that only existed for those stubs.
 
 ### Helm chart (v0.4.0)
 - **Zero-downtime rolling updates + node-disk-fill guard.** The Deployment now

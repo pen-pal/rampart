@@ -9,18 +9,23 @@ use uuid::Uuid;
 
 /// Is any active silence covering `monitor` (or a global silence)? Mirrors PG:
 /// a silence matches when not expired AND (global OR scoped to this monitor).
-pub async fn is_silenced(pool: &SqlitePool, monitor: Option<Uuid>) -> DbResult<bool> {
+pub async fn is_silenced(
+    pool: &SqlitePool,
+    monitor: Option<Uuid>,
+    channel: Option<Uuid>,
+) -> DbResult<bool> {
     let now = OffsetDateTime::now_utc().unix_timestamp();
-    // A GLOBAL silence (monitor_id IS NULL) only mutes same-org monitors (see PG).
+    // A GLOBAL silence only mutes its own org; the alert's org comes from the
+    // monitor row, else from the channel being paged (see the PG fn doc).
     let (n,): (i64,) = sqlx::query_as(
         "SELECT EXISTS(
             SELECT 1 FROM silences
             WHERE (expires_at IS NULL OR expires_at > ?)
               AND (
                 monitor_id = ?
-                OR (monitor_id IS NULL AND (
-                     ? IS NULL
-                     OR org_id = (SELECT org_id FROM monitors WHERE id = ?)
+                OR (monitor_id IS NULL AND org_id = COALESCE(
+                     (SELECT org_id FROM monitors WHERE id = ?),
+                     (SELECT org_id FROM notifications WHERE id = ?)
                 ))
               )
         )",
@@ -28,7 +33,7 @@ pub async fn is_silenced(pool: &SqlitePool, monitor: Option<Uuid>) -> DbResult<b
     .bind(now)
     .bind(monitor.map(|m| m.to_string()))
     .bind(monitor.map(|m| m.to_string()))
-    .bind(monitor.map(|m| m.to_string()))
+    .bind(channel.map(|c| c.to_string()))
     .fetch_one(pool)
     .await?;
     Ok(n != 0)

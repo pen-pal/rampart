@@ -31,10 +31,18 @@ pub struct Silence {
     pub expires_at: Option<OffsetDateTime>,
 }
 
-/// Is an alert for `monitor` currently silenced? `None` (a rule / non-monitor
-/// alert) matches only global silences; `Some(id)` matches global + that
-/// monitor's silences. One indexed EXISTS.
-pub async fn is_silenced(pool: &DbPool, monitor: Option<Uuid>) -> DbResult<bool> {
+/// Is this alert currently silenced? A monitor-scoped silence matches its
+/// `monitor`. A global silence (`monitor_id IS NULL`) matches only inside its
+/// own org, and the alert's org is derived here: from the monitor row when
+/// `monitor` is a real monitor, else from the `channel` being paged (rule /
+/// error / escalation alerts carry a synthetic monitor; the notifier only pages
+/// same-org channels). With neither resolvable there is no org, so no global
+/// silence applies — fail open, never a cross-tenant mute. One indexed EXISTS.
+pub async fn is_silenced(
+    pool: &DbPool,
+    monitor: Option<Uuid>,
+    channel: Option<Uuid>,
+) -> DbResult<bool> {
     let row = sqlx::query!(
         r#"
         SELECT EXISTS(
@@ -42,14 +50,15 @@ pub async fn is_silenced(pool: &DbPool, monitor: Option<Uuid>) -> DbResult<bool>
             WHERE (expires_at IS NULL OR expires_at > now())
               AND (
                 monitor_id = $1
-                OR (monitor_id IS NULL AND (
-                     $1::uuid IS NULL
-                     OR org_id = (SELECT org_id FROM monitors WHERE id = $1)
+                OR (monitor_id IS NULL AND org_id = COALESCE(
+                     (SELECT org_id FROM monitors WHERE id = $1),
+                     (SELECT org_id FROM notifications WHERE id = $2::uuid)
                 ))
               )
         ) AS "silenced!"
         "#,
         monitor,
+        channel,
     )
     .fetch_one(pool)
     .await?;
@@ -142,9 +151,22 @@ mod tests {
             .unwrap()
             .id
             .0;
+        // Channels: a rule / error alert has no monitor, so the org a global
+        // silence is matched against comes from the channel being paged.
+        let new_chan = |name: &str| -> crate::notifications::NewNotification {
+            serde_json::from_value(serde_json::json!({
+                "kind": "webhook", "name": name, "config": {"url": "https://hooks.example/x"}
+            }))
+            .unwrap()
+        };
+        let chan = crate::notifications::create(&pool, new_chan("c"), def_org())
+            .await
+            .unwrap()
+            .id
+            .0;
         // Nothing silenced initially.
-        assert!(!is_silenced(&pool, Some(mon)).await.unwrap());
-        assert!(!is_silenced(&pool, None).await.unwrap());
+        assert!(!is_silenced(&pool, Some(mon), None).await.unwrap());
+        assert!(!is_silenced(&pool, None, Some(chan)).await.unwrap());
 
         // A global silence in the Default org mutes that org's monitor AND rules (None).
         let g = create(
@@ -159,8 +181,8 @@ mod tests {
         )
         .await
         .unwrap();
-        assert!(is_silenced(&pool, Some(mon)).await.unwrap());
-        assert!(is_silenced(&pool, None).await.unwrap());
+        assert!(is_silenced(&pool, Some(mon), None).await.unwrap());
+        assert!(is_silenced(&pool, None, Some(chan)).await.unwrap());
 
         // Cross-org: a monitor in ANOTHER org is NOT muted by the Default org's
         // global silence — the isolation this fix adds.
@@ -178,15 +200,30 @@ mod tests {
             .id
             .0;
         assert!(
-            !is_silenced(&pool, Some(omon)).await.unwrap(),
+            !is_silenced(&pool, Some(omon), None).await.unwrap(),
             "another org's monitor must not be muted by this org's global silence"
         );
+
+        // Same isolation for alerts with no monitor: paging ANOTHER org's channel
+        // is not muted by the Default org's global silence, and with no monitor
+        // and no channel there is no org at all, so nothing is muted.
+        let ochan = crate::notifications::create(&pool, new_chan("oc"), other)
+            .await
+            .unwrap()
+            .id
+            .0;
+        assert!(!is_silenced(&pool, None, Some(ochan)).await.unwrap());
+        assert!(!is_silenced(&pool, None, None).await.unwrap());
+        // A synthetic (non-existent) monitor id falls back to the channel's org.
+        assert!(is_silenced(&pool, Some(Uuid::new_v4()), Some(chan))
+            .await
+            .unwrap());
 
         // list_active is org-scoped; the silence landed in the Default org.
         assert_eq!(list_active(&pool, def_org()).await.unwrap().len(), 1);
         assert!(delete(&pool, g, def_org()).await.unwrap());
-        assert!(!is_silenced(&pool, None).await.unwrap());
-        assert!(!is_silenced(&pool, Some(mon)).await.unwrap());
+        assert!(!is_silenced(&pool, None, Some(chan)).await.unwrap());
+        assert!(!is_silenced(&pool, Some(mon), None).await.unwrap());
 
         // An expired silence doesn't count.
         create(
@@ -201,6 +238,6 @@ mod tests {
         )
         .await
         .unwrap();
-        assert!(!is_silenced(&pool, None).await.unwrap());
+        assert!(!is_silenced(&pool, None, Some(chan)).await.unwrap());
     }
 }

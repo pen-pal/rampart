@@ -23,6 +23,9 @@ Thumbs.db
 
 # Backend (also covered by backend/.gitignore)
 backend/target/
+# `#[sqlx::test]` on SQLite writes per-test databases under the crate dir and
+# keeps them when a test fails.
+backend/crates/*/target/
 
 # Frontend (also covered by frontend/.gitignore)
 frontend/node_modules/
