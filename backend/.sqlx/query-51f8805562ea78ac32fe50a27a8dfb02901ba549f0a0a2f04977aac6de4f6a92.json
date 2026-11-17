@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT EXISTS(\n            SELECT 1 FROM silences\n            WHERE (expires_at IS NULL OR expires_at > now())\n              AND (\n                monitor_id = $1\n                OR (monitor_id IS NULL AND org_id = COALESCE(\n                     (SELECT org_id FROM monitors WHERE id = $1),\n                     (SELECT org_id FROM notifications WHERE id = $2::uuid)\n                ))\n              )\n        ) AS \"silenced!\"\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "silenced!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "51f8805562ea78ac32fe50a27a8dfb02901ba549f0a0a2f04977aac6de4f6a92"
+}

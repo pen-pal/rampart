@@ -78,8 +78,10 @@ mod tests {
             .await
             .unwrap()
             .is_empty());
-        assert!(!silences::is_silenced(&pool, Some(mid.0)).await.unwrap());
-        assert!(!silences::is_silenced(&pool, None).await.unwrap());
+        assert!(!silences::is_silenced(&pool, Some(mid.0), None)
+            .await
+            .unwrap());
+        assert!(!silences::is_silenced(&pool, None, None).await.unwrap());
         assert!(!monitor_groups::any_parent_down(&pool, mid).await.unwrap());
 
         // Attach a channel to a real monitor → resolve returns it. Insert a
@@ -115,6 +117,14 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
-        assert!(silences::is_silenced(&pool, Some(mid.0)).await.unwrap());
+        assert!(silences::is_silenced(&pool, Some(mid.0), None)
+            .await
+            .unwrap());
+        // A rule/error alert has no monitor: its org comes from the channel paged.
+        assert!(silences::is_silenced(&pool, None, Some(ch.id.0))
+            .await
+            .unwrap());
+        // No monitor and no channel → no org → a global silence never applies.
+        assert!(!silences::is_silenced(&pool, None, None).await.unwrap());
     }
 }

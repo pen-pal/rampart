@@ -21,6 +21,21 @@ async fn sqlite_backend_serves_dashboard_and_501s_postgres_only_routes() {
             .await
             .expect("sqlite connect + migrate"),
     );
+    // SMTP config loads through the Store seam, so status-page subscriber
+    // emails work off Postgres (the incident fan-out used to skip them).
+    assert!(rampart_api::smtp::load(store.as_ref())
+        .await
+        .unwrap()
+        .is_none());
+    let smtp = json!({"host": "smtp.example.com", "port": 587, "encryption": "starttls",
+                      "from": "status@example.com"});
+    store.put_setting("smtp", &smtp).await.unwrap();
+    let cfg = rampart_api::smtp::load(store.as_ref())
+        .await
+        .unwrap()
+        .expect("smtp config");
+    assert_eq!(cfg.host, "smtp.example.com");
+
     let scheduler = Arc::new(rampart_scheduler::Scheduler::with_notifier(
         store.clone(),
         None,

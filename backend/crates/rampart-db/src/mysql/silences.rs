@@ -14,18 +14,23 @@ use uuid::Uuid;
 
 /// Is any active silence covering `monitor` (or a global silence)? Mirrors PG:
 /// a silence matches when not expired AND (global OR scoped to this monitor).
-pub async fn is_silenced(pool: &MySqlPool, monitor: Option<Uuid>) -> DbResult<bool> {
+pub async fn is_silenced(
+    pool: &MySqlPool,
+    monitor: Option<Uuid>,
+    channel: Option<Uuid>,
+) -> DbResult<bool> {
     let now = OffsetDateTime::now_utc().unix_timestamp();
-    // A GLOBAL silence (monitor_id IS NULL) only mutes same-org monitors (see PG).
+    // A GLOBAL silence only mutes its own org; the alert's org comes from the
+    // monitor row, else from the channel being paged (see the PG fn doc).
     let (n,): (i64,) = sqlx::query_as(
         "SELECT EXISTS(
             SELECT 1 FROM silences
             WHERE (expires_at IS NULL OR expires_at > ?)
               AND (
                 monitor_id = ?
-                OR (monitor_id IS NULL AND (
-                     ? IS NULL
-                     OR org_id = (SELECT org_id FROM monitors WHERE id = ?)
+                OR (monitor_id IS NULL AND org_id = COALESCE(
+                     (SELECT org_id FROM monitors WHERE id = ?),
+                     (SELECT org_id FROM notifications WHERE id = ?)
                 ))
               )
         )",
@@ -33,7 +38,7 @@ pub async fn is_silenced(pool: &MySqlPool, monitor: Option<Uuid>) -> DbResult<bo
     .bind(now)
     .bind(monitor.map(|m| m.to_string()))
     .bind(monitor.map(|m| m.to_string()))
-    .bind(monitor.map(|m| m.to_string()))
+    .bind(channel.map(|c| c.to_string()))
     .fetch_one(pool)
     .await?;
     Ok(n != 0)
@@ -116,7 +121,20 @@ mod tests {
             .unwrap()
             .id
             .0;
-        assert!(!is_silenced(&pool, Some(mon)).await.unwrap());
+        // Channels: a rule / error alert has no monitor, so the org a global
+        // silence is matched against comes from the channel being paged.
+        let new_chan = |name: &str| -> crate::notifications::NewNotification {
+            serde_json::from_value(serde_json::json!({
+                "kind": "webhook", "name": name, "config": {"url": "https://hooks.example/x"}
+            }))
+            .unwrap()
+        };
+        let chan = super::super::notifications::create(&pool, new_chan("c"), org)
+            .await
+            .unwrap()
+            .id
+            .0;
+        assert!(!is_silenced(&pool, Some(mon), None).await.unwrap());
 
         // global silence mutes the monitor AND rule (None) alerts.
         let g = create(
@@ -131,8 +149,8 @@ mod tests {
         )
         .await
         .unwrap();
-        assert!(is_silenced(&pool, Some(mon)).await.unwrap());
-        assert!(is_silenced(&pool, None).await.unwrap());
+        assert!(is_silenced(&pool, Some(mon), None).await.unwrap());
+        assert!(is_silenced(&pool, None, Some(chan)).await.unwrap());
         assert_eq!(list_active(&pool, org).await.unwrap().len(), 1);
 
         // cross-org delete is a no-op; same-org delete works.
@@ -145,10 +163,18 @@ mod tests {
             .unwrap()
             .id
             .0;
-        assert!(!is_silenced(&pool, Some(omon)).await.unwrap());
+        assert!(!is_silenced(&pool, Some(omon), None).await.unwrap());
+        // ...nor is an alert paging another org's channel, nor one with no org.
+        let ochan = super::super::notifications::create(&pool, new_chan("oc"), other.id)
+            .await
+            .unwrap()
+            .id
+            .0;
+        assert!(!is_silenced(&pool, None, Some(ochan)).await.unwrap());
+        assert!(!is_silenced(&pool, None, None).await.unwrap());
         assert!(!delete(&pool, g, other.id).await.unwrap());
         assert!(delete(&pool, g, org).await.unwrap());
-        assert!(!is_silenced(&pool, None).await.unwrap());
+        assert!(!is_silenced(&pool, None, Some(chan)).await.unwrap());
 
         // expired silence doesn't count.
         create(
@@ -163,7 +189,7 @@ mod tests {
         )
         .await
         .unwrap();
-        assert!(!is_silenced(&pool, None).await.unwrap());
+        assert!(!is_silenced(&pool, None, Some(chan)).await.unwrap());
         assert!(list_active(&pool, org).await.unwrap().is_empty());
     }
 }

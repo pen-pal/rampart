@@ -344,7 +344,9 @@ pub async fn send_event_to_channel(
 ) -> anyhow::Result<bool> {
     // Silence suppression — the single chokepoint every alert path flows
     // through. A manual channel Test always sends. Monitor-scoped kinds match
-    // that monitor's (or a global) silence; rule/error kinds match only global.
+    // that monitor's (or its org's global) silence; rule/error kinds have no
+    // real monitor, so their org — and thus which global silences apply — is
+    // taken from the channel being paged.
     if !matches!(event.kind, EventKind::Test) {
         let scoped = matches!(
             event.kind,
@@ -355,7 +357,11 @@ pub async fn send_event_to_channel(
                 | EventKind::MaintenanceEnded
         );
         let mon = scoped.then_some(event.monitor.id.0);
-        if store.is_silenced(mon).await.unwrap_or(false) {
+        if store
+            .is_silenced(mon, Some(channel_id.0))
+            .await
+            .unwrap_or(false)
+        {
             tracing::info!(channel = %channel_id.0, "alert suppressed by active silence");
             return Ok(false);
         }
@@ -470,7 +476,7 @@ pub async fn fire_escalation_step(
     };
     // An active silence on the monitor stops the escalation ladder too.
     if store
-        .is_silenced(Some(event.monitor.id.0))
+        .is_silenced(Some(event.monitor.id.0), None)
         .await
         .unwrap_or(false)
     {
@@ -682,6 +688,20 @@ async fn dispatch_one(store: Arc<dyn Store>, event: Event) -> anyhow::Result<()>
         EventKind::MaintenanceStarted | EventKind::MaintenanceEnded
     ) {
         fan_out_maintenance_subscribers(store.as_ref(), &event).await;
+    }
+
+    // Silence suppression for the routed (attached / tag / folder) fan-out.
+    // The direct-send path checks in `send_event_to_channel`; this one never
+    // did, so a silence did not mute an ordinary monitor up/down alert. A
+    // manual Test always sends; a failed lookup fails open (page, don't drop).
+    if !matches!(event.kind, EventKind::Test)
+        && store
+            .is_silenced(Some(event.monitor.id.0), None)
+            .await
+            .unwrap_or(false)
+    {
+        info!(monitor = %event.monitor.id, "notification suppressed by active silence");
+        return Ok(());
     }
 
     // Resolve effective channels: explicitly-attached ∪ tag-matched ∪
@@ -1335,5 +1355,94 @@ mod tests {
             EventKind::MaintenanceStarted,
             EventKind::MaintenanceStarted
         ));
+    }
+
+    /// The routed path (attached / tag / folder channels) must honour
+    /// silences, scoped to the silence's own org. Each `dispatch_one` that is
+    /// NOT suppressed records exactly one delivery attempt (it fails — the
+    /// webhook host doesn't resolve — but the attempt is logged either way),
+    /// so the delivery-log count is the observable.
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn routed_monitor_alert_respects_org_scoped_silence(pool: sqlx::PgPool) {
+        crate::init_test_crypto();
+        let store: Arc<dyn Store> = Arc::new(rampart_db::store::PgStore::new(pool.clone()));
+        let org = rampart_core::ids::OrgId::from_uuid(rampart_core::org::DEFAULT_ORG_ID);
+
+        let monitor = rampart_db::monitors::create(
+            &pool,
+            serde_json::from_value(
+                serde_json::json!({"name": "m", "kind": "http", "url": "https://x.test"}),
+            )
+            .unwrap(),
+            org,
+        )
+        .await
+        .unwrap();
+        let chan = rampart_db::notifications::create(
+            &pool,
+            serde_json::from_value(serde_json::json!({
+                "kind": "webhook", "name": "c",
+                "config": {"url": "https://hooks.example.invalid/x"}
+            }))
+            .unwrap(),
+            org,
+        )
+        .await
+        .unwrap();
+        rampart_db::notifications::attach(&pool, monitor.id, chan.id)
+            .await
+            .unwrap();
+
+        let event = Event {
+            kind: EventKind::StatusFlip,
+            monitor: monitor.clone(),
+            heartbeat: rampart_core::Heartbeat {
+                monitor_id: monitor.id,
+                ts: time::OffsetDateTime::now_utc(),
+                status: rampart_core::MonitorStatus::Down,
+                latency_ms: None,
+                status_code: None,
+                msg: Some("connection refused".into()),
+                retries: 0,
+                important: true,
+            },
+            prev_status: Some(rampart_core::MonitorStatus::Up),
+            slo_current_pct: None,
+        };
+        let attempts = || async { store.list_all_deliveries(100, org).await.unwrap().len() };
+        let silence = |reason: &'static str| rampart_db::silences::NewSilence {
+            monitor_id: None,
+            reason,
+            created_by: None,
+            expires_at: None,
+        };
+
+        // No silence: the routed channel is paged.
+        dispatch_one(store.clone(), event.clone()).await.unwrap();
+        assert_eq!(attempts().await, 1);
+
+        // Another org's global silence must not mute this org's monitor.
+        let other = rampart_db::orgs::create(&pool, "other", "Other")
+            .await
+            .unwrap()
+            .id;
+        rampart_db::silences::create(&pool, silence("theirs"), other)
+            .await
+            .unwrap();
+        dispatch_one(store.clone(), event.clone()).await.unwrap();
+        assert_eq!(attempts().await, 2, "foreign-org silence must not mute");
+
+        // This org's global silence mutes the routed alert...
+        rampart_db::silences::create(&pool, silence("ours"), org)
+            .await
+            .unwrap();
+        dispatch_one(store.clone(), event.clone()).await.unwrap();
+        assert_eq!(attempts().await, 2, "same-org silence must mute");
+
+        // ...but a manual "send test" always goes out.
+        let mut test = event.clone();
+        test.kind = EventKind::Test;
+        dispatch_one(store.clone(), test).await.unwrap();
+        assert_eq!(attempts().await, 3, "Test events bypass silences");
     }
 }
