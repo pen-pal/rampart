@@ -1790,6 +1790,9 @@ async fn fire_result_webhooks(
                     (false, Some(format!("non-2xx: {status}")))
                 }
                 Err(e) => {
+                    // The webhook URL may carry a token; keep it out of logs and
+                    // the delivery log.
+                    let e = e.without_url();
                     warn!(monitor = %mid, error = %e, "result webhook POST failed");
                     (false, Some(e.to_string()))
                 }
