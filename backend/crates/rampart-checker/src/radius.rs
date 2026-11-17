@@ -11,7 +11,7 @@
 //! {
 //!   "secret":   "testing123",   // required: shared secret
 //!   "username": "probe",
-//!   "password": "probe-pass"
+//!   "password": "probe-pass"  // optional; random if unset (Reject = Up)
 //! }
 //! ```
 //!
@@ -74,11 +74,16 @@ impl Probe for RadiusProbe {
             .get("username")
             .and_then(|v| v.as_str())
             .unwrap_or("probe");
-        let password = monitor
-            .config
-            .get("password")
-            .and_then(|v| v.as_str())
-            .unwrap_or("probe");
+        // No configured password: send a random one. Access-Reject still counts
+        // as Up (reachability), and a fixed fallback could match a real account.
+        let random_password;
+        let password = match monitor.config.get("password").and_then(|v| v.as_str()) {
+            Some(p) => p,
+            None => {
+                random_password = format!("{:032x}", rand::random::<u128>());
+                &random_password
+            }
+        };
 
         // 16-byte random Request-Authenticator. Direct `rand::random`
         // rather than zero-init + fill_bytes — CodeQL's
